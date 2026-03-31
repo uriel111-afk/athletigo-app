@@ -110,7 +110,7 @@ const auth = {
       .eq('email', user.email)
       .maybeSingle();
 
-    return profileByEmail || { id: user.id, email: user.email };
+    return profileByEmail || { id: user.id, email: user.email, onboarding_completed: true };
   },
 
   async updateMe(data) {

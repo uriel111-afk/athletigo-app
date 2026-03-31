@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
           .select('*')
           .eq('email', authUser.email)
           .maybeSingle();
-        setUser(byEmail || { id: authUser.id, email: authUser.email });
+        setUser(byEmail || { id: authUser.id, email: authUser.email, onboarding_completed: true });
       }
       setIsAuthenticated(true);
     } catch (error) {
