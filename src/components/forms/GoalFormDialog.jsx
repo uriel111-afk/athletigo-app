@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Target } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useFormPersistence } from "../hooks/useFormPersistence";
 
 const GOAL_TYPES = [
   "חבל",
@@ -44,7 +44,7 @@ const BLOCKERS = [
 export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName, editingGoal = null, onSuccess }) {
   const queryClient = useQueryClient();
   
-  const [formData, setFormData] = useState({
+  const defaultFormData = {
     goal_name: "",
     goal_type: "",
     current_value: "",
@@ -56,41 +56,24 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     main_blockers: [],
     target_date: "",
     extra_notes: ""
-  });
+  };
 
-  useEffect(() => {
-    if (isOpen) {
-      if (editingGoal) {
-        setFormData({
-          goal_name: editingGoal.goal_name || "",
-          goal_type: editingGoal.goal_type || "",
-          current_value: editingGoal.current_value || "",
-          target_value: editingGoal.target_value || "",
-          unit: editingGoal.unit || "",
-          current_status_level: editingGoal.current_status_level || "",
-          current_status_notes: editingGoal.current_status_notes || "",
-          progression_steps: editingGoal.progression_steps || "",
-          main_blockers: editingGoal.main_blockers || [],
-          target_date: editingGoal.target_date ? new Date(editingGoal.target_date).toISOString().split('T')[0] : "",
-          extra_notes: editingGoal.extra_notes || ""
-        });
-      } else {
-        setFormData({
-          goal_name: "",
-          goal_type: "",
-          current_value: "",
-          target_value: "",
-          unit: "",
-          current_status_level: "",
-          current_status_notes: "",
-          progression_steps: "",
-          main_blockers: [],
-          target_date: "",
-          extra_notes: ""
-        });
-      }
-    }
-  }, [isOpen, editingGoal]);
+  const currentDefaults = editingGoal ? {
+    goal_name: editingGoal.goal_name || "",
+    goal_type: editingGoal.goal_type || "",
+    current_value: editingGoal.current_value || "",
+    target_value: editingGoal.target_value || "",
+    unit: editingGoal.unit || "",
+    current_status_level: editingGoal.current_status_level || "",
+    current_status_notes: editingGoal.current_status_notes || "",
+    progression_steps: editingGoal.progression_steps || "",
+    main_blockers: editingGoal.main_blockers || [],
+    target_date: editingGoal.target_date ? new Date(editingGoal.target_date).toISOString().split('T')[0] : "",
+    extra_notes: editingGoal.extra_notes || ""
+  } : defaultFormData;
+
+  const formKey = `goal_form_${editingGoal ? editingGoal.id : 'new'}_${traineeId}`;
+  const [formData, setFormData, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
 
   const createGoalMutation = useMutation({
     mutationFn: (data) => base44.entities.Goal.create(data),
@@ -98,6 +81,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
       if (onSuccess) onSuccess();
+      clearDraft(); // Clear draft on success
       toast.success("היעד נשמר בהצלחה");
       onClose();
     },
@@ -113,6 +97,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
       if (onSuccess) onSuccess();
+      clearDraft(); // Clear draft on success
       toast.success("היעד עודכן בהצלחה");
       onClose();
     },
@@ -164,7 +149,10 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     });
   };
 
-  const isLoading = createGoalMutation.isPending || updateGoalMutation.isPending;
+  const handleCancel = () => {
+    clearDraft();
+    onClose();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -174,6 +162,11 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
             <Target className="w-6 h-6 text-[#FF6F20]" />
             {editingGoal ? 'עריכת יעד' : 'יעד חדש'}
           </DialogTitle>
+          {draftExists && (
+            <div className="text-sm text-gray-500 mt-1">
+              טיוטה שמורה
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -330,7 +323,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
           <div className="flex gap-3 pt-4 border-t border-gray-100 mt-4">
             <Button 
               variant="outline" 
-              onClick={onClose} 
+              onClick={handleCancel} 
               className="flex-1 rounded-xl h-12 font-bold border-gray-300"
             >
               ביטול

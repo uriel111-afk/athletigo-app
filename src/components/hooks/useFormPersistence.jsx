@@ -52,5 +52,21 @@ export function useFormPersistence(key, defaultValues) {
     setValues(defaultValues);
   };
 
-  return [values, setValues, clearDraft];
+  // Check if draft exists (different from default values)
+  const draftExists = (() => {
+    if (key && typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return JSON.stringify(parsed) !== JSON.stringify(defaultValues);
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    return false;
+  })();
+
+  return [values, setValues, clearDraft, draftExists];
 }

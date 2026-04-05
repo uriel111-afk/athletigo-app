@@ -40,7 +40,7 @@ export default function SessionFormDialog({
   } : defaultSessionForm;
 
   const formKey = `session_form_${editingSession ? editingSession.id : 'new'}`;
-  const [sessionForm, setSessionForm, clearDraft] = useFormPersistence(formKey, currentDefaults);
+  const [sessionForm, setSessionForm, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
 
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestForm, setGuestForm] = useState({
@@ -185,6 +185,11 @@ export default function SessionFormDialog({
           <DialogTitle className="text-xl md:text-2xl font-black mb-2" style={{ color: '#000000' }}>
             {editingSession ? '✏️ ערוך מפגש' : '➕ צור מפגש חדש'}
           </DialogTitle>
+          {draftExists && (
+            <div className="text-sm text-gray-500 mt-1">
+              טיוטה שמורה
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-5">

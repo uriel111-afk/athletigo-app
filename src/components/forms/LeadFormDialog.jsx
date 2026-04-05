@@ -58,7 +58,7 @@ export default function LeadFormDialog({
     preferred_time: editingLead.preferred_time || ""
   } : defaultFormState;
 
-  const [leadForm, setLeadForm, clearDraft] = useFormPersistence(formKey, currentDefaults);
+  const [leadForm, setLeadForm, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
 
   const handleCancel = () => {
     clearDraft();
@@ -114,6 +114,11 @@ export default function LeadFormDialog({
           <DialogTitle className="text-2xl md:text-3xl font-black text-[#222]">
             {editingLead ? '✏️ ערוך ליד' : '➕ הוסף ליד חדש'}
           </DialogTitle>
+          {draftExists && (
+            <div className="text-sm text-gray-500 mt-1">
+              טיוטה שמורה
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-6 py-2">

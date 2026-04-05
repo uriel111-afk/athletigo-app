@@ -7,12 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, CheckCircle, Activity } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { toast } from "sonner";
+import { useFormPersistence } from "../hooks/useFormPersistence";
 
 export default function MeasurementFormDialog({ isOpen, onClose, traineeId, traineeName, editingMeasurement = null }) {
   const queryClient = useQueryClient();
   
-  const [formData, setFormData] = useState({
+  const defaultFormData = {
     date: new Date().toISOString().split('T')[0],
     weight_kg: "",
     body_fat_percent: "",
@@ -21,41 +21,28 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     waist_circumference: "",
     hips_circumference: "",
     notes: ""
-  });
+  };
 
-  useEffect(() => {
-    if (isOpen) {
-      if (editingMeasurement) {
-        setFormData({
-          date: editingMeasurement.date,
-          weight_kg: editingMeasurement.weight_kg?.toString() || "",
-          body_fat_percent: editingMeasurement.body_fat_percent?.toString() || "",
-          height_cm: editingMeasurement.height_cm?.toString() || "",
-          chest_circumference: editingMeasurement.chest_circumference?.toString() || "",
-          waist_circumference: editingMeasurement.waist_circumference?.toString() || "",
-          hips_circumference: editingMeasurement.hips_circumference?.toString() || "",
-          notes: editingMeasurement.notes || ""
-        });
-      } else {
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          weight_kg: "",
-          body_fat_percent: "",
-          height_cm: "",
-          chest_circumference: "",
-          waist_circumference: "",
-          hips_circumference: "",
-          notes: ""
-        });
-      }
-    }
-  }, [isOpen, editingMeasurement]);
+  const currentDefaults = editingMeasurement ? {
+    date: editingMeasurement.date,
+    weight_kg: editingMeasurement.weight_kg?.toString() || "",
+    body_fat_percent: editingMeasurement.body_fat_percent?.toString() || "",
+    height_cm: editingMeasurement.height_cm?.toString() || "",
+    chest_circumference: editingMeasurement.chest_circumference?.toString() || "",
+    waist_circumference: editingMeasurement.waist_circumference?.toString() || "",
+    hips_circumference: editingMeasurement.hips_circumference?.toString() || "",
+    notes: editingMeasurement.notes || ""
+  } : defaultFormData;
+
+  const formKey = `measurement_form_${editingMeasurement ? editingMeasurement.id : 'new'}_${traineeId}`;
+  const [formData, setFormData, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
 
   const createMeasurementMutation = useMutation({
     mutationFn: (data) => base44.entities.Measurement.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      clearDraft(); // Clear draft on success
       toast.success("✅ מדידה נוספה");
       onClose();
     },
@@ -66,6 +53,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      clearDraft(); // Clear draft on success
       toast.success("✅ מדידה עודכנה");
       onClose();
     },
@@ -101,7 +89,10 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     }
   };
 
-  const isLoading = createMeasurementMutation.isPending || updateMeasurementMutation.isPending;
+  const handleCancel = () => {
+    clearDraft();
+    onClose();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -110,6 +101,11 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
           <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
             {editingMeasurement ? '✏️ ערוך מדידה' : '➕ הוסף מדידה חדשה'}
           </DialogTitle>
+          {draftExists && (
+            <div className="text-sm text-gray-500 mt-1">
+              טיוטה שמורה
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-6">
@@ -221,7 +217,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
 
           <div className="flex gap-4">
             <Button
-              onClick={onClose}
+              onClick={handleCancel}
               variant="outline"
               className="flex-1 rounded-xl py-6 font-bold"
               style={{ border: '1px solid #E0E0E0', color: '#000000' }}

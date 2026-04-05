@@ -30,7 +30,7 @@ export default function AddTraineeDialog({ open, onClose }) {
     clientStatus: "לקוח פעיל"
   };
 
-  const [formData, setFormData, clearDraft] = useFormPersistence("trainee_form_new", defaultFormData);
+  const [formData, setFormData, clearDraft, draftExists] = useFormPersistence("trainee_form_new", defaultFormData);
 
   useEffect(() => {
     // Load current coach for notifications
@@ -131,6 +131,11 @@ export default function AddTraineeDialog({ open, onClose }) {
           <DialogTitle className="text-2xl font-black text-[#222]">
             יצירת מתאמן חדש
           </DialogTitle>
+          {draftExists && (
+            <div className="text-sm text-gray-500 mt-1">
+              טיוטה שמורה
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-6 py-4">
