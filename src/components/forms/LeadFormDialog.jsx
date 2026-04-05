@@ -87,11 +87,17 @@ export default function LeadFormDialog({
       return;
     }
 
-    // Convert age to number if present
+    // Filter to only include fields that exist in the leads table
     const submissionData = {
-      ...leadForm,
+      full_name: leadForm.full_name,
+      phone: leadForm.phone,
+      email: leadForm.email || null,
+      birth_date: leadForm.birth_date || null,
       age: leadForm.age ? parseInt(leadForm.age) : null,
-      status: leadForm.status || "חדש"
+      main_goal: leadForm.training_goals || null,
+      source: leadForm.source || "אחר",
+      status: leadForm.status || "חדש",
+      coach_notes: leadForm.coach_notes || null
     };
 
     try {

@@ -108,8 +108,8 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
   });
 
   const handleSubmit = async () => {
-    if (!formData.goal_name || !formData.target_date) {
-      toast.error("נא למלא את שדות החובה (שם היעד ותאריך יעד)");
+    if (!formData.goal_name) {
+      toast.error("נא למלא שם היעד");
       return;
     }
 

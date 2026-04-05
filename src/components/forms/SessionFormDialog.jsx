@@ -154,16 +154,6 @@ export default function SessionFormDialog({
       return;
     }
 
-    if (sessionForm.participants.length === 0) {
-      toast.error("יש לבחור לפחות משתתף אחד");
-      return;
-    }
-
-    if (sessionForm.session_type === 'אישי' && sessionForm.participants.length > 1) {
-      toast.error("אימון אישי יכול להכיל משתתף אחד בלבד");
-      return;
-    }
-
     const sessionDataWithStatus = {
       ...sessionForm,
       status: editingSession ? sessionForm.status : 'ממתין לאישור'
