@@ -85,7 +85,7 @@ export default function FinancialOverview() {
     queryKey: ['users-financial'],
     queryFn: async () => {
       const allUsers = await safeFetch(
-        base44.entities.User.list('-created_date', 2000),
+        base44.entities.User.list('-created_at', 2000),
         { fallback: [], context: 'Financial users' }
       );
       return allUsers.filter(u => u.role === 'user');

@@ -41,7 +41,7 @@ export default function Sessions() {
     queryFn: async () => {
       try {
         // Fetch with limit to prevent data loss and filter in memory for safety
-        const allUsers = await base44.entities.User.list('-created_date', 1000);
+        const allUsers = await base44.entities.User.list('-created_at', 1000);
         return allUsers.filter((u) =>
         !u.account_deleted &&
         u.role !== 'admin' &&

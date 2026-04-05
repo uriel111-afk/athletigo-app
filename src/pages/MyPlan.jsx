@@ -135,7 +135,7 @@ export default function MyPlan() {
       try {
         const directPlansPromise = base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-start_date').catch(() => []);
         const assignmentsPromise = base44.entities.TrainingPlanAssignment.filter({ trainee_id: user.id }).catch(() => []);
-        const createdPlansPromise = base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_date').catch(() => []);
+        const createdPlansPromise = base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at').catch(() => []);
 
         const [directPlans, assignments, createdByMe] = await Promise.all([directPlansPromise, assignmentsPromise, createdPlansPromise]);
 
@@ -176,7 +176,7 @@ export default function MyPlan() {
 
   const { data: exercises = [] } = useQuery({
     queryKey: ['exercises'],
-    queryFn: async () => base44.entities.Exercise.list('-created_date', 2000),
+    queryFn: async () => base44.entities.Exercise.list('-created_at', 2000),
     initialData: []
   });
 

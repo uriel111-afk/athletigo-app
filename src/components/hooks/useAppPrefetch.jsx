@@ -28,7 +28,7 @@ export function useAppPrefetch(user) {
           queryClient.prefetchQuery({
             queryKey: QUERY_KEYS.TRAINEES,
             queryFn: async () => {
-              const users = await base44.entities.User.list('-created_date', 1000);
+              const users = await base44.entities.User.list('-created_at', 1000);
               return users.filter(u => u.role === 'user' || u.role === 'trainee');
             },
             ...prefetchOptions
@@ -57,7 +57,7 @@ export function useAppPrefetch(user) {
             queryKey: QUERY_KEYS.PLANS,
             queryFn: async () => {
                try {
-                 return await base44.entities.TrainingPlan.list('-created_date', 1000);
+                 return await base44.entities.TrainingPlan.list('-created_at', 1000);
                } catch { return []; }
             },
             ...prefetchOptions
@@ -68,7 +68,7 @@ export function useAppPrefetch(user) {
             queryKey: QUERY_KEYS.LEADS,
             queryFn: async () => {
                try {
-                 return await base44.entities.Lead.list('-created_date');
+                 return await base44.entities.Lead.list('-created_at');
                } catch { return []; }
             },
             ...prefetchOptions

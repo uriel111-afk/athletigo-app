@@ -7,7 +7,7 @@ export function useLeadStats() {
     queryKey: QUERY_KEYS.LEADS,
     queryFn: async () => {
       try {
-        return await base44.entities.Lead.list('-created_date', 1000);
+        return await base44.entities.Lead.list('-created_at', 1000);
       } catch (error) {
         console.error("[useLeadStats] Error loading leads:", error);
         return [];

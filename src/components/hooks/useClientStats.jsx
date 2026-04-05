@@ -7,7 +7,7 @@ export function useClientStats() {
   const { data: allTrainees = [], isLoading: traineesLoading } = useQuery({
     queryKey: QUERY_KEYS.TRAINEES,
     queryFn: async () => {
-      const users = await base44.entities.User.list('-created_date', 1000);
+      const users = await base44.entities.User.list('-created_at', 1000);
       return users.filter(u => u.role === 'user' || u.role === 'trainee');
     },
     initialData: [],
@@ -19,7 +19,7 @@ export function useClientStats() {
   // 2. Fetch Services (for "Active" check)
   const { data: allServices = [] } = useQuery({
     queryKey: QUERY_KEYS.SERVICES,
-    queryFn: () => base44.entities.ClientService.list('-created_date', 1000),
+    queryFn: () => base44.entities.ClientService.list('-created_at', 1000),
     initialData: [],
     refetchInterval: CACHE_CONFIG.REFETCH_INTERVAL,
     staleTime: CACHE_CONFIG.STALE_TIME,

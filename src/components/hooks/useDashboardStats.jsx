@@ -33,10 +33,10 @@ export function useDashboardStats() {
           leadsTotal
         ] = await Promise.all([
           // 1. All Users (Trainees) - for forms & total count
-          base44.entities.User.list('-created_date', 1000).catch(() => []),
+          base44.entities.User.list('-created_at', 1000).catch(() => []),
           
           // 2. Active Services - for Active Clients count
-          base44.entities.ClientService.filter({ status: 'פעיל' }, '-created_date', 1000).catch(() => []),
+          base44.entities.ClientService.filter({ status: 'פעיל' }, '-created_at', 1000).catch(() => []),
           
           // 3. Paid Services This Month - for Revenue
           base44.entities.ClientService.filter({ 
@@ -60,16 +60,16 @@ export function useDashboardStats() {
           }, '-date', 10).catch(() => []),
 
           // 7. Active Plans
-          base44.entities.TrainingPlan.filter({ status: 'פעילה' }, '-created_date', 1000).catch(() => []),
+          base44.entities.TrainingPlan.filter({ status: 'פעילה' }, '-created_at', 1000).catch(() => []),
 
           // 8. Leads (New)
-          base44.entities.Lead.filter({ status: 'חדש' }, '-created_date', 1000).catch(() => []),
+          base44.entities.Lead.filter({ status: 'חדש' }, '-created_at', 1000).catch(() => []),
 
           // 9. Leads (Converted) - for rate
-          base44.entities.Lead.filter({ status: 'סגור עסקה' }, '-created_date', 1000).catch(() => []),
+          base44.entities.Lead.filter({ status: 'סגור עסקה' }, '-created_at', 1000).catch(() => []),
 
           // 10. Leads (Total) - for rate (limit 1000 approx)
-          base44.entities.Lead.list('-created_date', 1000).catch(() => []),
+          base44.entities.Lead.list('-created_at', 1000).catch(() => []),
         ]);
 
         // --- Process Data (Safe Arrays) ---

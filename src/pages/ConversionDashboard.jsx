@@ -27,7 +27,7 @@ export default function ConversionDashboard() {
     queryKey: ['leads'],
     queryFn: async () => {
       try {
-        return await base44.entities.Lead.list('-created_date');
+        return await base44.entities.Lead.list('-created_at');
       } catch (error) {
         console.error("[ConversionDashboard] Error loading leads:", error);
         return [];
@@ -43,7 +43,7 @@ export default function ConversionDashboard() {
     queryKey: ['all-services'],
     queryFn: async () => {
       try {
-        return await base44.entities.ClientService.list('-created_date');
+        return await base44.entities.ClientService.list('-created_at');
       } catch (error) {
         console.error("[ConversionDashboard] Error loading services:", error);
         return [];
@@ -59,7 +59,7 @@ export default function ConversionDashboard() {
     queryKey: ['all-trainees'],
     queryFn: async () => {
       try {
-        return await base44.entities.User.filter({ role: 'user' }, '-created_date');
+        return await base44.entities.User.filter({ role: 'user' }, '-created_at');
       } catch (error) {
         console.error("[ConversionDashboard] Error loading trainees:", error);
         return [];

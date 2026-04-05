@@ -126,7 +126,7 @@ export default function TrainingPlans() {
     queryFn: async () => { 
       try { 
         // Fetch all potential trainees (users and trainees roles)
-        const users = await base44.entities.User.list('-created_date', 1000);
+        const users = await base44.entities.User.list('-created_at', 1000);
         return users.filter(u => (u.role === 'user' || u.role === 'trainee') && !u.isCoach && u.role !== 'admin');
       } catch { 
         return []; 

@@ -315,7 +315,7 @@ export default function TraineeProfile() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        return await base44.entities.Goal.filter({ trainee_id: user.id }, '-created_date');
+        return await base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at');
       } catch {
         return [];
       }
@@ -357,7 +357,7 @@ export default function TraineeProfile() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        return await base44.entities.ClientService.filter({ trainee_id: user.id }, '-created_date');
+        return await base44.entities.ClientService.filter({ trainee_id: user.id }, '-created_at');
       } catch {
         return [];
       }
@@ -385,8 +385,8 @@ export default function TraineeProfile() {
       try {
         // Fetch both assigned plans AND plans created by the trainee
         const [assigned, created] = await Promise.all([
-          base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-created_date').catch(() => []),
-          base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_date').catch(() => [])
+          base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-created_at').catch(() => []),
+          base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at').catch(() => [])
         ]);
 
         const combined = [...(assigned || []), ...(created || [])];
@@ -445,7 +445,7 @@ export default function TraineeProfile() {
     queryFn: async () => {
       try {
         // Fetch all users and find the coach in memory to avoid 500 error on invalid filter
-        const users = await base44.entities.User.list('-created_date', 1000);
+        const users = await base44.entities.User.list('-created_at', 1000);
         return users.find(u => u.isCoach === true) || null;
       } catch {
         return null;

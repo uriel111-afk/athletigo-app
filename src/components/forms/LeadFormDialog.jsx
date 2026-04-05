@@ -92,12 +92,22 @@ export default function LeadFormDialog({
       full_name: leadForm.full_name,
       phone: leadForm.phone,
       email: leadForm.email || null,
-      birth_date: leadForm.birth_date || null,
       age: leadForm.age ? parseInt(leadForm.age) : null,
-      main_goal: leadForm.training_goals || null,
-      source: leadForm.source || "אחר",
+      city: leadForm.city || null,
       status: leadForm.status || "חדש",
-      coach_notes: leadForm.coach_notes || null
+      source: leadForm.source || "אחר",
+      notes: leadForm.notes || null,
+      coach_notes: leadForm.coach_notes || null,
+      preferred_time: leadForm.preferred_time || null,
+      birth_date: leadForm.birth_date || null,
+      medical_history: leadForm.medical_history || null,
+      parent_name: leadForm.parent_name || null,
+      main_goal: leadForm.main_goal || leadForm.training_goals || null,
+      training_goals: leadForm.training_goals || null,
+      service_interest: leadForm.service_interest || null,
+      specific_interest: leadForm.specific_interest || null,
+      sport_background: leadForm.sport_background || null,
+      fitness_level: leadForm.fitness_level || null
     };
 
     try {

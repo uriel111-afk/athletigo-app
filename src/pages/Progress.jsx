@@ -104,7 +104,7 @@ export default function Progress() {
     queryFn: async () => {
       try {
         const user = await base44.auth.me();
-        return await base44.entities.Goal.filter({ trainee_id: user.id }, '-created_date');
+        return await base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at');
       } catch (error) {
         console.error("[Progress] Error loading goals:", error);
         return [];
