@@ -133,7 +133,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
                 step="0.1"
                 value={formData.weight_kg}
                 onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value })}
-                placeholder="75.5"
+                placeholder="הקלד משקל בק״ג"
                 className="rounded-xl"
                 style={{ border: '1px solid #E0E0E0' }}
               />
@@ -145,7 +145,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
                 step="0.1"
                 value={formData.body_fat_percent}
                 onChange={(e) => setFormData({ ...formData, body_fat_percent: e.target.value })}
-                placeholder="18.5"
+                placeholder="הקלד BMI"
                 className="rounded-xl"
                 style={{ border: '1px solid #E0E0E0' }}
               />
@@ -157,7 +157,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
                 step="0.1"
                 value={formData.height_cm}
                 onChange={(e) => setFormData({ ...formData, height_cm: e.target.value })}
-                placeholder="175"
+                placeholder="הקלד גובה בסנ״מ"
                 className="rounded-xl"
                 style={{ border: '1px solid #E0E0E0' }}
               />
@@ -176,7 +176,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
                   step="0.1"
                   value={formData.chest_circumference}
                   onChange={(e) => setFormData({ ...formData, chest_circumference: e.target.value })}
-                  placeholder="95"
+                  placeholder="הקלד מדידה בסנ״מ"
                   className="rounded-xl"
                   style={{ border: '1px solid #E0E0E0' }}
                 />
@@ -188,7 +188,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
                   step="0.1"
                   value={formData.waist_circumference}
                   onChange={(e) => setFormData({ ...formData, waist_circumference: e.target.value })}
-                  placeholder="80"
+                  placeholder="הקלד מדידה בסנ״מ"
                   className="rounded-xl"
                   style={{ border: '1px solid #E0E0E0' }}
                 />
@@ -200,7 +200,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
                   step="0.1"
                   value={formData.hips_circumference}
                   onChange={(e) => setFormData({ ...formData, hips_circumference: e.target.value })}
-                  placeholder="95"
+                  placeholder="הקלד מדידה בסנ״מ"
                   className="rounded-xl"
                   style={{ border: '1px solid #E0E0E0' }}
                 />

@@ -129,7 +129,7 @@ export default function LeadFormDialog({
                 <Input
                   value={leadForm.full_name}
                   onChange={(e) => setLeadForm({ ...leadForm, full_name: e.target.value })}
-                  placeholder="ישראל ישראלי"
+                  placeholder="הקלד את שמך המלא"
                   className="bg-white rounded-xl border-gray-200 focus:border-[#FF6F20]"
                 />
               </div>
@@ -138,7 +138,7 @@ export default function LeadFormDialog({
                 <Input
                   value={leadForm.phone}
                   onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}
-                  placeholder="050-0000000"
+                  placeholder="הקלד מספר טלפון"
                   className="bg-white rounded-xl border-gray-200 focus:border-[#FF6F20]"
                 />
               </div>
@@ -150,7 +150,7 @@ export default function LeadFormDialog({
                   type="number"
                   value={leadForm.age}
                   onChange={(e) => setLeadForm({ ...leadForm, age: e.target.value })}
-                  placeholder="0"
+                  placeholder="הקלד גיל"
                   className="bg-white rounded-xl border-gray-200"
                 />
               </div>
@@ -159,7 +159,7 @@ export default function LeadFormDialog({
                 <Input
                   value={leadForm.city}
                   onChange={(e) => setLeadForm({ ...leadForm, city: e.target.value })}
-                  placeholder="תל אביב"
+                  placeholder="הקלד עיר מגורים"
                   className="bg-white rounded-xl border-gray-200"
                 />
               </div>
@@ -219,7 +219,7 @@ export default function LeadFormDialog({
               <Textarea
                 value={leadForm.training_goals}
                 onChange={(e) => setLeadForm({ ...leadForm, training_goals: e.target.value })}
-                placeholder="פירוט מטרות..."
+                placeholder="תאר את המטרות שלך בהכשרה"
                 className="rounded-xl border-gray-200 resize-none h-20"
               />
             </div>
@@ -229,7 +229,7 @@ export default function LeadFormDialog({
               <Textarea
                 value={leadForm.medical_history}
                 onChange={(e) => setLeadForm({ ...leadForm, medical_history: e.target.value })}
-                placeholder="פרט במידה ויש..."
+                placeholder="הוסף פרטים אודות ניסיון ספורט קודם"
                 className="rounded-xl border-gray-200 resize-none h-20"
               />
             </div>
@@ -245,7 +245,7 @@ export default function LeadFormDialog({
                   type="email"
                   value={leadForm.email}
                   onChange={(e) => setLeadForm({ ...leadForm, email: e.target.value })}
-                  placeholder="email@example.com"
+                  placeholder="הקלד כתובת אימייל"
                   className="rounded-xl border-gray-200"
                 />
               </div>

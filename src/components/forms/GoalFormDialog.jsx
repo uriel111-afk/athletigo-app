@@ -216,7 +216,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
                   type="number" 
                   value={formData.current_value} 
                   onChange={(e) => setFormData({ ...formData, current_value: e.target.value })}
-                  placeholder="2" 
+                  placeholder="הקלד מספר" 
                   className="rounded-lg h-9 text-center bg-white"
                 />
               </div>
@@ -226,7 +226,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
                   type="number" 
                   value={formData.target_value} 
                   onChange={(e) => setFormData({ ...formData, target_value: e.target.value })}
-                  placeholder="10" 
+                  placeholder="הקלד מספר" 
                   className="rounded-lg h-9 text-center bg-white"
                 />
               </div>

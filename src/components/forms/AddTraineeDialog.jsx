@@ -142,7 +142,7 @@ export default function AddTraineeDialog({ open, onClose }) {
                 value={formData.fullName}
                 onChange={(e) => handleChange('fullName', e.target.value)}
                 className="h-12 rounded-xl border-gray-200 focus:border-[#4CAF50] focus:ring-[#4CAF50]"
-                placeholder="ישראל ישראלי"
+                placeholder="הקלד את שמך המלא"
               />
             </div>
             <div>
@@ -152,7 +152,7 @@ export default function AddTraineeDialog({ open, onClose }) {
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
                 className="h-12 rounded-xl border-gray-200 focus:border-[#4CAF50] focus:ring-[#4CAF50]"
-                placeholder="email@example.com"
+                placeholder="הקלד כתובת אימייל"
               />
             </div>
           </div>
@@ -164,7 +164,7 @@ export default function AddTraineeDialog({ open, onClose }) {
                 value={formData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
                 className="h-12 rounded-xl border-gray-200"
-                placeholder="050-0000000"
+                placeholder="הקלד מספר טלפון"
               />
             </div>
             <div>
