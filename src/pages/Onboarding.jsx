@@ -328,29 +328,47 @@ export default function Onboarding() {
   }, []);
 
   const updateUserMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
-    onSuccess: () => {
+    mutationFn: async (data) => {
+      console.log("[Onboarding] updateUserMutation called with data:", data);
+      const result = await base44.auth.updateMe(data);
+      console.log("[Onboarding] updateUserMutation result:", result);
+      return result;
+    },
+    onSuccess: (result) => {
+      console.log("[Onboarding] updateUserMutation onSuccess:", result);
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    },
+    onError: (error) => {
+      console.error("[Onboarding] updateUserMutation onError:", error);
     }
   });
 
   const notifyCoachMutation = useMutation({
     mutationFn: async () => {
+      console.log("[Onboarding] notifyCoachMutation called");
       // Find the coach (admin) to notify
       let coachId = user?.created_by;
-      
+      console.log("[Onboarding] Initial coachId from user.created_by:", coachId);
+
       // If created_by is self or null, find the main coach
       if (!coachId || coachId === user.id) {
+        console.log("[Onboarding] Finding coach from users list...");
         try {
           const users = await base44.entities.User.list(); // Assuming coach is visible
-          const coach = users.find(u => u.isCoach === true || u.role === 'admin');
-          if (coach) coachId = coach.id;
+          const coach = users.find(u => u.role === 'coach' || u.role === 'admin');
+          if (coach) {
+            coachId = coach.id;
+            console.log("[Onboarding] Found coach:", coach.full_name, coachId);
+          } else {
+            console.log("[Onboarding] No coach found in users list");
+          }
         } catch (err) {
-          console.error("Error finding coach for notification", err);
+          console.error("[Onboarding] Error finding coach for notification:", err);
         }
       }
 
       if (coachId) {
+        console.log("[Onboarding] Creating notification for coach:", coachId);
         await base44.entities.Notification.create({
           user_id: coachId,
           type: "system",
@@ -358,6 +376,9 @@ export default function Onboarding() {
           message: `המתאמן ${formData.full_name || user.full_name} נרשם והשלים את תהליך האונבורדינג בהצלחה.`,
           is_read: false
         });
+        console.log("[Onboarding] Notification created successfully");
+      } else {
+        console.log("[Onboarding] No coachId found, skipping notification");
       }
     }
   });
@@ -399,19 +420,30 @@ export default function Onboarding() {
   };
 
   const handleComplete = async () => {
-    if (updateUserMutation.isPending) return;
+    console.log("[Onboarding] handleComplete called");
+    console.log("[Onboarding] formData:", formData);
+    console.log("[Onboarding] user:", user);
+
+    if (updateUserMutation.isPending) {
+      console.log("[Onboarding] Mutation already pending, returning");
+      return;
+    }
 
     try {
+      console.log("[Onboarding] Starting completion process");
+
       // Merge other_goal into training_goals
       let finalGoals = [...formData.training_goals];
       if (formData.other_goal) {
         finalGoals.push(formData.other_goal);
       }
 
+      console.log("[Onboarding] Final goals:", finalGoals);
+
       const updateData = {
         full_name: formData.full_name,
         phone: formData.phone,
-        birth_date: new Date(formData.birth_date).toISOString(),
+        birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
         training_goals: finalGoals,
         sport_background: formData.sport_background,
         fitness_level: formData.fitness_level,
@@ -421,22 +453,33 @@ export default function Onboarding() {
         motivation: formData.motivation,
         preferred_training_style: formData.preferred_training_style,
         onboarding_notes: formData.onboarding_notes,
-        
-        // Role Logic
-        role: "trainee",
-        onboarding_completed: true
+
       };
 
-      await updateUserMutation.mutateAsync(updateData);
-      await notifyCoachMutation.mutateAsync();
+      console.log("[Onboarding] Update data prepared:", updateData);
 
+      console.log("[Onboarding] Calling updateUserMutation...");
+      await updateUserMutation.mutateAsync(updateData);
+      console.log("[Onboarding] updateUserMutation completed successfully");
+
+      console.log("[Onboarding] Calling notifyCoachMutation...");
+      await notifyCoachMutation.mutateAsync();
+      console.log("[Onboarding] notifyCoachMutation completed successfully");
+
+      console.log("[Onboarding] Showing success toast and redirecting...");
       toast.success("תהליך האונבורדינג הושלם בהצלחה! 🎉");
       setTimeout(() => {
-        window.location.href = createPageUrl("MyPlan");
+        console.log("[Onboarding] Redirecting to TraineeHome...");
+        window.location.href = createPageUrl("TraineeHome");
       }, 1500);
 
     } catch (error) {
-      console.error("Onboarding completion error:", error);
+      console.error("[Onboarding] Completion error:", error);
+      console.error("[Onboarding] Error details:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       toast.error("שגיאה בשמירת הנתונים. נסה שוב.");
     }
   };
