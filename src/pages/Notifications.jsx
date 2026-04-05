@@ -25,7 +25,7 @@ export default function Notifications() {
     queryKey: ['notifications', user?.id],
     queryFn: async () => {
       try {
-        return await base44.entities.Notification.filter({ userId: user?.id }, '-created_date');
+        return await base44.entities.Notification.filter({ user_id: user?.id }, '-created_at');
       } catch {
         return [];
       }
@@ -38,13 +38,13 @@ export default function Notifications() {
     const markAllAsRead = async () => {
       if (!user?.id || notifications.length === 0) return;
 
-      const unreadNotifications = notifications.filter(n => !n.isRead);
+      const unreadNotifications = notifications.filter(n => !n.is_read);
       if (unreadNotifications.length === 0) return;
 
       try {
         // Mark all unread notifications as read
         for (const notification of unreadNotifications) {
-          await base44.entities.Notification.update(notification.id, { isRead: true });
+          await base44.entities.Notification.update(notification.id, { is_read: true });
         }
         // Refresh notifications
         queryClient.invalidateQueries({ queryKey: ['notifications'] });

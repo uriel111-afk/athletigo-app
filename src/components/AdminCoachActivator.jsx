@@ -14,8 +14,7 @@ export default function AdminCoachActivator({ user }) {
       if (isAdminEmail && !user.isCoach) {
         try {
           await base44.auth.updateMe({ 
-            isCoach: true,
-            coach_access_level: 'admin'
+            isCoach: true
           });
           
           console.log(`[AdminCoachActivator] ✅ Activated ADMIN coach access for ${user.email}`);
