@@ -28,13 +28,11 @@ export default function TraineeSessionBooking({ open, onClose, user, coach }) {
       // Create notification for coach about session request
       if (coach?.id && user) {
         await base44.entities.Notification.create({
-          coach_id: coach.id,
-          trainee_id: user.id,
-          trainee_name: user.full_name,
+          user_id: coach.id,
           type: "session_request",
           title: `בקשת פגישה מ-${user.full_name}`,
           message: `${sessionData.session_type} ב-${sessionData.date} בשעה ${sessionData.time}`,
-          related_session_id: newSession.id
+          is_read: false
         });
       }
       

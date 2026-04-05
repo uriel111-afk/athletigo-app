@@ -97,14 +97,11 @@ export default function AddTraineeDialog({ open, onClose }) {
       // 4. Create Notification
       if (coach) {
         await base44.entities.Notification.create({
-          userId: coach.id,
+          user_id: coach.id,
           type: 'new_trainee',
           title: 'מתאמן חדש נוסף',
           message: `המתאמן ${formData.fullName} נוסף למערכת בהצלחה.`,
-          isRead: false,
-          relatedEntityType: 'user',
-          relatedEntityId: newUser.id,
-          actionUrl: createPageUrl(`TraineeProfile?userId=${newUser.id}`)
+          is_read: false
         });
       }
 

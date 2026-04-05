@@ -39,14 +39,11 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
       const newMessage = await base44.entities.Message.create(messageData);
       
       await base44.entities.Notification.create({
-        userId: otherUserId,
+        user_id: otherUserId,
         type: "message",
         title: `הודעה חדשה מ${currentUserName} 💬`,
         message: messageData.content.substring(0, 100),
-        isRead: false,
-        relatedEntityType: "Message",
-        relatedEntityId: newMessage.id,
-        actionUrl: currentUserId.includes('coach') ? `/TraineeProfile` : `/Dashboard`
+        is_read: false
       });
       
       return newMessage;

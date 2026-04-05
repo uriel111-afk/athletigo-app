@@ -201,14 +201,11 @@ export default function TrainingPlans() {
         if (plan.assigned_to) {
           try {
             await base44.entities.Notification.create({
-              userId: plan.assigned_to,
+              user_id: plan.assigned_to,
               type: 'training_plan',
               title: 'תוכנית אימון חדשה 🎯',
               message: `המאמן ${coach.full_name} יצר לך תוכנית חדשה: "${plan.plan_name}"`,
-              isRead: false,
-              relatedEntityType: 'TrainingPlan',
-              relatedEntityId: result.id,
-              actionUrl: createPageUrl("MyPlan")
+              is_read: false
             });
           } catch (error) {
             console.error('[TrainingPlans] Error creating notification:', error);
@@ -243,14 +240,11 @@ export default function TrainingPlans() {
       if (originalPlan?.assigned_to) {
         try {
           await base44.entities.Notification.create({
-            userId: originalPlan.assigned_to,
+            user_id: originalPlan.assigned_to,
             type: 'training_plan',
             title: 'תוכנית עודכנה ✏️',
             message: `התוכנית "${data.plan_name || originalPlan.plan_name}" עודכנה על ידי המאמן`,
-            isRead: false,
-            relatedEntityType: 'TrainingPlan',
-            relatedEntityId: id,
-            actionUrl: createPageUrl("MyPlan")
+            is_read: false
           });
         } catch (error) {
           console.error('[TrainingPlans] Error creating update notification:', error);
@@ -407,14 +401,11 @@ export default function TrainingPlans() {
         // Send notification
         try {
           await base44.entities.Notification.create({
-            userId: trainee.id,
+            user_id: trainee.id,
             type: 'training_plan',
             title: 'תוכנית אימון חדשה 🎯',
             message: `המאמן ${coach.full_name} שיתף איתך תוכנית: "${newPlan.plan_name}"`,
-            isRead: false,
-            relatedEntityType: 'TrainingPlan',
-            relatedEntityId: newPlan.id,
-            actionUrl: createPageUrl("MyPlan")
+            is_read: false
           });
         } catch (error) {
           console.error('[TrainingPlans] Error creating notification:', error);

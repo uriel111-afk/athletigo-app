@@ -352,14 +352,11 @@ export default function Onboarding() {
 
       if (coachId) {
         await base44.entities.Notification.create({
-          userId: coachId,
+          user_id: coachId,
           type: "system",
           title: "אונבורדינג הושלם 🚀",
           message: `המתאמן ${formData.full_name || user.full_name} נרשם והשלים את תהליך האונבורדינג בהצלחה.`,
-          isRead: false,
-          relatedEntityType: "user",
-          relatedEntityId: user.id,
-          actionUrl: createPageUrl("TraineeProfile") + `?userId=${user.id}`
+          is_read: false
         });
       }
     }

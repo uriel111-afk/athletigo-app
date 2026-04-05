@@ -248,14 +248,11 @@ export default function MyPlan() {
       if (user.created_by) {
           try {
               await base44.entities.Notification.create({
-                  userId: user.created_by,
+                  user_id: user.created_by,
                   type: 'training_plan',
                   title: 'תוכנית חדשה מאת מתאמן',
                   message: `המתאמן ${user.full_name} יצר תוכנית חדשה: ${newPlan.plan_name}`,
-                  isRead: false,
-                  relatedEntityType: 'TrainingPlan',
-                  relatedEntityId: newPlan.id,
-                  actionUrl: createPageUrl('AllUsers')
+                  is_read: false
               });
           } catch (e) { console.error("Error notifying coach", e); }
       }

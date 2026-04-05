@@ -183,7 +183,7 @@ export default function CoachNotifications({ coach }) {
                               <div className="flex items-center gap-3 text-xs" style={{ color: '#7D7D7D' }}>
                                 <span>👤 {notification.trainee_name}</span>
                                 <span>•</span>
-                                <span>{new Date(notification.created_date).toLocaleDateString('he-IL')}</span>
+                                <span>{new Date(notification.created_at).toLocaleDateString('he-IL')}</span>
                               </div>
                             </div>
                             

@@ -834,14 +834,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   if (plan.created_by) {
                     try {
                       await base44.entities.Notification.create({
-                        userId: plan.created_by,
+                        user_id: plan.created_by,
                         type: 'workout_completion',
                         title: 'אימון הושלם בהצלחה! 🏆',
                         message: `המתאמן ${plan.assigned_to_name || 'המתאמן'} השלים את אימון "${plan.plan_name}"`,
-                        isRead: false,
-                        relatedEntityType: 'TrainingPlan',
-                        relatedEntityId: plan.id,
-                        actionUrl: createPageUrl("TrainingPlans")
+                        is_read: false
                       });
                     } catch (e) {console.error(e);}
                   }
