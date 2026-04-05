@@ -54,7 +54,10 @@ export default function Leads() {
   });
 
   const createLeadMutation = useMutation({
-    mutationFn: (data) => base44.entities.Lead.create(data),
+    mutationFn: (data) => {
+      console.log("[Leads] Creating lead with data:", data);
+      return base44.entities.Lead.create(data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
@@ -63,7 +66,13 @@ export default function Leads() {
       toast.success("✅ ליד נוסף בהצלחה");
     },
     onError: (error) => {
-      console.error("[Leads] Create error:", error);
+      console.error("[Leads] Create error details:", {
+        message: error.message,
+        status: error.status,
+        statusText: error.statusText,
+        body: error.body,
+        error: error
+      });
       toast.error("❌ שגיאה בהוספת ליד");
     }
   });

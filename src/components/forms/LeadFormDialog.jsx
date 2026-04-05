@@ -93,24 +93,18 @@ export default function LeadFormDialog({
       phone: leadForm.phone,
       email: leadForm.email || null,
       age: leadForm.age ? parseInt(leadForm.age) : null,
-      city: leadForm.city || null,
       status: leadForm.status || "חדש",
       source: leadForm.source || "אחר",
       notes: leadForm.notes || null,
       coach_notes: leadForm.coach_notes || null,
-      preferred_time: leadForm.preferred_time || null,
       birth_date: leadForm.birth_date || null,
       medical_history: leadForm.medical_history || null,
       parent_name: leadForm.parent_name || null,
-      main_goal: leadForm.main_goal || leadForm.training_goals || null,
-      training_goals: leadForm.training_goals || null,
-      service_interest: leadForm.service_interest || null,
-      specific_interest: leadForm.specific_interest || null,
-      sport_background: leadForm.sport_background || null,
-      fitness_level: leadForm.fitness_level || null
+      main_goal: leadForm.main_goal || leadForm.training_goals || null
     };
 
     try {
+      console.log("[LeadFormDialog] Submitting lead with data:", submissionData);
       await onSubmit(submissionData);
       clearDraft(); // Clear draft on success submit
     } catch (error) {

@@ -89,14 +89,15 @@ export default function ServiceManagement({ trainee, services, coach }) {
   const createServiceMutation = useMutation({
     mutationFn: async (serviceData) => {
       const cleanData = prepareServiceData(serviceData);
-      
-      return await base44.entities.ClientService.create({
+      const finalData = {
         ...cleanData,
         trainee_id: trainee.id,
         trainee_name: trainee.full_name,
         created_by_coach: coach?.id || "",
         used_sessions: 0
-      });
+      };
+      console.log('[ServiceManagement] Creating service with data:', finalData);
+      return await base44.entities.ClientService.create(finalData);
     },
     onSuccess: async () => {
       // Invalidate all service-related queries
@@ -136,7 +137,13 @@ export default function ServiceManagement({ trainee, services, coach }) {
       toast.success("החבילה נוספה בהצלחה");
     },
     onError: (error) => {
-      console.error("[ServiceManagement] Create service error:", error);
+      console.error("[ServiceManagement] Create service error details:", {
+        message: error.message,
+        status: error.status,
+        statusText: error.statusText,
+        body: error.body,
+        error: error
+      });
       toast.error("שגיאה ביצירת החבילה");
     }
   });

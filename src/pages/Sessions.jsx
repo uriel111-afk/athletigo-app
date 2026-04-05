@@ -76,7 +76,10 @@ export default function Sessions() {
   });
 
   const createSessionMutation = useMutation({
-    mutationFn: (sessionData) => base44.entities.Session.create(sessionData),
+    mutationFn: (sessionData) => {
+      console.log("[Sessions] Creating session with data:", sessionData);
+      return base44.entities.Session.create(sessionData);
+    },
     onSuccess: async (createdSession) => {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
@@ -101,7 +104,13 @@ export default function Sessions() {
       }
     },
     onError: (error) => {
-      console.error("[Sessions] Create error:", error);
+      console.error("[Sessions] Create error details:", {
+        message: error.message,
+        status: error.status,
+        statusText: error.statusText,
+        body: error.body,
+        error: error
+      });
       toast.error("❌ שגיאה ביצירת המפגש. אנא נסה שוב.");
     }
   });
