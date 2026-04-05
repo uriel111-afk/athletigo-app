@@ -101,10 +101,10 @@ export default function ConversionDashboard() {
   const filteredLeads = getFilteredLeads();
   
   const totalLeads = filteredLeads.length;
-  const newLeads = filteredLeads.filter(l => l.status === 'new').length;
-  const inContact = filteredLeads.filter(l => l.status === 'contacted').length;
-  const converted = filteredLeads.filter(l => l.status === 'closed' || l.converted_to_client).length;
-  const notInterested = filteredLeads.filter(l => l.status === 'not_interested').length;
+  const newLeads = filteredLeads.filter(l => l.status === 'חדש').length;
+  const inContact = filteredLeads.filter(l => l.status === 'בקשר').length;
+  const converted = filteredLeads.filter(l => l.status === 'סגור עסקה' || l.converted_to_client).length;
+  const notInterested = filteredLeads.filter(l => l.status === 'לא מעוניין').length;
   
   const conversionRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0;
   
@@ -117,10 +117,10 @@ export default function ConversionDashboard() {
   };
 
   const statusChartData = [
-    { name: 'New', value: newLeads, color: '#FF6F20' },
-    { name: 'Contacted', value: inContact, color: '#2196F3' },
-    { name: 'Converted', value: converted, color: '#4CAF50' },
-    { name: 'Not Interested', value: notInterested, color: '#9E9E9E' }
+    { name: 'חדש', value: newLeads, color: '#FF6F20' },
+    { name: 'בקשר', value: inContact, color: '#2196F3' },
+    { name: 'הומר', value: converted, color: '#4CAF50' },
+    { name: 'לא מעוניין', value: notInterested, color: '#9E9E9E' }
   ].filter(item => item.value > 0);
 
   const sourceChartData = Object.entries(sourceData)

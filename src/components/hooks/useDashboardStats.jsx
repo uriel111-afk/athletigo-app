@@ -39,11 +39,11 @@ export function useDashboardStats() {
           base44.entities.User.list('-created_at', 1000).catch(() => []),
           
           // 2. Active Services - for Active Clients count
-          base44.entities.ClientService.filter({ status: 'active', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
+          base44.entities.ClientService.filter({ status: 'פעיל', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
           
           // 3. Paid Services This Month - for Revenue
           base44.entities.ClientService.filter({ 
-            payment_status: 'paid',
+            payment_status: 'שולם',
             payment_date: { $gte: startMonthStr, $lte: endMonthStr },
             coach_id: user?.id
           }, '-payment_date', 1000).catch(() => []),
@@ -62,18 +62,18 @@ export function useDashboardStats() {
 
           // 6. Sessions Completed (Recent) - for "Completed" list preview
           base44.entities.Session.filter({
-            status: 'completed',
+            status: 'התקיים',
             coach_id: user?.id
           }, '-date', 10).catch(() => []),
 
           // 7. Active Plans
-          base44.entities.TrainingPlan.filter({ status: 'active', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
+          base44.entities.TrainingPlan.filter({ status: 'פעילה', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
 
           // 8. Leads (New)
-          base44.entities.Lead.filter({ status: 'new', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
+          base44.entities.Lead.filter({ status: 'חדש', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
 
           // 9. Leads (Converted) - for rate
-          base44.entities.Lead.filter({ status: 'closed', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
+          base44.entities.Lead.filter({ status: 'סגור עסקה', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
 
           // 10. Leads (Total) - for rate (limit 1000 approx)
           base44.entities.Lead.filter({ coach_id: user?.id }, '-created_at', 1000).catch(() => []),
@@ -103,8 +103,8 @@ export function useDashboardStats() {
 
         // Sessions
         // Filter "Future" to separate Today vs Upcoming
-        const todaySessions = safeSessionsFuture.filter(s => s.date === todayStr && !['completed', 'no_show', 'cancelled_by_coach', 'cancelled_by_trainee'].includes(s.status));
-        const upcomingSessions = safeSessionsFuture.filter(s => s.date > todayStr && !['completed', 'no_show', 'cancelled_by_coach', 'cancelled_by_trainee'].includes(s.status));
+        const todaySessions = safeSessionsFuture.filter(s => s.date === todayStr && !['התקיים', 'לא הגיע', 'בוטל על ידי מאמן', 'בוטל על ידי מתאמן'].includes(s.status));
+        const upcomingSessions = safeSessionsFuture.filter(s => s.date > todayStr && !['התקיים', 'לא הגיע', 'בוטל על ידי מאמן', 'בוטל על ידי מתאמן'].includes(s.status));
         
         // Service Stats (from Active Services Definitions)
         // Calculate Counts & Revenue by Type
@@ -149,8 +149,8 @@ export function useDashboardStats() {
         }).length;
 
         // Valid Sessions for display
-        const validMonthSessions = safeSessionsMonth.filter(s => !['cancelled_by_coach', 'cancelled_by_trainee', 'no_show'].includes(s.status));
-        const monthlyCompletedSessionsCount = safeSessionsMonth.filter(s => s.status === 'completed').length;
+        const validMonthSessions = safeSessionsMonth.filter(s => !['בוטל על ידי מאמן', 'בוטל על ידי מתאמן', 'לא הגיע'].includes(s.status));
+        const monthlyCompletedSessionsCount = safeSessionsMonth.filter(s => s.status === 'התקיים').length;
 
         // Legacy stats for compatibility
         const serviceStats = {

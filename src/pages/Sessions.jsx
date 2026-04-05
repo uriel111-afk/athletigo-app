@@ -195,7 +195,7 @@ export default function Sessions() {
         // Mapping: Session Type "אישי" -> Service Type "אימונים אישיים"
         if (session.session_type === 'אישי') {
           try {
-            const activeServices = await base44.entities.ClientService.filter({ trainee_id: participant.trainee_id, status: 'active', coach_id: user?.id });
+            const activeServices = await base44.entities.ClientService.filter({ trainee_id: participant.trainee_id, status: 'פעיל', coach_id: user?.id });
             // Robust matching for service type
             const personalService = activeServices.find((s) => 
                 s.service_type === 'אימונים אישיים' || 
@@ -223,7 +223,7 @@ export default function Sessions() {
         if (participant.attendance_status === 'הגיע' || participant.attendance_status === 'attended') {
           if (session.session_type === 'אישי') {
             try {
-              const activeServices = await base44.entities.ClientService.filter({ trainee_id: participant.trainee_id, status: 'active', coach_id: user?.id });
+              const activeServices = await base44.entities.ClientService.filter({ trainee_id: participant.trainee_id, status: 'פעיל', coach_id: user?.id });
               const personalService = activeServices.find((s) => 
                   s.service_type === 'אימונים אישיים' || 
                   s.service_type.includes('אישי')
@@ -333,7 +333,7 @@ export default function Sessions() {
 
       if (wasAttended !== isNowAttended) {
         try {
-          const activeServices = await base44.entities.ClientService.filter({ trainee_id: traineeId, status: 'active', coach_id: user?.id });
+          const activeServices = await base44.entities.ClientService.filter({ trainee_id: traineeId, status: 'פעיל', coach_id: user?.id });
           const personalService = activeServices.find((s) => 
               s.service_type === 'אימונים אישיים' || 
               s.service_type.includes('אישי')

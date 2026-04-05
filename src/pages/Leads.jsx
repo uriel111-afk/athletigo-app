@@ -27,7 +27,7 @@ export default function Leads() {
   const searchParams = new URLSearchParams(window.location.search);
   const filterParam = searchParams.get('filter');
   
-  const [filterStatus, setFilterStatus] = useState(filterParam === 'new' ? 'new' : "all");
+  const [filterStatus, setFilterStatus] = useState(filterParam === 'new' ? 'חדש' : "all");
   const [filterSource, setFilterSource] = useState("all");
   
 
@@ -59,7 +59,7 @@ export default function Leads() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowAddDialog(false);
-      setLeadForm({ full_name: "", phone: "", email: "", source: "אחר", main_goal: "", status: "new", coach_notes: "" });
+      setLeadForm({ full_name: "", phone: "", email: "", source: "אחר", main_goal: "", status: "חדש", coach_notes: "" });
       toast.success("✅ ליד נוסף בהצלחה");
     },
     onError: (error) => {
@@ -180,8 +180,8 @@ export default function Leads() {
     const matchesSource = filterSource === "all" || lead.source === filterSource;
     
     // Special handling for 'new' filter from dashboard which might imply new leads OR leads in contact from this month
-    // But user asked for: status in ["new", "contacted"] and createdDate in current month
-    if (filterParam === 'new' && filterStatus === 'new') {
+    // But user asked for: status in ["חדש", "בקשר"] and createdDate in current month
+    if (filterParam === 'new' && filterStatus === 'חדש') {
         // If explicitly filtered by dashboard tile, we might want to refine the logic further if needed,
         // but setting filterStatus to 'new' is a good approximation.
         // Let's stick to the simple status filter for now to avoid confusion.
@@ -191,10 +191,10 @@ export default function Leads() {
   });
 
   const statusConfig = {
-    "new": { icon: Star, color: '#FF6F20', bg: '#FFF8F3', label: 'New' },
-    "contacted": { icon: Clock, color: '#2196F3', bg: '#E3F2FD', label: 'Contacted' },
-    "closed": { icon: CheckCircle, color: '#4CAF50', bg: '#E8F5E9', label: 'Closed' },
-    "not_interested": { icon: XCircle, color: '#9E9E9E', bg: '#F5F5F5', label: 'Not Interested' }
+    "חדש": { icon: Star, color: '#FF6F20', bg: '#FFF8F3', label: 'New' },
+    "בקשר": { icon: Clock, color: '#2196F3', bg: '#E3F2FD', label: 'Contacted' },
+    "סגור עסקה": { icon: CheckCircle, color: '#4CAF50', bg: '#E8F5E9', label: 'Closed' },
+    "לא מעוניין": { icon: XCircle, color: '#9E9E9E', bg: '#F5F5F5', label: 'Not Interested' }
   };
 
   const sourceIcons = {
@@ -284,10 +284,10 @@ export default function Leads() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">כל הסטטוסים</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="contacted">Contacted</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
-                  <SelectItem value="not_interested">Not Interested</SelectItem>
+                  <SelectItem value="חדש">New</SelectItem>
+                  <SelectItem value="בקשר">Contacted</SelectItem>
+                  <SelectItem value="סגור עסקה">Closed</SelectItem>
+                  <SelectItem value="לא מעוניין">Not Interested</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -334,7 +334,7 @@ export default function Leads() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {filteredLeads.map(lead => {
-                const config = statusConfig[lead.status] || statusConfig["new"];
+                const config = statusConfig[lead.status] || statusConfig["חדש"];
                 const StatusIcon = config.icon;
 
                 return (

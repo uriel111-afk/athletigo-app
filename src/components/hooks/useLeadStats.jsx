@@ -23,7 +23,7 @@ export function useLeadStats() {
     gcTime: CACHE_CONFIG.GC_TIME
   });
 
-  const newLeadsCount = leads.filter(l => l.status === 'new').length;
+  const newLeadsCount = leads.filter(l => l.status === 'חדש').length;
   
   return {
     leads,
