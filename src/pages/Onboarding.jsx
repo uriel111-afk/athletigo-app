@@ -251,16 +251,6 @@ const Step4_Preferences = ({ formData, setFormData }) => (
       </div>
 
       <div className="space-y-2">
-        <Label className="text-right block font-bold">מה הזמנים הנוחים לך להתאמן?</Label>
-        <Input 
-          value={formData.availability}
-          onChange={e => setFormData({...formData, availability: e.target.value})}
-          className="bg-white border-gray-200 h-12 text-right"
-          placeholder="בקרים / ערבים / ימי שישי..."
-        />
-      </div>
-
-      <div className="space-y-2">
         <Label className="text-right block font-bold">מה הכי מניע אותך להתחיל עכשיו?</Label>
         <Textarea 
           value={formData.motivation}
@@ -302,7 +292,6 @@ export default function Onboarding() {
     training_frequency: "",
     motivation: "",
     preferred_training_style: "",
-    availability: "",
     onboarding_notes: "",
     has_limitations: null,
     health_declaration_approved: false
@@ -430,11 +419,10 @@ export default function Onboarding() {
         sport_background: formData.sport_background,
         fitness_level: formData.fitness_level,
         health_issues: formData.health_issues,
-        health_declaration_accepted: true, // Save the approval bit
+        health_declaration_accepted: true,
         training_frequency: formData.training_frequency,
         motivation: formData.motivation,
         preferred_training_style: formData.preferred_training_style,
-        availability: formData.availability,
         onboarding_notes: formData.onboarding_notes,
         
         // Role Logic

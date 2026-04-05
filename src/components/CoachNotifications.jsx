@@ -29,7 +29,7 @@ export default function CoachNotifications({ coach }) {
     queryKey: ['coach-notifications', coach?.id],
     queryFn: async () => {
       if (!coach?.id) return [];
-      return base44.entities.Notification.filter({ coach_id: coach.id }, '-created_date');
+      return base44.entities.Notification.filter({ coach_id: coach.id }, '-created_at');
     },
     initialData: [],
     refetchInterval: 5000,

@@ -8,7 +8,7 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
     queryKey: ['notifications', userId],
     queryFn: async () => {
       try {
-        return await base44.entities.Notification.filter({ userId }, '-created_date');
+        return await base44.entities.Notification.filter({ user_id: userId }, '-created_at');
       } catch {
         return [];
       }
