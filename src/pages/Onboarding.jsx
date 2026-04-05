@@ -430,7 +430,7 @@ export default function Onboarding() {
     }
 
     try {
-      console.log("[Onboarding] Starting completion process");
+      console.log("[Onboarding] Starting fault-tolerant completion process");
 
       // Merge other_goal into training_goals
       let finalGoals = [...formData.training_goals];
@@ -440,7 +440,14 @@ export default function Onboarding() {
 
       console.log("[Onboarding] Final goals:", finalGoals);
 
-      const updateData = {
+      // CRITICAL: These fields MUST be updated to mark onboarding as complete
+      const criticalData = {
+        onboarding_completed: true,
+        role: "trainee"
+      };
+
+      // OPTIONAL: These fields are nice-to-have but shouldn't block completion
+      const optionalData = {
         full_name: formData.full_name,
         phone: formData.phone,
         birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
@@ -452,25 +459,47 @@ export default function Onboarding() {
         training_frequency: formData.training_frequency,
         motivation: formData.motivation,
         preferred_training_style: formData.preferred_training_style,
-        onboarding_notes: formData.onboarding_notes,
-
+        onboarding_notes: formData.onboarding_notes
       };
 
+      // Combine data with critical fields taking precedence
+      const updateData = { ...optionalData, ...criticalData };
+
       console.log("[Onboarding] Update data prepared:", updateData);
+      console.log("[Onboarding] Calling updateUserMutation with fault-tolerance...");
 
-      console.log("[Onboarding] Calling updateUserMutation...");
-      await updateUserMutation.mutateAsync(updateData);
-      console.log("[Onboarding] updateUserMutation completed successfully");
+      try {
+        await updateUserMutation.mutateAsync(updateData);
+        console.log("[Onboarding] updateUserMutation completed successfully");
+      } catch (updateError) {
+        console.error("[Onboarding] updateUserMutation error:", updateError);
+        // Try with only critical fields if full update fails
+        console.log("[Onboarding] Retrying with critical fields only:", criticalData);
+        try {
+          await updateUserMutation.mutateAsync(criticalData);
+          console.log("[Onboarding] Retry with critical fields succeeded");
+          toast.warning("חלק מהשדות לא נשמרו, אך תהליך האונבורדינג הושלם");
+        } catch (criticalError) {
+          console.error("[Onboarding] Critical update failed:", criticalError);
+          throw criticalError; // Re-throw if critical fields fail
+        }
+      }
 
-      console.log("[Onboarding] Calling notifyCoachMutation...");
-      await notifyCoachMutation.mutateAsync();
-      console.log("[Onboarding] notifyCoachMutation completed successfully");
+      // Notify coach - but don't fail the whole process if it fails
+      console.log("[Onboarding] Attempting coach notification (optional)...");
+      try {
+        await notifyCoachMutation.mutateAsync();
+        console.log("[Onboarding] notifyCoachMutation completed successfully");
+      } catch (notifyError) {
+        console.warn("[Onboarding] Coach notification failed (non-critical):", notifyError);
+        // Don't block completion if notification fails
+      }
 
-      console.log("[Onboarding] Showing success toast and redirecting...");
+      console.log("[Onboarding] Onboarding completion successful! Redirecting to dashboard...");
       toast.success("תהליך האונבורדינג הושלם בהצלחה! 🎉");
       setTimeout(() => {
-        console.log("[Onboarding] Redirecting to TraineeHome...");
-        window.location.href = createPageUrl("TraineeHome");
+        console.log("[Onboarding] Redirecting to /dashboard...");
+        window.location.href = "/dashboard";
       }, 1500);
 
     } catch (error) {

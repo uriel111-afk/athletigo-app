@@ -49,8 +49,9 @@ export const AuthProvider = ({ children }) => {
         .eq('id', authUser.id)
         .maybeSingle();
 
+      let userProfile = null;
       if (profile) {
-        setUser(profile);
+        userProfile = profile;
       } else {
         // Fallback to email lookup, then bare auth user
         const { data: byEmail } = await supabase
@@ -58,9 +59,22 @@ export const AuthProvider = ({ children }) => {
           .select('*')
           .eq('email', authUser.email)
           .maybeSingle();
-        setUser(byEmail || { id: authUser.id, email: authUser.email, onboarding_completed: true });
+        userProfile = byEmail || { id: authUser.id, email: authUser.email, onboarding_completed: true };
       }
+      
+      setUser(userProfile);
       setIsAuthenticated(true);
+      
+      // After successful authentication, check if user needs to complete onboarding
+      // If onboarding_completed is false, redirect to /onboarding
+      // If onboarding_completed is true, they're ready for /dashboard
+      if (userProfile && userProfile.onboarding_completed === false && window.location.pathname !== '/onboarding') {
+        console.log('[AuthContext] User needs to complete onboarding, redirecting...');
+        // Use setTimeout to let state update first
+        setTimeout(() => {
+          window.location.href = '/onboarding';
+        }, 300);
+      }
     } catch (error) {
       console.error('Failed to load user profile:', error);
       setAuthError({ type: 'unknown', message: error.message || 'Failed to load profile' });
