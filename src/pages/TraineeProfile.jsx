@@ -357,7 +357,9 @@ export default function TraineeProfile() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        return await base44.entities.ClientService.filter({ trainee_id: user.id, coach_id: currentUser.id }, '-created_at');
+        const filter = { trainee_id: user.id };
+        if (currentUser?.id) filter.coach_id = currentUser.id;
+        return await base44.entities.ClientService.filter(filter, '-created_at');
       } catch {
         return [];
       }
@@ -781,7 +783,7 @@ export default function TraineeProfile() {
           trainee_id: user.id,
           trainee_name: user.full_name,
           used_sessions: 0,
-          created_by_coach: currentUser.id
+          created_by_coach: currentUser?.id || null
       });
     }
   };
@@ -818,6 +820,10 @@ export default function TraineeProfile() {
 
     try {
         // 1. Create Session Record (Status: Attended)
+        if (!currentUser?.id) {
+            toast.error("שגיאה: לא ניתן לטעון את פרטי המאמן. אנא רענן את הדף.");
+            return;
+        }
         await base44.entities.Session.create({
             date: manualAttendanceForm.date,
             time: manualAttendanceForm.time,
@@ -839,7 +845,9 @@ export default function TraineeProfile() {
         // 2. If Personal Training, update package
         if (manualAttendanceForm.session_type === 'אישי') {
             // Fetch fresh services to ensure data consistency
-            const userServices = await base44.entities.ClientService.filter({ trainee_id: user.id, status: 'פעיל', coach_id: currentUser.id });
+            const filterObj = { trainee_id: user.id, status: 'פעיל' };
+            if (currentUser?.id) filterObj.coach_id = currentUser.id;
+            const userServices = await base44.entities.ClientService.filter(filterObj);
             const activePackage = userServices.find(s => s.service_type === 'אימונים אישיים' || s.service_type.includes('אישי'));
             
             if (activePackage) {
