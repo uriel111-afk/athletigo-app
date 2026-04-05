@@ -52,6 +52,11 @@ export const AuthProvider = ({ children }) => {
       let userProfile = null;
       if (profile) {
         userProfile = profile;
+        console.log('[AuthContext] Loaded user profile:', {
+          id: userProfile.id,
+          email: userProfile.email,
+          onboarding_completed: userProfile.onboarding_completed
+        });
       } else {
         // Fallback to email lookup, then bare auth user
         const { data: byEmail } = await supabase
@@ -59,20 +64,42 @@ export const AuthProvider = ({ children }) => {
           .select('*')
           .eq('email', authUser.email)
           .maybeSingle();
-        userProfile = byEmail || { id: authUser.id, email: authUser.email, onboarding_completed: true };
+        userProfile = byEmail || { id: authUser.id, email: authUser.email, onboarding_completed: false };
+        console.log('[AuthContext] User profile created/fallback:', {
+          id: userProfile.id,
+          email: userProfile.email,
+          onboarding_completed: userProfile.onboarding_completed
+        });
       }
       
       setUser(userProfile);
       setIsAuthenticated(true);
       
-      // After successful authentication, check if user needs to complete onboarding
-      // If onboarding_completed is false, redirect to /onboarding
-      // If onboarding_completed is true, they're ready for /dashboard
-      if (userProfile && userProfile.onboarding_completed === false && window.location.pathname !== '/onboarding') {
-        console.log('[AuthContext] User needs to complete onboarding, redirecting...');
-        // Use setTimeout to let state update first
+      // EXPLICIT ROUTING LOGIC:
+      // If onboarding_completed === true, they can go anywhere (will go to dashboard from home)
+      // If onboarding_completed === false or null/undefined, MUST go to /onboarding
+      const isOnboardingComplete = userProfile?.onboarding_completed === true;
+      const isCurrentlyOnOnboarding = window.location.pathname === '/onboarding';
+      const isCurrentlyOnLogin = window.location.pathname === '/login';
+      const isCurrentlyOnRoot = window.location.pathname === '/' || window.location.pathname === '';
+      
+      console.log('[AuthContext] Routing check:', {
+        isOnboardingComplete,
+        currentPath: window.location.pathname,
+        isCurrentlyOnOnboarding,
+        isCurrentlyOnLogin
+      });
+      
+      // If they need to onboard and aren't already on onboarding/login, redirect them
+      if (!isOnboardingComplete && !isCurrentlyOnOnboarding && !isCurrentlyOnLogin && !isCurrentlyOnRoot) {
+        console.log('[AuthContext] User needs onboarding, redirecting to /onboarding');
         setTimeout(() => {
           window.location.href = '/onboarding';
+        }, 300);
+      } else if (isOnboardingComplete && isCurrentlyOnOnboarding) {
+        console.log('[AuthContext] User already completed onboarding but is on /onboarding page, redirecting to /dashboard');
+        setTimeout(() => {
+          window.location.href = '/dashboard';
         }, 300);
       }
     } catch (error) {

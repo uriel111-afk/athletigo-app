@@ -497,11 +497,13 @@ export default function Onboarding() {
 
       console.log("[Onboarding] Onboarding completion successful! Redirecting to dashboard...");
       toast.success("תהליך האונבורדינג הושלם בהצלחה! 🎉");
-      setTimeout(() => {
-        console.log("[Onboarding] Redirecting to /dashboard...");
-        window.location.href = "/dashboard";
-      }, 1500);
-
+      
+      // Give a moment for the database to fully confirm the update
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log("[Onboarding] Now redirecting to /dashboard...");
+      window.location.href = "/dashboard";
+      
     } catch (error) {
       console.error("[Onboarding] Completion error:", error);
       console.error("[Onboarding] Error details:", {
