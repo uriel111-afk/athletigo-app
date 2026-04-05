@@ -18,8 +18,8 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
     queryKey: ['messages', currentUserId, otherUserId],
     queryFn: async () => {
       try {
-        const sent = await base44.entities.Message.filter({ senderId: currentUserId, receiverId: otherUserId });
-        const received = await base44.entities.Message.filter({ senderId: otherUserId, receiverId: currentUserId });
+        const sent = await base44.entities.Message.filter({ sender_id: currentUserId, receiver_id: otherUserId });
+        const received = await base44.entities.Message.filter({ sender_id: otherUserId, receiver_id: currentUserId });
         const allMessages = [...sent, ...received].sort((a, b) => 
           new Date(a.created_date) - new Date(b.created_date)
         );
@@ -68,7 +68,7 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
   });
 
   useEffect(() => {
-    const unreadMessages = messages.filter(m => m.receiverId === currentUserId && !m.isRead);
+    const unreadMessages = messages.filter(m => m.receiver_id === currentUserId && !m.is_read);
     if (unreadMessages.length > 0) {
       markAsReadMutation.mutate(unreadMessages.map(m => m.id));
     }
@@ -85,13 +85,13 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
     }
 
     await sendMessageMutation.mutateAsync({
-      senderId: currentUserId,
-      senderName: currentUserName,
-      receiverId: otherUserId,
-      receiverName: otherUserName,
-      relatedUserId: relatedUserId || otherUserId,
+      sender_id: currentUserId,
+      sender_name: currentUserName,
+      receiver_id: otherUserId,
+      receiver_name: otherUserName,
+      related_user_id: relatedUserId || otherUserId,
       content: messageText,
-      isRead: false
+      is_read: false
     });
   };
 
@@ -115,7 +115,7 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
           </div>
         ) : (
           messages.map((message) => {
-            const isMe = message.senderId === currentUserId;
+            const isMe = message.sender_id === currentUserId;
             return (
               <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div

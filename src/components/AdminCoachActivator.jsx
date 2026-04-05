@@ -11,10 +11,10 @@ export default function AdminCoachActivator({ user }) {
       
       const isAdminEmail = ADMIN_EMAILS.includes(user.email);
       
-      if (isAdminEmail && !user.isCoach) {
+      if (isAdminEmail && user.role !== 'coach') {
         try {
           await base44.auth.updateMe({ 
-            isCoach: true
+            role: 'coach'
           });
           
           console.log(`[AdminCoachActivator] ✅ Activated ADMIN coach access for ${user.email}`);

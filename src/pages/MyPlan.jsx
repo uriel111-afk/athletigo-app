@@ -184,7 +184,7 @@ export default function MyPlan() {
     queryKey: ['my-workout-history', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      return await base44.entities.WorkoutHistory.filter({ userId: user.id }, '-date');
+      return await base44.entities.WorkoutHistory.filter({ user_id: user.id }, '-date');
     },
     enabled: !!user?.id
   });
