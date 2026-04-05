@@ -57,6 +57,34 @@ function createEntity(tableName) {
         if (value !== null && typeof value === 'object' && '$elemMatch' in value) {
           // JSONB array contains — e.g. participants: { $elemMatch: { trainee_id: '...' } }
           query = query.contains(key, [value.$elemMatch]);
+        } else if (value !== null && typeof value === 'object') {
+          // Handle operators like $gte, $lte, etc.
+          for (const [op, val] of Object.entries(value)) {
+            switch (op) {
+              case '$gte':
+                query = query.gte(key, val);
+                break;
+              case '$lte':
+                query = query.lte(key, val);
+                break;
+              case '$gt':
+                query = query.gt(key, val);
+                break;
+              case '$lt':
+                query = query.lt(key, val);
+                break;
+              case '$ne':
+                query = query.neq(key, val);
+                break;
+              case '$in':
+                query = query.in(key, val);
+                break;
+              // Add more if needed
+              default:
+                // Unknown operator, ignore or throw
+                break;
+            }
+          }
         } else {
           query = query.eq(key, value);
         }

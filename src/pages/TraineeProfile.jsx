@@ -357,7 +357,7 @@ export default function TraineeProfile() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        return await base44.entities.ClientService.filter({ trainee_id: user.id }, '-created_at');
+        return await base44.entities.ClientService.filter({ trainee_id: user.id, coach_id: currentUser.id }, '-created_at');
       } catch {
         return [];
       }
@@ -839,7 +839,7 @@ export default function TraineeProfile() {
         // 2. If Personal Training, update package
         if (manualAttendanceForm.session_type === 'אישי') {
             // Fetch fresh services to ensure data consistency
-            const userServices = await base44.entities.ClientService.filter({ trainee_id: user.id, status: 'פעיל' });
+            const userServices = await base44.entities.ClientService.filter({ trainee_id: user.id, status: 'active', coach_id: currentUser.id });
             const activePackage = userServices.find(s => s.service_type === 'אימונים אישיים' || s.service_type.includes('אישי'));
             
             if (activePackage) {

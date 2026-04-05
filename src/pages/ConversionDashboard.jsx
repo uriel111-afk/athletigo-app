@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, Users, CheckCircle, XCircle, Clock, Star, Target, Calendar, BarChart3, Loader2 } from "lucide-react";
@@ -6,10 +6,13 @@ import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } fro
 import { he } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
+import { AuthContext } from "@/lib/AuthContext";
 
 export default function ConversionDashboard() {
   const [coach, setCoach] = useState(null);
   const [timeRange, setTimeRange] = useState("month");
+
+  const { user } = useContext(AuthContext);
 
   useEffect(() => {
     const loadCoach = async () => {
@@ -27,7 +30,7 @@ export default function ConversionDashboard() {
     queryKey: ['leads'],
     queryFn: async () => {
       try {
-        return await base44.entities.Lead.list('-created_at');
+        return await base44.entities.Lead.filter({ coach_id: user?.id }, '-created_at');
       } catch (error) {
         console.error("[ConversionDashboard] Error loading leads:", error);
         return [];
@@ -43,7 +46,7 @@ export default function ConversionDashboard() {
     queryKey: ['all-services'],
     queryFn: async () => {
       try {
-        return await base44.entities.ClientService.list('-created_at');
+        return await base44.entities.ClientService.filter({ coach_id: user?.id }, '-created_at');
       } catch (error) {
         console.error("[ConversionDashboard] Error loading services:", error);
         return [];
@@ -98,10 +101,10 @@ export default function ConversionDashboard() {
   const filteredLeads = getFilteredLeads();
   
   const totalLeads = filteredLeads.length;
-  const newLeads = filteredLeads.filter(l => l.status === 'חדש').length;
-  const inContact = filteredLeads.filter(l => l.status === 'בקשר').length;
-  const converted = filteredLeads.filter(l => l.status === 'סגור עסקה' || l.converted_to_client).length;
-  const notInterested = filteredLeads.filter(l => l.status === 'לא מעוניין').length;
+  const newLeads = filteredLeads.filter(l => l.status === 'new').length;
+  const inContact = filteredLeads.filter(l => l.status === 'contacted').length;
+  const converted = filteredLeads.filter(l => l.status === 'closed' || l.converted_to_client).length;
+  const notInterested = filteredLeads.filter(l => l.status === 'not_interested').length;
   
   const conversionRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0;
   
@@ -114,10 +117,10 @@ export default function ConversionDashboard() {
   };
 
   const statusChartData = [
-    { name: 'חדש', value: newLeads, color: '#FF6F20' },
-    { name: 'בקשר', value: inContact, color: '#2196F3' },
-    { name: 'הומר', value: converted, color: '#4CAF50' },
-    { name: 'לא מעוניין', value: notInterested, color: '#9E9E9E' }
+    { name: 'New', value: newLeads, color: '#FF6F20' },
+    { name: 'Contacted', value: inContact, color: '#2196F3' },
+    { name: 'Converted', value: converted, color: '#4CAF50' },
+    { name: 'Not Interested', value: notInterested, color: '#9E9E9E' }
   ].filter(item => item.value > 0);
 
   const sourceChartData = Object.entries(sourceData)
