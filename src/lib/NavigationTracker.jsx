@@ -40,9 +40,8 @@ export default function NavigationTracker() {
         }
 
         if (isAuthenticated && pageName) {
-            base44.appLogs.logUserInApp(pageName).catch(() => {
-                // Silently fail - logging shouldn't break the app
-            });
+            // Local activity logging (removed base44.appLogs call)
+            console.debug('[Navigation]', pageName);
         }
     }, [location, isAuthenticated, Pages, mainPageKey]);
 
