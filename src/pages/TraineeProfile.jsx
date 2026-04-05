@@ -371,7 +371,7 @@ export default function TraineeProfile() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        return await base44.entities.AttendanceLog.filter({ userId: user.id }, '-date');
+        return await base44.entities.AttendanceLog.filter({ user_id: user.id }, '-date');
       } catch { return []; }
     },
     enabled: !!user?.id && (activeTab === 'attendance'),
@@ -406,7 +406,7 @@ export default function TraineeProfile() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        return await base44.entities.WorkoutHistory.filter({ userId: user.id }, '-date');
+        return await base44.entities.WorkoutHistory.filter({ user_id: user.id }, '-date');
       } catch { return []; }
     },
     enabled: !!user?.id && (activeTab === 'plans'),

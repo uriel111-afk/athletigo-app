@@ -15,7 +15,7 @@ export default function NotificationCenter({ userId }) {
     queryKey: ['notifications', userId],
     queryFn: async () => {
       try {
-        return await base44.entities.Notification.filter({ userId }, '-created_date');
+        return await base44.entities.Notification.filter({ user_id: userId }, '-created_at');
       } catch (error) {
         console.error("[NotificationCenter] Error loading notifications:", error);
         return [];
@@ -29,7 +29,7 @@ export default function NotificationCenter({ userId }) {
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationIds) => {
       for (const id of notificationIds) {
-        await base44.entities.Notification.update(id, { isRead: true });
+        await base44.entities.Notification.update(id, { is_read: true });
       }
     },
     onSuccess: () => {
@@ -45,7 +45,7 @@ export default function NotificationCenter({ userId }) {
   });
 
   useEffect(() => {
-    const unreadNotifications = notifications.filter(n => !n.isRead);
+    const unreadNotifications = notifications.filter(n => !n.is_read);
     if (unreadNotifications.length > 0) {
       const timeoutId = setTimeout(() => {
         markAsReadMutation.mutate(unreadNotifications.map(n => n.id));
@@ -108,9 +108,9 @@ export default function NotificationCenter({ userId }) {
           }}
           className="p-4 rounded-xl transition-all cursor-pointer hover:shadow-lg"
           style={{
-            backgroundColor: notification.isRead ? '#FAFAFA' : getNotificationColor(notification.type),
-            border: notification.isRead ? '1px solid #E0E0E0' : '2px solid #FF6F20',
-            opacity: notification.isRead ? 0.7 : 1
+            backgroundColor: notification.is_read ? '#FAFAFA' : getNotificationColor(notification.type),
+            border: notification.is_read ? '1px solid #E0E0E0' : '2px solid #FF6F20',
+            opacity: notification.is_read ? 0.7 : 1
           }}
         >
           <div className="flex items-start gap-3">
@@ -126,10 +126,10 @@ export default function NotificationCenter({ userId }) {
               </p>
               <div className="flex items-center justify-between">
                 <p className="text-xs" style={{ color: '#7D7D7D' }}>
-                  {notification.created_date && format(new Date(notification.created_date), 'dd/MM/yyyy HH:mm', { locale: he })}
+                  {notification.created_at && format(new Date(notification.created_at), 'dd/MM/yyyy HH:mm', { locale: he })}
                 </p>
                 <div className="flex items-center gap-2">
-                  {!notification.isRead && (
+                  {!notification.is_read && (
                     <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ backgroundColor: '#FF6F20', color: 'white' }}>
                       חדש
                     </span>
