@@ -59,7 +59,10 @@ module.exports = {
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
   				border: 'hsl(var(--sidebar-border))',
   				ring: 'hsl(var(--sidebar-ring))'
-  			}
+  			},
+  			'athletigo-orange': '#FF6F20',
+  			'athletigo-orange-neon': '#FF8C42',
+  			'athletigo-dark': '#111111'
   		},
   		keyframes: {
   			'accordion-down': {
