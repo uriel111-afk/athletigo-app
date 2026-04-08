@@ -5,6 +5,7 @@ import { Calendar, Dumbbell, TrendingUp, User, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import TraineeSessionBooking from "../components/TraineeSessionBooking";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function TraineeHome() {
   const [user, setUser] = useState(null);
@@ -138,8 +139,9 @@ export default function TraineeHome() {
   }
 
   return (
-    <div className="min-h-screen px-4 md:p-8 pb-24 bg-white" dir="rtl">
-      <div className="max-w-4xl mx-auto">
+    <ErrorBoundary>
+      <div className="min-h-screen px-4 md:p-8 pb-24 bg-white" dir="rtl" style={{ fontSize: 16 }}>
+        <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-black text-gray-900 mb-2">
             היי, {user?.full_name?.split(' ')[0] || 'מתאמן'} 👋
@@ -234,5 +236,6 @@ export default function TraineeHome() {
         />
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

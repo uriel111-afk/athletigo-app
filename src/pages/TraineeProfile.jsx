@@ -23,6 +23,7 @@ import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import VisionFormDialog from "../components/forms/VisionFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -260,8 +261,16 @@ export default function TraineeProfile() {
 
   const { data: currentUser, refetch, isLoading: currentUserLoading, isError: currentUserError } = useQuery({
     queryKey: ['current-user-trainee-profile'],
-    queryFn: () => base44.auth.me(),
-    refetchInterval: 5000
+    queryFn: async () => {
+      try {
+        return await base44.auth.me();
+      } catch (error) {
+        console.error('[TraineeProfile] Error fetching current user:', error);
+        throw error;
+      }
+    },
+    refetchInterval: 5000,
+    retry: false
   });
 
   const isCoach = currentUser?.isCoach || currentUser?.role === 'admin';
@@ -269,12 +278,18 @@ export default function TraineeProfile() {
   const { data: targetUser, isLoading: targetUserLoading, isError: targetUserError } = useQuery({
     queryKey: ['target-user-profile', userIdParam],
     queryFn: async () => {
+      try {
         if (!userIdParam) return null;
         const res = await base44.entities.User.filter({ id: userIdParam });
-        return res[0];
+        return res?.[0] || null;
+      } catch (error) {
+        console.error('[TraineeProfile] Error fetching target user:', error);
+        throw error;
+      }
     },
     enabled: !!userIdParam && !!isCoach,
-    refetchInterval: 5000
+    refetchInterval: 5000,
+    retry: false
   });
 
   const effectiveUser = (userIdParam && isCoach) ? targetUser : currentUser;
@@ -1101,8 +1116,9 @@ export default function TraineeProfile() {
   const isUrielsAccount = user.email === 'uriel111@gmail.com';
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden pb-32" style={{ backgroundColor: '#FFFFFF' }} dir="rtl">
-      <div className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-8 w-full">
+    <ErrorBoundary>
+      <div className="min-h-screen w-full overflow-x-hidden pb-32" style={{ backgroundColor: '#FFFFFF', fontSize: 16 }} dir="rtl">
+        <div className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-8 w-full">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold mb-2" style={{ color: '#000000' }}>
@@ -2449,5 +2465,6 @@ export default function TraineeProfile() {
         </div>
       </footer>
     </div>
+    </ErrorBoundary>
   );
 }
