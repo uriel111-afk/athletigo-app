@@ -117,13 +117,14 @@ button:focus-visible {
 
   * {
     @apply border-border outline-ring/50;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'DM Sans', sans-serif;
   }
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     -webkit-font-smoothing: antialiased;
+    direction: rtl;
   }
 
   /* Mobile-first touch targets */

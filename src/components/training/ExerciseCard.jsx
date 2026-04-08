@@ -213,15 +213,94 @@ export default function ExerciseCard({
   return (
     <motion.div 
       layout
-      className={`
-        w-full rounded-xl mb-3 overflow-hidden transition-all border shadow-sm hover:shadow-md
-        ${exercise.completed ? 'border-green-100' : 'border-gray-100'}
-      `}
+      className="w-full rounded-[14px] mb-3 overflow-hidden transition-all"
       style={{ 
-        borderLeft: `5px solid ${borderColor}`,
-        backgroundColor: exercise.completed ? '#F0FDF4' : '#FFFFFF'
+        backgroundColor: '#F7F6F3',
+        border: '1.5px solid #ede9e3',
+        borderRight: `3px solid ${exercise.completed ? '#4CAF50' : '#FF6F20'}`
       }}
     >
+      {/* Exercise Header */}
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-[15px] font-black text-gray-900 leading-snug" style={{ fontFamily: 'Barlow, sans-serif' }}>
+            {exercise.exercise_name}
+          </h3>
+          {exercise.rpe && (
+            <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-bold">
+              RPE {exercise.rpe}
+            </div>
+          )}
+        </div>
+
+        {/* Parameters Pills */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {displayExercise.sets && (
+            <div className="bg-white px-3 py-2 rounded-full border border-gray-200">
+              <span className="text-[16px] font-black text-gray-900" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                {displayExercise.sets}
+              </span>
+              <span className="text-xs text-gray-500 ml-1">סטים</span>
+            </div>
+          )}
+          {displayExercise.reps_or_time && (
+            <div className="bg-white px-3 py-2 rounded-full border border-gray-200">
+              <span className="text-[16px] font-black text-gray-900" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                {displayExercise.reps_or_time}
+              </span>
+              <span className="text-xs text-gray-500 ml-1">חזרות</span>
+            </div>
+          )}
+          {displayExercise.weight && displayExercise.weight !== '0' && (
+            <div className="bg-white px-3 py-2 rounded-full border border-gray-200">
+              <span className="text-[16px] font-black text-gray-900" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                {displayExercise.weight}
+              </span>
+              <span className="text-xs text-gray-500 ml-1">ק"ג</span>
+            </div>
+          )}
+          {displayExercise.work_time && (
+            <div className="bg-white px-3 py-2 rounded-full border border-gray-200">
+              <span className="text-[16px] font-black text-gray-900" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                {formatTime(displayExercise.work_time)}
+              </span>
+              <span className="text-xs text-gray-500 ml-1">עבודה</span>
+            </div>
+          )}
+        </div>
+
+        {/* Counter Row */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <button className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center">
+              <span className="text-lg font-bold text-gray-600">-</span>
+            </button>
+            <span className="text-lg font-bold text-gray-900 mx-4">0</span>
+            <button className="w-8 h-8 rounded-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center">
+              <span className="text-lg font-bold text-white">+</span>
+            </button>
+          </div>
+          <button
+            onClick={handleToggleComplete}
+            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
+              exercise.completed ? 'bg-green-500 border-green-500' : 'bg-white border-gray-300'
+            }`}
+          >
+            {exercise.completed && <Check size={16} className="text-white" strokeWidth={3} />}
+          </button>
+        </div>
+
+        {/* Coach Note */}
+        {(exercise.coach_notes || exercise.notes) && (
+          <div className="bg-white p-3 rounded-lg border-r-4 border-orange-400">
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {exercise.coach_notes || exercise.notes}
+            </p>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
       {/* === HEADER SECTION === */}
       <div 
         className="p-3 flex items-center gap-3 cursor-pointer relative touch-manipulation select-none"

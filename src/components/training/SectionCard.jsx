@@ -29,11 +29,11 @@ export default function SectionCard({
     const isEven = index % 2 === 0;
     
     return {
-      bg: isEven ? '#FFFFFF' : '#F9FAFB', // White or very light gray
-      text: '#111827', // Gray 900
-      subText: '#6B7280', // Gray 500
-      border: '#E5E7EB', // Gray 200
-      iconBg: isEven ? '#FFF7ED' : '#FFFFFF', // Orange tint or White
+      bg: '#FFFFFF',
+      text: '#111827',
+      subText: '#6B7280',
+      border: '#E5E7EB',
+      iconBg: '#FFF7ED',
       chevron: '#9CA3AF',
       accent: '#FF6F20'
     };
@@ -44,21 +44,21 @@ export default function SectionCard({
 
   return (
     <div
-      className="rounded-xl overflow-hidden transition-all shadow-sm hover:shadow-md mb-5"
+      className="rounded-3xl overflow-hidden transition-all shadow-sm hover:shadow-md mb-5 relative"
       style={{
         backgroundColor: style.bg,
         border: `1px solid ${style.border}`,
-        borderTop: `3px solid ${style.accent}`
+        borderLeft: `3px solid ${style.accent}`
       }}
     >
       {/* Section Header (Clickable) */}
       <div 
-        className="w-full p-4 cursor-pointer transition-colors" 
+        className="w-full p-4 cursor-pointer transition-colors hover:bg-gray-50"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center justify-between">
           
-          {/* Right Side: Icon + Title */}
+          {/* Left Side: Icon + Title */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div 
               className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
@@ -68,7 +68,7 @@ export default function SectionCard({
             </div>
             
             <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-black leading-tight truncate" style={{ color: style.text }}>
+              <h3 className="text-base font-black leading-tight truncate" style={{ color: style.text, fontFamily: 'Barlow, sans-serif' }}>
                 {section.section_name}
               </h3>
               <div className="flex items-center gap-2 mt-1 text-xs font-medium" style={{ color: style.subText }}>
@@ -85,7 +85,7 @@ export default function SectionCard({
             </div>
           </div>
 
-          {/* Left Side: Actions */}
+          {/* Right Side: Actions */}
           <div className="flex items-center gap-3 pl-1 flex-shrink-0">
             {/* Edit Buttons (Coach only) */}
             {showEditButtons && (

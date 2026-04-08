@@ -468,103 +468,58 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   return (
     <div className="w-full pb-16 md:pb-24" dir="rtl">
-      <WorkoutProgressBar plan={plan} sections={sections} exercises={exercises} />
-      
-      <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px' }}>
-        {/* Plan Header */}
-        <div className="mb-6 md:mb-10 rounded-3xl w-full overflow-hidden relative" style={{
-          background: 'linear-gradient(135deg, #FFFFFF 0%, #FFF8F3 100%)',
-          border: '3px solid #FF6F20',
-          boxShadow: '0 12px 40px rgba(255, 111, 32, 0.25)'
-        }}>
-          <div className="h-2 w-full" style={{ background: 'linear-gradient(90deg, #FF6F20 0%, #FF8F50 50%, #FF6F20 100%)' }} />
-          <div className="p-2 md:p-4 w-full relative">
-            {showEditBuilder &&
-            <div className="mb-2 p-2 rounded-lg" style={{ backgroundColor: '#E3F2FD', border: '1px solid #2196F3' }}>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#2196F3' }} />
-                  <p className="text-xs font-bold" style={{ color: '#1565C0' }}>מצב עריכה פעיל</p>
-                </div>
-              </div>
-            }
-
-            <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-4">
-              {plan.assigned_to_name &&
-              <div className="flex-shrink-0">
-                  <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl flex items-center justify-center font-black text-base md:text-xl"
-                style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', color: 'white', boxShadow: '0 4px 12px rgba(255, 111, 32, 0.3)' }}>
-                    {plan.assigned_to_name[0]}
-                  </div>
-                </div>
-              }
-              
-              <div className="flex-1 min-w-0">
-                {editingPlanName ?
-                <div className="flex items-center gap-1.5 mb-2">
-                    <Input value={tempPlanName} onChange={(e) => setTempPlanName(e.target.value)}
-                  className="text-base md:text-lg font-black py-1" autoFocus />
-                    <Button onClick={async () => {
-                    if (tempPlanName.trim()) {
-                      await updatePlanMutation.mutateAsync({ id: plan.id, data: { plan_name: tempPlanName } });
-                      setEditingPlanName(false);
-                    }
-                  }}
-                  size="icon" className="rounded-md h-8 w-8" style={{ backgroundColor: '#4CAF50', color: 'white' }}>
-                      <Check className="w-4 h-4" />
-                    </Button>
-                    <Button onClick={() => {setEditingPlanName(false);setTempPlanName(plan.plan_name || "");}}
-                  size="icon" variant="ghost" className="rounded-md h-8 w-8">
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div> :
-
-                <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-lg md:text-2xl font-black" style={{ color: '#000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                      {plan.plan_name}
-                    </h2>
-                    {canEdit &&
-                  <Button onClick={() => {setTempPlanName(plan.plan_name || "");setEditingPlanName(true);}}
-                  size="icon" variant="ghost" className="rounded-md h-7 w-7" title="ערוך שם">
-                        <Edit2 className="w-3.5 h-3.5" style={{ color: '#7D7D7D' }} />
-                      </Button>
-                  }
-                  </div>
-                }
-                
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {plan.assigned_to_name &&
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: '#FFF8F3', border: '1px solid #FF6F20' }}>
-                      <User className="w-3 h-3" style={{ color: '#FF6F20' }} />
-                      <span className="font-bold text-xs" style={{ color: '#FF6F20' }}>{plan.assigned_to_name}</span>
-                    </div>
-                  }
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: '#F7F7F7', border: '1px solid #4D4D4D' }}>
-                    <Target className="w-3 h-3" style={{ color: '#4D4D4D' }} />
-                    <span className="font-bold text-xs" style={{ color: '#000' }}>{plan.goal_focus}</span>
-                  </div>
-                </div>
-                
-                {plan.description &&
-                <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(125, 125, 125, 0.05)', border: '1px dashed #E0E0E0' }}>
-                    <p className="text-xs leading-relaxed" style={{ color: '#4D4D4D' }}>💭 {plan.description}</p>
-                  </div>
-                }
-              </div>
+      {/* PLAN HEADER */}
+      <div className="mb-6" style={{ backgroundColor: '#FF6F20', padding: '20px', borderRadius: '0 0 24px 24px' }}>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={onBack} className="text-white p-2 rounded-full hover:bg-white/10 transition-colors">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 18L9 12L15 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <h1 className="text-2xl font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+            {plan.plan_name}
+          </h1>
+          <div className="w-10"></div> {/* Spacer for centering */}
+        </div>
+        
+        {/* Stat Chips */}
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          <div className="bg-white/20 rounded-lg p-3 text-center">
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {exercises.filter(e => e.completed).length}
             </div>
-
-            {canEdit &&
-            <div className="flex flex-wrap gap-1.5 pt-2 mt-2" style={{ borderTop: '1px solid #E0E0E0' }}>
-                <Button onClick={() => setShowEditBuilder(!showEditBuilder)}
-              className="flex-1 rounded-lg px-2 md:px-3 py-2 font-bold text-xs shadow-sm transition-all"
-              style={{ background: showEditBuilder ? 'linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%)' : 'linear-gradient(135deg, #000000 0%, #2D2D2D 100%)', color: 'white' }}>
-                  {showEditBuilder ? <><Check className="w-3.5 h-3.5 ml-1" />סיים עריכה</> : <><Edit2 className="w-3.5 h-3.5 ml-1" />ערוך תוכנית</>}
-                </Button>
-                
-                {/* Save & Exit Button - Removed as requested */}
-              </div>
-            }
+            <div className="text-xs text-white/80 uppercase font-bold">ביצועים</div>
+          </div>
+          <div className="bg-white/20 rounded-lg p-3 text-center">
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {sections.length}
+            </div>
+            <div className="text-xs text-white/80 uppercase font-bold">סקשנים</div>
+          </div>
+          <div className="bg-white/20 rounded-lg p-3 text-center">
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {exercises.length}
+            </div>
+            <div className="text-xs text-white/80 uppercase font-bold">תרגילים</div>
+          </div>
+          <div className="bg-white/20 rounded-lg p-3 text-center">
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {exercises.length > 0 ? Math.round((exercises.filter(e => e.completed).length / exercises.length) * 100) : 0}%
+            </div>
+            <div className="text-xs text-white/80 uppercase font-bold">הושלם</div>
           </div>
         </div>
+        
+        {/* Progress Bar */}
+        <div className="bg-white/20 rounded-full h-2 overflow-hidden">
+          <div 
+            className="h-full bg-white transition-all duration-500"
+            style={{ width: `${exercises.length > 0 ? (exercises.filter(e => e.completed).length / exercises.length) * 100 : 0}%` }}
+          ></div>
+        </div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px' }}>
 
         {canEdit &&
         <div className="mb-4 md:mb-6 w-full flex gap-2">
@@ -994,6 +949,25 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Finish Button */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black p-4 z-50">
+        <Button 
+          className="w-full h-12 font-bold text-lg"
+          style={{ backgroundColor: 'black', color: '#FF6F20', border: '2px solid #FF6F20' }}
+          onClick={() => {
+            // Handle finish workout logic
+            const completedExercises = exercises.filter(e => e.completed);
+            if (completedExercises.length > 0) {
+              showWorkoutSummary(exercises);
+            } else {
+              toast.error("יש להשלים לפחות תרגיל אחד לפני סיום האימון");
+            }
+          }}
+        >
+          סיים אימון
+        </Button>
+      </div>
     </div>);
 
 }

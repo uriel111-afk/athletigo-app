@@ -380,9 +380,10 @@ export default function MyPlan() {
           </div>
 
           <Tabs defaultValue="coach" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-8 h-auto p-1 bg-gray-100 rounded-xl">
+            <TabsList className="grid w-full grid-cols-4 mb-8 h-auto p-1 bg-gray-100 rounded-xl">
               <TabsTrigger value="coach" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">תוכניות מהמאמן</TabsTrigger>
               <TabsTrigger value="my_plans" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">תוכניות שלי</TabsTrigger>
+              <TabsTrigger value="history" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">היסטוריה</TabsTrigger>
               <TabsTrigger value="improvement" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">מעקב שיפור</TabsTrigger>
             </TabsList>
 
@@ -477,6 +478,41 @@ export default function MyPlan() {
                   <Button onClick={() => setShowCreatePlan(true)} variant="outline" className="font-bold">
                     <Plus className="w-4 h-4 ml-2" /> תוכנית חדשה
                   </Button>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="history" className="space-y-4">
+              {workoutHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {workoutHistory.slice(0, 20).map((entry, index) => (
+                    <div key={entry.id || index} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-800 flex items-center justify-center text-sm font-bold">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">{entry.planName || 'אימון'}</h4>
+                            <p className="text-sm text-gray-500">{new Date(entry.date).toLocaleDateString('he-IL')}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-gray-900">שליטה: {entry.mastery_avg?.toFixed(1) || 'N/A'}</div>
+                          <div className="text-sm font-bold text-gray-900">קושי: {entry.difficulty_avg?.toFixed(1) || 'N/A'}</div>
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">
+                          הושלם
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 rounded-2xl text-center border-2 border-dashed border-gray-200">
+                  <p className="text-gray-500">אין היסטוריית אימונים עדיין</p>
                 </div>
               )}
             </TabsContent>
