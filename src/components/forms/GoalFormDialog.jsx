@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Target } from "lucide-react";
+import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFormPersistence } from "../hooks/useFormPersistence";
@@ -106,6 +107,8 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
       toast.error("שגיאה בעדכון היעד");
     }
   });
+
+  const isLoading = createGoalMutation.isPending || updateGoalMutation.isPending;
 
   const handleSubmit = async () => {
     if (!formData.goal_name) {
