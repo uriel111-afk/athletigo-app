@@ -228,7 +228,7 @@ export default function Dashboard() {
   return (
     <ProtectedCoachPage>
       <div className="h-[100dvh] bg-[#FAFAFA] flex flex-col overflow-hidden" dir="rtl">
-        <div className="max-w-md mx-auto w-full px-3 py-2 flex-1 flex flex-col h-full gap-2">
+        <div className="max-w-md mx-auto w-full px-4 py-2 pb-24 flex-1 flex flex-col h-full gap-2">
           
           {/* Header */}
           <div className="flex items-center justify-between shrink-0 px-1">
@@ -242,7 +242,7 @@ export default function Dashboard() {
           </div>
 
           {/* BLOCK 1 - Quick Actions (Orange/Green/Purple) */}
-          <div className="grid grid-cols-3 gap-2 shrink-0 mb-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0 mb-2">
             <Button onClick={() => setIsLeadDialogOpen(true)} className="h-16 bg-[#FF6F20] hover:bg-[#e65b12] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
               <UserPlus className="w-6 h-6" /> <span className="text-xs font-bold">הוסף ליד</span>
             </Button>
@@ -255,7 +255,7 @@ export default function Dashboard() {
           </div>
 
           {/* BLOCK 2 - Performance & Goals (Gray/Yellow) */}
-          <div className="mt-2 mb-2 grid grid-cols-5 gap-1.5 shrink-0">
+          <div className="mt-2 mb-2 grid grid-cols-2 md:grid-cols-5 gap-1.5 shrink-0">
             <Button onClick={() => setIsPlanDialogOpen(true)} className="h-16 bg-[#607D8B] hover:bg-[#546E7A] text-white border-none rounded-[12px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
               <ClipboardList className="w-6 h-6" />
               <span className="text-[10px] font-medium leading-none">תוכנית</span>
@@ -279,7 +279,7 @@ export default function Dashboard() {
           </div>
 
           {/* BLOCK 3 - Management Navigation (White Cards) */}
-          <div className="mt-2 mb-2 grid grid-cols-3 gap-2 shrink-0">
+          <div className="mt-2 mb-2 grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0">
             <div onClick={() => navigate(createPageUrl("Sessions"))} className="bg-white h-14 rounded-[12px] border border-gray-200 flex flex-col items-center justify-center px-1 cursor-pointer hover:bg-gray-50 shadow-sm gap-0.5">
               <div className="flex items-center gap-1">
                 <Dumbbell className="w-4 h-4 text-[#9C27B0]" />
@@ -306,7 +306,7 @@ export default function Dashboard() {
           </div>
 
           {/* BLOCK 4 - Stats View (Compact Grid) */}
-          <div className="my-1 grid grid-cols-2 gap-2 flex-1 content-start">
+          <div className="my-1 grid grid-cols-1 md:grid-cols-2 gap-2 flex-1 content-start">
             <div onClick={() => navigate(createPageUrl("AllUsers") + "?filter=active")} className="bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-green-50">
               <span className="text-2xl font-black text-[#4CAF50] leading-none mb-1">{activeClientsCount}</span>
               <span className="text-[10px] font-bold text-gray-500">לקוחות פעילים</span>
@@ -331,7 +331,7 @@ export default function Dashboard() {
           </div>
 
           {/* BLOCK 5 - Detailed Revenue & Groups */}
-          <div className="mb-2 grid grid-cols-3 gap-2 shrink-0">
+          <div className="mb-2 grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0">
              <div className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm">
                 <span className="text-sm font-black text-[#FF6F20]">₪{revenueByType.personal.toLocaleString()}</span>
                 <span className="text-[9px] font-bold text-gray-400 text-center">הכנסות אישי</span>

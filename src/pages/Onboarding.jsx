@@ -152,7 +152,7 @@ const Step3_Profile = ({ formData, setFormData }) => (
       <div className="space-y-4">
         <Label className="text-right block font-bold text-gray-900">מצב בריאותי כללי *</Label>
         
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <button
             onClick={() => setFormData({ ...formData, has_limitations: false, health_issues: "" })}
             className={`p-3 rounded-xl border-2 font-bold text-sm transition-all ${

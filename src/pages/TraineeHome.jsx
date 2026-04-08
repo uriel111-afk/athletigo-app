@@ -10,10 +10,10 @@ export default function TraineeHome() {
   const [user, setUser] = useState(null);
   const [coach, setCoach] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
 
   const [mySessions, setMySessions] = useState([]);
-  const queryClient = base44.queryClient; // Or import useQueryClient
 
   useEffect(() => {
     const loadData = async () => {
@@ -49,6 +49,7 @@ export default function TraineeHome() {
         }
       } catch (error) {
         console.error("Error loading home data:", error);
+        setLoadError(error);
       } finally {
         setLoading(false);
       }
@@ -112,8 +113,32 @@ export default function TraineeHome() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white px-4" dir="rtl">
+        <div className="max-w-md w-full bg-white border border-gray-100 rounded-3xl p-8 shadow-sm text-center">
+          <h1 className="text-xl font-bold mb-3">שגיאה בטעינת דף הבית</h1>
+          <p className="text-sm text-gray-600 mb-6">אירעה שגיאה בטעינת הנתונים. אנא רענן את הדף או נסה שוב מאוחר יותר.</p>
+          <Button variant="secondary" onClick={() => window.location.reload()} className="w-full">רענן</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white px-4" dir="rtl">
+        <div className="max-w-md w-full bg-white border border-gray-100 rounded-3xl p-8 shadow-sm text-center">
+          <h1 className="text-xl font-bold mb-3">משתמש לא מזוהה</h1>
+          <p className="text-sm text-gray-600 mb-6">לא נמצא משתמש מחובר. אנא התחבר מחדש.</p>
+          <Button variant="secondary" onClick={() => window.location.reload()} className="w-full">רענן</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen p-6 md:p-8 bg-white" dir="rtl">
+    <div className="min-h-screen px-4 md:p-8 pb-24 bg-white" dir="rtl">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-black text-gray-900 mb-2">

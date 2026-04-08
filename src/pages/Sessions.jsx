@@ -789,8 +789,8 @@ export default function Sessions() {
 
   return (
     <ProtectedCoachPage>
-      <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: '#FFFFFF', maxWidth: '100vw' }}>
-        <div className="max-w-7xl mx-auto p-6 md:p-8" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+      <div className="min-h-screen overflow-x-hidden pb-24" style={{ backgroundColor: '#FFFFFF', maxWidth: '100vw' }}>
+        <div className="max-w-7xl mx-auto px-4 md:p-8" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
           {/* Hero Header */}
           <div className="mb-8 relative">
             <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-5"

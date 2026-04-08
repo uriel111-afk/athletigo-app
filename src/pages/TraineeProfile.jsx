@@ -258,7 +258,7 @@ export default function TraineeProfile() {
   const [searchParams] = useSearchParams();
   const userIdParam = searchParams.get("userId");
 
-  const { data: currentUser, refetch } = useQuery({
+  const { data: currentUser, refetch, isLoading: currentUserLoading, isError: currentUserError } = useQuery({
     queryKey: ['current-user-trainee-profile'],
     queryFn: () => base44.auth.me(),
     refetchInterval: 5000
@@ -266,7 +266,7 @@ export default function TraineeProfile() {
 
   const isCoach = currentUser?.isCoach || currentUser?.role === 'admin';
 
-  const { data: targetUser } = useQuery({
+  const { data: targetUser, isLoading: targetUserLoading, isError: targetUserError } = useQuery({
     queryKey: ['target-user-profile', userIdParam],
     queryFn: async () => {
         if (!userIdParam) return null;
@@ -277,9 +277,12 @@ export default function TraineeProfile() {
     refetchInterval: 5000
   });
 
+  const effectiveUser = (userIdParam && isCoach) ? targetUser : currentUser;
+  const profileLoading = currentUserLoading || targetUserLoading;
+  const profileError = currentUserError || targetUserError;
+  const noUserFound = !profileLoading && !effectiveUser;
+
   useEffect(() => {
-    const effectiveUser = (userIdParam && isCoach) ? targetUser : currentUser;
-    
     if (effectiveUser) {
       setUser(effectiveUser);
       setFormData({
@@ -308,7 +311,7 @@ export default function TraineeProfile() {
         approved: effectiveUser.health_declaration_accepted || false
       });
     }
-  }, [currentUser, targetUser, userIdParam, isCoach]);
+  }, [effectiveUser]);
 
   const { data: goals = [] } = useQuery({
     queryKey: ['trainee-goals'],
@@ -1056,10 +1059,41 @@ export default function TraineeProfile() {
       return groups;
   }, [trainingPlans]);
 
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white" dir="rtl">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20] mx-auto" />
+          <p className="mt-4 text-sm text-gray-500">טוען את נתוני הפרופיל...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileError || noUserFound) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white px-4" dir="rtl">
+        <div className="max-w-md w-full text-center bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-xl font-bold mb-3">שגיאה בטעינת הפרופיל</h1>
+          <p className="text-sm text-gray-600 mb-6">
+            {profileError ? 'אירעה שגיאה בטעינת הפרופיל. אנא רענן את הדף או חזור מאוחר יותר.' : 'לא נמצא משתמש עם הפרופיל המבוקש.'}
+          </p>
+          <div className="flex flex-col sm:flex-row justify-center gap-3">
+            <Button variant="secondary" onClick={() => window.location.reload()} className="w-full sm:w-auto">רענן</Button>
+            <Button variant="ghost" onClick={() => navigate(createPageUrl("TraineeHome"))} className="w-full sm:w-auto">חזור לדף הבית</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#FF6F20' }} />
+      <div className="min-h-screen flex items-center justify-center bg-white" dir="rtl">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20] mx-auto" />
+          <p className="mt-4 text-sm text-gray-500">מכין את התצוגה שלך...</p>
+        </div>
       </div>
     );
   }
@@ -1162,7 +1196,7 @@ export default function TraineeProfile() {
         {/* Tabs - Compact Grid Layout */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="mb-4">
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-1.5">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
               {[
                 { id: "overview", label: "פרטים", icon: User },
                 { id: "services", label: "שירותים", icon: Package },
@@ -1368,7 +1402,7 @@ export default function TraineeProfile() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 w-full">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
               <div className="p-3 md:p-4 rounded-lg text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
                 <Target className="w-5 h-5 mx-auto mb-1" style={{ color: '#FF6F20' }} />
                 <p className="text-xl md:text-2xl font-bold mb-0.5" style={{ color: '#000000' }}>{activeGoals.length}</p>
@@ -2002,7 +2036,7 @@ export default function TraineeProfile() {
           </DialogHeader>
           <div className="space-y-4">
             <div><Label className="text-sm">טלפון</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="rounded-lg" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div><Label className="text-sm">תאריך לידה</Label><Input type="date" value={formData.birth_date} onChange={(e) => {
                 const newBirthDate = e.target.value;
                 let calculatedAge = "";
@@ -2060,7 +2094,7 @@ export default function TraineeProfile() {
           <div className="space-y-6">
             <div className="space-y-3">
               <Label className="text-right block font-bold text-sm">מצב בריאותי כללי</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <button
                   onClick={() => setHealthForm({ ...healthForm, has_limitations: false, health_issues: "אין" })}
                   className={`p-3 rounded-xl border-2 font-bold text-xs transition-all ${
@@ -2160,7 +2194,7 @@ export default function TraineeProfile() {
           <DialogHeader><DialogTitle className="text-lg font-bold">{editingService ? 'ערוך שירות' : 'הוסף שירות'}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {/* Service Type & Model */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                     <Label className="text-xs mb-1 block">סוג שירות</Label>
                     <Select value={serviceForm.service_type} onValueChange={(value) => setServiceForm({ ...serviceForm, service_type: value })}>
@@ -2199,7 +2233,7 @@ export default function TraineeProfile() {
             )}
 
             {/* Sessions Details */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {serviceForm.billing_model === 'punch_card' && (
                     <div>
                         <Label className="text-xs mb-1 block">כמות אימונים</Label>
@@ -2238,7 +2272,7 @@ export default function TraineeProfile() {
             {/* Pricing */}
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-3">
                 <h4 className="text-xs font-bold text-gray-500">פרטי תשלום</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <Label className="text-xs mb-1 block">מחיר בסיס</Label>
                         <Input 
@@ -2299,7 +2333,7 @@ export default function TraineeProfile() {
             </div>
 
             {/* Dates & Payment Method */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <Label className="text-xs mb-1 block">תאריך התחלה</Label>
                     <Input type="date" value={serviceForm.start_date} onChange={(e) => setServiceForm({ ...serviceForm, start_date: e.target.value })} className="rounded-xl" />
@@ -2359,7 +2393,7 @@ export default function TraineeProfile() {
         <DialogContent className="w-[95vw] md:w-full max-w-md max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFF' }}>
             <DialogHeader><DialogTitle className="text-lg font-bold">הוסף נוכחות ידנית</DialogTitle></DialogHeader>
             <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <Label>תאריך</Label>
                         <Input type="date" value={manualAttendanceForm.date} onChange={(e) => setManualAttendanceForm({...manualAttendanceForm, date: e.target.value})} className="rounded-xl" />

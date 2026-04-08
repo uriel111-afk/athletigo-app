@@ -367,8 +367,8 @@ export default function MyPlan() {
     };
 
     return (
-      <div dir="rtl" className="min-h-screen bg-white pb-32">
-        <div className="max-w-4xl mx-auto p-6 md:p-12">
+      <div dir="rtl" className="min-h-screen bg-white pb-24">
+        <div className="max-w-4xl mx-auto px-4 md:p-6 lg:p-12">
           <div className="mb-8 flex justify-between items-end">
             <div>
                 <h1 className="text-4xl md:text-5xl font-black mb-3 text-black">התוכנית שלי</h1>

@@ -120,17 +120,45 @@ button:focus-visible {
     font-family: 'DM Sans', sans-serif;
   }
 
+  html {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: 'DM Sans', sans-serif;
     -webkit-font-smoothing: antialiased;
     direction: rtl;
+    overflow-x: hidden;
+    max-width: 100vw;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* Mobile-first touch targets */
   button, a, [role="button"] {
     min-height: 44px;
     touch-action: manipulation;
+  }
+
+  input, textarea, select {
+    min-height: 44px;
+    font-size: 16px;
+    font-family: 'DM Sans', sans-serif;
+    touch-action: manipulation;
+  }
+
+  /* Minimum font sizes */
+  * {
+    font-size: clamp(12px, 2vw, 16px);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Barlow' , 'Barlow Condensed', sans-serif;
+  }
+
+  p, span, div {
+    min-font-size: 12px;
   }
 
   /* Orange glow effect */

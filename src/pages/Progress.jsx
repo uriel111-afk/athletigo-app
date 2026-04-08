@@ -386,7 +386,7 @@ export default function Progress() {
     }));
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ backgroundColor: '#FFFFFF' }}>
+    <div className="min-h-screen w-full overflow-x-hidden pb-24" style={{ backgroundColor: '#FFFFFF' }}>
       <div className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-8 w-full">
         {/* Header */}
         <div className="mb-8 md:mb-10">
@@ -1015,7 +1015,7 @@ export default function Progress() {
         </DialogContent>
       </Dialog>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t z-50 shadow-lg" style={{ borderColor: '#E6E6E6', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
+      <footer className="relative bg-white border-t shadow-lg mt-8" style={{ borderColor: '#E6E6E6', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex justify-around items-center">
             <Link to={createPageUrl("TraineeHome")} className="flex flex-col items-center gap-1">

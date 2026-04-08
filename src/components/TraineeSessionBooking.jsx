@@ -130,7 +130,7 @@ export default function TraineeSessionBooking({ open, onClose, user, coach }) {
               1
             </div>
             <div className="w-12 h-1" style={{ backgroundColor: step >= 2 ? '#FF6F20' : '#E0E0E0' }} />
-            <div sanded className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
               step >= 2 ? 'text-white' : 'text-gray-400'
             }`} style={{ backgroundColor: step >= 2 ? '#FF6F20' : '#E0E0E0' }}>
               2

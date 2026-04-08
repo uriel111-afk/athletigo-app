@@ -1,0 +1,184 @@
+/* Mobile-first global page styles */
+
+/* Base page container - prevent overflow and ensure RTL is working */
+#app, [role="main"], .page-container {
+  width: 100%;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* All page content areas */
+.page-layout {
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  padding: 0 16px;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+/* Mobile-first containers */
+.container {
+  width: 100%;
+  padding: 0 16px;
+  overflow-x: hidden;
+}
+
+/* Ensure no horizontal scroll */
+* {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Fix overflow on main content */
+body main {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* Safe area handling */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Mobile-first input styling to prevent iOS zoom */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="date"],
+input[type="time"],
+input[type="number"],
+textarea,
+select {
+  min-height: 44px;
+  font-size: 16px !important;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+/* Ensure buttons are always tappable */
+button {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+/* Remove resize handle on mobile */
+textarea {
+  resize: vertical;
+  max-width: 100%;
+}
+
+/* Dialog/Modal mobile styles */
+.dialog-overlay {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Fixed navigation shouldn't cause layout shift */
+nav {
+  position: relative;
+  z-index: 40;
+}
+
+/* Fixed bottom nav - proper mobile handling */
+.bottom-nav-wrapper {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 50;
+  background: white;
+  border-top: 1px solid #e5e5e5;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Prevent content from hiding behind bottom nav */
+main {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+/* Grid and flex responsive mobile-first */
+.grid-responsive {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Cards responsive */
+.card-responsive {
+  width: 100%;
+  border-radius: 12px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+/* Text wrapping for long content */
+.text-wrap {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Ensure readable line heights on mobile */
+body {
+  line-height: 1.6;
+}
+
+h1 { line-height: 1.3; }
+h2 { line-height: 1.3; }
+h3 { line-height: 1.4; }
+h4, h5, h6 { line-height: 1.4; }
+p { line-height: 1.6; }
+
+/* Table to card layout on mobile */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+@media (max-width: 640px) {
+  table {
+    display: block;
+    border: none;
+    border-spacing: 0;
+  }
+  
+  thead {
+    display: none;
+  }
+  
+  tbody, tr, td {
+    display: block;
+    width: 100%;
+  }
+  
+  tr {
+    margin-bottom: 16px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  td {
+    padding: 12px;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  td:last-child {
+    border-bottom: none;
+  }
+}

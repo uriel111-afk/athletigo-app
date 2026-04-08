@@ -230,7 +230,7 @@ export default function Leads() {
 
   return (
     <ProtectedCoachPage>
-      <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF' }}>
+      <div className="min-h-screen pb-24" style={{ backgroundColor: '#FFFFFF' }}>
         <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
           <div className="mb-6 md:mb-10">
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-black mb-2 md:mb-4" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
