@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -752,10 +752,11 @@ export default function TraineeProfile() {
     }
   });
 
+  const isSavingRef = useRef(false);
+
   const handleSave = async () => {
-    alert("saving...");
-    console.log("Starting save...");
-    console.log("[handleSave] isCoach:", isCoach, "userIdParam:", userIdParam);
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
 
     let calculatedAge = formData.age;
     if (formData.birth_date) {
@@ -763,9 +764,7 @@ export default function TraineeProfile() {
         const birthDate = new Date(formData.birth_date);
         const today = new Date();
         calculatedAge = Math.floor((today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-      } catch (error) {
-        console.error("[handleSave] Error calculating age:", error);
-      }
+      } catch (_) {}
     }
 
     const dataToUpdate = {
@@ -783,24 +782,17 @@ export default function TraineeProfile() {
       emergency_contact_phone: formData.emergency_contact_phone,
     };
 
-    console.log("Data to save: " + JSON.stringify(dataToUpdate));
-
     try {
       if (isCoach && userIdParam) {
-        console.log("[handleSave] path: coach updating target user:", userIdParam);
         await updateTargetUserMutation.mutateAsync({ id: userIdParam, data: dataToUpdate });
       } else {
-        console.log("[handleSave] path: trainee updating own profile");
         await updateUserMutation.mutateAsync(dataToUpdate);
       }
-      console.log("Mutation success");
-      console.log("Closing dialog...");
       setShowEdit(false);
-      console.log("Done");
     } catch (error) {
-      console.error("[handleSave] caught error:", error);
-      console.error("[handleSave] error message:", error?.message);
-      console.error("[handleSave] error details:", JSON.stringify(error));
+      console.error("[handleSave] error:", error?.message || error);
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
