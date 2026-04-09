@@ -481,7 +481,9 @@ export default function TraineeProfile() {
 
   const updateUserMutation = useMutation({
     mutationFn: (data) => base44.auth.updateMe(data),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Update local user state immediately so the display reflects the new name
+      setUser(prev => prev ? { ...prev, ...variables } : prev);
       queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
       refetch();
       setShowEdit(false);
@@ -681,7 +683,8 @@ export default function TraineeProfile() {
 
   const updateTargetUserMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.User.update(id, data),
-    onSuccess: () => {
+    onSuccess: (_, { data: variables }) => {
+      setUser(prev => prev ? { ...prev, ...variables } : prev);
       queryClient.invalidateQueries({ queryKey: ['target-user-profile'] });
       refetch();
       setShowEdit(false);
@@ -748,6 +751,7 @@ export default function TraineeProfile() {
     }
 
     const dataToUpdate = {
+      full_name: formData.full_name, // always allow name edit
       phone: formData.phone,
       birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
       age: calculatedAge,
@@ -759,13 +763,17 @@ export default function TraineeProfile() {
       future_vision: formData.future_vision,
       emergency_contact_name: formData.emergency_contact_name,
       emergency_contact_phone: formData.emergency_contact_phone,
-      ...(isCoach ? { full_name: formData.full_name } : {}) // Allow coach to update name
     };
 
-    if (isCoach && userIdParam) {
+    try {
+      if (isCoach && userIdParam) {
         await updateTargetUserMutation.mutateAsync({ id: userIdParam, data: dataToUpdate });
-    } else {
+      } else {
         await updateUserMutation.mutateAsync(dataToUpdate);
+      }
+    } catch (error) {
+      // onError in each mutation already shows a toast; just prevent unhandled rejection
+      console.error("handleSave error:", error);
     }
   };
 
@@ -1659,7 +1667,7 @@ export default function TraineeProfile() {
                   <SelectContent><SelectItem value="זכר">זכר</SelectItem><SelectItem value="נקבה">נקבה</SelectItem><SelectItem value="אחר">אחר</SelectItem></SelectContent>
                 </Select>
               </div>
-              {isCoach && <div><Label className="text-sm">שם מלא</Label><Input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>}
+              <div><Label className="text-sm">שם מלא</Label><Input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
               <div><Label className="text-sm">עיר</Label><Input value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
               <div><Label className="text-sm">כתובת</Label><Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
               <div><Label className="text-sm">מטרה עיקרית</Label><Input value={formData.main_goal} onChange={e => setFormData({ ...formData, main_goal: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
