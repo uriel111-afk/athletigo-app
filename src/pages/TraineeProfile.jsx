@@ -768,14 +768,14 @@ export default function TraineeProfile() {
     }
 
     const dataToUpdate = {
-      full_name: formData.full_name,
-      phone: formData.phone,
+      full_name: formData.full_name || null,
+      phone: formData.phone || null,
       birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
-      age: calculatedAge,
-      gender: formData.gender,
-      main_goal: formData.main_goal,
-      emergency_contact_name: formData.emergency_contact_name,
-      emergency_contact_phone: formData.emergency_contact_phone,
+      age: calculatedAge ? parseInt(calculatedAge) : null,
+      gender: formData.gender || null,
+      main_goal: formData.main_goal || null,
+      emergency_contact_name: formData.emergency_contact_name || null,
+      emergency_contact_phone: formData.emergency_contact_phone || null,
     };
 
     try {
