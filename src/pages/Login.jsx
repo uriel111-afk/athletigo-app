@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,20 @@ export default function Login() {
   const [error, setError] = useState(null);
 
   // If already logged in, redirect to Dashboard
+  const redirectAfterLogin = (profile) => {
+    const destination = profile?.role === 'trainee' ? "/TraineeHome" : "/dashboard";
+    navigate(destination, { replace: true });
+  };
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        navigate("/dashboard", { replace: true });
+        try {
+          const profile = await base44.auth.me();
+          redirectAfterLogin(profile);
+        } catch (error) {
+          navigate("/dashboard", { replace: true });
+        }
       }
     });
   }, [navigate]);
@@ -38,9 +49,12 @@ export default function Login() {
       return;
     }
 
-    // Auth state change in AuthContext will handle user profile loading.
-    // Redirect to Dashboard.
-    navigate("/dashboard", { replace: true });
+    try {
+      const profile = await base44.auth.me();
+      redirectAfterLogin(profile);
+    } catch (error) {
+      navigate("/dashboard", { replace: true });
+    }
   };
 
   return (

@@ -16,6 +16,7 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
   const [traineeData, setTraineeData] = useState({
     full_name: "",
     email: "",
+    password: "",
     phone: "",
     age: "",
     gender: "",
@@ -44,7 +45,7 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
       const optimisticTrainee = {
         id: 'temp-' + Date.now(),
         ...traineeData,
-        role: 'user',
+        role: 'trainee',
         onboarding_completed: true,
         created_date: new Date().toISOString()
       };
@@ -70,9 +71,19 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
       }
 
       // Actual server call
+      let authUser = null;
+      if (traineeData.email && traineeData.password) {
+        authUser = await base44.auth.signUp({
+          email: traineeData.email.trim(),
+          password: traineeData.password,
+        });
+      }
+
+      const { password, ...profileData } = traineeData;
       const trainee = await base44.entities.User.create({
-        ...traineeData,
-        role: 'user',
+        ...(authUser?.id ? { id: authUser.id } : {}),
+        ...profileData,
+        role: 'trainee',
         onboarding_completed: true
       });
 
@@ -105,7 +116,7 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
       queryClient.invalidateQueries({ queryKey: ['trainees'] });
       queryClient.invalidateQueries({ queryKey: ['trainees-list'] });
       
-      toast.success(services.length > 0 ? "עודכן בזמן אמת. ✅" : "מתאמן נוסף בהצלחה ✅");
+      toast.success(`המתאמן נוצר — אימייל: ${traineeData.email}, סיסמא: ${traineeData.password}`);
       
       // Call parent callback if provided
       if (onSuccess) {
@@ -192,8 +203,8 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
   };
 
   const handleSubmit = async () => {
-    if (!traineeData.full_name || !traineeData.phone) {
-      toast.error("נא למלא שם וטלפון");
+    if (!traineeData.full_name || !traineeData.phone || !traineeData.email || !traineeData.password) {
+      toast.error("נא למלא שם, אימייל וסיסמה");
       return;
     }
 
@@ -303,7 +314,7 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
                   טלפון *
@@ -318,7 +329,7 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
               </div>
               <div>
                 <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
-                  אימייל
+                  אימייל *
                 </Label>
                 <Input
                   type="email"
@@ -327,6 +338,20 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
                   placeholder="example@email.com"
                   className="rounded-xl"
                   style={{ border: '1px solid #E0E0E0' }}
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
+                  סיסמה *
+                </Label>
+                <Input
+                  type="password"
+                  value={traineeData.password}
+                  onChange={(e) => setTraineeData({ ...traineeData, password: e.target.value })}
+                  placeholder="הזן סיסמה למתאמן"
+                  className="rounded-xl"
+                  style={{ border: '1px solid #E0E0E0' }}
+                  autoComplete="new-password"
                 />
               </div>
             </div>

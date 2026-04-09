@@ -23,6 +23,7 @@ export default function AddTraineeDialog({ open, onClose }) {
     fullName: "",
     phone: "",
     email: "",
+    password: "",
     birthDate: "",
     joinDate: new Date().toISOString().split('T')[0],
     address: "",
@@ -56,8 +57,8 @@ export default function AddTraineeDialog({ open, onClose }) {
 
   const handleSubmit = async () => {
     // Validation
-    if (!formData.fullName || !formData.email) {
-      toast.error("נא למלא שם מלא ואימייל (שדות חובה)");
+    if (!formData.fullName || !formData.email || !formData.password) {
+      toast.error("נא למלא שם מלא, אימייל וסיסמה (שדות חובה)");
       return;
     }
 
@@ -76,10 +77,20 @@ export default function AddTraineeDialog({ open, onClose }) {
 
       // 2. Prepare data
       const age = calculateAge(formData.birthDate);
-      
+      let authUser = null;
+
+      if (formData.password) {
+        const { id } = await base44.auth.signUp({
+          email: formData.email.trim(),
+          password: formData.password,
+        });
+        authUser = { id };
+      }
+
       // 3. Create User
       // Note: Using base44.entities.User.create as per existing patterns in this codebase
       const newUser = await base44.entities.User.create({
+        ...(authUser ? { id: authUser.id } : {}),
         full_name: formData.fullName,
         email: formData.email,
         phone: formData.phone,
@@ -109,7 +120,7 @@ export default function AddTraineeDialog({ open, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['users-trainees'] });
 
-      toast.success("מתאמן חדש נוסף למערכת ✅");
+      toast.success(formData.password ? "מתאמן חדש נוסף ויצרנו לו חשבון התחברות ✅" : "מתאמן חדש נוסף למערכת ✅");
       clearDraft(); // Clear draft on success
 
       // 6. Redirect
@@ -158,6 +169,17 @@ export default function AddTraineeDialog({ open, onClose }) {
                 onChange={(e) => handleChange('email', e.target.value)}
                 className="h-12 rounded-xl border-gray-200 focus:border-[#4CAF50] focus:ring-[#4CAF50]"
                 placeholder="הקלד כתובת אימייל"
+              />
+            </div>
+            <div>
+              <Label className="mb-2 block font-bold text-gray-700">סיסמה *</Label>
+              <Input 
+                type="password"
+                value={formData.password}
+                onChange={(e) => handleChange('password', e.target.value)}
+                className="h-12 rounded-xl border-gray-200 focus:border-[#4CAF50] focus:ring-[#4CAF50]"
+                placeholder="הזן סיסמה למתאמן"
+                autoComplete="new-password"
               />
             </div>
           </div>

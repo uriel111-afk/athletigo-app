@@ -141,6 +141,12 @@ const auth = {
     return profileByEmail || { id: user.id, email: user.email, onboarding_completed: true };
   },
 
+  async signUp({ email, password }) {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    return data?.user || data;
+  },
+
   async updateMe(data) {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) throw error || new Error('Not authenticated');
