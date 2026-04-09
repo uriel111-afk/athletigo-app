@@ -66,51 +66,34 @@ export default function AddTraineeDialog({ open, onClose }) {
     setLoading(true);
 
     try {
-      // 1. Check if email exists
-      const existingUsers = await base44.entities.User.list(); // Ideally should filter, but list() is safer if filter not 100%
-      const emailExists = existingUsers.find(u => u.email?.toLowerCase() === formData.email.toLowerCase());
-      
-      if (emailExists) {
-        toast.error("כתובת האימייל כבר קיימת במערכת");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Create auth user via Edge Function (server-side, uses service role key)
+      // 1. Call Edge Function — creates auth user + profile atomically (server-side)
       const age = calculateAge(formData.birthDate);
 
       const { data: fnData, error: fnError } = await supabase.functions.invoke('create-trainee', {
-        body: { email: formData.email.trim(), password: formData.password },
+        body: {
+          email: formData.email.trim(),
+          password: formData.password,
+          full_name: formData.fullName,
+          phone: formData.phone || null,
+          birth_date: formData.birthDate ? new Date(formData.birthDate).toISOString() : null,
+          age: age ? parseInt(age) : null,
+          join_date: formData.joinDate,
+          address: formData.address || null,
+          coach_notes: formData.coachNotes || null,
+          client_status: formData.clientStatus || 'לקוח פעיל',
+        },
       });
 
-      if (fnError || !fnData?.user) {
-        const msg = fnData?.error || fnError?.message || 'שגיאה ביצירת משתמש';
-        toast.error("שגיאה ביצירת המשתמש: " + msg);
+      if (fnError || !fnData?.profile) {
+        const msg = fnData?.error || fnError?.message || 'שגיאה ביצירת מתאמן';
+        toast.error("שגיאה ביצירת המתאמן: " + msg);
         setLoading(false);
         return;
       }
 
-      const authUser = fnData.user;
+      const newUser = fnData.profile;
 
-      // 3. Create User profile row in the users table
-      const newUser = await base44.entities.User.create({
-        id: authUser.id,
-        full_name: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
-        birth_date: formData.birthDate ? new Date(formData.birthDate).toISOString() : null,
-        age: age ? parseInt(age) : null,
-        join_date: formData.joinDate,
-        address: formData.address,
-        coach_notes: formData.coachNotes,
-        coach_id: coach?.id || null,
-        client_status: formData.clientStatus,
-        role: 'trainee', // Automatically set
-        account_deleted: false,
-        onboarding_completed: true // Assume manual add bypasses onboarding
-      });
-
-      // 4. Create Notification
+      // 2. Create Notification
       if (coach) {
         await base44.entities.Notification.create({
           user_id: coach.id,
@@ -121,14 +104,14 @@ export default function AddTraineeDialog({ open, onClose }) {
         });
       }
 
-      // 5. Invalidate queries
+      // 3. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['users-trainees'] });
 
-      toast.success(`המתאמן נוצר — אימייל: ${formData.email}, סיסמא: ${formData.password}`);
-      clearDraft(); // Clear draft on success
+      toast.success(`✅ המתאמן נוצר — אימייל: ${formData.email}, סיסמא: ${formData.password}`);
+      clearDraft();
 
-      // 6. Redirect
+      // 4. Redirect to trainee profile
       navigate(createPageUrl(`TraineeProfile?userId=${newUser.id}`));
       onClose();
 

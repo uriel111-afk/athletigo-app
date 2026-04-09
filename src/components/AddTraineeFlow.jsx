@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,22 +71,30 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
         queryClient.setQueryData(['all-services-financial'], (old = []) => [...optimisticServices, ...old]);
       }
 
-      // Actual server call
-      let authUser = null;
-      if (traineeData.email && traineeData.password) {
-        authUser = await base44.auth.signUp({
+      // Actual server call — Edge Function creates auth user + profile atomically
+      const { password, ...profileData } = traineeData;
+
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('create-trainee', {
+        body: {
           email: traineeData.email.trim(),
           password: traineeData.password,
-        });
+          full_name: traineeData.full_name,
+          phone: traineeData.phone || null,
+          birth_date: traineeData.birth_date || null,
+          age: traineeData.age ? parseInt(traineeData.age) : null,
+          join_date: traineeData.join_date || new Date().toISOString().split('T')[0],
+          address: traineeData.address || null,
+          coach_notes: traineeData.coach_notes || null,
+          client_status: traineeData.client_status || 'לקוח פעיל',
+        },
+      });
+
+      if (fnError || !fnData?.profile) {
+        const msg = fnData?.error || fnError?.message || 'שגיאה ביצירת מתאמן';
+        throw new Error(msg);
       }
 
-      const { password, ...profileData } = traineeData;
-      const trainee = await base44.entities.User.create({
-        ...(authUser?.id ? { id: authUser.id } : {}),
-        ...profileData,
-        role: 'trainee',
-        onboarding_completed: true
-      });
+      const trainee = fnData.profile;
 
       if (services.length > 0) {
         for (const service of services) {

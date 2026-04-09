@@ -52,32 +52,43 @@ export const AuthProvider = ({ children }) => {
       let userProfile = null;
       if (profile) {
         userProfile = profile;
-        console.log('[AuthContext] Loaded user profile:', {
-          id: userProfile.id,
-          email: userProfile.email,
-          onboarding_completed: userProfile.onboarding_completed
-        });
       } else {
+        // Fallback: try matching by email
         const { data: byEmail } = await supabase
           .from('users')
           .select('*')
           .eq('email', authUser.email)
           .maybeSingle();
 
-        if (!byEmail) {
-          setAuthError({ type: 'user_not_registered', message: 'User not registered' });
-          setUser(null);
-          setIsAuthenticated(false);
-          setIsLoadingAuth(false);
-          return;
-        }
+        if (byEmail) {
+          userProfile = byEmail;
+        } else {
+          // No profile at all — create a minimal one so the user isn't stuck
+          const { data: created, error: createErr } = await supabase
+            .from('users')
+            .insert({
+              id: authUser.id,
+              email: authUser.email,
+              full_name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+              role: 'trainee',
+              onboarding_completed: false,
+              created_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
 
-        userProfile = byEmail;
-        console.log('[AuthContext] User profile loaded by email fallback:', {
-          id: userProfile.id,
-          email: userProfile.email,
-          onboarding_completed: userProfile.onboarding_completed
-        });
+          if (createErr || !created) {
+            console.error('[AuthContext] Could not create fallback profile:', createErr);
+            setAuthError({ type: 'user_not_registered', message: 'User not registered' });
+            setUser(null);
+            setIsAuthenticated(false);
+            setIsLoadingAuth(false);
+            return;
+          }
+
+          console.log('[AuthContext] Created fallback profile for', authUser.email);
+          userProfile = created;
+        }
       }
       
       setUser(userProfile);

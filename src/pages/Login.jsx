@@ -78,11 +78,30 @@ export default function Login() {
     }
 
     try {
-      const profile = await base44.auth.me();
+      // Try to load existing profile
+      let profile = null;
+      try {
+        profile = await base44.auth.me();
+      } catch (profileError) {
+        // Profile missing — fetch the auth user and route to onboarding
+        // AuthContext will auto-create the profile on next load
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          navigate('/onboarding', { replace: true });
+          return;
+        }
+        throw profileError;
+      }
+
+      if (!profile.onboarding_completed) {
+        navigate('/onboarding', { replace: true });
+        return;
+      }
+
       redirectAfterLogin(profile);
     } catch (error) {
-      console.error("[Login] Unauthorized login attempt:", error);
-      setError("החשבון לא רשום לשימוש. נסה חשבון אחר או פנה למאמן.");
+      console.error("[Login] Login error:", error);
+      setError("שגיאה בטעינת הפרופיל. נסה שוב.");
       await supabase.auth.signOut();
     } finally {
       setIsLoading(false);
