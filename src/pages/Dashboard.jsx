@@ -239,7 +239,7 @@ export default function Dashboard() {
   return (
     <ProtectedCoachPage>
       <div className="h-[100dvh] bg-[#FAFAFA] flex flex-col overflow-hidden" dir="rtl">
-        <div className="max-w-md mx-auto w-full px-4 py-2 pb-24 flex-1 flex flex-col h-full gap-2">
+        <div className="max-w-md mx-auto w-full px-4 py-2 pb-16 flex-1 flex flex-col h-full gap-2">
           
           {/* Header */}
           <div className="flex items-center justify-between shrink-0 px-1">

@@ -1222,6 +1222,15 @@ export default function TraineeProfile() {
                   <LogOut className="w-3.5 h-3.5" />
                   יציאה
                 </button>
+                {(currentUser?.email === 'athletigo@gmail.com' || currentUser?.role === 'coach' || currentUser?.isCoach) && (
+                  <button
+                    onClick={() => navigate('/dashboard')}
+                    className="flex items-center gap-1 text-white/90 text-xs font-semibold bg-white/20 px-2.5 py-1.5 rounded-xl min-h-[36px]"
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5" />
+                    דשבורד
+                  </button>
+                )}
                 <span className="text-white font-black text-lg tracking-tight">AG /</span>
               </div>
               <div className="flex flex-col items-center text-center">
@@ -1241,7 +1250,7 @@ export default function TraineeProfile() {
             </div>
 
             {/* SCROLLABLE CONTENT */}
-            <div className="flex-1 overflow-y-auto px-3 pt-3 pb-28 space-y-2.5">
+            <div className="flex-1 overflow-y-auto px-3 pt-3 pb-20 space-y-2.5">
               {/* STATS ROW — 3 cards */}
               <div className="grid grid-cols-3 gap-2">
                 {[
@@ -1354,7 +1363,7 @@ export default function TraineeProfile() {
         )}
 
         {/* ===== EXISTING TAB PANELS (hidden in overview) ===== */}
-        <div className={activeTab !== 'overview' ? 'flex-1 overflow-y-auto pb-28' : 'hidden'}>
+        <div className={activeTab !== 'overview' ? 'flex-1 overflow-y-auto pb-20' : 'hidden'}>
           <div className="max-w-6xl mx-auto px-4 py-4 w-full">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsContent value="overview" className="hidden" />

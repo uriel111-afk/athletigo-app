@@ -452,6 +452,8 @@ export default function Sessions() {
           if (personalService) {
             const change = isNowAttended ? 1 : -1;
             const newUsedCount = Math.max(0, (personalService.used_sessions || 0) + change);
+            const totalSessions = personalService.total_sessions || 0;
+            const remaining = totalSessions - newUsedCount;
 
             await base44.entities.ClientService.update(personalService.id, {
               used_sessions: newUsedCount
@@ -462,6 +464,29 @@ export default function Sessions() {
 
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
             queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+
+            // Send low-package notifications
+            if (isNowAttended && totalSessions > 0) {
+              if (remaining === 2) {
+                base44.entities.Notification.create({
+                  user_id: traineeId,
+                  title: "⚠️ נותרו 2 אימונים בחבילה",
+                  message: `נותרו לך עוד 2 אימונים בחבילה "${personalService.service_type}". פנה למאמן לחידוש.`,
+                  type: 'subscription',
+                  is_read: false,
+                  requires_acknowledgment: false,
+                }).catch(console.error);
+              } else if (remaining <= 0) {
+                base44.entities.Notification.create({
+                  user_id: traineeId,
+                  title: "🔴 החבילה נגמרה",
+                  message: `החבילה "${personalService.service_type}" נוצלה במלואה. פנה למאמן לחידוש.`,
+                  type: 'subscription',
+                  is_read: false,
+                  requires_acknowledgment: true,
+                }).catch(console.error);
+              }
+            }
           }
         } catch (error) {
           console.error("Error updating package usage", error);
@@ -1403,6 +1428,27 @@ export default function Sessions() {
               </DialogHeader>
 
               <div className="space-y-6">
+                {/* 24h deadline warning */}
+                {deletingSession && (() => {
+                  try {
+                    const sessionTime = new Date(deletingSession.date + 'T' + (deletingSession.time || '00:00'));
+                    const hoursUntil = (sessionTime - new Date()) / 3600000;
+                    if (hoursUntil > 0 && hoursUntil < 24) {
+                      return (
+                        <div className="p-4 rounded-xl flex items-start gap-3" style={{ backgroundColor: '#FFF3E0', border: '2px solid #FF6F20' }}>
+                          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#FF6F20' }} />
+                          <div>
+                            <p className="text-sm font-black" style={{ color: '#FF6F20' }}>אזהרה: פחות מ-24 שעות עד האימון!</p>
+                            <p className="text-xs mt-1" style={{ color: '#000000' }}>
+                              המפגש מתוכנן בעוד {Math.round(hoursUntil)} שעות. ביטול ברגע האחרון עלול לפגוע במתאמן.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                  } catch {}
+                  return null;
+                })()}
                 <div className="p-5 rounded-xl" style={{ backgroundColor: '#FFEBEE', border: '2px solid #f44336' }}>
                   <p className="text-base leading-relaxed mb-3" style={{ color: '#000000' }}>
                     האם אתה בטוח שברצונך למחוק את המפגש הזה?

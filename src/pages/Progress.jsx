@@ -18,6 +18,7 @@ import { Home, Dumbbell, FileText, User } from "lucide-react";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import BaselineSection from "../components/progress/BaselineSection";
+import BaselineJumpRopeDialog from "../components/progress/BaselineJumpRopeDialog";
 
 export default function Progress() {
   const [user, setUser] = useState(null);
@@ -29,6 +30,7 @@ export default function Progress() {
   const [editingResult, setEditingResult] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingItem, setDeletingItem] = useState(null);
+  const [showBaselineDialog, setShowBaselineDialog] = useState(false);
 
   const [measurementForm, setMeasurementForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -419,7 +421,7 @@ export default function Progress() {
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8 w-full">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 w-full">
           <Button
             onClick={() => {
               setEditingMeasurement(null);
@@ -464,6 +466,15 @@ export default function Progress() {
           >
             <Target className="w-5 h-5" />
             <span>הוסף יעד</span>
+          </Button>
+
+          <Button
+            onClick={() => setShowBaselineDialog(true)}
+            className="rounded-xl px-4 md:px-6 py-4 md:py-5 font-bold text-white flex items-center justify-center gap-2 w-full"
+            style={{ backgroundColor: '#1a1a2e' }}
+          >
+            <Activity className="w-5 h-5" />
+            <span>Baseline</span>
           </Button>
         </div>
 
@@ -1033,6 +1044,15 @@ export default function Progress() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Baseline Jump Rope Dialog */}
+      {user && (
+        <BaselineJumpRopeDialog
+          isOpen={showBaselineDialog}
+          onClose={() => setShowBaselineDialog(false)}
+          user={user}
+        />
+      )}
 
     </div>
   );

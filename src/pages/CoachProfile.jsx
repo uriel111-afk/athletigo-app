@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock, Settings } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock, Settings, Bell, Send, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { toast } from "sonner";
 
@@ -28,6 +29,13 @@ export default function CoachProfile() {
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: "", newPass: "", confirm: "" });
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const [notifForm, setNotifForm] = useState({
+    title: "",
+    message: "",
+    recipient: "all",
+    requires_acknowledgment: false,
+  });
 
   const queryClient = useQueryClient();
 
@@ -77,6 +85,61 @@ export default function CoachProfile() {
       toast.error("❌ שגיאה בהפעלת מצב מאמן");
     }
   });
+
+  const { data: trainees = [] } = useQuery({
+    queryKey: ['coach-profile-trainees'],
+    queryFn: async () => {
+      const all = await base44.entities.User.list('-created_at', 1000);
+      return all.filter(u => !u.account_deleted && u.role !== 'admin' && !u.isCoach);
+    },
+    enabled: !!user?.id,
+  });
+
+  const sendNotificationMutation = useMutation({
+    mutationFn: async ({ title, message, recipientIds, requires_acknowledgment }) => {
+      for (const uid of recipientIds) {
+        await base44.entities.Notification.create({
+          user_id: uid,
+          title,
+          message,
+          type: 'coach_message',
+          is_read: false,
+          requires_acknowledgment,
+          acknowledged_at: null,
+        });
+      }
+    },
+    onSuccess: (_, vars) => {
+      toast.success(`✅ התראה נשלחה ל-${vars.recipientIds.length} מתאמנים`);
+      setNotifForm({ title: "", message: "", recipient: "all", requires_acknowledgment: false });
+    },
+    onError: () => toast.error("❌ שגיאה בשליחת התראה"),
+  });
+
+  const handleSendNotification = async () => {
+    if (!notifForm.title.trim() || !notifForm.message.trim()) {
+      toast.error("נא למלא כותרת והודעה");
+      return;
+    }
+    let recipientIds = [];
+    if (notifForm.recipient === "all") {
+      recipientIds = trainees.map(t => t.id);
+    } else {
+      recipientIds = [notifForm.recipient];
+    }
+    if (recipientIds.length === 0) {
+      toast.error("אין מתאמנים לשליחה");
+      return;
+    }
+    try {
+      await sendNotificationMutation.mutateAsync({
+        title: notifForm.title,
+        message: notifForm.message,
+        recipientIds,
+        requires_acknowledgment: notifForm.requires_acknowledgment,
+      });
+    } catch {}
+  };
 
   const toggleAllowTraineePlansMutation = useMutation({
     mutationFn: (value) => base44.auth.updateMe({ allow_trainee_plans: value }),
@@ -307,6 +370,75 @@ export default function CoachProfile() {
                   disabled={toggleAllowTraineePlansMutation.isPending}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Send Notification */}
+          <div className="mb-6 md:mb-8 athletigo-section">
+            <div className="flex items-center gap-3 mb-4 md:mb-6">
+              <Bell className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#FF6F20' }} />
+              <h2 className="text-2xl md:text-3xl font-black mb-0" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+                שלח התראה למתאמנים
+              </h2>
+            </div>
+            <div className="athletigo-card space-y-4">
+              <div>
+                <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>כותרת</Label>
+                <Input
+                  value={notifForm.title}
+                  onChange={(e) => setNotifForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="כותרת ההתראה"
+                  className="rounded-xl"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>הודעה</Label>
+                <Textarea
+                  value={notifForm.message}
+                  onChange={(e) => setNotifForm(f => ({ ...f, message: e.target.value }))}
+                  placeholder="תוכן ההתראה..."
+                  className="rounded-xl min-h-[80px]"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>נמען</Label>
+                <Select
+                  value={notifForm.recipient}
+                  onValueChange={(v) => setNotifForm(f => ({ ...f, recipient: v }))}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="בחר נמען" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">כל המתאמנים ({trainees.length})</SelectItem>
+                    {trainees.map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.full_name || t.email}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: '#FFF8F3' }}>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: '#000000' }}>דרוש אישור קריאה</p>
+                  <p className="text-xs" style={{ color: '#7D7D7D' }}>המתאמן יצטרך ללחוץ "קראתי ומאשר"</p>
+                </div>
+                <Switch
+                  checked={notifForm.requires_acknowledgment}
+                  onCheckedChange={(v) => setNotifForm(f => ({ ...f, requires_acknowledgment: v }))}
+                />
+              </div>
+              <Button
+                onClick={handleSendNotification}
+                disabled={sendNotificationMutation.isPending}
+                className="w-full rounded-xl py-4 font-bold text-white"
+                style={{ backgroundColor: '#FF6F20' }}
+              >
+                {sendNotificationMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שולח...</>
+                ) : (
+                  <><Send className="w-4 h-4 ml-2" />שלח התראה</>
+                )}
+              </Button>
             </div>
           </div>
 

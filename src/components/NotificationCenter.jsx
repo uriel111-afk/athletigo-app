@@ -1,11 +1,12 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, Calendar, FileText, MessageSquare, Package, Users, TrendingUp, CheckCircle, Loader2, ExternalLink } from "lucide-react";
+import { Bell, Calendar, FileText, MessageSquare, Package, Users, TrendingUp, CheckCircle, Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function NotificationCenter({ userId }) {
   const queryClient = useQueryClient();
@@ -26,6 +27,8 @@ export default function NotificationCenter({ userId }) {
     enabled: !!userId
   });
 
+  const [acknowledgingId, setAcknowledgingId] = useState(null);
+
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationIds) => {
       for (const id of notificationIds) {
@@ -37,6 +40,21 @@ export default function NotificationCenter({ userId }) {
     }
   });
 
+  const acknowledgeMutation = useMutation({
+    mutationFn: async (id) => {
+      await base44.entities.Notification.update(id, {
+        is_read: true,
+        acknowledged_at: new Date().toISOString(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      toast.success("✅ אישרת קריאה");
+    },
+    onError: () => toast.error("❌ שגיאה באישור"),
+  });
+
   const deleteNotificationMutation = useMutation({
     mutationFn: (id) => base44.entities.Notification.delete(id),
     onSuccess: () => {
@@ -45,10 +63,11 @@ export default function NotificationCenter({ userId }) {
   });
 
   useEffect(() => {
-    const unreadNotifications = notifications.filter(n => !n.is_read);
-    if (unreadNotifications.length > 0) {
+    // Auto-mark as read only notifications that do NOT require acknowledgment
+    const autoReadable = notifications.filter(n => !n.is_read && !n.requires_acknowledgment);
+    if (autoReadable.length > 0) {
       const timeoutId = setTimeout(() => {
-        markAsReadMutation.mutate(unreadNotifications.map(n => n.id));
+        markAsReadMutation.mutate(autoReadable.map(n => n.id));
       }, 2000);
       return () => clearTimeout(timeoutId);
     }
@@ -98,51 +117,86 @@ export default function NotificationCenter({ userId }) {
 
   return (
     <div className="space-y-3" dir="rtl">
-      {notifications.map(notification => (
-        <div
-          key={notification.id}
-          onClick={() => {
-            if (notification.actionUrl) {
-              navigate(notification.actionUrl);
-            }
-          }}
-          className="p-4 rounded-xl transition-all cursor-pointer hover:shadow-lg"
-          style={{
-            backgroundColor: notification.is_read ? '#FAFAFA' : getNotificationColor(notification.type),
-            border: notification.is_read ? '1px solid #E0E0E0' : '2px solid #FF6F20',
-            opacity: notification.is_read ? 0.7 : 1
-          }}
-        >
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-1">
-              {getNotificationIcon(notification.type)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-sm mb-1" style={{ color: '#000000' }}>
-                {notification.title}
-              </h4>
-              <p className="text-xs leading-relaxed mb-2" style={{ color: '#000000' }}>
-                {notification.message}
-              </p>
-              <div className="flex items-center justify-between">
-                <p className="text-xs" style={{ color: '#7D7D7D' }}>
-                  {notification.created_at && format(new Date(notification.created_at), 'dd/MM/yyyy HH:mm', { locale: he })}
+      {notifications.map(notification => {
+        const needsAck = notification.requires_acknowledgment && !notification.acknowledged_at;
+        const isAcked = notification.requires_acknowledgment && !!notification.acknowledged_at;
+
+        return (
+          <div
+            key={notification.id}
+            onClick={() => {
+              if (!needsAck && notification.actionUrl) navigate(notification.actionUrl);
+            }}
+            className="p-4 rounded-xl transition-all"
+            style={{
+              backgroundColor: needsAck ? '#FFF3E0' : (notification.is_read ? '#FAFAFA' : getNotificationColor(notification.type)),
+              border: needsAck ? '2px solid #FF6F20' : (notification.is_read ? '1px solid #E0E0E0' : '2px solid #FF6F20'),
+              opacity: (notification.is_read && !needsAck) ? 0.75 : 1,
+              cursor: notification.actionUrl && !needsAck ? 'pointer' : 'default',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-1">
+                {needsAck ? <ShieldCheck className="w-5 h-5 text-[#FF6F20]" /> : getNotificationIcon(notification.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-sm mb-1" style={{ color: '#000000' }}>
+                  {notification.title}
+                </h4>
+                <p className="text-xs leading-relaxed mb-2 whitespace-pre-line" style={{ color: '#000000' }}>
+                  {notification.message}
                 </p>
-                <div className="flex items-center gap-2">
-                  {!notification.is_read && (
-                    <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ backgroundColor: '#FF6F20', color: 'white' }}>
-                      חדש
-                    </span>
-                  )}
-                  {notification.actionUrl && (
-                    <ExternalLink className="w-4 h-4" style={{ color: '#2196F3' }} />
-                  )}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs" style={{ color: '#7D7D7D' }}>
+                    {notification.created_at && format(new Date(notification.created_at), 'dd/MM/yyyy HH:mm', { locale: he })}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {!notification.is_read && !needsAck && (
+                      <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ backgroundColor: '#FF6F20', color: 'white' }}>
+                        חדש
+                      </span>
+                    )}
+                    {notification.actionUrl && !needsAck && (
+                      <ExternalLink className="w-4 h-4" style={{ color: '#2196F3' }} />
+                    )}
+                  </div>
                 </div>
+
+                {/* Requires acknowledgment */}
+                {needsAck && (
+                  <div className="mt-3">
+                    <Button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setAcknowledgingId(notification.id);
+                        try { await acknowledgeMutation.mutateAsync(notification.id); } catch {}
+                        setAcknowledgingId(null);
+                      }}
+                      disabled={acknowledgeMutation.isPending && acknowledgingId === notification.id}
+                      className="w-full rounded-xl py-2.5 font-bold text-white text-sm"
+                      style={{ backgroundColor: '#FF6F20' }}
+                    >
+                      {acknowledgeMutation.isPending && acknowledgingId === notification.id ? (
+                        <><Loader2 className="w-4 h-4 ml-1 animate-spin" />מאשר...</>
+                      ) : (
+                        <><ShieldCheck className="w-4 h-4 ml-1" />קראתי ומאשר קבלה</>
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Already acknowledged */}
+                {isAcked && (
+                  <div className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: '#4CAF50' }}>
+                    <CheckCircle className="w-4 h-4" />
+                    אושר ב-{format(new Date(notification.acknowledged_at), 'dd/MM/yyyy HH:mm', { locale: he })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
