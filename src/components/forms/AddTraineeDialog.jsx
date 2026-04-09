@@ -87,8 +87,7 @@ export default function AddTraineeDialog({ open, onClose }) {
         authUser = { id };
       }
 
-      // 3. Create User
-      // Note: Using base44.entities.User.create as per existing patterns in this codebase
+      // 3. Create User profile row in the users table
       const newUser = await base44.entities.User.create({
         ...(authUser ? { id: authUser.id } : {}),
         full_name: formData.fullName,
@@ -99,6 +98,7 @@ export default function AddTraineeDialog({ open, onClose }) {
         join_date: formData.joinDate,
         address: formData.address,
         coach_notes: formData.coachNotes,
+        coach_id: coach?.id || null,
         client_status: formData.clientStatus,
         role: 'trainee', // Automatically set
         account_deleted: false,
@@ -120,7 +120,7 @@ export default function AddTraineeDialog({ open, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['users-trainees'] });
 
-      toast.success(formData.password ? "מתאמן חדש נוסף ויצרנו לו חשבון התחברות ✅" : "מתאמן חדש נוסף למערכת ✅");
+      toast.success(`המתאמן נוצר — אימייל: ${formData.email}, סיסמא: ${formData.password}`);
       clearDraft(); // Clear draft on success
 
       // 6. Redirect
