@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Target, Loader2, Dumbbell, Home, TrendingUp, User, CheckCircle, Trash2, Plus, ChevronDown, Copy, FolderPlus, ChevronRight } from "lucide-react";
+import { Target, Loader2, User, CheckCircle, Trash2, Plus, ChevronDown, Copy, FolderPlus, ChevronRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UnifiedPlanBuilder from "../components/training/UnifiedPlanBuilder";
@@ -576,28 +576,6 @@ export default function MyPlan() {
           />
         </div>
 
-        <footer className="fixed bottom-0 left-0 right-0 bg-white border-t z-50 shadow-lg border-[#E6E6E6]">
-          <div className="max-w-4xl mx-auto px-4 py-3">
-            <div className="flex justify-around items-center">
-              <Link to={createPageUrl("TraineeHome")} className="flex flex-col items-center gap-1">
-                <Home className="w-5 h-5 text-[#7D7D7D]" />
-                <span className="text-xs font-medium text-[#7D7D7D]">דף הבית</span>
-              </Link>
-              <Link to={createPageUrl("MyPlan")} className="flex flex-col items-center gap-1">
-                <Dumbbell className="w-5 h-5 text-[#FF6F20]" />
-                <span className="text-xs font-bold text-[#FF6F20]">התוכנית שלי</span>
-              </Link>
-              <Link to={createPageUrl("Progress")} className="flex flex-col items-center gap-1">
-                <TrendingUp className="w-5 h-5 text-[#7D7D7D]" />
-                <span className="text-xs font-medium text-[#7D7D7D]">התקדמות</span>
-              </Link>
-              <Link to={createPageUrl("TraineeProfile")} className="flex flex-col items-center gap-1">
-                <User className="w-5 h-5 text-[#7D7D7D]" />
-                <span className="text-xs font-medium text-[#7D7D7D]">פרופיל</span>
-              </Link>
-            </div>
-          </div>
-        </footer>
       </div>
     );
   }

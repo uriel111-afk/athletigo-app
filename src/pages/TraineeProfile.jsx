@@ -9,14 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, LayoutDashboard, Trash2, Home, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, LayoutDashboard, Trash2, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { createPageUrl } from "@/utils";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
-import { Dumbbell } from "lucide-react";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import PhysicalMetricsManager from "../components/PhysicalMetricsManager";
 import MessageCenter from "../components/MessageCenter";
@@ -1814,25 +1813,6 @@ export default function TraineeProfile() {
           </DialogContent>
         </Dialog>
 
-        {/* FOOTER */}
-        <footer className="fixed bottom-0 left-0 right-0 bg-white border-t z-50 shadow-lg" style={{ borderColor: '#E6E6E6' }}>
-          <div className="max-w-4xl mx-auto px-4 py-3">
-            <div className="flex justify-around items-center">
-              <Link to={createPageUrl("TraineeHome")} className="flex flex-col items-center gap-1">
-                <Home className="w-5 h-5 text-gray-500" /><span className="text-xs font-medium text-gray-500">דף הבית</span>
-              </Link>
-              <Link to={createPageUrl("MyPlan")} className="flex flex-col items-center gap-1">
-                <Dumbbell className="w-5 h-5 text-gray-500" /><span className="text-xs font-medium text-gray-500">התוכנית שלי</span>
-              </Link>
-              <Link to={createPageUrl("Progress")} className="flex flex-col items-center gap-1">
-                <TrendingUp className="w-5 h-5 text-gray-500" /><span className="text-xs font-medium text-gray-500">התקדמות</span>
-              </Link>
-              <Link to={createPageUrl("TraineeProfile")} className="flex flex-col items-center gap-1">
-                <User className="w-5 h-5 text-[#FF6F20]" /><span className="text-xs font-bold text-[#FF6F20]">פרופיל</span>
-              </Link>
-            </div>
-          </div>
-        </footer>
 
       </div>
     </ErrorBoundary>
