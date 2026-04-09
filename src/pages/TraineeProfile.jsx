@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, LayoutDashboard, Trash2, Home, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, Folder, FolderOpen, DollarSign, Lock } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, LayoutDashboard, Trash2, Home, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -342,7 +342,7 @@ export default function TraineeProfile() {
         return [];
       }
     },
-    enabled: !!user?.id && (activeTab === 'goals' || activeTab === 'metrics' || activeTab === 'achievements'),
+    enabled: !!user?.id && (activeTab === 'goals' || activeTab === 'metrics' || activeTab === 'achievements' || activeTab === 'overview'),
     refetchInterval: 30000
   });
 
@@ -356,7 +356,7 @@ export default function TraineeProfile() {
         return [];
       }
     },
-    enabled: !!user?.id && (activeTab === 'metrics'),
+    enabled: !!user?.id && (activeTab === 'metrics' || activeTab === 'overview'),
     refetchInterval: 30000
   });
 
@@ -370,7 +370,7 @@ export default function TraineeProfile() {
         return [];
       }
     },
-    enabled: !!user?.id && (activeTab === 'achievements' || activeTab === 'metrics'),
+    enabled: !!user?.id && (activeTab === 'achievements' || activeTab === 'metrics' || activeTab === 'overview'),
     refetchInterval: 30000
   });
 
@@ -421,7 +421,7 @@ export default function TraineeProfile() {
         return [];
       }
     },
-    enabled: !!user?.id && (activeTab === 'plans'),
+    enabled: !!user?.id && (activeTab === 'plans' || activeTab === 'overview'),
     refetchInterval: 30000
   });
 
@@ -433,7 +433,7 @@ export default function TraineeProfile() {
         return await base44.entities.WorkoutHistory.filter({ user_id: user.id }, '-date');
       } catch { return []; }
     },
-    enabled: !!user?.id && (activeTab === 'plans'),
+    enabled: !!user?.id && (activeTab === 'plans' || activeTab === 'overview'),
     refetchInterval: 30000
   });
 
@@ -451,7 +451,7 @@ export default function TraineeProfile() {
         } catch { return []; }
       }
     },
-    enabled: !!user?.id && (activeTab === 'attendance'),
+    enabled: !!user?.id && (activeTab === 'attendance' || activeTab === 'overview'),
     refetchInterval: 30000
   });
 
@@ -1161,1406 +1161,651 @@ export default function TraineeProfile() {
 
   const isUrielsAccount = user.email === 'uriel111@gmail.com';
 
+  const attendedSessions = sessions.filter(s => s.participants?.some(p => p.trainee_id === user?.id && p.attendance_status === 'הגיע'));
+  const attendancePct = sessions.length > 0 ? Math.round((attendedSessions.length / sessions.length) * 100) : 0;
+  const activeService = activeServices[0];
+  const hasRecentResult = results.length > 0 && new Date(results[0].date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const TAB_LABELS = {
+    attendance: 'נוכחות',
+    metrics: 'מדדים',
+    goals: 'יעדים',
+    achievements: 'הישגים',
+    services: 'שירותים',
+    plans: 'תוכניות',
+    messages: 'הודעות',
+  };
+
   return (
     <ErrorBoundary>
-      <div className="min-h-screen w-full overflow-x-hidden pb-32" style={{ backgroundColor: '#FFFFFF', fontSize: 16 }} dir="rtl">
-        <div className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-8 w-full">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-2" style={{ color: '#000000' }}>
-              {userIdParam && isCoach ? 'פרופיל מתאמן' : 'הפרופיל שלי'}
-            </h1>
-            <p className="text-sm md:text-base" style={{ color: '#7D7D7D' }}>
-              פרטים אישיים וניהול חשבון
-            </p>
-          </div>
-          {userIdParam && isCoach && (
-             <Button 
-               onClick={() => navigate(createPageUrl("AllUsers"))}
-               variant="outline"
-               className="gap-2"
-             >
-               <ArrowRight className="w-4 h-4" />
-               חזרה למתאמנים
-             </Button>
-          )}
-        </div>
-
-        {isUrielsAccount && (
-          <div className="mb-6 md:mb-8 p-4 md:p-6 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
-              <div className="flex items-center gap-3">
-                <Shield className="w-6 h-6 md:w-8 md:h-8 flex-shrink-0" style={{ color: '#FF6F20' }} />
-                <div>
-                  <h3 className="text-base md:text-xl font-black" style={{ color: '#000000' }}>
-                    👨‍💼 גישת מאמן
-                  </h3>
-                  <p className="text-xs md:text-sm" style={{ color: '#7D7D7D' }}>
-                    יש לך גישה מלאה לדשבורד
-                  </p>
-                </div>
+      <div className="h-screen w-full flex flex-col overflow-hidden bg-[#F2F2F7]" dir="rtl" style={{ fontSize: 16 }}>
+        {/* ===== OVERVIEW: Compact single-screen layout ===== */}
+        {activeTab === 'overview' && (
+          <>
+            {/* ORANGE HEADER */}
+            <div style={{ backgroundColor: '#FF6F20' }} className="flex-shrink-0 px-4 pt-10 pb-5">
+              <div className="flex justify-between items-center mb-4">
+                <button
+                  onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
+                  className="flex items-center gap-1.5 text-white/90 text-sm font-semibold bg-white/20 px-3 py-2 rounded-xl min-h-[44px]"
+                >
+                  <LogOut className="w-4 h-4" />
+                  יציאה
+                </button>
+                <span className="text-white font-black text-xl tracking-tight">AG /</span>
               </div>
-              <Button
-                onClick={() => navigate(createPageUrl("Dashboard"))}
-                className="rounded-xl px-4 md:px-6 py-3 font-bold text-white text-sm md:text-base w-full md:w-auto"
-                style={{ backgroundColor: '#FF6F20' }}
-              >
-                <LayoutDashboard className="w-4 h-4 md:w-5 md:h-5 ml-2" />
-                דשבורד מאמן
-              </Button>
+              <div className="flex flex-col items-center text-center">
+                <div className="w-14 h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-2xl font-black mb-2 overflow-hidden">
+                  {user.profile_image
+                    ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
+                    : (user.full_name?.[0]?.toUpperCase() || 'U')
+                  }
+                </div>
+                <h2 className="text-white leading-tight" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 22 }}>
+                  {user.full_name}
+                </h2>
+                <p className="text-white/70 text-xs mt-0.5">
+                  מתאמן{coach ? ` • ${coach.full_name}` : ' • AthletiGo'}
+                </p>
+              </div>
             </div>
+
+            {/* SCROLLABLE CONTENT */}
+            <div className="flex-1 overflow-y-auto px-3 pt-3 pb-28 space-y-2.5">
+              {/* STATS ROW — 3 cards */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: attendedSessions.length, label: 'אימונים' },
+                  { value: trainingPlans.length, label: 'תוכניות' },
+                  { value: attendancePct + '%', label: 'נוכחות' },
+                ].map((s, i) => (
+                  <div key={i} className="bg-white rounded-[14px] p-3 text-center shadow-sm">
+                    <div className="text-lg font-black text-gray-900">{s.value}</div>
+                    <div className="text-[10px] text-gray-400 font-medium mt-0.5">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 2×2 GRID */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* פרטים אישיים */}
+                <button onClick={() => setShowEdit(true)} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
+                  <div className="flex justify-between items-center"><User className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
+                  <div>
+                    <div className="font-bold text-sm text-gray-900">פרטים אישיים</div>
+                    <div className="text-[11px] text-gray-400 mt-0.5 leading-snug">{user.full_name}<br />{user.phone || '—'} • {user.age ? user.age + ' שנים' : '—'}</div>
+                  </div>
+                </button>
+
+                {/* נוכחות */}
+                <button onClick={() => setActiveTab('attendance')} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
+                  <div className="flex justify-between items-center"><Calendar className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
+                  <div>
+                    <div className="font-bold text-sm text-gray-900">נוכחות</div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">{attendedSessions.length} אימונים</div>
+                  </div>
+                </button>
+
+                {/* מדדים */}
+                <button onClick={() => setActiveTab('metrics')} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
+                  <div className="flex justify-between items-center"><TrendingUp className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
+                  <div>
+                    <div className="font-bold text-sm text-gray-900">מדדים</div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">
+                      {latestMeasurement ? `${latestMeasurement.weight_kg || '—'} ק"ג • ${latestMeasurement.height_cm || '—'} ס"מ` : 'אין נתונים עדיין'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* יעדים */}
+                <button onClick={() => setActiveTab('goals')} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
+                  <div className="flex justify-between items-center"><Target className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
+                  <div>
+                    <div className="font-bold text-sm text-gray-900">יעדים</div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">{activeGoals.length} יעדים פעילים</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* הישגים — full width */}
+              <button onClick={() => setActiveTab('achievements')} className="w-full bg-white rounded-[16px] px-4 py-3.5 shadow-sm flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><Award className="w-5 h-5 text-[#FF6F20]" /></div>
+                  <div className="text-right">
+                    <div className="font-bold text-sm text-gray-900">הישגים</div>
+                    <div className="text-[11px] text-gray-400">{results.length} הישגים רשומים</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {hasRecentResult && <span className="text-[10px] font-bold text-white bg-[#FF6F20] px-2 py-0.5 rounded-full">חדש!</span>}
+                  <ChevronLeft className="w-4 h-4 text-[#FF6F20]" />
+                </div>
+              </button>
+
+              {/* שירותים — full width */}
+              <button onClick={() => setActiveTab('services')} className="w-full bg-white rounded-[16px] px-4 py-3.5 shadow-sm flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><Package className="w-5 h-5 text-[#FF6F20]" /></div>
+                  <div className="text-right">
+                    <div className="font-bold text-sm text-gray-900">שירותים</div>
+                    <div className="text-[11px] text-gray-400">
+                      {activeService ? `${activeService.package_name || activeService.service_type}${activeService.end_date ? ` • ${format(new Date(activeService.end_date), 'dd/MM/yy')}` : ''}` : 'אין חבילה פעילה'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {activeService && <span className="text-[10px] font-bold text-white bg-green-500 px-2 py-0.5 rounded-full">פעיל</span>}
+                  <ChevronLeft className="w-4 h-4 text-[#FF6F20]" />
+                </div>
+              </button>
+
+              {/* שינוי סיסמא — dark row */}
+              <button onClick={() => setShowPasswordChange(true)} className="w-full bg-black rounded-[16px] px-4 py-3.5 flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-5 h-5 text-white" /></div>
+                  <div className="font-bold text-sm text-white">שינוי סיסמא</div>
+                </div>
+                <ChevronLeft className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ===== BACK BAR for non-overview tabs ===== */}
+        {activeTab !== 'overview' && (
+          <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+            <button onClick={() => setActiveTab('overview')} className="flex items-center gap-1 text-[#FF6F20] font-bold text-sm min-h-[44px] pr-1">
+              <ArrowRight className="w-4 h-4" />
+              חזרה
+            </button>
+            <span className="font-bold text-sm text-gray-800">{TAB_LABELS[activeTab] || ''}</span>
+            <div className="w-16" />
           </div>
         )}
 
-        {/* Header Card */}
-        <div className="mb-4 p-4 rounded-lg w-full text-center" style={{
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #E0E0E0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
-        }}>
-          <div className="relative inline-block mb-3">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center font-bold text-3xl border-2 mx-auto"
-              style={{
-                backgroundColor: '#FFFFFF',
-                color: '#FF6F20',
-                borderColor: '#FF6F20',
-                boxShadow: '0 2px 8px rgba(255, 111, 32, 0.12)'
-              }}
-            >
-              {user.profile_image ? (
-                <img
-                  src={user.profile_image}
-                  alt={user.full_name}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                user.full_name?.[0] || 'U'
-              )}
-            </div>
-            <div className="absolute -bottom-1 -left-1">
-              <input type="file" id="img" accept="image/*" onChange={handleImageUpload} className="hidden" />
-              <label htmlFor="img">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer" style={{ backgroundColor: '#FF6F20', border: '2px solid white', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }}>
-                  {uploadingImage ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Camera className="w-4 h-4 text-white" />}
-                </div>
-              </label>
-            </div>
-          </div>
-          <h2 className="text-xl md:text-2xl font-bold mb-1" style={{ color: '#000000' }}>
-            {user.full_name}
-          </h2>
-          <p className="text-xs" style={{ color: '#7D7D7D' }}>
-            מתאמן AthletiGo
-          </p>
-        </div>
+        {/* ===== EXISTING TAB PANELS (hidden in overview) ===== */}
+        <div className={activeTab !== 'overview' ? 'flex-1 overflow-y-auto pb-28' : 'hidden'}>
+          <div className="max-w-6xl mx-auto px-4 py-4 w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsContent value="overview" className="hidden" />
 
-        {/* Tabs - Compact Grid Layout */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
-              {[
-                { id: "overview", label: "פרטים", icon: User },
-                { id: "services", label: "שירותים", icon: Package },
-                { id: "attendance", label: "נוכחות", icon: Calendar },
-                { id: "metrics", label: "מדדים", icon: TrendingUp },
-                { id: "goals", label: "יעדים", icon: Target },
-                { id: "achievements", label: "הישגים", icon: Award },
-                { id: "plans", label: "תוכניות", icon: FileText },
-                { id: "messages", label: "הודעות", icon: MessageSquare },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg transition-all h-full"
-                  style={{
-                    backgroundColor: activeTab === tab.id ? '#FFF8F3' : '#FFFFFF',
-                    color: activeTab === tab.id ? '#FF6F20' : '#7D7D7D',
-                    border: activeTab === tab.id ? '1px solid #FF6F20' : '1px solid #E0E0E0'
-                  }}
-                >
-                  <tab.icon className="w-5 h-5 mb-1" />
-                  <span className="text-[10px] md:text-xs font-bold leading-tight text-center">{tab.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Overview Tab - פרטים אישיים */}
-          <TabsContent value="overview" className="space-y-4 w-full">
-            <div className="bg-white p-4 rounded-xl" style={{ direction: 'rtl' }}>
-              <div className="flex justify-end mb-4">
-                <Button
-                  onClick={() => setShowEdit(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 rounded-full hover:bg-gray-100 text-gray-400 hover:text-[#FF6F20]"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </Button>
-              </div>
-
-              <div className="space-y-3 text-right">
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">שם מלא:</span>
-                  <span className="text-base font-bold text-gray-800">{user.full_name}</span>
-                </div>
-
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">תאריך לידה:</span>
-                  <span className="text-base font-bold text-gray-800">
-                    {user.birth_date ? format(new Date(user.birth_date), 'dd.MM.yyyy') : "-"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">גיל:</span>
-                  <span className="text-base font-bold text-gray-800">{user.age || "-"}</span>
-                </div>
-
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">טלפון:</span>
-                  <span className="text-base font-bold text-gray-800" dir="ltr">{user.phone || "-"}</span>
-                </div>
-
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">אימייל:</span>
-                  <span className="text-base font-bold text-gray-800 truncate" dir="ltr">{user.email || "-"}</span>
-                </div>
-
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">עיר מגורים:</span>
-                  <span className="text-base font-bold text-gray-800">{user.city || "-"}</span>
-                </div>
-
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">תאריך הצטרפות:</span>
-                  <span className="text-base font-bold text-gray-800">
-                    {user.created_date ? format(new Date(user.created_date), 'dd.MM.yyyy') : "-"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-start gap-2">
-                  <span className="text-sm text-gray-400 min-w-[90px]">סטטוס לקוח:</span>
-                  <span className={`text-base font-bold ${services.some(s => s.status === 'פעיל') ? 'text-green-600' : 'text-gray-500'}`}>
-                    {services.some(s => s.status === 'פעיל') ? 'לקוח פעיל' : 'לא פעיל'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Health Summary Section */}
-            <div className="bg-white p-4 rounded-xl mt-4" style={{ direction: 'rtl' }}>
-              <h3 className="text-base font-bold text-gray-900 mb-3 border-b border-gray-100 pb-2">
-                מצב רפואי והצהרת בריאות
-              </h3>
-              <div className="space-y-3 text-right">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-gray-400">מצב בריאותי כללי:</span>
-                  <span className={`text-base font-bold ${
-                    !user.health_issues || user.health_issues === "אין" ? "text-green-600" : "text-red-600"
-                  }`}>
-                    {(!user.health_issues || user.health_issues === "אין") 
-                      ? "אין מגבלות בריאותיות / כשיר לפעילות" 
-                      : "יש מגבלה / פציעה"}
-                  </span>
-                </div>
-
-                {user.health_issues && user.health_issues !== "אין" && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm text-gray-400">פירוט מגבלות / פציעות:</span>
-                    <span className="text-base font-bold text-gray-800 leading-relaxed">
-                      {user.health_issues}
-                    </span>
-                  </div>
-                )}
-
-                {user.health_declaration_accepted && (
-                  <div className="flex items-center gap-2 text-xs text-green-600 mt-1">
-                    <CheckCircle className="w-3 h-3" />
-                    <span>הצהרת בריאות אושרה</span>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => setShowHealthUpdate(true)}
-                  className="text-xs text-[#FF6F20] hover:underline font-medium mt-2 inline-block"
-                >
-                  עדכון הצהרת בריאות
-                </button>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setShowVisionDialog(true)}
-              className="p-4 rounded-xl cursor-pointer transition-all hover:shadow-md active:scale-[0.99]" 
-              style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}
-            >
-              <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-50">
-                <h3 className="text-base font-bold flex items-center gap-2 text-gray-900">
-                  <Target className="w-4 h-4 text-[#FF6F20]" />
-                  מטרות וחזון
-                </h3>
-                <Edit2 className="w-3 h-3 text-gray-400" />
-              </div>
-              
-              <div className="space-y-3">
-                {user.vision?.mainGoalShort ? (
-                  <>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-bold text-gray-900">🎯 מטרה מרכזית:</span>
-                      <p className="text-sm text-gray-600 leading-relaxed">{user.vision.mainGoalShort}</p>
-                    </div>
-                    
-                    {user.vision.longTermVision && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-bold text-gray-900">🔭 חזון לשנה קדימה:</span>
-                        <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{user.vision.longTermVision}</p>
-                      </div>
-                    )}
-
-                    {user.vision.keySkills && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-bold text-gray-900">🏷 מיומנויות נבחרות:</span>
-                        <p className="text-xs text-gray-500 bg-gray-50 p-2 rounded-lg">{user.vision.keySkills}</p>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  // Fallback/Empty State
-                  <div className="text-center py-4 space-y-2">
-                    <p className="text-sm text-gray-500">טרם הוגדרו יעדים וחזון מפורט</p>
-                    <span className="text-xs text-[#FF6F20] font-bold underline">לחץ כאן להגדרת חזון</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Old Health Section Removed as per request to replace/update flow */}
-            {user.emergency_contact_name && (
-              <div className="p-4 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-                <h3 className="text-base font-bold mb-3 pb-2 flex items-center gap-2" style={{ color: '#000000', borderBottom: '1px solid #F0F0F0' }}>
-                  <Phone className="w-4 h-4" style={{ color: '#FF9800' }} />
-                  איש קשר לחירום
-                </h3>
-                <div className="p-3 rounded-lg" style={{ backgroundColor: '#FFF3E0', border: '1px solid #FF9800' }}>
-                  {user.emergency_contact_name && <p className="text-sm mb-1" style={{ color: '#000000' }}><span className="font-bold">שם:</span> {user.emergency_contact_name}</p>}
-                  {user.emergency_contact_phone && <p className="text-sm" style={{ color: '#000000' }}><span className="font-bold">טלפון:</span> {user.emergency_contact_phone}</p>}
-                </div>
-              </div>
-            )}
-            {/* Password Change Section */}
-            <div className="p-4 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-              <div className="flex justify-between items-center">
-                <h3 className="text-base font-bold flex items-center gap-2" style={{ color: '#000000' }}>
-                  <Lock className="w-4 h-4" style={{ color: '#FF6F20' }} />
-                  אבטחת חשבון
-                </h3>
-                <button
-                  onClick={() => setShowPasswordChange(!showPasswordChange)}
-                  className="text-sm font-bold px-3 py-1.5 rounded-lg"
-                  style={{ backgroundColor: '#000000', color: '#FFFFFF' }}
-                >
-                  שנה סיסמה
-                </button>
-              </div>
-              {showPasswordChange && (
-                <div className="mt-4 space-y-3">
-                  <div>
-                    <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>סיסמה חדשה</Label>
-                    <Input
-                      type="password"
-                      placeholder="לפחות 6 תווים"
-                      value={passwordForm.newPass}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
-                      className="rounded-lg h-10"
-                      style={{ direction: "ltr" }}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>אישור סיסמה חדשה</Label>
-                    <Input
-                      type="password"
-                      placeholder="הכנס שוב את הסיסמה"
-                      value={passwordForm.confirm}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                      className="rounded-lg h-10"
-                      style={{ direction: "ltr" }}
-                    />
-                  </div>
-                  <Button
-                    onClick={handlePasswordChange}
-                    disabled={passwordLoading}
-                    className="w-full font-bold text-white rounded-lg"
-                    style={{ backgroundColor: '#FF6F20' }}
-                  >
-                    {passwordLoading ? "שומר..." : "שמור סיסמה"}
+              {/* ── Overview tab (legacy content kept but hidden — shown in compact view above) ── */}
+              {/* Goals Tab */}
+              <TabsContent value="goals" className="space-y-4 w-full">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Target className="w-5 h-5 text-[#FF6F20]" />יעדים</h2>
+                  <Button onClick={() => { setEditingGoal(null); setShowAddGoal(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                    <Plus className="w-3 h-3 ml-1" />הוסף יעד
                   </Button>
                 </div>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* Goals Tab */}
-          <TabsContent value="goals" className="space-y-4 w-full">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg md:text-xl font-bold flex items-center gap-2" style={{ color: '#000000' }}>
-                <Target className="w-5 h-5" style={{ color: '#FF6F20' }} />
-                יעדים
-              </h2>
-              <Button onClick={() => { setEditingGoal(null); setShowAddGoal(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                <Plus className="w-3 h-3 ml-1" />
-                הוסף יעד
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
-              <div className="p-3 md:p-4 rounded-lg text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-                <Target className="w-5 h-5 mx-auto mb-1" style={{ color: '#FF6F20' }} />
-                <p className="text-xl md:text-2xl font-bold mb-0.5" style={{ color: '#000000' }}>{activeGoals.length}</p>
-                <p className="text-[10px] md:text-xs" style={{ color: '#7D7D7D' }}>פעילים</p>
-              </div>
-              <div className="p-3 md:p-4 rounded-lg text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-                <CheckCircle className="w-5 h-5 mx-auto mb-1" style={{ color: '#4CAF50' }} />
-                <p className="text-xl md:text-2xl font-bold mb-0.5" style={{ color: '#000000' }}>{completedGoals.length}</p>
-                <p className="text-[10px] md:text-xs" style={{ color: '#7D7D7D' }}>הושגו</p>
-              </div>
-              <div className="p-3 md:p-4 rounded-lg text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-                <TrendingUp className="w-5 h-5 mx-auto mb-1" style={{ color: '#7D7D7D' }} />
-                <p className="text-xl md:text-2xl font-bold mb-0.5" style={{ color: '#000000' }}>{goals.length}</p>
-                <p className="text-[10px] md:text-xs" style={{ color: '#7D7D7D' }}>סה״כ</p>
-              </div>
-            </div>
-
-            {goals.length === 0 ? (
-              <div className="text-center py-8 p-5 rounded-lg" style={{ backgroundColor: '#FAFAFA' }}>
-                <Target className="w-10 h-10 mx-auto mb-3" style={{ color: '#E0E0E0' }} />
-                <p className="text-base" style={{ color: '#7D7D7D' }}>אין יעדים מוגדרים</p>
-              </div>
-            ) : (
-              <div className="space-y-3 w-full">
-                {goals.map(goal => (
-                  <div key={goal.id} className="p-4 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h4 className="font-bold text-lg mb-2" style={{ color: '#000' }}>{goal.goal_name}</h4>
-                        {goal.description && <p className="text-sm mb-2" style={{ color: '#7D7D7D' }}>{goal.description}</p>}
-                      </div>
-                      <div className="flex gap-1">
-                        <Button onClick={() => { setEditingGoal(goal); setShowAddGoal(true); }} size="icon" variant="ghost" className="w-8 h-8 rounded-lg" style={{ color: '#FF6F20' }}>
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button onClick={() => { if (window.confirm(`למחוק "${goal.goal_name}"?`)) deleteGoalMutation.mutate(goal.id); }} size="icon" variant="ghost" className="w-8 h-8 rounded-lg" style={{ color: '#f44336' }}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                <div className="grid grid-cols-3 gap-3 w-full">
+                  {[
+                    { icon: <Target className="w-5 h-5 mx-auto mb-1 text-[#FF6F20]" />, val: activeGoals.length, label: 'פעילים' },
+                    { icon: <CheckCircle className="w-5 h-5 mx-auto mb-1 text-green-500" />, val: completedGoals.length, label: 'הושגו' },
+                    { icon: <TrendingUp className="w-5 h-5 mx-auto mb-1 text-gray-400" />, val: goals.length, label: 'סה״כ' },
+                  ].map((s, i) => (
+                    <div key={i} className="p-3 rounded-lg text-center bg-white border border-gray-200">
+                      {s.icon}<p className="text-xl font-bold">{s.val}</p><p className="text-xs text-gray-500">{s.label}</p>
                     </div>
-                    <div className="mb-3">
-                      <div className="flex justify-between text-xs mb-2">
-                        <span style={{ color: '#7D7D7D' }}>התקדמות</span>
-                        <span className="font-bold" style={{ color: '#FF6F20' }}>
-                          {goal.current_value || 0} / {goal.target_value} {goal.unit}
-                        </span>
+                  ))}
+                </div>
+                {goals.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg"><Target className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין יעדים מוגדרים</p></div>
+                ) : (
+                  <div className="space-y-3">
+                    {goals.map(goal => (
+                      <div key={goal.id} className="p-4 rounded-lg bg-white border border-gray-200 shadow-sm">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-lg mb-1">{goal.goal_name}</h4>
+                            {goal.description && <p className="text-sm text-gray-500">{goal.description}</p>}
+                          </div>
+                          <div className="flex gap-1">
+                            <Button onClick={() => { setEditingGoal(goal); setShowAddGoal(true); }} size="icon" variant="ghost" className="w-9 h-9 text-[#FF6F20]"><Edit2 className="w-4 h-4" /></Button>
+                            <Button onClick={() => { if (window.confirm(`למחוק "${goal.goal_name}"?`)) deleteGoalMutation.mutate(goal.id); }} size="icon" variant="ghost" className="w-9 h-9 text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                          </div>
+                        </div>
+                        <div className="mb-2">
+                          <div className="flex justify-between text-xs mb-1"><span className="text-gray-400">התקדמות</span><span className="font-bold text-[#FF6F20]">{goal.current_value || 0} / {goal.target_value} {goal.unit}</span></div>
+                          <div className="h-2 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${goal.progress_percentage || 0}%` }} /></div>
+                          <p className="text-xs text-center mt-1 font-bold text-[#FF6F20]">{goal.progress_percentage || 0}%</p>
+                        </div>
+                        {goal.target_date && <p className="text-xs text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3" />יעד: {format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}</p>}
                       </div>
-                      <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: '#E0E0E0' }}>
-                        <div className="h-full transition-all" style={{ width: `${goal.progress_percentage || 0}%`, backgroundColor: '#FF6F20' }} />
-                      </div>
-                      <p className="text-xs mt-2 text-center font-bold" style={{ color: '#FF6F20' }}>{goal.progress_percentage || 0}% הושלם</p>
-                    </div>
-                    {goal.target_date && (
-                      <p className="text-xs flex items-center gap-1" style={{ color: '#7D7D7D' }}>
-                        <Calendar className="w-3 h-3" />
-                        יעד: {format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}
-                      </p>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Metrics Tab */}
-          <TabsContent value="metrics" className="space-y-4 w-full">
-            <h2 className="text-lg md:text-xl font-bold flex items-center gap-2" style={{ color: '#000000' }}>
-              <TrendingUp className="w-5 h-5" style={{ color: '#FF6F20' }} />
-              מדדים פיזיים
-            </h2>
-            <PhysicalMetricsManager
-              trainee={user}
-              measurements={measurements}
-              results={results}
-              coach={isCoach ? currentUser : null}
-              goals={goals}
-            />
-          </TabsContent>
-
-          {/* Achievements Tab */}
-          <TabsContent value="achievements" className="space-y-4 w-full">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg md:text-xl font-bold flex items-center gap-2" style={{ color: '#000000' }}>
-                <Award className="w-5 h-5" style={{ color: '#FFD700' }} />
-                הישגים
-              </h2>
-              <Button onClick={() => { setEditingResult(null); setShowAddResult(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs" style={{ border: '1px solid #FFD700', color: '#000000' }}>
-                <Plus className="w-3 h-3 ml-1" />
-                הוסף שיא חדש
-              </Button>
-            </div>
-
-            {results.length === 0 ? (
-              <div className="text-center py-8 p-5 rounded-lg" style={{ backgroundColor: '#FAFAFA' }}>
-                <Award className="w-10 h-10 mx-auto mb-3" style={{ color: '#E0E0E0' }} />
-                <p className="text-base" style={{ color: '#7D7D7D' }}>אין הישגים עדיין</p>
-              </div>
-            ) : (
-              <div className="space-y-4 w-full pb-20">
-                {Object.entries(groupedResults).map(([type, typeResults]) => (
-                  <AchievementGroup
-                    key={type}
-                    type={type}
-                    results={typeResults}
-                    goals={goals}
-                    onEdit={(r) => { setEditingResult(r); setShowAddResult(true); }}
-                    onDelete={(id) => { if (window.confirm(`למחוק את השיא?`)) deleteResultMutation.mutate(id); }}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Attendance Tab Removed - Merged into Services */}
-
-          {/* Services Tab */}
-          <TabsContent value="services" className="space-y-6 w-full">
-            <div className="flex justify-between items-center">
-                <h2 className="text-lg md:text-xl font-bold flex items-center gap-2" style={{ color: '#000000' }}>
-                <Package className="w-5 h-5" style={{ color: '#FF6F20' }} />
-                שירותים וחבילות
-                </h2>
-                {isCoach && (
-                    <Button 
-                        onClick={() => {
-                          setEditingService(null);
-                          setServiceForm({ 
-                            service_type: "personal", 
-                            group_name: "",
-                            billing_model: "punch_card",
-                            sessions_per_week: "",
-                            package_name: "", 
-                            base_price: "",
-                            discount_type: "none",
-                            discount_value: 0,
-                            final_price: "",
-                            payment_method: "credit",
-                            start_date: new Date().toISOString().split('T')[0], 
-                            end_date: "",
-                            next_billing_date: "",
-                            total_sessions: "",
-                            payment_status: "ממתין לתשלום",
-                            notes_internal: "",
-                            status: "active"
-                          });
-                          setShowAddService(true);
-                        }} 
-                        variant="ghost" 
-                        className="rounded-lg px-3 py-2 font-medium text-xs" 
-                        style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}
-                    >
-                        <Plus className="w-3 h-3 ml-1" />
-                        הוסף שירות
-                    </Button>
                 )}
-            </div>
+              </TabsContent>
 
-            {/* A. Active Services - Grouped */}
-            <div className="space-y-6">
-                {['personal', 'group', 'online'].map(type => {
+              {/* Metrics Tab */}
+              <TabsContent value="metrics" className="space-y-4 w-full">
+                <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#FF6F20]" />מדדים פיזיים</h2>
+                <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} goals={goals} />
+              </TabsContent>
+
+              {/* Achievements Tab */}
+              <TabsContent value="achievements" className="space-y-4 w-full">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Award className="w-5 h-5 text-yellow-500" />הישגים</h2>
+                  <Button onClick={() => { setEditingResult(null); setShowAddResult(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FFD700', color: '#000' }}>
+                    <Plus className="w-3 h-3 ml-1" />הוסף שיא
+                  </Button>
+                </div>
+                {results.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg"><Award className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין הישגים עדיין</p></div>
+                ) : (
+                  <div className="space-y-4 pb-4">
+                    {Object.entries(groupedResults).map(([type, typeResults]) => (
+                      <AchievementGroup key={type} type={type} results={typeResults} goals={goals}
+                        onEdit={(r) => { setEditingResult(r); setShowAddResult(true); }}
+                        onDelete={(id) => { if (window.confirm('למחוק?')) deleteResultMutation.mutate(id); }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Services Tab */}
+              <TabsContent value="services" className="space-y-6 w-full">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Package className="w-5 h-5 text-[#FF6F20]" />שירותים וחבילות</h2>
+                  {isCoach && (
+                    <Button onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                      <Plus className="w-3 h-3 ml-1" />הוסף שירות
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-6">
+                  {['personal', 'group', 'online'].map(type => {
                     const typeServices = activeServices.filter(s => {
-                        if (type === 'personal') return s.service_type === 'personal' || s.service_type === 'אימונים אישיים';
-                        if (type === 'group') return s.service_type === 'group' || s.service_type === 'פעילות קבוצתית';
-                        if (type === 'online') return s.service_type === 'online' || s.service_type === 'ליווי אונליין';
-                        return false;
+                      if (type === 'personal') return s.service_type === 'personal' || s.service_type === 'אימונים אישיים';
+                      if (type === 'group') return s.service_type === 'group' || s.service_type === 'פעילות קבוצתית';
+                      if (type === 'online') return s.service_type === 'online' || s.service_type === 'ליווי אונליין';
+                      return false;
                     });
-
                     if (typeServices.length === 0) return null;
-
                     const title = type === 'personal' ? '🏋️‍♂️ אימונים אישיים' : type === 'group' ? '👥 אימונים קבוצתיים' : '💻 ליווי אונליין';
                     const borderColor = type === 'personal' ? '#FF6F20' : type === 'group' ? '#2196F3' : '#9C27B0';
-
                     return (
-                        <div key={type} className="space-y-3">
-                            <h3 className="text-base font-bold text-gray-800 flex items-center gap-2">
-                                {title}
-                            </h3>
-                            <div className="grid gap-4">
-                                {typeServices.map(service => {
-                                    const isPunchCard = service.billing_model === 'punch_card' || service.total_sessions > 0;
-                                    const remaining = isPunchCard ? service.total_sessions - (service.used_sessions || 0) : null;
-                                    const priceDisplay = service.final_price || service.price;
-                                    
-                                    return (
-                                        <div key={service.id} className="bg-white rounded-xl border shadow-sm relative overflow-hidden transition-all" style={{ borderColor: borderColor }}>
-                                            {/* Header */}
-                                            <div className="p-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/30">
-                                                <div>
-                                                    <h4 className="font-bold text-lg text-gray-900">
-                                                        {service.group_name || service.package_name || (type === 'personal' ? 'חבילה אישית' : 'מנוי')}
-                                                    </h4>
-                                                    <p className="text-xs text-gray-500 mt-0.5">
-                                                        {service.billing_model === 'subscription' ? '📅 מנוי מתחדש' : 
-                                                         service.billing_model === 'punch_card' ? '🎫 כרטיסייה' : '⚡ חד פעמי'}
-                                                        {service.sessions_per_week ? ` • ${service.sessions_per_week} אימונים בשבוע` : ''}
-                                                    </p>
-                                                </div>
-                                                <div className="text-left">
-                                                    <div className="text-lg font-black" style={{ color: borderColor }}>
-                                                        ₪{priceDisplay}
-                                                        <span className="text-xs font-normal text-gray-400 block">
-                                                            {service.billing_model === 'subscription' ? 'לחודש' : 'סה"כ'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="p-4 space-y-4">
-                                                {/* Status & Dates */}
-                                                <div className="flex flex-wrap gap-3 text-xs text-gray-600">
-                                                    <div className="flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded-md">
-                                                        <Calendar className="w-3.5 h-3.5" />
-                                                        <span>התחלה: {format(new Date(service.start_date), 'dd/MM/yy')}</span>
-                                                    </div>
-                                                    {service.next_billing_date && (
-                                                        <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2 py-1 rounded-md">
-                                                            <Calendar className="w-3.5 h-3.5" />
-                                                            <span>חיוב הבא: {format(new Date(service.next_billing_date), 'dd/MM/yy')}</span>
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded-md">
-                                                        <DollarSign className="w-3.5 h-3.5" />
-                                                        <span>{service.payment_method === 'credit' ? 'אשראי' : service.payment_method === 'cash' ? 'מזומן' : service.payment_method === 'bit' ? 'ביט' : service.payment_method}</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Progress Bar for Punch Cards */}
-                                                {isPunchCard && (
-                                                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                                        <div className="flex justify-between items-center text-sm mb-2">
-                                                            <span className="font-bold text-gray-700">ניצול כרטיסייה</span>
-                                                            {editingUsage === service.id ? (
-                                                                <div className="flex items-center gap-2 scale-90 origin-left">
-                                                                    <Input 
-                                                                        type="number" 
-                                                                        value={usageValue} 
-                                                                        onChange={(e) => setUsageValue(e.target.value)}
-                                                                        className="w-16 h-8 text-center bg-white"
-                                                                    />
-                                                                    <span className="text-gray-500">/ {service.total_sessions}</span>
-                                                                    <Button onClick={() => updateServiceUsageMutation.mutate()} size="icon" className="h-8 w-8 bg-green-500 hover:bg-green-600 rounded-full"><CheckCircle className="w-4 h-4" /></Button>
-                                                                    <Button onClick={() => setEditingUsage(null)} size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-50 rounded-full"><Trash2 className="w-4 h-4" /></Button>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="font-mono font-bold">{service.used_sessions} / {service.total_sessions}</span>
-                                                                    {isCoach && (
-                                                                        <Button onClick={() => { setEditingUsage(service.id); setUsageValue(service.used_sessions.toString()); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                            <div className="h-full transition-all" style={{ width: `${Math.min(100, (service.used_sessions / service.total_sessions) * 100)}%`, backgroundColor: borderColor }} />
-                                                        </div>
-                                                        <p className="text-xs text-center mt-1.5 font-bold" style={{ color: borderColor }}>
-                                                            נותרו {remaining} אימונים
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {/* Internal Notes (Coach Only) */}
-                                                {isCoach && service.notes_internal && (
-                                                    <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100">
-                                                        <span className="font-bold">🔒 הערות פנימיות:</span> {service.notes_internal}
-                                                    </div>
-                                                )}
-
-                                                {/* Actions Footer */}
-                                                {isCoach && (
-                                                    <div className="pt-3 border-t border-gray-100 flex justify-end gap-2">
-                                                        <Button variant="ghost" size="sm" className="text-xs h-8 hover:bg-gray-50" onClick={() => openEditService(service)}>
-                                                            <Edit2 className="w-3 h-3 ml-1.5 text-gray-400" /> ערוך
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    );
-                })}
-                
-                {activeServices.length === 0 && (
-                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                        <p className="text-gray-500">אין שירותים פעילים</p>
-                        {isCoach && <Button variant="link" onClick={() => setShowAddService(true)} className="text-[#FF6F20]">הוסף שירות ראשון</Button>}
-                    </div>
-                )}
-            </div>
-
-            {/* B. Purchase History */}
-            <div className="space-y-4 pt-4">
-                <h3 className="text-base font-bold text-gray-800 border-b pb-2">היסטוריית רכישות</h3>
-                <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-100 border-b border-gray-200">
-                            <tr>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">שירות</th>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">תאריך</th>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">מחיר</th>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">סטטוס</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                            {services.length === 0 ? (
-                                <tr>
-                                    <td colSpan="4" className="px-4 py-4 text-center text-gray-500 italic">אין היסטוריה</td>
-                                </tr>
-                            ) : (
-                                services.map(service => (
-                                    <tr key={service.id} className="bg-white">
-                                        <td className="px-4 py-3">
-                                            <div className="font-medium">{service.service_type}</div>
-                                            <div className="text-xs text-gray-500">{service.package_name}</div>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-600">
-                                            {format(new Date(service.start_date), 'dd/MM/yy')}
-                                        </td>
-                                        <td className="px-4 py-3 font-medium">₪{service.price}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={`text-xs px-2 py-1 rounded-full ${
-                                                service.status === 'הסתיים' ? 'bg-blue-100 text-blue-800' : 
-                                                service.status === 'פג תוקף' ? 'bg-red-100 text-red-800' : 
-                                                service.status === 'פעיל' ? 'bg-green-100 text-green-800' :
-                                                'bg-gray-100 text-gray-800'
-                                            }`}>
-                                                {service.status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-          </TabsContent>
-
-          {/* Attendance Tab */}
-          <TabsContent value="attendance" className="space-y-6 w-full">
-            <div className="flex justify-between items-center">
-                <h2 className="text-lg md:text-xl font-bold flex items-center gap-2" style={{ color: '#000000' }}>
-                <Calendar className="w-5 h-5" style={{ color: '#FF6F20' }} />
-                יומן נוכחות
-                </h2>
-                {isCoach && (
-                    <Button
-                        onClick={() => setShowManualAttendance(true)}
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-lg px-3 py-2 font-medium text-xs"
-                        style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}
-                    >
-                        <Plus className="w-3 h-3 ml-1" />
-                        נוכחות ידנית
-                    </Button>
-                )}
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">תאריך</th>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">סוג</th>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">מיקום</th>
-                                <th className="px-4 py-3 text-right font-bold text-gray-600">סטטוס</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {sessions.length === 0 ? (
-                                <tr>
-                                    <td colSpan="4" className="px-4 py-8 text-center text-gray-500">לא נמצאו אימונים</td>
-                                </tr>
-                            ) : (
-                                sessions.map(session => {
-                                    const participant = session.participants?.find(p => p.trainee_id === user.id);
-                                    const displayStatus = participant?.attendance_status || 'ממתין';
-                                    
-                                    return (
-                                        <tr key={session.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3">
-                                                <div className="font-bold text-gray-800">
-                                                    {format(new Date(session.date), 'dd/MM/yy')}
-                                                </div>
-                                                <div className="text-xs text-gray-500">{session.time}</div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`text-xs px-2 py-1 rounded-full border ${
-                                                    session.session_type === 'אישי' ? 'bg-purple-50 border-purple-100 text-purple-700' :
-                                                    session.session_type === 'קבוצתי' ? 'bg-blue-50 border-blue-100 text-blue-700' :
-                                                    'bg-green-50 border-green-100 text-green-700'
-                                                }`}>
-                                                    {session.session_type}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600 text-xs truncate max-w-[100px]">
-                                                {session.location}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {isCoach ? (
-                                                    <Select 
-                                                        value={displayStatus} 
-                                                        onValueChange={(val) => {
-                                                            if (val !== displayStatus) {
-                                                                updateSessionStatusMutation.mutate({ session, newStatus: val });
-                                                            }
-                                                        }}
-                                                    >
-                                                        <SelectTrigger className="h-8 text-xs w-auto min-w-[90px] border-gray-200">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="הגיע">הגיע</SelectItem>
-                                                            <SelectItem value="לא הגיע">לא הגיע</SelectItem>
-                                                            <SelectItem value="בוטל">בוטל</SelectItem>
-                                                            <SelectItem value="ממתין">ממתין</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                ) : (
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                        displayStatus === 'התקיים' || displayStatus === 'הגיע' ? 'bg-green-100 text-green-800' :
-                                                        displayStatus === 'בוטל' || displayStatus?.includes('בוטל') ? 'bg-red-100 text-red-800' :
-                                                        displayStatus === 'לא הגיע' ? 'bg-orange-100 text-orange-800' :
-                                                        'bg-yellow-100 text-yellow-800'
-                                                    }`}>
-                                                        {displayStatus === 'attended' ? 'הגיע' :
-                                                         displayStatus === 'noshow' ? 'לא הגיע' :
-                                                         displayStatus === 'cancelled' ? 'בוטל' :
-                                                         displayStatus === 'confirmed' ? 'מאושר' :
-                                                         displayStatus}
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-          </TabsContent>
-
-          {/* Plans Tab */}
-          <TabsContent value="plans" className="space-y-4 w-full">
-            <div className="flex justify-between items-center">
-                <h2 className="text-lg md:text-xl font-bold flex items-center gap-2" style={{ color: '#000000' }}>
-                <FileText className="w-5 h-5" style={{ color: '#FF6F20' }} />
-                תוכניות אימון
-                </h2>
-                {isCoach && (
-                    <Button 
-                        onClick={() => navigate(createPageUrl(`TrainingPlans?create=true`))} 
-                        variant="ghost" 
-                        className="rounded-lg px-3 py-2 font-medium text-xs" 
-                        style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}
-                    >
-                        <Plus className="w-3 h-3 ml-1" />
-                        צור תוכנית
-                    </Button>
-                )}
-            </div>
-            {trainingPlans.length === 0 ? (
-              <div className="text-center py-8 p-5 rounded-lg" style={{ backgroundColor: '#FAFAFA' }}>
-                <FileText className="w-10 h-10 mx-auto mb-3" style={{ color: '#E0E0E0' }} />
-                <p className="text-base" style={{ color: '#7D7D7D' }}>אין תוכניות אימון</p>
-              </div>
-            ) : (
-              <div className="space-y-8 w-full">
-                {/* Coach Plans */}
-                {trainingPlans.filter(p => p.created_by !== user?.id).length > 0 && (
-                    <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
-                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#FF6F20]"></span>
-                            תוכניות מהמאמן
-                        </h3>
-                        <div className="space-y-3">
-                            {trainingPlans.filter(p => p.created_by !== user?.id).map(plan => {
-                                const progress = getPlanProgress(plan);
-                                return (
-                                    <div 
-                                        key={plan.id} 
-                                        onClick={() => isCoach && navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`)}
-                                        className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md transition-all cursor-pointer group"
-                                    >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h4 className="font-bold text-base group-hover:text-[#FF6F20] transition-colors">{plan.plan_name}</h4>
-                                            {isCoach && (
-                                                <Button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`);
-                                                    }} 
-                                                    size="sm" 
-                                                    variant="outline" 
-                                                    className="h-7 text-xs"
-                                                >
-                                                    פתח
-                                                </Button>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                                            <span>{plan.goal_focus}</span>
-                                            <span>{progress.completed}/{progress.total} תרגילים</span>
-                                        </div>
-                                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-[#FF6F20] transition-all duration-500"
-                                                style={{ width: `${progress.percent}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Self Created Plans */}
-                {trainingPlans.filter(p => p.created_by === user?.id).length > 0 && (
-                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
-                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                            תוכניות עצמאיות
-                        </h3>
-                        <div className="space-y-3">
-                            {trainingPlans.filter(p => p.created_by === user?.id).map(plan => {
-                                const progress = getPlanProgress(plan);
-                                return (
-                                    <div 
-                                        key={plan.id} 
-                                        onClick={() => isCoach && navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`)}
-                                        className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md transition-all cursor-pointer group"
-                                    >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h4 className="font-bold text-base group-hover:text-gray-700 transition-colors">{plan.plan_name}</h4>
-                                            {isCoach && (
-                                                <Button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`);
-                                                    }} 
-                                                    size="sm" 
-                                                    variant="outline" 
-                                                    className="h-7 text-xs"
-                                                >
-                                                    פתח
-                                                </Button>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                                            <span>{plan.goal_focus}</span>
-                                            <span>{progress.completed}/{progress.total} תרגילים</span>
-                                        </div>
-                                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-gray-500 transition-all duration-500"
-                                                style={{ width: `${progress.percent}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Workout History List */}
-                {workoutHistory.length > 0 && (
-                    <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#2196F3]"></span>
-                            היסטוריית אימונים
-                        </h3>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {workoutHistory.map((entry) => (
-                                <div key={entry.id} className="bg-white p-3 rounded-xl border border-blue-100 shadow-sm flex justify-between items-center">
-                                    <div>
-                                        <h4 className="font-bold text-sm text-blue-900">{entry.planName || "אימון"}</h4>
-                                        <span className="text-xs text-gray-500">{new Date(entry.date).toLocaleDateString('he-IL')}</span>
-                                    </div>
-                                    <div className="text-left text-xs">
-                                        <div className="font-bold text-green-600">שליטה: {entry.mastery_avg}</div>
-                                        <div className="font-bold text-orange-600">קושי: {entry.difficulty_avg}</div>
-                                    </div>
+                      <div key={type} className="space-y-3">
+                        <h3 className="text-base font-bold text-gray-800">{title}</h3>
+                        <div className="grid gap-4">
+                          {typeServices.map(service => {
+                            const isPunchCard = service.billing_model === 'punch_card' || service.total_sessions > 0;
+                            const remaining = isPunchCard ? service.total_sessions - (service.used_sessions || 0) : null;
+                            const priceDisplay = service.final_price || service.price;
+                            return (
+                              <div key={service.id} className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor }}>
+                                <div className="p-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/30">
+                                  <div>
+                                    <h4 className="font-bold text-lg text-gray-900">{service.group_name || service.package_name || (type === 'personal' ? 'חבילה אישית' : 'מנוי')}</h4>
+                                    <p className="text-xs text-gray-500 mt-0.5">{service.billing_model === 'subscription' ? '📅 מנוי' : service.billing_model === 'punch_card' ? '🎫 כרטיסייה' : '⚡ חד פעמי'}{service.sessions_per_week ? ` • ${service.sessions_per_week}/שבוע` : ''}</p>
+                                  </div>
+                                  <div className="text-lg font-black" style={{ color: borderColor }}>₪{priceDisplay}<span className="text-xs font-normal text-gray-400 block">{service.billing_model === 'subscription' ? 'לחודש' : 'סה"כ'}</span></div>
                                 </div>
-                            ))}
+                                <div className="p-4 space-y-3">
+                                  <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+                                    <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md"><Calendar className="w-3 h-3" />התחלה: {format(new Date(service.start_date), 'dd/MM/yy')}</div>
+                                    {service.next_billing_date && <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded-md"><Calendar className="w-3 h-3" />חיוב הבא: {format(new Date(service.next_billing_date), 'dd/MM/yy')}</div>}
+                                    <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md"><DollarSign className="w-3 h-3" />{service.payment_method === 'credit' ? 'אשראי' : service.payment_method === 'cash' ? 'מזומן' : service.payment_method === 'bit' ? 'ביט' : service.payment_method}</div>
+                                  </div>
+                                  {isPunchCard && (
+                                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                      <div className="flex justify-between items-center text-sm mb-2">
+                                        <span className="font-bold text-gray-700">ניצול כרטיסייה</span>
+                                        {editingUsage === service.id ? (
+                                          <div className="flex items-center gap-2">
+                                            <Input type="number" value={usageValue} onChange={e => setUsageValue(e.target.value)} className="w-16 h-8 text-center bg-white" />
+                                            <span className="text-gray-500">/ {service.total_sessions}</span>
+                                            <Button onClick={() => updateServiceUsageMutation.mutate()} size="icon" className="h-8 w-8 bg-green-500 rounded-full"><CheckCircle className="w-4 h-4" /></Button>
+                                            <Button onClick={() => setEditingUsage(null)} size="icon" variant="ghost" className="h-8 w-8 text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-mono font-bold">{service.used_sessions} / {service.total_sessions}</span>
+                                            {isCoach && <Button onClick={() => { setEditingUsage(service.id); setUsageValue(String(service.used_sessions)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full" style={{ width: `${Math.min(100, (service.used_sessions / service.total_sessions) * 100)}%`, backgroundColor: borderColor }} /></div>
+                                      <p className="text-xs text-center mt-1 font-bold" style={{ color: borderColor }}>נותרו {remaining} אימונים</p>
+                                    </div>
+                                  )}
+                                  {isCoach && service.notes_internal && <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100"><span className="font-bold">🔒 הערות פנימיות:</span> {service.notes_internal}</div>}
+                                  {isCoach && <div className="pt-2 border-t border-gray-100 flex justify-end"><Button variant="ghost" size="sm" className="text-xs h-9" onClick={() => openEditService(service)}><Edit2 className="w-3 h-3 ml-1 text-gray-400" />ערוך</Button></div>}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
+                      </div>
+                    );
+                  })}
+                  {activeServices.length === 0 && (
+                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                      <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                      <p className="text-gray-500">אין שירותים פעילים</p>
+                      {isCoach && <Button variant="link" onClick={() => setShowAddService(true)} className="text-[#FF6F20]">הוסף שירות ראשון</Button>}
                     </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Messages Tab */}
-          <TabsContent value="messages" className="space-y-4 w-full">
-            <h2 className="text-lg md:text-xl font-bold flex items-center gap-2 mb-4" style={{ color: '#000000' }}>
-              <MessageSquare className="w-5 h-5" style={{ color: '#9C27B0' }} />
-              שיחה עם המאמן
-            </h2>
-            {user && coach ? (
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E0E0E0', backgroundColor: '#FFFFFF' }}>
-                <MessageCenter
-                  currentUserId={user.id}
-                  currentUserName={user.full_name}
-                  otherUserId={coach.id}
-                  otherUserName={coach.full_name}
-                  relatedUserId={user.id}
-                />
-              </div>
-            ) : (
-              <div className="text-center py-8 p-5 rounded-lg" style={{ backgroundColor: '#FAFAFA' }}>
-                <MessageSquare className="w-10 h-10 mx-auto mb-3" style={{ color: '#E0E0E0' }} />
-                <p className="text-base" style={{ color: '#7D7D7D' }}>לא נמצא מאמן</p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Edit Dialog */}
-      <Dialog open={showEdit} onOpenChange={setShowEdit}>
-        <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF', WebkitOverflowScrolling: 'touch' }}>
-          <DialogHeader>
-            <DialogTitle className="text-lg md:text-xl font-bold" style={{ color: '#000' }}>ערוך פרטים</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div><Label className="text-sm">טלפון</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="rounded-lg" /></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div><Label className="text-sm">תאריך לידה</Label><Input type="date" value={formData.birth_date} onChange={(e) => {
-                const newBirthDate = e.target.value;
-                let calculatedAge = "";
-                if (newBirthDate) {
-                  try {
-                    const birthDate = new Date(newBirthDate);
-                    const today = new Date();
-                    calculatedAge = Math.floor((today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)).toString();
-                  } catch (error) {
-                    console.error("Error calculating age:", error);
-                  }
-                }
-                setFormData({ ...formData, birth_date: newBirthDate, age: calculatedAge });
-              }} max={new Date().toISOString().split('T')[0]} className="rounded-lg" /></div>
-              <div><Label className="text-sm">גיל</Label><Input value={formData.age} disabled placeholder="מחושב אוטומטית" className="rounded-lg bg-gray-50" /></div>
-            </div>
-            <div><Label className="text-sm">מגדר</Label>
-              <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
-                <SelectTrigger className="rounded-lg"><SelectValue placeholder="בחר מגדר" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="זכר">זכר</SelectItem>
-                  <SelectItem value="נקבה">נקבה</SelectItem>
-                  <SelectItem value="אחר">אחר</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {isCoach && (
-                <div>
-                    <Label className="text-sm font-bold text-[#FF6F20]">שם מלא (עריכת מאמן)</Label>
-                    <Input value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg border-orange-200" />
+                  )}
                 </div>
-            )}
-            <div><Label className="text-sm">כתובת</Label><Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="rounded-lg" /></div>
-            <div><Label className="text-sm">עיר</Label><Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="rounded-lg" /></div>
-            <div><Label className="text-sm">מטרה ראשית</Label><Textarea value={formData.main_goal} onChange={(e) => setFormData({ ...formData, main_goal: e.target.value })} className="rounded-lg min-h-[80px]" /></div>
-            <div><Label className="text-sm">סטטוס נוכחי</Label><Textarea value={formData.current_status} onChange={(e) => setFormData({ ...formData, current_status: e.target.value })} className="rounded-lg min-h-[80px]" /></div>
-            <div><Label className="text-sm">חזון עתידי</Label><Textarea value={formData.future_vision} onChange={(e) => setFormData({ ...formData, future_vision: e.target.value })} className="rounded-lg min-h-[80px]" /></div>
-            {/* Removed old health issues field from general edit to avoid confusion with new flow */}
-            <div><Label className="text-sm">שם איש קשר לחירום</Label><Input value={formData.emergency_contact_name} onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })} className="rounded-lg" /></div>
-            <div><Label className="text-sm">טלפון איש קשר</Label><Input value={formData.emergency_contact_phone} onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })} className="rounded-lg" /></div>
-            <Button onClick={handleSave} disabled={updateUserMutation.isPending || updateTargetUserMutation.isPending} className="w-full rounded-lg py-5 font-bold text-white" style={{ backgroundColor: '#FF6F20' }}>
-              {updateUserMutation.isPending || updateTargetUserMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : <>שמור שינויים</>}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Health Update Dialog */}
-      <Dialog open={showHealthUpdate} onOpenChange={setShowHealthUpdate}>
-        <DialogContent className="w-[95vw] md:w-full max-w-lg p-6 rounded-2xl" style={{ backgroundColor: '#FFFFFF', direction: 'rtl' }}>
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-lg font-bold text-right">עדכון הצהרת בריאות</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <Label className="text-right block font-bold text-sm">מצב בריאותי כללי</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <button
-                  onClick={() => setHealthForm({ ...healthForm, has_limitations: false, health_issues: "אין" })}
-                  className={`p-3 rounded-xl border-2 font-bold text-xs transition-all ${
-                    !healthForm.has_limitations
-                      ? "border-[#4CAF50] bg-green-50 text-[#2E7D32]"
-                      : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-                  }`}
-                >
-                  אין מגבלות בריאותיות
-                </button>
-                <button
-                  onClick={() => setHealthForm({ ...healthForm, has_limitations: true, health_issues: "" })}
-                  className={`p-3 rounded-xl border-2 font-bold text-xs transition-all ${
-                    healthForm.has_limitations
-                      ? "border-[#f44336] bg-red-50 text-[#c62828]"
-                      : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-                  }`}
-                >
-                  יש מגבלה / פציעה
-                </button>
-              </div>
-            </div>
-
-            {healthForm.has_limitations && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                <Label className="text-right block font-bold text-xs text-[#c62828]">פרטי המגבלה / הפציעה *</Label>
-                <Textarea
-                  value={healthForm.health_issues}
-                  onChange={(e) => setHealthForm({ ...healthForm, health_issues: e.target.value })}
-                  className="bg-white border-red-100 focus:border-red-300 min-h-[80px] text-right resize-none text-sm"
-                  placeholder="אנא פרט/י כאן..."
-                />
-              </div>
-            )}
-
-            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <Checkbox 
-                id="health-confirm" 
-                checked={healthForm.approved}
-                onCheckedChange={(checked) => setHealthForm({ ...healthForm, approved: checked })}
-                className="mt-0.5 data-[state=checked]:bg-[#FF6F20] data-[state=checked]:border-[#FF6F20]"
-              />
-              <label htmlFor="health-confirm" className="text-xs text-gray-600 leading-relaxed cursor-pointer select-none">
-                אני מאשר/ת שהמידע שמסרתי מדויק, ומבין/ה את הסיכונים הכרוכים בפעילות גופנית.
-              </label>
-            </div>
-
-            <Button 
-              onClick={handleHealthUpdate} 
-              disabled={updateHealthMutation.isPending} 
-              className="w-full rounded-xl py-6 font-bold text-white shadow-md" 
-              style={{ backgroundColor: '#FF6F20' }}
-            >
-              {updateHealthMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "שמור הצהרת בריאות"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Vision Form Dialog */}
-      <VisionFormDialog
-        isOpen={showVisionDialog}
-        onClose={() => setShowVisionDialog(false)}
-        initialData={user?.vision || {}}
-        onSubmit={(data) => updateVisionMutation.mutate(data)}
-        isCoach={isCoach}
-        isLoading={updateVisionMutation.isPending}
-      />
-
-      {/* Goal Form Dialog (Create/Edit) */}
-      <GoalFormDialog
-        isOpen={showAddGoal}
-        onClose={() => {
-          setShowAddGoal(false);
-          setEditingGoal(null);
-        }}
-        traineeId={user.id}
-        traineeName={user.full_name}
-        editingGoal={editingGoal}
-      />
-
-      {/* Result Form Dialog */}
-      <ResultFormDialog
-        isOpen={showAddResult}
-        onClose={() => {
-          setShowAddResult(false);
-          setEditingResult(null);
-        }}
-        traineeId={user.id}
-        traineeName={user.full_name}
-        editingResult={editingResult}
-      />
-
-      {/* Add/Edit Service Dialog */}
-      <Dialog open={showAddService} onOpenChange={setShowAddService}>
-        <DialogContent className="w-[95vw] md:w-full max-w-md max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFF', WebkitOverflowScrolling: 'touch' }}>
-          <DialogHeader><DialogTitle className="text-lg font-bold">{editingService ? 'ערוך שירות' : 'הוסף שירות'}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            {/* Service Type & Model */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                    <Label className="text-xs mb-1 block">סוג שירות</Label>
-                    <Select value={serviceForm.service_type} onValueChange={(value) => setServiceForm({ ...serviceForm, service_type: value })}>
-                        <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="personal">🏋️‍♂️ אישי</SelectItem>
-                            <SelectItem value="group">👥 קבוצתי</SelectItem>
-                            <SelectItem value="online">💻 אונליין</SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div className="space-y-3 pt-4">
+                  <h3 className="text-base font-bold text-gray-800 border-b pb-2">היסטוריית רכישות</h3>
+                  <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">שירות</th><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">מחיר</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th></tr></thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {services.length === 0 ? (
+                          <tr><td colSpan="4" className="px-4 py-4 text-center text-gray-500 italic">אין היסטוריה</td></tr>
+                        ) : (
+                          services.map(s => (
+                            <tr key={s.id} className="bg-white">
+                              <td className="px-3 py-2"><div className="font-medium">{s.service_type}</div><div className="text-xs text-gray-500">{s.package_name}</div></td>
+                              <td className="px-3 py-2 text-gray-600">{format(new Date(s.start_date), 'dd/MM/yy')}</td>
+                              <td className="px-3 py-2 font-medium">₪{s.price}</td>
+                              <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'הסתיים' ? 'bg-blue-100 text-blue-800' : s.status === 'פג תוקף' ? 'bg-red-100 text-red-800' : s.status === 'פעיל' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{s.status}</span></td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div>
-                    <Label className="text-xs mb-1 block">מודל חיוב</Label>
-                    <Select value={serviceForm.billing_model} onValueChange={(value) => setServiceForm({ ...serviceForm, billing_model: value })}>
-                        <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="punch_card">🎫 כרטיסייה</SelectItem>
-                            <SelectItem value="subscription">📅 מנוי</SelectItem>
-                            <SelectItem value="single">⚡ חד פעמי</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+              </TabsContent>
 
-            {/* Group Name (Conditional) */}
-            {serviceForm.service_type === 'group' && (
-                <div>
-                    <Label className="text-xs mb-1 block">שם הקבוצה</Label>
-                    <Input 
-                        value={serviceForm.group_name} 
-                        onChange={(e) => setServiceForm({ ...serviceForm, group_name: e.target.value })} 
-                        placeholder="למשל: קבוצת בוקר" 
-                        className="rounded-xl" 
-                    />
+              {/* Attendance Tab */}
+              <TabsContent value="attendance" className="space-y-4 w-full">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-[#FF6F20]" />יומן נוכחות</h2>
+                  {isCoach && (
+                    <Button onClick={() => setShowManualAttendance(true)} variant="ghost" size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                      <Plus className="w-3 h-3 ml-1" />נוכחות ידנית
+                    </Button>
+                  )}
                 </div>
-            )}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">סוג</th><th className="px-3 py-2 text-right font-bold text-gray-600">מיקום</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th></tr></thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {sessions.length === 0 ? (
+                          <tr><td colSpan="4" className="px-4 py-8 text-center text-gray-500">לא נמצאו אימונים</td></tr>
+                        ) : (
+                          sessions.map(session => {
+                            const participant = session.participants?.find(p => p.trainee_id === user.id);
+                            const displayStatus = participant?.attendance_status || 'ממתין';
+                            return (
+                              <tr key={session.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-2"><div className="font-bold text-gray-800">{format(new Date(session.date), 'dd/MM/yy')}</div><div className="text-xs text-gray-500">{session.time}</div></td>
+                                <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full border ${session.session_type === 'אישי' ? 'bg-purple-50 border-purple-100 text-purple-700' : session.session_type === 'קבוצתי' ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-green-50 border-green-100 text-green-700'}`}>{session.session_type}</span></td>
+                                <td className="px-3 py-2 text-gray-500 text-xs truncate max-w-[80px]">{session.location}</td>
+                                <td className="px-3 py-2">
+                                  {isCoach ? (
+                                    <Select value={displayStatus} onValueChange={val => { if (val !== displayStatus) updateSessionStatusMutation.mutate({ session, newStatus: val }); }}>
+                                      <SelectTrigger className="h-8 text-xs w-auto min-w-[80px] border-gray-200"><SelectValue /></SelectTrigger>
+                                      <SelectContent><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="ממתין">ממתין</SelectItem></SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus === 'הגיע' || displayStatus === 'התקיים' ? 'bg-green-100 text-green-800' : displayStatus?.includes('בוטל') ? 'bg-red-100 text-red-800' : displayStatus === 'לא הגיע' ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}`}>{displayStatus}</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </TabsContent>
 
-            {/* Sessions Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {serviceForm.billing_model === 'punch_card' && (
-                    <div>
-                        <Label className="text-xs mb-1 block">כמות אימונים</Label>
-                        <Input 
-                            type="number" 
-                            value={serviceForm.total_sessions} 
-                            onChange={(e) => setServiceForm({ ...serviceForm, total_sessions: e.target.value })} 
-                            placeholder="10" 
-                            className="rounded-xl" 
-                        />
-                    </div>
-                )}
-                {serviceForm.billing_model === 'subscription' && (
-                    <div>
-                        <Label className="text-xs mb-1 block">אימונים בשבוע</Label>
-                        <Input 
-                            type="number" 
-                            value={serviceForm.sessions_per_week} 
-                            onChange={(e) => setServiceForm({ ...serviceForm, sessions_per_week: e.target.value })} 
-                            placeholder="2" 
-                            className="rounded-xl" 
-                        />
-                    </div>
-                )}
-                <div>
-                    <Label className="text-xs mb-1 block">שם חבילה (לתצוגה)</Label>
-                    <Input 
-                        value={serviceForm.package_name} 
-                        onChange={(e) => setServiceForm({ ...serviceForm, package_name: e.target.value })} 
-                        placeholder='למשל "מנוי זהב"' 
-                        className="rounded-xl" 
-                    />
+              {/* Plans Tab */}
+              <TabsContent value="plans" className="space-y-4 w-full">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-[#FF6F20]" />תוכניות אימון</h2>
+                  {isCoach && <Button onClick={() => navigate(createPageUrl(`TrainingPlans?create=true`))} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}><Plus className="w-3 h-3 ml-1" />צור תוכנית</Button>}
                 </div>
-            </div>
-
-            {/* Pricing */}
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-3">
-                <h4 className="text-xs font-bold text-gray-500">פרטי תשלום</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <Label className="text-xs mb-1 block">מחיר בסיס</Label>
-                        <Input 
-                            type="number" 
-                            value={serviceForm.base_price} 
-                            onChange={(e) => {
-                                const base = parseFloat(e.target.value) || 0;
-                                let final = base;
-                                if (serviceForm.discount_type === 'percent') final = base * (1 - (serviceForm.discount_value / 100));
-                                if (serviceForm.discount_type === 'fixed') final = base - serviceForm.discount_value;
-                                setServiceForm({ ...serviceForm, base_price: e.target.value, final_price: Math.max(0, final).toFixed(0) });
-                            }} 
-                            className="rounded-xl bg-white" 
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-xs mb-1 block">מחיר סופי לתשלום</Label>
-                        <Input 
-                            type="number" 
-                            value={serviceForm.final_price} 
-                            onChange={(e) => setServiceForm({ ...serviceForm, final_price: e.target.value })} 
-                            className="rounded-xl bg-white border-[#FF6F20] text-[#FF6F20] font-bold" 
-                        />
-                    </div>
-                </div>
-                
-                <div className="flex gap-3 items-end">
-                    <div className="flex-1">
-                        <Label className="text-xs mb-1 block">סוג הנחה</Label>
-                        <Select value={serviceForm.discount_type} onValueChange={(value) => setServiceForm({ ...serviceForm, discount_type: value })}>
-                            <SelectTrigger className="rounded-xl h-9 text-xs bg-white"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">ללא</SelectItem>
-                                <SelectItem value="percent">% אחוז</SelectItem>
-                                <SelectItem value="fixed">₪ סכום</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    {serviceForm.discount_type !== 'none' && (
-                        <div className="flex-1">
-                            <Label className="text-xs mb-1 block">ערך הנחה</Label>
-                            <Input 
-                                type="number" 
-                                value={serviceForm.discount_value} 
-                                onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0;
-                                    const base = parseFloat(serviceForm.base_price) || 0;
-                                    let final = base;
-                                    if (serviceForm.discount_type === 'percent') final = base * (1 - (val / 100));
-                                    if (serviceForm.discount_type === 'fixed') final = base - val;
-                                    setServiceForm({ ...serviceForm, discount_value: e.target.value, final_price: Math.max(0, final).toFixed(0) });
-                                }}
-                                className="rounded-xl h-9 bg-white" 
-                            />
+                {trainingPlans.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg"><FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין תוכניות אימון</p></div>
+                ) : (
+                  <div className="space-y-4">
+                    {trainingPlans.filter(p => p.created_by !== user?.id).length > 0 && (
+                      <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
+                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#FF6F20]" />תוכניות מהמאמן</h3>
+                        <div className="space-y-3">
+                          {trainingPlans.filter(p => p.created_by !== user?.id).map(plan => {
+                            const progress = getPlanProgress(plan);
+                            return (
+                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className="font-bold text-base">{plan.plan_name}</h4>
+                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs">פתח</Button>}
+                                </div>
+                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
+                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${progress.percent}%` }} /></div>
+                              </div>
+                            );
+                          })}
                         </div>
+                      </div>
                     )}
-                </div>
-            </div>
-
-            {/* Dates & Payment Method */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <Label className="text-xs mb-1 block">תאריך התחלה</Label>
-                    <Input type="date" value={serviceForm.start_date} onChange={(e) => setServiceForm({ ...serviceForm, start_date: e.target.value })} className="rounded-xl" />
-                </div>
-                {serviceForm.billing_model === 'subscription' && (
-                    <div>
-                        <Label className="text-xs mb-1 block">תאריך חיוב הבא</Label>
-                        <Input type="date" value={serviceForm.next_billing_date} onChange={(e) => setServiceForm({ ...serviceForm, next_billing_date: e.target.value })} className="rounded-xl" />
-                    </div>
+                    {trainingPlans.filter(p => p.created_by === user?.id).length > 0 && (
+                      <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-400" />תוכניות עצמאיות</h3>
+                        <div className="space-y-3">
+                          {trainingPlans.filter(p => p.created_by === user?.id).map(plan => {
+                            const progress = getPlanProgress(plan);
+                            return (
+                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className="font-bold text-base">{plan.plan_name}</h4>
+                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs">פתח</Button>}
+                                </div>
+                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
+                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-gray-500" style={{ width: `${progress.percent}%` }} /></div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {workoutHistory.length > 0 && (
+                      <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500" />היסטוריית אימונים</h3>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {workoutHistory.map(entry => (
+                            <div key={entry.id} className="bg-white p-3 rounded-xl border border-blue-100 flex justify-between items-center">
+                              <div><h4 className="font-bold text-sm text-blue-900">{entry.planName || "אימון"}</h4><span className="text-xs text-gray-500">{new Date(entry.date).toLocaleDateString('he-IL')}</span></div>
+                              <div className="text-xs"><div className="font-bold text-green-600">שליטה: {entry.mastery_avg}</div><div className="font-bold text-orange-600">קושי: {entry.difficulty_avg}</div></div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-                <div>
-                    <Label className="text-xs mb-1 block">אמצעי תשלום</Label>
-                    <Select value={serviceForm.payment_method} onValueChange={(value) => setServiceForm({ ...serviceForm, payment_method: value })}>
-                        <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="credit">💳 אשראי</SelectItem>
-                            <SelectItem value="standing_order">🔄 הוראת קבע</SelectItem>
-                            <SelectItem value="bit">📱 ביט/פייבוקס</SelectItem>
-                            <SelectItem value="cash">💵 מזומן</SelectItem>
-                            <SelectItem value="transfer">🏦 העברה</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div>
-                    <Label className="text-xs mb-1 block">סטטוס</Label>
-                    <Select value={serviceForm.status} onValueChange={(value) => setServiceForm({ ...serviceForm, status: value })}>
-                        <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="active">פעיל</SelectItem>
-                            <SelectItem value="frozen">מושהה</SelectItem>
-                            <SelectItem value="ended">הסתיים</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+              </TabsContent>
 
-            {/* Internal Notes */}
-            <div>
-                <Label className="text-xs mb-1 block text-gray-500">🔒 הערות פנימיות (למאמן בלבד)</Label>
-                <Textarea 
-                    value={serviceForm.notes_internal} 
-                    onChange={(e) => setServiceForm({ ...serviceForm, notes_internal: e.target.value })} 
-                    className="rounded-xl min-h-[60px] bg-yellow-50 border-yellow-100"
-                    placeholder="סיכומים, תנאים מיוחדים וכו'..."
-                />
-            </div>
-
-            <Button onClick={handleAddOrUpdateService} disabled={createServiceMutation.isPending || updateServiceMutation.isPending} className="w-full rounded-xl py-4 font-bold text-white" style={{ backgroundColor: '#FF6F20' }}>
-              {createServiceMutation.isPending || updateServiceMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</> : (editingService ? 'עדכן שירות' : 'הוסף שירות')}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Manual Attendance Dialog */}
-      <Dialog open={showManualAttendance} onOpenChange={setShowManualAttendance}>
-        <DialogContent className="w-[95vw] md:w-full max-w-md max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFF' }}>
-            <DialogHeader><DialogTitle className="text-lg font-bold">הוסף נוכחות ידנית</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <Label>תאריך</Label>
-                        <Input type="date" value={manualAttendanceForm.date} onChange={(e) => setManualAttendanceForm({...manualAttendanceForm, date: e.target.value})} className="rounded-xl" />
-                    </div>
-                    <div>
-                        <Label>שעה</Label>
-                        <Input type="time" value={manualAttendanceForm.time} onChange={(e) => setManualAttendanceForm({...manualAttendanceForm, time: e.target.value})} className="rounded-xl" />
-                    </div>
-                </div>
-                <div>
-                    <Label>סוג אימון</Label>
-                    <Select value={manualAttendanceForm.session_type} onValueChange={(value) => setManualAttendanceForm({...manualAttendanceForm, session_type: value})}>
-                        <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="אישי">אישי</SelectItem>
-                            <SelectItem value="קבוצתי">קבוצתי</SelectItem>
-                            <SelectItem value="אונליין">אונליין</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div>
-                    <Label>הערות</Label>
-                    <Input value={manualAttendanceForm.notes} onChange={(e) => setManualAttendanceForm({...manualAttendanceForm, notes: e.target.value})} placeholder="הערות למאמן" className="rounded-xl" />
-                </div>
-                <Button onClick={handleManualAttendanceSubmit} className="w-full rounded-xl py-4 font-bold text-white" style={{ backgroundColor: '#FF6F20' }}>
-                    שמור נוכחות
-                </Button>
-            </div>
-        </DialogContent>
-      </Dialog>
-
-      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t z-50 shadow-lg" style={{ borderColor: '#E6E6E6', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex justify-around items-center">
-            <Link to={createPageUrl("TraineeHome")} className="flex flex-col items-center gap-1">
-              <Home className="w-5 h-5" style={{ color: '#7D7D7D' }} />
-              <span className="text-xs font-medium" style={{ color: '#7D7D7D' }}>דף הבית</span>
-            </Link>
-            <Link to={createPageUrl("MyPlan")} className="flex flex-col items-center gap-1">
-              <Dumbbell className="w-5 h-5" style={{ color: '#7D7D7D' }} />
-              <span className="text-xs font-medium" style={{ color: '#7D7D7D' }}>התוכנית שלי</span>
-            </Link>
-
-            <Link to={createPageUrl("Progress")} className="flex flex-col items-center gap-1">
-              <TrendingUp className="w-5 h-5" style={{ color: '#7D7D7D' }} />
-              <span className="text-xs font-medium" style={{ color: '#7D7D7D' }}>התקדמות</span>
-            </Link>
-            <Link to={createPageUrl("TraineeProfile")} className="flex flex-col items-center gap-1">
-              <User className="w-5 h-5" style={{ color: '#FF6F20' }} />
-              <span className="text-xs font-bold" style={{ color: '#FF6F20' }}>פרופיל</span>
-            </Link>
+              {/* Messages Tab */}
+              <TabsContent value="messages" className="space-y-4 w-full">
+                <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5 text-purple-600" />שיחה עם המאמן</h2>
+                {user && coach ? (
+                  <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+                    <MessageCenter currentUserId={user.id} currentUserName={user.full_name} otherUserId={coach.id} otherUserName={coach.full_name} relatedUserId={user.id} />
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg"><MessageSquare className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">לא נמצא מאמן</p></div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
-      </footer>
-    </div>
+
+        {/* ===== DIALOGS ===== */}
+
+        {/* Edit Profile Dialog */}
+        <Dialog open={showEdit} onOpenChange={setShowEdit}>
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
+            <DialogHeader><DialogTitle className="text-lg font-bold">ערוך פרטים</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div><Label className="text-sm">טלפון</Label><Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-sm">תאריך לידה</Label><Input type="date" value={formData.birth_date} onChange={e => { const d = e.target.value; let age = ''; if (d) { const b = new Date(d); age = String(Math.floor((Date.now() - b.getTime()) / (365.25*24*60*60*1000))); } setFormData({ ...formData, birth_date: d, age }); }} max={new Date().toISOString().split('T')[0]} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+                <div><Label className="text-sm">גיל</Label><Input value={formData.age} disabled className="rounded-lg bg-gray-50" style={{ fontSize: 16 }} /></div>
+              </div>
+              <div><Label className="text-sm">מגדר</Label>
+                <Select value={formData.gender} onValueChange={v => setFormData({ ...formData, gender: v })}>
+                  <SelectTrigger className="rounded-lg"><SelectValue placeholder="בחר מגדר" /></SelectTrigger>
+                  <SelectContent><SelectItem value="זכר">זכר</SelectItem><SelectItem value="נקבה">נקבה</SelectItem><SelectItem value="אחר">אחר</SelectItem></SelectContent>
+                </Select>
+              </div>
+              {isCoach && <div><Label className="text-sm">שם מלא</Label><Input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>}
+              <div><Label className="text-sm">עיר</Label><Input value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+              <div><Label className="text-sm">כתובת</Label><Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+              <div><Label className="text-sm">מטרה עיקרית</Label><Input value={formData.main_goal} onChange={e => setFormData({ ...formData, main_goal: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+              <div><Label className="text-sm">איש קשר לחירום</Label><Input value={formData.emergency_contact_name} onChange={e => setFormData({ ...formData, emergency_contact_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+              <div><Label className="text-sm">טלפון חירום</Label><Input value={formData.emergency_contact_phone} onChange={e => setFormData({ ...formData, emergency_contact_phone: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+              <Button onClick={handleSave} disabled={updateUserMutation.isPending || updateTargetUserMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+                {updateUserMutation.isPending || updateTargetUserMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : 'שמור'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Health Declaration Dialog */}
+        <Dialog open={showHealthUpdate} onOpenChange={setShowHealthUpdate}>
+          <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>עדכון הצהרת בריאות</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border">
+                <input type="checkbox" id="hasLimits" checked={healthForm.has_limitations} onChange={e => setHealthForm({ ...healthForm, has_limitations: e.target.checked })} className="w-5 h-5" />
+                <Label htmlFor="hasLimits" className="cursor-pointer">יש מגבלות בריאותיות / פציעות</Label>
+              </div>
+              {healthForm.has_limitations && (
+                <div><Label>פירוט מגבלות</Label><Input value={healthForm.health_issues} onChange={e => setHealthForm({ ...healthForm, health_issues: e.target.value })} className="rounded-lg mt-1" style={{ fontSize: 16 }} /></div>
+              )}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
+                <input type="checkbox" id="approved" checked={healthForm.approved} onChange={e => setHealthForm({ ...healthForm, approved: e.target.checked })} className="w-5 h-5" />
+                <Label htmlFor="approved" className="cursor-pointer text-sm">אני מאשר/ת שהמידע שמסרתי נכון ומדויק</Label>
+              </div>
+              <Button onClick={handleHealthUpdate} disabled={updateHealthMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+                {updateHealthMutation.isPending ? 'שומר...' : 'אשר והמשך'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Vision Dialog */}
+        <VisionFormDialog isOpen={showVisionDialog} onClose={() => setShowVisionDialog(false)} initialData={user?.vision || {}} onSubmit={data => updateVisionMutation.mutate(data)} isCoach={isCoach} isLoading={updateVisionMutation.isPending} />
+
+        {/* Goal Dialog */}
+        <GoalFormDialog isOpen={showAddGoal} onClose={() => { setShowAddGoal(false); setEditingGoal(null); }} traineeId={user.id} traineeName={user.full_name} editingGoal={editingGoal} />
+
+        {/* Result Dialog */}
+        <ResultFormDialog isOpen={showAddResult} onClose={() => { setShowAddResult(false); setEditingResult(null); }} traineeId={user.id} traineeName={user.full_name} editingResult={editingResult} />
+
+        {/* Add/Edit Service Dialog */}
+        <Dialog open={showAddService} onOpenChange={setShowAddService}>
+          <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editingService ? 'ערוך שירות' : 'הוסף שירות'}</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs mb-1 block">סוג שירות</Label>
+                  <Select value={serviceForm.service_type} onValueChange={v => setServiceForm({ ...serviceForm, service_type: v })}>
+                    <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="personal">אישי</SelectItem><SelectItem value="group">קבוצתי</SelectItem><SelectItem value="online">אונליין</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div><Label className="text-xs mb-1 block">מודל חיוב</Label>
+                  <Select value={serviceForm.billing_model} onValueChange={v => setServiceForm({ ...serviceForm, billing_model: v })}>
+                    <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="punch_card">כרטיסייה</SelectItem><SelectItem value="subscription">מנוי</SelectItem><SelectItem value="single">חד פעמי</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div><Label className="text-xs mb-1 block">שם החבילה</Label><Input value={serviceForm.package_name} onChange={e => setServiceForm({ ...serviceForm, package_name: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
+              {serviceForm.billing_model === 'punch_card' && <div><Label className="text-xs mb-1 block">מספר אימונים</Label><Input type="number" value={serviceForm.total_sessions} onChange={e => setServiceForm({ ...serviceForm, total_sessions: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>}
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs mb-1 block">מחיר בסיס (₪)</Label><Input type="number" value={serviceForm.base_price} onChange={e => setServiceForm({ ...serviceForm, base_price: e.target.value, final_price: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
+                <div><Label className="text-xs mb-1 block">מחיר סופי (₪)</Label><Input type="number" value={serviceForm.final_price} onChange={e => setServiceForm({ ...serviceForm, final_price: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
+              </div>
+              <div><Label className="text-xs mb-1 block">תאריך התחלה</Label><Input type="date" value={serviceForm.start_date} onChange={e => setServiceForm({ ...serviceForm, start_date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
+              {serviceForm.billing_model === 'subscription' && <div><Label className="text-xs mb-1 block">תאריך חיוב הבא</Label><Input type="date" value={serviceForm.next_billing_date} onChange={e => setServiceForm({ ...serviceForm, next_billing_date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>}
+              <div><Label className="text-xs mb-1 block">אמצעי תשלום</Label>
+                <Select value={serviceForm.payment_method} onValueChange={v => setServiceForm({ ...serviceForm, payment_method: v })}>
+                  <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="credit">💳 אשראי</SelectItem><SelectItem value="standing_order">🔄 הוראת קבע</SelectItem><SelectItem value="bit">📱 ביט</SelectItem><SelectItem value="cash">💵 מזומן</SelectItem><SelectItem value="transfer">🏦 העברה</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div><Label className="text-xs mb-1 block">סטטוס</Label>
+                <Select value={serviceForm.status} onValueChange={v => setServiceForm({ ...serviceForm, status: v })}>
+                  <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="active">פעיל</SelectItem><SelectItem value="frozen">מושהה</SelectItem><SelectItem value="ended">הסתיים</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleAddOrUpdateService} disabled={createServiceMutation.isPending || updateServiceMutation.isPending} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+                {createServiceMutation.isPending || updateServiceMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : (editingService ? 'עדכן שירות' : 'הוסף שירות')}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manual Attendance Dialog */}
+        <Dialog open={showManualAttendance} onOpenChange={setShowManualAttendance}>
+          <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>הוסף נוכחות ידנית</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>תאריך</Label><Input type="date" value={manualAttendanceForm.date} onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
+                <div><Label>שעה</Label><Input type="time" value={manualAttendanceForm.time} onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, time: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
+              </div>
+              <div><Label>סוג אימון</Label>
+                <Select value={manualAttendanceForm.session_type} onValueChange={v => setManualAttendanceForm({ ...manualAttendanceForm, session_type: v })}>
+                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="אישי">אישי</SelectItem><SelectItem value="קבוצתי">קבוצתי</SelectItem><SelectItem value="אונליין">אונליין</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div><Label>הערות</Label><Input value={manualAttendanceForm.notes} onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, notes: e.target.value })} placeholder="הערות" className="rounded-xl" style={{ fontSize: 16 }} /></div>
+              <Button onClick={handleManualAttendanceSubmit} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>שמור נוכחות</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Password Change Dialog */}
+        <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
+          <DialogContent className="w-[95vw] max-w-sm max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>שינוי סיסמא</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div><Label className="text-sm font-bold block mb-1">סיסמה חדשה</Label><Input type="password" placeholder="לפחות 6 תווים" value={passwordForm.newPass} onChange={e => setPasswordForm({ ...passwordForm, newPass: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
+              <div><Label className="text-sm font-bold block mb-1">אישור סיסמה חדשה</Label><Input type="password" placeholder="הכנס שוב" value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
+              <Button onClick={handlePasswordChange} disabled={passwordLoading} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+                {passwordLoading ? 'שומר...' : 'שמור סיסמה'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* FOOTER */}
+        <footer className="fixed bottom-0 left-0 right-0 bg-white border-t z-50 shadow-lg" style={{ borderColor: '#E6E6E6' }}>
+          <div className="max-w-4xl mx-auto px-4 py-3">
+            <div className="flex justify-around items-center">
+              <Link to={createPageUrl("TraineeHome")} className="flex flex-col items-center gap-1">
+                <Home className="w-5 h-5 text-gray-500" /><span className="text-xs font-medium text-gray-500">דף הבית</span>
+              </Link>
+              <Link to={createPageUrl("MyPlan")} className="flex flex-col items-center gap-1">
+                <Dumbbell className="w-5 h-5 text-gray-500" /><span className="text-xs font-medium text-gray-500">התוכנית שלי</span>
+              </Link>
+              <Link to={createPageUrl("Progress")} className="flex flex-col items-center gap-1">
+                <TrendingUp className="w-5 h-5 text-gray-500" /><span className="text-xs font-medium text-gray-500">התקדמות</span>
+              </Link>
+              <Link to={createPageUrl("TraineeProfile")} className="flex flex-col items-center gap-1">
+                <User className="w-5 h-5 text-[#FF6F20]" /><span className="text-xs font-bold text-[#FF6F20]">פרופיל</span>
+              </Link>
+            </div>
+          </div>
+        </footer>
+
+      </div>
     </ErrorBoundary>
   );
 }

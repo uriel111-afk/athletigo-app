@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Clock, MapPin, Plus, Edit2, Trash2, AlertTriangle, Loader2, Search, ChevronDown, ChevronUp, UserPlus } from "lucide-react";
+import { Calendar, Clock, MapPin, Plus, Edit2, Trash2, AlertTriangle, Loader2, Search, ChevronDown, ChevronUp, UserPlus, Users, CheckSquare, Square } from "lucide-react";
 import { format, isToday, isTomorrow, isPast, isFuture } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -32,6 +32,17 @@ export default function Sessions() {
   
   const [expandedSessions, setExpandedSessions] = useState({});
   const [addingParticipantsTo, setAddingParticipantsTo] = useState(null);
+
+  // Group Training state
+  const [activeView, setActiveView] = useState('sessions'); // 'sessions' | 'groups'
+  const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [groupForm, setGroupForm] = useState({ name: '', description: '' });
+  const [showGroupMembersDialog, setShowGroupMembersDialog] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [showGroupSessionDialog, setShowGroupSessionDialog] = useState(false);
+  const [groupSessionForm, setGroupSessionForm] = useState({ date: new Date().toISOString().split('T')[0], time: '09:00', location: 'סטודיו', notes: '' });
+  const [markingGroupAttendance, setMarkingGroupAttendance] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -73,6 +84,96 @@ export default function Sessions() {
       }
     },
     retry: 2
+  });
+
+  // ── Group Training Queries ──
+  const { data: trainingGroups = [], refetch: refetchGroups } = useQuery({
+    queryKey: ['training-groups'],
+    queryFn: async () => {
+      try { return await base44.entities.TrainingGroup.filter({ coach_id: user?.id || '' }); }
+      catch { return []; }
+    },
+    enabled: !!user?.id,
+    refetchInterval: 15000
+  });
+
+  const { data: groupMembers = [], refetch: refetchGroupMembers } = useQuery({
+    queryKey: ['group-members'],
+    queryFn: async () => {
+      try { return await base44.entities.TrainingGroupMember.list('-created_at', 500); }
+      catch { return []; }
+    },
+    enabled: !!user?.id,
+    refetchInterval: 15000
+  });
+
+  const createGroupMutation = useMutation({
+    mutationFn: (data) => base44.entities.TrainingGroup.create(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['training-groups'] }); setShowGroupDialog(false); setGroupForm({ name: '', description: '' }); toast.success('✅ קבוצה נוצרה'); },
+    onError: () => toast.error('שגיאה ביצירת קבוצה')
+  });
+
+  const updateGroupMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.TrainingGroup.update(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['training-groups'] }); setShowGroupDialog(false); setEditingGroup(null); toast.success('✅ קבוצה עודכנה'); },
+  });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: (id) => base44.entities.TrainingGroup.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['training-groups'] }); toast.success('✅ קבוצה נמחקה'); },
+  });
+
+  const addGroupMemberMutation = useMutation({
+    mutationFn: ({ group_id, trainee_id, trainee_name }) => base44.entities.TrainingGroupMember.create({ group_id, trainee_id, trainee_name }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['group-members'] }); toast.success('✅ מתאמן נוסף לקבוצה'); },
+    onError: () => toast.error('שגיאה בהוספת מתאמן')
+  });
+
+  const removeGroupMemberMutation = useMutation({
+    mutationFn: (id) => base44.entities.TrainingGroupMember.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['group-members'] }); toast.success('✅ מתאמן הוסר מהקבוצה'); },
+  });
+
+  const createGroupSessionMutation = useMutation({
+    mutationFn: async ({ group, form }) => {
+      const members = groupMembers.filter(m => m.group_id === group.id);
+      const participants = members.map(m => ({ trainee_id: m.trainee_id, trainee_name: m.trainee_name, attendance_status: 'ממתין' }));
+      return base44.entities.Session.create({
+        date: form.date,
+        time: form.time,
+        session_type: 'קבוצתי',
+        location: form.location,
+        coach_id: user?.id,
+        coach_name: coach?.full_name || '',
+        status: 'מתוכנן',
+        coach_notes: form.notes,
+        group_id: group.id,
+        group_name: group.name,
+        participants,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      setShowGroupSessionDialog(false);
+      setSelectedGroup(null);
+      toast.success('✅ אימון קבוצתי נוצר לכל חברי הקבוצה');
+    },
+    onError: () => toast.error('שגיאה ביצירת אימון קבוצתי')
+  });
+
+  const markGroupAttendanceMutation = useMutation({
+    mutationFn: async ({ session, status }) => {
+      const updatedParticipants = session.participants.map(p => ({ ...p, attendance_status: status }));
+      return base44.entities.Session.update(session.id, { participants: updatedParticipants, status: status === 'הגיע' ? 'התקיים' : session.status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      setMarkingGroupAttendance(null);
+      toast.success('✅ נוכחות עודכנה לכל חברי הקבוצה');
+    },
+    onError: () => toast.error('שגיאה בעדכון נוכחות')
   });
 
   const createSessionMutation = useMutation({
@@ -789,7 +890,7 @@ export default function Sessions() {
 
   return (
     <ProtectedCoachPage>
-      <div className="min-h-screen overflow-x-hidden pb-24" style={{ backgroundColor: '#FFFFFF', maxWidth: '100vw' }}>
+      <div className="min-h-screen overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF', maxWidth: '100vw' }}>
         <div className="max-w-7xl mx-auto px-4 md:p-8" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
           {/* Hero Header */}
           <div className="mb-8 relative">
@@ -829,22 +930,34 @@ export default function Sessions() {
                   </div>
                 </div>
 
-                <Button
-                  onClick={() => {
-                    if (coachLoading || !coach) {
-                      toast.error("אנא המתן לטעינת הנתונים");
-                      return;
-                    }
-                    setEditingSession(null);
-                    setShowSessionDialog(true);
-                  }}
-                  disabled={coachLoading || !coach} className="bg-primary text-white my-1 px-1 py-5 text-lg font-black rounded-2xl justify-center whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-primary/90 h-9 flex items-center gap-3 shadow-xl hover:shadow-2xl transition-all"
-
-                  style={{ backgroundColor: '#FF6F20' }}>
-
-                  <Plus className="w-6 h-6" />
-                  קבע מפגש
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => setActiveView(activeView === 'sessions' ? 'groups' : 'sessions')}
+                    variant="outline"
+                    className="flex items-center gap-2 h-11 px-4 rounded-2xl font-bold"
+                  >
+                    <Users className="w-4 h-4" />
+                    {activeView === 'sessions' ? 'קבוצות' : 'מפגשים'}
+                  </Button>
+                  {activeView === 'sessions' ? (
+                    <Button
+                      onClick={() => { if (coachLoading || !coach) { toast.error("אנא המתן לטעינת הנתונים"); return; } setEditingSession(null); setShowSessionDialog(true); }}
+                      disabled={coachLoading || !coach}
+                      className="flex items-center gap-2 h-11 px-4 rounded-2xl font-black text-white shadow-xl hover:shadow-2xl"
+                      style={{ backgroundColor: '#FF6F20' }}
+                    >
+                      <Plus className="w-5 h-5" />קבע מפגש
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => { setEditingGroup(null); setGroupForm({ name: '', description: '' }); setShowGroupDialog(true); }}
+                      className="flex items-center gap-2 h-11 px-4 rounded-2xl font-black text-white shadow-xl"
+                      style={{ backgroundColor: '#4CAF50' }}
+                    >
+                      <Plus className="w-5 h-5" />קבוצה חדשה
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -948,14 +1061,94 @@ export default function Sessions() {
             </Select>
           </div>
 
-          {isLoading &&
+          {/* ═══ GROUPS VIEW ═══ */}
+          {activeView === 'groups' && (
+            <div className="space-y-4 pb-8">
+              <h2 className="text-xl font-black text-gray-900 flex items-center gap-2"><Users className="w-5 h-5 text-[#4CAF50]" />קבוצות אימון</h2>
+              {trainingGroups.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-gray-500 font-medium">אין קבוצות עדיין</p>
+                  <p className="text-gray-400 text-sm mt-1">צור קבוצה ראשונה כדי להתחיל</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {trainingGroups.map(group => {
+                    const members = groupMembers.filter(m => m.group_id === group.id);
+                    return (
+                      <div key={group.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h3 className="font-black text-lg text-gray-900">{group.name}</h3>
+                              {group.description && <p className="text-sm text-gray-500 mt-0.5">{group.description}</p>}
+                              <p className="text-xs text-gray-400 mt-1">{members.length} חברים</p>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" className="w-9 h-9 text-blue-500" onClick={() => { setSelectedGroup(group); setShowGroupMembersDialog(true); }}><UserPlus className="w-4 h-4" /></Button>
+                              <Button size="icon" variant="ghost" className="w-9 h-9 text-[#FF6F20]" onClick={() => { setEditingGroup(group); setGroupForm({ name: group.name, description: group.description || '' }); setShowGroupDialog(true); }}><Edit2 className="w-4 h-4" /></Button>
+                              <Button size="icon" variant="ghost" className="w-9 h-9 text-red-500" onClick={() => { if (window.confirm(`למחוק את קבוצה "${group.name}"?`)) deleteGroupMutation.mutate(group.id); }}><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+                          </div>
+                          {members.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {members.map(m => (
+                                <span key={m.id} className="text-xs bg-green-50 text-green-700 border border-green-100 px-2 py-0.5 rounded-full">{m.trainee_name}</span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2 pt-2 border-t border-gray-100">
+                            <Button
+                              onClick={() => { setSelectedGroup(group); setGroupSessionForm({ date: new Date().toISOString().split('T')[0], time: '09:00', location: 'סטודיו', notes: '' }); setShowGroupSessionDialog(true); }}
+                              className="flex-1 text-white text-sm font-bold rounded-xl min-h-[44px]"
+                              style={{ backgroundColor: '#9C27B0' }}
+                              disabled={members.length === 0}
+                            >
+                              <Calendar className="w-4 h-4 ml-1" />קבע אימון קבוצתי
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Group sessions with bulk attendance marking */}
+              {sessions.filter(s => s.group_id).length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-bold text-gray-800 mb-3">אימונים קבוצתיים אחרונים</h3>
+                  <div className="space-y-2">
+                    {sessions.filter(s => s.group_id).slice(0, 10).map(session => (
+                      <div key={session.id} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-sm text-gray-900">{session.group_name}</span>
+                          <div className="text-xs text-gray-500 mt-0.5">{session.date} • {session.time} • {session.participants?.length || 0} משתתפים</div>
+                        </div>
+                        <Button
+                          onClick={() => setMarkingGroupAttendance(session)}
+                          variant="outline"
+                          className="text-xs h-9 px-3 rounded-xl font-bold"
+                          style={{ borderColor: '#4CAF50', color: '#4CAF50' }}
+                        >
+                          <CheckSquare className="w-3 h-3 ml-1" />סמן נוכחות
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ SESSIONS VIEW ═══ */}
+          {activeView === 'sessions' && isLoading &&
           <div className="text-center py-12">
               <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin" style={{ color: '#FF6F20' }} />
               <p className="text-lg" style={{ color: '#7D7D7D' }}>טוען מפגשים...</p>
             </div>
           }
 
-          {!isLoading &&
+          {activeView === 'sessions' && !isLoading &&
           <>
               {/* Today's Sessions - Priority */}
               {todaySessions.length > 0 &&
@@ -1095,6 +1288,96 @@ export default function Sessions() {
             }
             </>
           }
+
+          {/* ── Group Create/Edit Dialog ── */}
+          <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
+            <DialogContent className="w-[95vw] max-w-sm" dir="rtl">
+              <DialogHeader><DialogTitle>{editingGroup ? 'ערוך קבוצה' : 'קבוצה חדשה'}</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div><Label>שם הקבוצה</Label><Input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} className="rounded-xl mt-1" style={{ fontSize: 16 }} placeholder="למשל: קבוצת בוקר" /></div>
+                <div><Label>תיאור (אופציונלי)</Label><Input value={groupForm.description} onChange={e => setGroupForm({ ...groupForm, description: e.target.value })} className="rounded-xl mt-1" style={{ fontSize: 16 }} placeholder="תיאור קצר" /></div>
+                <Button
+                  onClick={() => { if (!groupForm.name.trim()) { toast.error('נא למלא שם קבוצה'); return; } if (editingGroup) { updateGroupMutation.mutate({ id: editingGroup.id, data: { name: groupForm.name, description: groupForm.description } }); } else { createGroupMutation.mutate({ name: groupForm.name, description: groupForm.description, coach_id: user?.id, coach_name: coach?.full_name || '' }); } }}
+                  disabled={createGroupMutation.isPending || updateGroupMutation.isPending}
+                  className="w-full font-bold text-white rounded-xl min-h-[44px]" style={{ backgroundColor: '#4CAF50' }}
+                >
+                  {createGroupMutation.isPending || updateGroupMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : (editingGroup ? 'עדכן קבוצה' : 'צור קבוצה')}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Group Members Dialog ── */}
+          <Dialog open={showGroupMembersDialog} onOpenChange={setShowGroupMembersDialog}>
+            <DialogContent className="w-[95vw] max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
+              <DialogHeader><DialogTitle>חברי קבוצה: {selectedGroup?.name}</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500">לחץ על מתאמן להוספה/הסרה מהקבוצה</p>
+                {trainees.map(trainee => {
+                  const existing = groupMembers.find(m => m.group_id === selectedGroup?.id && m.trainee_id === trainee.id);
+                  return (
+                    <div key={trainee.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <div>
+                        <div className="font-bold text-sm text-gray-900">{trainee.full_name}</div>
+                        <div className="text-xs text-gray-500">{trainee.phone}</div>
+                      </div>
+                      <Button
+                        onClick={() => { if (existing) { removeGroupMemberMutation.mutate(existing.id); } else { addGroupMemberMutation.mutate({ group_id: selectedGroup.id, trainee_id: trainee.id, trainee_name: trainee.full_name }); } }}
+                        variant={existing ? 'default' : 'outline'}
+                        className="text-xs h-9 px-3 rounded-xl font-bold min-w-[70px]"
+                        style={existing ? { backgroundColor: '#4CAF50', color: 'white' } : {}}
+                        disabled={addGroupMemberMutation.isPending || removeGroupMemberMutation.isPending}
+                      >
+                        {existing ? <><CheckSquare className="w-3 h-3 ml-1" />חבר</> : <><Square className="w-3 h-3 ml-1" />הוסף</>}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Group Session Dialog ── */}
+          <Dialog open={showGroupSessionDialog} onOpenChange={setShowGroupSessionDialog}>
+            <DialogContent className="w-[95vw] max-w-sm" dir="rtl">
+              <DialogHeader><DialogTitle>אימון קבוצתי: {selectedGroup?.name}</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <p className="text-xs text-gray-500">כל חברי הקבוצה ({groupMembers.filter(m => m.group_id === selectedGroup?.id).length}) יתווספו אוטומטית</p>
+                <div><Label>תאריך</Label><Input type="date" value={groupSessionForm.date} onChange={e => setGroupSessionForm({ ...groupSessionForm, date: e.target.value })} className="rounded-xl mt-1" style={{ fontSize: 16 }} /></div>
+                <div><Label>שעה</Label><Input type="time" value={groupSessionForm.time} onChange={e => setGroupSessionForm({ ...groupSessionForm, time: e.target.value })} className="rounded-xl mt-1" style={{ fontSize: 16 }} /></div>
+                <div><Label>מיקום</Label><Input value={groupSessionForm.location} onChange={e => setGroupSessionForm({ ...groupSessionForm, location: e.target.value })} className="rounded-xl mt-1" style={{ fontSize: 16 }} /></div>
+                <div><Label>הערות</Label><Input value={groupSessionForm.notes} onChange={e => setGroupSessionForm({ ...groupSessionForm, notes: e.target.value })} className="rounded-xl mt-1" style={{ fontSize: 16 }} /></div>
+                <Button
+                  onClick={() => createGroupSessionMutation.mutate({ group: selectedGroup, form: groupSessionForm })}
+                  disabled={createGroupSessionMutation.isPending}
+                  className="w-full font-bold text-white rounded-xl min-h-[44px]" style={{ backgroundColor: '#9C27B0' }}
+                >
+                  {createGroupSessionMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />יוצר...</> : 'צור אימון לכל הקבוצה'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Mark Group Attendance Dialog ── */}
+          <Dialog open={!!markingGroupAttendance} onOpenChange={() => setMarkingGroupAttendance(null)}>
+            <DialogContent className="w-[95vw] max-w-sm" dir="rtl">
+              <DialogHeader><DialogTitle>סימון נוכחות קבוצתית</DialogTitle></DialogHeader>
+              {markingGroupAttendance && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-500">{markingGroupAttendance.group_name} • {markingGroupAttendance.date}</p>
+                  <p className="text-sm text-gray-700">סמן נוכחות לכל {markingGroupAttendance.participants?.length} חברי הקבוצה:</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'הגיע' })} disabled={markGroupAttendanceMutation.isPending} className="font-bold text-white rounded-xl min-h-[44px]" style={{ backgroundColor: '#4CAF50' }}>
+                      ✅ כולם הגיעו
+                    </Button>
+                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'לא הגיע' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-xl min-h-[44px] border-red-200 text-red-500">
+                      ❌ אף אחד לא הגיע
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           <SessionFormDialog
             isOpen={showSessionDialog}

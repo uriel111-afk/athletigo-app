@@ -17,9 +17,11 @@ import {
   Award,
   Search,
   Dumbbell,
-  Video } from
+  Video,
+  LogOut } from
 "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -241,6 +243,13 @@ export default function Dashboard() {
           
           {/* Header */}
           <div className="flex items-center justify-between shrink-0 px-1">
+            <button
+              onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
+              className="flex items-center gap-1.5 text-gray-500 text-xs font-semibold bg-white border border-gray-200 px-3 py-2 rounded-xl min-h-[44px] hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              יציאה
+            </button>
             <div className="flex items-center gap-2">
               <Target className="w-5 h-5 text-[#FF6F20]" />
               <h1 className="text-lg font-black text-gray-900">דשבורד מאמן</h1>

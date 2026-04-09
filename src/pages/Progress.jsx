@@ -386,7 +386,7 @@ export default function Progress() {
     }));
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden pb-24" style={{ backgroundColor: '#FFFFFF' }}>
+    <div className="min-h-screen w-full overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
       <div className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-8 w-full">
         {/* Header */}
         <div className="mb-8 md:mb-10">

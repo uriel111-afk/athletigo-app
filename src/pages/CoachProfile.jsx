@@ -123,7 +123,7 @@ export default function CoachProfile() {
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto pb-24" style={{ backgroundColor: '#FFFFFF', WebkitOverflowScrolling: 'touch' }}>
+    <div className="min-h-screen overflow-y-auto pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF', WebkitOverflowScrolling: 'touch' }}>
         <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
           {/* Header */}
           <div className="mb-6 md:mb-10">

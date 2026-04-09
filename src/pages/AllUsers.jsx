@@ -92,7 +92,7 @@ export default function AllUsers() {
 
   return (
     <ProtectedCoachPage>
-      <div className="min-h-screen overflow-y-auto overflow-x-hidden pb-24" style={{ backgroundColor: '#F5F5F5', color: '#222222', WebkitOverflowScrolling: 'touch', maxWidth: '100vw' }}>
+      <div className="min-h-screen overflow-y-auto overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#F5F5F5', color: '#222222', WebkitOverflowScrolling: 'touch', maxWidth: '100vw' }}>
         <div className="max-w-7xl mx-auto px-4 md:p-8">
           {/* Header */}
           <div className="mb-8">
