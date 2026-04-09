@@ -753,7 +753,10 @@ export default function TraineeProfile() {
   });
 
   const handleSave = async () => {
-    console.log("[handleSave] called. isCoach:", isCoach, "userIdParam:", userIdParam);
+    alert("saving...");
+    console.log("Starting save...");
+    console.log("[handleSave] isCoach:", isCoach, "userIdParam:", userIdParam);
+
     let calculatedAge = formData.age;
     if (formData.birth_date) {
       try {
@@ -780,20 +783,24 @@ export default function TraineeProfile() {
       emergency_contact_phone: formData.emergency_contact_phone,
     };
 
-    console.log("[handleSave] dataToUpdate:", dataToUpdate);
+    console.log("Data to save: " + JSON.stringify(dataToUpdate));
 
     try {
       if (isCoach && userIdParam) {
-        console.log("[handleSave] updating target user:", userIdParam);
+        console.log("[handleSave] path: coach updating target user:", userIdParam);
         await updateTargetUserMutation.mutateAsync({ id: userIdParam, data: dataToUpdate });
       } else {
-        console.log("[handleSave] updating own profile");
+        console.log("[handleSave] path: trainee updating own profile");
         await updateUserMutation.mutateAsync(dataToUpdate);
       }
-      console.log("[handleSave] mutateAsync completed successfully");
+      console.log("Mutation success");
+      console.log("Closing dialog...");
+      setShowEdit(false);
+      console.log("Done");
     } catch (error) {
-      // onError in each mutation already shows a toast; just prevent unhandled rejection
       console.error("[handleSave] caught error:", error);
+      console.error("[handleSave] error message:", error?.message);
+      console.error("[handleSave] error details:", JSON.stringify(error));
     }
   };
 
