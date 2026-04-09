@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFormPersistence } from "../hooks/useFormPersistence";
 import { Button } from "@/components/ui/button";
@@ -75,21 +76,25 @@ export default function AddTraineeDialog({ open, onClose }) {
         return;
       }
 
-      // 2. Prepare data
+      // 2. Create auth user via Edge Function (server-side, uses service role key)
       const age = calculateAge(formData.birthDate);
-      let authUser = null;
 
-      if (formData.password) {
-        const { id } = await base44.auth.signUp({
-          email: formData.email.trim(),
-          password: formData.password,
-        });
-        authUser = { id };
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('create-trainee', {
+        body: { email: formData.email.trim(), password: formData.password },
+      });
+
+      if (fnError || !fnData?.user) {
+        const msg = fnData?.error || fnError?.message || 'שגיאה ביצירת משתמש';
+        toast.error("שגיאה ביצירת המשתמש: " + msg);
+        setLoading(false);
+        return;
       }
+
+      const authUser = fnData.user;
 
       // 3. Create User profile row in the users table
       const newUser = await base44.entities.User.create({
-        ...(authUser ? { id: authUser.id } : {}),
+        id: authUser.id,
         full_name: formData.fullName,
         email: formData.email,
         phone: formData.phone,
@@ -129,7 +134,7 @@ export default function AddTraineeDialog({ open, onClose }) {
 
     } catch (error) {
       console.error("Error creating trainee:", error);
-      toast.error("שגיאה ביצירת המתאמן. אנא נסה שוב.");
+      toast.error("שגיאה ביצירת המתאמן: " + (error.message || "נסה שוב"));
     } finally {
       setLoading(false);
     }
