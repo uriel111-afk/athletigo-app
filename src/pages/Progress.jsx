@@ -1034,29 +1034,6 @@ export default function Progress() {
         </DialogContent>
       </Dialog>
 
-      <footer className="relative bg-white border-t shadow-lg mt-8" style={{ borderColor: '#E6E6E6', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex justify-around items-center">
-            <Link to={createPageUrl("TraineeHome")} className="flex flex-col items-center gap-1">
-              <Home className="w-5 h-5" style={{ color: '#7D7D7D' }} />
-              <span className="text-xs font-medium" style={{ color: '#7D7D7D' }}>דף הבית</span>
-            </Link>
-            <Link to={createPageUrl("MyPlan")} className="flex flex-col items-center gap-1">
-              <Dumbbell className="w-5 h-5" style={{ color: '#7D7D7D' }} />
-              <span className="text-xs font-medium" style={{ color: '#7D7D7D' }}>התוכנית שלי</span>
-            </Link>
-
-            <Link to={createPageUrl("Progress")} className="flex flex-col items-center gap-1">
-              <TrendingUp className="w-5 h-5" style={{ color: '#FF6F20' }} />
-              <span className="text-xs font-bold" style={{ color: '#FF6F20' }}>התקדמות</span>
-            </Link>
-            <Link to={createPageUrl("TraineeProfile")} className="flex flex-col items-center gap-1">
-              <User className="w-5 h-5" style={{ color: '#7D7D7D' }} />
-              <span className="text-xs font-medium" style={{ color: '#7D7D7D' }}>פרופיל</span>
-            </Link>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

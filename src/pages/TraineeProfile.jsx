@@ -1214,28 +1214,28 @@ export default function TraineeProfile() {
         {activeTab === 'overview' && (
           <>
             {/* ORANGE HEADER */}
-            <div style={{ backgroundColor: '#FF6F20' }} className="flex-shrink-0 px-4 pt-10 pb-5">
-              <div className="flex justify-between items-center mb-4">
+            <div style={{ backgroundColor: '#FF6F20' }} className="flex-shrink-0 px-4 pt-8 pb-3">
+              <div className="flex justify-between items-center mb-2">
                 <button
                   onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
-                  className="flex items-center gap-1.5 text-white/90 text-sm font-semibold bg-white/20 px-3 py-2 rounded-xl min-h-[44px]"
+                  className="flex items-center gap-1 text-white/90 text-xs font-semibold bg-white/20 px-2.5 py-1.5 rounded-xl min-h-[36px]"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3.5 h-3.5" />
                   יציאה
                 </button>
-                <span className="text-white font-black text-xl tracking-tight">AG /</span>
+                <span className="text-white font-black text-lg tracking-tight">AG /</span>
               </div>
               <div className="flex flex-col items-center text-center">
-                <div className="w-14 h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-2xl font-black mb-2 overflow-hidden">
+                <div className="w-10 h-10 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black mb-1 overflow-hidden">
                   {user.profile_image
                     ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
                     : (user.full_name?.[0]?.toUpperCase() || 'U')
                   }
                 </div>
-                <h2 className="text-white leading-tight" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 22 }}>
+                <h2 className="text-white leading-tight" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 18 }}>
                   {user.full_name}
                 </h2>
-                <p className="text-white/70 text-xs mt-0.5">
+                <p className="text-white/70 text-[11px] mt-0.5">
                   מתאמן{coach ? ` • ${coach.full_name}` : ' • AthletiGo'}
                 </p>
               </div>
