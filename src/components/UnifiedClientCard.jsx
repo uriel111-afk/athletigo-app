@@ -279,6 +279,9 @@ export default function UnifiedClientCard({
       setGoalForm({ goal_name: "", description: "", target_value: "", current_value: "", unit: "", target_date: "", status: "בתהליך" });
       toast.success("✅ יעד נוסף");
     },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת יעד: " + (error.message || "נסה שוב"));
+    }
   });
 
   const updateGoalMutation = useMutation({
@@ -292,6 +295,9 @@ export default function UnifiedClientCard({
       setEditingGoal(null);
       toast.success("✅ יעד עודכן");
     },
+    onError: (error) => {
+      toast.error("❌ שגיאה בעדכון יעד: " + (error.message || "נסה שוב"));
+    }
   });
 
   const deleteGoalMutation = useMutation({
@@ -317,6 +323,9 @@ export default function UnifiedClientCard({
       setResultForm({ date: new Date().toISOString().split('T')[0], title: "", description: "", related_goal_id: "" });
       toast.success("✅ הישג נוסף");
     },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת הישג: " + (error.message || "נסה שוב"));
+    }
   });
 
   const updateResultMutation = useMutation({
@@ -329,6 +338,9 @@ export default function UnifiedClientCard({
       setShowAddResult(false);
       setEditingResult(null);
       toast.success("✅ הישג עודכן");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בעדכון הישג: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -366,6 +378,9 @@ export default function UnifiedClientCard({
         notes: ""
       });
       toast.success("✅ שירות נוסף");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת שירות: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -379,6 +394,9 @@ export default function UnifiedClientCard({
       setShowEditService(false);
       setEditingService(null);
       toast.success("✅ שירות עודכן");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בעדכון שירות: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -405,6 +423,9 @@ export default function UnifiedClientCard({
       setAttendanceForm({ date: new Date().toISOString().split('T')[0], time: "09:00", session_type: "אישי", location: "", attendance_status: "הגיע", coach_notes: "" });
       toast.success("✅ נוכחות נוספה");
     },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת נוכחות: " + (error.message || "נסה שוב"));
+    }
   });
 
   const createPlanMutation = useMutation({
@@ -434,6 +455,9 @@ export default function UnifiedClientCard({
       setShowAddPlan(false);
       toast.success("✅ תוכנית נוצרה");
       window.location.href = createPageUrl("TrainingPlans") + "?planId=" + createdPlan.id;
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה ביצירת תוכנית: " + (error.message || "נסה שוב"));
     }
   });
 

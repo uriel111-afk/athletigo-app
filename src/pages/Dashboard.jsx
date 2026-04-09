@@ -137,6 +137,9 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setIsLeadDialogOpen(false);
       toast.success("✅ ליד חדש נוסף בהצלחה");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת ליד: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -158,6 +161,9 @@ export default function Dashboard() {
         }
       }
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בקביעת המפגש: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -212,6 +218,9 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setIsPlanDialogOpen(false);
       toast.success("✅ תוכנית נוצרה בהצלחה!");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה ביצירת תוכנית: " + (error.message || "נסה שוב"));
     }
   });
 

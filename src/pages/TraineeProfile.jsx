@@ -531,6 +531,9 @@ export default function TraineeProfile() {
       queryClient.invalidateQueries({ queryKey: ['target-user-profile'] });
       setShowVisionDialog(false);
       toast.success("✅ חזון עודכן בהצלחה");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בעדכון החזון: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -541,6 +544,9 @@ export default function TraineeProfile() {
       setShowAddGoal(false);
       setGoalForm({ goal_name: "", description: "", target_value: "", current_value: "", unit: "", target_date: "", status: "בתהליך" });
       toast.success("✅ יעד נוסף");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת יעד: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -551,6 +557,9 @@ export default function TraineeProfile() {
       setShowEditGoal(false);
       setEditingGoal(null);
       toast.success("✅ יעד עודכן");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בעדכון יעד: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -569,6 +578,9 @@ export default function TraineeProfile() {
         end_date: ""
       });
       toast.success("✅ שירות נוסף");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת שירות: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -588,6 +600,9 @@ export default function TraineeProfile() {
         end_date: ""
       });
       toast.success("✅ שירות עודכן");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בעדכון שירות: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -693,6 +708,9 @@ export default function TraineeProfile() {
       setShowAddResult(false);
       setResultForm({ date: new Date().toISOString().split('T')[0], title: "", description: "", related_goal_id: "" });
       toast.success("✅ הישג נוסף");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בהוספת הישג: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -703,6 +721,9 @@ export default function TraineeProfile() {
       setShowEditResult(false);
       setEditingResult(null);
       toast.success("✅ הישג עודכן");
+    },
+    onError: (error) => {
+      toast.error("❌ שגיאה בעדכון הישג: " + (error.message || "נסה שוב"));
     }
   });
 
