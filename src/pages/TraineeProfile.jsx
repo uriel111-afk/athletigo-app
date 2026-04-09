@@ -773,11 +773,7 @@ export default function TraineeProfile() {
       birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
       age: calculatedAge,
       gender: formData.gender,
-      address: formData.address,
-      city: formData.city,
       main_goal: formData.main_goal,
-      current_status: formData.current_status,
-      future_vision: formData.future_vision,
       emergency_contact_name: formData.emergency_contact_name,
       emergency_contact_phone: formData.emergency_contact_phone,
     };
@@ -1695,8 +1691,6 @@ export default function TraineeProfile() {
                 </Select>
               </div>
               <div><Label className="text-sm">שם מלא</Label><Input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
-              <div><Label className="text-sm">עיר</Label><Input value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
-              <div><Label className="text-sm">כתובת</Label><Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
               <div><Label className="text-sm">מטרה עיקרית</Label><Input value={formData.main_goal} onChange={e => setFormData({ ...formData, main_goal: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
               <div><Label className="text-sm">איש קשר לחירום</Label><Input value={formData.emergency_contact_name} onChange={e => setFormData({ ...formData, emergency_contact_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
               <div><Label className="text-sm">טלפון חירום</Label><Input value={formData.emergency_contact_phone} onChange={e => setFormData({ ...formData, emergency_contact_phone: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
