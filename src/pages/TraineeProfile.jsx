@@ -480,17 +480,24 @@ export default function TraineeProfile() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
-    onSuccess: (_, variables) => {
-      // Update local user state immediately so the display reflects the new name
-      setUser(prev => prev ? { ...prev, ...variables } : prev);
+    mutationFn: (data) => {
+      console.log("[updateUserMutation] calling updateMe with:", data);
+      return base44.auth.updateMe(data);
+    },
+    onSuccess: (serverData, _variables) => {
+      console.log("[updateUserMutation] onSuccess — server returned:", serverData);
+      // Use server-returned data so local state matches what was actually saved
+      setUser(prev => {
+        const merged = prev ? { ...prev, ...serverData } : serverData;
+        console.log("[updateUserMutation] merged user state:", merged);
+        return merged;
+      });
       queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
-      refetch();
       setShowEdit(false);
       toast.success("✅ הפרופיל עודכן");
     },
     onError: (error) => {
-      console.error("Update profile error:", error);
+      console.error("[updateUserMutation] onError:", error);
       toast.error("⚠️ שגיאה בעדכון הפרופיל: " + (error.message || "נסה שוב"));
     }
   });
@@ -682,17 +689,24 @@ export default function TraineeProfile() {
   });
 
   const updateTargetUserMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.User.update(id, data),
-    onSuccess: (_, { data: variables }) => {
-      setUser(prev => prev ? { ...prev, ...variables } : prev);
-      queryClient.invalidateQueries({ queryKey: ['target-user-profile'] });
-      refetch();
+    mutationFn: ({ id, data }) => {
+      console.log("[updateTargetUserMutation] calling User.update id:", id, "data:", data);
+      return base44.entities.User.update(id, data);
+    },
+    onSuccess: (serverData, _variables) => {
+      console.log("[updateTargetUserMutation] onSuccess — server returned:", serverData);
+      setUser(prev => {
+        const merged = prev ? { ...prev, ...serverData } : serverData;
+        console.log("[updateTargetUserMutation] merged user state:", merged);
+        return merged;
+      });
+      queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });
       setShowEdit(false);
       toast.success("✅ פרופיל מתאמן עודכן");
     },
     onError: (error) => {
-      console.error("Update target user error:", error);
-      toast.error("⚠️ שגיאה בעדכון פרופיל מתאמן");
+      console.error("[updateTargetUserMutation] onError:", error);
+      toast.error("⚠️ שגיאה בעדכון פרופיל מתאמן: " + (error.message || "נסה שוב"));
     }
   });
 
@@ -739,6 +753,7 @@ export default function TraineeProfile() {
   });
 
   const handleSave = async () => {
+    console.log("[handleSave] called. isCoach:", isCoach, "userIdParam:", userIdParam);
     let calculatedAge = formData.age;
     if (formData.birth_date) {
       try {
@@ -746,12 +761,12 @@ export default function TraineeProfile() {
         const today = new Date();
         calculatedAge = Math.floor((today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
       } catch (error) {
-        console.error("Error calculating age:", error);
+        console.error("[handleSave] Error calculating age:", error);
       }
     }
 
     const dataToUpdate = {
-      full_name: formData.full_name, // always allow name edit
+      full_name: formData.full_name,
       phone: formData.phone,
       birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
       age: calculatedAge,
@@ -765,15 +780,20 @@ export default function TraineeProfile() {
       emergency_contact_phone: formData.emergency_contact_phone,
     };
 
+    console.log("[handleSave] dataToUpdate:", dataToUpdate);
+
     try {
       if (isCoach && userIdParam) {
+        console.log("[handleSave] updating target user:", userIdParam);
         await updateTargetUserMutation.mutateAsync({ id: userIdParam, data: dataToUpdate });
       } else {
+        console.log("[handleSave] updating own profile");
         await updateUserMutation.mutateAsync(dataToUpdate);
       }
+      console.log("[handleSave] mutateAsync completed successfully");
     } catch (error) {
       // onError in each mutation already shows a toast; just prevent unhandled rejection
-      console.error("handleSave error:", error);
+      console.error("[handleSave] caught error:", error);
     }
   };
 
