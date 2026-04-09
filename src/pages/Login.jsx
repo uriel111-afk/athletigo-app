@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { Loader2, Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,13 @@ export default function Login() {
 
   // If already logged in, redirect to Dashboard
   const redirectAfterLogin = (profile) => {
-    const destination = profile?.role === 'trainee' ? "/TraineeHome" : "/dashboard";
+    const isCoach = profile?.role === 'coach' || profile?.isCoach === true || profile?.role === 'admin';
+    const isTrainee = profile?.role === 'trainee' || profile?.role === 'user';
+    const destination = isTrainee
+      ? '/trainee-home'
+      : isCoach
+        ? createPageUrl('Dashboard')
+        : createPageUrl('Dashboard');
     navigate(destination, { replace: true });
   };
 
@@ -27,7 +34,8 @@ export default function Login() {
           const profile = await base44.auth.me();
           redirectAfterLogin(profile);
         } catch (error) {
-          navigate("/dashboard", { replace: true });
+          await supabase.auth.signOut();
+          navigate('/login', { replace: true });
         }
       }
     });
@@ -53,7 +61,11 @@ export default function Login() {
       const profile = await base44.auth.me();
       redirectAfterLogin(profile);
     } catch (error) {
-      navigate("/dashboard", { replace: true });
+      console.error("[Login] Unauthorized login attempt:", error);
+      setError("החשבון לא רשום לשימוש. נסה חשבון אחר או פנה למאמן.");
+      await supabase.auth.signOut();
+    } finally {
+      setIsLoading(false);
     }
   };
 

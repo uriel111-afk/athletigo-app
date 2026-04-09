@@ -58,14 +58,22 @@ export const AuthProvider = ({ children }) => {
           onboarding_completed: userProfile.onboarding_completed
         });
       } else {
-        // Fallback to email lookup, then bare auth user
         const { data: byEmail } = await supabase
           .from('users')
           .select('*')
           .eq('email', authUser.email)
           .maybeSingle();
-        userProfile = byEmail || { id: authUser.id, email: authUser.email, onboarding_completed: false };
-        console.log('[AuthContext] User profile created/fallback:', {
+
+        if (!byEmail) {
+          setAuthError({ type: 'user_not_registered', message: 'User not registered' });
+          setUser(null);
+          setIsAuthenticated(false);
+          setIsLoadingAuth(false);
+          return;
+        }
+
+        userProfile = byEmail;
+        console.log('[AuthContext] User profile loaded by email fallback:', {
           id: userProfile.id,
           email: userProfile.email,
           onboarding_completed: userProfile.onboarding_completed

@@ -350,7 +350,14 @@ export default function Layout({ children, currentPageName }) {
                   </p>
                 </div>
               </div>
-              <div className="w-10" />
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-xl"
+                style={{ backgroundColor: '#FFFFFF', border: `1px solid #E0E0E0` }}
+                title="התנתק"
+              >
+                <LogOut className="w-6 h-6" />
+              </button>
             </div>
           </header>
 
@@ -404,74 +411,137 @@ export default function Layout({ children, currentPageName }) {
             </ErrorBoundary>
           </div>
 
-          {/* Mobile Bottom Navigation - Only for Trainees */}
-          {!isCoach && (
-            <div className="md:hidden fixed bottom-0 left-0 right-0 safe-area-bottom z-50" 
-                 style={{ backgroundColor: '#FFFFFF', borderTop: `1px solid #E0E0E0`, boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
-              <div className="grid grid-cols-5 gap-1 p-2">
-                <Link
-                  to={createPageUrl("TraineeHome")}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: location.pathname === createPageUrl("TraineeHome") ? primaryColorLight : 'transparent',
-                    color: location.pathname === createPageUrl("TraineeHome") ? primaryColor : '#7D7D7D'
-                  }}
-                >
-                  <Home className="w-6 h-6" />
-                  <span className="text-xs font-bold">בית</span>
-                </Link>
+          {/* Mobile Bottom Navigation */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 safe-area-bottom z-50" 
+               style={{ backgroundColor: '#FFFFFF', borderTop: `1px solid #E0E0E0`, boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
+            <div className="grid grid-cols-5 gap-1 p-2">
+              {isCoach ? (
+                <>
+                  <Link
+                    to={createPageUrl("Dashboard")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("Dashboard") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("Dashboard") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <LayoutDashboard className="w-6 h-6" />
+                    <span className="text-xs font-bold">דשבורד</span>
+                  </Link>
 
-                <Link
-                  to={createPageUrl("Notifications")}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all relative"
-                  style={{
-                    backgroundColor: location.pathname === createPageUrl("Notifications") ? primaryColorLight : 'transparent',
-                    color: location.pathname === createPageUrl("Notifications") ? primaryColor : '#7D7D7D'
-                  }}
-                >
-                  <Bell className="w-6 h-6" />
-                  <span className="text-xs font-bold">התראות</span>
-                  {user && <NotificationBadge userId={user.id} inline={true} />}
-                </Link>
+                  <Link
+                    to={createPageUrl("AllUsers")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("AllUsers") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("AllUsers") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <Users className="w-6 h-6" />
+                    <span className="text-xs font-bold">לקוחות</span>
+                  </Link>
 
-                <Link
-                  to={createPageUrl("MyWorkoutLog")}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: location.pathname === createPageUrl("MyWorkoutLog") ? primaryColorLight : 'transparent',
-                    color: location.pathname === createPageUrl("MyWorkoutLog") ? primaryColor : '#7D7D7D'
-                  }}
-                >
-                  <ClipboardList className="w-6 h-6" />
-                  <span className="text-xs font-bold">תוכנית</span>
-                </Link>
+                  <Link
+                    to={createPageUrl("Sessions")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("Sessions") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("Sessions") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <Calendar className="w-6 h-6" />
+                    <span className="text-xs font-bold">סשנים</span>
+                  </Link>
 
-                <Link
-                  to={createPageUrl("Progress")}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: location.pathname === createPageUrl("Progress") ? primaryColorLight : 'transparent',
-                    color: location.pathname === createPageUrl("Progress") ? primaryColor : '#7D7D7D'
-                  }}
-                >
-                  <TrendingUp className="w-6 h-6" />
-                  <span className="text-xs font-bold">התקדמות</span>
-                </Link>
+                  <Link
+                    to={createPageUrl("Leads")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("Leads") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("Leads") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <UserPlus className="w-6 h-6" />
+                    <span className="text-xs font-bold">לידים</span>
+                  </Link>
 
-                <Link
-                  to={createPageUrl("TraineeProfile")}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: location.pathname === createPageUrl("TraineeProfile") ? primaryColorLight : 'transparent',
-                    color: location.pathname === createPageUrl("TraineeProfile") ? primaryColor : '#7D7D7D'
-                  }}
-                >
-                  <User className="w-6 h-6" />
-                  <span className="text-xs font-bold">פרופיל</span>
-                </Link>
-              </div>
+                  <Link
+                    to={createPageUrl("CoachProfile")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("CoachProfile") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("CoachProfile") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <User className="w-6 h-6" />
+                    <span className="text-xs font-bold">פרופיל</span>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to={createPageUrl("TraineeHome")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("TraineeHome") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("TraineeHome") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <Home className="w-6 h-6" />
+                    <span className="text-xs font-bold">בית</span>
+                  </Link>
+
+                  <Link
+                    to={createPageUrl("MyWorkoutLog")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("MyWorkoutLog") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("MyWorkoutLog") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <ClipboardList className="w-6 h-6" />
+                    <span className="text-xs font-bold">תוכנית</span>
+                  </Link>
+
+                  <Link
+                    to={createPageUrl("Sessions")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("Sessions") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("Sessions") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <Calendar className="w-6 h-6" />
+                    <span className="text-xs font-bold">סשנים</span>
+                  </Link>
+
+                  <Link
+                    to={createPageUrl("Progress")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("Progress") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("Progress") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <TrendingUp className="w-6 h-6" />
+                    <span className="text-xs font-bold">התקדמות</span>
+                  </Link>
+
+                  <Link
+                    to={createPageUrl("TraineeProfile")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("TraineeProfile") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("TraineeProfile") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <User className="w-6 h-6" />
+                    <span className="text-xs font-bold">פרופיל</span>
+                  </Link>
+                </>
+              )}
             </div>
-          )}
+          </div>
           </main>
           </div>
           </ErrorBoundary>

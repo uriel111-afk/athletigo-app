@@ -138,7 +138,9 @@ const auth = {
       .eq('email', user.email)
       .maybeSingle();
 
-    return profileByEmail || { id: user.id, email: user.email, onboarding_completed: true };
+    if (profileByEmail) return profileByEmail;
+
+    throw new Error('User not registered');
   },
 
   async signUp({ email, password }) {
