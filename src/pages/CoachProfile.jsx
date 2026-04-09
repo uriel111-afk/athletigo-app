@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock, Settings } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { toast } from "sonner";
 
@@ -75,6 +76,15 @@ export default function CoachProfile() {
     onError: () => {
       toast.error("❌ שגיאה בהפעלת מצב מאמן");
     }
+  });
+
+  const toggleAllowTraineePlansMutation = useMutation({
+    mutationFn: (value) => base44.auth.updateMe({ allow_trainee_plans: value }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['current-user-coach-profile'] });
+      toast.success("✅ ההגדרה עודכנה");
+    },
+    onError: () => toast.error("❌ שגיאה בעדכון ההגדרה"),
   });
 
   const handleSave = async () => {
@@ -272,6 +282,33 @@ export default function CoachProfile() {
               </div>
             </div>
           )}
+
+          {/* Trainee Settings */}
+          <div className="mb-6 md:mb-8 athletigo-section">
+            <div className="flex items-center gap-3 mb-4 md:mb-6">
+              <Settings className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#FF6F20' }} />
+              <h2 className="text-2xl md:text-3xl font-black mb-0" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+                הגדרות מתאמנים
+              </h2>
+            </div>
+            <div className="athletigo-card">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="font-bold text-sm md:text-base" style={{ color: '#000000' }}>
+                    אפשר למתאמנים ליצור תוכניות בעצמם
+                  </p>
+                  <p className="text-xs md:text-sm mt-1" style={{ color: '#7D7D7D' }}>
+                    כאשר מופעל, מתאמנים יראו כפתור "תוכנית חדשה" בדף התוכניות שלהם
+                  </p>
+                </div>
+                <Switch
+                  checked={!!user?.allow_trainee_plans}
+                  onCheckedChange={(checked) => toggleAllowTraineePlansMutation.mutate(checked)}
+                  disabled={toggleAllowTraineePlansMutation.isPending}
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Password Change Section */}
           <div className="mb-6 md:mb-8 athletigo-section">

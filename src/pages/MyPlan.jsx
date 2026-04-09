@@ -113,7 +113,23 @@ export default function MyPlan() {
   });
 
   const isCoach = user?.isCoach || user?.role === 'admin';
-  
+
+  const { data: coach } = useQuery({
+    queryKey: ['myplan-coach'],
+    queryFn: async () => {
+      try {
+        const users = await base44.entities.User.list('-created_at', 1000);
+        return users.find(u => u.isCoach === true) || null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!user?.id && !isCoach,
+    staleTime: 60000,
+  });
+
+  const canCreatePlans = !!coach?.allow_trainee_plans;
+
   const allTrainees = [];
 
   useEffect(() => {
@@ -374,9 +390,11 @@ export default function MyPlan() {
                 <h1 className="text-4xl md:text-5xl font-black mb-3 text-black">התוכנית שלי</h1>
                 <div className="w-16 h-1 rounded-full bg-[#FF6F20]" />
             </div>
-            <Button onClick={() => setShowCreatePlan(true)} className="rounded-2xl px-6 py-4 font-bold text-white bg-[#FF6F20]">
+            {canCreatePlans && (
+              <Button onClick={() => setShowCreatePlan(true)} className="rounded-2xl px-6 py-4 font-bold text-white bg-[#FF6F20]">
                 <Plus className="w-5 h-5 ml-2" /> תוכנית חדשה
-            </Button>
+              </Button>
+            )}
           </div>
 
           <Tabs defaultValue="coach" value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -475,9 +493,11 @@ export default function MyPlan() {
               ) : (
                 <div className="p-8 rounded-2xl text-center border-2 border-dashed border-gray-200">
                   <p className="text-gray-500 mb-3">לא יצרת תוכניות אישיות</p>
-                  <Button onClick={() => setShowCreatePlan(true)} variant="outline" className="font-bold">
-                    <Plus className="w-4 h-4 ml-2" /> תוכנית חדשה
-                  </Button>
+                  {canCreatePlans && (
+                    <Button onClick={() => setShowCreatePlan(true)} variant="outline" className="font-bold">
+                      <Plus className="w-4 h-4 ml-2" /> תוכנית חדשה
+                    </Button>
+                  )}
                 </div>
               )}
             </TabsContent>

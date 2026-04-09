@@ -44,3 +44,6 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS training_frequency text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS motivation text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_training_style text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_notes text;
+
+-- Coach settings
+ALTER TABLE users ADD COLUMN IF NOT EXISTS allow_trainee_plans boolean default false;
