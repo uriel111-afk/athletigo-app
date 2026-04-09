@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, LayoutDashboard, Trash2, Home, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, Folder, FolderOpen, DollarSign } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, LayoutDashboard, Trash2, Home, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, Folder, FolderOpen, DollarSign, Lock } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -178,6 +179,9 @@ export default function TraineeProfile() {
   const [showAddResult, setShowAddResult] = useState(false);
   const [showEditResult, setShowEditResult] = useState(false);
   const [editingResult, setEditingResult] = useState(null);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPass: "", confirm: "" });
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const [showAddService, setShowAddService] = useState(false);
   const [editingService, setEditingService] = useState(null);
@@ -1000,6 +1004,27 @@ export default function TraineeProfile() {
     });
   };
 
+  const handlePasswordChange = async () => {
+    if (passwordForm.newPass !== passwordForm.confirm) {
+      toast.error("הסיסמאות החדשות לא תואמות");
+      return;
+    }
+    if (passwordForm.newPass.length < 6) {
+      toast.error("הסיסמה חייבת להכיל לפחות 6 תווים");
+      return;
+    }
+    setPasswordLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
+    setPasswordLoading(false);
+    if (error) {
+      toast.error("שגיאה בשינוי הסיסמה: " + error.message);
+    } else {
+      toast.success("✅ הסיסמה שונתה בהצלחה");
+      setShowPasswordChange(false);
+      setPasswordForm({ newPass: "", confirm: "" });
+    }
+  };
+
   const activeGoals = goals.filter(g => g.status === 'בתהליך');
   const completedGoals = goals.filter(g => g.status === 'הושג');
   const activeServices = services.filter(s => s.status === 'פעיל');
@@ -1403,6 +1428,56 @@ export default function TraineeProfile() {
                 </div>
               </div>
             )}
+            {/* Password Change Section */}
+            <div className="p-4 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-bold flex items-center gap-2" style={{ color: '#000000' }}>
+                  <Lock className="w-4 h-4" style={{ color: '#FF6F20' }} />
+                  אבטחת חשבון
+                </h3>
+                <button
+                  onClick={() => setShowPasswordChange(!showPasswordChange)}
+                  className="text-sm font-bold px-3 py-1.5 rounded-lg"
+                  style={{ backgroundColor: '#000000', color: '#FFFFFF' }}
+                >
+                  שנה סיסמה
+                </button>
+              </div>
+              {showPasswordChange && (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>סיסמה חדשה</Label>
+                    <Input
+                      type="password"
+                      placeholder="לפחות 6 תווים"
+                      value={passwordForm.newPass}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
+                      className="rounded-lg h-10"
+                      style={{ direction: "ltr" }}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>אישור סיסמה חדשה</Label>
+                    <Input
+                      type="password"
+                      placeholder="הכנס שוב את הסיסמה"
+                      value={passwordForm.confirm}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                      className="rounded-lg h-10"
+                      style={{ direction: "ltr" }}
+                    />
+                  </div>
+                  <Button
+                    onClick={handlePasswordChange}
+                    disabled={passwordLoading}
+                    className="w-full font-bold text-white rounded-lg"
+                    style={{ backgroundColor: '#FF6F20' }}
+                  >
+                    {passwordLoading ? "שומר..." : "שמור סיסמה"}
+                  </Button>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* Goals Tab */}

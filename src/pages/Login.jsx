@@ -7,6 +7,7 @@ import { Loader2, Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,6 +15,9 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // If already logged in, redirect to Dashboard
   const redirectAfterLogin = (profile) => {
@@ -40,6 +44,22 @@ export default function Login() {
       }
     });
   }, [navigate]);
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setForgotLoading(false);
+    if (error) {
+      toast.error("שגיאה בשליחת המייל. בדוק את הכתובת ונסה שוב.");
+    } else {
+      toast.success("מייל לאיפוס סיסמה נשלח! בדוק את תיבת הדואר שלך.");
+      setShowForgot(false);
+      setForgotEmail("");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -160,7 +180,43 @@ export default function Login() {
                 "כניסה"
               )}
             </Button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setShowForgot(!showForgot)}
+                className="text-sm font-medium"
+                style={{ color: "#FF6F20" }}
+              >
+                שכחתי סיסמה
+              </button>
+            </div>
           </form>
+
+          {showForgot && (
+            <form onSubmit={handleForgotPassword} className="mt-4 pt-4 space-y-3" style={{ borderTop: "1px solid #E0E0E0" }}>
+              <p className="text-sm font-medium text-center" style={{ color: "#000000" }}>
+                הכנס את האימייל שלך ונשלח לך קישור לאיפוס סיסמה
+              </p>
+              <Input
+                type="email"
+                placeholder="your@email.com"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                required
+                className="h-11 rounded-xl text-right"
+                style={{ border: "1px solid #E0E0E0", direction: "ltr" }}
+              />
+              <Button
+                type="submit"
+                disabled={forgotLoading}
+                className="w-full h-10 rounded-xl font-bold text-white"
+                style={{ backgroundColor: "#000000" }}
+              >
+                {forgotLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "שלח קישור לאיפוס"}
+              </Button>
+            </form>
+          )}
         </div>
       </div>
     </div>

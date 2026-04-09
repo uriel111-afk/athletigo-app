@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock } from "lucide-react";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { toast } from "sonner";
 
@@ -22,6 +23,10 @@ export default function CoachProfile() {
     bio: "",
     certifications: ""
   });
+
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: "", newPass: "", confirm: "" });
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -80,6 +85,27 @@ export default function CoachProfile() {
       bio: formData.bio,
       certifications: formData.certifications
     });
+  };
+
+  const handlePasswordChange = async () => {
+    if (passwordForm.newPass !== passwordForm.confirm) {
+      toast.error("הסיסמאות החדשות לא תואמות");
+      return;
+    }
+    if (passwordForm.newPass.length < 6) {
+      toast.error("הסיסמה חייבת להכיל לפחות 6 תווים");
+      return;
+    }
+    setPasswordLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
+    setPasswordLoading(false);
+    if (error) {
+      toast.error("שגיאה בשינוי הסיסמה: " + error.message);
+    } else {
+      toast.success("✅ הסיסמה שונתה בהצלחה");
+      setShowPasswordChange(false);
+      setPasswordForm({ current: "", newPass: "", confirm: "" });
+    }
   };
 
   const handleEnableCoachMode = async () => {
@@ -247,6 +273,23 @@ export default function CoachProfile() {
             </div>
           )}
 
+          {/* Password Change Section */}
+          <div className="mb-6 md:mb-8 athletigo-section">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-0 mb-4 md:mb-6">
+              <h2 className="text-2xl md:text-3xl font-black mb-0" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+                אבטחת חשבון
+              </h2>
+              <Button
+                onClick={() => setShowPasswordChange(true)}
+                className="rounded-xl px-4 py-2 font-bold w-full md:w-auto text-sm md:text-base"
+                style={{ backgroundColor: '#000000', color: '#FFFFFF' }}
+              >
+                <Lock className="w-3 h-3 md:w-4 md:h-4 ml-2" />
+                שנה סיסמה
+              </Button>
+            </div>
+          </div>
+
           {/* Edit Dialog */}
           <Dialog open={showEdit} onOpenChange={setShowEdit}>
             <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
@@ -313,6 +356,49 @@ export default function CoachProfile() {
                   className="athletigo-button-primary w-full py-4 md:py-6 font-bold text-white text-base md:text-lg"
                 >
                   שמור שינויים
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Password Change Dialog */}
+          <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
+            <DialogContent className="w-[95vw] md:w-full max-w-md" style={{ backgroundColor: '#FFFFFF' }}>
+              <DialogHeader>
+                <DialogTitle className="text-xl md:text-2xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+                  שינוי סיסמה
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 md:space-y-5">
+                <div>
+                  <Label className="text-sm md:text-base font-bold mb-2 block" style={{ color: '#000000' }}>סיסמה חדשה</Label>
+                  <Input
+                    type="password"
+                    placeholder="לפחות 6 תווים"
+                    value={passwordForm.newPass}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
+                    className="rounded-xl"
+                    style={{ direction: "ltr" }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm md:text-base font-bold mb-2 block" style={{ color: '#000000' }}>אישור סיסמה חדשה</Label>
+                  <Input
+                    type="password"
+                    placeholder="הכנס שוב את הסיסמה"
+                    value={passwordForm.confirm}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                    className="rounded-xl"
+                    style={{ direction: "ltr" }}
+                  />
+                </div>
+                <Button
+                  onClick={handlePasswordChange}
+                  disabled={passwordLoading}
+                  className="w-full py-3 font-bold text-white rounded-xl"
+                  style={{ backgroundColor: '#FF6F20' }}
+                >
+                  {passwordLoading ? "שומר..." : "שמור סיסמה"}
                 </Button>
               </div>
             </DialogContent>
