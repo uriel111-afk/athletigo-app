@@ -134,6 +134,7 @@ export default function Progress() {
       });
       toast.success("✅ מדידה נוספה");
     },
+    onError: (error) => toast.error("❌ שגיאה בשמירת מדידה: " + (error.message || "נסה שוב")),
   });
 
   const updateMeasurementMutation = useMutation({
@@ -155,6 +156,7 @@ export default function Progress() {
       });
       toast.success("✅ מדידה עודכנה");
     },
+    onError: (error) => toast.error("❌ שגיאה בעדכון מדידה: " + (error.message || "נסה שוב")),
   });
 
   const deleteMeasurementMutation = useMutation({
@@ -166,6 +168,7 @@ export default function Progress() {
       setDeletingItem(null);
       toast.success("✅ מדידה נמחקה");
     },
+    onError: (error) => toast.error("❌ שגיאה במחיקת מדידה: " + (error.message || "נסה שוב")),
   });
 
   const createResultMutation = useMutation({
@@ -182,6 +185,7 @@ export default function Progress() {
       });
       toast.success("✅ הישג נוסף");
     },
+    onError: (error) => toast.error("❌ שגיאה בשמירת הישג: " + (error.message || "נסה שוב")),
   });
 
   const updateResultMutation = useMutation({
@@ -198,6 +202,7 @@ export default function Progress() {
       });
       toast.success("✅ הישג עודכן");
     },
+    onError: (error) => toast.error("❌ שגיאה בעדכון הישג: " + (error.message || "נסה שוב")),
   });
 
   const deleteResultMutation = useMutation({
@@ -209,6 +214,7 @@ export default function Progress() {
       setDeletingItem(null);
       toast.success("✅ הישג נמחק");
     },
+    onError: (error) => toast.error("❌ שגיאה במחיקת הישג: " + (error.message || "נסה שוב")),
   });
 
   const createGoalMutation = useMutation({
@@ -219,7 +225,8 @@ export default function Progress() {
       setShowAddGoal(false);
       setGoalForm({ goal_name: "", description: "", target_value: "", current_value: "", unit: "", target_date: "", status: "בתהליך" });
       toast.success("✅ יעד נוסף");
-    }
+    },
+    onError: (error) => toast.error("❌ שגיאה בהוספת יעד: " + (error.message || "נסה שוב")),
   });
 
   const handleSaveMeasurement = async () => {
@@ -243,10 +250,14 @@ export default function Progress() {
       recorded_by_name: user.full_name
     };
 
-    if (editingMeasurement) {
-      await updateMeasurementMutation.mutateAsync({ id: editingMeasurement.id, data });
-    } else {
-      await createMeasurementMutation.mutateAsync(data);
+    try {
+      if (editingMeasurement) {
+        await updateMeasurementMutation.mutateAsync({ id: editingMeasurement.id, data });
+      } else {
+        await createMeasurementMutation.mutateAsync(data);
+      }
+    } catch (error) {
+      console.error("handleSaveMeasurement error:", error);
     }
   };
 
@@ -266,10 +277,14 @@ export default function Progress() {
       recorded_by_coach_name: user.full_name
     };
 
-    if (editingResult) {
-      await updateResultMutation.mutateAsync({ id: editingResult.id, data });
-    } else {
-      await createResultMutation.mutateAsync(data);
+    try {
+      if (editingResult) {
+        await updateResultMutation.mutateAsync({ id: editingResult.id, data });
+      } else {
+        await createResultMutation.mutateAsync(data);
+      }
+    } catch (error) {
+      console.error("handleSaveResult error:", error);
     }
   };
 
@@ -279,21 +294,25 @@ export default function Progress() {
       return;
     }
 
-    await createGoalMutation.mutateAsync({
-      trainee_id: user.id,
-      trainee_name: user.full_name,
-      goal_name: goalForm.goal_name,
-      description: goalForm.description || null,
-      target_value: parseFloat(goalForm.target_value),
-      current_value: goalForm.current_value ? parseFloat(goalForm.current_value) : null,
-      unit: goalForm.unit || null,
-      target_date: goalForm.target_date ? new Date(goalForm.target_date).toISOString() : null,
-      start_date: new Date().toISOString(),
-      status: goalForm.status,
-      progress_percentage: goalForm.current_value && goalForm.target_value
-        ? Math.min(100, Math.round((parseFloat(goalForm.current_value) / parseFloat(goalForm.target_value)) * 100))
-        : 0
-    });
+    try {
+      await createGoalMutation.mutateAsync({
+        trainee_id: user.id,
+        trainee_name: user.full_name,
+        goal_name: goalForm.goal_name,
+        description: goalForm.description || null,
+        target_value: parseFloat(goalForm.target_value),
+        current_value: goalForm.current_value ? parseFloat(goalForm.current_value) : null,
+        unit: goalForm.unit || null,
+        target_date: goalForm.target_date ? new Date(goalForm.target_date).toISOString() : null,
+        start_date: new Date().toISOString(),
+        status: goalForm.status,
+        progress_percentage: goalForm.current_value && goalForm.target_value
+          ? Math.min(100, Math.round((parseFloat(goalForm.current_value) / parseFloat(goalForm.target_value)) * 100))
+          : 0
+      });
+    } catch (error) {
+      console.error("handleAddGoal error:", error);
+    }
   };
 
   const handleEditMeasurement = (measurement) => {

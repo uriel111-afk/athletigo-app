@@ -792,7 +792,11 @@ export default function TraineeProfile() {
         health_declaration_accepted: true
     };
 
-    await updateHealthMutation.mutateAsync(dataToUpdate);
+    try {
+      await updateHealthMutation.mutateAsync(dataToUpdate);
+    } catch (error) {
+      console.error("handleHealthUpdate error:", error);
+    }
   };
 
   const handleAddOrUpdateService = async () => {
@@ -826,16 +830,20 @@ export default function TraineeProfile() {
         status: serviceForm.status || 'active'
     };
 
-    if (editingService) {
-      await updateServiceMutation.mutateAsync({ id: editingService.id, data });
-    } else {
-      await createServiceMutation.mutateAsync({
-          ...data,
-          trainee_id: user.id,
-          trainee_name: user.full_name,
-          used_sessions: 0,
-          created_by_coach: currentUser?.id || null
-      });
+    try {
+      if (editingService) {
+        await updateServiceMutation.mutateAsync({ id: editingService.id, data });
+      } else {
+        await createServiceMutation.mutateAsync({
+            ...data,
+            trainee_id: user.id,
+            trainee_name: user.full_name,
+            used_sessions: 0,
+            created_by_coach: currentUser?.id || null
+        });
+      }
+    } catch (error) {
+      console.error("handleAddOrUpdateService error:", error);
     }
   };
 
