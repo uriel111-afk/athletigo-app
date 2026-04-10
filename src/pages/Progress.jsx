@@ -724,7 +724,7 @@ export default function Progress() {
         </div>
 
         {/* Baseline Section */}
-        <BaselineSection results={results} />
+        <BaselineSection results={results} measurements={measurements} />
 
         {/* Achievements */}
         <div className="mb-10 w-full">

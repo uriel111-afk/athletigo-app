@@ -25,17 +25,20 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
     const totalJumps = rounds.reduce((sum, r) => sum + (parseFloat(r.jumps) || 0), 0);
     const totalMisses = rounds.reduce((sum, r) => sum + (parseFloat(r.misses) || 0), 0);
     const totalAttempts = totalJumps + totalMisses;
-    const totalSeconds = rounds.length * secondsPerRound;
-    const jps = totalSeconds > 0 ? (totalJumps / totalSeconds).toFixed(2) : 0;
+    const numRounds = rounds.length;
+    const totalSeconds = numRounds * secondsPerRound;
+    const jps = totalSeconds > 0 ? parseFloat((totalJumps / totalSeconds).toFixed(2)) : 0;
     const accuracy = totalAttempts > 0 ? Math.round((totalJumps / totalAttempts) * 100) : 0;
-    return { totalJumps, totalMisses, totalAttempts, jps, accuracy, totalSeconds };
+    const avgJumps = numRounds > 0 ? parseFloat((totalJumps / numRounds).toFixed(1)) : 0;
+    const avgMisses = numRounds > 0 ? parseFloat((totalMisses / numRounds).toFixed(1)) : 0;
+    return { totalJumps, totalMisses, totalAttempts, jps, accuracy, avgJumps, avgMisses, totalSeconds, numRounds };
   }, [rounds, secondsPerRound]);
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.ResultsLog.create(data),
+    mutationFn: (data) => base44.entities.Measurement.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
       toast.success("✅ תוצאת Baseline נשמרה");
       handleClose();
     },
@@ -64,35 +67,32 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
   const handleSave = async () => {
     if (!date) { toast.error("נא לבחור תאריך"); return; }
     if (!stats) { toast.error("נא להזין נתוני סבבים"); return; }
+    if (!user?.id) { toast.error("שגיאה: משתמש לא נטען"); return; }
 
-    const roundsData = rounds.map((r, i) => ({
+    const roundResults = rounds.map((r, i) => ({
       round: i + 1,
       jumps: parseFloat(r.jumps) || 0,
       misses: parseFloat(r.misses) || 0,
       seconds: secondsPerRound,
-      jps: secondsPerRound > 0 ? ((parseFloat(r.jumps) || 0) / secondsPerRound).toFixed(2) : 0,
+      jps: secondsPerRound > 0 ? parseFloat(((parseFloat(r.jumps) || 0) / secondsPerRound).toFixed(2)) : 0,
     }));
 
     const data = {
       trainee_id: user.id,
       trainee_name: user.full_name || "",
       date,
-      title: `Baseline Jump Rope — ${stats.jps} JPS`,
-      description: `${rounds.length} סבבים × ${secondsPerRound} שניות | ${stats.totalJumps} קפיצות | ${stats.accuracy}% דיוק`,
-      record_type: "baseline_jump_rope",
-      record_value: parseFloat(stats.jps),
-      baseline_data: {
-        seconds_per_round: secondsPerRound,
-        num_rounds: rounds.length,
-        total_seconds: stats.totalSeconds,
-        total_jumps: stats.totalJumps,
-        total_misses: stats.totalMisses,
-        accuracy_percent: stats.accuracy,
-        jps: parseFloat(stats.jps),
-        rounds: roundsData,
-      },
-      recorded_by_coach: user.id,
-      recorded_by_coach_name: user.full_name || "",
+      notes: `Baseline Jump Rope — ${stats.jps} JPS | ${stats.numRounds} סבבים × ${secondsPerRound}s | דיוק: ${stats.accuracy}%`,
+      // Baseline-specific columns
+      baseline_rounds: stats.numRounds,
+      baseline_duration_seconds: secondsPerRound,
+      baseline_round_results: roundResults,
+      baseline_total_jumps: stats.totalJumps,
+      baseline_total_misses: stats.totalMisses,
+      baseline_average_jumps: stats.avgJumps,
+      baseline_average_misses: stats.avgMisses,
+      baseline_jump_rate_per_second: stats.jps,
+      recorded_by: user.id,
+      recorded_by_name: user.full_name || "",
     };
 
     try {
@@ -104,9 +104,9 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }} dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-black flex items-center gap-2" style={{ color: '#000000' }}>
+          <DialogTitle className="text-xl font-black flex items-center gap-2" style={{ color: '#000000', fontFamily: 'Barlow, Heebo, sans-serif' }}>
             <Activity className="w-5 h-5 text-[#FF6F20]" />
-            Baseline Jump Rope — מבחן בסיס
+            Baseline Jump Rope
           </DialogTitle>
         </DialogHeader>
 
@@ -119,20 +119,20 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="rounded-xl"
-                style={{ border: '1px solid #E0E0E0' }}
+                className="rounded-xl h-11"
+                style={{ border: '1px solid #E0E0E0', fontSize: 16 }}
               />
             </div>
             <div>
-              <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>שניות לסבב</Label>
+              <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>שניות לסיבוב</Label>
               <Input
                 type="number"
                 value={secondsPerRound}
                 onChange={(e) => setSecondsPerRound(Math.max(1, parseInt(e.target.value) || 30))}
                 min={1}
                 max={120}
-                className="rounded-xl"
-                style={{ border: '1px solid #E0E0E0' }}
+                className="rounded-xl h-11"
+                style={{ border: '1px solid #E0E0E0', fontSize: 16 }}
               />
             </div>
           </div>
@@ -140,34 +140,37 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
           {/* Rounds */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <Label className="text-sm font-bold" style={{ color: '#000000' }}>סבבים ({rounds.length})</Label>
+              <Label className="text-sm font-bold" style={{ color: '#000000' }}>
+                סיבובים ({rounds.length})
+              </Label>
               <button
                 onClick={addRound}
                 disabled={rounds.length >= 20}
-                className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg text-white"
-                style={{ backgroundColor: '#FF6F20' }}
+                className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-lg text-white min-h-[36px]"
+                style={{ backgroundColor: rounds.length >= 20 ? '#E0E0E0' : '#FF6F20' }}
               >
                 <Plus className="w-3.5 h-3.5" />
-                סבב
+                סיבוב
               </button>
             </div>
 
-            <div className="space-y-2">
-              {/* Header row */}
-              <div className="grid grid-cols-12 gap-2 px-1">
-                <span className="col-span-1 text-xs font-bold text-center" style={{ color: '#7D7D7D' }}>#</span>
-                <span className="col-span-5 text-xs font-bold text-center" style={{ color: '#7D7D7D' }}>קפיצות ✅</span>
-                <span className="col-span-5 text-xs font-bold text-center" style={{ color: '#7D7D7D' }}>פספוסים ❌</span>
-                <span className="col-span-1" />
-              </div>
+            {/* Header */}
+            <div className="grid grid-cols-12 gap-2 mb-1 px-1">
+              <span className="col-span-1 text-xs font-bold text-center" style={{ color: '#7D7D7D' }}>#</span>
+              <span className="col-span-5 text-xs font-bold text-center" style={{ color: '#7D7D7D' }}>קפיצות ✅</span>
+              <span className="col-span-5 text-xs font-bold text-center" style={{ color: '#7D7D7D' }}>פספוסים ❌</span>
+              <span className="col-span-1" />
+            </div>
 
+            <div className="space-y-2">
               {rounds.map((round, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                  <span className="col-span-1 text-sm font-bold text-center" style={{ color: '#FF6F20' }}>{idx + 1}</span>
+                  <span className="col-span-1 text-sm font-black text-center" style={{ color: '#FF6F20' }}>{idx + 1}</span>
                   <Input
                     type="number"
-                    className="col-span-5 rounded-xl text-center h-9"
-                    style={{ border: '1px solid #E0E0E0' }}
+                    className="col-span-5 rounded-xl text-center h-11"
+                    style={{ border: '1px solid #E0E0E0', fontSize: 16 }}
+                    inputMode="numeric"
                     placeholder="0"
                     min={0}
                     value={round.jumps}
@@ -175,8 +178,9 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
                   />
                   <Input
                     type="number"
-                    className="col-span-5 rounded-xl text-center h-9"
-                    style={{ border: '1px solid #E0E0E0' }}
+                    className="col-span-5 rounded-xl text-center h-11"
+                    style={{ border: '1px solid #E0E0E0', fontSize: 16 }}
+                    inputMode="numeric"
                     placeholder="0"
                     min={0}
                     value={round.misses}
@@ -185,7 +189,7 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
                   <button
                     onClick={() => removeRound(idx)}
                     disabled={rounds.length <= 1}
-                    className="col-span-1 flex items-center justify-center"
+                    className="col-span-1 flex items-center justify-center min-h-[44px]"
                   >
                     <Trash2 className="w-4 h-4" style={{ color: rounds.length <= 1 ? '#E0E0E0' : '#f44336' }} />
                   </button>
@@ -197,34 +201,34 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
           {/* Real-time Stats */}
           {stats && (
             <div className="p-4 rounded-xl" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
-              <p className="text-sm font-bold mb-3" style={{ color: '#FF6F20' }}>סיכום מבחן</p>
+              <p className="text-sm font-black mb-3" style={{ color: '#FF6F20' }}>סיכום מבחן</p>
               <div className="grid grid-cols-2 gap-3">
-                <div className="text-center p-2 bg-white rounded-lg">
+                <div className="text-center p-3 bg-white rounded-xl">
                   <p className="text-2xl font-black" style={{ color: '#FF6F20' }}>{stats.jps}</p>
-                  <p className="text-xs font-bold" style={{ color: '#7D7D7D' }}>JPS (קפיצות/שנייה)</p>
+                  <p className="text-xs font-bold" style={{ color: '#7D7D7D' }}>קפיצות/שנייה (JPS)</p>
                 </div>
-                <div className="text-center p-2 bg-white rounded-lg">
+                <div className="text-center p-3 bg-white rounded-xl">
                   <p className="text-2xl font-black" style={{ color: '#000000' }}>{stats.accuracy}%</p>
                   <p className="text-xs font-bold" style={{ color: '#7D7D7D' }}>דיוק</p>
                 </div>
-                <div className="text-center p-2 bg-white rounded-lg">
+                <div className="text-center p-3 bg-white rounded-xl">
                   <p className="text-xl font-black" style={{ color: '#000000' }}>{stats.totalJumps}</p>
                   <p className="text-xs font-bold" style={{ color: '#7D7D7D' }}>סה"כ קפיצות</p>
                 </div>
-                <div className="text-center p-2 bg-white rounded-lg">
-                  <p className="text-xl font-black" style={{ color: '#000000' }}>{stats.totalMisses}</p>
-                  <p className="text-xs font-bold" style={{ color: '#7D7D7D' }}>סה"כ פספוסים</p>
+                <div className="text-center p-3 bg-white rounded-xl">
+                  <p className="text-xl font-black" style={{ color: '#000000' }}>{stats.avgJumps}</p>
+                  <p className="text-xs font-bold" style={{ color: '#7D7D7D' }}>ממוצע לסיבוב</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Buttons */}
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-1">
             <Button
               onClick={handleClose}
               variant="outline"
-              className="flex-1 rounded-xl py-5 font-bold"
+              className="flex-1 rounded-xl font-bold min-h-[44px]"
               style={{ border: '1px solid #E0E0E0', color: '#000000' }}
             >
               ביטול
@@ -232,7 +236,7 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
             <Button
               onClick={handleSave}
               disabled={createMutation.isPending || !stats}
-              className="flex-1 rounded-xl py-5 font-bold text-white"
+              className="flex-1 rounded-xl font-bold text-white min-h-[44px]"
               style={{ backgroundColor: '#FF6F20' }}
             >
               {createMutation.isPending ? (

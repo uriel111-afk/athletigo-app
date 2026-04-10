@@ -1204,6 +1204,7 @@ export default function TraineeProfile() {
     services: 'שירותים',
     plans: 'תוכניות',
     messages: 'הודעות',
+    documents: 'מסמכים',
   };
 
   return (
@@ -1336,6 +1337,20 @@ export default function TraineeProfile() {
                   {activeService && <span className="text-[10px] font-bold text-white bg-green-500 px-2 py-0.5 rounded-full">פעיל</span>}
                   <ChevronLeft className="w-4 h-4 text-[#FF6F20]" />
                 </div>
+              </button>
+
+              {/* מסמכים — docs row */}
+              <button onClick={() => setActiveTab('documents')} className="w-full bg-white rounded-[16px] px-4 py-3.5 shadow-sm flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-[#FF6F20]" /></div>
+                  <div className="text-right">
+                    <div className="font-bold text-sm text-gray-900">מסמכים</div>
+                    <div className="text-[11px] text-gray-400">
+                      {[targetUser?.health_declaration_signed_at, targetUser?.cooperation_agreement_signed_at].filter(Boolean).length || user?.health_declaration_signed_at || user?.cooperation_agreement_signed_at ? 'יש מסמכים חתומים' : 'טפסים להחתמה'}
+                    </div>
+                  </div>
+                </div>
+                <ChevronLeft className="w-4 h-4 text-[#FF6F20]" />
               </button>
 
               {/* שינוי סיסמא — dark row */}
@@ -1674,6 +1689,72 @@ export default function TraineeProfile() {
                   </div>
                 ) : (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><MessageSquare className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">לא נמצא מאמן</p></div>
+                )}
+              </TabsContent>
+
+              {/* Documents Tab */}
+              <TabsContent value="documents" className="space-y-4 w-full">
+                <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
+                  <FileText className="w-5 h-5 text-[#FF6F20]" />מסמכים וטפסים
+                </h2>
+                {[
+                  {
+                    key: 'health_declaration',
+                    label: 'הצהרת בריאות',
+                    signedAt: effectiveUser?.health_declaration_signed_at,
+                    sigData: effectiveUser?.health_declaration_signature,
+                  },
+                  {
+                    key: 'cooperation_agreement',
+                    label: 'הסכם שיתוף פעולה',
+                    signedAt: effectiveUser?.cooperation_agreement_signed_at,
+                    sigData: effectiveUser?.cooperation_agreement_signature,
+                  },
+                ].map(doc => (
+                  <div
+                    key={doc.key}
+                    className="rounded-xl p-4 border-2 bg-white"
+                    style={{ borderColor: doc.signedAt ? '#4CAF50' : '#E0E0E0' }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5" style={{ color: doc.signedAt ? '#4CAF50' : '#FF6F20' }} />
+                        <span className="font-bold text-sm text-gray-900">{doc.label}</span>
+                      </div>
+                      {doc.signedAt ? (
+                        <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                          <CheckCircle className="w-3 h-3" /> נחתם
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                          ממתין לחתימה
+                        </span>
+                      )}
+                    </div>
+                    {doc.signedAt && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        נחתם ב-{format(new Date(doc.signedAt), 'dd/MM/yyyy HH:mm', { locale: he })}
+                      </p>
+                    )}
+                    {doc.signedAt && doc.sigData && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-400 mb-1">חתימה:</p>
+                        <img src={doc.sigData} alt="חתימה" className="h-14 border rounded-lg bg-white"
+                          style={{ border: '1px solid #E0E0E0' }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {/* If trainee viewing own profile — link to sign forms */}
+                {!isCoach && (
+                  <Link
+                    to={createPageUrl('Forms')}
+                    className="w-full block text-center py-3 px-4 rounded-xl font-bold text-white min-h-[44px] flex items-center justify-center gap-2"
+                    style={{ backgroundColor: '#FF6F20' }}
+                  >
+                    <FileText className="w-4 h-4" />
+                    עבור לדף טפסים וחתימות
+                  </Link>
                 )}
               </TabsContent>
             </Tabs>

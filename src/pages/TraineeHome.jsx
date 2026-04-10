@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Calendar, Dumbbell, TrendingUp, User, Loader2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import TraineeSessionBooking from "../components/TraineeSessionBooking";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 export default function TraineeHome() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [coach, setCoach] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
-
   const [mySessions, setMySessions] = useState([]);
+  const [activeServices, setActiveServices] = useState([]);
+  // Unread notifications modal
+  const [unreadNotifs, setUnreadNotifs] = useState([]);
+  const [showUnreadModal, setShowUnreadModal] = useState(false);
+  const [acknowledgingId, setAcknowledgingId] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -28,6 +35,17 @@ export default function TraineeHome() {
             const coaches = await base44.entities.User.filter({ id: services[0].created_by });
             if (coaches.length > 0) setCoach(coaches[0]);
           }
+          setActiveServices(services.filter(s => s.status === 'פעיל' || s.status === 'active'));
+
+          // Load unread notifications
+          try {
+            const notifs = await base44.entities.Notification.filter({ user_id: currentUser.id }, '-created_at');
+            const unread = notifs.filter(n => !n.is_read || (n.requires_acknowledgment && !n.acknowledged_at));
+            if (unread.length > 0) {
+              setUnreadNotifs(unread);
+              setShowUnreadModal(true);
+            }
+          } catch (e) { console.error("Error fetching notifications", e); }
 
           // Fetch sessions
           try {
@@ -138,8 +156,81 @@ export default function TraineeHome() {
     );
   }
 
+  const handleAcknowledge = async (notifId) => {
+    setAcknowledgingId(notifId);
+    try {
+      await base44.entities.Notification.update(notifId, {
+        is_read: true,
+        acknowledged_at: new Date().toISOString(),
+      });
+      setUnreadNotifs(prev => prev.filter(n => n.id !== notifId));
+      toast.success("✅ קריאה אושרה");
+    } catch { toast.error("שגיאה"); }
+    setAcknowledgingId(null);
+  };
+
+  const handleMarkRead = async (notifId) => {
+    try {
+      await base44.entities.Notification.update(notifId, { is_read: true });
+      setUnreadNotifs(prev => prev.filter(n => n.id !== notifId));
+    } catch {}
+  };
+
   return (
     <ErrorBoundary>
+      {/* Unread notifications modal */}
+      <Dialog open={showUnreadModal} onOpenChange={setShowUnreadModal}>
+        <DialogContent className="w-[95vw] max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black flex items-center gap-2">
+              <Bell className="w-5 h-5 text-[#FF6F20]" />
+              {unreadNotifs.length} התראות חדשות
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {unreadNotifs.map(n => (
+              <div
+                key={n.id}
+                className="p-4 rounded-xl border-2"
+                style={{ borderColor: n.requires_acknowledgment && !n.acknowledged_at ? '#FF6F20' : '#E0E0E0',
+                  backgroundColor: n.requires_acknowledgment && !n.acknowledged_at ? '#FFF8F3' : '#FAFAFA' }}
+              >
+                <p className="font-bold text-sm text-gray-900 mb-1">{n.title}</p>
+                <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line mb-3">{n.message}</p>
+                {n.requires_acknowledgment && !n.acknowledged_at ? (
+                  <Button
+                    onClick={() => handleAcknowledge(n.id)}
+                    disabled={acknowledgingId === n.id}
+                    className="w-full rounded-xl font-bold text-white min-h-[44px]"
+                    style={{ backgroundColor: '#FF6F20' }}
+                  >
+                    {acknowledgingId === n.id ? (
+                      <><Loader2 className="w-4 h-4 ml-2 animate-spin" />מאשר...</>
+                    ) : (
+                      <><ShieldCheck className="w-4 h-4 ml-2" />קראתי ומאשר קבלה</>
+                    )}
+                  </Button>
+                ) : (
+                  <Button onClick={() => handleMarkRead(n.id)} variant="outline" size="sm" className="w-full rounded-xl min-h-[44px]">
+                    סמן כנקרא
+                  </Button>
+                )}
+              </div>
+            ))}
+            {unreadNotifs.length === 0 && (
+              <p className="text-center text-gray-400 py-4 text-sm">כל ההתראות טופלו ✅</p>
+            )}
+          </div>
+          <Button
+            onClick={() => setShowUnreadModal(false)}
+            variant="outline"
+            className="w-full rounded-xl mt-2 min-h-[44px]"
+          >
+            סגור
+          </Button>
+        </DialogContent>
+      </Dialog>
+
       <div className="min-h-screen px-4 md:p-8 pb-24 bg-white" dir="rtl" style={{ fontSize: 16 }}>
         <div className="max-w-4xl mx-auto">
         <div className="mb-8">
@@ -192,6 +283,44 @@ export default function TraineeHome() {
             </div>
           )}
         </div>
+
+        {/* Package remaining sessions */}
+        {activeServices.length > 0 && (
+          <div className="mb-6 space-y-2">
+            {activeServices.map(svc => {
+              const total = svc.total_sessions || 0;
+              const used = svc.used_sessions || 0;
+              const remaining = total > 0 ? total - used : null;
+              const isLow = remaining !== null && remaining <= 2;
+              const isEmpty = remaining !== null && remaining <= 0;
+              if (remaining === null) return null;
+              return (
+                <div
+                  key={svc.id}
+                  className="flex items-center justify-between p-4 rounded-xl border-2"
+                  style={{
+                    borderColor: isEmpty ? '#f44336' : isLow ? '#FF6F20' : '#E0E0E0',
+                    backgroundColor: isEmpty ? '#FFEBEE' : isLow ? '#FFF8F3' : '#FAFAFA',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Package className="w-5 h-5" style={{ color: isEmpty ? '#f44336' : '#FF6F20' }} />
+                    <div>
+                      <p className="font-bold text-sm">{svc.service_type || svc.package_name}</p>
+                      <p className="text-xs text-gray-500">{used}/{total} אימונים נוצלו</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-xl font-black ${isEmpty ? 'text-red-600' : isLow ? 'text-[#FF6F20]' : 'text-gray-900'}`}>
+                      {remaining}
+                    </p>
+                    <p className="text-xs text-gray-400">נותרו</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <Link to={createPageUrl("MyPlan")} className="no-underline">

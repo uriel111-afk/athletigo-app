@@ -45,6 +45,10 @@ export default function Login() {
     });
   }, [navigate]);
 
+  // TO RESET uriel111@gmail.com PASSWORD:
+  // 1. Go to Supabase Dashboard → Authentication → Users
+  // 2. Find uriel111@gmail.com → click "Send password reset" or set a new password directly
+  // 3. Alternatively: use the "שכחתי סיסמה" form below with uriel111@gmail.com to receive a reset email
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setForgotLoading(true);
