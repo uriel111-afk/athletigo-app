@@ -155,6 +155,7 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['trainee-profile'] });
       toast.success("✅ עודכן");
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const deleteClientMutation = useMutation({
@@ -240,6 +241,7 @@ export default function UnifiedClientCard({
       onClose();
       toast.success("✅ המשתמש נמחק מהמערכת לצמיתות");
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const handleImageUpload = async (e) => {
@@ -308,7 +310,8 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
       toast.success("✅ יעד נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const createResultMutation = useMutation({
@@ -352,7 +355,8 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       toast.success("✅ הישג נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const createServiceMutation = useMutation({
@@ -408,7 +412,8 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['my-services'] });
       toast.success("✅ שירות נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const createSessionMutation = useMutation({

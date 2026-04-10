@@ -67,7 +67,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       toast.success("✅ עודכן");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const createSectionMutation = useMutation({
@@ -76,7 +77,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       queryClient.invalidateQueries({ queryKey: ['training-sections'] });
       setShowSectionDialog(false);
       toast.success("✅ סקשן נוסף");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const updateSectionMutation = useMutation({
@@ -86,7 +88,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       setShowSectionDialog(false);
       setEditingSection(null);
       toast.success("✅ עודכן");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const deleteSectionMutation = useMutation({
@@ -101,7 +104,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       queryClient.invalidateQueries({ queryKey: ['training-sections'] });
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
       toast.success("✅ נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const prepareExerciseData = (formData) => {
@@ -120,7 +124,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
       setShowExerciseDialog(false);
       toast.success("✅ תרגיל נוסף");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const updateExerciseMutation = useMutation({
@@ -252,7 +257,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
       toast.success("✅ נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const getExercisesBySection = React.useCallback((sectionId) => {

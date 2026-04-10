@@ -88,7 +88,8 @@ export default function TrainingPlans() {
         queryClient.invalidateQueries({ queryKey: ['program-series'] });
         setShowSeriesDialog(false);
         toast.success("✅ סדרה נוצרה בהצלחה");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const updateSeriesMutation = useMutation({
@@ -100,7 +101,8 @@ export default function TrainingPlans() {
         setShowSeriesDialog(false);
         setEditingSeries(null);
         toast.success("✅ סדרה עודכנה");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const { data: coach, isLoading: coachLoading } = useQuery({ 
@@ -286,7 +288,8 @@ export default function TrainingPlans() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setSelectedPlan(null);
       toast.success("✅ נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
 
@@ -345,7 +348,8 @@ export default function TrainingPlans() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setSelectedPlan(newPlanResult);
       toast.success("✅ תוכנית שוכפלה בהצלחה");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const sharePlanToMultipleMutation = useMutation({

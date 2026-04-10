@@ -53,7 +53,8 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
       queryClient.invalidateQueries({ queryKey: ['notifications', otherUserId] });
       setMessageText("");
       toast.success("✅ ההודעה נשלחה");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה בשליחת הודעה: " + (err?.message || "נסה שוב")),
   });
 
   const markAsReadMutation = useMutation({
@@ -64,7 +65,8 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', currentUserId, otherUserId] });
-    }
+    },
+    onError: () => {},
   });
 
   useEffect(() => {

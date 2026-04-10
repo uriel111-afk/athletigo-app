@@ -627,7 +627,8 @@ export default function TraineeProfile() {
           setEditingUsage(null);
           setUsageValue("");
           toast.success("✅ ניצול אימונים עודכן ידנית");
-      }
+      },
+      onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const updateSessionStatusMutation = useMutation({
@@ -714,7 +715,8 @@ export default function TraineeProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       toast.success("✅ יעד נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const createResultMutation = useMutation({
@@ -748,7 +750,8 @@ export default function TraineeProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
       toast.success("✅ הישג נמחק");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const isSavingRef = useRef(false);

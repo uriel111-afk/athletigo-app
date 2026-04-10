@@ -69,6 +69,7 @@ export default function CoachProfile() {
       setShowEdit(false);
       toast.success("✅ הפרופיל עודכן בהצלחה");
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const enableCoachModeMutation = useMutation({
@@ -151,13 +152,17 @@ export default function CoachProfile() {
   });
 
   const handleSave = async () => {
-    await updateUserMutation.mutateAsync({
-      phone: formData.phone,
-      address: formData.address,
-      city: formData.city,
-      bio: formData.bio,
-      certifications: formData.certifications
-    });
+    try {
+      await updateUserMutation.mutateAsync({
+        phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        bio: formData.bio,
+        certifications: formData.certifications
+      });
+    } catch {
+      // error handled by onError
+    }
   };
 
   const handlePasswordChange = async () => {
@@ -522,9 +527,14 @@ export default function CoachProfile() {
 
                 <Button
                   onClick={handleSave}
+                  disabled={updateUserMutation.isPending}
                   className="athletigo-button-primary w-full py-4 md:py-6 font-bold text-white text-base md:text-lg"
                 >
-                  שמור שינויים
+                  {updateUserMutation.isPending ? (
+                    <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</>
+                  ) : (
+                    "שמור שינויים"
+                  )}
                 </Button>
               </div>
             </DialogContent>

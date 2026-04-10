@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit2, Trash2, TrendingUp, TrendingDown, Activity, Plus } from "lucide-react";
+import { Edit2, Trash2, TrendingUp, TrendingDown, Activity, Plus, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { notifyMetricsUpdated, notifyTraineeMetricsUpdated } from "@/functions/notificationTriggers";
@@ -41,6 +41,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
       resetMeasurementForm();
       toast.success("✅ מדידה נוספה");
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const updateMeasurementMutation = useMutation({
@@ -54,6 +55,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
       resetMeasurementForm();
       toast.success("✅ מדידה עודכנה");
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const deleteMeasurementMutation = useMutation({
@@ -64,6 +66,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       toast.success("✅ מדידה נמחקה");
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const resetMeasurementForm = () => {
@@ -97,10 +100,14 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
       recorded_by_name: coach.full_name
     };
 
-    if (editingMeasurement) {
-      await updateMeasurementMutation.mutateAsync({ id: editingMeasurement.id, data });
-    } else {
-      await createMeasurementMutation.mutateAsync(data);
+    try {
+      if (editingMeasurement) {
+        await updateMeasurementMutation.mutateAsync({ id: editingMeasurement.id, data });
+      } else {
+        await createMeasurementMutation.mutateAsync(data);
+      }
+    } catch {
+      // error handled by onError
     }
   };
 
@@ -429,10 +436,15 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
 
             <Button
               onClick={handleSaveMeasurement}
+              disabled={createMeasurementMutation.isPending || updateMeasurementMutation.isPending}
               className="w-full rounded-xl py-6 font-bold text-white text-lg"
               style={{ backgroundColor: '#FF6F20' }}
             >
-              {editingMeasurement ? 'עדכן מדידה' : 'שמור מדידה'}
+              {(createMeasurementMutation.isPending || updateMeasurementMutation.isPending) ? (
+                <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</>
+              ) : (
+                editingMeasurement ? 'עדכן מדידה' : 'שמור מדידה'
+              )}
             </Button>
           </div>
         </DialogContent>

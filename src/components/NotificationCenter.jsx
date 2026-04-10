@@ -37,7 +37,8 @@ export default function NotificationCenter({ userId }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
-    }
+    },
+    onError: () => {},
   });
 
   const acknowledgeMutation = useMutation({
@@ -59,7 +60,8 @@ export default function NotificationCenter({ userId }) {
     mutationFn: (id) => base44.entities.Notification.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   useEffect(() => {

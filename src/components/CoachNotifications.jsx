@@ -41,7 +41,8 @@ export default function CoachNotifications({ coach }) {
     mutationFn: (id) => base44.entities.Notification.update(id, { read: true }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-notifications'] });
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const markAllAsReadMutation = useMutation({
@@ -54,7 +55,8 @@ export default function CoachNotifications({ coach }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-notifications'] });
       toast.success("כל ההתראות סומנו כנקראו");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const deleteNotificationMutation = useMutation({
@@ -62,7 +64,8 @@ export default function CoachNotifications({ coach }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-notifications'] });
       toast.success("ההתראה נמחקה");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const unreadCount = notifications.filter(n => !n.read).length;

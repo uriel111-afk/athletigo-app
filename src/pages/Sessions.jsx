@@ -116,11 +116,13 @@ export default function Sessions() {
   const updateGroupMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.TrainingGroup.update(id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['training-groups'] }); setShowGroupDialog(false); setEditingGroup(null); toast.success('✅ קבוצה עודכנה'); },
+    onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
   });
 
   const deleteGroupMutation = useMutation({
     mutationFn: (id) => base44.entities.TrainingGroup.delete(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['training-groups'] }); toast.success('✅ קבוצה נמחקה'); },
+    onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
   });
 
   const addGroupMemberMutation = useMutation({
@@ -132,6 +134,7 @@ export default function Sessions() {
   const removeGroupMemberMutation = useMutation({
     mutationFn: (id) => base44.entities.TrainingGroupMember.delete(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['group-members'] }); toast.success('✅ מתאמן הוסר מהקבוצה'); },
+    onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
   });
 
   const createGroupSessionMutation = useMutation({

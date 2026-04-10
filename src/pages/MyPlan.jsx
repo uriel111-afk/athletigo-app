@@ -298,7 +298,8 @@ export default function MyPlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       toast.success("🗑️ תוכנית נמחקה");
-    }
+    },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const duplicatePlanMutation = useMutation({

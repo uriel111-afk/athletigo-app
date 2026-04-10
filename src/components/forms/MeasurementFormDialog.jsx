@@ -47,6 +47,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
       toast.success("✅ מדידה נוספה");
       onClose();
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const updateMeasurementMutation = useMutation({
@@ -58,6 +59,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
       toast.success("✅ מדידה עודכנה");
       onClose();
     },
+    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
   const isLoading = createMeasurementMutation.isPending || updateMeasurementMutation.isPending;
@@ -68,10 +70,6 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
       return;
     }
 
-    // Assuming we have the current user (coach) context or we just use the provided traineeId
-    // The backend usually fills 'recorded_by' if not provided, but let's try to be safe.
-    // Ideally we'd pass currentUserId prop, but let's skip 'recorded_by' for now or let backend handle it.
-    
     const data = {
       trainee_id: traineeId,
       trainee_name: traineeName,
@@ -85,10 +83,14 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
       notes: formData.notes || ""
     };
 
-    if (editingMeasurement) {
-      await updateMeasurementMutation.mutateAsync({ id: editingMeasurement.id, data });
-    } else {
-      await createMeasurementMutation.mutateAsync(data);
+    try {
+      if (editingMeasurement) {
+        await updateMeasurementMutation.mutateAsync({ id: editingMeasurement.id, data });
+      } else {
+        await createMeasurementMutation.mutateAsync(data);
+      }
+    } catch {
+      // error handled by onError
     }
   };
 
