@@ -403,7 +403,7 @@ export default function Layout({ children, currentPageName }) {
           )}
 
           <div className="flex-1 overflow-auto page-container safe-area-bottom" style={{ 
-            paddingBottom: isCoach ? '20px' : '140px', 
+            paddingBottom: '90px',
             paddingTop: '88px',
             paddingLeft: '16px', 
             paddingRight: '16px',
@@ -431,8 +431,8 @@ export default function Layout({ children, currentPageName }) {
                       color: location.pathname === createPageUrl("Dashboard") ? primaryColor : '#7D7D7D'
                     }}
                   >
-                    <LayoutDashboard className="w-6 h-6" />
-                    <span className="text-xs font-bold">דשבורד</span>
+                    <Home className="w-6 h-6" />
+                    <span className="text-xs font-bold">בית</span>
                   </Link>
 
                   <Link
@@ -444,7 +444,19 @@ export default function Layout({ children, currentPageName }) {
                     }}
                   >
                     <Users className="w-6 h-6" />
-                    <span className="text-xs font-bold">לקוחות</span>
+                    <span className="text-xs font-bold">מתאמנים</span>
+                  </Link>
+
+                  <Link
+                    to={createPageUrl("ActivePlans")}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: location.pathname === createPageUrl("ActivePlans") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("ActivePlans") ? primaryColor : '#7D7D7D'
+                    }}
+                  >
+                    <ClipboardList className="w-6 h-6" />
+                    <span className="text-xs font-bold">תוכניות</span>
                   </Link>
 
                   <Link
@@ -456,19 +468,7 @@ export default function Layout({ children, currentPageName }) {
                     }}
                   >
                     <Calendar className="w-6 h-6" />
-                    <span className="text-xs font-bold">סשנים</span>
-                  </Link>
-
-                  <Link
-                    to={createPageUrl("Leads")}
-                    className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
-                    style={{
-                      backgroundColor: location.pathname === createPageUrl("Leads") ? primaryColorLight : 'transparent',
-                      color: location.pathname === createPageUrl("Leads") ? primaryColor : '#7D7D7D'
-                    }}
-                  >
-                    <UserPlus className="w-6 h-6" />
-                    <span className="text-xs font-bold">לידים</span>
+                    <span className="text-xs font-bold">מפגשים</span>
                   </Link>
 
                   <Link
