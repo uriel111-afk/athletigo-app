@@ -81,40 +81,49 @@ export default function LeadFormDialog({
     setLeadForm(newForm);
   };
 
+  const [saving, setSaving] = useState(false);
+
   const handleSubmit = async () => {
     if (!leadForm.full_name) {
       toast.error("נא למלא שם מלא");
       return;
     }
 
-    // Filter to only include fields that exist in the leads table
-    const submissionData = {
-      full_name: leadForm.full_name,
-      phone: leadForm.phone || null,
-      email: leadForm.email || null,
-      age: leadForm.age ? parseInt(leadForm.age) : null,
-      status: leadForm.status || "חדש",
-      source: leadForm.source || "אחר",
-      notes: leadForm.notes || null,
-      coach_notes: leadForm.coach_notes || null,
-      birth_date: leadForm.birth_date || null,
-      medical_history: leadForm.medical_history || null,
-      parent_name: leadForm.parent_name || null,
-      main_goal: leadForm.main_goal || leadForm.training_goals || null
-    };
+    // Only send fields the leads table has — skip nulls to let DB defaults work
+    const submissionData = { full_name: leadForm.full_name };
+    if (leadForm.phone) submissionData.phone = leadForm.phone;
+    if (leadForm.email) submissionData.email = leadForm.email;
+    if (leadForm.age) submissionData.age = parseInt(leadForm.age);
+    if (leadForm.status && leadForm.status !== "חדש") submissionData.status = leadForm.status;
+    if (leadForm.source && leadForm.source !== "אחר") submissionData.source = leadForm.source;
+    if (leadForm.notes) submissionData.notes = leadForm.notes;
+    if (leadForm.coach_notes) submissionData.coach_notes = leadForm.coach_notes;
+    if (leadForm.birth_date) submissionData.birth_date = leadForm.birth_date;
+    if (leadForm.medical_history) submissionData.medical_history = leadForm.medical_history;
+    if (leadForm.parent_name) submissionData.parent_name = leadForm.parent_name;
+    if (leadForm.training_goals) submissionData.main_goal = leadForm.training_goals;
+
+    setSaving(true);
+    console.log("[LeadForm] Submitting:", submissionData);
 
     try {
       await onSubmit(submissionData);
+      console.log("[LeadForm] Success — closing form");
       clearDraft();
+      // Ensure close even if parent onSuccess didn't fire yet
+      onClose();
     } catch (error) {
-      // Translate common Supabase errors to Hebrew
+      console.error("[LeadForm] Error:", error);
       const raw = error?.message || error?.body?.message || "";
       let msg = "שגיאה לא צפויה, נסה שוב";
       if (raw.includes("duplicate")) msg = "ליד עם פרטים זהים כבר קיים";
-      else if (raw.includes("network") || raw.includes("fetch")) msg = "בעיית תקשורת — בדוק את החיבור לאינטרנט";
-      else if (raw.includes("timeout")) msg = "הבקשה לוקחת זמן רב, נסה שוב";
+      else if (raw.includes("network") || raw.includes("fetch") || raw.includes("Failed to fetch")) msg = "בעיית תקשורת — בדוק חיבור לאינטרנט";
+      else if (raw.includes("row-level security") || raw.includes("RLS") || raw.includes("policy")) msg = "אין הרשאה לשמור — בדוק הגדרות גישה";
+      else if (raw.includes("violates")) msg = "שדה חובה חסר או ערך לא תקין";
       else if (raw) msg = raw;
       toast.error("שגיאה בשמירת הליד: " + msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -364,10 +373,10 @@ export default function LeadFormDialog({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isLoading}
+              disabled={isLoading || saving}
               className="flex-1 rounded-xl py-6 font-bold text-white bg-[#FF6F20] hover:bg-[#e65b12]"
             >
-              {isLoading ? (
+              {(isLoading || saving) ? (
                 <>
                   <Loader2 className="w-5 h-5 ml-2 animate-spin" />
                   שומר...

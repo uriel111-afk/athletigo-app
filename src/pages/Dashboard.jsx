@@ -92,14 +92,21 @@ export default function Dashboard() {
 
   // ── Mutations ───────────────────────────────────────────────────────
   const createLeadMutation = useMutation({
-    mutationFn: (data) => base44.entities.Lead.create(data),
+    mutationFn: async (data) => {
+      console.log("[Dashboard] Creating lead:", data);
+      const result = await base44.entities.Lead.create(data);
+      console.log("[Dashboard] Lead created:", result);
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      setIsLeadDialogOpen(false);
-      toast.success("ליד חדש נוסף");
+      toast.success("ליד חדש נוסף בהצלחה");
     },
-    onError: (e) => toast.error("שגיאה: " + (e.message || "נסה שוב")),
+    onError: (e) => {
+      console.error("[Dashboard] Lead creation error:", e);
+      toast.error("שגיאה ביצירת ליד: " + (e.message || "נסה שוב"));
+    },
   });
 
   const createSessionMutation = useMutation({
