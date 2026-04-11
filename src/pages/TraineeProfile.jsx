@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, LayoutDashboard, Trash2, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -1226,15 +1226,6 @@ export default function TraineeProfile() {
                   <LogOut className="w-3.5 h-3.5" />
                   יציאה
                 </button>
-                {(currentUser?.email === 'athletigo@gmail.com' || currentUser?.role === 'coach' || currentUser?.isCoach) && (
-                  <button
-                    onClick={() => navigate('/dashboard')}
-                    className="flex items-center gap-1 text-white/90 text-xs font-semibold bg-white/20 px-2.5 py-1.5 rounded-xl min-h-[36px]"
-                  >
-                    <LayoutDashboard className="w-3.5 h-3.5" />
-                    דשבורד
-                  </button>
-                )}
                 <span className="text-white font-black text-lg tracking-tight">AG /</span>
               </div>
               <div className="flex flex-col items-center text-center">
