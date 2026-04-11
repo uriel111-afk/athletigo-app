@@ -1,1085 +1,728 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Plus, Minus, Dumbbell, Clock, Repeat, Layers, Activity, Zap, Settings2,
-  Trash2, Timer, RotateCcw, Weight, Hash, Info, Video,
-  PauseCircle, MoveHorizontal, X, User, GripVertical,
-  Footprints, Hand, Maximize2, ArrowLeftRight, ChevronDown, ChevronUp, GripHorizontal
+  Plus, Minus, Dumbbell, Clock, Repeat, Layers, Activity, Zap,
+  Trash2, Timer, Weight, Hash, Info, Video, Check, X,
+  PauseCircle, User, GripVertical,
+  Footprints, Maximize2, ArrowLeftRight, ChevronDown
 } from "lucide-react";
-import TimeInput from "@/components/ui/TimeInput";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AddCustomValueDialog from "../forms/AddCustomValueDialog";
 import { toast } from "sonner";
 
-// --- ICONS & CONFIGURATION ---
+// ── Icons ─────────────────────────────────────────────────────────────
 const ICONS = {
-  reps: Repeat,
-  sets: Hash,
-  time: Clock,
-  rest: Timer,
-  weight: Weight,
-  equipment: Dumbbell,
-  notes: Info,
-  video: Video,
-  tempo: Activity,
-  activity: Activity,
-  rpe: Zap,
-  list: Layers,
-  pause: PauseCircle,
-  move: MoveHorizontal,
-  user: User,
-  stop: PauseCircle
+  reps: Repeat, sets: Hash, time: Clock, rest: Timer,
+  weight: Weight, equipment: Dumbbell, notes: Info, video: Video,
+  tempo: Activity, rpe: Zap, list: Layers, pause: PauseCircle,
+  user: User, stop: PauseCircle,
 };
 
-const EXERCISE_MODES = [
-  { id: "חזרות", label: "חזרות", icon: Repeat },
-  { id: "זמן", label: "זמן", icon: Clock },
-  { id: "סופרסט", label: "סופרסט", icon: Layers },
-  { id: "טבטה", label: "טבטה", icon: Zap },
-  { id: "קומבו", label: "קומבו", icon: Activity },
-  { id: "מותאם אישי", label: "מותאם", icon: Settings2 }
-];
-
-// Unified Parameters Grid — 22 canonical parameters
+// ── All Parameters ────────────────────────────────────────────────────
 const ALL_PARAMETERS = [
-  { id: "sets",                   label: "סטים",              icon: ICONS.sets,      defaultValue: "3" },
-  { id: "reps",                   label: "חזרות",             icon: ICONS.reps,      defaultValue: "10" },
-  { id: "work_time",              label: "זמן עבודה",         icon: ICONS.time,      defaultValue: "00:30" },
-  { id: "rest_time",              label: "זמן מנוחה",         icon: ICONS.rest,      defaultValue: "00:30" },
-  { id: "rounds",                 label: "סבבים",             icon: ICONS.sets,      defaultValue: "3" },
-  { id: "rpe",                    label: "RPE (קושי)",        icon: ICONS.rpe,       defaultValue: "7" },
-  { id: "load_type",              label: "סוג עומס",          icon: ICONS.weight,    defaultValue: "משקל גוף" },
-  { id: "weight_kg",              label: "משקל (ק״ג)",        icon: ICONS.weight,    defaultValue: "0" },
-  { id: "tempo",                  label: "טמפו",              icon: ICONS.tempo,     defaultValue: "3010" },
-  { id: "rest_between_sets",      label: "מנ' בין סטים",      icon: ICONS.rest,      defaultValue: "00:60" },
-  { id: "rest_between_exercises", label: "מנ' בין תרגילים",  icon: ICONS.pause,     defaultValue: "00:15" },
-  { id: "exercise_list",          label: "רשימת תרגילים",    icon: ICONS.list,      defaultValue: [] },
-  { id: "foot_position",          label: "מנח רגליים",        icon: Footprints,      defaultValue: "רוחב כתפיים" },
-  { id: "body_position",          label: "מנח גוף",           icon: User,            defaultValue: "עמידה" },
-  { id: "equipment",              label: "ציוד נדרש",         icon: ICONS.equipment, defaultValue: "" },
-  { id: "static_hold",            label: "החזקה סטטית",       icon: ICONS.stop,      defaultValue: "00:10" },
-  { id: "notes",                  label: "דגשים",             icon: ICONS.notes,     defaultValue: "" },
-  { id: "side",                   label: "צד",                icon: ArrowLeftRight,  defaultValue: "דו־צדדי" },
-  { id: "range_of_motion",        label: "טווח תנועה",        icon: Maximize2,       defaultValue: "מלא" },
-  { id: "grip",                   label: "אחיזה",             icon: GripVertical,    defaultValue: "" },
-  { id: "tabata",                 label: "Tabata",            icon: Zap,             defaultValue: {} },
-  { id: "video_url",              label: "וידאו",             icon: ICONS.video,     defaultValue: "" },
+  { id: "sets",                   label: "סטים",             icon: ICONS.sets,      defaultValue: "3" },
+  { id: "reps",                   label: "חזרות",            icon: ICONS.reps,      defaultValue: "10" },
+  { id: "work_time",              label: "זמן עבודה",        icon: ICONS.time,      defaultValue: "30" },
+  { id: "rest_time",              label: "זמן מנוחה",        icon: ICONS.rest,      defaultValue: "30" },
+  { id: "rounds",                 label: "סבבים",            icon: ICONS.sets,      defaultValue: "3" },
+  { id: "rpe",                    label: "RPE",              icon: ICONS.rpe,       defaultValue: "7" },
+  { id: "load_type",              label: "סוג עומס",         icon: ICONS.weight,    defaultValue: "משקל גוף" },
+  { id: "weight_kg",              label: "משקל",             icon: ICONS.weight,    defaultValue: "0" },
+  { id: "tempo",                  label: "טמפו",             icon: ICONS.tempo,     defaultValue: "3010" },
+  { id: "rest_between_sets",      label: "מנ׳ בין סטים",     icon: ICONS.rest,      defaultValue: "60" },
+  { id: "rest_between_exercises", label: "מנ׳ בין תרגילים", icon: ICONS.pause,     defaultValue: "15" },
+  { id: "exercise_list",          label: "רשימת תרגילים",   icon: ICONS.list,      defaultValue: "_container" },
+  { id: "foot_position",          label: "מנח רגליים",       icon: Footprints,      defaultValue: "רוחב כתפיים" },
+  { id: "body_position",          label: "מנח גוף",          icon: User,            defaultValue: "עמידה" },
+  { id: "equipment",              label: "ציוד",             icon: ICONS.equipment, defaultValue: "" },
+  { id: "static_hold",            label: "החזקה סטטית",      icon: ICONS.stop,      defaultValue: "10" },
+  { id: "notes",                  label: "דגשים",            icon: ICONS.notes,     defaultValue: "" },
+  { id: "side",                   label: "צד",               icon: ArrowLeftRight,  defaultValue: "דו־צדדי" },
+  { id: "range_of_motion",        label: "טווח תנועה",       icon: Maximize2,       defaultValue: "מלא" },
+  { id: "grip",                   label: "אחיזה",            icon: GripVertical,    defaultValue: "" },
+  { id: "tabata",                 label: "טבטה",             icon: Zap,             defaultValue: "_container" },
+  { id: "video_url",              label: "וידאו",            icon: ICONS.video,     defaultValue: "" },
 ];
 
-// --- COMPACT COMPONENTS ---
+const CONTAINER_PARAMS = new Set(["exercise_list", "tabata"]);
+const SUB_PARAMS = ALL_PARAMETERS.filter(p => !CONTAINER_PARAMS.has(p.id) && p.id !== "video_url");
 
-// Time input with seconds/minutes toggle — stores value as plain seconds string
+// ── DB Field Mapping ──────────────────────────────────────────────────
+const DB_MAP = {
+  reps: "reps", weight_kg: "weight", load_type: "weight_type",
+  foot_position: "leg_position", static_hold: "static_hold_time",
+  notes: "description", tabata: "tabata_blocks",
+};
+const getDbField = (paramId) => DB_MAP[paramId] || paramId;
+
+// ── Value Helpers ─────────────────────────────────────────────────────
+const hasVal = (v) => {
+  if (v === null || v === undefined || v === "" || v === "0") return false;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === "object") return Object.keys(v).length > 0;
+  return true;
+};
+
+const fmtTime = (v) => {
+  if (!v && v !== 0) return null;
+  const n = parseInt(v);
+  if (isNaN(n) || n === 0) return null;
+  if (n % 60 === 0) return `${n / 60} דק׳`;
+  return n < 60 ? `${n} שנ׳` : `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+};
+
+const getDisplay = (pid, val) => {
+  if (!hasVal(val)) return "";
+  const v = String(val);
+  switch (pid) {
+    case "sets": return `${v} סטים`;
+    case "reps": return `${v} חזרות`;
+    case "rounds": return `${v} סבבים`;
+    case "work_time": case "rest_time": case "rest_between_sets":
+    case "rest_between_exercises": case "static_hold":
+      return fmtTime(v) || `${v} שנ׳`;
+    case "weight_kg": return `${v} ק"ג`;
+    case "rpe": return `RPE ${v}`;
+    case "tempo": return v;
+    case "notes": return "יש דגשים";
+    case "video_url": return "וידאו";
+    case "exercise_list": return "רשימה";
+    case "tabata": return "טבטה";
+    default: return v;
+  }
+};
+
+// ── Default options for selection params ──────────────────────────────
+const DEFAULTS = {
+  body_position: ["עמידה", "ישיבה", "שכיבה על גב", "שכיבה על בטן", "שכיבה על צד", "תלייה", "תמיכה", "טבעות", "מקבילים", "פראלטים"],
+  foot_position: ["צמוד", "רוחב כתפיים", "רחב", "רגל אחת (L/R)"],
+  grip: ["צרה", "בינונית", "רחבה", "פרונציה", "סופינציה", "ניטרלית"],
+  equipment: ["משקל גוף", "טבעות", "מתח", "מקבילים", "פראלטים", "Dream Machine", "משקולות יד"],
+  range_of_motion: ["מלא", "חצי", "חלקי", "אקצנטרי בלבד", "איזומטרי"],
+  side: ["דו־צדדי", "ימין", "שמאל", "לסירוגין"],
+  load_type: ["משקל גוף", "משקל חיצוני", "גומיות", "טבעות"],
+};
+
+const DIALOG_TITLES = {
+  body_position: "הוסף מנח גוף", foot_position: "הוסף מנח רגליים",
+  grip: "הוסף סוג אחיזה", equipment: "הוסף ציוד",
+  range_of_motion: "הוסף טווח תנועה", side: "הוסף צד", load_type: "הוסף סוג עומס",
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// INPUT COMPONENTS
+// ══════════════════════════════════════════════════════════════════════
+
 const TimeUnitInput = ({ value, onChange }) => {
   const toSecs = (v) => {
     if (!v && v !== 0) return 0;
-    if (typeof v === 'string' && v.includes(':')) {
-      const [m, s] = v.split(':').map(Number);
+    if (typeof v === "string" && v.includes(":")) {
+      const [m, s] = v.split(":").map(Number);
       return (m || 0) * 60 + (s || 0);
     }
     return parseInt(v) || 0;
   };
   const secs = toSecs(value);
-  const [unit, setUnit] = React.useState(secs > 0 && secs % 60 === 0 ? 'min' : 'sec');
-  const display = unit === 'min' ? Math.round(secs / 60) : secs;
+  const [unit, setUnit] = React.useState(secs > 0 && secs % 60 === 0 ? "min" : "sec");
+  const display = unit === "min" ? Math.round(secs / 60) : secs;
+  const handleNum = (n) => onChange(String(unit === "min" ? (parseInt(n) || 0) * 60 : parseInt(n) || 0));
+  const handleUnit = (u) => { setUnit(u); if (u === "min") onChange(String(Math.round(secs / 60) * 60)); };
 
-  const handleNumChange = (n) => {
-    const num = parseInt(n) || 0;
-    onChange(String(unit === 'min' ? num * 60 : num));
-  };
-  const handleUnitChange = (newUnit) => {
-    setUnit(newUnit);
-    if (newUnit === 'min') {
-      onChange(String(Math.round(secs / 60) * 60));
-    }
-  };
   return (
-    <div className="flex items-center gap-1">
-      <input type="number" min="0" value={display || ''}
-        onChange={(e) => handleNumChange(e.target.value)}
-        className="w-14 h-8 text-center text-sm font-bold border border-gray-200 rounded-md bg-white focus:border-[#FF6F20] focus:outline-none" />
-      <div className="flex rounded-md overflow-hidden border border-gray-200">
-        <button type="button" onClick={() => handleUnitChange('sec')}
-          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'sec' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-          שנ׳
-        </button>
-        <button type="button" onClick={() => handleUnitChange('min')}
-          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'min' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-          דק׳
-        </button>
+    <div className="flex items-center gap-1.5">
+      <input type="number" min="0" value={display || ""} onChange={(e) => handleNum(e.target.value)}
+        className="w-16 h-9 text-center text-sm font-bold border border-gray-200 rounded-lg bg-white focus:border-[#FF6F20] focus:outline-none" />
+      <div className="flex rounded-lg overflow-hidden border border-gray-200">
+        <button type="button" onClick={() => handleUnit("sec")}
+          className={`px-2.5 h-9 text-[11px] font-bold transition-colors ${unit === "sec" ? "bg-[#FF6F20] text-white" : "bg-white text-gray-500"}`}>שנ׳</button>
+        <button type="button" onClick={() => handleUnit("min")}
+          className={`px-2.5 h-9 text-[11px] font-bold transition-colors ${unit === "min" ? "bg-[#FF6F20] text-white" : "bg-white text-gray-500"}`}>דק׳</button>
       </div>
     </div>
   );
 };
 
-// Weight input with kg/lb toggle — always stores in kg
 const WeightInput = ({ value, onChange }) => {
-  const [unit, setUnit] = React.useState('kg');
+  const [unit, setUnit] = React.useState("kg");
   const kg = parseFloat(value) || 0;
-  const display = unit === 'lb' ? parseFloat((kg * 2.2046).toFixed(1)) : kg;
+  const display = unit === "lb" ? parseFloat((kg * 2.2046).toFixed(1)) : kg;
+  const handleChange = (n) => onChange(String(unit === "lb" ? parseFloat(((parseFloat(n) || 0) / 2.2046).toFixed(2)) : parseFloat(n) || 0));
 
-  const handleChange = (n) => {
-    const num = parseFloat(n) || 0;
-    onChange(String(unit === 'lb' ? parseFloat((num / 2.2046).toFixed(2)) : num));
-  };
   return (
-    <div className="flex items-center gap-1">
-      <input type="number" min="0" step="0.5" value={display || ''}
-        onChange={(e) => handleChange(e.target.value)}
-        className="w-16 h-8 text-center text-sm font-bold border border-gray-200 rounded-md bg-white focus:border-[#FF6F20] focus:outline-none" />
-      <div className="flex rounded-md overflow-hidden border border-gray-200">
-        <button type="button" onClick={() => setUnit('kg')}
-          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'kg' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-          ק"ג
-        </button>
-        <button type="button" onClick={() => setUnit('lb')}
-          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'lb' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-          lb
-        </button>
+    <div className="flex items-center gap-1.5">
+      <input type="number" min="0" step="0.5" value={display || ""} onChange={(e) => handleChange(e.target.value)}
+        className="w-20 h-9 text-center text-sm font-bold border border-gray-200 rounded-lg bg-white focus:border-[#FF6F20] focus:outline-none" />
+      <div className="flex rounded-lg overflow-hidden border border-gray-200">
+        <button type="button" onClick={() => setUnit("kg")}
+          className={`px-2.5 h-9 text-[11px] font-bold transition-colors ${unit === "kg" ? "bg-[#FF6F20] text-white" : "bg-white text-gray-500"}`}>ק"ג</button>
+        <button type="button" onClick={() => setUnit("lb")}
+          className={`px-2.5 h-9 text-[11px] font-bold transition-colors ${unit === "lb" ? "bg-[#FF6F20] text-white" : "bg-white text-gray-500"}`}>lb</button>
       </div>
     </div>
   );
 };
 
-const CompactNumberInput = ({ value, onChange, placeholder, label }) => {
+const NumberStepper = ({ value, onChange }) => {
+  const num = parseInt(value) || 0;
   return (
-    <div className="flex flex-col items-center justify-center w-full gap-1 py-1">
-      <input 
-        type="number" 
-        value={value || ""} 
-        onChange={(e) => onChange(e.target.value)} 
-        placeholder={placeholder || "0"}
-        className="w-full text-center bg-transparent border-none focus:ring-0 p-0 font-black text-gray-900 appearance-none"
-        style={{ fontSize: '22px', lineHeight: '1.2', height: '32px' }}
-      />
-      
-      {label && <span className="text-[10px] text-gray-400 font-bold -mt-1">{label}</span>}
-      
-      <div className="flex items-center justify-center gap-4 w-full mt-1">
-        <button 
-          type="button" 
-          onClick={() => onChange(String((parseFloat(value) || 0) + 1))}
-          className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] hover:bg-orange-50 active:scale-95 transition-all"
-        >
-          <Plus size={14} strokeWidth={3} />
-        </button>
-        
-        <button 
-          type="button" 
-          onClick={() => onChange(String(Math.max(0, (parseFloat(value) || 0) - 1)))}
-          className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] hover:bg-orange-50 active:scale-95 transition-all"
-        >
-          <Minus size={14} strokeWidth={3} />
-        </button>
-      </div>
+    <div className="flex items-center justify-center gap-3">
+      <button type="button" onClick={() => onChange(String(Math.max(0, num - 1)))}
+        className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] active:scale-95 transition-all">
+        <Minus size={16} strokeWidth={3} />
+      </button>
+      <input type="number" value={num || ""} onChange={(e) => onChange(e.target.value)} placeholder="0"
+        className="w-16 h-10 text-center text-xl font-black border-none bg-transparent focus:outline-none text-gray-900" />
+      <button type="button" onClick={() => onChange(String(num + 1))}
+        className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] active:scale-95 transition-all">
+        <Plus size={16} strokeWidth={3} />
+      </button>
     </div>
   );
 };
+
+const SelectionGrid = ({ options, value, onChange, onAdd }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {options.map((opt) => (
+      <button key={opt} type="button" onClick={() => onChange(opt === value ? "" : opt)}
+        className={`px-2.5 py-2 rounded-lg text-[11px] font-bold border transition-all min-h-[36px]
+          ${value === opt ? "bg-[#FF6F20] text-white border-[#FF6F20] shadow-sm" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"}`}>
+        {opt}
+      </button>
+    ))}
+    {onAdd && (
+      <button type="button" onClick={onAdd}
+        className="px-2.5 py-2 rounded-lg text-[11px] font-bold border border-dashed border-gray-300 text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] flex items-center gap-1 min-h-[36px]">
+        <Plus size={10} /> חדש
+      </button>
+    )}
+  </div>
+);
 
 const CompactSelect = ({ value, onChange, options, onAdd }) => (
-  <Select value={value} onValueChange={(val) => {
-    if (val === "ADD_NEW") {
-      if (onAdd) onAdd();
-    } else {
-      onChange(val);
-    }
-  }}>
-    <SelectTrigger className="h-7 text-xs w-full bg-white border-gray-200 rounded-md focus:ring-[#FF6F20]/20"><SelectValue placeholder="בחר..." /></SelectTrigger>
+  <Select value={value} onValueChange={(v) => v === "__ADD__" ? onAdd?.() : onChange(v)}>
+    <SelectTrigger className="h-9 text-xs w-full bg-white border-gray-200 rounded-lg"><SelectValue placeholder="בחר..." /></SelectTrigger>
     <SelectContent dir="rtl">
-      {options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-      {onAdd && (
-        <SelectItem value="ADD_NEW" className="font-bold text-[#FF6F20] border-t mt-1">
-          <span className="flex items-center gap-2">
-            <Plus size={12} /> הוסף ערך חדש...
-          </span>
-        </SelectItem>
-      )}
+      {options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+      {onAdd && <SelectItem value="__ADD__" className="font-bold text-[#FF6F20] border-t mt-1"><Plus size={12} className="inline mr-1" />הוסף...</SelectItem>}
     </SelectContent>
   </Select>
 );
 
-const SelectionGrid = ({ options, value, onChange, multi = false, onAdd }) => {
-  const isSelected = (opt) => {
-    if (multi) {
-      return (value || "").split(", ").includes(opt);
+// ══════════════════════════════════════════════════════════════════════
+// PARAM INPUT RENDERER
+// ══════════════════════════════════════════════════════════════════════
+
+function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom }) {
+  // Time params
+  if (["work_time", "rest_time", "rest_between_sets", "rest_between_exercises", "static_hold"].includes(paramId))
+    return <TimeUnitInput value={value} onChange={onChange} />;
+
+  // Weight
+  if (paramId === "weight_kg") return <WeightInput value={value} onChange={onChange} />;
+
+  // RPE slider
+  if (paramId === "rpe") {
+    const rpeVal = Math.min(10, Math.max(1, parseInt(value) || 7));
+    return (
+      <div className="space-y-2 px-1">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-400">1 (קל)</span>
+          <span className="text-xl font-black text-[#FF6F20]">{rpeVal}</span>
+          <span className="text-xs text-gray-400">10 (מקס)</span>
+        </div>
+        <input type="range" min="1" max="10" step="1" value={rpeVal}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full accent-[#FF6F20] h-2.5 cursor-pointer" />
+      </div>
+    );
+  }
+
+  // Numeric (sets, reps, rounds)
+  if (["sets", "reps", "rounds"].includes(paramId))
+    return <NumberStepper value={value} onChange={onChange} />;
+
+  // Selection params
+  if (DEFAULTS[paramId]) {
+    const opts = getOptions ? getOptions(paramId, DEFAULTS[paramId]) : DEFAULTS[paramId];
+    if (opts.length <= 6) {
+      return <SelectionGrid options={opts} value={value} onChange={onChange}
+        onAdd={onAddCustom ? () => onAddCustom(paramId) : null} />;
     }
-    return value === opt;
+    return <CompactSelect value={value} onChange={onChange}
+      options={opts.map((o) => ({ label: o, value: o }))}
+      onAdd={onAddCustom ? () => onAddCustom(paramId) : null} />;
+  }
+
+  // Notes
+  if (paramId === "notes")
+    return <Textarea className="text-sm min-h-[60px] p-3 resize-none rounded-lg border-gray-200 focus:border-[#FF6F20]"
+      value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder="דגשים, הוראות ביצוע..." />;
+
+  // Default text (tempo, video_url)
+  return <Input className="h-9 text-sm rounded-lg border-gray-200 focus:border-[#FF6F20]"
+    value={value || ""} onChange={(e) => onChange(e.target.value)}
+    placeholder={paramId === "tempo" ? "לדוגמה: 3010" : paramId === "video_url" ? "https://..." : ""} />;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SUB-EXERCISE EDITOR
+// ══════════════════════════════════════════════════════════════════════
+
+function SubExerciseEditor({ subEx, index, onChange, onRemove, getOptions, onAddCustom }) {
+  const [editingParam, setEditingParam] = useState(null);
+  const [confirmed, setConfirmed] = useState(() => {
+    const s = new Set();
+    SUB_PARAMS.forEach((p) => { if (hasVal(subEx[getDbField(p.id)])) s.add(p.id); });
+    return s;
+  });
+  const [expanded, setExpanded] = useState(!subEx.exercise_name);
+
+  const update = (field, val) => onChange(index, { ...subEx, [field]: val });
+
+  const handleConfirm = () => {
+    if (!editingParam) return;
+    const field = getDbField(editingParam);
+    if (hasVal(subEx[field])) {
+      setConfirmed((prev) => new Set([...prev, editingParam]));
+    }
+    setEditingParam(null);
   };
 
-  const handleSelect = (opt) => {
-    if (multi) {
-      let current = (value || "").split(", ").filter(Boolean);
-      if (current.includes(opt)) {
-        current = current.filter(i => i !== opt);
-      } else {
-        current.push(opt);
-      }
-      onChange(current.join(", "));
-    } else {
-      onChange(opt === value ? "" : opt);
-    }
+  const handleRemoveParam = (pid) => {
+    setConfirmed((prev) => { const n = new Set(prev); n.delete(pid); return n; });
+    update(getDbField(pid), null);
+    if (editingParam === pid) setEditingParam(null);
   };
+
+  const confirmedChips = [...confirmed]
+    .map((pid) => getDisplay(pid, subEx[getDbField(pid)]))
+    .filter(Boolean);
+
+  const editDef = editingParam ? SUB_PARAMS.find((p) => p.id === editingParam) : null;
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map(opt => (
-        <button
-          key={opt}
-          onClick={() => handleSelect(opt)}
-          className={`
-            px-2 py-1.5 rounded-lg text-[11px] font-bold border transition-all
-            ${isSelected(opt) 
-              ? 'bg-[#FF6F20] text-white border-[#FF6F20] shadow-sm' 
-              : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}
-          `}
-        >
-          {opt}
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50/50" onClick={() => setExpanded(!expanded)}>
+        <span className="w-7 h-7 rounded-full bg-[#FF6F20] text-white text-[11px] font-black flex items-center justify-center flex-shrink-0">
+          {index + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-bold text-gray-900 truncate">{subEx.exercise_name || "תת-תרגיל חדש"}</div>
+          {!expanded && confirmedChips.length > 0 && (
+            <div className="text-[10px] text-gray-400 truncate mt-0.5">{confirmedChips.join(" · ")}</div>
+          )}
+        </div>
+        <button onClick={(e) => { e.stopPropagation(); onRemove(index); }}
+          className="p-1.5 text-red-300 hover:text-red-500 rounded-lg hover:bg-red-50 flex-shrink-0">
+          <Trash2 size={14} />
         </button>
-      ))}
-      {onAdd && (
-        <button
-          onClick={onAdd}
-          className="px-2 py-1.5 rounded-lg text-[11px] font-bold border border-dashed border-gray-300 text-gray-500 hover:text-[#FF6F20] hover:border-[#FF6F20] hover:bg-orange-50 flex items-center gap-1 transition-all"
-        >
-          <Plus size={10} /> הוסף...
-        </button>
-      )}
-    </div>
-  );
-};
+        <ChevronDown size={14} className={`text-gray-300 transition-transform flex-shrink-0 ${expanded ? "rotate-180" : ""}`} />
+      </div>
 
-const CompactListBuilder = ({ items, onChange }) => {
-  const add = () => onChange([...items, { name: "", value: "", weight: "", valueType: "reps" }]);
-  
-  const update = (i, f, v) => {
-    const n = [...items];
-    n[i] = { ...n[i], [f]: v };
-    onChange(n);
-  };
-  
-  const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
+      {/* Body */}
+      {expanded && (
+        <div className="border-t border-gray-100 px-3 py-3 space-y-3">
+          <input value={subEx.exercise_name || ""} onChange={(e) => update("exercise_name", e.target.value)}
+            placeholder="שם תת-התרגיל" autoFocus={!subEx.exercise_name}
+            className="w-full h-9 text-sm font-bold border-b-2 border-gray-100 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1" />
 
-  const toggleMeasurement = (i) => {
-    const current = items[i].valueType || items[i].measurement || items[i].type || 'reps'; // Fallback for legacy data
-    const next = current === 'reps' ? 'time' : 'reps';
-    
-    const n = [...items];
-    n[i] = { 
-        ...n[i], 
-        valueType: next, 
-        measurement: next // Keep both for compatibility if needed, or strictly use valueType as requested
-    };
-    
-    // Clean up legacy keys
-    if ('type' in n[i]) delete n[i].type;
-    
-    onChange(n);
-  };
-
-  return (
-    <div className="space-y-2">
-      {items.map((item, i) => {
-        const isTime = (item.valueType === 'time' || item.measurement === 'time' || item.type === 'time');
-        
-        return (
-          <div key={i} className="bg-gray-50 p-1.5 rounded-lg border border-gray-100 flex flex-col sm:flex-row gap-2 sm:items-center">
-            
-            {/* Row 1 (Mobile): Index + Name + Delete (Mobile) */}
-            <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-1">
-                <div className="w-4 text-center text-[10px] font-bold text-gray-400">{i + 1}</div>
-                
-                <input 
-                    value={item.name} 
-                    onChange={(e) => update(i, 'name', e.target.value)} 
-                    placeholder="שם תרגיל"
-                    className="flex-1 h-8 text-xs bg-white border border-gray-200 rounded px-2 focus:border-[#FF6F20] focus:outline-none" 
-                />
-
-                {/* Delete on Mobile */}
-                <button onClick={() => remove(i)} className="sm:hidden text-red-400 p-1.5 hover:bg-red-50 rounded">
-                    <Trash2 size={14} />
+          {/* Mini param grid */}
+          <div className="grid grid-cols-5 gap-1">
+            {SUB_PARAMS.map((p) => {
+              const isConf = confirmed.has(p.id);
+              const isEdit = editingParam === p.id;
+              const Icon = p.icon;
+              const field = getDbField(p.id);
+              return (
+                <button key={p.id} type="button"
+                  onClick={() => {
+                    if (isEdit) return;
+                    setEditingParam(p.id);
+                    if (!isConf && !hasVal(subEx[field]) && p.defaultValue && p.defaultValue !== "_container") {
+                      update(field, String(p.defaultValue));
+                    }
+                  }}
+                  className={`flex flex-col items-center gap-0.5 p-1 rounded-lg border h-[36px] transition-all text-[8px] font-bold leading-tight
+                    ${isConf ? "border-green-200 bg-green-50 text-green-700" :
+                      isEdit ? "border-[#FF6F20] bg-orange-50 text-[#FF6F20]" :
+                      "border-gray-100 bg-gray-50/50 text-gray-400"}`}>
+                  {isConf ? <Check size={8} strokeWidth={3} className="text-green-500" /> : <Icon size={8} />}
+                  <span className="truncate w-full text-center">{isConf ? getDisplay(p.id, subEx[field]).slice(0, 8) : p.label}</span>
                 </button>
-            </div>
-            
-            {/* Row 2 (Mobile): Controls */}
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                
-                {/* Toggle Button */}
-                <button 
-                    onClick={() => toggleMeasurement(i)}
-                    className={`
-                        h-8 px-2 sm:px-3 rounded-md flex items-center gap-1.5 text-xs font-bold border transition-all shrink-0
-                        ${isTime 
-                            ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100' 
-                            : 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100'}
-                    `}
-                    title={isTime ? "שנה לחזרות" : "שנה לזמן"}
-                >
-                    {isTime ? <Clock size={14} /> : <Repeat size={14} />}
-                    <span className="hidden sm:inline">{isTime ? "זמן" : "חזרות"}</span>
-                </button>
-    
+              );
+            })}
+          </div>
 
-    
-                {/* Value Input */}
-                <div className="w-20 sm:w-28 flex-shrink-0">
-                  {isTime ? (
-                    <TimeInput value={item.value} onChange={(v) => update(i, 'value', v)} />
-                  ) : (
-                    <div className="relative">
-                      <Input 
-                        type="number"
-                        value={item.value || ""}
-                        onChange={(e) => update(i, 'value', e.target.value)}
-                        placeholder="0"
-                        className="h-8 pr-2 pl-8 text-sm font-bold bg-white border-gray-200 focus:border-[#FF6F20] rounded-md"
-                      />
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none font-medium">
-                        חזרות
-                      </span>
-                    </div>
-                  )}
+          {/* Active input */}
+          {editDef && (
+            <div className="bg-orange-50/50 border border-[#FF6F20]/20 rounded-xl p-2.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <editDef.icon size={12} className="text-[#FF6F20]" />
+                  <span className="text-[11px] font-bold text-gray-700">{editDef.label}</span>
                 </div>
-    
-                {/* Delete on Desktop */}
-                <button onClick={() => remove(i)} className="hidden sm:block text-red-400 p-1 hover:bg-red-50 rounded">
-                    <Trash2 size={12} />
-                </button>
-            </div>
-
-          </div>
-        );
-      })}
-      
-      <Button variant="ghost" size="sm" onClick={add} className="w-full h-7 text-xs text-[#FF6F20] border border-dashed border-[#FF6F20]/30 hover:bg-orange-50 hover:border-[#FF6F20]">
-        + הוסף תרגיל
-      </Button>
-    </div>
-  );
-};
-
-const CollapsibleExerciseCard = ({ item, index, total, onChange, onRemove, onMove, subtitle }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden transition-all hover:shadow-md">
-      <div 
-        className="flex items-center justify-between p-3 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <div className="flex items-center gap-3">
-          <span className="w-6 h-6 rounded-full bg-orange-100 text-[#FF6F20] border border-orange-200 text-xs font-bold flex items-center justify-center">
-            {index + 1}
-          </span>
-          <div>
-            <div className="text-sm font-bold text-gray-900 leading-tight">
-              {item.name || "תרגיל חדש"}
-            </div>
-            {subtitle && (
-              <div className="text-[10px] font-medium text-gray-500 mt-1">
-                {subtitle}
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => handleRemoveParam(editingParam)} className="p-1 text-red-400 hover:text-red-600 rounded"><X size={12} /></button>
+                  <button type="button" onClick={handleConfirm}
+                    className="w-7 h-7 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm active:scale-95">
+                    <Check size={12} strokeWidth={3} />
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onMove(index, -1); }} 
-            disabled={index === 0}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-          >
-            <ChevronUp size={14} />
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onMove(index, 1); }} 
-            disabled={index === total - 1}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-          >
-            <ChevronDown size={14} />
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-          >
-            <Trash2 size={14} />
-          </button>
-          <div className="ml-1 text-gray-400">
-            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </div>
-        </div>
-      </div>
-      
-      {isOpen && (
-        <div className="p-3 space-y-3 bg-white border-t border-gray-100 animate-in slide-in-from-top-2 duration-200">
-          <div>
-            <Label className="text-[10px] text-gray-400 mb-1 block">שם התרגיל</Label>
-            <Input 
-              value={item.name || ""} 
-              onChange={(e) => onChange(index, "name", e.target.value)}
-              placeholder="לדוגמה: סקוואט"
-              className="h-8 text-sm"
-            />
-          </div>
-          <div>
-            <Label className="text-[10px] text-gray-400 mb-1 block">הערות (אופציונלי)</Label>
-            <Textarea 
-              value={item.notes || ""} 
-              onChange={(e) => onChange(index, "notes", e.target.value)}
-              placeholder="דגשים לביצוע..."
-              className="min-h-[60px] text-xs resize-none"
-            />
-          </div>
+              <ParamInputRenderer paramId={editingParam} value={subEx[getDbField(editingParam)]}
+                onChange={(v) => update(getDbField(editingParam), v)} getOptions={getOptions} onAddCustom={onAddCustom} />
+            </div>
+          )}
         </div>
       )}
     </div>
   );
-};
+}
 
-const TabataConfigurator = ({ exercise, onChange }) => {
-  const tabataBlocks = exercise.tabata_blocks || [];
-  
-  const addTabataBlock = () => {
-    const newBlock = { 
-      id: Date.now().toString(),
-      name: "", 
-      work_time: "20", 
-      rest_time: "10", 
-      rounds: "8", 
-      rest_between_rounds: "60", 
-      sets: "1",
-      block_exercises: [] 
-    };
-    onChange("tabata_blocks", [...tabataBlocks, newBlock]);
-  };
+// ══════════════════════════════════════════════════════════════════════
+// MAIN FORM
+// ══════════════════════════════════════════════════════════════════════
 
-  const updateBlock = (blockIndex, field, val) => {
-    const newBlocks = [...tabataBlocks];
-    newBlocks[blockIndex] = { ...newBlocks[blockIndex], [field]: val };
-    onChange("tabata_blocks", newBlocks);
-  };
-
-  const removeBlock = (blockIndex) => {
-    const newBlocks = tabataBlocks.filter((_, i) => i !== blockIndex);
-    onChange("tabata_blocks", newBlocks);
-  };
-
-  // --- Sub Exercises Logic ---
-  const addExerciseToBlock = (blockIndex) => {
-    const newBlocks = [...tabataBlocks];
-    const currentExercises = newBlocks[blockIndex].block_exercises || [];
-    newBlocks[blockIndex].block_exercises = [
-      ...currentExercises, 
-      { id: Date.now().toString(), name: "" }
-    ];
-    onChange("tabata_blocks", newBlocks);
-  };
-
-  const updateBlockExercise = (blockIndex, exIndex, val) => {
-    const newBlocks = [...tabataBlocks];
-    const exercises = [...(newBlocks[blockIndex].block_exercises || [])];
-    exercises[exIndex] = { ...exercises[exIndex], name: val };
-    newBlocks[blockIndex].block_exercises = exercises;
-    onChange("tabata_blocks", newBlocks);
-  };
-
-  const removeExerciseFromBlock = (blockIndex, exIndex) => {
-    const newBlocks = [...tabataBlocks];
-    const exercises = newBlocks[blockIndex].block_exercises.filter((_, i) => i !== exIndex);
-    newBlocks[blockIndex].block_exercises = exercises;
-    onChange("tabata_blocks", newBlocks);
-  };
-
-  const moveExerciseInBlock = (blockIndex, exIndex, direction) => {
-    const newBlocks = [...tabataBlocks];
-    const exercises = [...(newBlocks[blockIndex].block_exercises || [])];
-    if ((direction === -1 && exIndex === 0) || (direction === 1 && exIndex === exercises.length - 1)) return;
-    
-    const temp = exercises[exIndex];
-    exercises[exIndex] = exercises[exIndex + direction];
-    exercises[exIndex + direction] = temp;
-    
-    newBlocks[blockIndex].block_exercises = exercises;
-    onChange("tabata_blocks", newBlocks);
-  };
-
-  return (
-    <div className="space-y-6" dir="rtl">
-      {tabataBlocks.map((block, bIndex) => (
-        <div key={block.id || bIndex} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-           
-           {/* Block Header */}
-           <div className="bg-orange-50/50 p-3 border-b border-orange-100 flex justify-between items-start gap-3">
-             <div className="flex-1">
-                <Label className="text-[10px] text-[#FF6F20] font-black mb-1 block uppercase tracking-wide">שם הבלוק</Label>
-                <Input 
-                  value={block.name || ""} 
-                  onChange={(e) => updateBlock(bIndex, "name", e.target.value)}
-                  placeholder="לדוגמה: עליה לישיבה + טיפוס הרים"
-                  className="h-9 font-bold bg-white border-orange-200 focus:border-[#FF6F20] text-gray-900"
-                />
-             </div>
-             <button 
-                onClick={() => removeBlock(bIndex)}
-                className="mt-6 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="מחק בלוק"
-             >
-                <Trash2 size={16} />
-             </button>
-           </div>
-
-           {/* Block Settings (Shared Timing) */}
-           <div className="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 bg-gray-50/30 border-b border-gray-100">
-              <div>
-                <Label className="text-[9px] text-gray-400 font-bold mb-1 block">זמן עבודה (שנ׳)</Label>
-                <Input 
-                  type="number"
-                  min="1"
-                  value={block.work_time || ""} 
-                  onChange={(e) => updateBlock(bIndex, "work_time", e.target.value)}
-                  placeholder="20"
-                  className="h-8 text-xs font-bold text-center bg-white border-gray-200 invalid:border-red-300 invalid:bg-red-50"
-                />
-              </div>
-              <div>
-                <Label className="text-[9px] text-gray-400 font-bold mb-1 block">זמן מנוחה (שנ׳)</Label>
-                <Input 
-                  type="number"
-                  min="0"
-                  value={block.rest_time || ""} 
-                  onChange={(e) => updateBlock(bIndex, "rest_time", e.target.value)}
-                  placeholder="10"
-                  className="h-8 text-xs font-bold text-center bg-white border-gray-200 invalid:border-red-300 invalid:bg-red-50"
-                />
-              </div>
-              <div>
-                <Label className="text-[9px] text-gray-400 font-bold mb-1 block">מספר סבבים</Label>
-                <Input 
-                  type="number"
-                  min="1"
-                  value={block.rounds || ""} 
-                  onChange={(e) => updateBlock(bIndex, "rounds", e.target.value)}
-                  placeholder="8"
-                  className="h-8 text-xs font-bold text-center bg-white border-gray-200 invalid:border-red-300 invalid:bg-red-50"
-                />
-              </div>
-              <div>
-                <Label className="text-[9px] text-gray-400 font-bold mb-1 block">מנוחה בין סבבים</Label>
-                <Input 
-                  type="number"
-                  min="0"
-                  value={block.rest_between_rounds || ""} 
-                  onChange={(e) => updateBlock(bIndex, "rest_between_rounds", e.target.value)}
-                  placeholder="60"
-                  className="h-8 text-xs font-bold text-center bg-white border-gray-200 invalid:border-red-300 invalid:bg-red-50"
-                />
-              </div>
-              <div>
-                <Label className="text-[9px] text-gray-400 font-bold mb-1 block">מספר סטים</Label>
-                <Input 
-                  type="number"
-                  min="1"
-                  value={block.sets || ""} 
-                  onChange={(e) => updateBlock(bIndex, "sets", e.target.value)}
-                  placeholder="1"
-                  className="h-8 text-xs font-bold text-center bg-white border-gray-200 invalid:border-red-300 invalid:bg-red-50"
-                />
-              </div>
-           </div>
-
-           {/* Inner Exercises List */}
-           <div className="p-3 bg-white space-y-3">
-              <div>
-                 <Label className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1">הערות לבלוק</Label>
-                 <Textarea 
-                    value={block.notes || ""} 
-                    onChange={(e) => updateBlock(bIndex, "notes", e.target.value)}
-                    placeholder="דגשים מיוחדים, הוראות ביצוע..."
-                    className="min-h-[50px] text-xs resize-none bg-gray-50 border-gray-100 focus:border-[#FF6F20] focus:ring-0"
-                 />
-              </div>
-
-              <div>
-              <div className="flex justify-between items-center mb-2">
-                 <Label className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">תרגילים בבלוק</Label>
-                 <button 
-                   onClick={() => addExerciseToBlock(bIndex)}
-                   className="flex items-center gap-1 text-[10px] font-bold text-[#FF6F20] bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 transition-colors"
-                 >
-                   <Plus size={10} /> הוסף תרגיל
-                 </button>
-              </div>
-
-              <div className="space-y-2">
-                 {(block.block_exercises || []).map((ex, exIndex) => (
-                    <div key={ex.id || exIndex} className="flex items-center gap-2 group">
-                       <span className="text-[10px] font-bold text-gray-300 w-4 text-center">{exIndex + 1}</span>
-                       <Input 
-                          value={ex.name || ""} 
-                          onChange={(e) => updateBlockExercise(bIndex, exIndex, e.target.value)}
-                          placeholder="שם התרגיל בבלוק..."
-                          className="h-8 text-xs bg-gray-50 border-transparent focus:bg-white focus:border-[#FF6F20] transition-all"
-                       />
-                       <div className="flex items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => moveExerciseInBlock(bIndex, exIndex, -1)} disabled={exIndex === 0} className="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-20"><ChevronUp size={14}/></button>
-                          <button onClick={() => moveExerciseInBlock(bIndex, exIndex, 1)} disabled={exIndex === (block.block_exercises || []).length - 1} className="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-20"><ChevronDown size={14}/></button>
-                          <button onClick={() => removeExerciseFromBlock(bIndex, exIndex)} className="p-1 text-red-300 hover:text-red-500"><Trash2 size={14}/></button>
-                       </div>
-                    </div>
-                 ))}
-                 {(block.block_exercises || []).length === 0 && (
-                    <div className="text-center py-3 border border-dashed border-gray-100 rounded-lg text-[10px] text-gray-400">
-                       אין תרגילים בבלוק זה
-                    </div>
-                 )}
-              </div>
-           </div>
-        </div>
-      </div>
-      ))}
-
-      <Button 
-        onClick={addTabataBlock} 
-        className="w-full h-12 bg-[#FF6F20] text-white hover:bg-[#E65F1D] font-bold text-sm shadow-md rounded-xl"
-      >
-        <Plus size={18} className="mr-2" /> הוסף בלוק טבטה חדש
-      </Button>
-    </div>
-  );
-};
-
-// --- MAIN FORM ---
 export default function ModernExerciseForm({ exercise, onChange }) {
-  const [activeMode, setActiveMode] = useState(exercise.mode || "חזרות");
-  const [openParams, setOpenParams] = useState([]);
-  
+  const [editingParam, setEditingParam] = useState(null);
+  const [confirmedParams, setConfirmedParams] = useState(new Set());
   const [addValueDialog, setAddValueDialog] = useState({ isOpen: false, type: null, label: "" });
+
   const queryClient = useQueryClient();
 
-  // --- FETCH CUSTOM PARAMETERS ---
+  const updateEx = useCallback((field, value) => {
+    onChange({ ...exercise, [field]: value });
+  }, [exercise, onChange]);
+
+  // ── Custom Parameters ───────────────────────────────────────────────
   const { data: customParams = [] } = useQuery({
-    queryKey: ['custom-parameters'],
+    queryKey: ["custom-parameters"],
     queryFn: async () => {
       try {
         const coach = await base44.auth.me();
-        if (!coach || (!coach.isCoach && coach.role !== 'admin')) return [];
+        if (!coach || (!coach.isCoach && coach.role !== "admin")) return [];
         return await base44.entities.CustomParameter.filter({ coach_id: coach.id });
-      } catch (e) {
-        return [];
-      }
+      } catch { return []; }
     },
-    initialData: []
+    initialData: [],
   });
 
   const createCustomParamMutation = useMutation({
     mutationFn: async ({ type, value }) => {
       const coach = await base44.auth.me();
-      return await base44.entities.CustomParameter.create({
-        coach_id: coach.id,
-        parameter_type: type,
-        value: value
-      });
+      return await base44.entities.CustomParameter.create({ coach_id: coach.id, parameter_type: type, value });
     },
-    onSuccess: (newItem, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['custom-parameters'] });
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["custom-parameters"] });
       setAddValueDialog({ isOpen: false, type: null, label: "" });
-      toast.success("✅ ערך חדש נוסף");
-      
-      // Auto-select the new value
-      const dbField = getDbField(variables.type);
-      if (['grip', 'equipment'].includes(variables.type)) {
-        const current = exercise[dbField] || "";
-        const newVal = current ? `${current}, ${variables.value}` : variables.value;
-        updateEx(dbField, newVal);
-      } else {
-        updateEx(dbField, variables.value);
-      }
+      toast.success("ערך חדש נוסף");
+      const field = getDbField(variables.type);
+      updateEx(field, variables.value);
     },
-    onError: () => toast.error("שגיאה בשמירת הערך")
+    onError: () => toast.error("שגיאה בשמירת הערך"),
   });
 
-  // --- MERGE DEFAULTS WITH CUSTOM ---
-  const getOptionsForType = (type, defaultOptions) => {
-    const custom = customParams
-      .filter(p => p.parameter_type === type)
-      .map(p => p.value);
-    
-    // Remove duplicates (case insensitive) just in case
-    const uniqueDefaults = defaultOptions.filter(def => !custom.some(c => c.toLowerCase() === def.toLowerCase()));
-    
-    return [...uniqueDefaults, ...custom];
+  const getOptions = useCallback((type, defaults) => {
+    const custom = customParams.filter((p) => p.parameter_type === type).map((p) => p.value);
+    const unique = defaults.filter((d) => !custom.some((c) => c.toLowerCase() === d.toLowerCase()));
+    return [...unique, ...custom];
+  }, [customParams]);
+
+  const handleAddCustom = (paramId) => {
+    setAddValueDialog({ isOpen: true, type: paramId, label: DIALOG_TITLES[paramId] || "הוסף ערך" });
   };
 
-  const handleAddCustomValue = (value) => {
+  const handleSaveCustomValue = (value) => {
     const type = addValueDialog.type;
     if (!type) return;
-
-    // Check if already exists (in defaults or custom)
-    let defaults = [];
-    if (type === 'body_position') defaults = ["עמידה", "ישיבה", "שכיבה על גב", "שכיבה על בטן", "שכיבה על צד", "תלייה", "תמיכה", "טבעות", "מקבילים", "פראלטים"];
-    else if (type === 'foot_position') defaults = ["צמוד", "רוחב כתפיים", "רחב", "רגל אחת (L/R)"];
-    else if (type === 'grip') defaults = ["צרה", "בינונית", "רחבה", "פרונציה", "סופינציה", "ניטרלית"];
-    else if (type === 'equipment') defaults = ["משקל גוף", "טבעות", "מתח", "מקבילים", "פראלטים", "Dream Machine", "משקולות יד"];
-    else if (type === 'range_of_motion') defaults = ["מלא", "חצי", "חלקי", "אקצנטרי בלבד", "איזומטרי"];
-    else if (type === 'load_type') defaults = ["משקל גוף", "משקל חיצוני", "גומיות", "טבעות"];
-    else if (type === 'side') defaults = ["דו־צדדי", "ימין", "שמאל", "לסירוגין"];
-
-    const allOptions = getOptionsForType(type, defaults);
-    const exists = allOptions.find(opt => opt.toLowerCase() === value.toLowerCase());
-
+    const allOpts = getOptions(type, DEFAULTS[type] || []);
+    const exists = allOpts.find((o) => o.toLowerCase() === value.toLowerCase());
     if (exists) {
-      toast.info("💡 הערך כבר קיים ונבחר עבורך");
+      toast.info("הערך כבר קיים");
       setAddValueDialog({ isOpen: false, type: null, label: "" });
-      
-      const dbField = getDbField(type);
-      if (['grip', 'equipment'].includes(type)) {
-        const current = exercise[dbField] || "";
-        if (!current.includes(exists)) {
-           const newVal = current ? `${current}, ${exists}` : exists;
-           updateEx(dbField, newVal);
-        }
-      } else {
-        updateEx(dbField, exists);
-      }
+      updateEx(getDbField(type), exists);
       return;
     }
-
     createCustomParamMutation.mutate({ type, value });
   };
 
-  // Helper: Map spec param ID → actual DB field name
-  const getDbField = (paramId) => {
-    // Mode-specific overrides
-    if (activeMode === 'טבטה') {
-      if (paramId === 'sets') return 'tabata_sets';
-      if (paramId === 'rest_time') return 'tabata_rest';
-      if (paramId === 'rest_between_sets') return 'tabata_rest_between_sets';
-      if (paramId === 'exercise_list') return 'tabata_exercises';
-    }
-    if (activeMode === 'סופרסט') {
-      if (paramId === 'rounds') return 'superset_rounds';
-      if (paramId === 'rest_between_sets') return 'superset_rest_between_rounds';
-      if (paramId === 'exercise_list') return 'superset_exercises';
-    }
-    if (activeMode === 'קומבו') {
-      if (paramId === 'sets') return 'combo_sets';
-      if (paramId === 'rest_between_sets') return 'combo_rest_between_sets';
-      if (paramId === 'rest_between_exercises') return 'rest_between_exercises';
-      if (paramId === 'exercise_list') return 'combo_exercises';
-    }
-    // Spec ID → DB field mappings (must match actual exercises table columns)
-    if (paramId === 'reps') return 'reps';           // DB col: reps
-    if (paramId === 'weight_kg') return 'weight';    // DB col: weight
-    if (paramId === 'load_type') return 'weight_type'; // DB col: weight_type
-    if (paramId === 'exercise_list') return 'exercise_list';
-    if (paramId === 'foot_position') return 'leg_position'; // no DB col yet — stored in local state
-    if (paramId === 'static_hold') return 'static_hold_time'; // no DB col yet
-    if (paramId === 'notes') return 'description';   // DB col: description
-    if (paramId === 'tabata') return 'tabata_blocks'; // handled specially by save handler → tabata_data
-    return paramId;
-  };
-
-  // Initialize open params based on existing data
+  // ── Initialize confirmed params from existing exercise ─────────────
   useEffect(() => {
-    const existingKeys = [];
-    ALL_PARAMETERS.forEach(param => {
-      const dbField = getDbField(param.id);
-      const val = exercise[dbField];
-      if (val !== null && val !== undefined && val !== "" && (Array.isArray(val) ? val.length > 0 : true)) {
-        existingKeys.push(param.id);
-      }
+    const conf = new Set();
+    ALL_PARAMETERS.forEach((p) => {
+      if (CONTAINER_PARAMS.has(p.id)) return;
+      const field = getDbField(p.id);
+      if (hasVal(exercise[field])) conf.add(p.id);
     });
-
-    let initialParams = [];
-    if (exercise.params_order && Array.isArray(exercise.params_order) && exercise.params_order.length > 0) {
-      initialParams = exercise.params_order;
-      // Add any missing keys that exist in data but not in order (legacy support)
-      existingKeys.forEach(k => {
-        if (!initialParams.includes(k)) initialParams.push(k);
-      });
-    } else if (openParams.length === 0 && existingKeys.length > 0) {
-      initialParams = existingKeys;
-    } else if (openParams.length === 0) {
-      initialParams = getDefaultsForMode(activeMode);
+    // Detect container from existing data
+    if (exercise.sub_exercises?.length > 0) {
+      if (exercise.mode === "טבטה") conf.add("tabata");
+      else conf.add("exercise_list");
+    } else if (exercise.tabata_data) {
+      try {
+        const parsed = typeof exercise.tabata_data === "string" ? JSON.parse(exercise.tabata_data) : exercise.tabata_data;
+        if (parsed.sub_exercises) {
+          onChange({ ...exercise, sub_exercises: parsed.sub_exercises });
+          conf.add(parsed.container_type === "tabata" ? "tabata" : "exercise_list");
+        } else if (parsed.blocks) {
+          const subs = [];
+          (parsed.blocks || []).forEach((block) => {
+            (block.block_exercises || []).forEach((ex) => {
+              subs.push({ id: ex.id || String(Date.now() + Math.random()), exercise_name: ex.name });
+            });
+          });
+          if (subs.length > 0) {
+            onChange({ ...exercise, sub_exercises: subs });
+            conf.add("tabata");
+          }
+        }
+      } catch {}
     }
-
-    // Only set if we have something valid to prevent overwrite
-    if (initialParams.length > 0) {
-        setOpenParams(initialParams);
-    }
-  }, [activeMode]);
-
-  const getDefaultsForMode = (mode) => {
-    switch(mode) {
-      case "חזרות": return ["reps", "sets", "weight_kg", "rest_time"];
-      case "זמן": return ["work_time", "rounds", "rest_time"];
-      case "סופרסט": return ["exercise_list", "rounds", "rest_between_sets"];
-      case "טבטה": return ["tabata"];
-      case "קומבו": return ["exercise_list", "sets", "rest_between_sets"];
-      default: return ["work_time"];
-    }
-  };
-
-  const updateEx = (field, value) => onChange({ ...exercise, [field]: value });
-  
-  const handleModeChange = (id) => {
-    setActiveMode(id);
-    onChange({ ...exercise, mode: id });
-    setOpenParams(getDefaultsForMode(id));
-  };
-
-  const toggleParam = (id) => {
-    if (openParams.includes(id)) {
-      setOpenParams(prev => prev.filter(p => p !== id));
-      const dbField = getDbField(id);
-      updateEx(dbField, null);
-    } else {
-      setOpenParams(prev => [...prev, id]);
-    }
-  };
-
-  const onDragEnd = (result) => {
-    if (!result.destination) return;
-    
-    const newOrder = Array.from(openParams);
-    const [reorderedItem] = newOrder.splice(result.source.index, 1);
-    newOrder.splice(result.destination.index, 0, reorderedItem);
-    
-    setOpenParams(newOrder);
-    updateEx('params_order', newOrder);
-  };
-
-  const renderInputBlock = (param) => {
-    const dbField = getDbField(param.id);
-    const value = exercise[dbField];
-
-    // Exercise list (superset / combo / tabata inner exercises)
-    if (param.id === 'exercise_list') {
-      return <CompactListBuilder items={value || []} onChange={l => updateEx(dbField, l)} />;
-    }
-
-    // Tabata structured builder
-    if (param.id === 'tabata') {
-      return <TabataConfigurator exercise={exercise} onChange={updateEx} />;
-    }
-
-    // Time inputs — number + שנ'/דק' toggle
-    if (
-      param.id.includes('time') ||
-      param.id.includes('rest') ||
-      param.id === 'static_hold'
-    ) {
-      return <TimeUnitInput value={value} onChange={v => updateEx(dbField, v)} />;
-    }
-
-    // Weight input — number + ק"ג/lb toggle
-    if (param.id === 'weight_kg') {
-      return <WeightInput value={value} onChange={v => updateEx(dbField, v)} />;
-    }
-
-    // RPE — number input + range slider (1–10)
-    if (param.id === 'rpe') {
-      const rpeVal = Math.min(10, Math.max(1, parseInt(value) || 7));
-      return (
-        <div className="space-y-1.5 px-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">1</span>
-            <span className="text-base font-black text-[#FF6F20]">{rpeVal}</span>
-            <span className="text-xs text-gray-400">10</span>
-          </div>
-          <input type="range" min="1" max="10" step="1"
-            value={rpeVal}
-            onChange={e => updateEx(dbField, e.target.value)}
-            className="w-full accent-[#FF6F20] h-2 cursor-pointer" />
-          <div className="flex justify-between text-[9px] text-gray-300">
-            <span>קל</span><span>מקסימום</span>
-          </div>
-        </div>
-      );
-    }
-
-    // Numeric inputs
-    if (['reps', 'sets', 'rounds'].includes(param.id)) {
-      return <CompactNumberInput value={value} onChange={v => updateEx(dbField, v)} placeholder="0" />;
-    }
-
-    // Load type selector
-    if (param.id === 'load_type') {
-      const defaults = ["משקל גוף", "משקל חיצוני", "גומיות", "טבעות"];
-      const options = getOptionsForType('load_type', defaults).map(o => ({ label: o, value: o }));
-      return (
-        <CompactSelect
-          value={value}
-          onChange={v => updateEx(dbField, v)}
-          options={options}
-          onAdd={() => setAddValueDialog({ isOpen: true, type: 'load_type', label: 'הוסף סוג עומס' })}
-        />
-      );
-    }
-
-    // Notes (free text)
-    if (param.id === 'notes') {
-      return (
-        <Textarea
-          className="text-xs min-h-[40px] p-2 resize-none focus:ring-[#FF6F20]/20 focus:border-[#FF6F20] rounded-md"
-          value={value || ""}
-          onChange={e => updateEx(dbField, e.target.value)}
-          placeholder="דגשים, הוראות ביצוע..."
-        />
-      );
-    }
-
-    // Dropdown / chip-selection params
-    if (['body_position', 'foot_position', 'grip', 'equipment', 'range_of_motion', 'side'].includes(param.id)) {
-      let defaultOptions = [];
-      let dialogTitle = "";
-      let dbType = param.id; // used for custom-param lookup
-
-      if (param.id === 'body_position') {
-        defaultOptions = ["עמידה", "ישיבה", "שכיבה על גב", "שכיבה על בטן", "שכיבה על צד", "תלייה", "תמיכה", "טבעות", "מקבילים", "פראלטים"];
-        dialogTitle = "הוסף מנח גוף";
-      } else if (param.id === 'foot_position') {
-        defaultOptions = ["צמוד", "רוחב כתפיים", "רחב", "רגל אחת (L/R)"];
-        dialogTitle = "הוסף מנח רגליים";
-        dbType = 'foot_position';
-      } else if (param.id === 'grip') {
-        defaultOptions = ["צרה", "בינונית", "רחבה", "פרונציה", "סופינציה", "ניטרלית"];
-        dialogTitle = "הוסף סוג אחיזה";
-      } else if (param.id === 'equipment') {
-        defaultOptions = ["משקל גוף", "טבעות", "מתח", "מקבילים", "פראלטים", "Dream Machine", "משקולות יד"];
-        dialogTitle = "הוסף ציוד";
-      } else if (param.id === 'range_of_motion') {
-        defaultOptions = ["מלא", "חצי", "חלקי", "אקצנטרי בלבד", "איזומטרי"];
-        dialogTitle = "הוסף טווח תנועה";
-      } else if (param.id === 'side') {
-        defaultOptions = ["דו־צדדי", "ימין", "שמאל", "לסירוגין"];
-        dialogTitle = "הוסף צד";
+    // Legacy superset/combo exercises
+    if (!conf.has("exercise_list") && !conf.has("tabata")) {
+      const legacy = exercise.superset_exercises || exercise.combo_exercises;
+      if (Array.isArray(legacy) && legacy.length > 0) {
+        const subs = legacy.map((e) => ({
+          id: String(Date.now() + Math.random()),
+          exercise_name: e.name || "",
+          reps: e.valueType === "reps" ? e.value : null,
+          work_time: e.valueType === "time" ? e.value : null,
+        }));
+        onChange({ ...exercise, sub_exercises: subs });
+        conf.add("exercise_list");
       }
+    }
+    setConfirmedParams(conf);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-      const mergedOptions = getOptionsForType(dbType, defaultOptions).map(o => ({ label: o, value: o }));
-      return (
-        <CompactSelect
-          value={value}
-          onChange={v => updateEx(dbField, v)}
-          options={mergedOptions}
-          onAdd={() => setAddValueDialog({ isOpen: true, type: dbType, label: dialogTitle })}
-        />
-      );
+  const isContainer = confirmedParams.has("exercise_list") || confirmedParams.has("tabata");
+  const containerType = confirmedParams.has("tabata") ? "tabata" : confirmedParams.has("exercise_list") ? "list" : null;
+  const subExercises = exercise.sub_exercises || [];
+
+  // Auto-set mode based on container
+  useEffect(() => {
+    let mode = "חזרות";
+    if (confirmedParams.has("tabata")) mode = "טבטה";
+    else if (confirmedParams.has("exercise_list")) mode = "סופרסט";
+    if (exercise.mode !== mode) updateEx("mode", mode);
+  }, [confirmedParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Param handlers ──────────────────────────────────────────────────
+  const handleParamClick = (paramId) => {
+    if (editingParam === paramId) return;
+
+    // Container params: toggle & confirm immediately
+    if (CONTAINER_PARAMS.has(paramId)) {
+      if (confirmedParams.has(paramId)) {
+        // Remove container
+        setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
+        updateEx("sub_exercises", []);
+      } else {
+        // Remove the OTHER container first
+        const other = paramId === "tabata" ? "exercise_list" : "tabata";
+        setConfirmedParams((prev) => { const n = new Set(prev); n.delete(other); n.add(paramId); return n; });
+        if (!subExercises.length) updateEx("sub_exercises", []);
+      }
+      setEditingParam(null);
+      return;
     }
 
-    // Default: plain text input (tempo, video_url, etc.)
-    return (
-      <Input
-        className="h-7 text-xs focus:ring-[#FF6F20]/20 focus:border-[#FF6F20] rounded-md"
-        value={value || ""}
-        onChange={e => updateEx(dbField, e.target.value)}
-        placeholder={param.id === 'tempo' ? 'לדוגמה: 3010' : param.id === 'video_url' ? 'https://...' : ''}
-      />
-    );
+    setEditingParam(paramId);
+    const field = getDbField(paramId);
+    if (!confirmedParams.has(paramId) && !hasVal(exercise[field])) {
+      const param = ALL_PARAMETERS.find((p) => p.id === paramId);
+      if (param?.defaultValue && param.defaultValue !== "_container") {
+        updateEx(field, String(param.defaultValue));
+      }
+    }
   };
 
+  const handleConfirm = () => {
+    if (!editingParam) return;
+    const field = getDbField(editingParam);
+    if (hasVal(exercise[field]) || ["notes", "equipment", "grip", "video_url"].includes(editingParam)) {
+      setConfirmedParams((prev) => new Set([...prev, editingParam]));
+      setEditingParam(null);
+    } else {
+      toast.error("נא למלא ערך לפני אישור");
+    }
+  };
+
+  const handleRemoveParam = (paramId) => {
+    setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
+    if (editingParam === paramId) setEditingParam(null);
+    updateEx(getDbField(paramId), null);
+  };
+
+  // ── Sub-exercise handlers ───────────────────────────────────────────
+  const addSubExercise = () => {
+    const subs = [...subExercises, { id: String(Date.now()), exercise_name: "" }];
+    updateEx("sub_exercises", subs);
+  };
+
+  const updateSubExercise = (i, data) => {
+    const subs = [...subExercises];
+    subs[i] = data;
+    updateEx("sub_exercises", subs);
+  };
+
+  const removeSubExercise = (i) => {
+    updateEx("sub_exercises", subExercises.filter((_, idx) => idx !== i));
+  };
+
+  const editDef = editingParam ? ALL_PARAMETERS.find((p) => p.id === editingParam) : null;
+
+  // ── RENDER ──────────────────────────────────────────────────────────
   return (
     <div className="w-full" dir="rtl">
 
-      <div className="mb-4 px-1">
-        <Label className="text-lg text-gray-900 mb-2 block font-black uppercase tracking-wider">שם התרגיל</Label>
+      {/* ── Name ─────────────────────────────────────────────── */}
+      <div className="mb-5 px-1">
+        <label className="text-[10px] font-black text-gray-400 mb-1 block uppercase tracking-wider">שם התרגיל</label>
         <input
           value={exercise.exercise_name || ""}
-          onChange={(e) => updateEx('exercise_name', e.target.value)}
+          onChange={(e) => updateEx("exercise_name", e.target.value)}
           placeholder="לדוגמה: סקוואט"
-          className="w-full h-10 text-base font-black border-b-2 border-gray-100 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1 transition-colors placeholder:text-gray-300" />
+          autoFocus
+          className="w-full h-12 text-lg font-black border-b-2 border-gray-200 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1 transition-colors placeholder:text-gray-300"
+        />
       </div>
 
+      {/* ── Parameter Grid ───────────────────────────────────── */}
       <div className="mb-3 px-1">
-         <Label className="text-[10px] text-gray-400 mb-1.5 block font-bold uppercase tracking-wider">פרמטרים</Label>
-         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-1.5">
-            {ALL_PARAMETERS.map((param) => {
-               const isOpen = openParams.includes(param.id);
-               const Icon = param.icon;
-               return (
-                 <button key={param.id} onClick={() => toggleParam(param.id)}
-                   className={`
-                     flex flex-col items-center justify-center gap-1 p-1 rounded-xl border transition-all duration-200 h-[60px] shadow-sm
-                     ${isOpen 
-                       ? 'bg-[#FF6F20] border-[#FF6F20] text-white shadow-md scale-[1.02]' 
-                       : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300'}
-                   `}
-                 >
-                   {Icon && <Icon size={16} strokeWidth={2} />}
-                   <span className="text-[9px] md:text-[10px] font-bold leading-none text-center tracking-tight">{param.label}</span>
-                 </button>
-               );
-            })}
-         </div>
+        <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-wider">בחר פרמטרים</label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {ALL_PARAMETERS.map((p) => {
+            const isCont = CONTAINER_PARAMS.has(p.id);
+            const isConf = confirmedParams.has(p.id);
+            const isEdit = editingParam === p.id;
+            const Icon = p.icon;
+            const field = getDbField(p.id);
+            const val = exercise[field];
+
+            return (
+              <button key={p.id} type="button" onClick={() => handleParamClick(p.id)}
+                className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl border h-[58px] transition-all active:scale-[0.97]
+                  ${isConf && !isEdit
+                    ? (isCont
+                      ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-1 ring-[#FF6F20]/30"
+                      : "border-green-300 bg-green-50 text-green-700 shadow-sm")
+                    : isEdit
+                    ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-2 ring-[#FF6F20]/20"
+                    : "border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:text-gray-600 shadow-sm"}`}>
+                {isConf && !isEdit && !isCont ? (
+                  <>
+                    <Check size={14} strokeWidth={3} className="text-green-500" />
+                    <span className="text-[8px] font-bold leading-tight text-center truncate w-full">
+                      {getDisplay(p.id, val) || p.label}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Icon size={16} strokeWidth={2} />
+                    <span className="text-[9px] font-bold leading-tight text-center">{p.label}</span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <AddCustomValueDialog 
-        isOpen={addValueDialog.isOpen} 
-        onClose={() => setAddValueDialog({ ...addValueDialog, isOpen: false })} 
+      {/* ── Active Param Editor Panel ─────────────────────────── */}
+      {editDef && !CONTAINER_PARAMS.has(editingParam) && (
+        <div className="mx-1 mb-4 bg-white border-2 border-[#FF6F20]/30 rounded-2xl overflow-hidden shadow-lg animate-in slide-in-from-top-2 duration-150">
+          <div className="bg-[#FFF7ED] px-3 py-2.5 flex items-center justify-between border-b border-[#FF6F20]/10">
+            <div className="flex items-center gap-2">
+              <editDef.icon size={16} className="text-[#FF6F20]" />
+              <span className="text-sm font-black text-gray-800">{editDef.label}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => handleRemoveParam(editingParam)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50">
+                <X size={14} />
+              </button>
+              <button type="button" onClick={handleConfirm}
+                className="w-10 h-10 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-md active:scale-95 transition-all">
+                <Check size={18} strokeWidth={3} />
+              </button>
+            </div>
+          </div>
+          <div className="p-3">
+            <ParamInputRenderer
+              paramId={editingParam}
+              value={exercise[getDbField(editingParam)]}
+              onChange={(v) => updateEx(getDbField(editingParam), v)}
+              getOptions={getOptions}
+              onAddCustom={handleAddCustom}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmed Params Summary ──────────────────────────── */}
+      {[...confirmedParams].filter((pid) => !CONTAINER_PARAMS.has(pid)).length > 0 && !editingParam && (
+        <div className="mx-1 mb-4 flex flex-wrap gap-1.5">
+          {[...confirmedParams].filter((pid) => !CONTAINER_PARAMS.has(pid)).map((pid) => {
+            const p = ALL_PARAMETERS.find((x) => x.id === pid);
+            const val = exercise[getDbField(pid)];
+            if (!p) return null;
+            return (
+              <button key={pid} type="button" onClick={() => handleParamClick(pid)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold hover:bg-green-100 transition-colors">
+                <Check size={10} strokeWidth={3} className="text-green-500" />
+                <span>{getDisplay(pid, val)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Container: Sub-Exercises ──────────────────────────── */}
+      {isContainer && (
+        <div className="mx-1 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-[2px] flex-1 bg-[#FF6F20]/30 rounded-full" />
+            <span className="text-xs font-black text-gray-700">
+              {containerType === "tabata" ? "תרגילי טבטה" : "תתי-תרגילים"}
+            </span>
+            <div className="h-[2px] flex-1 bg-[#FF6F20]/30 rounded-full" />
+          </div>
+
+          <div className="space-y-2 mb-3">
+            {subExercises.map((sub, i) => (
+              <SubExerciseEditor key={sub.id || i}
+                subEx={sub} index={i}
+                onChange={updateSubExercise} onRemove={removeSubExercise}
+                getOptions={getOptions} onAddCustom={handleAddCustom} />
+            ))}
+            {subExercises.length === 0 && (
+              <div className="text-center py-6 text-gray-300 text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                אין תתי-תרגילים עדיין
+              </div>
+            )}
+          </div>
+
+          <button type="button" onClick={addSubExercise}
+            className="w-full h-12 rounded-xl border-2 border-dashed border-[#FF6F20]/40 text-[#FF6F20] font-bold text-sm flex items-center justify-center gap-2 hover:bg-orange-50 hover:border-[#FF6F20] transition-all active:scale-[0.98]">
+            <Plus size={16} /> הוסף תת-תרגיל
+          </button>
+        </div>
+      )}
+
+      {/* Custom Value Dialog */}
+      <AddCustomValueDialog
+        isOpen={addValueDialog.isOpen}
+        onClose={() => setAddValueDialog({ ...addValueDialog, isOpen: false })}
         title={addValueDialog.label}
-        onSave={handleAddCustomValue}
+        onSave={handleSaveCustomValue}
         isLoading={createCustomParamMutation.isPending}
       />
-
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable droppableId="params-grid" direction="horizontal">
-          {(provided) => (
-            <div 
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className="grid grid-cols-6 gap-2 px-1 pb-4"
-            >
-              {openParams.length === 0 && (
-                  <div className="col-span-full text-center py-6 text-gray-300 text-xs bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                      לא נבחרו פרמטרים לעריכה
-                  </div>
-              )}
-              
-              {openParams.map((paramId, index) => {
-                const param = ALL_PARAMETERS.find(p => p.id === paramId);
-                if (!param) return null;
-
-                const isLarge = ['exercise_list', 'equipment', 'notes', 'video_url', 'load_type', 'body_position', 'foot_position', 'grip', 'range_of_motion', 'side', 'tabata'].includes(param.id);
-                const colSpan = isLarge ? 'col-span-6' : 'col-span-2';
-
-                return (
-                  <Draggable key={param.id} draggableId={param.id} index={index}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className={`${colSpan} ${snapshot.isDragging ? 'z-50 opacity-90' : ''}`}
-                        style={{ ...provided.draggableProps.style }}
-                      >
-                         <div className={`bg-white rounded-lg border shadow-sm overflow-hidden h-full ${snapshot.isDragging ? 'border-[#FF6F20] shadow-lg' : 'border-[#FF6F20]/20'}`}>
-                            <div className="bg-gray-50/50 px-2 py-1.5 border-b border-gray-100 flex items-center justify-between group cursor-move" {...provided.dragHandleProps}>
-                                <div className="flex items-center gap-1.5 text-gray-700">
-                                    <GripVertical size={12} className="text-gray-300 group-hover:text-gray-500" />
-                                    {param.icon && <param.icon size={12} className="text-[#FF6F20]" />}
-                                    <span className="text-[11px] font-bold">{param.label}</span>
-                                </div>
-                                <button onClick={() => toggleParam(param.id)} className="text-gray-300 hover:text-red-500 transition-colors p-0.5 hover:bg-red-50 rounded">
-                                    <X size={12} />
-                                </button>
-                            </div>
-                            <div className="p-2">
-                                {renderInputBlock(param)}
-                            </div>
-                         </div>
-                      </div>
-                    )}
-                  </Draggable>
-                );
-              })}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
     </div>
   );
 }

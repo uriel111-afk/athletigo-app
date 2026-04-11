@@ -1,17 +1,25 @@
-import React, { useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import {
-  Check, Edit2, Trash2, Zap, GitMerge, Layers, Settings,
-  Clock, Dumbbell, Activity
+  Check, Edit2, Trash2, Zap, Layers, Clock, Dumbbell, Activity,
+  Repeat, Hash, Timer, Weight, ArrowLeftRight, GripVertical,
+  Footprints, Maximize2, User, Info, Video, PauseCircle
 } from "lucide-react";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────
 
-/** Format a time value (MM:SS string OR raw seconds number/string) to display */
+const PARAM_ICON = {
+  sets: Hash, reps: Repeat, work_time: Clock, rest_time: Timer,
+  rounds: Hash, rpe: Zap, weight_type: Weight, weight: Weight,
+  tempo: Activity, rest_between_sets: Timer, rest_between_exercises: PauseCircle,
+  leg_position: Footprints, body_position: User, equipment: Dumbbell,
+  static_hold_time: PauseCircle, description: Info, side: ArrowLeftRight,
+  range_of_motion: Maximize2, grip: GripVertical, video_url: Video,
+};
+
 const fmtTime = (v) => {
   if (!v && v !== 0) return null;
   if (typeof v === "string" && v.includes(":")) {
@@ -28,70 +36,87 @@ const fmtTime = (v) => {
 };
 
 /**
- * Build an ordered list of summary "chips" from an exercise object.
- * Each chip is a short Hebrew string like "3 סטים", "10 חזרות", "RPE 7", etc.
+ * Build display chips: { field, icon, label, value }
  */
 const buildChips = (ex) => {
   const chips = [];
-  const push = (s) => { if (s) chips.push(s); };
+  const push = (field, label, value) => {
+    if (value) chips.push({ field, icon: PARAM_ICON[field], label, value });
+  };
 
-  // Core metrics (always first)
-  if (ex.sets && ex.sets !== "0") push(`${ex.sets} סטים`);
-  if (ex.reps && ex.reps !== "0") push(`${ex.reps} חזרות`);
-  if (ex.rounds && ex.rounds !== "0") push(`${ex.rounds} סבבים`);
+  if (ex.sets && ex.sets !== "0") push("sets", "סטים", ex.sets);
+  if (ex.reps && ex.reps !== "0") push("reps", "חזרות", ex.reps);
+  if (ex.rounds && ex.rounds !== "0") push("rounds", "סבבים", ex.rounds);
 
   const wt = fmtTime(ex.work_time);
-  if (wt) push(`עבודה: ${wt}`);
+  if (wt) push("work_time", "עבודה", wt);
   const rt = fmtTime(ex.rest_time);
-  if (rt) push(`מנוחה: ${rt}`);
+  if (rt) push("rest_time", "מנוחה", rt);
+  const rbs = fmtTime(ex.rest_between_sets);
+  if (rbs) push("rest_between_sets", "מנ׳ סטים", rbs);
+  const rbe = fmtTime(ex.rest_between_exercises);
+  if (rbe) push("rest_between_exercises", "מנ׳ תרגילים", rbe);
+  const sh = fmtTime(ex.static_hold_time);
+  if (sh) push("static_hold_time", "החזקה", sh);
 
-  // Weight
-  if (ex.weight && ex.weight !== "0") push(`${ex.weight} ק"ג`);
-  if (ex.weight_type && ex.weight_type !== "bodyweight") push(ex.weight_type);
+  if (ex.weight && ex.weight !== "0") push("weight", "משקל", `${ex.weight} ק"ג`);
+  if (ex.weight_type && ex.weight_type !== "bodyweight") push("weight_type", "עומס", ex.weight_type);
+  if (ex.rpe && ex.rpe !== "0") push("rpe", "RPE", ex.rpe);
+  if (ex.tempo) push("tempo", "טמפו", ex.tempo);
 
-  // RPE
-  if (ex.rpe && ex.rpe !== "0") push(`RPE ${ex.rpe}`);
-
-  // Tempo
-  if (ex.tempo) push(`טמפו: ${ex.tempo}`);
-
-  // Mode-specific
-  if (ex.superset_rounds && ex.superset_rounds !== "0") push(`${ex.superset_rounds} סבבים (סופרסט)`);
-  if (ex.combo_sets && ex.combo_sets !== "0") push(`${ex.combo_sets} סטים (קומבו)`);
+  if (ex.body_position) push("body_position", "מנח גוף", ex.body_position);
+  if (ex.leg_position) push("leg_position", "רגליים", ex.leg_position);
+  if (ex.side && ex.side !== "דו־צדדי") push("side", "צד", ex.side);
+  if (ex.grip) push("grip", "אחיזה", ex.grip);
+  if (ex.equipment) push("equipment", "ציוד", ex.equipment);
+  if (ex.range_of_motion && ex.range_of_motion !== "מלא") push("range_of_motion", "טווח", ex.range_of_motion);
 
   return chips;
 };
 
-const getModeIcon = (mode) => {
-  if (mode === "זמן") return Clock;
-  if (mode === "טבטה") return Zap;
-  if (mode === "קומבו") return GitMerge;
-  if (mode === "סופרסט") return Layers;
-  if (mode === "מותאם אישי") return Settings;
-  return Dumbbell;
+/**
+ * Parse sub-exercises from tabata_data JSON
+ */
+const getSubExercises = (ex) => {
+  if (ex.sub_exercises?.length > 0) return ex.sub_exercises;
+  if (!ex.tabata_data) return [];
+  try {
+    const parsed = typeof ex.tabata_data === "string" ? JSON.parse(ex.tabata_data) : ex.tabata_data;
+    if (parsed.sub_exercises) return parsed.sub_exercises;
+    if (parsed.blocks) {
+      const subs = [];
+      parsed.blocks.forEach((block) => {
+        (block.block_exercises || []).forEach((be) => {
+          subs.push({ exercise_name: be.name, ...block });
+        });
+      });
+      return subs;
+    }
+  } catch {}
+  return [];
 };
 
-// ── Component ────────────────────────────────────────────────────────────────
+const isContainerExercise = (ex) => {
+  return ["טבטה", "סופרסט", "קומבו"].includes(ex.mode) && getSubExercises(ex).length > 0;
+};
+
+const getContainerLabel = (ex) => {
+  if (ex.mode === "טבטה") return "טבטה";
+  if (ex.mode === "סופרסט") return "רשימה";
+  if (ex.mode === "קומבו") return "קומבו";
+  return "מיכל";
+};
+
+// ── Component ────────────────────────────────────────────────────────
 
 export default function ExerciseCard({
-  exercise,
-  index = 0,
-  onToggleComplete,
-  onRowClick,
-  onEdit,
-  onDelete,
-  onOpenExecution,
-  showEditButton = false,
-  isCoach = false,
-  sectionColor = "#FF6F20",
-  plan,
+  exercise, index = 0, onToggleComplete, onRowClick, onEdit, onDelete,
+  onOpenExecution, showEditButton = false, isCoach = false,
+  sectionColor = "#FF6F20", plan,
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
   const queryClient = useQueryClient();
-
   if (!exercise) return null;
 
-  // ── Handlers ────────────────────────────────────────────────────────────
   const handleToggleComplete = async (e) => {
     e.stopPropagation();
     if (onToggleComplete) onToggleComplete(exercise);
@@ -100,10 +125,8 @@ export default function ExerciseCard({
         const currentUser = await base44.auth.me();
         if (currentUser?.id) {
           await notifyExerciseCompleted({
-            coachId: plan.created_by,
-            traineeName: currentUser.full_name,
-            traineeId: currentUser.id,
-            exerciseName: exercise.exercise_name,
+            coachId: plan.created_by, traineeName: currentUser.full_name,
+            traineeId: currentUser.id, exerciseName: exercise.exercise_name,
           });
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
         }
@@ -111,100 +134,101 @@ export default function ExerciseCard({
     }
   };
 
-  const handleEdit = (e) => {
-    e.stopPropagation();
-    if (onEdit) onEdit();
-    else if (onRowClick) onRowClick();
-  };
+  const handleEdit = (e) => { e.stopPropagation(); onEdit ? onEdit() : onRowClick?.(); };
+  const handleDelete = (e) => { e.stopPropagation(); onDelete?.(); };
 
-  const handleDelete = (e) => {
-    e.stopPropagation();
-    if (onDelete) onDelete();
-  };
-
-  // ── Display values ───────────────────────────────────────────────────────
-  const ModeIcon = getModeIcon(exercise.mode);
   const chips = buildChips(exercise);
   const notes = exercise.description || exercise.coach_notes || exercise.notes;
-  const isTabata = ["טבטה", "Tabata"].includes(exercise.mode);
-  const tabataPreview = exercise.tabata_preview || exercise.tabataPreview;
+  const isContainer = isContainerExercise(exercise);
+  const subExercises = isContainer ? getSubExercises(exercise) : [];
 
-  const borderColor = exercise.completed
-    ? "#4CAF50"
-    : index % 3 === 0
-    ? "rgba(255,111,32,0.5)"
-    : "#E5E7EB";
-
-  // ── Coach view — compact card with full parameter summary ────────────────
+  // ── COACH VIEW ──────────────────────────────────────────────────────
   if (isCoach || showEditButton) {
     return (
-      <motion.div
-        layout
+      <motion.div layout
         className="w-full rounded-2xl overflow-hidden transition-all"
-        style={{
-          backgroundColor: "#FAFAFA",
-          border: "1.5px solid #ede9e3",
-          borderRight: `3px solid ${exercise.completed ? "#4CAF50" : "#FF6F20"}`,
-        }}
-      >
+        style={{ backgroundColor: "#FAFAFA", border: "1.5px solid #ede9e3", borderRight: `3px solid ${exercise.completed ? "#4CAF50" : "#FF6F20"}` }}>
+
         <div className="p-3">
-          {/* Header row */}
+          {/* Header */}
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: "#FFF7ED" }}
-              >
-                <ModeIcon size={14} className="text-[#FF6F20]" />
+              <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#FFF7ED" }}>
+                {isContainer ? <Layers size={14} className="text-[#FF6F20]" /> : <Dumbbell size={14} className="text-[#FF6F20]" />}
               </div>
-              <h3 className="text-sm font-black text-gray-900 leading-tight truncate">
-                {exercise.exercise_name || exercise.name || "תרגיל"}
-              </h3>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-black text-gray-900 leading-tight truncate">
+                  {exercise.exercise_name || exercise.name || "תרגיל"}
+                </h3>
+                {isContainer && (
+                  <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#FF6F20] text-white">
+                    {getContainerLabel(exercise)} ({subExercises.length})
+                  </span>
+                )}
+              </div>
             </div>
-
-            {/* Edit + Delete */}
             <div className="flex items-center gap-1 flex-shrink-0">
-              <button
-                onClick={handleEdit}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors"
-                title="ערוך תרגיל"
-              >
+              <button onClick={handleEdit} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors" title="ערוך">
                 <Edit2 size={13} />
               </button>
-              <button
-                onClick={handleDelete}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                title="מחק תרגיל"
-              >
+              <button onClick={handleDelete} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="מחק">
                 <Trash2 size={13} />
               </button>
             </div>
           </div>
 
-          {/* Parameter chips — show ALL filled params */}
-          {isTabata && tabataPreview ? (
-            <div className="text-[11px] text-gray-600 leading-relaxed bg-orange-50 rounded-lg px-2 py-1.5 border border-orange-100 whitespace-pre-line">
-              {tabataPreview}
+          {/* Param chips with icons */}
+          {chips.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {chips.map((chip, i) => {
+                const Icon = chip.icon;
+                return (
+                  <span key={i} className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700">
+                    {Icon && <Icon size={10} className="text-[#FF6F20] flex-shrink-0" />}
+                    <span className="text-gray-400">{chip.label}:</span>
+                    <span className="font-bold">{chip.value}</span>
+                  </span>
+                );
+              })}
             </div>
-          ) : chips.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {chips.map((chip, i) => (
-                <span
-                  key={i}
-                  className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700"
-                >
-                  {chip}
-                </span>
-              ))}
+          )}
+
+          {/* Sub-exercises for container */}
+          {isContainer && subExercises.length > 0 && (
+            <div className="bg-orange-50/50 border border-orange-100 rounded-lg p-2 mb-2">
+              <div className="space-y-1">
+                {subExercises.map((sub, i) => {
+                  const subChips = buildChips(sub);
+                  return (
+                    <div key={sub.id || i} className="flex items-start gap-2 bg-white rounded-lg px-2 py-1.5 border border-orange-100/50">
+                      <span className="w-5 h-5 rounded-full bg-[#FF6F20] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11px] font-bold text-gray-800 truncate">{sub.exercise_name || sub.name || "תת-תרגיל"}</div>
+                        {subChips.length > 0 && (
+                          <div className="text-[9px] text-gray-400 truncate mt-0.5">
+                            {subChips.map((c) => `${c.label}: ${c.value}`).join(" · ")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          ) : (
-            <p className="text-[11px] text-gray-400 italic">אין פרמטרים</p>
+          )}
+
+          {/* No params */}
+          {chips.length === 0 && !isContainer && (
+            <p className="text-[11px] text-gray-400 italic mb-1">אין פרמטרים</p>
           )}
 
           {/* Notes */}
           {notes && (
-            <p className="mt-2 text-[11px] text-gray-500 leading-relaxed border-t border-gray-100 pt-1.5">
-              💬 {notes}
+            <p className="text-[11px] text-gray-500 leading-relaxed border-t border-gray-100 pt-1.5 mt-1">
+              <Info size={10} className="inline mr-1 text-gray-400" />
+              {notes}
             </p>
           )}
         </div>
@@ -212,80 +236,74 @@ export default function ExerciseCard({
     );
   }
 
-  // ── Trainee view — full card with counter + complete button ──────────────
+  // ── TRAINEE VIEW ────────────────────────────────────────────────────
   return (
-    <motion.div
-      layout
+    <motion.div layout
       className="w-full rounded-[14px] mb-3 overflow-hidden transition-all"
-      style={{
-        backgroundColor: "#F7F6F3",
-        border: "1.5px solid #ede9e3",
-        borderRight: `3px solid ${exercise.completed ? "#4CAF50" : "#FF6F20"}`,
-      }}
-    >
+      style={{ backgroundColor: "#F7F6F3", border: "1.5px solid #ede9e3", borderRight: `3px solid ${exercise.completed ? "#4CAF50" : "#FF6F20"}` }}>
+
       <div className="p-4">
         {/* Name + RPE */}
         <div className="flex items-center justify-between mb-3">
-          <h3
-            className="text-[15px] font-black text-gray-900 leading-snug"
-            style={{ fontFamily: "Barlow, sans-serif" }}
-          >
-            {exercise.exercise_name || exercise.name}
-          </h3>
+          <div className="flex items-center gap-2 min-w-0">
+            {isContainer && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#FF6F20] text-white flex-shrink-0">
+                {getContainerLabel(exercise)}
+              </span>
+            )}
+            <h3 className="text-[15px] font-black text-gray-900 leading-snug truncate" style={{ fontFamily: "Barlow, sans-serif" }}>
+              {exercise.exercise_name || exercise.name}
+            </h3>
+          </div>
           {exercise.rpe && (
-            <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-bold">
+            <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-bold flex-shrink-0">
               RPE {exercise.rpe}
             </div>
           )}
         </div>
 
-        {/* Parameter pills */}
+        {/* Param pills */}
         {chips.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {chips.slice(0, 4).map((chip, i) => (
-              <div key={i} className="bg-white px-3 py-2 rounded-full border border-gray-200">
-                <span
-                  className="text-[15px] font-black text-gray-900"
-                  style={{ fontFamily: "Barlow Condensed, sans-serif" }}
-                >
-                  {chip.split(":")[1]?.trim() || chip.split(" ")[0]}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {chips.slice(0, 5).map((chip, i) => {
+              const Icon = chip.icon;
+              return (
+                <div key={i} className="bg-white px-2.5 py-1.5 rounded-full border border-gray-200 flex items-center gap-1.5">
+                  {Icon && <Icon size={12} className="text-[#FF6F20]" />}
+                  <span className="text-xs font-bold text-gray-800">{chip.value}</span>
+                  <span className="text-[10px] text-gray-400">{chip.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sub-exercises for trainee */}
+        {isContainer && subExercises.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-2 mb-3 space-y-1">
+            {subExercises.map((sub, i) => (
+              <div key={sub.id || i} className="flex items-center gap-2 text-sm">
+                <span className="w-5 h-5 rounded-full bg-orange-100 text-[#FF6F20] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                  {i + 1}
                 </span>
-                <span className="text-xs text-gray-500 mr-1">
-                  {chip.includes(":") ? chip.split(":")[0].trim() : chip.split(" ").slice(1).join(" ")}
-                </span>
+                <span className="font-bold text-gray-800 text-xs">{sub.exercise_name || sub.name || "תת-תרגיל"}</span>
               </div>
             ))}
           </div>
         )}
 
-        {/* Counter row */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <button className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center">
-              <span className="text-lg font-bold text-gray-600">-</span>
-            </button>
-            <span className="text-lg font-bold text-gray-900 mx-4">0</span>
-            <button className="w-8 h-8 rounded-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center">
-              <span className="text-lg font-bold text-white">+</span>
-            </button>
-          </div>
-          <button
-            onClick={handleToggleComplete}
-            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-              exercise.completed
-                ? "bg-green-500 border-green-500"
-                : "bg-white border-gray-300"
-            }`}
-          >
-            {exercise.completed && (
-              <Check size={16} className="text-white" strokeWidth={3} />
-            )}
+        {/* Complete button */}
+        <div className="flex items-center justify-end">
+          <button onClick={handleToggleComplete}
+            className={`w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all ${
+              exercise.completed ? "bg-green-500 border-green-500" : "bg-white border-gray-300"}`}>
+            {exercise.completed && <Check size={16} className="text-white" strokeWidth={3} />}
           </button>
         </div>
 
-        {/* Coach notes */}
+        {/* Notes */}
         {notes && (
-          <div className="bg-white p-3 rounded-lg border-r-4 border-orange-400">
+          <div className="bg-white p-3 rounded-lg border-r-4 border-orange-400 mt-3">
             <p className="text-sm text-gray-700 leading-relaxed">{notes}</p>
           </div>
         )}

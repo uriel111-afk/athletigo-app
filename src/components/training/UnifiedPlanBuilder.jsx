@@ -370,72 +370,59 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       return;
     }
 
-    // Tabata Logic (Denormalized)
+    // ── Sub-exercises / Container logic ─────────────────────────────
     let tabataPreview = null;
     let tabataData = null;
+    const subExercises = exerciseData.sub_exercises || [];
 
-    if (exerciseData.mode === 'טבטה') {
-       const blocks = exerciseData.tabata_blocks || [];
-       if (blocks.length === 0) {
-          toast.error("שגיאה: יש להוסיף לפחות בלוק טבטה אחד");
-          return;
-       }
-       
-       // Validation
-       for (const [index, block] of blocks.entries()) {
-          const blockName = block.name || `בלוק ${index + 1}`;
-          
-          if (!block.block_exercises || block.block_exercises.length === 0) {
-             toast.error(`שגיאה ב${blockName}: חייב להכיל לפחות תרגיל אחד`);
-             return;
-          }
-          
-          const work = parseInt(block.work_time || 0);
-          const rest = parseInt(block.rest_time || 0);
-          const rounds = parseInt(block.rounds || 0);
-          const sets = parseInt(block.sets || 0);
-
-          if (work <= 0) { toast.error(`שגיאה ב${blockName}: זמן עבודה חייב להיות חיובי`); return; }
-          if (rest < 0) { toast.error(`שגיאה ב${blockName}: זמן מנוחה לא יכול להיות שלילי`); return; }
-          if (rounds <= 0) { toast.error(`שגיאה ב${blockName}: מספר סבבים חייב להיות חיובי`); return; }
-          if (sets <= 0) { toast.error(`שגיאה ב${blockName}: מספר סטים חייב להיות חיובי`); return; }
-       }
-
-       // Generate Data & Preview
-       tabataPreview = generateTabataSummary(blocks);
-       tabataData = JSON.stringify({ blocks }); // Denormalized JSON structure
+    if (subExercises.length > 0) {
+      // Container exercise — serialize sub-exercises to tabata_data
+      const containerType = exerciseData.mode === "טבטה" ? "tabata" : "list";
+      tabataData = JSON.stringify({
+        container_type: containerType,
+        sub_exercises: subExercises,
+      });
+      tabataPreview = subExercises
+        .map((s) => s.exercise_name || "תת-תרגיל")
+        .join(" • ");
+    } else if (exerciseData.mode === "טבטה" && exerciseData.tabata_blocks?.length > 0) {
+      // Legacy tabata blocks (backward compat)
+      const blocks = exerciseData.tabata_blocks;
+      tabataPreview = generateTabataSummary(blocks);
+      tabataData = JSON.stringify({ blocks });
     }
 
     const sectionExercises = getExercisesBySection(currentSection.id);
     const order = editingExercise?.order || sectionExercises.length + 1;
     const data = {
-      mode: "חזרות",
-      weight_type: "bodyweight",
+      mode: exerciseData.mode || "חזרות",
+      weight_type: exerciseData.weight_type || "bodyweight",
       ...exerciseData,
-      // `name` column is NOT NULL in DB — must always be set
       name: exerciseData.exercise_name || exerciseData.name || "תרגיל",
-      tabata_preview: tabataPreview, // DB col: tabata_preview
-      tabata_data: tabataData,       // DB col: tabata_data
+      tabata_preview: tabataPreview,
+      tabata_data: tabataData,
       training_plan_id: plan.id,
       training_section_id: currentSection.id,
       order,
-      completed: editingExercise?.completed || false
+      completed: editingExercise?.completed || false,
     };
-    // Remove camelCase duplicates that don't exist as DB columns
+    // Clean up fields that don't exist as DB columns
+    delete data.sub_exercises;
     delete data.tabataPreview;
     delete data.tabataData;
+    delete data.tabata_blocks;
 
     try {
-        if (editingExercise?.id) {
-          await updateExerciseMutation.mutateAsync({ id: editingExercise.id, data });
-          toast.success("עודכן בהצלחה");
-        } else {
-          await createExerciseMutation.mutateAsync(data);
-          toast.success("נוצר בהצלחה");
-        }
+      if (editingExercise?.id) {
+        await updateExerciseMutation.mutateAsync({ id: editingExercise.id, data });
+        toast.success("עודכן בהצלחה");
+      } else {
+        await createExerciseMutation.mutateAsync(data);
+        toast.success("נוצר בהצלחה");
+      }
     } catch (error) {
-        console.error("Save failed:", error);
-        toast.error("שגיאה בשמירה");
+      console.error("Save failed:", error);
+      toast.error("שגיאה בשמירה");
     }
   };
 
