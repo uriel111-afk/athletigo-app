@@ -534,6 +534,20 @@ export default function Sessions() {
         return session.status === 'התקיים';
       } else if (filterStatus === "cancelled") {
         return ['בוטל על ידי מאמן', 'בוטל על ידי מתאמן'].includes(session.status);
+      } else if (filterStatus === "today") {
+        try {
+          return session.date && isToday(new Date(session.date));
+        } catch {
+          return false;
+        }
+      } else if (filterStatus === "month") {
+        try {
+          const d = new Date(session.date);
+          const now = new Date();
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        } catch {
+          return false;
+        }
       }
     }
 
@@ -994,12 +1008,13 @@ export default function Sessions() {
           <div className="mb-8 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
             <div className="inline-grid grid-cols-4 gap-2 md:gap-3 p-1.5" style={{ minWidth: 'fit-content' }}>
               <button
+                onClick={() => setFilterStatus(filterStatus === 'today' ? 'all' : 'today')}
                 className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#FF6F20',
+                  backgroundColor: filterStatus === 'today' ? '#FF6F20' : '#FFFFFF',
+                  color: filterStatus === 'today' ? '#FFFFFF' : '#FF6F20',
                   border: '2px solid #FF6F20',
-                  boxShadow: '0 2px 8px rgba(255, 111, 32, 0.15)'
+                  boxShadow: filterStatus === 'today' ? '0 2px 8px rgba(255, 111, 32, 0.35)' : '0 2px 8px rgba(255, 111, 32, 0.15)'
                 }}>
 
                 <span className="text-xl">🔥</span>
@@ -1008,12 +1023,13 @@ export default function Sessions() {
               </button>
 
               <button
+                onClick={() => setFilterStatus(filterStatus === 'month' ? 'all' : 'month')}
                 className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#9C27B0',
+                  backgroundColor: filterStatus === 'month' ? '#9C27B0' : '#FFFFFF',
+                  color: filterStatus === 'month' ? '#FFFFFF' : '#9C27B0',
                   border: '2px solid #9C27B0',
-                  boxShadow: '0 2px 8px rgba(156, 39, 176, 0.12)'
+                  boxShadow: filterStatus === 'month' ? '0 2px 8px rgba(156, 39, 176, 0.35)' : '0 2px 8px rgba(156, 39, 176, 0.12)'
                 }}>
 
                 <span className="text-xl">📊</span>
@@ -1022,12 +1038,13 @@ export default function Sessions() {
               </button>
 
               <button
+                onClick={() => setFilterStatus(filterStatus === 'upcoming' ? 'all' : 'upcoming')}
                 className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#9C27B0',
-                  border: '2px solid #E1BEE7',
-                  boxShadow: 'none'
+                  backgroundColor: filterStatus === 'upcoming' ? '#9C27B0' : '#FFFFFF',
+                  color: filterStatus === 'upcoming' ? '#FFFFFF' : '#9C27B0',
+                  border: `2px solid ${filterStatus === 'upcoming' ? '#9C27B0' : '#E1BEE7'}`,
+                  boxShadow: filterStatus === 'upcoming' ? '0 2px 8px rgba(156, 39, 176, 0.25)' : 'none'
                 }}>
 
                 <span className="text-xl">📆</span>
@@ -1036,12 +1053,13 @@ export default function Sessions() {
               </button>
 
               <button
+                onClick={() => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed')}
                 className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#4CAF50',
-                  border: '2px solid #C8E6C9',
-                  boxShadow: 'none'
+                  backgroundColor: filterStatus === 'completed' ? '#4CAF50' : '#FFFFFF',
+                  color: filterStatus === 'completed' ? '#FFFFFF' : '#4CAF50',
+                  border: `2px solid ${filterStatus === 'completed' ? '#4CAF50' : '#C8E6C9'}`,
+                  boxShadow: filterStatus === 'completed' ? '0 2px 8px rgba(76, 175, 80, 0.25)' : 'none'
                 }}>
 
                 <span className="text-xl">✅</span>
