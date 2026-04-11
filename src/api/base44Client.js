@@ -116,9 +116,19 @@ function createEntity(tableName) {
 
 // ---------------------------------------------------------------------------
 // Auth — mirrors the base44.auth surface used across the app
+// Caches the result for 30 seconds to avoid repeated network calls.
 // ---------------------------------------------------------------------------
+let _meCache = null;
+let _meCacheTime = 0;
+const ME_CACHE_TTL = 30000; // 30 seconds
+
 const auth = {
   async me() {
+    // Return cached result if fresh
+    if (_meCache && (Date.now() - _meCacheTime) < ME_CACHE_TTL) {
+      return _meCache;
+    }
+
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) throw error || new Error('Not authenticated');
 
@@ -129,19 +139,21 @@ const auth = {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (profile) return profile;
+    if (profile) { _meCache = profile; _meCacheTime = Date.now(); return profile; }
 
-    // Fallback: match by email (in case the users table PK differs from auth UID)
+    // Fallback: match by email
     const { data: profileByEmail } = await supabase
       .from('users')
       .select('*')
       .eq('email', user.email)
       .maybeSingle();
 
-    if (profileByEmail) return profileByEmail;
+    if (profileByEmail) { _meCache = profileByEmail; _meCacheTime = Date.now(); return profileByEmail; }
 
     throw new Error('User not registered');
   },
+
+  clearCache() { _meCache = null; _meCacheTime = 0; },
 
   async signUp({ email, password }) {
     const { data, error } = await supabase.auth.signUp({ email, password });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { base44 } from "@/api/base44Client";
 import {
   Users, UserPlus, Calendar, ClipboardList, Loader2,
@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { AuthContext } from "@/lib/AuthContext";
 
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,7 +42,7 @@ const BG = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [coach, setCoach] = useState(null);
+  const { user: coach } = useContext(AuthContext);
 
   // Dialog states
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
@@ -59,13 +60,6 @@ export default function Dashboard() {
   const [traineeSearch, setTraineeSearch] = useState("");
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
-
-  useEffect(() => {
-    const loadCoach = async () => {
-      try { setCoach(await base44.auth.me()); } catch {}
-    };
-    loadCoach();
-  }, []);
 
   const {
     trainees: allTrainees = [],

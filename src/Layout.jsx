@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { base44 } from "@/api/base44Client";
-import { safeFetch } from "@/functions/GlobalErrorHandler";
+import { AuthContext } from "@/lib/AuthContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AdminCoachActivator from "@/components/AdminCoachActivator";
 import NotificationBadge from "@/components/NotificationBadge";
@@ -38,33 +37,10 @@ const LOGO_ICON = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/pu
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isLoadingAuth } = useContext(AuthContext);
+  const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isCoach, setIsCoach] = useState(false);
-
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await safeFetch(
-          base44.auth.me(),
-          { fallback: null, context: 'Layout loadUser' }
-        );
-
-        if (currentUser) {
-          setUser(currentUser);
-          const userIsCoach = currentUser.isCoach === true;
-          setIsCoach(userIsCoach);
-        }
-      } catch (error) {
-        console.error("[Layout] Error loading user:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadUser();
-  }, []);
+  const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
 
   // Scroll to top on page change
   useEffect(() => {
