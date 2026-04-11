@@ -157,9 +157,9 @@ export default function TrainingPlans() {
       }
 
       const plansToCreate = [];
-      const goalFocusString = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0
+      const goalFocusString = Array.isArray(planData.goal_focus)
         ? planData.goal_focus.join(', ')
-        : 'כוח';
+        : (planData.goal_focus || 'כוח');
 
       if (selectedTrainees && selectedTrainees.length > 0) {
         for (const traineeId of selectedTrainees) {
@@ -719,9 +719,9 @@ export default function TrainingPlans() {
           }}
           onSubmit={(data) => {
             if (editingPlan) {
-              const goalFocusString = Array.isArray(data.planData.goal_focus) && data.planData.goal_focus.length > 0
+              const goalFocusString = Array.isArray(data.planData.goal_focus)
                 ? data.planData.goal_focus.join(', ')
-                : 'כוח';
+                : (data.planData.goal_focus || 'כוח');
               updatePlanMutation.mutate({
                 id: editingPlan.id,
                 data: { ...data.planData, goal_focus: goalFocusString },
