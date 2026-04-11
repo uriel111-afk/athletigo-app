@@ -74,7 +74,77 @@ const ALL_PARAMETERS = [
 
 // --- COMPACT COMPONENTS ---
 
+// Time input with seconds/minutes toggle — stores value as plain seconds string
+const TimeUnitInput = ({ value, onChange }) => {
+  const toSecs = (v) => {
+    if (!v && v !== 0) return 0;
+    if (typeof v === 'string' && v.includes(':')) {
+      const [m, s] = v.split(':').map(Number);
+      return (m || 0) * 60 + (s || 0);
+    }
+    return parseInt(v) || 0;
+  };
+  const secs = toSecs(value);
+  const [unit, setUnit] = React.useState(secs > 0 && secs % 60 === 0 ? 'min' : 'sec');
+  const display = unit === 'min' ? Math.round(secs / 60) : secs;
 
+  const handleNumChange = (n) => {
+    const num = parseInt(n) || 0;
+    onChange(String(unit === 'min' ? num * 60 : num));
+  };
+  const handleUnitChange = (newUnit) => {
+    setUnit(newUnit);
+    if (newUnit === 'min') {
+      onChange(String(Math.round(secs / 60) * 60));
+    }
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <input type="number" min="0" value={display || ''}
+        onChange={(e) => handleNumChange(e.target.value)}
+        className="w-14 h-8 text-center text-sm font-bold border border-gray-200 rounded-md bg-white focus:border-[#FF6F20] focus:outline-none" />
+      <div className="flex rounded-md overflow-hidden border border-gray-200">
+        <button type="button" onClick={() => handleUnitChange('sec')}
+          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'sec' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+          שנ׳
+        </button>
+        <button type="button" onClick={() => handleUnitChange('min')}
+          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'min' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+          דק׳
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Weight input with kg/lb toggle — always stores in kg
+const WeightInput = ({ value, onChange }) => {
+  const [unit, setUnit] = React.useState('kg');
+  const kg = parseFloat(value) || 0;
+  const display = unit === 'lb' ? parseFloat((kg * 2.2046).toFixed(1)) : kg;
+
+  const handleChange = (n) => {
+    const num = parseFloat(n) || 0;
+    onChange(String(unit === 'lb' ? parseFloat((num / 2.2046).toFixed(2)) : num));
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <input type="number" min="0" step="0.5" value={display || ''}
+        onChange={(e) => handleChange(e.target.value)}
+        className="w-16 h-8 text-center text-sm font-bold border border-gray-200 rounded-md bg-white focus:border-[#FF6F20] focus:outline-none" />
+      <div className="flex rounded-md overflow-hidden border border-gray-200">
+        <button type="button" onClick={() => setUnit('kg')}
+          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'kg' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+          ק"ג
+        </button>
+        <button type="button" onClick={() => setUnit('lb')}
+          className={`px-2 h-8 text-[11px] font-bold transition-colors ${unit === 'lb' ? 'bg-[#FF6F20] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+          lb
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const CompactNumberInput = ({ value, onChange, placeholder, label }) => {
   return (
@@ -701,15 +771,15 @@ export default function ModernExerciseForm({ exercise, onChange }) {
       if (paramId === 'rest_between_exercises') return 'rest_between_exercises';
       if (paramId === 'exercise_list') return 'combo_exercises';
     }
-    // Spec ID → DB field mappings
-    if (paramId === 'reps') return 'reps_or_time';
-    if (paramId === 'weight_kg') return 'weight_kg';
-    if (paramId === 'load_type') return 'weight_type';
+    // Spec ID → DB field mappings (must match actual exercises table columns)
+    if (paramId === 'reps') return 'reps';           // DB col: reps
+    if (paramId === 'weight_kg') return 'weight';    // DB col: weight
+    if (paramId === 'load_type') return 'weight_type'; // DB col: weight_type
     if (paramId === 'exercise_list') return 'exercise_list';
-    if (paramId === 'foot_position') return 'leg_position';
-    if (paramId === 'static_hold') return 'static_hold_time';
-    if (paramId === 'notes') return 'notes';
-    if (paramId === 'tabata') return 'tabata_blocks';
+    if (paramId === 'foot_position') return 'leg_position'; // no DB col yet — stored in local state
+    if (paramId === 'static_hold') return 'static_hold_time'; // no DB col yet
+    if (paramId === 'notes') return 'description';   // DB col: description
+    if (paramId === 'tabata') return 'tabata_blocks'; // handled specially by save handler → tabata_data
     return paramId;
   };
 
@@ -797,17 +867,43 @@ export default function ModernExerciseForm({ exercise, onChange }) {
       return <TabataConfigurator exercise={exercise} onChange={updateEx} />;
     }
 
-    // Time / rest inputs
+    // Time inputs — number + שנ'/דק' toggle
     if (
       param.id.includes('time') ||
       param.id.includes('rest') ||
       param.id === 'static_hold'
     ) {
-      return <TimeInput value={value} onChange={v => updateEx(dbField, v)} />;
+      return <TimeUnitInput value={value} onChange={v => updateEx(dbField, v)} />;
+    }
+
+    // Weight input — number + ק"ג/lb toggle
+    if (param.id === 'weight_kg') {
+      return <WeightInput value={value} onChange={v => updateEx(dbField, v)} />;
+    }
+
+    // RPE — number input + range slider (1–10)
+    if (param.id === 'rpe') {
+      const rpeVal = Math.min(10, Math.max(1, parseInt(value) || 7));
+      return (
+        <div className="space-y-1.5 px-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">1</span>
+            <span className="text-base font-black text-[#FF6F20]">{rpeVal}</span>
+            <span className="text-xs text-gray-400">10</span>
+          </div>
+          <input type="range" min="1" max="10" step="1"
+            value={rpeVal}
+            onChange={e => updateEx(dbField, e.target.value)}
+            className="w-full accent-[#FF6F20] h-2 cursor-pointer" />
+          <div className="flex justify-between text-[9px] text-gray-300">
+            <span>קל</span><span>מקסימום</span>
+          </div>
+        </div>
+      );
     }
 
     // Numeric inputs
-    if (['reps', 'sets', 'rounds', 'rpe', 'weight_kg'].includes(param.id)) {
+    if (['reps', 'sets', 'rounds'].includes(param.id)) {
       return <CompactNumberInput value={value} onChange={v => updateEx(dbField, v)} placeholder="0" />;
     }
 

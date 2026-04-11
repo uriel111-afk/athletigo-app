@@ -412,13 +412,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       mode: "חזרות",
       weight_type: "bodyweight",
       ...exerciseData,
-      tabataPreview, // Save preview
-      tabataData,    // Save full JSON
+      // `name` column is NOT NULL in DB — must always be set
+      name: exerciseData.exercise_name || exerciseData.name || "תרגיל",
+      tabata_preview: tabataPreview, // DB col: tabata_preview
+      tabata_data: tabataData,       // DB col: tabata_data
       training_plan_id: plan.id,
       training_section_id: currentSection.id,
       order,
       completed: editingExercise?.completed || false
     };
+    // Remove camelCase duplicates that don't exist as DB columns
+    delete data.tabataPreview;
+    delete data.tabataData;
 
     try {
         if (editingExercise?.id) {
