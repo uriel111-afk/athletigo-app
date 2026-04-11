@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useLeadStats } from "../components/hooks/useLeadStats";
@@ -106,28 +107,49 @@ export default function Leads() {
 
   const convertToClientMutation = useMutation({
     mutationFn: async ({ lead, type = 'לקוח משלם' }) => {
-      if (!coach) throw new Error("Coach info not available");
+      if (!coach) throw new Error("פרטי מאמן חסרים");
 
-      // 1. Create User Profile
-      const newClient = await base44.entities.User.create({
-        full_name: lead.full_name,
-        phone: lead.phone,
-        email: lead.email || `${lead.phone}@temp.athletigo.com`,
-        birth_date: lead.birth_date,
-        age: lead.age,
-        parent_name: lead.parent_name,
-        health_declaration_accepted: lead.health_declaration,
-        health_issues: lead.medical_history,
-        
-        role: 'user',
-        client_type: type, // 'לקוח משלם' or 'מתאמן מזדמן'
-        main_goal: lead.main_goal,
-        lead_source: lead.source,
-        lead_id: lead.id,
-        onboarding_completed: true // Auto-complete onboarding as we have data
+      // 1. Generate auth credentials — use lead email or auto-generate
+      const email = lead.email || `${lead.full_name.replace(/\s+/g, '.').toLowerCase()}.${Date.now()}@athletigo.app`;
+      const password = `Ath${Date.now().toString(36)}!`;
+
+      // 2. Create auth user + profile via Edge Function (same as AddTraineeDialog)
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('create-trainee', {
+        body: {
+          email,
+          password,
+          full_name: lead.full_name,
+          phone: lead.phone || null,
+          birth_date: lead.birth_date ? new Date(lead.birth_date).toISOString() : null,
+          age: lead.age ? parseInt(lead.age) : null,
+          join_date: new Date().toISOString().split('T')[0],
+          coach_notes: lead.coach_notes || lead.notes || null,
+          client_status: type,
+        },
       });
 
-      // 2. Mark Lead as Converted
+      if (fnError || !fnData?.profile) {
+        const msg = fnData?.error || fnError?.message || 'שגיאה ביצירת מתאמן';
+        throw new Error(msg);
+      }
+
+      const newClient = fnData.profile;
+
+      // 3. Update the new user profile with lead-specific data
+      try {
+        await base44.entities.User.update(newClient.id, {
+          main_goal: lead.main_goal || null,
+          lead_source: lead.source || null,
+          lead_id: lead.id,
+          health_issues: lead.medical_history || null,
+          parent_name: lead.parent_name || null,
+          onboarding_completed: true,
+        });
+      } catch (e) {
+        console.warn("Non-critical: failed to update extra profile fields", e);
+      }
+
+      // 4. Mark Lead as Converted
       await base44.entities.Lead.update(lead.id, {
         converted_to_client: true,
         converted_date: new Date().toISOString(),
@@ -135,41 +157,42 @@ export default function Leads() {
         status: "סגור עסקה"
       });
 
-      // 3. Migrate Session History
-      // Find all sessions where this lead is a participant
-      // Note: We don't have a direct DB filter for array contents deep query easily without $elemMatch support guarantee
-      // So we fetch all sessions (or filter if possible) and iterate.
+      // 5. Migrate Session History — update participant IDs
       try {
-          const allSessions = await base44.entities.Session.list('-date', 1000);
-          const relevantSessions = allSessions.filter(s => 
-              s.participants?.some(p => p.trainee_id === lead.id)
+        const allSessions = await base44.entities.Session.list('-date', 1000);
+        const relevantSessions = allSessions.filter(s =>
+          s.participants?.some(p => p.trainee_id === lead.id)
+        );
+        for (const session of relevantSessions) {
+          const updatedParticipants = session.participants.map(p =>
+            p.trainee_id === lead.id
+              ? { ...p, trainee_id: newClient.id, trainee_name: newClient.full_name, is_guest: false }
+              : p
           );
-
-          for (const session of relevantSessions) {
-              const updatedParticipants = session.participants.map(p => {
-                  if (p.trainee_id === lead.id) {
-                      return { ...p, trainee_id: newClient.id, trainee_name: newClient.full_name, is_guest: false };
-                  }
-                  return p;
-              });
-              await base44.entities.Session.update(session.id, { participants: updatedParticipants });
-          }
+          await base44.entities.Session.update(session.id, { participants: updatedParticipants });
+        }
       } catch (e) {
-          console.error("Error migrating session history:", e);
-          // Don't fail conversion if history migration fails, but log it
+        console.warn("Non-critical: session migration error", e);
       }
 
-      return newClient;
+      return { newClient, email, password, wasAutoEmail: !lead.email };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['users-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast.success(`✅ הליד הומר ל${variables.type} בהצלחה!`);
+      if (result.wasAutoEmail) {
+        toast.success(`הליד "${variables.lead.full_name}" הומר ל${variables.type} בהצלחה`);
+      } else {
+        toast.success(`הליד הומר — אימייל: ${result.email}, סיסמה: ${result.password}`);
+      }
     },
     onError: (error) => {
       console.error("[Leads] Convert error:", error);
-      toast.error("❌ שגיאה בהמרת ליד ללקוח");
+      let msg = error?.message || "שגיאה לא צפויה";
+      if (msg.includes("already registered")) msg = "משתמש עם אימייל זה כבר קיים במערכת";
+      toast.error("שגיאה בהמרת ליד: " + msg);
     }
   });
 

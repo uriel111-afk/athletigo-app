@@ -232,13 +232,17 @@ export default function Dashboard() {
       {/* ── Dialogs ──────────────────────────────────────────────── */}
       <AddTraineeDialog open={isAddTraineeOpen} onClose={() => setIsAddTraineeOpen(false)} />
       <LeadFormDialog isOpen={isLeadDialogOpen} onClose={() => setIsLeadDialogOpen(false)}
-        onSubmit={(data) => createLeadMutation.mutate({ ...data, coach_id: coach?.id || null })}
+        onSubmit={async (data) => {
+          await createLeadMutation.mutateAsync({ ...data, coach_id: coach?.id || null });
+        }}
         isLoading={createLeadMutation.isPending} />
       <SessionFormDialog isOpen={isSessionDialogOpen} onClose={() => setIsSessionDialogOpen(false)}
-        onSubmit={(data) => createSessionMutation.mutate({ ...data, location: data.location || "לא צוין", duration: data.duration || 60, coach_id: coach?.id, coach_name: coach?.full_name || "המאמן", status: "ממתין לאישור" })}
+        onSubmit={async (data) => {
+          await createSessionMutation.mutateAsync({ ...data, location: data.location || "לא צוין", duration: data.duration || 60, coach_id: coach?.id, coach_name: coach?.full_name || "המאמן", status: "ממתין לאישור" });
+        }}
         trainees={allTrainees} isLoading={createSessionMutation.isPending} />
       <PlanFormDialog isOpen={isPlanDialogOpen} onClose={() => setIsPlanDialogOpen(false)}
-        onSubmit={(data) => createPlanMutation.mutate(data)}
+        onSubmit={async (data) => { await createPlanMutation.mutateAsync(data); }}
         trainees={allTrainees} isLoading={createPlanMutation.isPending} />
 
       {/* Select Trainee Dialog */}
