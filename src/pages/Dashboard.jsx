@@ -217,11 +217,16 @@ export default function Dashboard() {
       }
       return results;
     },
-    onSuccess: async () => {
+    onSuccess: async (results) => {
       await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setIsPlanDialogOpen(false);
       toast.success("✅ תוכנית נוצרה בהצלחה!");
+      if (results && results.length === 1 && results[0]?.id) {
+        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
+      } else {
+        navigate(createPageUrl("ActivePlans"));
+      }
     },
     onError: (error) => {
       toast.error("❌ שגיאה ביצירת תוכנית: " + (error.message || "נסה שוב"));
@@ -261,8 +266,8 @@ export default function Dashboard() {
             </span>
           </div>
 
-          {/* BLOCK 1 - Quick Actions (Orange/Green/Purple) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0 mb-2">
+          {/* BLOCK 1 - Quick Actions (Orange/Green/Purple/Orange) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0 mb-2">
             <Button onClick={() => setIsLeadDialogOpen(true)} className="h-16 bg-[#FF6F20] hover:bg-[#e65b12] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
               <UserPlus className="w-6 h-6" /> <span className="text-xs font-bold">הוסף ליד</span>
             </Button>
@@ -271,6 +276,9 @@ export default function Dashboard() {
             </Button>
             <Button onClick={() => setIsSessionDialogOpen(true)} className="h-16 bg-[#9C27B0] hover:bg-[#7B1FA2] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
               <Calendar className="w-6 h-6" /> <span className="text-xs font-bold">קבע מפגש</span>
+            </Button>
+            <Button onClick={() => setIsPlanDialogOpen(true)} className="h-16 bg-[#FF6F20] hover:bg-[#e65b12] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1 border-2 border-white/30">
+              <Dumbbell className="w-6 h-6" /> <span className="text-xs font-bold text-center leading-tight">בנה תוכנית<br/>חדשה</span>
             </Button>
           </div>
 

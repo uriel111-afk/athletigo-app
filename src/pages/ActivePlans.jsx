@@ -107,10 +107,13 @@ export default function ActivePlans() {
       }
       return results;
     },
-    onSuccess: () => {
+    onSuccess: (results) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
       setShowPlanDialog(false);
       toast.success("✅ תוכנית נוצרה בהצלחה!");
+      if (results && results.length === 1 && results[0]?.id) {
+        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
+      }
     },
     onError: (err) =>
       toast.error("❌ שגיאה ביצירת תוכנית: " + (err.message || "נסה שוב")),
