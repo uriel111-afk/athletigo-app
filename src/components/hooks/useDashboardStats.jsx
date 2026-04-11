@@ -91,13 +91,19 @@ export function useDashboardStats() {
         const safeLeadsConverted = Array.isArray(leadsConverted) ? leadsConverted : [];
         const safeLeadsTotal = Array.isArray(leadsTotal) ? leadsTotal : [];
 
-        // Users — filter to trainees that belong to this coach (have any service)
+        // Users — filter to trainees that belong to this coach
         const allTrainees = safeUsers.filter(u => u.role === 'user' || u.role === 'trainee');
-        const coachTraineeIds = new Set(safeActiveServices.map(s => s.trainee_id));
-        const trainees = allTrainees.filter(t => coachTraineeIds.has(t.id));
+        const serviceTraineeIds = new Set(safeActiveServices.map(s => s.trainee_id));
+        // Trainees belong to coach if they have a service OR their coach_id matches
+        const trainees = allTrainees.filter(t => serviceTraineeIds.has(t.id) || t.coach_id === user?.id);
 
-        // Active Clients (Unique Trainees with Active Service — already filtered by coach_id)
+        // Active Clients = has active service OR user status is 'active' with matching coach_id
         const activeClientIds = new Set(safeActiveServices.map(s => s.trainee_id));
+        allTrainees.forEach(t => {
+          if (t.coach_id === user?.id && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
+            activeClientIds.add(t.id);
+          }
+        });
         const activeClientsCount = activeClientIds.size;
 
         // Revenue
@@ -209,6 +215,6 @@ export function useDashboardStats() {
     },
     staleTime: STALE_TIME,
     gcTime: CACHE_TIME,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: true
   });
 }

@@ -46,15 +46,22 @@ export function useClientStats() {
     );
     const activeClientIds = new Set(activeServiceRecords.map(s => s.trainee_id));
 
-    // Total = trainees that have any service with this coach
-    const coachTraineeIds = new Set(allServices.map(s => s.trainee_id));
-    const coachTrainees = allTrainees.filter(t => coachTraineeIds.has(t.id));
+    // Also count trainees with status='active' and coach_id matching
+    allTrainees.forEach(t => {
+      if (t.coach_id === user?.id && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
+        activeClientIds.add(t.id);
+      }
+    });
+
+    // Total = trainees with service OR coach_id matching
+    const serviceIds = new Set(allServices.map(s => s.trainee_id));
+    const coachTrainees = allTrainees.filter(t => serviceIds.has(t.id) || t.coach_id === user?.id);
 
     return {
       activeClientsCount: activeClientIds.size,
       totalClientsCount: coachTrainees.length,
     };
-  }, [allTrainees, allServices]);
+  }, [allTrainees, allServices, user?.id]);
 
   return {
     allTrainees,

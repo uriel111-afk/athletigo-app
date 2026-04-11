@@ -72,9 +72,10 @@ export default function AllUsers() {
 
     // Type filter
     if (filterType === 'active') {
-        // Check if user has any active service
+        // Active = has active service OR user status is 'active' and belongs to this coach
         const hasActiveService = allServices.some(s => s.trainee_id === trainee.id && s.status === 'פעיל');
-        if (!hasActiveService) return false;
+        const isActiveUser = trainee.status === 'active' || trainee.client_status === 'לקוח פעיל';
+        if (!hasActiveService && !isActiveUser) return false;
     } else if (filterType === 'paying') {
         // Check if user has paid services
         const hasPaidService = allServices.some(s => s.trainee_id === trainee.id && s.payment_status === 'שולם');
