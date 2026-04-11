@@ -49,10 +49,24 @@ const ShekelIcon = (props) =>
   {...props}
   className={`font-sans font-bold inline-flex items-center justify-center ${props.className || ''}`}
   style={{ ...props.style, fontSize: '1.2em', lineHeight: 1 }}>
-
     ₪
   </span>;
 
+// ── Design helpers ──────────────────────────────────────────────────────────
+const SectionHeader = ({ title }) => (
+  <div className="flex items-center gap-3 my-4">
+    <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: '#FF6F20' }} />
+    <span className="text-xs font-black text-gray-800 whitespace-nowrap">{title}</span>
+    <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: '#FF6F20' }} />
+  </div>
+);
+
+const BG_TEXTURE = {
+  backgroundColor: '#FDF8F3',
+  backgroundImage: `
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cpath d='M20 60 Q60 20 100 60 T180 60' fill='none' stroke='%23e8ddd0' stroke-width='0.8'/%3E%3Cpath d='M10 100 Q50 60 90 100 T170 100' fill='none' stroke='%23e8ddd0' stroke-width='0.6'/%3E%3Cpath d='M30 140 Q70 100 110 140 T190 140' fill='none' stroke='%23e8ddd0' stroke-width='0.7'/%3E%3C/svg%3E")
+  `,
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -245,150 +259,203 @@ export default function Dashboard() {
 
   return (
     <ProtectedCoachPage>
-      <div className="h-[100dvh] bg-[#FAFAFA] flex flex-col overflow-hidden" dir="rtl">
-        <div className="max-w-md mx-auto w-full px-4 py-2 pb-16 flex-1 flex flex-col h-full gap-2">
-          
-          {/* Header */}
-          <div className="flex items-center justify-between shrink-0 px-1">
+      <div className="min-h-[100dvh] flex flex-col overflow-x-hidden" dir="rtl" style={BG_TEXTURE}>
+        <div className="max-w-md mx-auto w-full px-4 pt-6 pb-24 flex-1 flex flex-col">
+
+          {/* ── Header ─────────────────────────────────────────────────── */}
+          <div className="flex items-center justify-between mb-1 px-1">
             <button
               onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
-              className="flex items-center gap-1.5 text-gray-500 text-xs font-semibold bg-white border border-gray-200 px-3 py-2 rounded-xl min-h-[44px] hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
+              className="flex items-center gap-1.5 text-gray-400 text-[10px] font-semibold hover:text-red-500 transition-colors"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
               יציאה
             </button>
-            <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-[#FF6F20]" />
-              <h1 className="text-lg font-black text-gray-900">דשבורד מאמן</h1>
-            </div>
-            <span className="text-[10px] text-gray-400 font-mono bg-white px-2 py-0.5 rounded-full border">
-               {lastUpdated.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+            <span className="text-[10px] text-gray-400 font-mono">
+              {lastUpdated.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
-
-          {/* BLOCK 1 - Quick Actions (Orange/Green/Purple/Orange) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0 mb-2">
-            <Button onClick={() => setIsLeadDialogOpen(true)} className="h-16 bg-[#FF6F20] hover:bg-[#e65b12] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <UserPlus className="w-6 h-6" /> <span className="text-xs font-bold">הוסף ליד</span>
-            </Button>
-            <Button onClick={() => setIsAddTraineeOpen(true)} className="h-16 bg-[#4CAF50] hover:bg-[#43A047] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <Plus className="w-6 h-6" /> <span className="text-xs font-bold">הוסף מתאמן</span>
-            </Button>
-            <Button onClick={() => setIsSessionDialogOpen(true)} className="h-16 bg-[#9C27B0] hover:bg-[#7B1FA2] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <Calendar className="w-6 h-6" /> <span className="text-xs font-bold">קבע מפגש</span>
-            </Button>
-            <Button onClick={() => setIsPlanDialogOpen(true)} className="h-16 bg-[#FF6F20] hover:bg-[#e65b12] text-white border-none rounded-[16px] shadow-sm p-0 flex flex-col items-center justify-center gap-1 border-2 border-white/30">
-              <Dumbbell className="w-6 h-6" /> <span className="text-xs font-bold text-center leading-tight">בנה תוכנית<br/>חדשה</span>
-            </Button>
+          <div className="text-center mb-2">
+            <h2 className="text-sm font-black tracking-[0.15em] text-[#FF6F20]" style={{ fontFamily: 'Barlow, sans-serif' }}>ATHLETIGO</h2>
+            <h1 className="text-2xl font-black text-gray-900 mt-0.5">דשבורד מאמן</h1>
           </div>
 
-          {/* BLOCK 2 - Performance & Goals (Gray/Yellow) */}
-          <div className="mt-2 mb-2 grid grid-cols-2 md:grid-cols-5 gap-1.5 shrink-0">
-            <Button onClick={() => setIsPlanDialogOpen(true)} className="h-16 bg-[#607D8B] hover:bg-[#546E7A] text-white border-none rounded-[12px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <ClipboardList className="w-6 h-6" />
-              <span className="text-[10px] font-medium leading-none">תוכנית</span>
-            </Button>
-            <Button onClick={() => setIsBaselineDialogOpen(true)} className="h-16 bg-[#FFD700] hover:bg-[#FFC107] text-black border-none rounded-[12px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <Activity className="w-6 h-6" />
-              <span className="text-[10px] font-medium leading-none">Baseline</span>
-            </Button>
-            <Button onClick={() => handleActionClick('result')} className="h-16 bg-[#FFD700] hover:bg-[#FFC107] text-black border-none rounded-[12px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <Award className="w-6 h-6" />
-              <span className="text-[10px] font-medium leading-none">שיא</span>
-            </Button>
-            <Button onClick={() => handleActionClick('goal')} className="h-16 bg-[#FFD700] hover:bg-[#FFC107] text-black border-none rounded-[12px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <Target className="w-6 h-6" />
-              <span className="text-[10px] font-medium leading-none">יעד</span>
-            </Button>
-            <Button onClick={() => handleActionClick('measurement')} className="h-16 bg-[#FFD700] hover:bg-[#FFC107] text-black border-none rounded-[12px] shadow-sm p-0 flex flex-col items-center justify-center gap-1">
-              <Activity className="w-6 h-6" />
-              <span className="text-[10px] font-medium leading-none">מדידה</span>
-            </Button>
+          {/* ── פעולות הליבה ────────────────────────────────────────── */}
+          <SectionHeader title="פעולות הליבה" />
+          <div className="flex flex-col gap-2 mb-1">
+            <button
+              onClick={() => setIsLeadDialogOpen(true)}
+              className="w-full h-12 bg-white rounded-full border border-gray-200 shadow-sm flex items-center justify-center gap-2 hover:border-[#FF6F20] hover:shadow-md transition-all active:scale-[0.98]"
+            >
+              <span className="text-[#FF6F20] font-black text-sm">A:</span>
+              <span className="text-sm font-bold text-gray-800">הוסף ליד</span>
+            </button>
+            <button
+              onClick={() => setIsAddTraineeOpen(true)}
+              className="w-full h-12 bg-white rounded-full border border-gray-200 shadow-sm flex items-center justify-center gap-2 hover:border-[#FF6F20] hover:shadow-md transition-all active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4 text-[#FF6F20]" />
+              <span className="text-sm font-bold text-gray-800">הוסף מתאמן</span>
+            </button>
+            <button
+              onClick={() => setIsSessionDialogOpen(true)}
+              className="w-full h-12 bg-white rounded-full border border-gray-200 shadow-sm flex items-center justify-center gap-2 hover:border-[#FF6F20] hover:shadow-md transition-all active:scale-[0.98]"
+            >
+              <Calendar className="w-4 h-4 text-[#FF6F20]" />
+              <span className="text-sm font-bold text-gray-800">קבע מפגש</span>
+            </button>
           </div>
 
-          {/* BLOCK 3 - Management Navigation (White Cards) */}
-          <div className="mt-2 mb-2 grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0">
-            <div onClick={() => navigate(createPageUrl("Sessions"))} className="bg-white h-14 rounded-[12px] border border-gray-200 flex flex-col items-center justify-center px-1 cursor-pointer hover:bg-gray-50 shadow-sm gap-0.5">
-              <div className="flex items-center gap-1">
-                <Dumbbell className="w-4 h-4 text-[#9C27B0]" />
-                <span className="text-sm font-black text-[#9C27B0]">{monthlyCompletedSessionsCount}</span>
+          {/* ── Two side-by-side cards ──────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            {/* Card: ניהול לקוחות */}
+            <div className="bg-white rounded-2xl border border-[#FF6F20]/20 shadow-sm overflow-hidden">
+              <div className="bg-[#FFF7ED] px-3 py-2 border-b border-[#FF6F20]/10">
+                <h3 className="text-[11px] font-black text-gray-800 text-center">ניהול לקוחות</h3>
               </div>
-              <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">אימונים ומפגשים</span>
-            </div>
-
-            <div onClick={() => navigate(createPageUrl("ActivePlans"))} className="bg-white h-14 rounded-[12px] border border-gray-200 flex flex-col items-center justify-center px-1 cursor-pointer hover:bg-gray-50 shadow-sm gap-0.5">
-              <div className="flex items-center gap-1">
-                <ClipboardList className="w-4 h-4 text-[#607D8B]" />
-                <span className="text-sm font-black text-[#607D8B]">{activePlansCount}</span>
+              <div className="grid grid-cols-2 gap-1 p-2.5">
+                <button onClick={() => navigate(createPageUrl("AllUsers") + "?filter=active")} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <Users className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">מתאמנים</span>
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                </button>
+                <button onClick={() => navigate(createPageUrl("ActivePlans"))} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <ClipboardList className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">תוכניות</span>
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                </button>
+                <button onClick={() => handleActionClick('goal')} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <Target className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">יעדים</span>
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                </button>
+                <button onClick={() => navigate(createPageUrl("Leads"))} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">לידים</span>
+                  <span className="w-2 h-2 rounded-full bg-yellow-400" />
+                </button>
               </div>
-              <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">תוכניות פעילות</span>
             </div>
 
-            <div onClick={() => navigate(createPageUrl("AllUsers"))} className="bg-white h-14 rounded-[12px] border border-gray-200 flex flex-col items-center justify-center px-1 cursor-pointer hover:bg-gray-50 shadow-sm gap-0.5">
-              <div className="flex items-center gap-1">
-                <Users className="w-4 h-4 text-[#212121]" />
-                <span className="text-sm font-black text-[#212121]">{totalClientsCount}</span>
+            {/* Card: מדדים פיזיים */}
+            <div className="bg-white rounded-2xl border border-[#FF6F20]/20 shadow-sm overflow-hidden">
+              <div className="bg-[#FFF7ED] px-3 py-2 border-b border-[#FF6F20]/10">
+                <h3 className="text-[11px] font-black text-gray-800 text-center">מדדים פיזיים</h3>
               </div>
-              <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">כל המשתמשים</span>
+              <div className="grid grid-cols-2 gap-1 p-2.5">
+                <button onClick={() => setIsBaselineDialogOpen(true)} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <Activity className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">Baseline</span>
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                </button>
+                <button onClick={() => handleActionClick('result')} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <Award className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">שיאים</span>
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                </button>
+                <button onClick={() => handleActionClick('measurement')} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <Star className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">מדידות</span>
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                </button>
+                <button onClick={() => setIsPlanDialogOpen(true)} className="flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
+                    <Dumbbell className="w-4 h-4 text-[#FF6F20]" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-600">תוכנית</span>
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* BLOCK 4 - Stats View (Compact Grid) */}
-          <div className="my-1 grid grid-cols-1 md:grid-cols-2 gap-2 flex-1 content-start">
-            <div onClick={() => navigate(createPageUrl("AllUsers") + "?filter=active")} className="bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-green-50">
-              <span className="text-2xl font-black text-[#4CAF50] leading-none mb-1">{activeClientsCount}</span>
-              <span className="text-[10px] font-bold text-gray-500">לקוחות פעילים</span>
-            </div>
-            <div onClick={() => navigate(createPageUrl("Leads") + "?filter=new")} className="bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-yellow-50">
-              <span className="text-2xl font-black text-[#FFC107] leading-none mb-1">{newLeadsCount}</span>
-              <span className="text-[10px] font-bold text-gray-500">לידים חדשים</span>
-            </div>
-            
-            <div onClick={() => navigate(createPageUrl("Sessions") + "?status=upcoming")} className="bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-purple-50">
-              <span className="text-2xl font-black text-[#9C27B0] leading-none mb-1">{upcomingSessionsCount}</span>
-              <span className="text-[10px] font-bold text-gray-500">מפגשים קרובים</span>
-            </div>
-            <div onClick={() => navigate(createPageUrl("ConversionDashboard"))} className="bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-green-50 cursor-pointer">
-              <span className="text-2xl font-black text-[#4CAF50] leading-none mb-1">{conversionRate}%</span>
-              <span className="text-[10px] font-bold text-gray-500">שיעור המרה</span>
-            </div>
-            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?period=current_month")} className="col-span-2 bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-blue-50">
-              <span className="text-xl font-black text-[#2196F3] leading-none mb-1">₪{(monthlyRevenue || 0).toLocaleString()}</span>
-              <span className="text-[10px] font-bold text-gray-500">סה"כ הכנסות החודש</span>
+          {/* ── המשימות — Stats ────────────────────────────────────── */}
+          <SectionHeader title="המשימות" />
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <div className="grid grid-cols-3 gap-3">
+              {/* Conversion rate */}
+              <button onClick={() => navigate(createPageUrl("ConversionDashboard"))} className="flex flex-col items-center gap-1">
+                <span className="text-2xl font-black text-[#4CAF50]">{conversionRate}%</span>
+                <span className="text-[10px] font-bold text-gray-500">Achievement</span>
+              </button>
+              {/* Trainees */}
+              <button onClick={() => navigate(createPageUrl("AllUsers") + "?filter=active")} className="flex flex-col items-center gap-1 border-x border-gray-100">
+                <span className="text-2xl font-black text-[#FF6F20]">{activeClientsCount}</span>
+                <span className="text-[10px] font-bold text-gray-500">Trainees</span>
+              </button>
+              {/* Total users */}
+              <button onClick={() => navigate(createPageUrl("AllUsers"))} className="flex flex-col items-center gap-1">
+                <span className="text-2xl font-black text-gray-800">{totalClientsCount}</span>
+                <span className="text-[10px] font-bold text-gray-500">Users</span>
+              </button>
             </div>
           </div>
 
-          {/* BLOCK 5 - Detailed Revenue & Groups */}
-          <div className="mb-2 grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0">
-             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=personal")} className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-orange-50 cursor-pointer">
-                <span className="text-sm font-black text-[#FF6F20]">₪{revenueByType.personal.toLocaleString()}</span>
-                <span className="text-[9px] font-bold text-gray-400 text-center">הכנסות אישי</span>
-             </div>
-             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=group")} className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-blue-50 cursor-pointer">
-                <span className="text-sm font-black text-[#2196F3]">₪{revenueByType.group.toLocaleString()}</span>
-                <span className="text-[9px] font-bold text-gray-400 text-center">הכנסות קבוצה</span>
-             </div>
-             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=online")} className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-purple-50 cursor-pointer">
-                <span className="text-sm font-black text-[#9C27B0]">₪{revenueByType.online.toLocaleString()}</span>
-                <span className="text-[9px] font-bold text-gray-400 text-center">הכנסות אונליין</span>
-             </div>
+          {/* ── Quick stats row ────────────────────────────────────── */}
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <div onClick={() => navigate(createPageUrl("Sessions"))} className="bg-white rounded-xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+              <Dumbbell className="w-4 h-4 text-[#FF6F20] mb-1" />
+              <span className="text-lg font-black text-gray-900">{monthlyCompletedSessionsCount}</span>
+              <span className="text-[9px] font-bold text-gray-400">אימונים</span>
+            </div>
+            <div onClick={() => navigate(createPageUrl("Sessions") + "?status=upcoming")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+              <Calendar className="w-4 h-4 text-[#FF6F20] mb-1" />
+              <span className="text-lg font-black text-gray-900">{upcomingSessionsCount}</span>
+              <span className="text-[9px] font-bold text-gray-400">מפגשים קרובים</span>
+            </div>
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?period=current_month")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+              <ShekelIcon className="text-[#FF6F20] mb-1" style={{ fontSize: '16px' }} />
+              <span className="text-lg font-black text-gray-900">₪{(monthlyRevenue || 0).toLocaleString()}</span>
+              <span className="text-[9px] font-bold text-gray-400">הכנסות</span>
+            </div>
           </div>
 
-          <div className="mb-2 grid grid-cols-2 gap-2 shrink-0">
-             <div onClick={() => navigate(createPageUrl("Sessions") + "?view=groups")} className="bg-white h-[60px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-blue-50 cursor-pointer">
-                <div className="flex items-center gap-1">
-                    <Users className="w-4 h-4 text-blue-500" />
-                    <span className="text-lg font-black text-blue-500">{groupTraineesCount}</span>
-                </div>
-                <span className="text-[10px] font-bold text-gray-500">מתאמני קבוצות</span>
-             </div>
-             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?filter=renewals")} className="bg-white h-[60px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-red-50 cursor-pointer">
-                <div className="flex items-center gap-1">
-                    <Activity className="w-4 h-4 text-red-500" />
-                    <span className="text-lg font-black text-red-500">{renewalsCount}</span>
-                </div>
-                <span className="text-[10px] font-bold text-gray-500">חידושים קרובים (30 יום)</span>
-             </div>
+          {/* ── Revenue breakdown ──────────────────────────────────── */}
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=personal")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
+              <span className="text-xs font-black text-[#FF6F20]">₪{revenueByType.personal.toLocaleString()}</span>
+              <span className="text-[9px] text-gray-400 font-bold">אישי</span>
+            </div>
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=group")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
+              <span className="text-xs font-black text-[#FF6F20]">₪{revenueByType.group.toLocaleString()}</span>
+              <span className="text-[9px] text-gray-400 font-bold">קבוצה</span>
+            </div>
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=online")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
+              <span className="text-xs font-black text-[#FF6F20]">₪{revenueByType.online.toLocaleString()}</span>
+              <span className="text-[9px] text-gray-400 font-bold">אונליין</span>
+            </div>
+          </div>
+
+          {/* ── Bottom row — groups & renewals ─────────────────────── */}
+          <div className="grid grid-cols-2 gap-2 mt-2 mb-4">
+            <div onClick={() => navigate(createPageUrl("Sessions") + "?view=groups")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-2.5 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#FF6F20]" />
+                <span className="text-lg font-black text-gray-900">{groupTraineesCount}</span>
+              </div>
+              <span className="text-[9px] font-bold text-gray-400">מתאמני קבוצות</span>
+            </div>
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?filter=renewals")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-2.5 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+              <div className="flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-[#FF6F20]" />
+                <span className="text-lg font-black text-gray-900">{renewalsCount}</span>
+              </div>
+              <span className="text-[9px] font-bold text-gray-400">חידושים (30 יום)</span>
+            </div>
           </div>
 
         </div>
