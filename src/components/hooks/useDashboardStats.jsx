@@ -91,10 +91,12 @@ export function useDashboardStats() {
         const safeLeadsConverted = Array.isArray(leadsConverted) ? leadsConverted : [];
         const safeLeadsTotal = Array.isArray(leadsTotal) ? leadsTotal : [];
 
-        // Users
-        const trainees = safeUsers.filter(u => u.role === 'user' || u.role === 'trainee');
-        
-        // Active Clients (Unique Trainees with Active Service)
+        // Users — filter to trainees that belong to this coach (have any service)
+        const allTrainees = safeUsers.filter(u => u.role === 'user' || u.role === 'trainee');
+        const coachTraineeIds = new Set(safeActiveServices.map(s => s.trainee_id));
+        const trainees = allTrainees.filter(t => coachTraineeIds.has(t.id));
+
+        // Active Clients (Unique Trainees with Active Service — already filtered by coach_id)
         const activeClientIds = new Set(safeActiveServices.map(s => s.trainee_id));
         const activeClientsCount = activeClientIds.size;
 
