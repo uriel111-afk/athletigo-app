@@ -101,7 +101,7 @@ export default function PlanFormDialog({
     const finalPlanData = {
       plan_name: planForm.plan_name,
       description: planForm.description || "",
-      goal_focus: Array.isArray(planForm.goal_focus) ? planForm.goal_focus.join(', ') : (planForm.goal_focus || 'כוח'),
+      goal_focus: Array.isArray(planForm.goal_focus) && planForm.goal_focus.length > 0 ? planForm.goal_focus : ['כוח'],
       series_id: planForm.series_id || null
     };
 

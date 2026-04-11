@@ -435,9 +435,9 @@ export default function UnifiedClientCard({
 
   const createPlanMutation = useMutation({
     mutationFn: async ({ planData }) => {
-      const goalFocusString = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0
-        ? planData.goal_focus.join(', ')
-        : 'כוח';
+      const goalFocusArray = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0
+        ? planData.goal_focus
+        : ['כוח'];
 
       const result = await base44.entities.TrainingPlan.create({
         plan_name: planData.plan_name,
@@ -445,7 +445,7 @@ export default function UnifiedClientCard({
         assigned_to_name: currentClient.full_name,
         created_by: coach?.id,
         created_by_name: coach?.full_name,
-        goal_focus: goalFocusString,
+        goal_focus: goalFocusArray,
         description: planData.description || "",
         start_date: new Date().toISOString().split('T')[0],
         status: "פעילה",
@@ -1331,7 +1331,7 @@ export default function UnifiedClientCard({
                         )}
                         <div className="flex items-center gap-2 text-[10px] md:text-xs" style={{ color: '#000000' }}>
                           <Target className="w-3 h-3" style={{ color: '#FF6F20' }} />
-                          <span className="font-medium">{plan.goal_focus}</span>
+                          <span className="font-medium">{Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</span>
                         </div>
                       </div>
                     ))}
@@ -1368,7 +1368,7 @@ export default function UnifiedClientCard({
                         )}
                         <div className="flex items-center gap-2 text-[10px] md:text-xs" style={{ color: '#000000' }}>
                           <Target className="w-3 h-3" style={{ color: '#2196F3' }} />
-                          <span className="font-medium">{plan.goal_focus}</span>
+                          <span className="font-medium">{Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</span>
                         </div>
                       </div>
                     ))}

@@ -172,7 +172,7 @@ export default function Dashboard() {
   const createPlanMutation = useMutation({
     mutationFn: async ({ planData, selectedTrainees }) => {
       if (!coach || !coach.id) throw new Error("פרטי מאמן חסרים");
-      const goalFocusString = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0 ? planData.goal_focus.join(', ') : 'כוח';
+      const goalFocusArray = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0 ? planData.goal_focus : ['כוח'];
       const plansToCreate = [];
 
       if (selectedTrainees && selectedTrainees.length > 0) {
@@ -185,7 +185,7 @@ export default function Dashboard() {
               assigned_to_name: trainee.full_name,
               created_by: coach.id,
               created_by_name: coach.full_name,
-              goal_focus: goalFocusString,
+              goal_focus: goalFocusArray,
               description: planData.description || "",
               start_date: new Date().toISOString().split('T')[0],
               status: "פעילה",
@@ -200,7 +200,7 @@ export default function Dashboard() {
           assigned_to_name: "",
           created_by: coach.id,
           created_by_name: coach.full_name,
-          goal_focus: goalFocusString,
+          goal_focus: goalFocusArray,
           description: planData.description || "",
           start_date: new Date().toISOString().split('T')[0],
           status: "פעילה",

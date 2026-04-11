@@ -1624,7 +1624,7 @@ export default function TraineeProfile() {
                                   <h4 className="font-bold text-base">{plan.plan_name}</h4>
                                   {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs">פתח</Button>}
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
+                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
                                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${progress.percent}%` }} /></div>
                               </div>
                             );
@@ -1644,7 +1644,7 @@ export default function TraineeProfile() {
                                   <h4 className="font-bold text-base">{plan.plan_name}</h4>
                                   {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("TrainingPlans") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs">פתח</Button>}
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
+                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
                                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-gray-500" style={{ width: `${progress.percent}%` }} /></div>
                               </div>
                             );

@@ -40,7 +40,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, onSelect, onDuplic
               <h3 className="text-xl font-black truncate text-black">{plan.plan_name}</h3>
               {plan.status === 'פעילה' && <span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#4CAF50] text-xs font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> פעילה</span>}
             </div>
-            <p className="text-sm text-[#7D7D7D] mb-1">🎯 {plan.goal_focus}</p>
+            <p className="text-sm text-[#7D7D7D] mb-1">🎯 {Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</p>
             
             {/* Improvement Indicator */}
             {improvement && (
@@ -248,14 +248,14 @@ export default function MyPlan() {
 
   const createPlanMutation = useMutation({
     mutationFn: async ({ planData }) => {
-      const goalFocusString = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0 ? planData.goal_focus.join(', ') : 'כוח';
+      const goalFocusArray = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0 ? planData.goal_focus : ['כוח'];
       const newPlan = await base44.entities.TrainingPlan.create({
         plan_name: planData.plan_name,
         assigned_to: user.id,
         assigned_to_name: user.full_name,
         created_by: user.id,
         created_by_name: user.full_name,
-        goal_focus: goalFocusString,
+        goal_focus: goalFocusArray,
         description: planData.description || "",
         start_date: new Date().toISOString().split('T')[0],
         status: "פעילה",

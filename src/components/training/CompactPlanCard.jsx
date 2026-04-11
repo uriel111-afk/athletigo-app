@@ -42,7 +42,7 @@ export default function CompactPlanCard({ plan, exercises = [], onSelect, onEdit
 
         {/* Tags Area */}
         <div className="flex flex-wrap gap-1.5 mb-3">
-          {plan.goal_focus && plan.goal_focus.split(',').map((tag, i) => (
+          {plan.goal_focus && (Array.isArray(plan.goal_focus) ? plan.goal_focus : plan.goal_focus.split(',')).map((tag, i) => (
             <span key={i} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-100 truncate max-w-[100px]">
               {tag.trim()}
             </span>

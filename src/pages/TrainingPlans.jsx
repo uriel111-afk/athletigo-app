@@ -157,9 +157,9 @@ export default function TrainingPlans() {
       }
 
       const plansToCreate = [];
-      const goalFocusString = Array.isArray(planData.goal_focus)
-        ? planData.goal_focus.join(', ')
-        : (planData.goal_focus || 'כוח');
+      const goalFocusArray = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0
+        ? planData.goal_focus
+        : ['כוח'];
 
       if (selectedTrainees && selectedTrainees.length > 0) {
         for (const traineeId of selectedTrainees) {
@@ -171,7 +171,7 @@ export default function TrainingPlans() {
               assigned_to_name: trainee.full_name,
               created_by: coach.id,
               created_by_name: coach.full_name,
-              goal_focus: goalFocusString,
+              goal_focus: goalFocusArray,
               description: planData.description || "",
               start_date: new Date().toISOString().split('T')[0],
               status: "פעילה",
@@ -187,7 +187,7 @@ export default function TrainingPlans() {
           assigned_to_name: null,
           created_by: coach.id,
           created_by_name: coach.full_name,
-          goal_focus: goalFocusString,
+          goal_focus: goalFocusArray,
           description: planData.description || "",
           start_date: new Date().toISOString().split('T')[0],
           status: "פעילה",
@@ -453,7 +453,7 @@ export default function TrainingPlans() {
     const matchesSearch = 
       plan.plan_name?.toLowerCase().includes(searchLower) ||
       plan.assigned_to_name?.toLowerCase().includes(searchLower) ||
-      plan.goal_focus?.toLowerCase().includes(searchLower);
+      (Array.isArray(plan.goal_focus) ? plan.goal_focus.join(' ') : (plan.goal_focus || '')).toLowerCase().includes(searchLower);
     
     if (!matchesSearch) return false;
 
@@ -719,12 +719,12 @@ export default function TrainingPlans() {
           }}
           onSubmit={(data) => {
             if (editingPlan) {
-              const goalFocusString = Array.isArray(data.planData.goal_focus)
-                ? data.planData.goal_focus.join(', ')
-                : (data.planData.goal_focus || 'כוח');
+              const goalFocusArray = Array.isArray(data.planData.goal_focus) && data.planData.goal_focus.length > 0
+                ? data.planData.goal_focus
+                : ['כוח'];
               updatePlanMutation.mutate({
                 id: editingPlan.id,
-                data: { ...data.planData, goal_focus: goalFocusString },
+                data: { ...data.planData, goal_focus: goalFocusArray },
                 originalPlan: editingPlan
               });
             } else {
@@ -734,7 +734,7 @@ export default function TrainingPlans() {
           trainees={trainees}
           editingPlan={editingPlan ? {
             ...editingPlan,
-            goal_focus: editingPlan.goal_focus ? editingPlan.goal_focus.split(', ').filter(Boolean) : []
+            goal_focus: Array.isArray(editingPlan.goal_focus) ? editingPlan.goal_focus : (editingPlan.goal_focus ? editingPlan.goal_focus.split(', ').filter(Boolean) : [])
           } : null}
           isLoading={createPlanMutation.isPending || updatePlanMutation.isPending}
         />
