@@ -56,12 +56,6 @@ export function useFinancialStats() {
     ? (((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100).toFixed(1)
     : 0;
 
-  // --- Logging (Required) ---
-  console.log("USE_FINANCIAL_STATS_paymentsCount", payments.length);
-  console.log("USE_FINANCIAL_STATS_totalRevenue", totalRevenue);
-  console.log("USE_FINANCIAL_STATS_monthlyRevenue", monthlyRevenue);
-  console.log("USE_FINANCIAL_STATS_lastMonthRevenue", lastMonthRevenue);
-
   return {
     payments, // Expose raw if needed
     totalRevenue,

@@ -66,9 +66,6 @@ export default function FinancialOverview() {
     isLoading: statsLoading
   } = useFinancialStats();
 
-  // Debug Log (Required)
-  console.log("FINANCIALOVERVIEW_monthlyRevenue", monthlyRevenue);
-
   // 2. Fetch ALL services for the Table (List View)
   // We do this separately so we can show Pending/Partial items in the table
   const { data: allServices = [], isLoading: listLoading } = useQuery({

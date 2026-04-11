@@ -9,7 +9,7 @@ export const QUERY_KEYS = {
 };
 
 export const CACHE_CONFIG = {
-  STALE_TIME: 1000 * 60 * 5, // 5 minutes
-  GC_TIME: 1000 * 60 * 30,   // 30 minutes
-  REFETCH_INTERVAL: 30000    // 30 seconds
+  STALE_TIME: 1000 * 60,      // 1 minute (matches global default)
+  GC_TIME: 1000 * 60 * 10,    // 10 minutes
+  REFETCH_INTERVAL: false      // disabled — use refetchOnWindowFocus instead
 };

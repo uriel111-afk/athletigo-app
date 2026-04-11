@@ -1,220 +1,174 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useContext } from "react";
 import { base44 } from "@/api/base44Client";
 import { startOfMonth, endOfMonth, format, addMonths } from "date-fns";
-import { useContext } from "react";
 import { AuthContext } from "@/lib/AuthContext";
+import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 
-const CACHE_TIME = 1000 * 60 * 5; // 5 minutes
-const STALE_TIME = 1000 * 60 * 2; // 2 minutes
+// ─────────────────────────────────────────────────────────────────────
+// useDashboardStats — computes all dashboard metrics from shared caches
+// Uses the SAME query keys as useAppPrefetch, so data is already cached
+// on first render. Zero duplicate network calls.
+// ─────────────────────────────────────────────────────────────────────
 
 export function useDashboardStats() {
-  const queryClient = useQueryClient();
   const { user } = useContext(AuthContext);
 
-  return useQuery({
-    queryKey: ['dashboard-stats'],
+  // ── Shared queries (same keys as useAppPrefetch) ─────────────────
+  const { data: allUsers = [], isLoading: usersLoading } = useQuery({
+    queryKey: QUERY_KEYS.TRAINEES,
     queryFn: async () => {
-      const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
-      const startMonthStr = format(startOfMonth(today), 'yyyy-MM-dd');
-      const endMonthStr = format(endOfMonth(today), 'yyyy-MM-dd');
-      const nextMonthEndStr = format(endOfMonth(addMonths(today, 1)), 'yyyy-MM-dd');
-
-      console.log("🚀 Fetching Dashboard Stats...");
-
-      try {
-        const [
-          users,
-          activeServices,
-          paidServicesMonth,
-          sessionsFuture,
-          sessionsMonth,
-          sessionsCompletedRecent,
-          activePlans,
-          leadsNew,
-          leadsConverted,
-          leadsTotal
-        ] = await Promise.all([
-          // 1. All Users (Trainees) - for forms & total count
-          base44.entities.User.list('-created_at', 1000).catch(() => []),
-          
-          // 2. Active Services - for Active Clients count
-          base44.entities.ClientService.filter({ status: 'פעיל', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
-          
-          // 3. Paid Services This Month - for Revenue
-          base44.entities.ClientService.filter({ 
-            payment_status: 'שולם',
-            payment_date: { $gte: startMonthStr, $lte: endMonthStr },
-            coach_id: user?.id
-          }, '-payment_date', 1000).catch(() => []),
-
-          // 4. Sessions Future (Today + Upcoming)
-          base44.entities.Session.filter({
-            date: { $gte: todayStr },
-            coach_id: user?.id
-          }, 'date', 100).catch(() => []),
-
-          // 5. Sessions This Month (for Service Type breakdown)
-          base44.entities.Session.filter({
-            date: { $gte: startMonthStr, $lte: endMonthStr },
-            coach_id: user?.id
-          }, '-date', 500).catch(() => []),
-
-          // 6. Sessions Completed (Recent) - for "Completed" list preview
-          base44.entities.Session.filter({
-            status: 'התקיים',
-            coach_id: user?.id
-          }, '-date', 10).catch(() => []),
-
-          // 7. Active Plans
-          base44.entities.TrainingPlan.filter({ status: 'פעילה', created_by: user?.id }, '-created_at', 1000).catch(() => []),
-
-          // 8. Leads (New)
-          base44.entities.Lead.filter({ status: 'חדש', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
-
-          // 9. Leads (Converted) - for rate
-          base44.entities.Lead.filter({ status: 'סגור עסקה', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
-
-          // 10. Leads (Total) - for rate (limit 1000 approx)
-          base44.entities.Lead.filter({ coach_id: user?.id }, '-created_at', 1000).catch(() => []),
-        ]);
-
-        // --- Process Data (Safe Arrays) ---
-        const safeUsers = Array.isArray(users) ? users : [];
-        const safeActiveServices = Array.isArray(activeServices) ? activeServices : [];
-        const safePaidServices = Array.isArray(paidServicesMonth) ? paidServicesMonth : [];
-        const safeSessionsFuture = Array.isArray(sessionsFuture) ? sessionsFuture : [];
-        const safeSessionsMonth = Array.isArray(sessionsMonth) ? sessionsMonth : [];
-        const safeCompletedRecent = Array.isArray(sessionsCompletedRecent) ? sessionsCompletedRecent : [];
-        const safeActivePlans = Array.isArray(activePlans) ? activePlans : [];
-        const safeLeadsNew = Array.isArray(leadsNew) ? leadsNew : [];
-        const safeLeadsConverted = Array.isArray(leadsConverted) ? leadsConverted : [];
-        const safeLeadsTotal = Array.isArray(leadsTotal) ? leadsTotal : [];
-
-        // Users — filter to trainees that belong to this coach
-        const allTrainees = safeUsers.filter(u => u.role === 'user' || u.role === 'trainee');
-        const serviceTraineeIds = new Set(safeActiveServices.map(s => s.trainee_id));
-        // Trainees belong to coach if they have a service OR their coach_id matches
-        const trainees = allTrainees.filter(t => serviceTraineeIds.has(t.id) || t.coach_id === user?.id);
-
-        // Active Clients = has active service OR user status is 'active' with matching coach_id
-        const activeClientIds = new Set(safeActiveServices.map(s => s.trainee_id));
-        allTrainees.forEach(t => {
-          if (t.coach_id === user?.id && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
-            activeClientIds.add(t.id);
-          }
-        });
-        const activeClientsCount = activeClientIds.size;
-
-        // Revenue
-        const monthlyRevenue = safePaidServices.reduce((sum, s) => sum + (s.price || 0), 0);
-
-        // Sessions
-        // Filter "Future" to separate Today vs Upcoming
-        const todaySessions = safeSessionsFuture.filter(s => s.date === todayStr && !['התקיים', 'לא הגיע', 'בוטל על ידי מאמן', 'בוטל על ידי מתאמן'].includes(s.status));
-        const upcomingSessions = safeSessionsFuture.filter(s => s.date > todayStr && !['התקיים', 'לא הגיע', 'בוטל על ידי מאמן', 'בוטל על ידי מתאמן'].includes(s.status));
-        
-        // Service Stats (from Active Services Definitions)
-        // Calculate Counts & Revenue by Type
-        const revenueByType = { personal: 0, group: 0, online: 0 };
-        const countByType = { personal: 0, group: 0, online: 0 };
-        
-        // Group Trainees Count
-        const groupTraineesSet = new Set();
-
-        safeActiveServices.forEach(s => {
-            const type = (s.service_type === 'group' || s.service_type === 'פעילות קבוצתית') ? 'group' :
-                         (s.service_type === 'online' || s.service_type === 'ליווי אונליין') ? 'online' : 'personal';
-            
-            countByType[type]++;
-            if (type === 'group') groupTraineesSet.add(s.trainee_id);
-
-            // MRR Calculation: If active subscription, count it. If punch card, only if paid this month.
-            // For simplicity based on user request: "Sum of final_price... charged this month".
-            // We assume if it's active subscription, it counts. If it's punch card, check payment_date.
-            
-            const price = s.final_price || s.price || 0;
-            
-            if (s.billing_model === 'subscription' || s.is_recurring) {
-                // Assume active subscription contributes to monthly revenue
-                revenueByType[type] += price;
-            } else {
-                // One-time / Punch card: Count only if paid in this range
-                const pDate = s.payment_date ? new Date(s.payment_date) : null;
-                if (pDate && pDate >= startOfMonth(today) && pDate <= endOfMonth(today)) {
-                    revenueByType[type] += price;
-                }
-            }
-        });
-
-        // Renewals (Next 30 days)
-        const renewalsCount = safeActiveServices.filter(s => {
-            if (!s.next_billing_date && !s.end_date) return false;
-            const targetDate = s.next_billing_date ? new Date(s.next_billing_date) : new Date(s.end_date);
-            const diffTime = targetDate - today;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays >= 0 && diffDays <= 30;
-        }).length;
-
-        // Valid Sessions for display
-        const validMonthSessions = safeSessionsMonth.filter(s => !['בוטל על ידי מאמן', 'בוטל על ידי מתאמן', 'לא הגיע'].includes(s.status));
-        const monthlyCompletedSessionsCount = safeSessionsMonth.filter(s => s.status === 'התקיים').length;
-
-        // Legacy stats for compatibility
-        const serviceStats = {
-          personal: validMonthSessions.filter(s => s.session_type?.includes('personal')).length,
-          group: validMonthSessions.filter(s => s.session_type?.includes('קבוצ')).length,
-          online: validMonthSessions.filter(s => s.session_type === 'אונליין').length
-        };
-
-        // Leads Stats
-        const convertedCount = safeLeadsConverted.length;
-        const conversionRate = safeLeadsTotal.length > 0 ? Math.round((convertedCount / safeLeadsTotal.length) * 100) : 0;
-
-        return {
-          trainees,
-          totalClientsCount: trainees.length,
-          activeClientsCount,
-          monthlyRevenue,
-          todaySessions,
-          upcomingSessions,
-          completedSessions: safeCompletedRecent,
-          serviceStats,
-          activePlansCount: safeActivePlans.length,
-          newLeadsCount: safeLeadsNew.length,
-          conversionRate,
-          
-          // Raw data if needed
-          todaySessionsCount: todaySessions.length,
-          upcomingSessionsCount: upcomingSessions.length,
-          monthlyCompletedSessionsCount,
-          revenueByType,
-          countByType,
-          groupTraineesCount: groupTraineesSet.size,
-          renewalsCount
-        };
-      } catch (error) {
-        console.error("Error in useDashboardStats:", error);
-        return {
-          trainees: [],
-          totalClientsCount: 0,
-          activeClientsCount: 0,
-          monthlyRevenue: 0,
-          todaySessions: [],
-          upcomingSessions: [],
-          completedSessions: [],
-          serviceStats: { personal: 0, group: 0, online: 0 },
-          activePlansCount: 0,
-          newLeadsCount: 0,
-          conversionRate: 0,
-          todaySessionsCount: 0,
-          upcomingSessionsCount: 0,
-          monthlyCompletedSessionsCount: 0
-        };
-      }
+      const users = await base44.entities.User.list('-created_at', 1000);
+      return users.filter(u => u.role === 'user' || u.role === 'trainee');
     },
-    staleTime: STALE_TIME,
-    gcTime: CACHE_TIME,
-    refetchOnWindowFocus: true
+    initialData: [],
+    staleTime: CACHE_CONFIG.STALE_TIME,
   });
+
+  const { data: allServices = [], isLoading: servicesLoading } = useQuery({
+    queryKey: QUERY_KEYS.SERVICES,
+    queryFn: () => base44.entities.ClientService.list('-created_at', 2000).catch(() => []),
+    initialData: [],
+    staleTime: CACHE_CONFIG.STALE_TIME,
+  });
+
+  const { data: allSessions = [], isLoading: sessionsLoading } = useQuery({
+    queryKey: QUERY_KEYS.SESSIONS,
+    queryFn: () => base44.entities.Session.list('-date', 1000).catch(() => []),
+    initialData: [],
+    staleTime: CACHE_CONFIG.STALE_TIME,
+  });
+
+  const { data: allPlans = [], isLoading: plansLoading } = useQuery({
+    queryKey: QUERY_KEYS.PLANS,
+    queryFn: () => base44.entities.TrainingPlan.list('-created_at', 1000).catch(() => []),
+    initialData: [],
+    staleTime: CACHE_CONFIG.STALE_TIME,
+  });
+
+  const { data: allLeads = [], isLoading: leadsLoading } = useQuery({
+    queryKey: QUERY_KEYS.LEADS,
+    queryFn: () => base44.entities.Lead.list('-created_at', 1000).catch(() => []),
+    initialData: [],
+    staleTime: CACHE_CONFIG.STALE_TIME,
+  });
+
+  const isLoading = usersLoading || servicesLoading || sessionsLoading || plansLoading || leadsLoading;
+
+  // ── Compute all metrics client-side from cached data ─────────────
+  const stats = useMemo(() => {
+    const coachId = user?.id;
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const monthStart = startOfMonth(today);
+    const monthEnd = endOfMonth(today);
+    const startMonthStr = format(monthStart, 'yyyy-MM-dd');
+    const endMonthStr = format(monthEnd, 'yyyy-MM-dd');
+
+    // Filter services by coach
+    const coachServices = allServices.filter(s => s.coach_id === coachId);
+    const activeServices = coachServices.filter(s => s.status === 'פעיל');
+
+    // Filter sessions by coach
+    const coachSessions = allSessions.filter(s => s.coach_id === coachId);
+
+    // Filter leads by coach
+    const coachLeads = allLeads.filter(l => l.coach_id === coachId);
+
+    // Filter plans by coach
+    const coachPlans = allPlans.filter(p => p.created_by === coachId);
+
+    // ── Trainees ────────────────────────────────────────────────────
+    const serviceTraineeIds = new Set(coachServices.map(s => s.trainee_id));
+    const trainees = allUsers.filter(t => serviceTraineeIds.has(t.id) || t.coach_id === coachId);
+
+    // Active clients = has active service OR user status is 'active'
+    const activeClientIds = new Set(activeServices.map(s => s.trainee_id));
+    allUsers.forEach(t => {
+      if (t.coach_id === coachId && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
+        activeClientIds.add(t.id);
+      }
+    });
+
+    // ── Revenue ─────────────────────────────────────────────────────
+    const paidThisMonth = coachServices.filter(s =>
+      s.payment_status === 'שולם' &&
+      s.payment_date >= startMonthStr && s.payment_date <= endMonthStr
+    );
+    const monthlyRevenue = paidThisMonth.reduce((sum, s) => sum + (s.price || 0), 0);
+
+    // Revenue by type (from active services)
+    const revenueByType = { personal: 0, group: 0, online: 0 };
+    const countByType = { personal: 0, group: 0, online: 0 };
+    const groupTraineesSet = new Set();
+
+    activeServices.forEach(s => {
+      const st = (s.service_type || '').toLowerCase();
+      const type = (st.includes('קבוצ') || st === 'group') ? 'group' :
+                   (st === 'אונליין' || st === 'online') ? 'online' : 'personal';
+      countByType[type]++;
+      if (type === 'group') groupTraineesSet.add(s.trainee_id);
+
+      const price = s.final_price || s.price || 0;
+      if (s.billing_model === 'subscription' || s.is_recurring) {
+        revenueByType[type] += price;
+      } else {
+        const pDate = s.payment_date ? new Date(s.payment_date) : null;
+        if (pDate && pDate >= monthStart && pDate <= monthEnd) {
+          revenueByType[type] += price;
+        }
+      }
+    });
+
+    // ── Sessions ────────────────────────────────────────────────────
+    const excludedStatuses = ['התקיים', 'לא הגיע', 'בוטל על ידי מאמן', 'בוטל על ידי מתאמן'];
+    const todaySessions = coachSessions.filter(s => s.date === todayStr && !excludedStatuses.includes(s.status));
+    const upcomingSessions = coachSessions.filter(s => s.date > todayStr && !excludedStatuses.includes(s.status));
+    const monthSessions = coachSessions.filter(s => s.date >= startMonthStr && s.date <= endMonthStr);
+    const monthlyCompletedSessionsCount = monthSessions.filter(s => s.status === 'התקיים').length;
+
+    // ── Leads ────────────────────────────────────────────────────────
+    const newLeads = coachLeads.filter(l => l.status === 'חדש');
+    const convertedLeads = coachLeads.filter(l => l.status === 'סגור עסקה');
+    const conversionRate = coachLeads.length > 0 ? Math.round((convertedLeads.length / coachLeads.length) * 100) : 0;
+
+    // ── Plans ────────────────────────────────────────────────────────
+    const activePlans = coachPlans.filter(p => p.status === 'פעילה');
+
+    // ── Renewals ─────────────────────────────────────────────────────
+    const renewalsCount = activeServices.filter(s => {
+      const endDate = s.next_billing_date || s.end_date;
+      if (!endDate) return false;
+      const d = new Date(endDate);
+      const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+      return diff >= 0 && diff <= 30;
+    }).length;
+
+    return {
+      trainees,
+      totalClientsCount: trainees.length,
+      activeClientsCount: activeClientIds.size,
+      monthlyRevenue,
+      todaySessions,
+      upcomingSessions,
+      completedSessions: coachSessions.filter(s => s.status === 'התקיים').slice(0, 10),
+      serviceStats: {
+        personal: monthSessions.filter(s => (s.session_type || '').includes('אישי')).length,
+        group: monthSessions.filter(s => (s.session_type || '').includes('קבוצ')).length,
+        online: monthSessions.filter(s => s.session_type === 'אונליין').length,
+      },
+      activePlansCount: activePlans.length,
+      newLeadsCount: newLeads.length,
+      conversionRate,
+      todaySessionsCount: todaySessions.length,
+      upcomingSessionsCount: upcomingSessions.length,
+      monthlyCompletedSessionsCount,
+      revenueByType,
+      countByType,
+      groupTraineesCount: groupTraineesSet.size,
+      renewalsCount,
+    };
+  }, [allUsers, allServices, allSessions, allPlans, allLeads, user?.id]);
+
+  return { data: stats, isLoading };
 }

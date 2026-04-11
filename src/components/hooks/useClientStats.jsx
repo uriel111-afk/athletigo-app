@@ -7,7 +7,7 @@ import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 export function useClientStats() {
   const { user } = useContext(AuthContext);
 
-  // 1. Fetch Users
+  // Use shared query keys — same as useAppPrefetch, so data is cached
   const { data: allTrainees = [], isLoading: traineesLoading } = useQuery({
     queryKey: QUERY_KEYS.TRAINEES,
     queryFn: async () => {
@@ -15,30 +15,23 @@ export function useClientStats() {
       return users.filter(u => u.role === 'user' || u.role === 'trainee');
     },
     initialData: [],
-    refetchInterval: CACHE_CONFIG.REFETCH_INTERVAL,
     staleTime: CACHE_CONFIG.STALE_TIME,
-    gcTime: CACHE_CONFIG.GC_TIME
   });
 
-  // 2. Fetch Services — filtered by current coach
-  const { data: allServices = [] } = useQuery({
-    queryKey: [...QUERY_KEYS.SERVICES, user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        return await base44.entities.ClientService.filter({ coach_id: user.id }, '-created_at', 1000);
-      } catch {
-        return await base44.entities.ClientService.list('-created_at', 1000);
-      }
-    },
+  // Shared services key (no user suffix — filter client-side for cache hits)
+  const { data: allServicesRaw = [] } = useQuery({
+    queryKey: QUERY_KEYS.SERVICES,
+    queryFn: () => base44.entities.ClientService.list('-created_at', 2000).catch(() => []),
     initialData: [],
-    enabled: !!user?.id,
-    refetchInterval: CACHE_CONFIG.REFETCH_INTERVAL,
     staleTime: CACHE_CONFIG.STALE_TIME,
-    gcTime: CACHE_CONFIG.GC_TIME
   });
 
-  // Stats
+  // Filter by coach client-side
+  const allServices = useMemo(() =>
+    allServicesRaw.filter(s => s.coach_id === user?.id),
+    [allServicesRaw, user?.id]
+  );
+
   const { activeClientsCount, totalClientsCount } = useMemo(() => {
     const activeServiceRecords = allServices.filter(s =>
       s.status === 'פעיל' ||
@@ -46,14 +39,12 @@ export function useClientStats() {
     );
     const activeClientIds = new Set(activeServiceRecords.map(s => s.trainee_id));
 
-    // Also count trainees with status='active' and coach_id matching
     allTrainees.forEach(t => {
       if (t.coach_id === user?.id && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
         activeClientIds.add(t.id);
       }
     });
 
-    // Total = trainees with service OR coach_id matching
     const serviceIds = new Set(allServices.map(s => s.trainee_id));
     const coachTrainees = allTrainees.filter(t => serviceIds.has(t.id) || t.coach_id === user?.id);
 
