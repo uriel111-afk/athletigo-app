@@ -180,6 +180,7 @@ export default function Dashboard() {
           const trainee = allTrainees.find((t) => t.id === traineeId);
           if (trainee) {
             plansToCreate.push({
+              title: planData.plan_name,
               plan_name: planData.plan_name,
               assigned_to: trainee.id,
               assigned_to_name: trainee.full_name,
@@ -195,6 +196,7 @@ export default function Dashboard() {
         }
       } else {
         plansToCreate.push({
+          title: planData.plan_name,
           plan_name: planData.plan_name,
           assigned_to: "",
           assigned_to_name: "",

@@ -166,6 +166,7 @@ export default function TrainingPlans() {
           const trainee = trainees.find(t => t.id === traineeId);
           if (trainee) {
             plansToCreate.push({
+              title: planData.plan_name,
               plan_name: planData.plan_name,
               assigned_to: trainee.id,
               assigned_to_name: trainee.full_name,
@@ -182,6 +183,7 @@ export default function TrainingPlans() {
         }
       } else {
         plansToCreate.push({
+          title: planData.plan_name,
           plan_name: planData.plan_name,
           assigned_to: null,
           assigned_to_name: null,
@@ -241,6 +243,8 @@ export default function TrainingPlans() {
     mutationFn: async ({ id, data, originalPlan }) => {
       // Strip fields that don't exist in training_plans table
       const { weekly_days, coach_id, created_date, training_days, difficulty, ...safeData } = data;
+      // Keep title in sync with plan_name
+      if (safeData.plan_name) safeData.title = safeData.plan_name;
       console.log("Sending to training_plans (update):", safeData);
       const updated = await base44.entities.TrainingPlan.update(id, safeData);
       
@@ -307,6 +311,7 @@ export default function TrainingPlans() {
       if (!coach || !coach.id) throw new Error("Coach information not available.");
 
       const newPlan = await base44.entities.TrainingPlan.create({
+        title: originalPlan.plan_name + " (העתק)",
         plan_name: originalPlan.plan_name + " (העתק)",
         assigned_to: originalPlan.assigned_to,
         assigned_to_name: originalPlan.assigned_to_name,
@@ -371,6 +376,7 @@ export default function TrainingPlans() {
         if (!trainee) continue;
 
         const newPlan = await base44.entities.TrainingPlan.create({
+          title: originalPlan.plan_name,
           plan_name: originalPlan.plan_name,
           assigned_to: trainee.id,
           assigned_to_name: trainee.full_name,

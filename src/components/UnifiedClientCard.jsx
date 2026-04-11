@@ -440,6 +440,7 @@ export default function UnifiedClientCard({
         : ['כוח'];
 
       const result = await base44.entities.TrainingPlan.create({
+        title: planData.plan_name,
         plan_name: planData.plan_name,
         assigned_to: currentClient.id,
         assigned_to_name: currentClient.full_name,

@@ -250,6 +250,7 @@ export default function MyPlan() {
     mutationFn: async ({ planData }) => {
       const goalFocusArray = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0 ? planData.goal_focus : ['כוח'];
       const newPlan = await base44.entities.TrainingPlan.create({
+        title: planData.plan_name,
         plan_name: planData.plan_name,
         assigned_to: user.id,
         assigned_to_name: user.full_name,
@@ -306,6 +307,7 @@ export default function MyPlan() {
     mutationFn: async (originalPlan) => {
       // 1. Create new plan
       const newPlan = await base44.entities.TrainingPlan.create({
+        title: `${originalPlan.plan_name} (עותק)`,
         plan_name: `${originalPlan.plan_name} (עותק)`,
         assigned_to: user.id,
         assigned_to_name: user.full_name,
