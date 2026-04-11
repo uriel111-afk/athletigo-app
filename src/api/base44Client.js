@@ -253,6 +253,7 @@ const entities = {
   Reflection:             createEntity('reflections'),
   ProgramSeries:          createEntity('program_series'),
   Query:                  createEntity('custom_parameters'),
+  CustomParameter:        createEntity('custom_parameters'),
   TrainingGroup:          createEntity('training_groups'),
   TrainingGroupMember:    createEntity('training_group_members'),
 };
