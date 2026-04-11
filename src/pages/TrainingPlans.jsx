@@ -479,11 +479,11 @@ export default function TrainingPlans() {
 
     // 5. Date Range Filter
     if (filterDate?.from) {
-       const pDate = new Date(plan.created_date);
+       const pDate = new Date(plan.created_at);
        if (pDate < filterDate.from) return false;
     }
     if (filterDate?.to) {
-       const pDate = new Date(plan.created_date);
+       const pDate = new Date(plan.created_at);
        // Add 1 day to include the end date fully
        const endDate = new Date(filterDate.to);
        endDate.setHours(23, 59, 59);

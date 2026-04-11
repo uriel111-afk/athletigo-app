@@ -67,7 +67,7 @@ export function useDashboardStats() {
           }, '-date', 10).catch(() => []),
 
           // 7. Active Plans
-          base44.entities.TrainingPlan.filter({ status: 'פעילה', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
+          base44.entities.TrainingPlan.filter({ status: 'פעילה', created_by: user?.id }, '-created_at', 1000).catch(() => []),
 
           // 8. Leads (New)
           base44.entities.Lead.filter({ status: 'חדש', coach_id: user?.id }, '-created_at', 1000).catch(() => []),
