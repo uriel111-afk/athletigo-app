@@ -340,7 +340,7 @@ export default function Dashboard() {
               <span className="text-2xl font-black text-[#9C27B0] leading-none mb-1">{upcomingSessionsCount}</span>
               <span className="text-[10px] font-bold text-gray-500">מפגשים קרובים</span>
             </div>
-            <div className="bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm">
+            <div onClick={() => navigate(createPageUrl("ConversionDashboard"))} className="bg-white h-[85px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-green-50 cursor-pointer">
               <span className="text-2xl font-black text-[#4CAF50] leading-none mb-1">{conversionRate}%</span>
               <span className="text-[10px] font-bold text-gray-500">שיעור המרה</span>
             </div>
@@ -352,29 +352,29 @@ export default function Dashboard() {
 
           {/* BLOCK 5 - Detailed Revenue & Groups */}
           <div className="mb-2 grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0">
-             <div className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm">
+             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=personal")} className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-orange-50 cursor-pointer">
                 <span className="text-sm font-black text-[#FF6F20]">₪{revenueByType.personal.toLocaleString()}</span>
                 <span className="text-[9px] font-bold text-gray-400 text-center">הכנסות אישי</span>
              </div>
-             <div className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm">
+             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=group")} className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-blue-50 cursor-pointer">
                 <span className="text-sm font-black text-[#2196F3]">₪{revenueByType.group.toLocaleString()}</span>
                 <span className="text-[9px] font-bold text-gray-400 text-center">הכנסות קבוצה</span>
              </div>
-             <div className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm">
+             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=online")} className="bg-white p-2 rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-purple-50 cursor-pointer">
                 <span className="text-sm font-black text-[#9C27B0]">₪{revenueByType.online.toLocaleString()}</span>
                 <span className="text-[9px] font-bold text-gray-400 text-center">הכנסות אונליין</span>
              </div>
           </div>
 
           <div className="mb-2 grid grid-cols-2 gap-2 shrink-0">
-             <div className="bg-white h-[60px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm">
+             <div onClick={() => navigate(createPageUrl("Sessions") + "?view=groups")} className="bg-white h-[60px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-blue-50 cursor-pointer">
                 <div className="flex items-center gap-1">
                     <Users className="w-4 h-4 text-blue-500" />
                     <span className="text-lg font-black text-blue-500">{groupTraineesCount}</span>
                 </div>
                 <span className="text-[10px] font-bold text-gray-500">מתאמני קבוצות</span>
              </div>
-             <div className="bg-white h-[60px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm">
+             <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?filter=renewals")} className="bg-white h-[60px] rounded-[16px] border border-gray-200 flex flex-col items-center justify-center shadow-sm hover:bg-red-50 cursor-pointer">
                 <div className="flex items-center gap-1">
                     <Activity className="w-4 h-4 text-red-500" />
                     <span className="text-lg font-black text-red-500">{renewalsCount}</span>
