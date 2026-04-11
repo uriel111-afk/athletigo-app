@@ -308,7 +308,7 @@ export default function Dashboard() {
               <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">אימונים ומפגשים</span>
             </div>
 
-            <div onClick={() => navigate(createPageUrl("TrainingPlans"))} className="bg-white h-14 rounded-[12px] border border-gray-200 flex flex-col items-center justify-center px-1 cursor-pointer hover:bg-gray-50 shadow-sm gap-0.5">
+            <div onClick={() => navigate(createPageUrl("ActivePlans"))} className="bg-white h-14 rounded-[12px] border border-gray-200 flex flex-col items-center justify-center px-1 cursor-pointer hover:bg-gray-50 shadow-sm gap-0.5">
               <div className="flex items-center gap-1">
                 <ClipboardList className="w-4 h-4 text-[#607D8B]" />
                 <span className="text-sm font-black text-[#607D8B]">{activePlansCount}</span>

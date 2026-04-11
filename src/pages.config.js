@@ -47,6 +47,7 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import ActivePlans from './pages/ActivePlans';
 import AllUsers from './pages/AllUsers';
 import Forms from './pages/Forms';
 import CoachProfile from './pages/CoachProfile';
@@ -68,10 +69,12 @@ import Sessions from './pages/Sessions';
 import TraineeHome from './pages/TraineeHome';
 import TraineeProfile from './pages/TraineeProfile';
 import TrainingPlans from './pages/TrainingPlans';
+import TrainingPlanView from './pages/TrainingPlanView';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "ActivePlans": ActivePlans,
     "AllUsers": AllUsers,
     "Forms": Forms,
     "CoachProfile": CoachProfile,
@@ -93,6 +96,7 @@ export const PAGES = {
     "TraineeHome": TraineeHome,
     "TraineeProfile": TraineeProfile,
     "TrainingPlans": TrainingPlans,
+    "TrainingPlanView": TrainingPlanView,
 }
 
 export const pagesConfig = {
