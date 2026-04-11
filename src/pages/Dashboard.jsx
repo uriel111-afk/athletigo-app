@@ -376,7 +376,7 @@ export default function Dashboard() {
                   <div className="w-8 h-8 rounded-full bg-[#FFF3E0] flex items-center justify-center">
                     <Dumbbell className="w-4 h-4 text-[#FF6F20]" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-600">תוכנית</span>
+                  <span className="text-[10px] font-bold text-gray-600">בנה תוכנית</span>
                   <span className="w-2 h-2 rounded-full bg-green-400" />
                 </button>
               </div>
@@ -390,24 +390,24 @@ export default function Dashboard() {
               {/* Conversion rate */}
               <button onClick={() => navigate(createPageUrl("ConversionDashboard"))} className="flex flex-col items-center gap-1">
                 <span className="text-2xl font-black text-[#4CAF50]">{conversionRate}%</span>
-                <span className="text-[10px] font-bold text-gray-500">Achievement</span>
+                <span className="text-[10px] font-bold text-gray-500">שיעור המרה</span>
               </button>
-              {/* Trainees */}
-              <button onClick={() => navigate(createPageUrl("AllUsers") + "?filter=active")} className="flex flex-col items-center gap-1 border-x border-gray-100">
-                <span className="text-2xl font-black text-[#FF6F20]">{activeClientsCount}</span>
-                <span className="text-[10px] font-bold text-gray-500">Trainees</span>
+              {/* New leads */}
+              <button onClick={() => navigate(createPageUrl("Leads") + "?filter=new")} className="flex flex-col items-center gap-1 border-x border-gray-100">
+                <span className="text-2xl font-black text-[#FF6F20]">{newLeadsCount}</span>
+                <span className="text-[10px] font-bold text-gray-500">לידים חדשים</span>
               </button>
               {/* Total users */}
               <button onClick={() => navigate(createPageUrl("AllUsers"))} className="flex flex-col items-center gap-1">
                 <span className="text-2xl font-black text-gray-800">{totalClientsCount}</span>
-                <span className="text-[10px] font-bold text-gray-500">Users</span>
+                <span className="text-[10px] font-bold text-gray-500">כל המשתמשים</span>
               </button>
             </div>
           </div>
 
           {/* ── Quick stats row ────────────────────────────────────── */}
           <div className="grid grid-cols-3 gap-2 mt-3">
-            <div onClick={() => navigate(createPageUrl("Sessions"))} className="bg-white rounded-xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+            <div onClick={() => navigate(createPageUrl("Sessions") + "?status=completed")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
               <Dumbbell className="w-4 h-4 text-[#FF6F20] mb-1" />
               <span className="text-lg font-black text-gray-900">{monthlyCompletedSessionsCount}</span>
               <span className="text-[9px] font-bold text-gray-400">אימונים</span>
@@ -426,15 +426,15 @@ export default function Dashboard() {
 
           {/* ── Revenue breakdown ──────────────────────────────────── */}
           <div className="grid grid-cols-3 gap-2 mt-2">
-            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=personal")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?serviceType=personal&period=current_month")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
               <span className="text-xs font-black text-[#FF6F20]">₪{revenueByType.personal.toLocaleString()}</span>
               <span className="text-[9px] text-gray-400 font-bold">אישי</span>
             </div>
-            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=group")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?serviceType=group&period=current_month")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
               <span className="text-xs font-black text-[#FF6F20]">₪{revenueByType.group.toLocaleString()}</span>
               <span className="text-[9px] text-gray-400 font-bold">קבוצה</span>
             </div>
-            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?type=online")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?serviceType=online&period=current_month")} className="bg-white/70 rounded-xl py-2 flex flex-col items-center cursor-pointer hover:bg-white transition-colors">
               <span className="text-xs font-black text-[#FF6F20]">₪{revenueByType.online.toLocaleString()}</span>
               <span className="text-[9px] text-gray-400 font-bold">אונליין</span>
             </div>
@@ -442,14 +442,14 @@ export default function Dashboard() {
 
           {/* ── Bottom row — groups & renewals ─────────────────────── */}
           <div className="grid grid-cols-2 gap-2 mt-2 mb-4">
-            <div onClick={() => navigate(createPageUrl("Sessions") + "?view=groups")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-2.5 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+            <div onClick={() => navigate(createPageUrl("AllUsers") + "?filter=group")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-2.5 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
               <div className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-[#FF6F20]" />
                 <span className="text-lg font-black text-gray-900">{groupTraineesCount}</span>
               </div>
               <span className="text-[9px] font-bold text-gray-400">מתאמני קבוצות</span>
             </div>
-            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?filter=renewals")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-2.5 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
+            <div onClick={() => navigate(createPageUrl("FinancialOverview") + "?paymentStatus=renewals&period=current_month")} className="bg-white rounded-xl border border-gray-100 shadow-sm py-2.5 flex flex-col items-center cursor-pointer hover:border-[#FF6F20]/30 transition-colors">
               <div className="flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-[#FF6F20]" />
                 <span className="text-lg font-black text-gray-900">{renewalsCount}</span>

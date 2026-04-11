@@ -96,3 +96,14 @@ export async function notifyTraineeMetricsUpdated({ traineeId, coachName }) {
     created_at: new Date().toISOString(),
   });
 }
+
+export async function notifySessionCompleted({ traineeId, sessionDate, sessionType, coachName }) {
+  await createNotification({
+    user_id: traineeId,
+    type: 'session_completed',
+    title: 'מפגש בוצע',
+    message: `${coachName} סימן את מפגש ה${sessionType} בתאריך ${sessionDate} כ"בוצע"`,
+    is_read: false,
+    created_at: new Date().toISOString(),
+  });
+}

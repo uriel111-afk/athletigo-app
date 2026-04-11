@@ -79,6 +79,10 @@ export default function AllUsers() {
         // Check if user has paid services
         const hasPaidService = allServices.some(s => s.trainee_id === trainee.id && s.payment_status === 'שולם');
         if (!hasPaidService) return false;
+    } else if (filterType === 'group') {
+        // Check if user has any active group service
+        const hasGroupService = allServices.some(s => s.trainee_id === trainee.id && s.status === 'פעיל' && (s.service_type || '').includes('קבוצ'));
+        if (!hasGroupService) return false;
     }
 
     return true;

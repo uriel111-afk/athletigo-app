@@ -16,7 +16,7 @@ import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
-import { notifySessionScheduled } from "@/functions/notificationTriggers";
+import { notifySessionScheduled, notifySessionCompleted } from "@/functions/notificationTriggers";
 import { AuthContext } from "@/lib/AuthContext";
 
 export default function Sessions() {
@@ -325,9 +325,23 @@ export default function Sessions() {
           }
         }
       }
+      // Notify each participant that the session was completed
+      for (const participant of session.participants || []) {
+        if (participant.trainee_id) {
+          try {
+            await notifySessionCompleted({
+              traineeId: participant.trainee_id,
+              sessionDate: session.date,
+              sessionType: session.session_type || 'אימון',
+              coachName: coach?.full_name || 'המאמן',
+            });
+          } catch {}
+        }
+      }
       toast.success("✅ נוכחות נרשמה ויתרות עודכנו");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     }
     // If status changed FROM 'התקיים' TO something else (Cancelled/No Show), we might need to RESTORE
     else if (session.status === 'התקיים' && newStatus !== 'התקיים') {

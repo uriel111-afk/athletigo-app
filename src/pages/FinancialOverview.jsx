@@ -30,8 +30,10 @@ export default function FinancialOverview() {
   const traineeIdFromUrl = urlParams.get('traineeId');
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterServiceType, setFilterServiceType] = useState("all");
-  const [filterPaymentStatus, setFilterPaymentStatus] = useState("all");
+  const serviceTypeFromUrl = urlParams.get('serviceType');
+  const paymentStatusFromUrl = urlParams.get('paymentStatus');
+  const [filterServiceType, setFilterServiceType] = useState(serviceTypeFromUrl || "all");
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState(paymentStatusFromUrl || "all");
   const [filterTrainee, setFilterTrainee] = useState(traineeIdFromUrl || "all");
   const initialPeriod = urlParams.get('period');
   
@@ -141,14 +143,31 @@ export default function FinancialOverview() {
       tempServices = tempServices.filter(s => s.trainee_id === filterTrainee);
     }
 
-    // Filter by service type
+    // Filter by service type (supports both Hebrew values and shorthand from dashboard)
     if (filterServiceType !== "all") {
-      tempServices = tempServices.filter(s => s.service_type === filterServiceType);
+      tempServices = tempServices.filter(s => {
+        const st = (s.service_type || "").toLowerCase();
+        if (filterServiceType === "personal") return st.includes("אישי") || st.includes("personal");
+        if (filterServiceType === "group") return st.includes("קבוצ") || st.includes("group");
+        if (filterServiceType === "online") return st === "אונליין" || st.includes("online");
+        return s.service_type === filterServiceType;
+      });
     }
 
-    // Filter by payment status
+    // Filter by payment status (supports "renewals" shorthand from dashboard)
     if (filterPaymentStatus !== "all") {
-      tempServices = tempServices.filter(s => s.payment_status === filterPaymentStatus);
+      if (filterPaymentStatus === "renewals") {
+        const now = new Date();
+        const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        tempServices = tempServices.filter(s => {
+          const endDate = s.next_billing_date || s.end_date;
+          if (!endDate) return false;
+          const d = new Date(endDate);
+          return d >= now && d <= in30Days;
+        });
+      } else {
+        tempServices = tempServices.filter(s => s.payment_status === filterPaymentStatus);
+      }
     }
 
     // Filter by date range
