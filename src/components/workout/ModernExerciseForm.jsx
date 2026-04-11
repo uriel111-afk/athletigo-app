@@ -28,6 +28,7 @@ const ICONS = {
   notes: Info,
   video: Video,
   tempo: Activity,
+  activity: Activity,
   rpe: Zap,
   list: Layers,
   pause: PauseCircle,
@@ -45,30 +46,30 @@ const EXERCISE_MODES = [
   { id: "מותאם אישי", label: "מותאם", icon: Settings2 }
 ];
 
-// Unified Parameters Grid
+// Unified Parameters Grid — 22 canonical parameters
 const ALL_PARAMETERS = [
-  { id: "sets", label: "סטים", icon: ICONS.sets, defaultValue: "3" },
-  { id: "reps", label: "חזרות", icon: ICONS.reps, defaultValue: "10" },
-  { id: "work_time", label: "זמן עבודה", icon: ICONS.time, defaultValue: "00:30" },
-  { id: "rest_time", label: "זמן מנוחה", icon: ICONS.rest, defaultValue: "00:30" },
-  { id: "weight", label: "משקל (ק״ג)", icon: ICONS.weight, defaultValue: "0" },
-  { id: "weight_type", label: "סוג עומס", icon: ICONS.weight, defaultValue: "משקל גוף" },
-  { id: "rpe", label: "RPE (קושי)", icon: ICONS.rpe, defaultValue: "7" },
-  { id: "rounds", label: "סבבים", icon: ICONS.sets, defaultValue: "3" },
-  { id: "exercises", label: "רשימת תרגילים", icon: ICONS.list, defaultValue: [] },
-  { id: "rest_between_exercises", label: "מנ' בין תרגילים", icon: ICONS.pause, defaultValue: "00:15" },
-  { id: "rest_between_sets", label: "מנ' בין סטים", icon: ICONS.rest, defaultValue: "00:60" },
-  { id: "tempo", label: "טמפו", icon: ICONS.activity, defaultValue: "3010" },
-  { id: "static_hold_time", label: "החזקה סטטית", icon: ICONS.stop, defaultValue: "00:10" },
-  { id: "equipment", label: "ציוד נדרש", icon: ICONS.equipment, defaultValue: "" },
-  { id: "body_position", label: "מנח גוף", icon: User, defaultValue: "עמידה" },
-  { id: "leg_position", label: "מנח רגליים", icon: Footprints, defaultValue: "רוחב כתפיים" },
-  { id: "grip", label: "אחיזה", icon: GripVertical, defaultValue: "" },
-  { id: "range_of_motion", label: "טווח תנועה", icon: Maximize2, defaultValue: "מלא" },
-  { id: "side", label: "צד", icon: ArrowLeftRight, defaultValue: "דו־צדדי" },
-  { id: "coach_notes", label: "דגשים", icon: ICONS.notes, defaultValue: "" },
-  { id: "video_url", label: "וידאו", icon: ICONS.video, defaultValue: "" },
-  { id: "tabata_config", label: "Tabata", icon: Zap, defaultValue: { work: "20", rest: "10", rounds: "8", roundRest: "60" } }
+  { id: "sets",                   label: "סטים",              icon: ICONS.sets,      defaultValue: "3" },
+  { id: "reps",                   label: "חזרות",             icon: ICONS.reps,      defaultValue: "10" },
+  { id: "work_time",              label: "זמן עבודה",         icon: ICONS.time,      defaultValue: "00:30" },
+  { id: "rest_time",              label: "זמן מנוחה",         icon: ICONS.rest,      defaultValue: "00:30" },
+  { id: "rounds",                 label: "סבבים",             icon: ICONS.sets,      defaultValue: "3" },
+  { id: "rpe",                    label: "RPE (קושי)",        icon: ICONS.rpe,       defaultValue: "7" },
+  { id: "load_type",              label: "סוג עומס",          icon: ICONS.weight,    defaultValue: "משקל גוף" },
+  { id: "weight_kg",              label: "משקל (ק״ג)",        icon: ICONS.weight,    defaultValue: "0" },
+  { id: "tempo",                  label: "טמפו",              icon: ICONS.tempo,     defaultValue: "3010" },
+  { id: "rest_between_sets",      label: "מנ' בין סטים",      icon: ICONS.rest,      defaultValue: "00:60" },
+  { id: "rest_between_exercises", label: "מנ' בין תרגילים",  icon: ICONS.pause,     defaultValue: "00:15" },
+  { id: "exercise_list",          label: "רשימת תרגילים",    icon: ICONS.list,      defaultValue: [] },
+  { id: "foot_position",          label: "מנח רגליים",        icon: Footprints,      defaultValue: "רוחב כתפיים" },
+  { id: "body_position",          label: "מנח גוף",           icon: User,            defaultValue: "עמידה" },
+  { id: "equipment",              label: "ציוד נדרש",         icon: ICONS.equipment, defaultValue: "" },
+  { id: "static_hold",            label: "החזקה סטטית",       icon: ICONS.stop,      defaultValue: "00:10" },
+  { id: "notes",                  label: "דגשים",             icon: ICONS.notes,     defaultValue: "" },
+  { id: "side",                   label: "צד",                icon: ArrowLeftRight,  defaultValue: "דו־צדדי" },
+  { id: "range_of_motion",        label: "טווח תנועה",        icon: Maximize2,       defaultValue: "מלא" },
+  { id: "grip",                   label: "אחיזה",             icon: GripVertical,    defaultValue: "" },
+  { id: "tabata",                 label: "Tabata",            icon: Zap,             defaultValue: {} },
+  { id: "video_url",              label: "וידאו",             icon: ICONS.video,     defaultValue: "" },
 ];
 
 // --- COMPACT COMPONENTS ---
@@ -621,12 +622,10 @@ export default function ModernExerciseForm({ exercise, onChange }) {
       // Auto-select the new value
       const dbField = getDbField(variables.type);
       if (['grip', 'equipment'].includes(variables.type)) {
-        // Multi-select handling
         const current = exercise[dbField] || "";
         const newVal = current ? `${current}, ${variables.value}` : variables.value;
         updateEx(dbField, newVal);
       } else {
-        // Single select
         updateEx(dbField, variables.value);
       }
     },
@@ -652,11 +651,11 @@ export default function ModernExerciseForm({ exercise, onChange }) {
     // Check if already exists (in defaults or custom)
     let defaults = [];
     if (type === 'body_position') defaults = ["עמידה", "ישיבה", "שכיבה על גב", "שכיבה על בטן", "שכיבה על צד", "תלייה", "תמיכה", "טבעות", "מקבילים", "פראלטים"];
-    else if (type === 'leg_position') defaults = ["צמוד", "רוחב כתפיים", "רחב", "רגל אחת (L/R)"];
+    else if (type === 'foot_position') defaults = ["צמוד", "רוחב כתפיים", "רחב", "רגל אחת (L/R)"];
     else if (type === 'grip') defaults = ["צרה", "בינונית", "רחבה", "פרונציה", "סופינציה", "ניטרלית"];
     else if (type === 'equipment') defaults = ["משקל גוף", "טבעות", "מתח", "מקבילים", "פראלטים", "Dream Machine", "משקולות יד"];
     else if (type === 'range_of_motion') defaults = ["מלא", "חצי", "חלקי", "אקצנטרי בלבד", "איזומטרי"];
-    else if (type === 'weight_type') defaults = ["משקל גוף", "משקל חיצוני", "גומיות", "טבעות"];
+    else if (type === 'load_type') defaults = ["משקל גוף", "משקל חיצוני", "גומיות", "טבעות"];
     else if (type === 'side') defaults = ["דו־צדדי", "ימין", "שמאל", "לסירוגין"];
 
     const allOptions = getOptionsForType(type, defaults);
@@ -682,26 +681,35 @@ export default function ModernExerciseForm({ exercise, onChange }) {
     createCustomParamMutation.mutate({ type, value });
   };
 
-  // Helper: Map generic parameter ID to specific DB field based on mode
+  // Helper: Map spec param ID → actual DB field name
   const getDbField = (paramId) => {
+    // Mode-specific overrides
     if (activeMode === 'טבטה') {
       if (paramId === 'sets') return 'tabata_sets';
-      if (paramId === 'rest_time') return 'tabata_rest'; 
+      if (paramId === 'rest_time') return 'tabata_rest';
       if (paramId === 'rest_between_sets') return 'tabata_rest_between_sets';
-      if (paramId === 'exercises') return 'tabata_exercises';
+      if (paramId === 'exercise_list') return 'tabata_exercises';
     }
     if (activeMode === 'סופרסט') {
       if (paramId === 'rounds') return 'superset_rounds';
       if (paramId === 'rest_between_sets') return 'superset_rest_between_rounds';
-      if (paramId === 'exercises') return 'superset_exercises';
+      if (paramId === 'exercise_list') return 'superset_exercises';
     }
     if (activeMode === 'קומבו') {
       if (paramId === 'sets') return 'combo_sets';
       if (paramId === 'rest_between_sets') return 'combo_rest_between_sets';
       if (paramId === 'rest_between_exercises') return 'rest_between_exercises';
-      if (paramId === 'exercises') return 'combo_exercises';
+      if (paramId === 'exercise_list') return 'combo_exercises';
     }
+    // Spec ID → DB field mappings
     if (paramId === 'reps') return 'reps_or_time';
+    if (paramId === 'weight_kg') return 'weight_kg';
+    if (paramId === 'load_type') return 'weight_type';
+    if (paramId === 'exercise_list') return 'exercise_list';
+    if (paramId === 'foot_position') return 'leg_position';
+    if (paramId === 'static_hold') return 'static_hold_time';
+    if (paramId === 'notes') return 'notes';
+    if (paramId === 'tabata') return 'tabata_blocks';
     return paramId;
   };
 
@@ -737,11 +745,11 @@ export default function ModernExerciseForm({ exercise, onChange }) {
 
   const getDefaultsForMode = (mode) => {
     switch(mode) {
-      case "חזרות": return ["reps", "sets", "weight", "rest_time"];
+      case "חזרות": return ["reps", "sets", "weight_kg", "rest_time"];
       case "זמן": return ["work_time", "rounds", "rest_time"];
-      case "סופרסט": return ["exercises", "rounds", "rest_between_sets"];
-      case "טבטה": return ["tabata_config"];
-      case "קומבו": return ["exercises", "sets", "rest_between_sets"];
+      case "סופרסט": return ["exercise_list", "rounds", "rest_between_sets"];
+      case "טבטה": return ["tabata"];
+      case "קומבו": return ["exercise_list", "sets", "rest_between_sets"];
       default: return ["work_time"];
     }
   };
@@ -779,52 +787,69 @@ export default function ModernExerciseForm({ exercise, onChange }) {
     const dbField = getDbField(param.id);
     const value = exercise[dbField];
 
-    if (param.id === 'exercises') {
-      // Always allow mixed/toggle now for all modes
+    // Exercise list (superset / combo / tabata inner exercises)
+    if (param.id === 'exercise_list') {
       return <CompactListBuilder items={value || []} onChange={l => updateEx(dbField, l)} />;
     }
 
-    if (param.id.includes('time') || param.id.includes('rest')) {
-      return <TimeInput value={value} onChange={v => updateEx(dbField, v)} />;
-    }
-
-    if (['reps', 'sets', 'rounds', 'rpe', 'weight'].includes(param.id)) {
-        return <CompactNumberInput value={value} onChange={v => updateEx(dbField, v)} placeholder="0" />;
-    }
-
-    if (param.id === 'weight_type') {
-        const defaults = ["משקל גוף", "משקל חיצוני", "גומיות", "טבעות"];
-        const options = getOptionsForType('weight_type', defaults).map(o => ({ label: o, value: o }));
-        
-        return (
-          <CompactSelect 
-            value={value} 
-            onChange={v => updateEx(dbField, v)} 
-            options={options}
-            onAdd={() => setAddValueDialog({ isOpen: true, type: 'weight_type', label: 'הוסף סוג עומס' })}
-          />
-        );
-    }
-
-    if (param.id === 'coach_notes') {
-        return <Textarea className="text-xs min-h-[40px] p-2 resize-none focus:ring-[#FF6F20]/20 focus:border-[#FF6F20] rounded-md" value={value || ""} onChange={e => updateEx(dbField, e.target.value)} />;
-    }
-
-    if (param.id === 'tabata_config') {
+    // Tabata structured builder
+    if (param.id === 'tabata') {
       return <TabataConfigurator exercise={exercise} onChange={updateEx} />;
     }
 
-    // Dropdown Selection Params (Unified Design)
-    if (['body_position', 'leg_position', 'grip', 'equipment', 'range_of_motion', 'side'].includes(param.id)) {
+    // Time / rest inputs
+    if (
+      param.id.includes('time') ||
+      param.id.includes('rest') ||
+      param.id === 'static_hold'
+    ) {
+      return <TimeInput value={value} onChange={v => updateEx(dbField, v)} />;
+    }
+
+    // Numeric inputs
+    if (['reps', 'sets', 'rounds', 'rpe', 'weight_kg'].includes(param.id)) {
+      return <CompactNumberInput value={value} onChange={v => updateEx(dbField, v)} placeholder="0" />;
+    }
+
+    // Load type selector
+    if (param.id === 'load_type') {
+      const defaults = ["משקל גוף", "משקל חיצוני", "גומיות", "טבעות"];
+      const options = getOptionsForType('load_type', defaults).map(o => ({ label: o, value: o }));
+      return (
+        <CompactSelect
+          value={value}
+          onChange={v => updateEx(dbField, v)}
+          options={options}
+          onAdd={() => setAddValueDialog({ isOpen: true, type: 'load_type', label: 'הוסף סוג עומס' })}
+        />
+      );
+    }
+
+    // Notes (free text)
+    if (param.id === 'notes') {
+      return (
+        <Textarea
+          className="text-xs min-h-[40px] p-2 resize-none focus:ring-[#FF6F20]/20 focus:border-[#FF6F20] rounded-md"
+          value={value || ""}
+          onChange={e => updateEx(dbField, e.target.value)}
+          placeholder="דגשים, הוראות ביצוע..."
+        />
+      );
+    }
+
+    // Dropdown / chip-selection params
+    if (['body_position', 'foot_position', 'grip', 'equipment', 'range_of_motion', 'side'].includes(param.id)) {
       let defaultOptions = [];
       let dialogTitle = "";
+      let dbType = param.id; // used for custom-param lookup
 
       if (param.id === 'body_position') {
         defaultOptions = ["עמידה", "ישיבה", "שכיבה על גב", "שכיבה על בטן", "שכיבה על צד", "תלייה", "תמיכה", "טבעות", "מקבילים", "פראלטים"];
         dialogTitle = "הוסף מנח גוף";
-      } else if (param.id === 'leg_position') {
+      } else if (param.id === 'foot_position') {
         defaultOptions = ["צמוד", "רוחב כתפיים", "רחב", "רגל אחת (L/R)"];
         dialogTitle = "הוסף מנח רגליים";
+        dbType = 'foot_position';
       } else if (param.id === 'grip') {
         defaultOptions = ["צרה", "בינונית", "רחבה", "פרונציה", "סופינציה", "ניטרלית"];
         dialogTitle = "הוסף סוג אחיזה";
@@ -839,19 +864,26 @@ export default function ModernExerciseForm({ exercise, onChange }) {
         dialogTitle = "הוסף צד";
       }
 
-      const mergedOptions = getOptionsForType(param.id, defaultOptions).map(o => ({ label: o, value: o }));
-
+      const mergedOptions = getOptionsForType(dbType, defaultOptions).map(o => ({ label: o, value: o }));
       return (
-        <CompactSelect 
-          value={value} 
-          onChange={v => updateEx(dbField, v)} 
+        <CompactSelect
+          value={value}
+          onChange={v => updateEx(dbField, v)}
           options={mergedOptions}
-          onAdd={() => setAddValueDialog({ isOpen: true, type: param.id, label: dialogTitle })}
+          onAdd={() => setAddValueDialog({ isOpen: true, type: dbType, label: dialogTitle })}
         />
       );
     }
 
-    return <Input className="h-7 text-xs focus:ring-[#FF6F20]/20 focus:border-[#FF6F20] rounded-md" value={value || ""} onChange={e => updateEx(dbField, e.target.value)} />;
+    // Default: plain text input (tempo, video_url, etc.)
+    return (
+      <Input
+        className="h-7 text-xs focus:ring-[#FF6F20]/20 focus:border-[#FF6F20] rounded-md"
+        value={value || ""}
+        onChange={e => updateEx(dbField, e.target.value)}
+        placeholder={param.id === 'tempo' ? 'לדוגמה: 3010' : param.id === 'video_url' ? 'https://...' : ''}
+      />
+    );
   };
 
   return (
@@ -915,7 +947,7 @@ export default function ModernExerciseForm({ exercise, onChange }) {
                 const param = ALL_PARAMETERS.find(p => p.id === paramId);
                 if (!param) return null;
 
-                const isLarge = ['exercises', 'equipment', 'coach_notes', 'video_url', 'weight_type', 'body_position', 'leg_position', 'grip', 'range_of_motion', 'side', 'tabata_config'].includes(param.id);
+                const isLarge = ['exercise_list', 'equipment', 'notes', 'video_url', 'load_type', 'body_position', 'foot_position', 'grip', 'range_of_motion', 'side', 'tabata'].includes(param.id);
                 const colSpan = isLarge ? 'col-span-6' : 'col-span-2';
 
                 return (
