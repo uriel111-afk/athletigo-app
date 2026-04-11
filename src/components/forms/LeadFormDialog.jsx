@@ -82,15 +82,15 @@ export default function LeadFormDialog({
   };
 
   const handleSubmit = async () => {
-    if (!leadForm.full_name || !leadForm.phone) {
-      toast.error("נא למלא שם מלא וטלפון");
+    if (!leadForm.full_name) {
+      toast.error("נא למלא שם מלא");
       return;
     }
 
     // Filter to only include fields that exist in the leads table
     const submissionData = {
       full_name: leadForm.full_name,
-      phone: leadForm.phone,
+      phone: leadForm.phone || null,
       email: leadForm.email || null,
       age: leadForm.age ? parseInt(leadForm.age) : null,
       status: leadForm.status || "חדש",
@@ -104,11 +104,17 @@ export default function LeadFormDialog({
     };
 
     try {
-      console.log("[LeadFormDialog] Submitting lead with data:", submissionData);
       await onSubmit(submissionData);
-      clearDraft(); // Clear draft on success submit
+      clearDraft();
     } catch (error) {
-      console.error("Submission failed", error);
+      // Translate common Supabase errors to Hebrew
+      const raw = error?.message || error?.body?.message || "";
+      let msg = "שגיאה לא צפויה, נסה שוב";
+      if (raw.includes("duplicate")) msg = "ליד עם פרטים זהים כבר קיים";
+      else if (raw.includes("network") || raw.includes("fetch")) msg = "בעיית תקשורת — בדוק את החיבור לאינטרנט";
+      else if (raw.includes("timeout")) msg = "הבקשה לוקחת זמן רב, נסה שוב";
+      else if (raw) msg = raw;
+      toast.error("שגיאה בשמירת הליד: " + msg);
     }
   };
 
@@ -136,7 +142,7 @@ export default function LeadFormDialog({
           <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
             <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              פרטי חובה
+              פרטים בסיסיים
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
@@ -149,7 +155,7 @@ export default function LeadFormDialog({
                 />
               </div>
               <div>
-                <Label className="text-sm font-bold mb-2 block text-[#222]">2. טלפון *</Label>
+                <Label className="text-sm font-medium mb-2 block text-gray-600">2. טלפון</Label>
                 <Input
                   value={leadForm.phone}
                   onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}

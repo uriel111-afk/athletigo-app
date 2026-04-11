@@ -74,18 +74,16 @@ const UserCard = ({ trainee, activePackage, upcomingSession, planCount, calculat
                 <h3 className="text-lg font-black text-[#222222] leading-tight mb-1">
                   {trainee.full_name}
                 </h3>
-                {onRename && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRename(trainee);
-                    }}
-                    className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-[#FF6F20] transition-colors"
-                    title="שנה שם"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(createPageUrl("TraineeProfile") + `?userId=${trainee.id}`);
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-[#FF6F20] transition-colors"
+                  title="ערוך פרופיל"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
               </div>
               <div className="text-xs text-[#666666] flex flex-wrap gap-2 items-center">
                  <span className="whitespace-nowrap">גיל: {age}</span>

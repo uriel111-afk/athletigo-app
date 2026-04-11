@@ -66,14 +66,13 @@ export default function Leads() {
       toast.success("✅ ליד נוסף בהצלחה");
     },
     onError: (error) => {
-      console.error("[Leads] Create error details:", {
-        message: error.message,
-        status: error.status,
-        statusText: error.statusText,
-        body: error.body,
-        error: error
-      });
-      toast.error("❌ שגיאה בהוספת ליד");
+      console.error("[Leads] Create error:", error);
+      const raw = error?.message || error?.body?.message || "";
+      let msg = "שגיאה לא צפויה";
+      if (raw.includes("duplicate")) msg = "ליד עם פרטים זהים כבר קיים";
+      else if (raw.includes("network") || raw.includes("fetch")) msg = "בעיית תקשורת";
+      else if (raw) msg = raw;
+      toast.error("שגיאה בהוספת ליד: " + msg);
     }
   });
 
@@ -84,11 +83,11 @@ export default function Leads() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowEditDialog(false);
       setEditingLead(null);
-      toast.success("✅ ליד עודכן");
+      toast.success("הליד עודכן בהצלחה");
     },
     onError: (error) => {
       console.error("[Leads] Update error:", error);
-      toast.error("❌ שגיאה בעדכון ליד");
+      toast.error("שגיאה בעדכון ליד: " + (error?.message || "נסה שוב"));
     }
   });
 
@@ -97,11 +96,11 @@ export default function Leads() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast.success("✅ ליד נמחק");
+      toast.success("הליד נמחק בהצלחה");
     },
     onError: (error) => {
       console.error("[Leads] Delete error:", error);
-      toast.error("❌ שגיאה במחיקת ליד");
+      toast.error("שגיאה במחיקת ליד: " + (error?.message || "נסה שוב"));
     }
   });
 
