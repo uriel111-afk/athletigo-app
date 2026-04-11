@@ -441,15 +441,6 @@ export default function MyPlan() {
                 </>
               ) : (
                 <div>
-                    <Button 
-                        variant="ghost" 
-                        onClick={() => setSelectedSeries(null)} 
-                        className="mb-4 font-bold text-[#7D7D7D] p-0 hover:bg-transparent"
-                    >
-                        <ChevronRight className="w-5 h-5 ml-1" />
-                        חזרה לתיקיות
-                    </Button>
-                    
                     <div className="mb-6">
                         <h2 className="text-2xl font-black mb-1">{selectedSeries.name}</h2>
                         <p className="text-gray-500 text-sm">{selectedSeries.description}</p>

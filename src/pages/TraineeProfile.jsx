@@ -1359,15 +1359,10 @@ export default function TraineeProfile() {
           </>
         )}
 
-        {/* ===== BACK BAR for non-overview tabs ===== */}
+        {/* ===== TAB TITLE BAR for non-overview tabs ===== */}
         {activeTab !== 'overview' && (
-          <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-            <button onClick={() => setActiveTab('overview')} className="flex items-center gap-1 text-[#FF6F20] font-bold text-sm min-h-[44px] pr-1">
-              <ArrowRight className="w-4 h-4" />
-              חזרה
-            </button>
+          <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-center">
             <span className="font-bold text-sm text-gray-800">{TAB_LABELS[activeTab] || ''}</span>
-            <div className="w-16" />
           </div>
         )}
 
