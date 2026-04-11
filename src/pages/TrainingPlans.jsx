@@ -175,27 +175,30 @@ export default function TrainingPlans() {
               description: planData.description || "",
               start_date: new Date().toISOString().split('T')[0],
               status: "פעילה",
-              is_template: false
+              is_template: false,
+              series_id: planData.series_id || null
             });
           }
         }
       } else {
         plansToCreate.push({
           plan_name: planData.plan_name,
-          assigned_to: "",
-          assigned_to_name: "",
+          assigned_to: null,
+          assigned_to_name: null,
           created_by: coach.id,
           created_by_name: coach.full_name,
           goal_focus: goalFocusString,
           description: planData.description || "",
           start_date: new Date().toISOString().split('T')[0],
           status: "פעילה",
-          is_template: false
+          is_template: false,
+          series_id: planData.series_id || null
         });
       }
 
       const results = [];
       for (const plan of plansToCreate) {
+        console.log("Sending to training_plans:", plan);
         const result = await base44.entities.TrainingPlan.create(plan);
         results.push(result);
         
@@ -236,7 +239,10 @@ export default function TrainingPlans() {
 
   const updatePlanMutation = useMutation({
     mutationFn: async ({ id, data, originalPlan }) => {
-      const updated = await base44.entities.TrainingPlan.update(id, data);
+      // Strip fields that don't exist in training_plans table
+      const { weekly_days, coach_id, created_date, training_days, difficulty, ...safeData } = data;
+      console.log("Sending to training_plans (update):", safeData);
+      const updated = await base44.entities.TrainingPlan.update(id, safeData);
       
       // Send notification to trainee if plan was updated
       if (originalPlan?.assigned_to) {
