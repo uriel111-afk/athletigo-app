@@ -87,17 +87,15 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
 
     const data = {
       trainee_id: trainee.id,
-      trainee_name: trainee.full_name,
       date: measurementForm.date,
-      height_cm: measurementForm.height_cm ? parseFloat(measurementForm.height_cm) : null,
-      weight_kg: measurementForm.weight_kg ? parseFloat(measurementForm.weight_kg) : null,
-      body_fat_percent: measurementForm.body_fat_percent ? parseFloat(measurementForm.body_fat_percent) : null,
-      chest_circumference: measurementForm.chest_circumference ? parseFloat(measurementForm.chest_circumference) : null,
-      waist_circumference: measurementForm.waist_circumference ? parseFloat(measurementForm.waist_circumference) : null,
-      hips_circumference: measurementForm.hips_circumference ? parseFloat(measurementForm.hips_circumference) : null,
+      height: measurementForm.height_cm ? parseFloat(measurementForm.height_cm) : null,
+      weight: measurementForm.weight_kg ? parseFloat(measurementForm.weight_kg) : null,
+      body_fat: measurementForm.body_fat_percent ? parseFloat(measurementForm.body_fat_percent) : null,
+      chest: measurementForm.chest_circumference ? parseFloat(measurementForm.chest_circumference) : null,
+      waist: measurementForm.waist_circumference ? parseFloat(measurementForm.waist_circumference) : null,
+      hips: measurementForm.hips_circumference ? parseFloat(measurementForm.hips_circumference) : null,
       notes: measurementForm.notes || "",
-      recorded_by: coach.id,
-      recorded_by_name: coach.full_name
+      created_by: coach.id,
     };
 
     try {
@@ -182,9 +180,9 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
             <Activity className="w-5 h-5" style={{ color: '#FF6F20' }} />
             <p className="text-sm font-bold" style={{ color: '#7D7D7D' }}>גובה נוכחי</p>
           </div>
-          {latestMeasurement?.height_cm ? (
+          {latestMeasurement?.height ? (
             <p className="text-2xl font-bold" style={{ color: '#000000' }}>
-              {latestMeasurement.height_cm} ס״מ
+              {latestMeasurement.height} ס״מ
             </p>
           ) : (
             <p className="text-sm" style={{ color: '#7D7D7D' }}>לא נרשם</p>
@@ -238,13 +236,13 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
                       {format(new Date(measurement.date), 'dd/MM/yyyy', { locale: he })}
                     </td>
                     <td className="p-3 text-sm" style={{ color: '#000000' }}>
-                      {measurement.height_cm ? `${measurement.height_cm} ס״מ` : '-'}
+                      {measurement.height ? `${measurement.height} ס״מ` : '-'}
                     </td>
                     <td className="p-3 text-sm font-bold" style={{ color: '#000000' }}>
-                      {measurement.weight_kg ? `${measurement.weight_kg} ק״ג` : '-'}
+                      {measurement.weight ? `${measurement.weight} ק״ג` : '-'}
                     </td>
                     <td className="p-3 text-sm" style={{ color: '#000000' }}>
-                      {measurement.body_fat_percent ? `${measurement.body_fat_percent}%` : '-'}
+                      {measurement.body_fat ? `${measurement.body_fat}%` : '-'}
                     </td>
                     <td className="p-3 text-sm" style={{ color: '#7D7D7D' }}>
                       {measurement.notes ? (
@@ -261,12 +259,12 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
                             setEditingMeasurement(measurement);
                             setMeasurementForm({
                               date: measurement.date,
-                              height_cm: measurement.height_cm?.toString() || "",
-                              weight_kg: measurement.weight_kg?.toString() || "",
-                              body_fat_percent: measurement.body_fat_percent?.toString() || "",
-                              chest_circumference: measurement.chest_circumference?.toString() || "",
-                              waist_circumference: measurement.waist_circumference?.toString() || "",
-                              hips_circumference: measurement.hips_circumference?.toString() || "",
+                              height_cm: measurement.height?.toString() || "",
+                              weight_kg: measurement.weight?.toString() || "",
+                              body_fat_percent: measurement.body_fat?.toString() || "",
+                              chest_circumference: measurement.chest?.toString() || "",
+                              waist_circumference: measurement.waist?.toString() || "",
+                              hips_circumference: measurement.hips?.toString() || "",
                               notes: measurement.notes || ""
                             });
                             setShowMeasurementDialog(true);

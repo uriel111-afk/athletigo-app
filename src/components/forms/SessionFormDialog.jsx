@@ -183,80 +183,24 @@ export default function SessionFormDialog({
         </DialogHeader>
 
         <div className="space-y-5">
-          {/* Quick Date Selection */}
+          {/* Date Selection — Calendar picker */}
           <div>
-            <Label className="text-sm font-bold mb-3 block" style={{ color: '#000000' }}>
-              📅 בחר תאריך מהיר
+            <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
+              תאריך
             </Label>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => {
-                  const today = new Date();
-                  setSessionForm({ ...sessionForm, date: today.toISOString().split('T')[0] });
-                }}
-                className="p-3 rounded-xl font-bold text-center transition-all"
-                style={{
-                  backgroundColor: sessionForm.date === new Date().toISOString().split('T')[0] ? '#FF6F20' : '#FFFFFF',
-                  color: sessionForm.date === new Date().toISOString().split('T')[0] ? 'white' : '#000000',
-                  border: sessionForm.date === new Date().toISOString().split('T')[0] ? 'none' : '2px solid #E0E0E0'
-                }}
-              >
-                🔥 היום
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  setSessionForm({ ...sessionForm, date: tomorrow.toISOString().split('T')[0] });
-                }}
-                className="p-3 rounded-xl font-bold text-center transition-all"
-                style={{
-                  backgroundColor: (() => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    return sessionForm.date === tomorrow.toISOString().split('T')[0] ? '#2196F3' : '#FFFFFF';
-                  })(),
-                  color: (() => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    return sessionForm.date === tomorrow.toISOString().split('T')[0] ? 'white' : '#000000';
-                  })(),
-                  border: (() => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    return sessionForm.date === tomorrow.toISOString().split('T')[0] ? 'none' : '2px solid #E0E0E0';
-                  })()
-                }}
-              >
-                📅 מחר
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const nextWeek = new Date();
-                  nextWeek.setDate(nextWeek.getDate() + 7);
-                  setSessionForm({ ...sessionForm, date: nextWeek.toISOString().split('T')[0] });
-                }}
-                className="p-3 rounded-xl font-bold text-center transition-all"
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#000000',
-                  border: '2px solid #E0E0E0'
-                }}
-              >
-                📆 בעוד שבוע
-              </button>
-            </div>
             <Input
               type="date"
-              value={sessionForm.date}
+              value={sessionForm.date || new Date().toISOString().split('T')[0]}
               onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
               min={new Date().toISOString().split('T')[0]}
-              className="rounded-xl text-base py-6"
-              style={{ border: '2px solid #E0E0E0' }}
+              className="rounded-xl text-base h-12 w-full"
+              style={{ border: '2px solid #E0E0E0', fontSize: '16px' }}
             />
+            {sessionForm.date && (
+              <p className="text-xs text-gray-500 mt-1 text-center">
+                {format(new Date(sessionForm.date + 'T00:00:00'), 'EEEE, d בMMMM yyyy', { locale: he })}
+              </p>
+            )}
           </div>
 
           {/* Quick Time Selection */}

@@ -26,12 +26,12 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
 
   const currentDefaults = editingMeasurement ? {
     date: editingMeasurement.date,
-    weight_kg: editingMeasurement.weight_kg?.toString() || "",
-    body_fat_percent: editingMeasurement.body_fat_percent?.toString() || "",
-    height_cm: editingMeasurement.height_cm?.toString() || "",
-    chest_circumference: editingMeasurement.chest_circumference?.toString() || "",
-    waist_circumference: editingMeasurement.waist_circumference?.toString() || "",
-    hips_circumference: editingMeasurement.hips_circumference?.toString() || "",
+    weight_kg: (editingMeasurement.weight ?? editingMeasurement.weight_kg ?? "").toString(),
+    body_fat_percent: (editingMeasurement.body_fat ?? editingMeasurement.body_fat_percent ?? "").toString(),
+    height_cm: (editingMeasurement.height ?? editingMeasurement.height_cm ?? "").toString(),
+    chest_circumference: (editingMeasurement.chest ?? editingMeasurement.chest_circumference ?? "").toString(),
+    waist_circumference: (editingMeasurement.waist ?? editingMeasurement.waist_circumference ?? "").toString(),
+    hips_circumference: (editingMeasurement.hips ?? editingMeasurement.hips_circumference ?? "").toString(),
     notes: editingMeasurement.notes || ""
   } : defaultFormData;
 
@@ -72,15 +72,14 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
 
     const data = {
       trainee_id: traineeId,
-      trainee_name: traineeName,
       date: formData.date,
-      weight_kg: formData.weight_kg ? parseFloat(formData.weight_kg) : null,
-      body_fat_percent: formData.body_fat_percent ? parseFloat(formData.body_fat_percent) : null,
-      height_cm: formData.height_cm ? parseFloat(formData.height_cm) : null,
-      chest_circumference: formData.chest_circumference ? parseFloat(formData.chest_circumference) : null,
-      waist_circumference: formData.waist_circumference ? parseFloat(formData.waist_circumference) : null,
-      hips_circumference: formData.hips_circumference ? parseFloat(formData.hips_circumference) : null,
-      notes: formData.notes || ""
+      weight: formData.weight_kg ? parseFloat(formData.weight_kg) : null,
+      body_fat: formData.body_fat_percent ? parseFloat(formData.body_fat_percent) : null,
+      height: formData.height_cm ? parseFloat(formData.height_cm) : null,
+      chest: formData.chest_circumference ? parseFloat(formData.chest_circumference) : null,
+      waist: formData.waist_circumference ? parseFloat(formData.waist_circumference) : null,
+      hips: formData.hips_circumference ? parseFloat(formData.hips_circumference) : null,
+      notes: formData.notes || "",
     };
 
     try {

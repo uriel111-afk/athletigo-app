@@ -239,17 +239,15 @@ export default function Progress() {
 
     const data = {
       trainee_id: user.id,
-      trainee_name: user.full_name,
       date: measurementForm.date,
-      weight_kg: measurementForm.weight_kg ? parseFloat(measurementForm.weight_kg) : null,
-      body_fat_percent: measurementForm.body_fat_percent ? parseFloat(measurementForm.body_fat_percent) : null,
-      height_cm: measurementForm.height_cm ? parseFloat(measurementForm.height_cm) : null,
-      chest_circumference: measurementForm.chest_circumference ? parseFloat(measurementForm.chest_circumference) : null,
-      waist_circumference: measurementForm.waist_circumference ? parseFloat(measurementForm.waist_circumference) : null,
-      hips_circumference: measurementForm.hips_circumference ? parseFloat(measurementForm.hips_circumference) : null,
+      weight: measurementForm.weight_kg ? parseFloat(measurementForm.weight_kg) : null,
+      body_fat: measurementForm.body_fat_percent ? parseFloat(measurementForm.body_fat_percent) : null,
+      height: measurementForm.height_cm ? parseFloat(measurementForm.height_cm) : null,
+      chest: measurementForm.chest_circumference ? parseFloat(measurementForm.chest_circumference) : null,
+      waist: measurementForm.waist_circumference ? parseFloat(measurementForm.waist_circumference) : null,
+      hips: measurementForm.hips_circumference ? parseFloat(measurementForm.hips_circumference) : null,
       notes: measurementForm.notes || "",
-      recorded_by: user.id,
-      recorded_by_name: user.full_name
+      created_by: user.id
     };
 
     try {
@@ -321,12 +319,12 @@ export default function Progress() {
     setEditingMeasurement(measurement);
     setMeasurementForm({
       date: measurement.date,
-      weight_kg: measurement.weight_kg?.toString() || "",
-      body_fat_percent: measurement.body_fat_percent?.toString() || "",
-      height_cm: measurement.height_cm?.toString() || "",
-      chest_circumference: measurement.chest_circumference?.toString() || "",
-      waist_circumference: measurement.waist_circumference?.toString() || "",
-      hips_circumference: measurement.hips_circumference?.toString() || "",
+      weight_kg: (measurement.weight ?? "").toString(),
+      body_fat_percent: (measurement.body_fat ?? "").toString(),
+      height_cm: (measurement.height ?? "").toString(),
+      chest_circumference: (measurement.chest ?? "").toString(),
+      waist_circumference: (measurement.waist ?? "").toString(),
+      hips_circumference: (measurement.hips ?? "").toString(),
       notes: measurement.notes || ""
     });
     setShowAddMeasurement(true);
@@ -361,16 +359,16 @@ export default function Progress() {
   
   const getWeightChange = () => {
     if (measurements.length < 2) return null;
-    const latest = measurements[0]?.weight_kg;
-    const first = measurements[measurements.length - 1]?.weight_kg;
+    const latest = measurements[0]?.weight;
+    const first = measurements[measurements.length - 1]?.weight;
     if (!latest || !first) return null;
     return latest - first;
   };
 
   const getBodyFatChange = () => {
     if (measurements.length < 2) return null;
-    const latest = measurements[0]?.body_fat_percent;
-    const first = measurements[measurements.length - 1]?.body_fat_percent;
+    const latest = measurements[0]?.body_fat;
+    const first = measurements[measurements.length - 1]?.body_fat;
     if (!latest || !first) return null;
     return latest - first;
   };
@@ -383,7 +381,7 @@ export default function Progress() {
     .reverse()
     .map(m => ({
       date: format(new Date(m.date), 'dd/MM'),
-      weight: m.weight_kg || 0
+      weight: m.weight || 0
     }))
     .filter(d => d.weight > 0);
 
@@ -392,7 +390,7 @@ export default function Progress() {
     .reverse()
     .map(m => ({
       date: format(new Date(m.date), 'dd/MM'),
-      bodyFat: m.body_fat_percent || 0
+      bodyFat: m.body_fat || 0
     }))
     .filter(d => d.bodyFat > 0);
 
@@ -401,9 +399,9 @@ export default function Progress() {
     .reverse()
     .map(m => ({
       date: format(new Date(m.date), 'dd/MM'),
-      chest: m.chest_circumference || 0,
-      waist: m.waist_circumference || 0,
-      hips: m.hips_circumference || 0
+      chest: m.chest || 0,
+      waist: m.waist || 0,
+      hips: m.hips || 0
     }));
 
   return (
@@ -488,12 +486,12 @@ export default function Progress() {
             {/* Current Metrics - Large Cards */}
             {latestMeasurement && (
               <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                {latestMeasurement.weight_kg && (
+                {latestMeasurement.weight && (
                   <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#E3F2FD', border: '2px solid #2196F3' }}>
                     <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#2196F3' }} />
                     <p className="text-xs md:text-sm mb-2 font-bold" style={{ color: '#7D7D7D' }}>משקל</p>
                     <p className="text-3xl md:text-5xl font-black mb-1" style={{ color: '#2196F3', fontFamily: 'Montserrat, sans-serif' }}>
-                      {latestMeasurement.weight_kg}
+                      {latestMeasurement.weight}
                     </p>
                     <p className="text-xs md:text-sm mb-3" style={{ color: '#7D7D7D' }}>ק״ג</p>
                     {weightChange !== null && (
@@ -508,12 +506,12 @@ export default function Progress() {
                   </div>
                 )}
 
-                {latestMeasurement.body_fat_percent && (
+                {latestMeasurement.body_fat && (
                   <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
                     <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#FF6F20' }} />
                     <p className="text-xs md:text-sm mb-2 font-bold" style={{ color: '#7D7D7D' }}>שומן</p>
                     <p className="text-3xl md:text-5xl font-black mb-1" style={{ color: '#FF6F20', fontFamily: 'Montserrat, sans-serif' }}>
-                      {latestMeasurement.body_fat_percent}
+                      {latestMeasurement.body_fat}
                     </p>
                     <p className="text-xs md:text-sm mb-3" style={{ color: '#7D7D7D' }}>%</p>
                     {bodyFatChange !== null && (
@@ -528,12 +526,12 @@ export default function Progress() {
                   </div>
                 )}
 
-                {latestMeasurement.height_cm && (
+                {latestMeasurement.height && (
                   <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#F3E5F5', border: '2px solid #9C27B0' }}>
                     <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#9C27B0' }} />
                     <p className="text-xs md:text-sm mb-2 font-bold" style={{ color: '#7D7D7D' }}>גובה</p>
                     <p className="text-3xl md:text-5xl font-black mb-1" style={{ color: '#9C27B0', fontFamily: 'Montserrat, sans-serif' }}>
-                      {latestMeasurement.height_cm}
+                      {latestMeasurement.height}
                     </p>
                     <p className="text-xs md:text-sm" style={{ color: '#7D7D7D' }}>ס״מ</p>
                   </div>
@@ -662,22 +660,22 @@ export default function Progress() {
                             </p>
                           </td>
                           <td className="p-3 text-center font-bold text-xs md:text-base" style={{ color: '#2196F3' }}>
-                            {measurement.weight_kg || '—'}
+                            {measurement.weight || '—'}
                           </td>
                           <td className="p-3 text-center font-bold text-xs md:text-base" style={{ color: '#FF6F20' }}>
-                            {measurement.body_fat_percent ? `${measurement.body_fat_percent}%` : '—'}
+                            {measurement.body_fat ? `${measurement.body_fat}%` : '—'}
                           </td>
                           <td className="p-3 text-center font-bold text-xs md:text-base hidden md:table-cell" style={{ color: '#9C27B0' }}>
-                            {measurement.height_cm || '—'}
+                            {measurement.height || '—'}
                           </td>
                           <td className="p-3 text-center text-xs md:text-sm hidden lg:table-cell" style={{ color: '#7D7D7D' }}>
-                            {measurement.chest_circumference || '—'}
+                            {measurement.chest || '—'}
                           </td>
                           <td className="p-3 text-center text-xs md:text-sm hidden lg:table-cell" style={{ color: '#7D7D7D' }}>
-                            {measurement.waist_circumference || '—'}
+                            {measurement.waist || '—'}
                           </td>
                           <td className="p-3 text-center text-xs md:text-sm hidden lg:table-cell" style={{ color: '#7D7D7D' }}>
-                            {measurement.hips_circumference || '—'}
+                            {measurement.hips || '—'}
                           </td>
                           <td className="p-3">
                             <div className="flex items-center justify-center gap-1 md:gap-2">
