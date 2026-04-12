@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import { AuthContext } from "@/lib/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { QUERY_KEYS } from "@/components/utils/queryKeys";
 
 export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeName, editingPackage = null }) {
   const queryClient = useQueryClient();
+  const { user: coach } = useContext(AuthContext);
 
   const defaults = editingPackage ? {
     package_name: editingPackage.package_name || "",
@@ -47,7 +49,7 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
     const data = {
       trainee_id: traineeId,
       trainee_name: traineeName || null,
-      coach_id: null, // will be set by caller if needed
+      coach_id: coach?.id || null,
       package_name: form.package_name,
       service_type: form.service_type,
       billing_model: form.billing_model,

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { base44 } from "@/api/base44Client";
+import { AuthContext } from "@/lib/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,10 @@ export default function SessionFormDialog({
   onSubmit, 
   trainees = [],
   editingSession = null,
-  isLoading = false 
+  isLoading = false
 }) {
+  const { user: currentCoach } = useContext(AuthContext);
+
   const defaultSessionForm = {
     date: new Date().toISOString().split('T')[0],
     time: "10:00",
@@ -110,7 +113,8 @@ export default function SessionFormDialog({
         parent_name: guestForm.parent_name || null,
         coach_notes: guestForm.notes || null,
         status: "חדש",
-        source: "אחר"
+        source: "אחר",
+        coach_id: currentCoach?.id || null,
       });
 
       setSessionForm(prev => ({
@@ -175,10 +179,21 @@ export default function SessionFormDialog({
       return;
     }
 
+    // Explicit field mapping — no blind spread
     const sessionDataWithStatus = {
-      ...sessionForm,
-      status: editingSession ? sessionForm.status : 'ממתין לאישור'
+      date: sessionForm.date,
+      time: sessionForm.time,
+      session_type: sessionForm.session_type,
+      location: sessionForm.location || null,
+      duration: sessionForm.duration || 60,
+      coach_notes: sessionForm.coach_notes || null,
+      participants: sessionForm.participants || [],
+      status: editingSession ? sessionForm.status : 'ממתין לאישור',
     };
+    // Only include service_id if a package was selected
+    if (sessionForm.service_id) {
+      sessionDataWithStatus.service_id = sessionForm.service_id;
+    }
 
     console.log("[SessionForm] Sending to parent:", JSON.stringify(sessionDataWithStatus));
     setSaving(true);
