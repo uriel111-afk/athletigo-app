@@ -401,11 +401,10 @@ export default function MyPlan() {
           </div>
 
           <Tabs defaultValue="coach" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-8 h-auto p-1 bg-gray-100 rounded-xl">
+            <TabsList className="grid w-full grid-cols-2 mb-6 h-auto p-1 bg-gray-100 rounded-xl">
               <TabsTrigger value="coach" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">תוכניות מהמאמן</TabsTrigger>
               <TabsTrigger value="my_plans" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">תוכניות שלי</TabsTrigger>
-              <TabsTrigger value="history" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">היסטוריה</TabsTrigger>
-              <TabsTrigger value="improvement" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">מעקב שיפור</TabsTrigger>
+              {/* Removed: history + improvement tabs — cleaned for simplicity */}
             </TabsList>
 
             <TabsContent value="coach" className="space-y-4">
