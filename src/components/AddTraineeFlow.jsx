@@ -102,14 +102,13 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
             ...service,
             trainee_id: trainee.id,
             trainee_name: trainee.full_name,
-            created_by_coach: coach?.id || ""
+            coach_id: coach?.id || null,
+            created_by: coach?.id || null,
           });
         }
 
         await base44.entities.User.update(trainee.id, {
-          client_type: "לקוח משלם",
-          has_active_service: true,
-          converted_at: new Date().toISOString()
+          status: "active",
         });
       }
 

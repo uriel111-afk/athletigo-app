@@ -93,7 +93,8 @@ export default function ServiceManagement({ trainee, services, coach }) {
         ...cleanData,
         trainee_id: trainee.id,
         trainee_name: trainee.full_name,
-        created_by_coach: coach?.id || "",
+        coach_id: coach?.id || null,
+        created_by: coach?.id || null,
         used_sessions: 0
       };
       console.log('[ServiceManagement] Creating service with data:', finalData);
@@ -109,12 +110,10 @@ export default function ServiceManagement({ trainee, services, coach }) {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       
       // Update trainee if needed
-      if (trainee.client_type !== 'לקוח משלם') {
+      if (trainee.status !== 'active') {
         try {
           await base44.entities.User.update(trainee.id, {
-            client_type: "לקוח משלם",
-            has_active_service: true,
-            converted_at: new Date().toISOString()
+            status: "active",
           });
         } catch (error) {
           console.error("[ServiceManagement] Error updating trainee:", error);
