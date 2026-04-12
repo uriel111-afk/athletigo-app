@@ -140,7 +140,6 @@ export default function Dashboard() {
     onSuccess: async (results) => {
       await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      setIsPlanDialogOpen(false);
       toast.success("תוכנית נוצרה!");
       if (results?.length === 1 && results[0]?.id) {
         navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
@@ -148,7 +147,10 @@ export default function Dashboard() {
         navigate(createPageUrl("ActivePlans"));
       }
     },
-    onError: (e) => toast.error("שגיאה: " + (e.message || "נסה שוב")),
+    onError: (e) => {
+      console.error("[Dashboard] Plan creation error:", e);
+      toast.error("שגיאה ביצירת תוכנית: " + (e.message || "נסה שוב"));
+    },
   });
 
   // ── Loading ─────────────────────────────────────────────────────────

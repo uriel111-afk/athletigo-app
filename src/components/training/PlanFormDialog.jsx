@@ -90,14 +90,14 @@ export default function PlanFormDialog({
     });
   };
 
-  const handleSubmit = () => {
-    // Validate plan name
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
     if (!planForm.plan_name || planForm.plan_name.trim() === "") {
       toast.error("נא למלא שם תוכנית");
       return;
     }
-    
-    // Fill missing fields with defaults
+
     const finalPlanData = {
       plan_name: planForm.plan_name,
       description: planForm.description || "",
@@ -105,10 +105,21 @@ export default function PlanFormDialog({
       series_id: planForm.series_id || null
     };
 
-    console.log("Sending to training_plans:", finalPlanData);
-    onSubmit({ planData: finalPlanData, selectedTrainees });
-    clearDraft();
-    clearTraineesDraft();
+    setSaving(true);
+    console.log("[PlanForm] Submitting:", finalPlanData, "trainees:", selectedTrainees);
+
+    try {
+      await onSubmit({ planData: finalPlanData, selectedTrainees });
+      console.log("[PlanForm] Success — clearing draft");
+      clearDraft();
+      clearTraineesDraft();
+      onClose();
+    } catch (error) {
+      console.error("[PlanForm] Error:", error);
+      toast.error("שגיאה ביצירת תוכנית: " + (error?.message || "נסה שוב"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Filter series:
@@ -322,10 +333,10 @@ export default function PlanFormDialog({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isLoading || !planForm.plan_name}
+              disabled={isLoading || saving || !planForm.plan_name}
               className="flex-[2] h-14 rounded-xl font-bold text-white text-lg shadow-lg transition-all bg-black hover:bg-[#FF6F20]"
             >
-              {isLoading ? (
+              {(isLoading || saving) ? (
                 <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</>
               ) : (
                 "שמור תוכנית"
