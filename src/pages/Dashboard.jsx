@@ -53,6 +53,8 @@ export default function Dashboard() {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [isMeasurementDialogOpen, setIsMeasurementDialogOpen] = useState(false);
 
+  const [showActionPicker, setShowActionPicker] = useState(false);
+
   // Trainee selection for goal/result/measurement actions
   const [showSelectTraineeDialog, setShowSelectTraineeDialog] = useState(false);
   const [selectedTrainee, setSelectedTrainee] = useState(null);
@@ -230,7 +232,7 @@ export default function Dashboard() {
           <SectionHeader title="גישה מהירה" />
           <div className="grid grid-cols-4 gap-2">
             {[
-              { label: "שיאים ויעדים", icon: Award,      action: () => handleActionClick("result") },
+              { label: "שיאים ויעדים", icon: Award,      action: () => setShowActionPicker(true) },
               { label: "מדידות",       icon: Ruler,       action: () => handleActionClick("measurement") },
               { label: "דוח כספי",     icon: DollarSign,  action: () => navigate(createPageUrl("FinancialOverview") + "?period=current_month") },
               { label: "התראות",       icon: Bell,        action: () => navigate(createPageUrl("Notifications")) },
@@ -263,6 +265,27 @@ export default function Dashboard() {
       <PlanFormDialog isOpen={isPlanDialogOpen} onClose={() => setIsPlanDialogOpen(false)}
         onSubmit={async (data) => { await createPlanMutation.mutateAsync(data); }}
         trainees={allTrainees} isLoading={createPlanMutation.isPending} />
+
+      {/* Action Picker — שיא או יעד */}
+      <Dialog open={showActionPicker} onOpenChange={setShowActionPicker}>
+        <DialogContent className="w-[80vw] max-w-xs p-4 bg-white" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-center">מה להוסיף?</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <button onClick={() => { setShowActionPicker(false); handleActionClick("result"); }}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-100 hover:border-[#FF6F20] hover:bg-orange-50 transition-all active:scale-95">
+              <Award className="w-8 h-8 text-[#FF6F20]" />
+              <span className="text-sm font-bold text-gray-800">הוסף שיא</span>
+            </button>
+            <button onClick={() => { setShowActionPicker(false); handleActionClick("goal"); }}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-100 hover:border-[#FF6F20] hover:bg-orange-50 transition-all active:scale-95">
+              <Target className="w-8 h-8 text-[#FF6F20]" />
+              <span className="text-sm font-bold text-gray-800">הוסף יעד</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Select Trainee Dialog */}
       <Dialog open={showSelectTraineeDialog} onOpenChange={setShowSelectTraineeDialog}>

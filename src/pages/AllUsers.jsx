@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import RenameUserDialog from "../components/forms/RenameUserDialog";
+import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import { toast } from "sonner";
 import { useClientStats } from "../components/hooks/useClientStats";
 import { useSessionStats } from "../components/hooks/useSessionStats";
@@ -10,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Users, Search, Loader2, Filter } from "lucide-react";
+import { Users, Search, Loader2, Filter, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -18,6 +19,7 @@ import UserCard from "../components/UserCard";
 
 export default function AllUsers() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
   const [filterType, setFilterType] = useState(new URLSearchParams(window.location.search).get('filter') || "all"); // all, paying, casual, active
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [userToRename, setUserToRename] = useState(null);
@@ -110,6 +112,11 @@ export default function AllUsers() {
                   תצוגה מרכזית אחידה לכל המתאמנים במערכת
                 </p>
               </div>
+              <Button onClick={() => setIsAddTraineeOpen(true)}
+                className="bg-[#FF6F20] hover:bg-[#e65b12] text-white rounded-xl font-bold h-11 px-5 flex items-center gap-2">
+                <Plus className="w-5 h-5" />
+                הוסף מתאמן
+              </Button>
             </div>
             <div className="w-20 h-1 rounded-full" style={{ backgroundColor: '#FF6F20' }} />
           </div>
@@ -233,7 +240,7 @@ export default function AllUsers() {
           isLoading={renameUserMutation.isPending}
         />
 
-
+        <AddTraineeDialog open={isAddTraineeOpen} onClose={() => setIsAddTraineeOpen(false)} />
       </div>
     </ProtectedCoachPage>
   );
