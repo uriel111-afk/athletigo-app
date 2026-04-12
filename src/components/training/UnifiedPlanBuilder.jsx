@@ -468,16 +468,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     <div className="w-full pb-16 md:pb-24" dir="rtl">
       {/* PLAN HEADER */}
       <div className="mb-6" style={{ backgroundColor: '#FF6F20', padding: '20px', borderRadius: '0 0 24px 24px' }}>
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={onBack} className="text-white p-2 rounded-full hover:bg-white/10 transition-colors">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 18L9 12L15 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+        <div className="flex items-center justify-center mb-4">
           <h1 className="text-2xl font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
             {plan.plan_name}
           </h1>
-          <div className="w-10"></div> {/* Spacer for centering */}
         </div>
         
         {/* Stat Chips */}
