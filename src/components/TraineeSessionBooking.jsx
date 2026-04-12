@@ -95,7 +95,12 @@ export default function TraineeSessionBooking({ open, onClose, user, coach }) {
       coach_notes: `בקשת מפגש מ${user.full_name || 'מתאמן'}${formData.trainee_notes ? `\nהערות המתאמן: ${formData.trainee_notes}` : ''}`
     };
 
-    await createSessionMutation.mutateAsync(sessionData);
+    try {
+      await createSessionMutation.mutateAsync(sessionData);
+    } catch (error) {
+      console.error("[TraineeBooking] Error:", error);
+      toast.error("שגיאה ביצירת המפגש: " + (error?.message || "נסה שוב"));
+    }
   };
 
   const SESSION_TYPES = [
