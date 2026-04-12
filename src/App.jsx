@@ -11,6 +11,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import AppLoader from '@/components/AppLoader';
+import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import TraineeHome from './pages/TraineeHome';
 
@@ -25,10 +26,11 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, user } = useAuth();
   const location = useLocation();
+  const { isReady, progress, label, timedOut, retry, forceReady } = useDataGate(user);
 
   // Show branded loading screen while auth is initializing
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return <AppLoader />;
+    return <AppLoader progress={5} label="מתחבר..." />;
   }
 
   // Handle authentication errors
@@ -40,6 +42,23 @@ const AuthenticatedApp = () => {
       navigateToLogin();
       return null;
     }
+  }
+
+  // Block app until data is ready (shows progress loading screen)
+  if (isAuthenticated && !isReady) {
+    if (timedOut) {
+      return (
+        <div className="fixed inset-0 flex flex-col items-center justify-center gap-4" dir="rtl" style={{ backgroundColor: '#FDF8F3' }}>
+          <h1 className="text-xl font-black text-gray-800">לא הצלחנו לטעון את כל הנתונים</h1>
+          <p className="text-sm text-gray-500">האפליקציה עלולה להיות חלקית</p>
+          <div className="flex gap-3">
+            <button onClick={retry} className="px-6 py-3 rounded-xl font-bold text-white" style={{ backgroundColor: '#FF6F20' }}>נסה שוב</button>
+            <button onClick={forceReady} className="px-6 py-3 rounded-xl font-bold text-gray-600 border border-gray-300">המשך בכל זאת</button>
+          </div>
+        </div>
+      );
+    }
+    return <AppLoader progress={progress} label={label} />;
   }
 
   const isCoach = user?.role === 'coach' || user?.isCoach === true || user?.role === 'admin';
