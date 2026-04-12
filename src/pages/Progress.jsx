@@ -258,6 +258,7 @@ export default function Progress() {
       }
     } catch (error) {
       console.error("handleSaveMeasurement error:", error);
+      toast.error("שגיאה בשמירת המדידה: " + (error?.message || "נסה שוב"));
     }
   };
 
@@ -283,6 +284,7 @@ export default function Progress() {
       }
     } catch (error) {
       console.error("handleSaveResult error:", error);
+      toast.error("שגיאה בשמירת השיא: " + (error?.message || "נסה שוב"));
     }
   };
 
@@ -305,6 +307,7 @@ export default function Progress() {
       });
     } catch (error) {
       console.error("handleAddGoal error:", error);
+      toast.error("שגיאה בשמירת היעד: " + (error?.message || "נסה שוב"));
     }
   };
 
