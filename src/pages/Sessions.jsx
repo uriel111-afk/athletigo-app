@@ -147,11 +147,8 @@ export default function Sessions() {
         session_type: 'קבוצתי',
         location: form.location,
         coach_id: user?.id,
-        coach_name: coach?.full_name || '',
         status: 'מתוכנן',
         coach_notes: form.notes,
-        group_id: group.id,
-        group_name: group.name,
         participants,
       });
     },
@@ -265,7 +262,6 @@ export default function Sessions() {
       location: sessionData.location || "לא צוין",
       duration: sessionData.duration || 60,
       coach_id: coach.id,
-      coach_name: coach.full_name || "המאמן",
       status: 'ממתין לאישור'
     };
 

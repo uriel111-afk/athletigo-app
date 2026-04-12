@@ -257,7 +257,7 @@ export default function Dashboard() {
         isLoading={createLeadMutation.isPending} />
       <SessionFormDialog isOpen={isSessionDialogOpen} onClose={() => setIsSessionDialogOpen(false)}
         onSubmit={async (data) => {
-          await createSessionMutation.mutateAsync({ ...data, location: data.location || "לא צוין", duration: data.duration || 60, coach_id: coach?.id, coach_name: coach?.full_name || "המאמן", status: "ממתין לאישור" });
+          await createSessionMutation.mutateAsync({ ...data, location: data.location || "לא צוין", duration: data.duration || 60, coach_id: coach?.id, status: "ממתין לאישור" });
         }}
         trainees={allTrainees} isLoading={createSessionMutation.isPending} />
       <PlanFormDialog isOpen={isPlanDialogOpen} onClose={() => setIsPlanDialogOpen(false)}

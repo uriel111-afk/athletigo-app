@@ -920,7 +920,6 @@ export default function TraineeProfile() {
             session_type: manualAttendanceForm.session_type,
             location: manualAttendanceForm.location,
             coach_id: currentUser.id,
-            coach_name: currentUser.full_name,
             status: 'התקיים',
             coach_notes: `נוכחות ידנית: ${manualAttendanceForm.notes}`,
             participants: [{

@@ -558,7 +558,6 @@ export default function UnifiedClientCard({
       session_type: attendanceForm.session_type,
       location: attendanceForm.location || null,
       coach_id: coach?.id || null,
-      coach_name: coach?.full_name || null,
       participants: [{
         trainee_id: currentClient.id,
         trainee_name: currentClient.full_name,

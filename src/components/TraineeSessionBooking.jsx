@@ -84,7 +84,6 @@ export default function TraineeSessionBooking({ open, onClose, user, coach }) {
       session_type: formData.session_type,
       location: formData.location || "לא צוין",
       coach_id: coach?.id || "",
-      coach_name: coach?.full_name || "המאמן",
       status: "ממתין לאישור",
       participants: [
         {
