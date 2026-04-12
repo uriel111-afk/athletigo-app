@@ -268,16 +268,7 @@ export default function TraineeHome() {
                     <div className="text-sm text-gray-500">{session.location}</div>
                   </div>
                   
-                  {(session.status === 'ממתין לאישור' || session.status === 'מאושר') && (
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={() => handleCancelSession(session)}
-                      className="text-red-500 hover:bg-red-50 h-8"
-                    >
-                      ביטול
-                    </Button>
-                  )}
+                  {/* Cancel button removed — only coach can cancel sessions */}
                 </div>
               ))}
             </div>

@@ -10,6 +10,7 @@ import { createPageUrl } from '@/utils';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import AppLoader from '@/components/AppLoader';
 import Login from './pages/Login';
 import TraineeHome from './pages/TraineeHome';
 
@@ -25,13 +26,9 @@ const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, user } = useAuth();
   const location = useLocation();
 
-  // Show loading spinner while checking app public settings or auth
+  // Show branded loading screen while auth is initializing
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+    return <AppLoader />;
   }
 
   // Handle authentication errors
