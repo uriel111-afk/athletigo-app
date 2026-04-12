@@ -584,68 +584,86 @@ export default function ModernExerciseForm({ exercise, onChange }) {
 
   const editDef = editingParam ? ALL_PARAMETERS.find((p) => p.id === editingParam) : null;
 
-  // ── Derived data ─────────────────────────────────────────────────
-  const confirmedList = [...confirmedParams].filter((pid) => !CONTAINER_PARAMS.has(pid));
-  const unconfirmedParams = ALL_PARAMETERS.filter((p) => !confirmedParams.has(p.id) && editingParam !== p.id);
-
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
     <div className="w-full" dir="rtl">
 
       {/* ── Name ─────────────────────────────────────────────── */}
-      <div className="mb-3 px-1">
+      <div className="mb-4 px-1">
+        <label className="text-[10px] font-black text-gray-400 mb-1 block uppercase tracking-wider">שם התרגיל</label>
         <input
           value={exercise.exercise_name || ""}
           onChange={(e) => updateEx("exercise_name", e.target.value)}
-          placeholder="שם התרגיל"
+          placeholder="לדוגמה: סקוואט"
           autoFocus
           className="w-full h-11 text-base font-black border-b-2 border-gray-200 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1 transition-colors placeholder:text-gray-300"
         />
       </div>
 
-      {/* ── Confirmed Tags (always visible) ───────────────────── */}
-      {confirmedList.length > 0 && (
-        <div className="mx-1 mb-3 flex flex-wrap gap-1.5">
-          {confirmedList.map((pid) => {
-            const p = ALL_PARAMETERS.find((x) => x.id === pid);
-            const val = exercise[getDbField(pid)];
-            if (!p) return null;
+      {/* ── Parameters Grid — ALL params, always visible ──────── */}
+      <div className="mb-3 px-1">
+        <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-wider">פרמטרים</label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {ALL_PARAMETERS.map((p) => {
+            const isCont = CONTAINER_PARAMS.has(p.id);
+            const isConf = confirmedParams.has(p.id);
+            const isEdit = editingParam === p.id;
             const Icon = p.icon;
+            const field = getDbField(p.id);
+            const val = exercise[field];
+
             return (
-              <button key={pid} type="button" onClick={() => handleParamClick(pid)}
-                className="group flex items-center gap-1 px-2 py-1 rounded-full bg-[#FFF3E0] border border-[#FF6F20]/20 text-[#FF6F20] text-[11px] font-bold hover:bg-[#FFE0B2] transition-colors">
-                <Icon size={11} className="flex-shrink-0" />
-                <span>{getDisplay(pid, val)}</span>
-                <span onClick={(e) => { e.stopPropagation(); handleRemoveParam(pid); }}
-                  className="w-4 h-4 rounded-full flex items-center justify-center text-[#FF6F20]/50 hover:text-red-500 hover:bg-red-50 ml-0.5 transition-colors">
-                  <X size={9} />
-                </span>
+              <button key={p.id} type="button" onClick={() => handleParamClick(p.id)}
+                className={`flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-xl border h-[54px] transition-all active:scale-[0.97]
+                  ${isConf && !isEdit
+                    ? (isCont
+                      ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-1 ring-[#FF6F20]/30"
+                      : "border-[#FF6F20]/40 bg-[#FFF3E0] text-[#FF6F20]")
+                    : isEdit
+                    ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-2 ring-[#FF6F20]/20"
+                    : "border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:text-gray-600"}`}>
+                {isConf && !isEdit && !isCont ? (
+                  <>
+                    <div className="flex items-center gap-0.5">
+                      <Check size={10} strokeWidth={3} className="text-[#FF6F20]" />
+                      <Icon size={11} />
+                    </div>
+                    <span className="text-[8px] font-bold leading-tight text-center truncate w-full">
+                      {getDisplay(p.id, val) || p.label}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Icon size={15} strokeWidth={2} />
+                    <span className="text-[9px] font-bold leading-tight text-center">{p.label}</span>
+                  </>
+                )}
               </button>
             );
           })}
         </div>
-      )}
+      </div>
 
-      {/* ── Active Param Editor (inline) ──────────────────────── */}
+      {/* ── Active Param Editor Panel ─────────────────────────── */}
       {editDef && !CONTAINER_PARAMS.has(editingParam) && (
-        <div className="mx-1 mb-3 bg-white border border-[#FF6F20]/30 rounded-xl overflow-hidden shadow-md">
-          <div className="bg-[#FFF7ED] px-3 py-2 flex items-center justify-between border-b border-[#FF6F20]/10">
-            <div className="flex items-center gap-1.5">
-              <editDef.icon size={14} className="text-[#FF6F20]" />
-              <span className="text-xs font-black text-gray-800">{editDef.label}</span>
+        <div className="mx-1 mb-3 bg-white border-2 border-[#FF6F20]/30 rounded-2xl overflow-hidden shadow-lg">
+          <div className="bg-[#FFF7ED] px-3 py-2.5 flex items-center justify-between border-b border-[#FF6F20]/10">
+            <div className="flex items-center gap-2">
+              <editDef.icon size={16} className="text-[#FF6F20]" />
+              <span className="text-sm font-black text-gray-800">{editDef.label}</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button type="button" onClick={() => handleRemoveParam(editingParam)}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50">
-                <X size={12} />
+                className="w-8 h-8 rounded-full flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50">
+                <X size={14} />
               </button>
               <button type="button" onClick={handleConfirm}
-                className="w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm active:scale-95">
-                <Check size={14} strokeWidth={3} />
+                className="w-10 h-10 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-md active:scale-95 transition-all">
+                <Check size={18} strokeWidth={3} />
               </button>
             </div>
           </div>
-          <div className="p-2.5">
+          <div className="p-3">
             <ParamInputRenderer
               paramId={editingParam}
               value={exercise[getDbField(editingParam)]}
@@ -653,30 +671,6 @@ export default function ModernExerciseForm({ exercise, onChange }) {
               getOptions={getOptions}
               onAddCustom={handleAddCustom}
             />
-          </div>
-        </div>
-      )}
-
-      {/* ── Available Parameters Grid (only unconfirmed) ──────── */}
-      {unconfirmedParams.length > 0 && !editingParam && (
-        <div className="mb-3 px-1">
-          <label className="text-[9px] font-bold text-gray-400 mb-1.5 block uppercase tracking-wider">הוסף פרמטר</label>
-          <div className="flex flex-wrap gap-1.5">
-            {unconfirmedParams.map((p) => {
-              const Icon = p.icon;
-              const isCont = CONTAINER_PARAMS.has(p.id);
-              const isContActive = isCont && confirmedParams.has(p.id);
-              return (
-                <button key={p.id} type="button" onClick={() => handleParamClick(p.id)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border text-[10px] font-bold transition-all active:scale-95
-                    ${isContActive
-                      ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20]"
-                      : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"}`}>
-                  <Icon size={12} />
-                  <span>{p.label}</span>
-                </button>
-              );
-            })}
           </div>
         </div>
       )}
