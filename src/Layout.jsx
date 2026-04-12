@@ -152,6 +152,11 @@ export default function Layout({ children, currentPageName }) {
   const primaryColor = '#FF6F20';
   const primaryColorLight = '#FFF8F3';
 
+  // ── כפתור חזרה מרכזי ──────────────────────────────────────────────
+  // זהו המקור היחיד לכפתור חזרה בכל האפליקציה (מאמן + מתאמן).
+  // אין להוסיף כפתורי navigate(-1) בתוך מסכים ספציפיים.
+  // כפתורי "חזרה" לגיטימיים בתוך מסכים: ניווט בין טאבים, שלבי wizard,
+  // ומצבי שגיאה עם ניווט לדף ספציפי (לא navigate(-1)).
   const noBackButtonPages = ["Dashboard", "TraineeHome", "Onboarding"];
   const shouldShowBackButton = !noBackButtonPages.includes(currentPageName);
 
