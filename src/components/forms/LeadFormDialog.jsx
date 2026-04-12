@@ -60,6 +60,13 @@ export default function LeadFormDialog({
 
   const [leadForm, setLeadForm, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
 
+  // When opening a NEW lead form (not editing), always start fresh
+  React.useEffect(() => {
+    if (isOpen && !editingLead) {
+      clearDraft();
+    }
+  }, [isOpen, editingLead]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleCancel = () => {
     clearDraft();
     onClose();
@@ -89,13 +96,14 @@ export default function LeadFormDialog({
       return;
     }
 
-    // Only send fields the leads table has — skip nulls to let DB defaults work
+    // Only send fields the leads table has
     const submissionData = { full_name: leadForm.full_name };
     if (leadForm.phone) submissionData.phone = leadForm.phone;
     if (leadForm.email) submissionData.email = leadForm.email;
     if (leadForm.age) submissionData.age = parseInt(leadForm.age);
-    if (leadForm.status && leadForm.status !== "חדש") submissionData.status = leadForm.status;
-    if (leadForm.source && leadForm.source !== "אחר") submissionData.source = leadForm.source;
+    // Always send status — draft persistence may carry old status
+    submissionData.status = leadForm.status || "חדש";
+    if (leadForm.source) submissionData.source = leadForm.source;
     if (leadForm.notes) submissionData.notes = leadForm.notes;
     if (leadForm.coach_notes) submissionData.coach_notes = leadForm.coach_notes;
     if (leadForm.birth_date) submissionData.birth_date = leadForm.birth_date;
