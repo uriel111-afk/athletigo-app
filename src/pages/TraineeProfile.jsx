@@ -1002,18 +1002,13 @@ export default function TraineeProfile() {
 
     await createGoalMutation.mutateAsync({
       trainee_id: user.id,
-      trainee_name: user.full_name,
-      goal_name: goalForm.goal_name,
+      title: goalForm.goal_name || goalForm.title,
       description: goalForm.description || null,
       target_value: parseFloat(goalForm.target_value),
       current_value: goalForm.current_value ? parseFloat(goalForm.current_value) : null,
-      unit: goalForm.unit || null,
+      target_unit: goalForm.unit || null,
       target_date: goalForm.target_date ? new Date(goalForm.target_date).toISOString() : null,
-      start_date: new Date().toISOString(),
-      status: goalForm.status,
-      progress_percentage: goalForm.current_value && goalForm.target_value
-        ? Math.min(100, Math.round((parseFloat(goalForm.current_value) / parseFloat(goalForm.target_value)) * 100))
-        : 0
+      status: goalForm.status || "בתהליך",
     });
   };
 
@@ -1027,14 +1022,13 @@ export default function TraineeProfile() {
     await updateGoalMutation.mutateAsync({
       id: editingGoal.id,
       data: {
-        goal_name: goalForm.goal_name,
+        title: goalForm.goal_name || goalForm.title,
         description: goalForm.description || null,
         target_value: parseFloat(goalForm.target_value),
         current_value: goalForm.current_value ? parseFloat(goalForm.current_value) : null,
-        unit: goalForm.unit || null,
+        target_unit: goalForm.unit || null,
         target_date: goalForm.target_date ? new Date(goalForm.target_date).toISOString() : null,
-        status: goalForm.status,
-        progress_percentage: progress
+        status: goalForm.status
       }
     });
   };

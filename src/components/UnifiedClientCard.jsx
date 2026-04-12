@@ -501,16 +501,13 @@ export default function UnifiedClientCard({
     
     const goalData = {
       trainee_id: currentClient.id,
-      trainee_name: currentClient.full_name,
-      goal_name: goalForm.goal_name,
+      title: goalForm.goal_name || goalForm.title,
       description: goalForm.description || null,
       target_value: parseFloat(goalForm.target_value),
       current_value: goalForm.current_value ? parseFloat(goalForm.current_value) : null,
-      unit: goalForm.unit || null,
+      target_unit: goalForm.unit || null,
       target_date: goalForm.target_date ? new Date(goalForm.target_date).toISOString() : null,
-      start_date: editingGoal?.start_date || new Date().toISOString(),
-      status: goalForm.status,
-      progress_percentage: goalForm.current_value && goalForm.target_value ? Math.min(100, Math.round((parseFloat(goalForm.current_value) / parseFloat(goalForm.target_value)) * 100)) : 0
+      status: goalForm.status || "בתהליך",
     };
 
     if (editingGoal) {
@@ -528,13 +525,11 @@ export default function UnifiedClientCard({
     
     const resultData = {
       trainee_id: currentClient.id,
-      trainee_name: currentClient.full_name,
       date: new Date(resultForm.date).toISOString(),
       title: resultForm.title,
       description: resultForm.description || null,
-      related_goal_id: resultForm.related_goal_id || null,
-      recorded_by_coach: coach?.id || null,
-      recorded_by_coach_name: coach?.full_name || null
+      goal_id: resultForm.related_goal_id || null,
+      created_by: coach?.id || null,
     };
 
     if (editingResult) {

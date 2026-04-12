@@ -131,48 +131,38 @@ export default function BaselineTestDialog({ isOpen, onClose }) {
     onError: () => toast.error("שגיאה בשמירת המבחן")
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const selectedTrainee = trainees.find(t => t.id === selectedTraineeId);
     const traineeName = selectedTrainee ? selectedTrainee.full_name : manualTraineeName;
-    
+
     if (!traineeName) {
       toast.error("נא לבחור או להזין שם מתאמן");
       return;
     }
 
     if (!calculations.allComplete) {
-        if (!window.confirm("חלק מהנתונים חסרים. האם לשמור בכל זאת?")) return;
+      if (!window.confirm("חלק מהנתונים חסרים. האם לשמור בכל זאת?")) return;
     }
 
+    // Map to actual results_log columns only
     const payload = {
-      trainee_id: selectedTrainee ? selectedTrainee.id : `manual_${Date.now()}`,
-      trainee_name: traineeName,
+      trainee_id: selectedTrainee?.id || null,
       date: testDate,
       title: "מבחן Baseline קפיצות בחבל",
+      skill_or_exercise: "קפיצות בחבל",
       description: `ציון כללי: ${calculations.overall || 'חלקי'} JPS`,
-      record_type: "baseline_jump_rope",
-      record_value: calculations.overall ? parseFloat(calculations.overall) : 0,
+      record_value: calculations.overall ? String(calculations.overall) : "0",
       record_unit: "jps",
       context: "מבחן שיא",
-      recorded_by_coach: coach?.id,
-      recorded_by_coach_name: coach?.full_name,
-      baseline_data: {
-        overall_baseline: calculations.overall,
-        test_time: testTime,
-        work_duration: workDuration,
-        rest_between_rounds: restBetweenRounds,
-        rest_between_techniques: restBetweenTechniques,
-        techniques: TECHNIQUES.reduce((acc, tech) => {
-          acc[tech.id] = {
-            ...techData[tech.id],
-            stats: calculations.stats[tech.id]
-          };
-          return acc;
-        }, {})
-      }
+      effort_level: null,
+      created_by: coach?.id || null,
     };
 
-    createMutation.mutate(payload);
+    try {
+      await createMutation.mutateAsync(payload);
+    } catch (error) {
+      console.error("[Baseline] Save error:", error);
+    }
   };
 
   return (

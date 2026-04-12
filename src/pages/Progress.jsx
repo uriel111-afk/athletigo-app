@@ -269,12 +269,10 @@ export default function Progress() {
 
     const data = {
       trainee_id: user.id,
-      trainee_name: user.full_name,
       date: resultForm.date,
       title: resultForm.title,
-      description: resultForm.description || "",
-      recorded_by_coach: user.id,
-      recorded_by_coach_name: user.full_name
+      description: resultForm.description || null,
+      created_by: user.id,
     };
 
     try {
@@ -297,18 +295,13 @@ export default function Progress() {
     try {
       await createGoalMutation.mutateAsync({
         trainee_id: user.id,
-        trainee_name: user.full_name,
-        goal_name: goalForm.goal_name,
+        title: goalForm.goal_name || goalForm.title,
         description: goalForm.description || null,
         target_value: parseFloat(goalForm.target_value),
         current_value: goalForm.current_value ? parseFloat(goalForm.current_value) : null,
-        unit: goalForm.unit || null,
+        target_unit: goalForm.unit || null,
         target_date: goalForm.target_date ? new Date(goalForm.target_date).toISOString() : null,
-        start_date: new Date().toISOString(),
-        status: goalForm.status,
-        progress_percentage: goalForm.current_value && goalForm.target_value
-          ? Math.min(100, Math.round((parseFloat(goalForm.current_value) / parseFloat(goalForm.target_value)) * 100))
-          : 0
+        status: goalForm.status || "בתהליך",
       });
     } catch (error) {
       console.error("handleAddGoal error:", error);
