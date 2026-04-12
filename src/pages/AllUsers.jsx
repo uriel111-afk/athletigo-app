@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Users, Search, Loader2, Filter, Plus } from "lucide-react";
+import PageLoader from "../components/PageLoader";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -162,10 +163,7 @@ export default function AllUsers() {
 
           {/* Users Grid */}
           {traineesLoading ? (
-            <div className="text-center py-12">
-              <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin" style={{ color: '#FF6F20' }} />
-              <p className="text-lg" style={{ color: '#666666' }}>טוען משתמשים...</p>
-            </div>
+            <PageLoader message="טוען מתאמנים..." />
           ) : filteredTrainees.length === 0 ? (
             <div className="p-12 rounded-xl text-center bg-white" style={{ border: '1px solid #E0E0E0' }}>
               <Users className="w-16 h-16 mx-auto mb-4" style={{ color: '#CCCCCC' }} />

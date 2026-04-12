@@ -15,6 +15,7 @@ import { UserPlus, Phone, Mail, Target, Edit2, Trash2, Users, Search, CheckCircl
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import PageLoader from "@/components/PageLoader";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
 
@@ -346,10 +347,7 @@ export default function Leads() {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 mx-auto animate-spin mb-4" style={{ color: '#FF6F20' }} />
-              <p style={{ color: '#7D7D7D' }}>טוען לידים...</p>
-            </div>
+            <PageLoader message="טוען לידים..." />
           ) : filteredLeads.length === 0 ? (
             <div className="text-center py-12 p-8 rounded-xl" style={{ backgroundColor: '#FAFAFA', border: '1px solid #E0E0E0' }}>
               <Users className="w-12 h-12 mx-auto mb-4" style={{ color: '#E0E0E0' }} />

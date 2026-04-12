@@ -10,6 +10,7 @@ import {
   Search, Loader2, User, Target, Calendar
 } from "lucide-react";
 import { toast } from "sonner";
+import PageLoader from "@/components/PageLoader";
 import ProtectedCoachPage from "@/components/ProtectedCoachPage";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
@@ -223,9 +224,7 @@ export default function ActivePlans() {
 
           {/* Loading */}
           {isLoading && (
-            <div className="flex justify-center py-16">
-              <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20]" />
-            </div>
+            <PageLoader message="טוען תוכניות..." />
           )}
 
           {/* Empty State */}
