@@ -351,11 +351,9 @@ export default function LeadFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="חדש">⭐ חדש</SelectItem>
-                    <SelectItem value="בטיפול">🕒 בטיפול</SelectItem>
-                    <SelectItem value="תיאום שיחה">📞 תיאום שיחה</SelectItem>
-                    <SelectItem value="המתנה">✋ המתנה</SelectItem>
-                    <SelectItem value="סגור – הפך ללקוח">✅ סגור – הפך ללקוח</SelectItem>
-                    <SelectItem value="סגור – לא רלוונטי">❌ סגור – לא רלוונטי</SelectItem>
+                    <SelectItem value="בקשר">🕒 בקשר</SelectItem>
+                    <SelectItem value="סגור עסקה">✅ סגור עסקה</SelectItem>
+                    <SelectItem value="לא מעוניין">❌ לא מעוניין</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

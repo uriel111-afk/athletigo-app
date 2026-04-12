@@ -376,7 +376,7 @@ export default function TraineeProfile() {
   });
 
   const { data: services = [] } = useQuery({
-    queryKey: ['trainee-services'],
+    queryKey: ['trainee-services', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       try {
