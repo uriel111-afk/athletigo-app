@@ -27,6 +27,7 @@ export default function SessionFormDialog({
     duration: 60,
     coach_notes: "",
     participants: [],
+    service_id: null,
   };
 
   const currentDefaults = editingSession ? {
@@ -37,12 +38,28 @@ export default function SessionFormDialog({
     duration: editingSession.duration || 60,
     coach_notes: editingSession.coach_notes || "",
     participants: editingSession.participants || [],
+    service_id: editingSession.service_id || null,
   } : defaultSessionForm;
 
   const formKey = `session_form_${editingSession ? editingSession.id : 'new'}`;
   const [sessionForm, setSessionForm, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
 
   const [showGuestForm, setShowGuestForm] = useState(false);
+  const [availableServices, setAvailableServices] = useState([]);
+
+  // Fetch active services when participant changes
+  useEffect(() => {
+    const fetchServices = async () => {
+      if (sessionForm.participants.length === 0) { setAvailableServices([]); return; }
+      const firstTrainee = sessionForm.participants[0]?.trainee_id;
+      if (!firstTrainee) return;
+      try {
+        const all = await base44.entities.ClientService.filter({ trainee_id: firstTrainee, status: 'פעיל' });
+        setAvailableServices((all || []).filter(s => (s.total_sessions || 0) - (s.used_sessions || 0) > 0));
+      } catch { setAvailableServices([]); }
+    };
+    fetchServices();
+  }, [sessionForm.participants.length]);
   const [guestForm, setGuestForm] = useState({
     full_name: "",
     phone: "",
@@ -486,6 +503,38 @@ export default function SessionFormDialog({
               )}
             </div>
           </div>
+
+          {/* Package selection */}
+          {availableServices.length > 0 && (
+            <div>
+              <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
+                שייך לחבילה (אופציונלי)
+              </Label>
+              <div className="space-y-1.5">
+                <button type="button"
+                  onClick={() => setSessionForm({ ...sessionForm, service_id: null })}
+                  className={`w-full p-2.5 rounded-lg text-sm text-right transition-all ${!sessionForm.service_id ? 'bg-gray-100 border-2 border-gray-300 font-bold' : 'bg-white border border-gray-200'}`}>
+                  ללא חבילה
+                </button>
+                {availableServices.map(svc => {
+                  const remaining = (svc.total_sessions || 0) - (svc.used_sessions || 0);
+                  const isSelected = sessionForm.service_id === svc.id;
+                  return (
+                    <button key={svc.id} type="button"
+                      onClick={() => setSessionForm({ ...sessionForm, service_id: svc.id })}
+                      className={`w-full p-2.5 rounded-lg text-sm text-right transition-all ${isSelected ? 'bg-[#FF6F20] text-white border-2 border-[#FF6F20]' : 'bg-white border border-gray-200 hover:border-gray-300'}`}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold">{svc.package_name || svc.service_type || 'חבילה'}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${isSelected ? 'bg-white/20' : 'bg-orange-50 text-[#FF6F20]'}`}>
+                          נותרו {remaining}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div>
             <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
