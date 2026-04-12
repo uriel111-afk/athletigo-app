@@ -259,6 +259,7 @@ const entities = {
   Goal:                   createEntity('goals'),
   ResultsLog:             createEntity('results_log'),
   AttendanceLog:          createEntity('attendance_log'),
+  ServiceTransaction:     createEntity('service_transactions'),
   ClientService:          createEntity('client_services'),
   Message:                createEntity('messages'),
   Notification:           createEntity('notifications'),

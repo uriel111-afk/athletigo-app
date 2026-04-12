@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import {
   Users, UserPlus, Calendar, ClipboardList, Loader2,
   Target, Plus, Award, Search, Dumbbell, Bell,
-  DollarSign, Ruler, LogOut
+  DollarSign, Ruler, LogOut, Package
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -22,6 +22,7 @@ import PlanFormDialog from "../components/training/PlanFormDialog";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
+import PackageFormDialog from "../components/forms/PackageFormDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
@@ -54,6 +55,7 @@ export default function Dashboard() {
   const [isMeasurementDialogOpen, setIsMeasurementDialogOpen] = useState(false);
 
   const [showActionPicker, setShowActionPicker] = useState(false);
+  const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
 
   // Trainee selection for goal/result/measurement actions
   const [showSelectTraineeDialog, setShowSelectTraineeDialog] = useState(false);
@@ -93,6 +95,7 @@ export default function Dashboard() {
     if (pendingAction === "goal") setIsGoalDialogOpen(true);
     if (pendingAction === "result") setIsResultDialogOpen(true);
     if (pendingAction === "measurement") setIsMeasurementDialogOpen(true);
+    if (pendingAction === "package") setIsPackageDialogOpen(true);
   };
 
   // ── Mutations ───────────────────────────────────────────────────────
@@ -230,10 +233,11 @@ export default function Dashboard() {
 
           {/* ═══ SECTION 3 — גישה מהירה ═══════════════════════ */}
           <SectionHeader title="גישה מהירה" />
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {[
               { label: "שיאים ויעדים", icon: Award,      action: () => setShowActionPicker(true) },
               { label: "מדידות",       icon: Ruler,       action: () => handleActionClick("measurement") },
+              { label: "חבילה",        icon: Package,     action: () => handleActionClick("package") },
               { label: "דוח כספי",     icon: DollarSign,  action: () => navigate(createPageUrl("FinancialOverview") + "?period=current_month") },
               { label: "התראות",       icon: Bell,        action: () => navigate(createPageUrl("Notifications")) },
             ].map((q) => (
@@ -321,6 +325,8 @@ export default function Dashboard() {
           <ResultFormDialog isOpen={isResultDialogOpen} onClose={() => setIsResultDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
           <MeasurementFormDialog isOpen={isMeasurementDialogOpen} onClose={() => setIsMeasurementDialogOpen(false)}
+            traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
+          <PackageFormDialog isOpen={isPackageDialogOpen} onClose={() => setIsPackageDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
         </>
       )}

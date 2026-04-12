@@ -1,8 +1,9 @@
 import React, { useState, useContext } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useQuery } from "@tanstack/react-query"; // Keep useQuery for local non-shared queries if any
+import { useQuery } from "@tanstack/react-query";
 import { useSessionStats } from "../components/hooks/useSessionStats";
+import { deductSessionFromService, restoreSessionToService } from "../components/hooks/useServiceDeduction";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -285,9 +286,7 @@ export default function Sessions() {
     await updateSessionMutation.mutateAsync({
       id: session.id,
       data: {
-        status: newStatus,
-        status_updated_at: new Date().toISOString(),
-        status_updated_by: coach?.id
+        status: newStatus
       }
     });
 
@@ -321,6 +320,11 @@ export default function Sessions() {
           }
         }
       }
+      // Service-based deduction (if session linked to a package)
+      if (session.service_id) {
+        await deductSessionFromService(session, user?.id);
+      }
+
       // Notify each participant that the session was completed
       for (const participant of session.participants || []) {
         if (participant.trainee_id) {
@@ -363,7 +367,12 @@ export default function Sessions() {
           }
         }
       }
-      toast.success("✅ סטטוס עודכן וזיכויים הוחזרו (במידת הצורך)");
+      // Service-based restore (if session linked to a package)
+      if (session.service_id) {
+        await restoreSessionToService(session, user?.id);
+      }
+
+      toast.success("סטטוס עודכן וזיכויים הוחזרו");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
