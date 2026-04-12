@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 
-const STEPS = [
+const COACH_STEPS = [
   { key: "trainees", label: "טוען מתאמנים", queryKey: QUERY_KEYS.TRAINEES,
     fn: async () => {
       const users = await base44.entities.User.list('-created_at', 1000);
@@ -17,6 +17,31 @@ const STEPS = [
     fn: () => base44.entities.TrainingPlan.list('-created_at', 1000).catch(() => []) },
   { key: "leads", label: "טוען לידים", queryKey: QUERY_KEYS.LEADS,
     fn: () => base44.entities.Lead.list('-created_at', 1000).catch(() => []) },
+];
+
+const buildTraineeSteps = (userId) => [
+  { key: "plans", label: "טוען תוכניות אימון",
+    queryKey: ['training-plans', userId],
+    fn: () => base44.entities.TrainingPlan.filter({ assigned_to: userId }, '-start_date').catch(() => []) },
+  { key: "sessions", label: "טוען מפגשים",
+    queryKey: ['trainee-sessions', userId],
+    fn: async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const all = await base44.entities.Session.filter({ date: { $gte: today } }, 'date', 100).catch(() => []);
+      return all.filter(s => s.participants?.some(p => p.trainee_id === userId));
+    }},
+  { key: "notifications", label: "טוען התראות",
+    queryKey: ['notifications', userId],
+    fn: () => base44.entities.Notification.filter({ user_id: userId }, '-created_at').catch(() => []) },
+  { key: "services", label: "טוען חבילות",
+    queryKey: ['trainee-services', userId],
+    fn: () => base44.entities.ClientService.filter({ trainee_id: userId }).catch(() => []) },
+  { key: "measurements", label: "טוען מדידות",
+    queryKey: ['my-measurements'],
+    fn: () => base44.entities.Measurement.filter({ trainee_id: userId }, '-date').catch(() => []) },
+  { key: "results", label: "טוען שיאים",
+    queryKey: ['my-results'],
+    fn: () => base44.entities.ResultsLog.filter({ trainee_id: userId }, '-date').catch(() => []) },
 ];
 
 const TIMEOUT_MS = 15000;
@@ -37,24 +62,15 @@ export function useDataGate(user) {
     setLabel("טוען משתמש...");
 
     const isCoach = user.is_coach === true || user.role === 'coach' || user.role === 'admin';
+    const steps = isCoach ? COACH_STEPS : buildTraineeSteps(user.id);
 
-    if (!isCoach) {
-      // Trainee — no blocking data gate needed
-      setProgress(100);
-      setLabel("מוכן");
-      setIsReady(true);
-      return;
-    }
-
-    // Coach — load all data in parallel, track progress
-    const total = STEPS.length;
+    const total = steps.length;
     let completed = 0;
     const prefetchOpts = { staleTime: CACHE_CONFIG.STALE_TIME };
 
-    // Set up timeout
     const timer = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
 
-    const promises = STEPS.map(async (step) => {
+    const promises = steps.map(async (step) => {
       setLabel(step.label);
       try {
         await queryClient.prefetchQuery({
@@ -68,7 +84,7 @@ export function useDataGate(user) {
       completed++;
       setProgress(Math.round(10 + (completed / total) * 90));
       if (completed < total) {
-        const nextPending = STEPS.find((s, i) => i >= completed);
+        const nextPending = steps.find((_, i) => i >= completed);
         if (nextPending) setLabel(nextPending.label);
       }
     });
