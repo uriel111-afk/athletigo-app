@@ -10,6 +10,7 @@ import { createPageUrl } from "@/utils";
 import { AuthContext } from "@/lib/AuthContext";
 
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
+import { usePackageExpiry } from "../components/hooks/usePackageExpiry";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user: coach } = useContext(AuthContext);
+  usePackageExpiry(coach?.id);
 
   // Dialog states
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);

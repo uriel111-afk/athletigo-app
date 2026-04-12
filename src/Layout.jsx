@@ -63,6 +63,7 @@ export default function Layout({ children, currentPageName }) {
     { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
     // ── ניהול עסקי ──
     { title: "סיכום כספי", url: createPageUrl("FinancialOverview"), icon: DollarSign, section: "business" },
+    { title: "חבילות", url: createPageUrl("PackageStats"), icon: ClipboardList, section: "business" },
     { title: "המרות", url: createPageUrl("ConversionDashboard"), icon: TrendingUp, section: "business" },
     // ── הגדרות ──
     { title: "פרופיל מאמן", url: createPageUrl("CoachProfile"), icon: User, section: "settings" },

@@ -63,6 +63,7 @@ import MyWorkoutLog from './pages/MyWorkoutLog';
 import Notifications from './pages/Notifications';
 import Onboarding from './pages/Onboarding';
 import Progress from './pages/Progress';
+import PackageStats from './pages/PackageStats';
 import Reports from './pages/Reports';
 import SectionTemplates from './pages/SectionTemplates';
 import Sessions from './pages/Sessions';
@@ -90,6 +91,7 @@ export const PAGES = {
     "Notifications": Notifications,
     "Onboarding": Onboarding,
     "Progress": Progress,
+    "PackageStats": PackageStats,
     "Reports": Reports,
     "SectionTemplates": SectionTemplates,
     "Sessions": Sessions,
