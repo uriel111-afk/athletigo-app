@@ -129,7 +129,7 @@ export default function Dashboard() {
       if (s?.participants && coach) {
         for (const p of s.participants) {
           try {
-            await notifySessionScheduled({ traineeId: p.trainee_id, sessionDate: s.date, sessionTime: s.time, sessionType: s.session_type, coachName: coach.full_name });
+            await notifySessionScheduled({ traineeId: p.trainee_id, sessionId: s.id, sessionDate: s.date, sessionTime: s.time, sessionType: s.session_type, coachName: coach.full_name });
           } catch {}
         }
       }

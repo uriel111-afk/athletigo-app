@@ -5,6 +5,7 @@ import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Packa
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import TraineeSessionBooking from "../components/TraineeSessionBooking";
+import TraineeNotificationCard from "../components/TraineeNotificationCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -189,36 +190,18 @@ export default function TraineeHome() {
           </DialogHeader>
           <div className="space-y-3">
             {unreadNotifs.map(n => (
-              <div
-                key={n.id}
-                className="p-4 rounded-xl border-2"
-                style={{ borderColor: n.requires_acknowledgment && !n.acknowledged_at ? '#FF6F20' : '#E0E0E0',
-                  backgroundColor: n.requires_acknowledgment && !n.acknowledged_at ? '#FFF8F3' : '#FAFAFA' }}
-              >
-                <p className="font-bold text-sm text-gray-900 mb-1">{n.title}</p>
-                <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line mb-3">{n.message}</p>
-                {n.requires_acknowledgment && !n.acknowledged_at ? (
-                  <Button
-                    onClick={() => handleAcknowledge(n.id)}
-                    disabled={acknowledgingId === n.id}
-                    className="w-full rounded-xl font-bold text-white min-h-[44px]"
-                    style={{ backgroundColor: '#FF6F20' }}
-                  >
-                    {acknowledgingId === n.id ? (
-                      <><Loader2 className="w-4 h-4 ml-2 animate-spin" />מאשר...</>
-                    ) : (
-                      <><ShieldCheck className="w-4 h-4 ml-2" />קראתי ומאשר קבלה</>
-                    )}
-                  </Button>
-                ) : (
-                  <Button onClick={() => handleMarkRead(n.id)} variant="outline" size="sm" className="w-full rounded-xl min-h-[44px]">
-                    סמן כנקרא
-                  </Button>
-                )}
-              </div>
+              <TraineeNotificationCard key={n.id} notification={n}
+                onUpdate={async () => {
+                  try {
+                    const all = await base44.entities.Notification.filter({ user_id: user.id }, '-created_at');
+                    const unread = all.filter(x => !x.is_read || (x.requires_acknowledgment && !x.acknowledged_at));
+                    setUnreadNotifs(unread);
+                    if (unread.length === 0) setShowUnreadModal(false);
+                  } catch {}
+                }} />
             ))}
             {unreadNotifs.length === 0 && (
-              <p className="text-center text-gray-400 py-4 text-sm">כל ההתראות טופלו ✅</p>
+              <p className="text-center text-gray-400 py-4 text-sm">כל ההתראות טופלו</p>
             )}
           </div>
           <Button

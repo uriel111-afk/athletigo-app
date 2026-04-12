@@ -196,6 +196,7 @@ export default function Sessions() {
         for (const participant of createdSession.participants) {
           await notifySessionScheduled({
             traineeId: participant.trainee_id,
+            sessionId: createdSession.id,
             sessionDate: createdSession.date,
             sessionTime: createdSession.time,
             sessionType: createdSession.session_type,

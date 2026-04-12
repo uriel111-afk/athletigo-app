@@ -9,7 +9,7 @@ async function createNotification(payload) {
   }
 }
 
-export async function notifySessionScheduled({ traineeId, sessionDate, sessionTime, sessionType, coachName }) {
+export async function notifySessionScheduled({ traineeId, sessionId, sessionDate, sessionTime, sessionType, coachName }) {
   await createNotification({
     user_id: traineeId,
     type: 'session_scheduled',
@@ -17,6 +17,7 @@ export async function notifySessionScheduled({ traineeId, sessionDate, sessionTi
     message: `${coachName} קבע מפגש ${sessionType} בתאריך ${sessionDate} בשעה ${sessionTime}`,
     is_read: false,
     created_at: new Date().toISOString(),
+    data: { session_id: sessionId, session_date: sessionDate, session_time: sessionTime },
   });
 }
 
