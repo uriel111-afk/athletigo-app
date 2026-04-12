@@ -20,8 +20,8 @@ export default function SessionFormDialog({
   isLoading = false 
 }) {
   const defaultSessionForm = {
-    date: "",
-    time: "",
+    date: new Date().toISOString().split('T')[0],
+    time: "10:00",
     session_type: "אישי",
     location: "",
     duration: 60,
@@ -151,7 +151,10 @@ export default function SessionFormDialog({
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
+    console.log("[SessionForm] Submit clicked. Form data:", JSON.stringify(sessionForm));
+
     if (!sessionForm.date || !sessionForm.time) {
+      console.warn("[SessionForm] Validation failed — missing date or time");
       toast.error("יש למלא תאריך ושעה");
       return;
     }
@@ -161,14 +164,17 @@ export default function SessionFormDialog({
       status: editingSession ? sessionForm.status : 'ממתין לאישור'
     };
 
+    console.log("[SessionForm] Sending to parent:", JSON.stringify(sessionDataWithStatus));
     setSaving(true);
     try {
       await onSubmit(sessionDataWithStatus);
+      console.log("[SessionForm] Success — closing");
       clearDraft();
       onClose();
     } catch (error) {
-      console.error("[SessionForm] Error:", error);
-      toast.error("שגיאה בשמירת מפגש: " + (error?.message || "נסה שוב"));
+      console.error("[SessionForm] Save error:", error);
+      const msg = error?.message || error?.body?.message || "שגיאה לא צפויה";
+      toast.error("שגיאה בשמירת מפגש: " + msg);
     } finally {
       setSaving(false);
     }

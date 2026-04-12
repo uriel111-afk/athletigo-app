@@ -113,7 +113,10 @@ export default function Dashboard() {
   });
 
   const createSessionMutation = useMutation({
-    mutationFn: (d) => base44.entities.Session.create(d),
+    mutationFn: (d) => {
+      console.log("[Dashboard] Creating session with:", JSON.stringify(d));
+      return base44.entities.Session.create(d);
+    },
     onSuccess: async (s) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SESSIONS });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
