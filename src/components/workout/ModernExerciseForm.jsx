@@ -117,6 +117,27 @@ const DIALOG_TITLES = {
 // INPUT COMPONENTS
 // ══════════════════════════════════════════════════════════════════════
 
+const TimeWheel = ({ value, max, onChange, label }) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  const inc = () => onChange(value >= max ? 0 : value + 1);
+  const dec = () => onChange(value <= 0 ? max : value - 1);
+
+  return (
+    <div className="flex flex-col items-center w-14">
+      <button type="button" onClick={inc} className="w-10 h-7 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
+        <Plus size={14} strokeWidth={3} />
+      </button>
+      <input type="text" inputMode="numeric" value={pad(value)}
+        onChange={(e) => { const n = parseInt(e.target.value) || 0; onChange(Math.min(max, Math.max(0, n))); }}
+        className="w-14 h-11 text-center text-xl font-black border-2 border-gray-200 rounded-xl bg-white focus:border-[#FF6F20] focus:outline-none select-all" />
+      <button type="button" onClick={dec} className="w-10 h-7 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
+        <Minus size={14} strokeWidth={3} />
+      </button>
+      <span className="text-[8px] text-gray-400 font-bold mt-0.5">{label}</span>
+    </div>
+  );
+};
+
 const TimeUnitInput = ({ value, onChange }) => {
   const toSecs = (v) => {
     if (!v && v !== 0) return 0;
@@ -130,25 +151,13 @@ const TimeUnitInput = ({ value, onChange }) => {
   const mins = Math.floor(secs / 60);
   const remSecs = secs % 60;
 
-  const handleChange = (m, s) => {
-    onChange(String((parseInt(m) || 0) * 60 + (parseInt(s) || 0)));
-  };
+  const set = (m, s) => onChange(String(m * 60 + s));
 
   return (
-    <div className="flex items-center justify-center gap-1">
-      <div className="text-center">
-        <input type="number" min="0" max="59" value={mins || ""} placeholder="0"
-          onChange={(e) => handleChange(e.target.value, remSecs)}
-          className="w-14 h-10 text-center text-lg font-black border border-gray-200 rounded-lg bg-white focus:border-[#FF6F20] focus:outline-none" />
-        <div className="text-[9px] text-gray-400 font-bold mt-0.5">דקות</div>
-      </div>
-      <span className="text-xl font-black text-gray-300 mb-4">:</span>
-      <div className="text-center">
-        <input type="number" min="0" max="59" value={remSecs || ""} placeholder="0"
-          onChange={(e) => handleChange(mins, e.target.value)}
-          className="w-14 h-10 text-center text-lg font-black border border-gray-200 rounded-lg bg-white focus:border-[#FF6F20] focus:outline-none" />
-        <div className="text-[9px] text-gray-400 font-bold mt-0.5">שניות</div>
-      </div>
+    <div className="flex items-start justify-center gap-0.5">
+      <TimeWheel value={mins} max={59} onChange={(m) => set(m, remSecs)} label="דקות" />
+      <span className="text-2xl font-black text-gray-300 mt-2.5 mx-0.5">:</span>
+      <TimeWheel value={remSecs} max={59} onChange={(s) => set(mins, s)} label="שניות" />
     </div>
   );
 };
@@ -521,7 +530,14 @@ export default function ModernExerciseForm({ exercise, onChange }) {
 
   // ── Param handlers ──────────────────────────────────────────────────
   const handleParamClick = (paramId) => {
-    if (editingParam === paramId) return;
+    // Double-click on currently editing param → remove it
+    if (editingParam === paramId) {
+      handleRemoveParam(paramId);
+      return;
+    }
+
+    // Click on confirmed param → re-open for editing (existing behavior)
+    // Click on unconfirmed param → start editing (existing behavior)
 
     // Container params: toggle & confirm immediately
     if (CONTAINER_PARAMS.has(paramId)) {
