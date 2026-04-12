@@ -217,21 +217,13 @@ export default function TraineeProfile() {
   });
 
   const [formData, setFormData] = useState({
-    full_name: "",
-    email: "",
-    phone: "",
-    birth_date: "",
-    age: "",
-    gender: "",
-    address: "",
-    city: "",
-    main_goal: "",
-    current_status: "",
-    future_vision: "",
-    health_issues: "",
-    emergency_contact_name: "",
-    emergency_contact_phone: "",
-    profile_image: ""
+    full_name: "", email: "", phone: "", birth_date: "", age: "", gender: "",
+    address: "", city: "", main_goal: "", current_status: "", future_vision: "",
+    health_issues: "", medical_history: "", emergency_contact_name: "",
+    emergency_contact_phone: "", profile_image: "", sport_background: "",
+    fitness_level: "", training_goals: "", training_frequency: "",
+    preferred_training_style: "", notes: "", coach_notes: "", bio: "",
+    status: "",
   });
 
   const [healthForm, setHealthForm] = useState({
@@ -316,9 +308,19 @@ export default function TraineeProfile() {
         current_status: effectiveUser.current_status || "",
         future_vision: effectiveUser.future_vision || "",
         health_issues: effectiveUser.health_issues || "",
+        medical_history: effectiveUser.medical_history || "",
         emergency_contact_name: effectiveUser.emergency_contact_name || "",
         emergency_contact_phone: effectiveUser.emergency_contact_phone || "",
-        profile_image: effectiveUser.profile_image || ""
+        profile_image: effectiveUser.profile_image || "",
+        sport_background: effectiveUser.sport_background || "",
+        fitness_level: effectiveUser.fitness_level || "",
+        training_goals: effectiveUser.training_goals || "",
+        training_frequency: effectiveUser.training_frequency || "",
+        preferred_training_style: effectiveUser.preferred_training_style || "",
+        notes: effectiveUser.notes || "",
+        coach_notes: effectiveUser.coach_notes || "",
+        bio: effectiveUser.bio || "",
+        status: effectiveUser.status || "",
       });
       
       // Init health form
@@ -775,7 +777,19 @@ export default function TraineeProfile() {
       birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
       age: calculatedAge ? parseInt(calculatedAge) : null,
       gender: formData.gender || null,
+      address: formData.address || null,
+      city: formData.city || null,
       main_goal: formData.main_goal || null,
+      sport_background: formData.sport_background || null,
+      fitness_level: formData.fitness_level || null,
+      training_goals: formData.training_goals || null,
+      training_frequency: formData.training_frequency || null,
+      preferred_training_style: formData.preferred_training_style || null,
+      medical_history: formData.medical_history || null,
+      notes: formData.notes || null,
+      coach_notes: formData.coach_notes || null,
+      bio: formData.bio || null,
+      status: formData.status || null,
       emergency_contact_name: formData.emergency_contact_name || null,
       emergency_contact_phone: formData.emergency_contact_phone || null,
     };
@@ -1754,26 +1768,91 @@ export default function TraineeProfile() {
 
         {/* Edit Profile Dialog */}
         <Dialog open={showEdit} onOpenChange={setShowEdit}>
-          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
-            <DialogHeader><DialogTitle className="text-lg font-bold">ערוך פרטים</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div><Label className="text-sm">טלפון</Label><Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-sm">תאריך לידה</Label><Input type="date" value={formData.birth_date} onChange={e => { const d = e.target.value; let age = ''; if (d) { const b = new Date(d); age = String(Math.floor((Date.now() - b.getTime()) / (365.25*24*60*60*1000))); } setFormData({ ...formData, birth_date: d, age }); }} max={new Date().toISOString().split('T')[0]} className="rounded-lg" style={{ fontSize: 16 }} /></div>
-                <div><Label className="text-sm">גיל</Label><Input value={formData.age} disabled className="rounded-lg bg-gray-50" style={{ fontSize: 16 }} /></div>
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
+            <DialogHeader><DialogTitle className="text-lg font-bold">ערוך פרופיל</DialogTitle></DialogHeader>
+            <div className="space-y-5">
+              {/* ── פרטים אישיים ── */}
+              <div>
+                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">פרטים אישיים</h3>
+                <div className="space-y-3">
+                  <div><Label className="text-xs text-gray-500 mb-1 block">שם מלא</Label><Input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs text-gray-500 mb-1 block">טלפון</Label><Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="rounded-lg" /></div>
+                    <div><Label className="text-xs text-gray-500 mb-1 block">אימייל</Label><Input value={formData.email} disabled className="rounded-lg bg-gray-50 text-gray-400" /></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div><Label className="text-xs text-gray-500 mb-1 block">תאריך לידה</Label><Input type="date" value={formData.birth_date} onChange={e => { const d = e.target.value; let age = ''; if (d) { const b = new Date(d); age = String(Math.floor((Date.now() - b.getTime()) / (365.25*24*60*60*1000))); } setFormData({ ...formData, birth_date: d, age }); }} max={new Date().toISOString().split('T')[0]} className="rounded-lg" /></div>
+                    <div><Label className="text-xs text-gray-500 mb-1 block">גיל</Label><Input value={formData.age} disabled className="rounded-lg bg-gray-50" /></div>
+                    <div><Label className="text-xs text-gray-500 mb-1 block">מגדר</Label>
+                      <Select value={formData.gender} onValueChange={v => setFormData({ ...formData, gender: v })}>
+                        <SelectTrigger className="rounded-lg"><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent><SelectItem value="זכר">זכר</SelectItem><SelectItem value="נקבה">נקבה</SelectItem><SelectItem value="אחר">אחר</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs text-gray-500 mb-1 block">עיר</Label><Input value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} className="rounded-lg" /></div>
+                    <div><Label className="text-xs text-gray-500 mb-1 block">כתובת</Label><Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="rounded-lg" /></div>
+                  </div>
+                  <div><Label className="text-xs text-gray-500 mb-1 block">סטטוס</Label>
+                    <Select value={formData.status} onValueChange={v => setFormData({ ...formData, status: v })}>
+                      <SelectTrigger className="rounded-lg"><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectContent><SelectItem value="active">פעיל</SelectItem><SelectItem value="inactive">לא פעיל</SelectItem><SelectItem value="frozen">מוקפא</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
-              <div><Label className="text-sm">מגדר</Label>
-                <Select value={formData.gender} onValueChange={v => setFormData({ ...formData, gender: v })}>
-                  <SelectTrigger className="rounded-lg"><SelectValue placeholder="בחר מגדר" /></SelectTrigger>
-                  <SelectContent><SelectItem value="זכר">זכר</SelectItem><SelectItem value="נקבה">נקבה</SelectItem><SelectItem value="אחר">אחר</SelectItem></SelectContent>
-                </Select>
+
+              {/* ── פרטים מקצועיים ── */}
+              <div>
+                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">פרטים מקצועיים</h3>
+                <div className="space-y-3">
+                  <div><Label className="text-xs text-gray-500 mb-1 block">מטרה עיקרית</Label><Input value={formData.main_goal} onChange={e => setFormData({ ...formData, main_goal: e.target.value })} className="rounded-lg" /></div>
+                  <div><Label className="text-xs text-gray-500 mb-1 block">מטרות אימון</Label><Textarea value={formData.training_goals} onChange={e => setFormData({ ...formData, training_goals: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs text-gray-500 mb-1 block">רמת כושר</Label>
+                      <Select value={formData.fitness_level} onValueChange={v => setFormData({ ...formData, fitness_level: v })}>
+                        <SelectTrigger className="rounded-lg"><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent><SelectItem value="מתחיל">מתחיל</SelectItem><SelectItem value="בינוני">בינוני</SelectItem><SelectItem value="מתקדם">מתקדם</SelectItem><SelectItem value="מקצועי">מקצועי</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label className="text-xs text-gray-500 mb-1 block">תדירות אימון</Label><Input value={formData.training_frequency} onChange={e => setFormData({ ...formData, training_frequency: e.target.value })} placeholder="לדוגמה: 3 פעמים בשבוע" className="rounded-lg" /></div>
+                  </div>
+                  <div><Label className="text-xs text-gray-500 mb-1 block">רקע ספורטיבי</Label><Textarea value={formData.sport_background} onChange={e => setFormData({ ...formData, sport_background: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
+                  <div><Label className="text-xs text-gray-500 mb-1 block">סגנון אימון מועדף</Label><Input value={formData.preferred_training_style} onChange={e => setFormData({ ...formData, preferred_training_style: e.target.value })} className="rounded-lg" /></div>
+                </div>
               </div>
-              <div><Label className="text-sm">שם מלא</Label><Input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
-              <div><Label className="text-sm">מטרה עיקרית</Label><Input value={formData.main_goal} onChange={e => setFormData({ ...formData, main_goal: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
-              <div><Label className="text-sm">איש קשר לחירום</Label><Input value={formData.emergency_contact_name} onChange={e => setFormData({ ...formData, emergency_contact_name: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
-              <div><Label className="text-sm">טלפון חירום</Label><Input value={formData.emergency_contact_phone} onChange={e => setFormData({ ...formData, emergency_contact_phone: e.target.value })} className="rounded-lg" style={{ fontSize: 16 }} /></div>
+
+              {/* ── בריאות ── */}
+              <div>
+                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">בריאות</h3>
+                <div className="space-y-3">
+                  <div><Label className="text-xs text-gray-500 mb-1 block">בעיות בריאות / פציעות</Label><Textarea value={formData.health_issues} onChange={e => setFormData({ ...formData, health_issues: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
+                  <div><Label className="text-xs text-gray-500 mb-1 block">היסטוריה רפואית</Label><Textarea value={formData.medical_history} onChange={e => setFormData({ ...formData, medical_history: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
+                </div>
+              </div>
+
+              {/* ── חירום ── */}
+              <div>
+                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">איש קשר לחירום</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs text-gray-500 mb-1 block">שם</Label><Input value={formData.emergency_contact_name} onChange={e => setFormData({ ...formData, emergency_contact_name: e.target.value })} className="rounded-lg" /></div>
+                  <div><Label className="text-xs text-gray-500 mb-1 block">טלפון</Label><Input value={formData.emergency_contact_phone} onChange={e => setFormData({ ...formData, emergency_contact_phone: e.target.value })} className="rounded-lg" /></div>
+                </div>
+              </div>
+
+              {/* ── הערות ── */}
+              <div>
+                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">הערות</h3>
+                <div className="space-y-3">
+                  <div><Label className="text-xs text-gray-500 mb-1 block">ביוגרפיה</Label><Textarea value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
+                  <div><Label className="text-xs text-gray-500 mb-1 block">הערות כלליות</Label><Textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
+                  {isCoach && <div><Label className="text-xs text-gray-500 mb-1 block">הערות מאמן (פנימי)</Label><Textarea value={formData.coach_notes} onChange={e => setFormData({ ...formData, coach_notes: e.target.value })} className="rounded-lg resize-none min-h-[60px] bg-yellow-50 border-yellow-200" /></div>}
+                </div>
+              </div>
+
               <Button onClick={handleSave} disabled={updateUserMutation.isPending || updateTargetUserMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
-                {updateUserMutation.isPending || updateTargetUserMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : 'שמור'}
+                {updateUserMutation.isPending || updateTargetUserMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : 'שמור שינויים'}
               </Button>
             </div>
           </DialogContent>
