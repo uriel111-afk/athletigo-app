@@ -154,10 +154,13 @@ const TimeUnitInput = ({ value, onChange }) => {
   const set = (m, s) => onChange(String(m * 60 + s));
 
   return (
-    <div className="flex items-start justify-center gap-0.5">
-      <TimeWheel value={mins} max={59} onChange={(m) => set(m, remSecs)} label="דקות" />
-      <span className="text-2xl font-black text-gray-300 mt-2.5 mx-0.5">:</span>
-      <TimeWheel value={remSecs} max={59} onChange={(s) => set(mins, s)} label="שניות" />
+    <div className="flex flex-col items-center">
+      <span className="text-[9px] text-gray-400 font-bold mb-1" dir="ltr">דקות : שניות</span>
+      <div className="flex items-start justify-center gap-0.5" dir="ltr">
+        <TimeWheel value={mins} max={59} onChange={(m) => set(m, remSecs)} label="min" />
+        <span className="text-2xl font-black text-gray-300 mt-2.5 mx-0.5">:</span>
+        <TimeWheel value={remSecs} max={59} onChange={(s) => set(mins, s)} label="sec" />
+      </div>
     </div>
   );
 };
