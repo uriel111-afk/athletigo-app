@@ -10,7 +10,8 @@ import { createPageUrl } from "@/utils";
 import { AuthContext } from "@/lib/AuthContext";
 
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
 import { notifySessionScheduled } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -23,7 +24,6 @@ import ResultFormDialog from "../components/forms/ResultFormDialog";
 import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { QUERY_KEYS } from "@/components/utils/queryKeys";
 
 // ── Design ────────────────────────────────────────────────────────────
 const SectionHeader = ({ title }) => (
@@ -61,8 +61,17 @@ export default function Dashboard() {
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
 
+  // Direct trainees query — available immediately for dialogs (doesn't wait for full stats)
+  const { data: allTrainees = [] } = useQuery({
+    queryKey: QUERY_KEYS.TRAINEES,
+    queryFn: async () => {
+      const users = await base44.entities.User.list('-created_at', 1000);
+      return users.filter(u => u.role === 'user' || u.role === 'trainee');
+    },
+    initialData: [],
+  });
+
   const {
-    trainees: allTrainees = [],
     activeClientsCount = 0,
     upcomingSessionsCount = 0,
     newLeadsCount = 0,

@@ -1100,16 +1100,16 @@ export default function TraineeProfile() {
 
   const getWeightChange = () => {
     if (measurements.length < 2) return null;
-    const latest = measurements[0]?.weight_kg;
-    const first = measurements[measurements.length - 1]?.weight_kg;
+    const latest = measurements[0]?.weight;
+    const first = measurements[measurements.length - 1]?.weight;
     if (!latest || !first) return null;
     return latest - first;
   };
 
   const getBodyFatChange = () => {
     if (measurements.length < 2) return null;
-    const latest = measurements[0]?.body_fat_percent;
-    const first = measurements[measurements.length - 1]?.body_fat_percent;
+    const latest = measurements[0]?.body_fat;
+    const first = measurements[measurements.length - 1]?.body_fat;
     if (!latest || !first) return null;
     return latest - first;
   };
@@ -1122,7 +1122,7 @@ export default function TraineeProfile() {
     .reverse()
     .map(m => ({
       date: format(new Date(m.date), 'dd/MM'),
-      weight: m.weight_kg || 0
+      weight: m.weight || 0
     }))
     .filter(d => d.weight > 0);
 
@@ -1231,7 +1231,7 @@ export default function TraineeProfile() {
         {activeTab === 'overview' && (
           <>
             {/* ORANGE HEADER */}
-            <div style={{ backgroundColor: '#FF6F20' }} className="flex-shrink-0 px-4 pt-8 pb-3">
+            <div style={{ backgroundColor: '#FF6F20' }} className="flex-shrink-0 px-4 pt-4 pb-2">
               <div className="flex justify-between items-center mb-2">
                 <button
                   onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
@@ -1259,7 +1259,7 @@ export default function TraineeProfile() {
             </div>
 
             {/* SCROLLABLE CONTENT */}
-            <div className="flex-1 overflow-y-auto px-3 pt-3 pb-20 space-y-2.5">
+            <div className="flex-1 overflow-y-auto px-3 pt-2 pb-20 space-y-2">
               {/* STATS ROW — 3 cards */}
               <div className="grid grid-cols-3 gap-2">
                 {[
@@ -1300,7 +1300,7 @@ export default function TraineeProfile() {
                   <div>
                     <div className="font-bold text-sm text-gray-900">מדדים</div>
                     <div className="text-[11px] text-gray-400 mt-0.5">
-                      {latestMeasurement ? `${latestMeasurement.weight_kg || '—'} ק"ג • ${latestMeasurement.height_cm || '—'} ס"מ` : 'אין נתונים עדיין'}
+                      {latestMeasurement ? `${latestMeasurement.weight || '—'} ק"ג • ${latestMeasurement.height || '—'} ס"מ` : 'אין נתונים עדיין'}
                     </div>
                   </div>
                 </button>

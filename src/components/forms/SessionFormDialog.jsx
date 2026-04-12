@@ -509,7 +509,7 @@ export default function SessionFormDialog({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!sessionForm.date || !sessionForm.time || sessionForm.participants.length === 0 || isLoading || saving}
+              disabled={!sessionForm.date || !sessionForm.time || isLoading || saving}
               className="flex-1 rounded-xl py-6 font-bold text-white text-base"
               style={{ backgroundColor: '#FF6F20' }}
             >
