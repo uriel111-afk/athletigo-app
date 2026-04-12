@@ -145,10 +145,15 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
       description: formData.description || null,
     };
 
-    if (editingResult) {
-      await updateResultMutation.mutateAsync({ id: editingResult.id, data: resultData });
-    } else {
-      await createResultMutation.mutateAsync(resultData);
+    try {
+      if (editingResult) {
+        await updateResultMutation.mutateAsync({ id: editingResult.id, data: resultData });
+      } else {
+        await createResultMutation.mutateAsync(resultData);
+      }
+    } catch (error) {
+      console.error("[ResultForm] Save error:", error);
+      toast.error("שגיאה בשמירת השיא: " + (error?.message || "נסה שוב"));
     }
   };
 

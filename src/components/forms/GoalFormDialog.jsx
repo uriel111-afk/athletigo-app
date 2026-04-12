@@ -131,10 +131,15 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
       status: editingGoal ? editingGoal.status : "בתהליך",
     };
 
-    if (editingGoal) {
-      await updateGoalMutation.mutateAsync({ id: editingGoal.id, data: goalData });
-    } else {
-      await createGoalMutation.mutateAsync(goalData);
+    try {
+      if (editingGoal) {
+        await updateGoalMutation.mutateAsync({ id: editingGoal.id, data: goalData });
+      } else {
+        await createGoalMutation.mutateAsync(goalData);
+      }
+    } catch (error) {
+      console.error("[GoalForm] Save error:", error);
+      toast.error("שגיאה בשמירת היעד: " + (error?.message || "נסה שוב"));
     }
   };
 

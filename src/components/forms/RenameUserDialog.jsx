@@ -14,9 +14,13 @@ export default function RenameUserDialog({ isOpen, onClose, onSubmit, user, isLo
     }
   }, [user]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(fullName);
+    try {
+      await onSubmit(fullName);
+    } catch (error) {
+      console.error("[RenameUser] Error:", error);
+    }
   };
 
   return (

@@ -34,8 +34,12 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
     }
   }, [isOpen, initialData]);
 
-  const handleSubmit = () => {
-    onSubmit(formData);
+  const handleSubmit = async () => {
+    try {
+      await onSubmit(formData);
+    } catch (error) {
+      console.error("[VisionForm] Save error:", error);
+    }
   };
 
   return (
