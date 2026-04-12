@@ -108,15 +108,19 @@ export default function Dashboard() {
     onSuccess: async (s) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SESSIONS });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      setIsSessionDialogOpen(false);
-      toast.success("המפגש נקבע");
+      toast.success("המפגש נקבע בהצלחה");
       if (s?.participants && coach) {
         for (const p of s.participants) {
-          await notifySessionScheduled({ traineeId: p.trainee_id, sessionDate: s.date, sessionTime: s.time, sessionType: s.session_type, coachName: coach.full_name });
+          try {
+            await notifySessionScheduled({ traineeId: p.trainee_id, sessionDate: s.date, sessionTime: s.time, sessionType: s.session_type, coachName: coach.full_name });
+          } catch {}
         }
       }
     },
-    onError: (e) => toast.error("שגיאה: " + (e.message || "נסה שוב")),
+    onError: (e) => {
+      console.error("[Dashboard] Session creation error:", e);
+      toast.error("שגיאה ביצירת מפגש: " + (e.message || "נסה שוב"));
+    },
   });
 
   const createPlanMutation = useMutation({

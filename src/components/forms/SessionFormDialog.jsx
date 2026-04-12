@@ -148,7 +148,9 @@ export default function SessionFormDialog({
     });
   };
 
-  const handleSubmit = () => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
     if (!sessionForm.date || !sessionForm.time) {
       toast.error("יש למלא תאריך ושעה");
       return;
@@ -159,8 +161,17 @@ export default function SessionFormDialog({
       status: editingSession ? sessionForm.status : 'ממתין לאישור'
     };
 
-    onSubmit(sessionDataWithStatus);
-    clearDraft(); // Clear on successful submit
+    setSaving(true);
+    try {
+      await onSubmit(sessionDataWithStatus);
+      clearDraft();
+      onClose();
+    } catch (error) {
+      console.error("[SessionForm] Error:", error);
+      toast.error("שגיאה בשמירת מפגש: " + (error?.message || "נסה שוב"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -498,11 +509,11 @@ export default function SessionFormDialog({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!sessionForm.date || !sessionForm.time || sessionForm.participants.length === 0 || isLoading}
+              disabled={!sessionForm.date || !sessionForm.time || sessionForm.participants.length === 0 || isLoading || saving}
               className="flex-1 rounded-xl py-6 font-bold text-white text-base"
               style={{ backgroundColor: '#FF6F20' }}
             >
-              {isLoading ? (
+              {(isLoading || saving) ? (
                 <>
                   <Loader2 className="w-5 h-5 ml-2 animate-spin" />
                   שומר...
