@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ClipboardList, Plus, Edit2, Trash2, ChevronLeft,
   Search, Loader2, User, Target, Calendar
@@ -23,6 +24,7 @@ export default function ActivePlans() {
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterTrainee, setFilterTrainee] = useState("all");
 
   // ── Coach ──────────────────────────────────────────────────────────────
   const { data: coach } = useQuery({
@@ -50,9 +52,16 @@ export default function ActivePlans() {
     initialData: [],
   });
 
+  // ── Unique trainees from plans ──────────────────────────────────────
+  const traineeOptions = [...new Map(
+    plans.filter(p => p.assigned_to && p.assigned_to_name)
+      .map(p => [p.assigned_to, { id: p.assigned_to, name: p.assigned_to_name }])
+  ).values()];
+
   // ── Filtered list ──────────────────────────────────────────────────────
   const activePlans = plans.filter((p) => {
     if (p.status !== "פעילה") return false;
+    if (filterTrainee !== "all" && p.assigned_to !== filterTrainee) return false;
     if (!searchTerm) return true;
     const q = searchTerm.toLowerCase();
     return (
@@ -211,16 +220,24 @@ export default function ActivePlans() {
             </Button>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-5">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="חיפוש לפי שם תוכנית או מתאמן..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pr-9 rounded-xl h-11 bg-white border-gray-200"
-            />
+          {/* Filters */}
+          <div className="flex gap-2 mb-2">
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input placeholder="חיפוש..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-9 rounded-xl h-11 bg-white border-gray-200" />
+            </div>
+            {traineeOptions.length > 1 && (
+              <Select value={filterTrainee} onValueChange={setFilterTrainee}>
+                <SelectTrigger className="w-40 rounded-xl h-11 bg-white border-gray-200"><SelectValue placeholder="כל המתאמנים" /></SelectTrigger>
+                <SelectContent dir="rtl">
+                  <SelectItem value="all">כל המתאמנים</SelectItem>
+                  {traineeOptions.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
+          <p className="text-xs text-gray-400 mb-3">מציג {activePlans.length} מתוך {plans.filter(p => p.status === "פעילה").length} תוכניות</p>
 
           {/* Loading */}
           {isLoading && (
