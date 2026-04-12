@@ -86,13 +86,12 @@ export default function SessionFormDialog({
     try {
       const lead = await base44.entities.Lead.create({
         full_name: guestForm.full_name,
-        phone: guestForm.phone || "לא צוין",
-        email: guestForm.email || "",
-        birth_date: guestForm.birth_date,
+        phone: guestForm.phone || null,
+        email: guestForm.email || null,
+        birth_date: guestForm.birth_date || null,
         age: age,
-        parent_name: guestForm.parent_name,
-        health_declaration: guestForm.health_declaration,
-        coach_notes: guestForm.notes,
+        parent_name: guestForm.parent_name || null,
+        coach_notes: guestForm.notes || null,
         status: "חדש",
         source: "אחר"
       });

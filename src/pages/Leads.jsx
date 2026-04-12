@@ -139,8 +139,6 @@ export default function Leads() {
       try {
         await base44.entities.User.update(newClient.id, {
           main_goal: lead.main_goal || null,
-          lead_source: lead.source || null,
-          lead_id: lead.id,
           health_issues: lead.medical_history || null,
           parent_name: lead.parent_name || null,
           onboarding_completed: true,

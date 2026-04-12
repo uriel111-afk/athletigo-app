@@ -927,8 +927,6 @@ export default function TraineeProfile() {
                 trainee_name: user.full_name,
                 attendance_status: 'הגיע'
             }],
-            status_updated_at: new Date().toISOString(),
-            status_updated_by: currentUser.id
         });
 
         // 2. If Personal Training, update package

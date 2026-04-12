@@ -406,7 +406,7 @@ export default function ModernExerciseForm({ exercise, onChange }) {
       try {
         const coach = await base44.auth.me();
         if (!coach || (!coach.isCoach && coach.role !== "admin")) return [];
-        return await base44.entities.CustomParameter.filter({ coach_id: coach.id });
+        return await base44.entities.CustomParameter.filter({ created_by: coach.id });
       } catch { return []; }
     },
     initialData: [],
@@ -415,7 +415,7 @@ export default function ModernExerciseForm({ exercise, onChange }) {
   const createCustomParamMutation = useMutation({
     mutationFn: async ({ type, value }) => {
       const coach = await base44.auth.me();
-      return await base44.entities.CustomParameter.create({ coach_id: coach.id, parameter_type: type, value });
+      return await base44.entities.CustomParameter.create({ created_by: coach.id, category: type, name: type, value });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["custom-parameters"] });
@@ -428,7 +428,7 @@ export default function ModernExerciseForm({ exercise, onChange }) {
   });
 
   const getOptions = useCallback((type, defaults) => {
-    const custom = customParams.filter((p) => p.parameter_type === type).map((p) => p.value);
+    const custom = customParams.filter((p) => (p.category || p.parameter_type) === type).map((p) => p.value);
     const unique = defaults.filter((d) => !custom.some((c) => c.toLowerCase() === d.toLowerCase()));
     return [...unique, ...custom];
   }, [customParams]);
