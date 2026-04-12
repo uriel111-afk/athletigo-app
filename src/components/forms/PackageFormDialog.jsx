@@ -6,64 +6,112 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Package } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Package, User, Users, Monitor, ChevronLeft, Plus, Minus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
+
+const TYPES = [
+  { id: "personal", label: "אישי", desc: "מפגשי 1-על-1", icon: User, color: "#FF6F20" },
+  { id: "group", label: "קבוצתי", desc: "מנוי חודשי", icon: Users, color: "#4CAF50" },
+  { id: "online", label: "אונליין", desc: "היברידי — מפגשים + זמן", icon: Monitor, color: "#2196F3" },
+];
+
+const NumPicker = ({ value, onChange, min = 1, max = 99, label }) => {
+  const v = parseInt(value) || min;
+  return (
+    <div className="flex flex-col items-center">
+      {label && <span className="text-[10px] font-bold text-gray-400 mb-1">{label}</span>}
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => onChange(Math.max(min, v - 1))}
+          className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] active:scale-95">
+          <Minus size={14} />
+        </button>
+        <span className="w-10 text-center text-xl font-black text-gray-900">{v}</span>
+        <button type="button" onClick={() => onChange(Math.min(max, v + 1))}
+          className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] active:scale-95">
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeName, editingPackage = null }) {
   const queryClient = useQueryClient();
   const { user: coach } = useContext(AuthContext);
 
-  const defaults = editingPackage ? {
+  const [step, setStep] = useState(editingPackage ? 2 : 1);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(() => editingPackage ? {
+    package_type: editingPackage.package_type || "personal",
     package_name: editingPackage.package_name || "",
-    service_type: editingPackage.service_type || "personal",
-    billing_model: editingPackage.billing_model || "punch_card",
-    total_sessions: editingPackage.total_sessions?.toString() || "",
-    unit_type: editingPackage.unit_type || "sessions",
+    sessions_count: editingPackage.sessions_count || editingPackage.total_sessions || 10,
+    frequency_per_week: editingPackage.frequency_per_week || 2,
+    duration_months: editingPackage.duration_months || 1,
     price: editingPackage.price?.toString() || "",
-    final_price: editingPackage.final_price?.toString() || "",
-    payment_method: editingPackage.payment_method || "credit",
-    payment_status: editingPackage.payment_status || "ממתין לתשלום",
     start_date: editingPackage.start_date?.split("T")[0] || new Date().toISOString().split("T")[0],
-    end_date: editingPackage.end_date?.split("T")[0] || "",
-    auto_deduct_enabled: editingPackage.auto_deduct_enabled !== false,
+    expires_at: editingPackage.expires_at || "",
+    payment_status: editingPackage.payment_status || "ממתין לתשלום",
+    payment_method: editingPackage.payment_method || "credit",
     notes_internal: editingPackage.notes_internal || "",
   } : {
-    package_name: "", service_type: "personal", billing_model: "punch_card",
-    total_sessions: "", unit_type: "sessions", price: "", final_price: "",
-    payment_method: "credit", payment_status: "ממתין לתשלום",
-    start_date: new Date().toISOString().split("T")[0], end_date: "",
-    auto_deduct_enabled: true, notes_internal: "",
+    package_type: "", package_name: "", sessions_count: 10,
+    frequency_per_week: 2, duration_months: 1, price: "",
+    start_date: new Date().toISOString().split("T")[0], expires_at: "",
+    payment_status: "ממתין לתשלום", payment_method: "credit", notes_internal: "",
+  });
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const selectType = (type) => {
+    const names = { personal: "חבילה אישית", group: "מנוי קבוצתי", online: "חבילה אונליין" };
+    set("package_type", type);
+    if (!form.package_name) set("package_name", names[type]);
+    setStep(2);
   };
 
-  const [form, setForm] = useState(defaults);
-  const [saving, setSaving] = useState(false);
-
-  const set = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
+  // Auto-calculate expiry for group/online
+  const calcExpiry = () => {
+    if (!form.start_date || !form.duration_months) return "";
+    const d = new Date(form.start_date);
+    d.setMonth(d.getMonth() + form.duration_months);
+    return d.toISOString().split("T")[0];
+  };
 
   const handleSave = async () => {
     if (!form.package_name) { toast.error("נא למלא שם חבילה"); return; }
+
+    const isPersonal = form.package_type === "personal";
+    const isGroup = form.package_type === "group";
+    const isOnline = form.package_type === "online";
+    const expiresAt = (isGroup || isOnline) ? (form.expires_at || calcExpiry()) : form.expires_at || null;
 
     const data = {
       trainee_id: traineeId,
       trainee_name: traineeName || null,
       coach_id: coach?.id || null,
+      created_by: coach?.id || null,
       package_name: form.package_name,
-      service_type: form.service_type,
-      billing_model: form.billing_model,
-      total_sessions: form.total_sessions ? parseInt(form.total_sessions) : null,
+      package_type: form.package_type,
+      service_type: form.package_type,
+      billing_model: isGroup ? "subscription" : "punch_card",
+      sessions_count: (isPersonal || isOnline) ? form.sessions_count : null,
+      total_sessions: (isPersonal || isOnline) ? form.sessions_count : null,
       used_sessions: editingPackage?.used_sessions || 0,
-      sessions_remaining: form.total_sessions ? parseInt(form.total_sessions) - (editingPackage?.used_sessions || 0) : null,
-      unit_type: form.unit_type,
+      sessions_remaining: (isPersonal || isOnline) ? form.sessions_count - (editingPackage?.used_sessions || 0) : null,
+      frequency_per_week: form.frequency_per_week || null,
+      duration_months: (isGroup || isOnline) ? form.duration_months : null,
       price: form.price ? parseFloat(form.price) : null,
-      final_price: form.final_price ? parseFloat(form.final_price) : null,
+      final_price: form.price ? parseFloat(form.price) : null,
       payment_method: form.payment_method || null,
       payment_status: form.payment_status,
       start_date: form.start_date || null,
-      end_date: form.end_date || null,
-      auto_deduct_enabled: form.auto_deduct_enabled,
+      end_date: expiresAt,
+      expires_at: expiresAt,
+      auto_deduct_enabled: !isGroup,
+      unit_type: isGroup ? "months" : "sessions",
       notes_internal: form.notes_internal || null,
       status: "פעיל",
     };
@@ -88,6 +136,8 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
     }
   };
 
+  const typeConfig = TYPES.find(t => t.id === form.package_type);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-white" dir="rtl">
@@ -99,121 +149,129 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
-          <div>
-            <Label className="text-xs text-gray-500 mb-1 block">שם חבילה *</Label>
-            <Input value={form.package_name} onChange={e => set("package_name", e.target.value)} placeholder="לדוגמה: חבילת 10 אימונים" className="rounded-lg" />
+        {/* ── Step 1: Choose type ─────────────────────────── */}
+        {step === 1 && (
+          <div className="space-y-3 mt-2">
+            <p className="text-sm text-gray-500 text-center">בחר סוג חבילה</p>
+            {TYPES.map(t => {
+              const Icon = t.icon;
+              return (
+                <button key={t.id} onClick={() => selectType(t.id)}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 hover:border-current transition-all active:scale-[0.98]"
+                  style={{ color: t.color }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.color + "15" }}>
+                    <Icon size={24} />
+                  </div>
+                  <div className="text-right flex-1">
+                    <div className="font-black text-base text-gray-900">{t.label}</div>
+                    <div className="text-xs text-gray-500">{t.desc}</div>
+                  </div>
+                  <ChevronLeft size={18} className="text-gray-300" />
+                </button>
+              );
+            })}
           </div>
+        )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">סוג שירות</Label>
-              <Select value={form.service_type} onValueChange={v => set("service_type", v)}>
-                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="personal">אישי</SelectItem>
-                  <SelectItem value="group">קבוצתי</SelectItem>
-                  <SelectItem value="online">אונליין</SelectItem>
-                  <SelectItem value="hybrid">היברידי</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">מודל</Label>
-              <Select value={form.billing_model} onValueChange={v => set("billing_model", v)}>
-                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="punch_card">כרטיסייה</SelectItem>
-                  <SelectItem value="subscription">מנוי חודשי</SelectItem>
-                  <SelectItem value="single">חד-פעמי</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        {/* ── Step 2: Details ─────────────────────────────── */}
+        {step >= 2 && (
+          <div className="space-y-4 mt-2">
+            {/* Type badge */}
+            {typeConfig && (
+              <div className="flex items-center gap-2 mb-1">
+                <button onClick={() => !editingPackage && setStep(1)} className="text-[10px] font-bold text-gray-400 hover:text-[#FF6F20]">
+                  {!editingPackage && "← שנה סוג"}
+                </button>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: typeConfig.color + "15", color: typeConfig.color }}>
+                  {typeConfig.label}
+                </span>
+              </div>
+            )}
 
-          <div className="grid grid-cols-2 gap-3">
+            {/* Name */}
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">סה"כ יחידות</Label>
-              <Input type="number" value={form.total_sessions} onChange={e => set("total_sessions", e.target.value)} placeholder="10" className="rounded-lg" />
+              <Label className="text-xs text-gray-500 mb-1 block">שם חבילה</Label>
+              <Input value={form.package_name} onChange={e => set("package_name", e.target.value)} className="rounded-lg" />
             </div>
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">יחידת מידה</Label>
-              <Select value={form.unit_type} onValueChange={v => set("unit_type", v)}>
-                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sessions">מפגשים</SelectItem>
-                  <SelectItem value="weeks">שבועות</SelectItem>
-                  <SelectItem value="months">חודשים</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
+            {/* Type-specific fields */}
+            <div className="bg-gray-50 rounded-xl p-3 space-y-3">
+              {(form.package_type === "personal" || form.package_type === "online") && (
+                <div className="flex justify-around">
+                  <NumPicker value={form.sessions_count} onChange={v => set("sessions_count", v)} label="מספר מפגשים" max={100} />
+                  <NumPicker value={form.frequency_per_week} onChange={v => set("frequency_per_week", v)} label="פעמים בשבוע" max={7} />
+                </div>
+              )}
+              {(form.package_type === "group" || form.package_type === "online") && (
+                <div className="flex justify-around">
+                  <NumPicker value={form.duration_months} onChange={v => set("duration_months", v)} label="חודשים" max={24} />
+                  {form.package_type === "group" && (
+                    <NumPicker value={form.frequency_per_week} onChange={v => set("frequency_per_week", v)} label="פעמים בשבוע" max={7} />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Price */}
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">מחיר (₪)</Label>
-              <Input type="number" value={form.price} onChange={e => set("price", e.target.value)} placeholder="500" className="rounded-lg" />
+              <Input type="number" value={form.price} onChange={e => set("price", e.target.value)} placeholder="0" className="rounded-lg text-lg font-bold" />
             </div>
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">מחיר סופי (₪)</Label>
-              <Input type="number" value={form.final_price} onChange={e => set("final_price", e.target.value)} placeholder="450" className="rounded-lg" />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">שיטת תשלום</Label>
-              <Select value={form.payment_method} onValueChange={v => set("payment_method", v)}>
-                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="credit">אשראי</SelectItem>
-                  <SelectItem value="cash">מזומן</SelectItem>
-                  <SelectItem value="bit">ביט</SelectItem>
-                  <SelectItem value="transfer">העברה</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-500 mb-1 block">תאריך התחלה</Label>
+                <Input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} className="rounded-lg" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500 mb-1 block">
+                  פקיעה {(form.package_type === "group" || form.package_type === "online") ? "(מחושב)" : "(אופציונלי)"}
+                </Label>
+                <Input type="date" value={form.expires_at || calcExpiry()} onChange={e => set("expires_at", e.target.value)} className="rounded-lg" />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">סטטוס תשלום</Label>
-              <Select value={form.payment_status} onValueChange={v => set("payment_status", v)}>
-                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="שולם">שולם</SelectItem>
-                  <SelectItem value="ממתין לתשלום">ממתין</SelectItem>
-                  <SelectItem value="חלקי">חלקי</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">תאריך התחלה</Label>
-              <Input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} className="rounded-lg" />
+            {/* Payment */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-500 mb-1 block">שיטת תשלום</Label>
+                <Select value={form.payment_method} onValueChange={v => set("payment_method", v)}>
+                  <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="credit">אשראי</SelectItem>
+                    <SelectItem value="cash">מזומן</SelectItem>
+                    <SelectItem value="bit">ביט</SelectItem>
+                    <SelectItem value="transfer">העברה</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500 mb-1 block">סטטוס תשלום</Label>
+                <Select value={form.payment_status} onValueChange={v => set("payment_status", v)}>
+                  <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="שולם">שולם</SelectItem>
+                    <SelectItem value="ממתין לתשלום">ממתין</SelectItem>
+                    <SelectItem value="חלקי">חלקי</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {/* Notes */}
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">תאריך סיום</Label>
-              <Input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} className="rounded-lg" />
+              <Label className="text-xs text-gray-500 mb-1 block">הערות פנימיות</Label>
+              <Textarea value={form.notes_internal} onChange={e => set("notes_internal", e.target.value)} placeholder="הערות למאמן..." className="rounded-lg resize-none min-h-[50px]" />
             </div>
-          </div>
 
-          <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
-            <input type="checkbox" checked={form.auto_deduct_enabled} onChange={e => set("auto_deduct_enabled", e.target.checked)} className="w-4 h-4 accent-[#FF6F20]" />
-            <div>
-              <span className="text-sm font-bold text-gray-800">קיזוז אוטומטי</span>
-              <p className="text-[10px] text-gray-500">מפחית יחידה אוטומטית כשמפגש מסומן כ"הושלם"</p>
-            </div>
+            {/* Save */}
+            <Button onClick={handleSave} disabled={saving || !form.package_name}
+              className="w-full h-12 rounded-xl font-bold text-white bg-[#FF6F20] hover:bg-[#e65b12]">
+              {saving ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : (editingPackage ? "עדכן חבילה" : "צור חבילה")}
+            </Button>
           </div>
-
-          <div>
-            <Label className="text-xs text-gray-500 mb-1 block">הערות פנימיות</Label>
-            <Textarea value={form.notes_internal} onChange={e => set("notes_internal", e.target.value)} placeholder="הערות למאמן בלבד..." className="rounded-lg resize-none min-h-[60px]" />
-          </div>
-
-          <Button onClick={handleSave} disabled={saving} className="w-full h-12 rounded-xl font-bold text-white bg-[#FF6F20] hover:bg-[#e65b12]">
-            {saving ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : (editingPackage ? "עדכן חבילה" : "צור חבילה")}
-          </Button>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );

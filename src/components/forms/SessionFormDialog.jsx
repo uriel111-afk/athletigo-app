@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from "react";
 import { base44 } from "@/api/base44Client";
 import { AuthContext } from "@/lib/AuthContext";
+import { suggestPackageForSession } from "../hooks/useServiceDeduction";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,11 +59,22 @@ export default function SessionFormDialog({
       if (!firstTrainee) return;
       try {
         const all = await base44.entities.ClientService.filter({ trainee_id: firstTrainee, status: 'פעיל' });
-        setAvailableServices((all || []).filter(s => (s.total_sessions || 0) - (s.used_sessions || 0) > 0));
+        const active = (all || []).filter(s => {
+          // Group: check expiry only
+          if (s.package_type === "group") return !s.expires_at || new Date(s.expires_at) >= new Date();
+          // Personal/online: check remaining
+          return ((s.total_sessions || s.sessions_count || 0) - (s.used_sessions || 0)) > 0;
+        });
+        setAvailableServices(active);
+        // Auto-suggest best matching package
+        if (!sessionForm.service_id && active.length > 0) {
+          const suggested = suggestPackageForSession(sessionForm.session_type, active);
+          if (suggested) setSessionForm(prev => ({ ...prev, service_id: suggested.id }));
+        }
       } catch { setAvailableServices([]); }
     };
     fetchServices();
-  }, [sessionForm.participants.length]);
+  }, [sessionForm.participants.length, sessionForm.session_type]);
   const [guestForm, setGuestForm] = useState({
     full_name: "",
     phone: "",
