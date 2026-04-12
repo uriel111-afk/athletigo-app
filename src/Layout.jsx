@@ -48,62 +48,22 @@ export default function Layout({ children, currentPageName }) {
   }, [location.pathname]);
 
   const coachNavItems = [
-    {
-      title: "דשבורד",
-      url: createPageUrl("Dashboard"),
-      icon: LayoutDashboard,
-      section: "coach"
-    },
-    {
-      title: "התראות",
-      url: createPageUrl("Notifications"),
-      icon: Bell,
-      section: "coach",
-      showBadge: true
-    },
-    {
-      title: "לידים",
-      url: createPageUrl("Leads"),
-      icon: UserPlus,
-      section: "coach"
-    },
-    {
-      title: "כל המשתמשים",
-      url: createPageUrl("AllUsers"),
-      icon: Users,
-      section: "coach"
-    },
-    {
-      title: "המרות",
-      url: createPageUrl("ConversionDashboard"),
-      icon: BarChart3,
-      section: "coach"
-    },
-    {
-      title: "תוכניות אימון",
-      url: createPageUrl("TrainingPlans"),
-      icon: ClipboardList,
-      section: "coach"
-    },
-    {
-      title: "מפגשים",
-      url: createPageUrl("Sessions"),
-      icon: Calendar,
-      section: "coach"
-    },
-
-    {
-      title: "סיכום כספי",
-      url: createPageUrl("FinancialOverview"),
-      icon: DollarSign,
-      section: "coach"
-    },
-    {
-      title: "פרופיל מאמן",
-      url: createPageUrl("CoachProfile"),
-      icon: User,
-      section: "coach"
-    },
+    // ── ניהול יומיומי ──
+    { title: "דשבורד", url: createPageUrl("Dashboard"), icon: LayoutDashboard, section: "daily" },
+    { title: "מתאמנים", url: createPageUrl("AllUsers"), icon: Users, section: "daily" },
+    { title: "תוכניות פעילות", url: createPageUrl("ActivePlans"), icon: Dumbbell, section: "daily" },
+    { title: "מפגשים", url: createPageUrl("Sessions"), icon: Calendar, section: "daily" },
+    { title: "לידים", url: createPageUrl("Leads"), icon: UserPlus, section: "daily" },
+    { title: "התראות", url: createPageUrl("Notifications"), icon: Bell, section: "daily", showBadge: true },
+    // ── ניהול תוכן ──
+    { title: "כל התוכניות", url: createPageUrl("TrainingPlans"), icon: ClipboardList, section: "content" },
+    { title: "תבניות סקשנים", url: createPageUrl("SectionTemplates"), icon: FileText, section: "content" },
+    { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
+    // ── ניהול עסקי ──
+    { title: "סיכום כספי", url: createPageUrl("FinancialOverview"), icon: DollarSign, section: "business" },
+    { title: "המרות", url: createPageUrl("ConversionDashboard"), icon: TrendingUp, section: "business" },
+    // ── הגדרות ──
+    { title: "פרופיל מאמן", url: createPageUrl("CoachProfile"), icon: User, section: "settings" },
   ];
 
   const traineeNavItems = [
@@ -238,27 +198,38 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </div>
 
-          <nav className="flex-1 space-y-2 overflow-y-auto">
-            {navigationItems.map((item) => {
-              const isActive = location.pathname === item.url;
-
-              return (
-                <Link
-                  key={item.title}
-                  to={item.url}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 relative"
-                  style={{
-                    backgroundColor: isActive ? primaryColorLight : '#FFFFFF',
-                    color: isActive ? primaryColor : '#000000',
-                    border: isActive ? `2px solid ${primaryColor}` : '1px solid transparent'
-                  }}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium text-sm">{item.title}</span>
-                  {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
-                </Link>
-              );
-            })}
+          <nav className="flex-1 space-y-1 overflow-y-auto">
+            {(() => {
+              const sectionLabels = { daily: "ניהול יומיומי", content: "תוכן ואימון", business: "עסקי", settings: "הגדרות", coach: null, trainee: null };
+              let lastSection = null;
+              return navigationItems.map((item) => {
+                const isActive = location.pathname === item.url;
+                const showHeader = item.section !== lastSection && sectionLabels[item.section];
+                lastSection = item.section;
+                return (
+                  <div key={item.title}>
+                    {showHeader && (
+                      <div className="px-4 pt-3 pb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#999' }}>{sectionLabels[item.section]}</span>
+                      </div>
+                    )}
+                    <Link
+                      to={item.url}
+                      className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 relative"
+                      style={{
+                        backgroundColor: isActive ? primaryColorLight : 'transparent',
+                        color: isActive ? primaryColor : '#000000',
+                        border: isActive ? `2px solid ${primaryColor}` : '1px solid transparent'
+                      }}
+                    >
+                      <item.icon className="w-5 h-5" />
+                      <span className="font-medium text-sm">{item.title}</span>
+                      {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
+                    </Link>
+                  </div>
+                );
+              });
+            })()}
           </nav>
 
           {user && (
@@ -354,27 +325,27 @@ export default function Layout({ children, currentPageName }) {
               zIndex: 99,
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
             }}>
-              {navigationItems.map((item) => {
-                const isActive = location.pathname === item.url;
-
-                return (
-                  <Link
-                    key={item.title}
-                    to={item.url}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative"
-                    style={{
-                      backgroundColor: isActive ? primaryColorLight : '#FFFFFF',
-                      color: isActive ? primaryColor : '#000000',
-                      border: isActive ? `2px solid ${primaryColor}` : `1px solid #E0E0E0`
-                    }}
-                  >
-                    <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.title}</span>
-                    {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
-                  </Link>
-                );
-              })}
+              {(() => {
+                const sectionLabels = { daily: "ניהול יומיומי", content: "תוכן ואימון", business: "עסקי", settings: "הגדרות", coach: null, trainee: null };
+                let lastSection = null;
+                return navigationItems.map((item) => {
+                  const isActive = location.pathname === item.url;
+                  const showHeader = item.section !== lastSection && sectionLabels[item.section];
+                  lastSection = item.section;
+                  return (
+                    <div key={item.title}>
+                      {showHeader && <div className="px-2 pt-2 pb-0.5"><span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{sectionLabels[item.section]}</span></div>}
+                      <Link to={item.url} onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative"
+                        style={{ backgroundColor: isActive ? primaryColorLight : '#FFFFFF', color: isActive ? primaryColor : '#000000', border: isActive ? `2px solid ${primaryColor}` : `1px solid #E0E0E0` }}>
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium">{item.title}</span>
+                        {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
+                      </Link>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           )}
 
