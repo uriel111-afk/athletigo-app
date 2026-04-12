@@ -101,7 +101,7 @@ export default function LeadFormDialog({
     if (leadForm.birth_date) submissionData.birth_date = leadForm.birth_date;
     if (leadForm.medical_history) submissionData.medical_history = leadForm.medical_history;
     if (leadForm.parent_name) submissionData.parent_name = leadForm.parent_name;
-    if (leadForm.training_goals) submissionData.main_goal = leadForm.training_goals;
+    if (leadForm.training_goals) submissionData.training_goals = leadForm.training_goals;
 
     setSaving(true);
     console.log("[LeadForm] Submitting:", submissionData);
@@ -129,12 +129,13 @@ export default function LeadFormDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) {
-        // Just closing (clicking outside), do not clear draft
+      if (!open && !saving) {
         onClose();
       }
     }}>
-      <DialogContent className="w-[95vw] md:w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white" dir="rtl">
+      {/* onInteractOutside prevents dialog close when interacting with Select portals */}
+      <DialogContent className="w-[95vw] md:w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white" dir="rtl"
+        onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle className="text-2xl md:text-3xl font-black text-[#222]">
             {editingLead ? '✏️ ערוך ליד' : '➕ הוסף ליד חדש'}
