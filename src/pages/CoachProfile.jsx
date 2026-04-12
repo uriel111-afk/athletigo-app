@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock, Settings, Bell, Send, Loader2 } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock, Settings, Bell, Send, Loader2, LogOut } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -582,6 +582,23 @@ export default function CoachProfile() {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Logout button */}
+          <div className="mt-6 px-4">
+            <button
+              onClick={async () => {
+                if (!window.confirm("האם אתה בטוח שברצונך להתנתק?")) return;
+                try { await supabase.auth.signOut(); } catch {}
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = "https://www.athletigo-coach.com";
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm font-bold">יציאה</span>
+            </button>
+          </div>
         </div>
       </div>
   );

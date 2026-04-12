@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useContext } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AdminCoachActivator from "@/components/AdminCoachActivator";
 import NotificationBadge from "@/components/NotificationBadge";
@@ -107,13 +109,21 @@ export default function Layout({ children, currentPageName }) {
     },
   ];
 
-  const handleLogout = async () => {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleLogout = () => setShowLogoutConfirm(true);
+
+  const confirmLogout = async () => {
     try {
-      await base44.auth.logout();
+      await supabase.auth.signOut();
     } catch (error) {
       console.error("[Layout] Logout error:", error);
-      window.location.href = '/';
     }
+    // Clear all caches
+    localStorage.clear();
+    sessionStorage.clear();
+    // Redirect to landing page
+    window.location.href = "https://www.athletigo-coach.com";
   };
 
   if (loading) {
@@ -496,6 +506,21 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </div>
           </main>
+
+          {/* Logout confirmation dialog */}
+          <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+            <DialogContent className="w-[85vw] max-w-xs p-5 bg-white text-center" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-bold">התנתקות</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-gray-600 my-3">האם אתה בטוח שברצונך להתנתק?</p>
+              <div className="flex gap-3">
+                <Button onClick={() => setShowLogoutConfirm(false)} variant="outline" className="flex-1 rounded-xl">ביטול</Button>
+                <Button onClick={confirmLogout} className="flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white">כן, התנתק</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           </div>
           </ErrorBoundary>
           );
