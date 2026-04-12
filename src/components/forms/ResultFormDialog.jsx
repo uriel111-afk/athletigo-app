@@ -131,13 +131,18 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
         return;
     }
 
+    // Map to actual DB columns — results_log has NO trainee_name or type columns
     const resultData = {
-      ...formData,
       trainee_id: traineeId,
-      trainee_name: traineeName,
-      record_value: formData.record_value ? parseFloat(formData.record_value) : null,
-      effort_level: formData.effort_level ? parseInt(formData.effort_level) : null,
+      title: formData.title,
       date: new Date(formData.date).toISOString(),
+      skill_or_exercise: formData.skill_or_exercise || null,
+      record_value: formData.record_value ? String(formData.record_value) : null,
+      record_unit: formData.record_unit || null,
+      effort_level: formData.effort_level ? String(formData.effort_level) : null,
+      context: formData.context || null,
+      assistance: formData.assistance || null,
+      description: formData.description || null,
     };
 
     if (editingResult) {

@@ -116,23 +116,20 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
       return;
     }
 
+    // Map form fields to actual DB columns in goals table
     const goalData = {
-      ...formData,
       trainee_id: traineeId,
-      trainee_name: traineeName,
+      title: formData.goal_name || formData.title || "",
+      description: formData.description || null,
+      category: formData.goal_type || formData.category || null,
       current_value: formData.current_value ? parseFloat(formData.current_value) : null,
       target_value: formData.target_value ? parseFloat(formData.target_value) : null,
-      target_date: new Date(formData.target_date).toISOString(),
-      start_date: editingGoal ? editingGoal.start_date : new Date().toISOString(),
-      status: editingGoal ? editingGoal.status : "בתהליך"
+      target_unit: formData.unit || formData.target_unit || null,
+      target_date: formData.target_date ? new Date(formData.target_date).toISOString() : null,
+      deadline: formData.target_date ? new Date(formData.target_date).toISOString() : null,
+      notes: [formData.extra_notes, formData.progression_steps, formData.main_blockers?.join(', ')].filter(Boolean).join(' | ') || null,
+      status: editingGoal ? editingGoal.status : "בתהליך",
     };
-
-    // Calculate progress if possible
-    if (goalData.current_value && goalData.target_value) {
-      goalData.progress_percentage = Math.min(100, Math.round((goalData.current_value / goalData.target_value) * 100));
-    } else if (!editingGoal) {
-      goalData.progress_percentage = 0;
-    }
 
     if (editingGoal) {
       await updateGoalMutation.mutateAsync({ id: editingGoal.id, data: goalData });
