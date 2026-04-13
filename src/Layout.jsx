@@ -149,7 +149,7 @@ export default function Layout({ children, currentPageName }) {
   }
 
   const navigationItems = isCoach ? coachNavItems : traineeNavItems;
-  const userRoleLabel = isCoach ? '👨‍💼 מאמן' : '👤 מתאמן';
+  const userRoleLabel = isCoach ? '👨‍💼 מאמן' : (user?.full_name ? `👤 ${user.full_name.split(' ')[0]}` : '👤 מתאמן');
   const primaryColor = '#FF6F20';
   const primaryColorLight = '#FFF8F3';
 
@@ -159,7 +159,9 @@ export default function Layout({ children, currentPageName }) {
   // כפתורי "חזרה" לגיטימיים בתוך מסכים: ניווט בין טאבים, שלבי wizard,
   // ומצבי שגיאה עם ניווט לדף ספציפי (לא navigate(-1)).
   const noBackButtonPages = ["Dashboard", "TraineeHome", "Onboarding"];
-  const shouldShowBackButton = !noBackButtonPages.includes(currentPageName);
+  // Also hide back button when trainee views their own profile (no userId param = own profile)
+  const isTraineeOwnProfile = !isCoach && currentPageName === "TraineeProfile" && !new URLSearchParams(window.location.search).get('userId');
+  const shouldShowBackButton = !noBackButtonPages.includes(currentPageName) && !isTraineeOwnProfile;
 
   return (
     <ErrorBoundary>

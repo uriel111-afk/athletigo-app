@@ -1548,8 +1548,8 @@ export default function TraineeProfile() {
                 </div>
                 <div className="space-y-3 pt-4">
                   <h3 className="text-base font-bold text-gray-800 border-b pb-2">היסטוריית רכישות</h3>
-                  <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
-                    <table className="w-full text-sm">
+                  <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200" dir="rtl">
+                    <table className="w-full text-sm text-right">
                       <thead className="bg-gray-100 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">שירות</th><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">מחיר</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th></tr></thead>
                       <tbody className="divide-y divide-gray-200">
                         {services.length === 0 ? (
@@ -1557,10 +1557,10 @@ export default function TraineeProfile() {
                         ) : (
                           services.map(s => (
                             <tr key={s.id} className="bg-white">
-                              <td className="px-3 py-2"><div className="font-medium">{s.service_type}</div><div className="text-xs text-gray-500">{s.package_name}</div></td>
-                              <td className="px-3 py-2 text-gray-600">{format(new Date(s.start_date), 'dd/MM/yy')}</td>
-                              <td className="px-3 py-2 font-medium">₪{s.price}</td>
-                              <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'הסתיים' ? 'bg-blue-100 text-blue-800' : s.status === 'פג תוקף' ? 'bg-red-100 text-red-800' : s.status === 'פעיל' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{s.status}</span></td>
+                              <td className="px-3 py-2 text-right"><div className="font-medium">{s.service_type}</div><div className="text-xs text-gray-500">{s.package_name}</div></td>
+                              <td className="px-3 py-2 text-right text-gray-600">{format(new Date(s.start_date), 'dd/MM/yy')}</td>
+                              <td className="px-3 py-2 text-right font-medium">₪{s.price}</td>
+                              <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'הסתיים' ? 'bg-blue-100 text-blue-800' : s.status === 'פג תוקף' ? 'bg-red-100 text-red-800' : s.status === 'פעיל' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{s.status}</span></td>
                             </tr>
                           ))
                         )}
@@ -1580,9 +1580,9 @@ export default function TraineeProfile() {
                     </Button>
                   )}
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" dir="rtl">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm text-right">
                       <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">סוג</th><th className="px-3 py-2 text-right font-bold text-gray-600">מיקום</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th></tr></thead>
                       <tbody className="divide-y divide-gray-100">
                         {sessions.length === 0 ? (
@@ -1593,9 +1593,9 @@ export default function TraineeProfile() {
                             const displayStatus = participant?.attendance_status || 'ממתין';
                             return (
                               <tr key={session.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-2"><div className="font-bold text-gray-800">{format(new Date(session.date), 'dd/MM/yy')}</div><div className="text-xs text-gray-500">{session.time}</div></td>
-                                <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full border ${session.session_type === 'אישי' ? 'bg-purple-50 border-purple-100 text-purple-700' : session.session_type === 'קבוצתי' ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-green-50 border-green-100 text-green-700'}`}>{session.session_type}</span></td>
-                                <td className="px-3 py-2 text-gray-500 text-xs truncate max-w-[80px]">{session.location}</td>
+                                <td className="px-3 py-2 text-right"><div className="font-bold text-gray-800">{format(new Date(session.date), 'dd/MM/yy')}</div><div className="text-xs text-gray-500">{session.time}</div></td>
+                                <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full border ${session.session_type === 'אישי' ? 'bg-purple-50 border-purple-100 text-purple-700' : session.session_type === 'קבוצתי' ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-green-50 border-green-100 text-green-700'}`}>{session.session_type}</span></td>
+                                <td className="px-3 py-2 text-right text-gray-500 text-xs truncate max-w-[80px]">{session.location}</td>
                                 <td className="px-3 py-2">
                                   {isCoach ? (
                                     <Select value={displayStatus} onValueChange={val => { if (val !== displayStatus) updateSessionStatusMutation.mutate({ session, newStatus: val }); }}>
