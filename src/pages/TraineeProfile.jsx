@@ -173,10 +173,8 @@ export default function TraineeProfile() {
   const [showVisionDialog, setShowVisionDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showAddGoal, setShowAddGoal] = useState(false);
-  const [showEditGoal, setShowEditGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
   const [showAddResult, setShowAddResult] = useState(false);
-  const [showEditResult, setShowEditResult] = useState(false);
   const [editingResult, setEditingResult] = useState(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPass: "", confirm: "" });
@@ -513,7 +511,6 @@ export default function TraineeProfile() {
     mutationFn: ({ id, data }) => base44.entities.Goal.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
-      setShowEditGoal(false);
       setEditingGoal(null);
       toast.success("✅ יעד עודכן");
     },
@@ -687,7 +684,6 @@ export default function TraineeProfile() {
     mutationFn: ({ id, data }) => base44.entities.ResultsLog.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      setShowEditResult(false);
       setEditingResult(null);
       toast.success("✅ הישג עודכן");
     },
@@ -1309,8 +1305,11 @@ export default function TraineeProfile() {
 
                 {/* Health Card */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-gray-50 bg-gray-50/30">
+                  <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
                     <h2 className="text-lg font-bold flex items-center gap-2"><Heart className="w-5 h-5 text-[#FF6F20]" />בריאות</h2>
+                    <Button onClick={() => setShowHealthUpdate(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                      <Edit2 className="w-3 h-3 ml-1" />עדכן
+                    </Button>
                   </div>
                   <div className="p-4 divide-y divide-gray-100">
                     {[
@@ -1542,7 +1541,7 @@ export default function TraineeProfile() {
                     <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                       <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
                       <p className="text-gray-500">אין שירותים פעילים</p>
-                      {isCoach && <Button variant="link" onClick={() => setShowAddService(true)} className="text-[#FF6F20]">הוסף שירות ראשון</Button>}
+                      {isCoach && <Button variant="link" onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} className="text-[#FF6F20]">הוסף שירות ראשון</Button>}
                     </div>
                   )}
                 </div>
