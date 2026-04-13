@@ -1101,20 +1101,9 @@ export default function TraineeProfile() {
       return groups;
   }, [trainingPlans]);
 
-  if (profileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white" dir="rtl">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20] mx-auto" />
-          <p className="mt-4 text-sm text-gray-500">טוען את נתוני הפרופיל...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (profileError || noUserFound) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white px-4" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center px-4" dir="rtl" style={{ backgroundColor: '#FDF8F3' }}>
         <div className="max-w-md w-full text-center bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
           <h1 className="text-xl font-bold mb-3">שגיאה בטעינת הפרופיל</h1>
           <p className="text-sm text-gray-600 mb-6">
@@ -1129,16 +1118,17 @@ export default function TraineeProfile() {
     );
   }
 
-  // Full loading gate — show loader until user AND core data are ready
-  const coreDataLoading = !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading;
+  // Full loading gate — show branded loader until user AND core data are ready
+  const coreDataLoading = profileLoading || !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading;
 
   if (coreDataLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-white" dir="rtl">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20] mx-auto" />
-          <p className="mt-4 text-sm text-gray-500">טוען נתונים...</p>
-        </div>
+      <div className="h-screen flex flex-col items-center justify-center" dir="rtl" style={{ backgroundColor: '#FDF8F3' }}>
+        <h1 className="text-2xl font-black tracking-[0.2em] mb-6" style={{ color: '#FF6F20', fontFamily: 'Barlow, sans-serif' }}>
+          ATHLETIGO
+        </h1>
+        <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20] mb-3" />
+        <p className="text-sm font-medium text-gray-400">טוען...</p>
       </div>
     );
   }

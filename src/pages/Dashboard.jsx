@@ -276,7 +276,7 @@ export default function Dashboard() {
       <Dialog open={showActionPicker} onOpenChange={setShowActionPicker}>
         <DialogContent className="w-[80vw] max-w-xs p-4 bg-white" dir="rtl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-center">מה להוסיף?</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-right">מה להוסיף?</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-2">
             <button onClick={() => { setShowActionPicker(false); handleActionClick("result"); }}
@@ -297,7 +297,7 @@ export default function Dashboard() {
       <Dialog open={showSelectTraineeDialog} onOpenChange={setShowSelectTraineeDialog}>
         <DialogContent className="w-[90vw] max-w-sm max-h-[80vh] overflow-y-auto p-4 bg-white" dir="rtl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-center">בחר מתאמן</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-right">בחר מתאמן</DialogTitle>
           </DialogHeader>
           <div className="relative mb-3">
             <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />

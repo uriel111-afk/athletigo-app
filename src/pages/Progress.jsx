@@ -69,52 +69,25 @@ export default function Progress() {
     loadUser();
   }, []);
 
-  const { data: measurements = [] } = useQuery({
-    queryKey: ['my-measurements'],
-    queryFn: async () => {
-      try {
-        const user = await base44.auth.me();
-        return await base44.entities.Measurement.filter({ trainee_id: user.id }, '-date');
-      } catch (error) {
-        console.error("[Progress] Error loading measurements:", error);
-        return [];
-      }
-    },
-    initialData: [],
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true
+  const { data: measurements = [], isLoading: measurementsLoading } = useQuery({
+    queryKey: ['my-measurements', user?.id],
+    queryFn: () => base44.entities.Measurement.filter({ trainee_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
-  const { data: results = [] } = useQuery({
-    queryKey: ['my-results'],
-    queryFn: async () => {
-      try {
-        const user = await base44.auth.me();
-        return await base44.entities.ResultsLog.filter({ trainee_id: user.id }, '-date');
-      } catch (error) {
-        console.error("[Progress] Error loading results:", error);
-        return [];
-      }
-    },
-    initialData: [],
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true
+  const { data: results = [], isLoading: resultsLoading } = useQuery({
+    queryKey: ['my-results', user?.id],
+    queryFn: () => base44.entities.ResultsLog.filter({ trainee_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
-  const { data: goals = [] } = useQuery({
-    queryKey: ['my-goals'],
-    queryFn: async () => {
-      try {
-        const user = await base44.auth.me();
-        return await base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at');
-      } catch (error) {
-        console.error("[Progress] Error loading goals:", error);
-        return [];
-      }
-    },
-    initialData: [],
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true
+  const { data: goals = [], isLoading: goalsLoading } = useQuery({
+    queryKey: ['my-goals', user?.id],
+    queryFn: () => base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
   const createMeasurementMutation = useMutation({
@@ -399,6 +372,16 @@ export default function Progress() {
       waist: m.waist || 0,
       hips: m.hips || 0
     }));
+
+  if (!user || measurementsLoading || resultsLoading || goalsLoading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#FDF8F3' }}>
+        <h1 className="text-2xl font-black tracking-[0.2em] mb-6" style={{ color: '#FF6F20', fontFamily: 'Barlow, sans-serif' }}>ATHLETIGO</h1>
+        <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20] mb-3" />
+        <p className="text-sm font-medium text-gray-400">טוען...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
