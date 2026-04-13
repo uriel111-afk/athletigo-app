@@ -1156,41 +1156,26 @@ export default function TraineeProfile() {
       <div className="h-screen w-full flex flex-col overflow-hidden bg-[#F2F2F7]" dir="rtl" style={{ fontSize: 16 }}>
 
         {/* ===== ZONE 1: HEADER ===== */}
-        <div className="flex-shrink-0" style={{ backgroundColor: '#FF6F20' }}>
-          <div className="px-4 pt-3 pb-3">
-            {/* Top row: logo + logout */}
-            <div className="flex justify-between items-center mb-2">
-              <button
-                onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
-                className="flex items-center gap-1 text-white/90 text-xs font-semibold bg-white/20 px-2.5 py-1.5 rounded-xl min-h-[32px]"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                יציאה
-              </button>
-              <span className="text-white font-black text-lg tracking-tight">AG /</span>
-            </div>
-            {/* Profile row */}
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black overflow-hidden flex-shrink-0">
-                {user.profile_image
-                  ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
-                  : (user.full_name?.[0]?.toUpperCase() || 'U')
-                }
+        {isCoach ? (
+          /* Coach viewing trainee profile — full header */
+          <div className="flex-shrink-0" style={{ backgroundColor: '#FF6F20' }}>
+            <div className="px-4 pt-3 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black overflow-hidden flex-shrink-0">
+                  {user.profile_image
+                    ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
+                    : (user.full_name?.[0]?.toUpperCase() || 'U')
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 20 }}>
+                    {user.full_name}
+                  </h2>
+                  <p className="text-white/70 text-[11px] mt-0.5">
+                    {user.age ? user.age + ' שנים' : ''}{user.age && user.phone ? ' • ' : ''}{user.phone || ''}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 20 }}>
-                  {user.full_name}
-                </h2>
-                <p className="text-white/70 text-[11px] mt-0.5">
-                  {user.age ? user.age + ' שנים' : ''}{user.age && user.phone ? ' • ' : ''}{user.phone || ''}{(user.age || user.phone) ? ' • ' : ''}מתאמן{coach ? ` של ${coach.full_name}` : ''}
-                </p>
-              </div>
-              <button onClick={() => setShowEdit(true)} className="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                <Edit2 className="w-3.5 h-3.5 text-white" />
-              </button>
-            </div>
-            {/* Stats row — shown only for coach view */}
-            {isCoach && (
               <div className="flex gap-2 mt-2">
                 {[
                   { value: attendedSessions.length, label: 'אימונים' },
@@ -1203,9 +1188,31 @@ export default function TraineeProfile() {
                   </div>
                 ))}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Trainee's own view — clean greeting */
+          <div className="flex-shrink-0 bg-white border-b border-gray-100">
+            <div className="px-4 pt-5 pb-4 flex items-center justify-between">
+              <div>
+                <h1 className="text-[22px] font-black text-gray-900 text-right" style={{ fontFamily: "'DM Sans', 'Heebo', sans-serif" }}>
+                  {(() => {
+                    const h = new Date().getHours();
+                    const greeting = h < 12 ? 'בוקר טוב' : h < 18 ? 'צהריים טובים' : 'ערב טוב';
+                    return user.full_name ? `${greeting}, ${user.full_name}` : `${greeting}!`;
+                  })()}
+                </h1>
+              </div>
+              <button
+                onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
+                className="flex items-center gap-1 text-gray-400 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-gray-200 min-h-[32px]"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                יציאה
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ===== ZONE 2: TAB GRID ===== */}
         <div className="flex-shrink-0 px-3 py-2 bg-[#F2F2F7]">
