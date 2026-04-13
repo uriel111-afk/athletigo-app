@@ -270,6 +270,7 @@ const entities = {
   CustomParameter:        createEntity('custom_parameters'),
   TrainingGroup:          createEntity('training_groups'),
   TrainingGroupMember:    createEntity('training_group_members'),
+  Baseline:               createEntity('baselines'),
 };
 
 export const base44 = { entities, auth, integrations };

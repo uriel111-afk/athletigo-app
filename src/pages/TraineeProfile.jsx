@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, ArrowRight, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -25,6 +25,8 @@ import VisionFormDialog from "../components/forms/VisionFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
+import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
+import BaselineDetailView from "@/components/BaselineDetailView";
 
 const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -177,6 +179,8 @@ export default function TraineeProfile() {
   const [editingGoal, setEditingGoal] = useState(null);
   const [showAddResult, setShowAddResult] = useState(false);
   const [editingResult, setEditingResult] = useState(null);
+  const [showBaselineForm, setShowBaselineForm] = useState(false);
+  const [showBaselineDetail, setShowBaselineDetail] = useState(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPass: "", confirm: "" });
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -1425,9 +1429,16 @@ export default function TraineeProfile() {
               <TabsContent value="achievements" className="space-y-4 w-full">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Award className="w-5 h-5 text-yellow-500" />הישגים</h2>
-                  <Button onClick={() => { setEditingResult(null); setShowAddResult(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FFD700', color: '#000' }}>
-                    <Plus className="w-3 h-3 ml-1" />הוסף שיא
-                  </Button>
+                  <div className="flex gap-2">
+                    {isCoach && (
+                      <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                        <Zap className="w-3 h-3 ml-1" />בייסליין
+                      </Button>
+                    )}
+                    <Button onClick={() => { setEditingResult(null); setShowAddResult(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FFD700', color: '#000' }}>
+                      <Plus className="w-3 h-3 ml-1" />הוסף שיא
+                    </Button>
+                  </div>
                 </div>
                 {results.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Award className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין הישגים עדיין</p></div>
@@ -1435,7 +1446,10 @@ export default function TraineeProfile() {
                   <div className="space-y-4 pb-4">
                     {Object.entries(groupedResults).map(([type, typeResults]) => (
                       <AchievementGroup key={type} type={type} results={typeResults} goals={goals}
-                        onEdit={(r) => { setEditingResult(r); setShowAddResult(true); }}
+                        onEdit={(r) => {
+                          if (r.baseline_id) { setShowBaselineDetail(r.baseline_id); }
+                          else { setEditingResult(r); setShowAddResult(true); }
+                        }}
                         onDelete={(id) => { if (window.confirm('למחוק?')) deleteResultMutation.mutate(id); }}
                       />
                     ))}
@@ -1806,6 +1820,10 @@ export default function TraineeProfile() {
 
         {/* Result Dialog */}
         <ResultFormDialog isOpen={showAddResult} onClose={() => { setShowAddResult(false); setEditingResult(null); }} traineeId={user.id} traineeName={user.full_name} editingResult={editingResult} />
+
+        {/* Baseline Dialogs */}
+        <BaselineFormDialog isOpen={showBaselineForm} onClose={() => setShowBaselineForm(false)} traineeId={user.id} traineeName={user.full_name} />
+        <BaselineDetailView isOpen={!!showBaselineDetail} onClose={() => setShowBaselineDetail(null)} baselineId={showBaselineDetail} />
 
         {/* Add/Edit Service Dialog */}
         <Dialog open={showAddService} onOpenChange={setShowAddService}>
