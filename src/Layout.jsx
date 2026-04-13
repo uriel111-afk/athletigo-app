@@ -97,12 +97,6 @@ export default function Layout({ children, currentPageName }) {
     },
 
     {
-      title: "טפסים",
-      url: createPageUrl("Forms"),
-      icon: FileText,
-      section: "trainee"
-    },
-    {
       title: "פרופיל מתאמן",
       url: createPageUrl("TraineeProfile"),
       icon: User,

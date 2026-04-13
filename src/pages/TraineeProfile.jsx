@@ -1137,13 +1137,14 @@ export default function TraineeProfile() {
   const hasRecentResult = results.length > 0 && new Date(results[0].date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const TAB_ITEMS = [
-    { id: 'personal', label: 'פרטים אישיים', icon: User },
+    { id: 'personal', label: 'פרטים', icon: User },
     { id: 'plans', label: 'תוכניות', icon: Folder },
     { id: 'attendance', label: 'מפגשים', icon: Calendar },
     { id: 'metrics', label: 'מדידות', icon: Activity },
     { id: 'achievements', label: 'שיאים', icon: Award },
     { id: 'goals', label: 'יעדים', icon: Target },
     { id: 'services', label: 'חבילות', icon: Package },
+    { id: 'documents', label: 'מסמכים', icon: FileText },
     { id: 'messages', label: 'הערות', icon: MessageSquare },
   ];
 
@@ -1244,7 +1245,7 @@ export default function TraineeProfile() {
 
         {/* ===== ZONE 2: TAB GRID ===== */}
         <div className="flex-shrink-0 px-3 py-2 bg-[#F2F2F7]">
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
             {TAB_ITEMS.map(tab => {
               const isActive = activeTab === tab.id;
               const Icon = tab.icon;
@@ -1343,21 +1344,10 @@ export default function TraineeProfile() {
                 </div>
 
                 {/* Quick Actions */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => setActiveTab('documents')} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
-                    <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-[#FF6F20]" /></div>
-                    <div className="text-right">
-                      <div className="font-bold text-xs text-gray-900">מסמכים</div>
-                      <div className="text-[10px] text-gray-400">
-                        {[targetUser?.health_declaration_signed_at, targetUser?.cooperation_agreement_signed_at].filter(Boolean).length || user?.health_declaration_signed_at || user?.cooperation_agreement_signed_at ? 'חתומים' : 'להחתמה'}
-                      </div>
-                    </div>
-                  </button>
-                  <button onClick={() => setShowPasswordChange(true)} className="bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
-                    <div className="font-bold text-xs text-white">שינוי סיסמא</div>
-                  </button>
-                </div>
+                <button onClick={() => setShowPasswordChange(true)} className="w-full bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
+                  <div className="font-bold text-xs text-white">שינוי סיסמא</div>
+                </button>
               </TabsContent>
 
               {/* Goals Tab */}
