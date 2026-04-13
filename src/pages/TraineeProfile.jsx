@@ -167,7 +167,7 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
 
 export default function TraineeProfile() {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("personal");
   const [showEdit, setShowEdit] = useState(false);
   const [showHealthUpdate, setShowHealthUpdate] = useState(false);
   const [showVisionDialog, setShowVisionDialog] = useState(false);
@@ -1204,184 +1204,153 @@ export default function TraineeProfile() {
   const activeService = activeServices[0];
   const hasRecentResult = results.length > 0 && new Date(results[0].date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const TAB_LABELS = {
-    attendance: 'נוכחות',
-    metrics: 'מדדים',
-    goals: 'יעדים',
-    achievements: 'הישגים',
-    services: 'שירותים',
-    plans: 'תוכניות',
-    messages: 'הודעות',
-    documents: 'מסמכים',
-  };
+  const TAB_ITEMS = [
+    { id: 'personal', label: 'פרטים אישיים', icon: User },
+    { id: 'plans', label: 'תוכניות', icon: Folder },
+    { id: 'attendance', label: 'מפגשים', icon: Calendar },
+    { id: 'metrics', label: 'מדידות', icon: Activity },
+    { id: 'achievements', label: 'שיאים', icon: Award },
+    { id: 'goals', label: 'יעדים', icon: Target },
+    { id: 'services', label: 'חבילות', icon: Package },
+    { id: 'messages', label: 'הערות', icon: MessageSquare },
+  ];
 
   return (
     <ErrorBoundary>
       <div className="h-screen w-full flex flex-col overflow-hidden bg-[#F2F2F7]" dir="rtl" style={{ fontSize: 16 }}>
-        {/* ===== OVERVIEW: Compact single-screen layout ===== */}
-        {activeTab === 'overview' && (
-          <>
-            {/* ORANGE HEADER */}
-            <div style={{ backgroundColor: '#FF6F20' }} className="flex-shrink-0 px-4 pt-4 pb-2">
-              <div className="flex justify-between items-center mb-2">
-                <button
-                  onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
-                  className="flex items-center gap-1 text-white/90 text-xs font-semibold bg-white/20 px-2.5 py-1.5 rounded-xl min-h-[36px]"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  יציאה
-                </button>
-                <span className="text-white font-black text-lg tracking-tight">AG /</span>
+
+        {/* ===== ZONE 1: HEADER ===== */}
+        <div className="flex-shrink-0" style={{ backgroundColor: '#FF6F20' }}>
+          <div className="px-4 pt-3 pb-3">
+            {/* Top row: logo + logout */}
+            <div className="flex justify-between items-center mb-2">
+              <button
+                onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
+                className="flex items-center gap-1 text-white/90 text-xs font-semibold bg-white/20 px-2.5 py-1.5 rounded-xl min-h-[32px]"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                יציאה
+              </button>
+              <span className="text-white font-black text-lg tracking-tight">AG /</span>
+            </div>
+            {/* Profile row */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black overflow-hidden flex-shrink-0">
+                {user.profile_image
+                  ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
+                  : (user.full_name?.[0]?.toUpperCase() || 'U')
+                }
               </div>
-              <div className="flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black mb-1 overflow-hidden">
-                  {user.profile_image
-                    ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
-                    : (user.full_name?.[0]?.toUpperCase() || 'U')
-                  }
-                </div>
-                <h2 className="text-white leading-tight" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 18 }}>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 20 }}>
                   {user.full_name}
                 </h2>
                 <p className="text-white/70 text-[11px] mt-0.5">
-                  מתאמן{coach ? ` • ${coach.full_name}` : ' • AthletiGo'}
+                  {user.age ? user.age + ' שנים' : ''}{user.age && user.phone ? ' • ' : ''}{user.phone || ''}{(user.age || user.phone) ? ' • ' : ''}מתאמן{coach ? ` של ${coach.full_name}` : ''}
                 </p>
               </div>
-            </div>
-
-            {/* SCROLLABLE CONTENT */}
-            <div className="flex-1 overflow-y-auto px-3 pt-2 pb-20 space-y-2">
-              {/* STATS ROW — 3 cards */}
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: attendedSessions.length, label: 'אימונים' },
-                  { value: trainingPlans.length, label: 'תוכניות' },
-                  { value: attendancePct + '%', label: 'נוכחות' },
-                ].map((s, i) => (
-                  <div key={i} className="bg-white rounded-[14px] p-3 text-center shadow-sm">
-                    <div className="text-lg font-black text-gray-900">{s.value}</div>
-                    <div className="text-[10px] text-gray-400 font-medium mt-0.5">{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 2×2 GRID */}
-              <div className="grid grid-cols-2 gap-2.5">
-                {/* פרטים אישיים */}
-                <button onClick={() => setShowEdit(true)} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
-                  <div className="flex justify-between items-center"><User className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
-                  <div>
-                    <div className="font-bold text-sm text-gray-900">פרטים אישיים</div>
-                    <div className="text-[11px] text-gray-400 mt-0.5 leading-snug">{user.full_name}<br />{user.phone || '—'} • {user.age ? user.age + ' שנים' : '—'}</div>
-                  </div>
-                </button>
-
-                {/* נוכחות */}
-                <button onClick={() => setActiveTab('attendance')} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
-                  <div className="flex justify-between items-center"><Calendar className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
-                  <div>
-                    <div className="font-bold text-sm text-gray-900">נוכחות</div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">{attendedSessions.length} אימונים</div>
-                  </div>
-                </button>
-
-                {/* מדדים */}
-                <button onClick={() => setActiveTab('metrics')} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
-                  <div className="flex justify-between items-center"><TrendingUp className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
-                  <div>
-                    <div className="font-bold text-sm text-gray-900">מדדים</div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">
-                      {latestMeasurement ? `${latestMeasurement.weight || '—'} ק"ג • ${latestMeasurement.height || '—'} ס"מ` : 'אין נתונים עדיין'}
-                    </div>
-                  </div>
-                </button>
-
-                {/* יעדים */}
-                <button onClick={() => setActiveTab('goals')} className="bg-white rounded-[16px] p-4 shadow-sm text-right flex flex-col justify-between min-h-[108px] w-full active:scale-[0.97] transition-transform">
-                  <div className="flex justify-between items-center"><Target className="w-5 h-5 text-[#FF6F20]" /><ChevronLeft className="w-4 h-4 text-[#FF6F20]" /></div>
-                  <div>
-                    <div className="font-bold text-sm text-gray-900">יעדים</div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">{activeGoals.length} יעדים פעילים</div>
-                  </div>
-                </button>
-              </div>
-
-              {/* הישגים — full width */}
-              <button onClick={() => setActiveTab('achievements')} className="w-full bg-white rounded-[16px] px-4 py-3.5 shadow-sm flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><Award className="w-5 h-5 text-[#FF6F20]" /></div>
-                  <div className="text-right">
-                    <div className="font-bold text-sm text-gray-900">הישגים</div>
-                    <div className="text-[11px] text-gray-400">{results.length} הישגים רשומים</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {hasRecentResult && <span className="text-[10px] font-bold text-white bg-[#FF6F20] px-2 py-0.5 rounded-full">חדש!</span>}
-                  <ChevronLeft className="w-4 h-4 text-[#FF6F20]" />
-                </div>
-              </button>
-
-              {/* שירותים — full width */}
-              <button onClick={() => setActiveTab('services')} className="w-full bg-white rounded-[16px] px-4 py-3.5 shadow-sm flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><Package className="w-5 h-5 text-[#FF6F20]" /></div>
-                  <div className="text-right">
-                    <div className="font-bold text-sm text-gray-900">שירותים</div>
-                    <div className="text-[11px] text-gray-400">
-                      {activeService ? `${activeService.package_name || activeService.service_type}${activeService.end_date ? ` • ${format(new Date(activeService.end_date), 'dd/MM/yy')}` : ''}` : 'אין חבילה פעילה'}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {activeService && <span className="text-[10px] font-bold text-white bg-green-500 px-2 py-0.5 rounded-full">פעיל</span>}
-                  <ChevronLeft className="w-4 h-4 text-[#FF6F20]" />
-                </div>
-              </button>
-
-              {/* מסמכים — docs row */}
-              <button onClick={() => setActiveTab('documents')} className="w-full bg-white rounded-[16px] px-4 py-3.5 shadow-sm flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-[#FF6F20]" /></div>
-                  <div className="text-right">
-                    <div className="font-bold text-sm text-gray-900">מסמכים</div>
-                    <div className="text-[11px] text-gray-400">
-                      {[targetUser?.health_declaration_signed_at, targetUser?.cooperation_agreement_signed_at].filter(Boolean).length || user?.health_declaration_signed_at || user?.cooperation_agreement_signed_at ? 'יש מסמכים חתומים' : 'טפסים להחתמה'}
-                    </div>
-                  </div>
-                </div>
-                <ChevronLeft className="w-4 h-4 text-[#FF6F20]" />
-              </button>
-
-              {/* שינוי סיסמא — dark row */}
-              <button onClick={() => setShowPasswordChange(true)} className="w-full bg-black rounded-[16px] px-4 py-3.5 flex items-center justify-between active:scale-[0.99] transition-transform min-h-[56px]">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-5 h-5 text-white" /></div>
-                  <div className="font-bold text-sm text-white">שינוי סיסמא</div>
-                </div>
-                <ChevronLeft className="w-4 h-4 text-white" />
+              <button onClick={() => setShowEdit(true)} className="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                <Edit2 className="w-3.5 h-3.5 text-white" />
               </button>
             </div>
-          </>
-        )}
-
-        {/* ===== TAB TITLE BAR for non-overview tabs ===== */}
-        {activeTab !== 'overview' && (
-          <div className="flex-shrink-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-            <button onClick={() => setActiveTab('overview')} className="text-[#FF6F20] text-xs font-bold flex items-center gap-1">
-              <ChevronLeft className="w-4 h-4 rotate-180" />חזרה
-            </button>
-            <span className="font-bold text-sm text-gray-800">{TAB_LABELS[activeTab] || ''}</span>
-            <div className="w-12" />
+            {/* Stats row */}
+            <div className="flex gap-2 mt-2">
+              {[
+                { value: attendedSessions.length, label: 'אימונים' },
+                { value: trainingPlans.length, label: 'תוכניות' },
+                { value: attendancePct + '%', label: 'נוכחות' },
+              ].map((s, i) => (
+                <div key={i} className="flex-1 bg-white/15 rounded-xl py-1.5 text-center">
+                  <div className="text-sm font-black text-white">{s.value}</div>
+                  <div className="text-[9px] text-white/60 font-medium">{s.label}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
+        </div>
 
-        {/* ===== EXISTING TAB PANELS (hidden in overview) ===== */}
-        <div className={activeTab !== 'overview' ? 'flex-1 overflow-y-auto pb-20' : 'hidden'}>
+        {/* ===== ZONE 2: TAB GRID ===== */}
+        <div className="flex-shrink-0 px-3 py-2 bg-[#F2F2F7]">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            {TAB_ITEMS.map(tab => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex flex-col items-center justify-center rounded-xl transition-all active:scale-95
+                    py-2.5 sm:py-3 md:py-3.5
+                    ${isActive
+                      ? 'bg-[#FFF3EB] border-2 border-[#FF6F20] shadow-sm'
+                      : 'bg-white border border-gray-100 hover:shadow-sm hover:border-gray-200'
+                    }`}
+                >
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${isActive ? 'text-[#FF6F20]' : 'text-gray-400'}`} />
+                  <span className={`text-[10px] sm:text-xs font-bold leading-tight ${isActive ? 'text-[#FF6F20]' : 'text-gray-500'}`}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ===== ZONE 3: TAB CONTENT (scrollable) ===== */}
+        <div className="flex-1 overflow-y-auto pb-20">
           <div className="max-w-6xl mx-auto px-4 py-4 w-full">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsContent value="overview" className="hidden" />
 
-              {/* ── Overview tab (legacy content kept but hidden — shown in compact view above) ── */}
+              {/* Personal Details Tab */}
+              <TabsContent value="personal" className="space-y-4 w-full">
+                {/* Info Card */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+                    <h2 className="text-lg font-bold flex items-center gap-2"><User className="w-5 h-5 text-[#FF6F20]" />פרטים אישיים</h2>
+                    <Button onClick={() => setShowEdit(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                      <Edit2 className="w-3 h-3 ml-1" />ערוך
+                    </Button>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { icon: <User className="w-4 h-4" />, label: 'שם מלא', value: user.full_name },
+                        { icon: <Phone className="w-4 h-4" />, label: 'טלפון', value: user.phone || '—' },
+                        { icon: <Mail className="w-4 h-4" />, label: 'אימייל', value: user.email || '—' },
+                        { icon: <Calendar className="w-4 h-4" />, label: 'גיל', value: user.age ? user.age + ' שנים' : '—' },
+                        { icon: <MapPin className="w-4 h-4" />, label: 'עיר', value: user.city || '—' },
+                        { icon: <Heart className="w-4 h-4" />, label: 'מטרה', value: user.main_goal || '—' },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <div className="text-gray-400 mt-0.5 flex-shrink-0">{item.icon}</div>
+                          <div className="min-w-0">
+                            <div className="text-[10px] text-gray-400 font-medium">{item.label}</div>
+                            <div className="text-sm font-semibold text-gray-900 truncate">{item.value}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setActiveTab('documents')} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
+                    <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-[#FF6F20]" /></div>
+                    <div className="text-right">
+                      <div className="font-bold text-xs text-gray-900">מסמכים</div>
+                      <div className="text-[10px] text-gray-400">
+                        {[targetUser?.health_declaration_signed_at, targetUser?.cooperation_agreement_signed_at].filter(Boolean).length || user?.health_declaration_signed_at || user?.cooperation_agreement_signed_at ? 'חתומים' : 'להחתמה'}
+                      </div>
+                    </div>
+                  </button>
+                  <button onClick={() => setShowPasswordChange(true)} className="bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
+                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
+                    <div className="font-bold text-xs text-white">שינוי סיסמא</div>
+                  </button>
+                </div>
+              </TabsContent>
+
               {/* Goals Tab */}
               <TabsContent value="goals" className="space-y-4 w-full">
                 <div className="flex justify-between items-center">
