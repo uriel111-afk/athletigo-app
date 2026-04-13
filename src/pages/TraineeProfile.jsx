@@ -1191,25 +1191,57 @@ export default function TraineeProfile() {
             </div>
           </div>
         ) : (
-          /* Trainee's own view — clean greeting */
-          <div className="flex-shrink-0 bg-white border-b border-gray-100">
-            <div className="px-4 pt-5 pb-4 flex items-center justify-between">
-              <div>
-                <h1 className="text-[22px] font-black text-gray-900 text-right" style={{ fontFamily: "'DM Sans', 'Heebo', sans-serif" }}>
-                  {(() => {
-                    const h = new Date().getHours();
-                    const greeting = h < 12 ? 'בוקר טוב' : h < 18 ? 'צהריים טובים' : 'ערב טוב';
-                    return user.full_name ? `${greeting}, ${user.full_name}` : `${greeting}!`;
-                  })()}
-                </h1>
+          /* Trainee's own view — branded greeting header */
+          <div className="flex-shrink-0 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F4C 50%, #FFA96B 100%)' }}>
+            {/* Decorative circles */}
+            <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full opacity-10 bg-white" />
+            <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-10 bg-white" />
+            <div className="absolute top-4 left-1/3 w-16 h-16 rounded-full opacity-[0.06] bg-white" />
+
+            <div className="relative px-4 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5">
+              {/* Top row: AG logo + logout */}
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-white/80 font-black text-xs tracking-[0.15em]" style={{ fontFamily: 'Barlow, sans-serif' }}>ATHLETIGO</span>
+                <button
+                  onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
+                  className="flex items-center gap-1 text-white/70 text-[11px] font-semibold bg-white/15 px-2.5 py-1 rounded-lg backdrop-blur-sm hover:bg-white/25 transition-colors"
+                >
+                  <LogOut className="w-3 h-3" />
+                  יציאה
+                </button>
               </div>
-              <button
-                onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
-                className="flex items-center gap-1 text-gray-400 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-gray-200 min-h-[32px]"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                יציאה
-              </button>
+
+              {/* Profile row */}
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-white font-black overflow-hidden flex-shrink-0 text-lg shadow-lg shadow-black/10">
+                  {user.profile_image
+                    ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
+                    : (user.full_name?.[0]?.toUpperCase() || 'U')
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white/70 text-[11px] sm:text-xs font-medium mb-0.5">
+                    {(() => {
+                      const h = new Date().getHours();
+                      return h < 6 ? 'לילה טוב' : h < 12 ? 'בוקר טוב' : h < 18 ? 'צהריים טובים' : h < 22 ? 'ערב טוב' : 'לילה טוב';
+                    })()}
+                  </p>
+                  <h1 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 26 }}>
+                    {user.full_name || 'שלום!'}
+                  </h1>
+                  <p className="text-white/60 text-[11px] sm:text-xs mt-1 truncate">
+                    {(() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      const todaySession = sessions.find(s =>
+                        s.date?.startsWith(today) && s.participants?.some(p => p.trainee_id === user.id)
+                      );
+                      if (todaySession) return `יש לך אימון היום בשעה ${todaySession.time || '—'}`;
+                      if (hasRecentResult) return 'כל הכבוד על השיא החדש!';
+                      return 'מוכן לאימון של היום?';
+                    })()}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}
