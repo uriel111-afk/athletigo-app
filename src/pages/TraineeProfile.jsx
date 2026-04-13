@@ -1189,19 +1189,21 @@ export default function TraineeProfile() {
                 <Edit2 className="w-3.5 h-3.5 text-white" />
               </button>
             </div>
-            {/* Stats row */}
-            <div className="flex gap-2 mt-2">
-              {[
-                { value: attendedSessions.length, label: 'אימונים' },
-                { value: trainingPlans.length, label: 'תוכניות' },
-                { value: attendancePct + '%', label: 'נוכחות' },
-              ].map((s, i) => (
-                <div key={i} className="flex-1 bg-white/15 rounded-xl py-1.5 text-center">
-                  <div className="text-sm font-black text-white">{s.value}</div>
-                  <div className="text-[9px] text-white/60 font-medium">{s.label}</div>
-                </div>
-              ))}
-            </div>
+            {/* Stats row — shown only for coach view */}
+            {isCoach && (
+              <div className="flex gap-2 mt-2">
+                {[
+                  { value: attendedSessions.length, label: 'אימונים' },
+                  { value: trainingPlans.length, label: 'תוכניות' },
+                  { value: attendancePct + '%', label: 'נוכחות' },
+                ].map((s, i) => (
+                  <div key={i} className="flex-1 bg-white/15 rounded-xl py-1.5 text-center">
+                    <div className="text-sm font-black text-white">{s.value}</div>
+                    <div className="text-[9px] text-white/60 font-medium">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
