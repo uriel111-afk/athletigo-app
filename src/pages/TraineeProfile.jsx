@@ -24,6 +24,7 @@ import ResultFormDialog from "../components/forms/ResultFormDialog";
 import VisionFormDialog from "../components/forms/VisionFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import DocumentSigningTab from "@/components/DocumentSigningTab";
 
 const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -1685,69 +1686,16 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Documents Tab */}
-              <TabsContent value="documents" className="space-y-4 w-full">
-                <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-                  <FileText className="w-5 h-5 text-[#FF6F20]" />מסמכים וטפסים
-                </h2>
-                {[
-                  {
-                    key: 'health_declaration',
-                    label: 'הצהרת בריאות',
-                    signedAt: effectiveUser?.health_declaration_signed_at,
-                    sigData: effectiveUser?.health_declaration_signature,
-                  },
-                  {
-                    key: 'cooperation_agreement',
-                    label: 'הסכם שיתוף פעולה',
-                    signedAt: effectiveUser?.cooperation_agreement_signed_at,
-                    sigData: effectiveUser?.cooperation_agreement_signature,
-                  },
-                ].map(doc => (
-                  <div
-                    key={doc.key}
-                    className="rounded-xl p-4 border-2 bg-white"
-                    style={{ borderColor: doc.signedAt ? '#4CAF50' : '#E0E0E0' }}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5" style={{ color: doc.signedAt ? '#4CAF50' : '#FF6F20' }} />
-                        <span className="font-bold text-sm text-gray-900">{doc.label}</span>
-                      </div>
-                      {doc.signedAt ? (
-                        <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                          <CheckCircle className="w-3 h-3" /> נחתם
-                        </span>
-                      ) : (
-                        <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                          ממתין לחתימה
-                        </span>
-                      )}
-                    </div>
-                    {doc.signedAt && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        נחתם ב-{format(new Date(doc.signedAt), 'dd/MM/yyyy HH:mm', { locale: he })}
-                      </p>
-                    )}
-                    {doc.signedAt && doc.sigData && (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-400 mb-1">חתימה:</p>
-                        <img src={doc.sigData} alt="חתימה" className="h-14 border rounded-lg bg-white"
-                          style={{ border: '1px solid #E0E0E0' }} />
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {/* If trainee viewing own profile — link to sign forms */}
-                {!isCoach && (
-                  <Link
-                    to={createPageUrl('Forms')}
-                    className="w-full block text-center py-3 px-4 rounded-xl font-bold text-white min-h-[44px] flex items-center justify-center gap-2"
-                    style={{ backgroundColor: '#FF6F20' }}
-                  >
-                    <FileText className="w-4 h-4" />
-                    עבור לדף טפסים וחתימות
-                  </Link>
-                )}
+              <TabsContent value="documents" className="w-full">
+                <DocumentSigningTab
+                  effectiveUser={effectiveUser || user}
+                  isCoach={isCoach}
+                  onUserUpdate={() => {
+                    queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+                    queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });
+                    refetch();
+                  }}
+                />
               </TabsContent>
             </Tabs>
           </div>
