@@ -1256,24 +1256,58 @@ export default function TraineeProfile() {
                       <Edit2 className="w-3 h-3 ml-1" />ערוך
                     </Button>
                   </div>
-                  <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { icon: <User className="w-4 h-4" />, label: 'שם מלא', value: user.full_name },
-                        { icon: <Phone className="w-4 h-4" />, label: 'טלפון', value: user.phone || '—' },
-                        { icon: <Mail className="w-4 h-4" />, label: 'אימייל', value: user.email || '—' },
-                        { icon: <Calendar className="w-4 h-4" />, label: 'גיל', value: user.age ? user.age + ' שנים' : '—' },
-                        { icon: <MapPin className="w-4 h-4" />, label: 'עיר', value: user.city || '—' },
-                      ].map((item, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <div className="text-gray-400 mt-0.5 flex-shrink-0">{item.icon}</div>
-                          <div className="min-w-0">
-                            <div className="text-[10px] text-gray-400 font-medium">{item.label}</div>
-                            <div className="text-sm font-semibold text-gray-900 truncate">{item.value}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="p-4 divide-y divide-gray-100">
+                    {[
+                      { label: 'שם מלא', value: user.full_name },
+                      { label: 'טלפון', value: user.phone },
+                      { label: 'אימייל', value: user.email },
+                      { label: 'גיל', value: user.age ? user.age + ' שנים' : null },
+                      { label: 'מין', value: user.gender },
+                      { label: 'עיר', value: user.city },
+                      { label: 'כתובת', value: user.address },
+                      { label: 'מטרה עיקרית', value: user.main_goal },
+                    ].map((item, i) => (
+                      <div key={i} className="flex justify-between items-center py-2.5">
+                        <span className="text-sm text-gray-500 font-medium">{item.label}</span>
+                        <span className={`text-sm ${item.value ? 'text-gray-900 font-semibold' : 'text-gray-300'}`}>{item.value || 'לא מולא'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Health Card */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-gray-50 bg-gray-50/30">
+                    <h2 className="text-lg font-bold flex items-center gap-2"><Heart className="w-5 h-5 text-[#FF6F20]" />בריאות</h2>
+                  </div>
+                  <div className="p-4 divide-y divide-gray-100">
+                    {[
+                      { label: 'בעיות בריאות', value: user.health_issues },
+                      { label: 'היסטוריה רפואית', value: user.medical_history },
+                    ].map((item, i) => (
+                      <div key={i} className="flex justify-between items-center py-2.5">
+                        <span className="text-sm text-gray-500 font-medium">{item.label}</span>
+                        <span className={`text-sm max-w-[60%] text-left ${item.value ? 'text-gray-900' : 'text-gray-300'}`}>{item.value || 'לא מולא'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Emergency Contact Card */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-gray-50 bg-gray-50/30">
+                    <h2 className="text-lg font-bold flex items-center gap-2"><Phone className="w-5 h-5 text-[#FF6F20]" />איש קשר לחירום</h2>
+                  </div>
+                  <div className="p-4 divide-y divide-gray-100">
+                    {[
+                      { label: 'שם', value: user.emergency_contact_name },
+                      { label: 'טלפון', value: user.emergency_contact_phone },
+                    ].map((item, i) => (
+                      <div key={i} className="flex justify-between items-center py-2.5">
+                        <span className="text-sm text-gray-500 font-medium">{item.label}</span>
+                        <span className={`text-sm ${item.value ? 'text-gray-900 font-semibold' : 'text-gray-300'}`}>{item.value || 'לא מולא'}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -1319,23 +1353,40 @@ export default function TraineeProfile() {
                 ) : (
                   <div className="space-y-3">
                     {goals.map(goal => (
-                      <div key={goal.id} className="p-4 rounded-lg bg-white border border-gray-200 shadow-sm">
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-lg mb-1">{goal.goal_name}</h4>
-                            {goal.description && <p className="text-sm text-gray-500">{goal.description}</p>}
-                          </div>
-                          <div className="flex gap-1">
-                            <Button onClick={() => { setEditingGoal(goal); setShowAddGoal(true); }} size="icon" variant="ghost" className="w-9 h-9 text-[#FF6F20]"><Edit2 className="w-4 h-4" /></Button>
-                            <Button onClick={() => { if (window.confirm(`למחוק "${goal.goal_name}"?`)) deleteGoalMutation.mutate(goal.id); }} size="icon" variant="ghost" className="w-9 h-9 text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                      <div key={goal.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/30">
+                          <h4 className="font-bold text-base text-gray-900">{goal.goal_name}</h4>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button onClick={() => { setEditingGoal(goal); setShowAddGoal(true); }} size="icon" variant="ghost" className="w-8 h-8 text-[#FF6F20]"><Edit2 className="w-3.5 h-3.5" /></Button>
+                            <Button onClick={() => { if (window.confirm(`למחוק "${goal.goal_name}"?`)) deleteGoalMutation.mutate(goal.id); }} size="icon" variant="ghost" className="w-8 h-8 text-red-500"><Trash2 className="w-3.5 h-3.5" /></Button>
                           </div>
                         </div>
-                        <div className="mb-2">
-                          <div className="flex justify-between text-xs mb-1"><span className="text-gray-400">התקדמות</span><span className="font-bold text-[#FF6F20]">{goal.current_value || 0} / {goal.target_value} {goal.unit}</span></div>
-                          <div className="h-2 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${goal.progress_percentage || 0}%` }} /></div>
-                          <p className="text-xs text-center mt-1 font-bold text-[#FF6F20]">{goal.progress_percentage || 0}%</p>
+                        <div className="p-4 divide-y divide-gray-100">
+                          {goal.description && (
+                            <div className="flex justify-between items-center py-2">
+                              <span className="text-sm text-gray-500 font-medium">תיאור</span>
+                              <span className="text-sm text-gray-900 max-w-[60%] text-left">{goal.description}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-sm text-gray-500 font-medium">ערך יעד</span>
+                            <span className="text-sm text-gray-900 font-semibold">{goal.target_value} {goal.unit}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-sm text-gray-500 font-medium">התקדמות</span>
+                            <span className="text-sm font-bold text-[#FF6F20]">{goal.current_value || 0} / {goal.target_value} {goal.unit}</span>
+                          </div>
+                          <div className="py-2">
+                            <div className="h-2 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${goal.progress_percentage || 0}%` }} /></div>
+                            <p className="text-xs text-left mt-1 font-bold text-[#FF6F20]">{goal.progress_percentage || 0}%</p>
+                          </div>
+                          {goal.target_date && (
+                            <div className="flex justify-between items-center py-2">
+                              <span className="text-sm text-gray-500 font-medium">תאריך יעד</span>
+                              <span className="text-sm text-gray-900">{format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}</span>
+                            </div>
+                          )}
                         </div>
-                        {goal.target_date && <p className="text-xs text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3" />יעד: {format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}</p>}
                       </div>
                     ))}
                   </div>
@@ -1408,11 +1459,20 @@ export default function TraineeProfile() {
                                   </div>
                                   <div className="text-lg font-black" style={{ color: borderColor }}>₪{priceDisplay}<span className="text-xs font-normal text-gray-400 block">{service.billing_model === 'subscription' ? 'לחודש' : 'סה"כ'}</span></div>
                                 </div>
-                                <div className="p-4 space-y-3">
-                                  <div className="flex flex-wrap gap-2 text-xs text-gray-600">
-                                    <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md"><Calendar className="w-3 h-3" />התחלה: {format(new Date(service.start_date), 'dd/MM/yy')}</div>
-                                    {service.next_billing_date && <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded-md"><Calendar className="w-3 h-3" />חיוב הבא: {format(new Date(service.next_billing_date), 'dd/MM/yy')}</div>}
-                                    <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md"><DollarSign className="w-3 h-3" />{service.payment_method === 'credit' ? 'אשראי' : service.payment_method === 'cash' ? 'מזומן' : service.payment_method === 'bit' ? 'ביט' : service.payment_method}</div>
+                                <div className="p-4 space-y-0 divide-y divide-gray-100">
+                                  <div className="flex justify-between items-center py-2">
+                                    <span className="text-sm text-gray-500 font-medium">תאריך התחלה</span>
+                                    <span className="text-sm text-gray-900">{format(new Date(service.start_date), 'dd/MM/yy')}</span>
+                                  </div>
+                                  {service.next_billing_date && (
+                                    <div className="flex justify-between items-center py-2">
+                                      <span className="text-sm text-gray-500 font-medium">חיוב הבא</span>
+                                      <span className="text-sm text-blue-700 font-semibold">{format(new Date(service.next_billing_date), 'dd/MM/yy')}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between items-center py-2">
+                                    <span className="text-sm text-gray-500 font-medium">אמצעי תשלום</span>
+                                    <span className="text-sm text-gray-900">{service.payment_method === 'credit' ? 'אשראי' : service.payment_method === 'cash' ? 'מזומן' : service.payment_method === 'bit' ? 'ביט' : service.payment_method || 'לא מולא'}</span>
                                   </div>
                                   {isPunchCard && (
                                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
