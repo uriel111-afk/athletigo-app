@@ -186,7 +186,7 @@ export default function BaselineTestDialog({ isOpen, onClose }) {
                     <SelectTrigger className="h-9 bg-white text-xs font-bold border-gray-200 shadow-sm">
                         <SelectValue placeholder="בחר מתאמן" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent dir="rtl">
                         <SelectItem value="manual">-- הזנה ידנית --</SelectItem>
                         {trainees.map(t => (
                         <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
@@ -298,7 +298,7 @@ export default function BaselineTestDialog({ isOpen, onClose }) {
                         <div className="grid grid-cols-3 gap-2">
                             {[0, 1, 2].map((roundIndex) => (
                                 <div key={roundIndex} className="bg-white rounded-xl border border-gray-200 p-2 shadow-sm">
-                                    <div className="text-[10px] font-bold text-gray-400 text-center mb-1 uppercase tracking-wider">Round {roundIndex + 1}</div>
+                                    <div className="text-[10px] font-bold text-gray-400 text-center mb-1">סבב {roundIndex + 1}</div>
                                     <div className="flex flex-col gap-1">
                                         <Input 
                                             type="number" 
@@ -321,11 +321,11 @@ export default function BaselineTestDialog({ isOpen, onClose }) {
 
                         {/* Compact Technique Summary - Directly Below Inputs */}
                         <div className="grid grid-cols-3 gap-2 bg-gray-50 rounded-lg p-2 border border-gray-100">
-                             <div className="flex flex-col items-center justify-center border-l border-gray-200">
-                                 <span className="text-[10px] text-gray-400 font-bold uppercase">סה״כ</span>
+                             <div className="flex flex-col items-center justify-center border-r border-gray-200">
+                                 <span className="text-[10px] text-gray-400 font-bold">סה״כ</span>
                                  <span className="text-sm font-black text-gray-800">{calculations.stats[tech.id].totalJumps}</span>
                              </div>
-                             <div className="flex flex-col items-center justify-center border-l border-gray-200">
+                             <div className="flex flex-col items-center justify-center border-r border-gray-200">
                                  <span className="text-[10px] text-gray-400 font-bold uppercase">ממוצע</span>
                                  <span className="text-sm font-black text-gray-800">{calculations.stats[tech.id].avgJumps}</span>
                              </div>

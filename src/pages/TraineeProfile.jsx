@@ -1832,7 +1832,7 @@ export default function TraineeProfile() {
               </div>
 
               <Button onClick={handleSave} disabled={updateUserMutation.isPending || updateTargetUserMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
-                {updateUserMutation.isPending || updateTargetUserMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : 'שמור שינויים'}
+                {updateUserMutation.isPending || updateTargetUserMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</> : 'שמור שינויים'}
               </Button>
             </div>
           </DialogContent>
@@ -1910,7 +1910,7 @@ export default function TraineeProfile() {
                 </Select>
               </div>
               <Button onClick={handleAddOrUpdateService} disabled={createServiceMutation.isPending || updateServiceMutation.isPending} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
-                {createServiceMutation.isPending || updateServiceMutation.isPending ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : (editingService ? 'עדכן שירות' : 'הוסף שירות')}
+                {createServiceMutation.isPending || updateServiceMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</> : (editingService ? 'עדכן שירות' : 'הוסף שירות')}
               </Button>
             </div>
           </DialogContent>

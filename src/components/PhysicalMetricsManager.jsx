@@ -304,7 +304,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
           resetMeasurementForm();
         }
       }}>
-        <DialogContent className="max-w-2xl" style={{ backgroundColor: '#FFFFFF' }}>
+        <DialogContent className="max-w-2xl" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: '#000000' }}>
               {editingMeasurement ? 'ערוך מדידה' : 'הוסף מדידה חדשה'}
@@ -439,7 +439,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
               style={{ backgroundColor: '#FF6F20' }}
             >
               {(createMeasurementMutation.isPending || updateMeasurementMutation.isPending) ? (
-                <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</>
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" />שומר...</>
               ) : (
                 editingMeasurement ? 'עדכן מדידה' : 'שמור מדידה'
               )}

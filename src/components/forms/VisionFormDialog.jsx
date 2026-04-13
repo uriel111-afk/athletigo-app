@@ -181,7 +181,7 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           )}
         </div>
 
-        <DialogFooter className="flex-row sm:justify-start gap-2">
+        <DialogFooter className="flex-row-reverse sm:justify-start gap-2">
           <Button 
             onClick={handleSubmit} 
             disabled={isLoading}

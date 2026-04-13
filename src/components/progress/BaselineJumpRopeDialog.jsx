@@ -240,9 +240,9 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
               style={{ backgroundColor: '#FF6F20' }}
             >
               {createMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</>
               ) : (
-                <><CheckCircle className="w-4 h-4 ml-2" />שמור תוצאה</>
+                <><CheckCircle className="w-4 h-4 mr-2" />שמור תוצאה</>
               )}
             </Button>
           </div>
