@@ -319,7 +319,7 @@ export default function UnifiedClientCard({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['results'] });
       queryClient.invalidateQueries({ queryKey: ['all-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       setShowAddResult(false);
       setEditingResult(null);
@@ -336,7 +336,7 @@ export default function UnifiedClientCard({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['results'] });
       queryClient.invalidateQueries({ queryKey: ['all-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       setShowAddResult(false);
       setEditingResult(null);
@@ -352,7 +352,7 @@ export default function UnifiedClientCard({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['results'] });
       queryClient.invalidateQueries({ queryKey: ['all-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       toast.success("✅ הישג נמחק");
     },
@@ -456,7 +456,7 @@ export default function UnifiedClientCard({
     },
     onSuccess: (createdPlan) => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['my-plans'] });
       setShowAddPlan(false);
       toast.success("✅ תוכנית נוצרה");

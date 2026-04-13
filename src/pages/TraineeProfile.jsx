@@ -264,7 +264,7 @@ export default function TraineeProfile() {
         throw error;
       }
     },
-    refetchInterval: 5000,
+    staleTime: 60000,
     retry: false
   });
 
@@ -283,7 +283,7 @@ export default function TraineeProfile() {
       }
     },
     enabled: !!userIdParam && !!isCoach,
-    refetchInterval: 5000,
+    staleTime: 60000,
     retry: false
   });
 
@@ -292,8 +292,10 @@ export default function TraineeProfile() {
   const profileError = currentUserError || targetUserError;
   const noUserFound = !profileLoading && !effectiveUser;
 
+  // Sync server user to local state — but NEVER while edit dialog is open (would reset form fields)
+  const effectiveUserId = effectiveUser?.id;
   useEffect(() => {
-    if (effectiveUser) {
+    if (effectiveUser && !showEdit) {
       setUser(effectiveUser);
       setFormData({
         full_name: effectiveUser.full_name || "",
@@ -322,7 +324,7 @@ export default function TraineeProfile() {
         bio: effectiveUser.bio || "",
         status: effectiveUser.status || "",
       });
-      
+
       // Init health form
       const hasLimits = effectiveUser.health_issues && effectiveUser.health_issues.length > 0 && effectiveUser.health_issues !== "אין";
       setHealthForm({
@@ -331,129 +333,81 @@ export default function TraineeProfile() {
         approved: effectiveUser.health_declaration_accepted || false
       });
     }
-  }, [effectiveUser]);
+  }, [effectiveUserId, showEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data: goals = [] } = useQuery({
-    queryKey: ['trainee-goals'],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        return await base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at');
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!user?.id && (activeTab === 'goals' || activeTab === 'metrics' || activeTab === 'achievements' || activeTab === 'overview'),
-    refetchInterval: 30000
+  const { data: goals = [], isLoading: goalsLoading } = useQuery({
+    queryKey: ['trainee-goals', user?.id],
+    queryFn: () => base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
-  const { data: measurements = [] } = useQuery({
-    queryKey: ['trainee-measurements'],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        return await base44.entities.Measurement.filter({ trainee_id: user.id }, '-date');
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!user?.id && (activeTab === 'metrics' || activeTab === 'overview'),
-    refetchInterval: 30000
+  const { data: measurements = [], isLoading: measurementsLoading } = useQuery({
+    queryKey: ['my-measurements', user?.id],
+    queryFn: () => base44.entities.Measurement.filter({ trainee_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
-  const { data: results = [] } = useQuery({
-    queryKey: ['trainee-results'],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        return await base44.entities.ResultsLog.filter({ trainee_id: user.id }, '-date');
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!user?.id && (activeTab === 'achievements' || activeTab === 'metrics' || activeTab === 'overview'),
-    refetchInterval: 30000
+  const { data: results = [], isLoading: resultsLoading } = useQuery({
+    queryKey: ['my-results', user?.id],
+    queryFn: () => base44.entities.ResultsLog.filter({ trainee_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
-  const { data: services = [] } = useQuery({
+  const { data: services = [], isLoading: servicesLoading } = useQuery({
     queryKey: ['trainee-services', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        const filter = { trainee_id: user.id };
-        if (currentUser?.id) filter.coach_id = currentUser.id;
-        return await base44.entities.ClientService.filter(filter, '-created_at');
-      } catch {
-        return [];
-      }
+      const filter = { trainee_id: user.id };
+      if (currentUser?.id) filter.coach_id = currentUser.id;
+      return await base44.entities.ClientService.filter(filter, '-created_at').catch(() => []);
     },
-    enabled: !!user?.id && (activeTab === 'services' || activeTab === 'overview'),
-    refetchInterval: 30000
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
   const { data: attendanceLog = [] } = useQuery({
-    queryKey: ['trainee-attendance-log'],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        return await base44.entities.AttendanceLog.filter({ user_id: user.id }, '-date');
-      } catch { return []; }
-    },
-    enabled: !!user?.id && (activeTab === 'attendance'),
-    refetchInterval: 30000
+    queryKey: ['trainee-attendance-log', user?.id],
+    queryFn: () => base44.entities.AttendanceLog.filter({ user_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
-  const { data: trainingPlans = [] } = useQuery({
-    queryKey: ['trainee-plans', user?.id],
+  const { data: trainingPlans = [], isLoading: plansLoading } = useQuery({
+    queryKey: ['training-plans', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        // Fetch both assigned plans AND plans created by the trainee
-        const [assigned, created] = await Promise.all([
-          base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-created_at').catch(() => []),
-          base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at').catch(() => [])
-        ]);
-
-        const combined = [...(assigned || []), ...(created || [])];
-        const uniquePlans = Array.from(new Map(combined.map(item => [item.id, item])).values());
-
-        return uniquePlans.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
-      } catch {
-        return [];
-      }
+      const [assigned, created] = await Promise.all([
+        base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-created_at').catch(() => []),
+        base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at').catch(() => [])
+      ]);
+      const combined = [...(assigned || []), ...(created || [])];
+      const uniquePlans = Array.from(new Map(combined.map(item => [item.id, item])).values());
+      return uniquePlans.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
     },
-    enabled: !!user?.id && (activeTab === 'plans' || activeTab === 'overview'),
-    refetchInterval: 30000
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
   const { data: workoutHistory = [] } = useQuery({
     queryKey: ['trainee-workout-history', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        return await base44.entities.WorkoutHistory.filter({ user_id: user.id }, '-date');
-      } catch { return []; }
-    },
-    enabled: !!user?.id && (activeTab === 'plans' || activeTab === 'overview'),
-    refetchInterval: 30000
+    queryFn: () => base44.entities.WorkoutHistory.filter({ user_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
-  const { data: sessions = [] } = useQuery({
+  const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: ['trainee-sessions', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
       try {
         return await base44.entities.Session.filter({ participants: { $elemMatch: { trainee_id: user.id } } }, '-date');
-      } catch (e) {
-        // Fallback for simple filter if $elemMatch fails or standard fetch
-        try {
-            const allSessions = await base44.entities.Session.list('-date', 1000);
-            return allSessions.filter(s => s.participants?.some(p => p.trainee_id === user.id));
-        } catch { return []; }
+      } catch {
+        const allSessions = await base44.entities.Session.list('-date', 1000);
+        return allSessions.filter(s => s.participants?.some(p => p.trainee_id === user.id));
       }
     },
-    enabled: !!user?.id && (activeTab === 'attendance' || activeTab === 'overview'),
-    refetchInterval: 30000
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
 
   // Optimized: Removed global exercise fetch
@@ -466,18 +420,13 @@ export default function TraineeProfile() {
   };
 
   const { data: coach } = useQuery({
-    queryKey: ['trainee-coach'],
+    queryKey: ['trainee-coach', user?.id],
     queryFn: async () => {
-      try {
-        // Fetch all users and find the coach in memory to avoid 500 error on invalid filter
-        const users = await base44.entities.User.list('-created_at', 1000);
-        return users.find(u => u.isCoach === true) || null;
-      } catch {
-        return null;
-      }
+      const users = await base44.entities.User.list('-created_at', 1000);
+      return users.find(u => u.isCoach === true) || null;
     },
     enabled: !!user?.id,
-    refetchInterval: 30000
+    staleTime: 60000,
   });
 
   const updateUserMutation = useMutation({
@@ -724,7 +673,7 @@ export default function TraineeProfile() {
   const createResultMutation = useMutation({
     mutationFn: (data) => base44.entities.ResultsLog.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       setShowAddResult(false);
       setResultForm({ date: new Date().toISOString().split('T')[0], title: "", description: "", related_goal_id: "" });
       toast.success("✅ הישג נוסף");
@@ -737,7 +686,7 @@ export default function TraineeProfile() {
   const updateResultMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ResultsLog.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       setShowEditResult(false);
       setEditingResult(null);
       toast.success("✅ הישג עודכן");
@@ -750,7 +699,7 @@ export default function TraineeProfile() {
   const deleteResultMutation = useMutation({
     mutationFn: (id) => base44.entities.ResultsLog.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       toast.success("✅ הישג נמחק");
     },
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
@@ -1180,12 +1129,15 @@ export default function TraineeProfile() {
     );
   }
 
-  if (!user) {
+  // Full loading gate — show loader until user AND core data are ready
+  const coreDataLoading = !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading;
+
+  if (coreDataLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white" dir="rtl">
+      <div className="h-screen flex items-center justify-center bg-white" dir="rtl">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20] mx-auto" />
-          <p className="mt-4 text-sm text-gray-500">מכין את התצוגה שלך...</p>
+          <p className="mt-4 text-sm text-gray-500">טוען נתונים...</p>
         </div>
       </div>
     );

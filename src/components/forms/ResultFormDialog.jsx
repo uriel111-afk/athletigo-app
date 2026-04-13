@@ -92,7 +92,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
   const createResultMutation = useMutation({
     mutationFn: (data) => base44.entities.ResultsLog.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       if (onSuccess) onSuccess();
       toast.success("השיא נשמר בהצלחה");
@@ -107,7 +107,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
   const updateResultMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ResultsLog.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       if (onSuccess) onSuccess();
       toast.success("השיא עודכן בהצלחה");

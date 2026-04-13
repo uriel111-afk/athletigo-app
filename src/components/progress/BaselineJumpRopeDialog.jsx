@@ -38,7 +38,7 @@ export default function BaselineJumpRopeDialog({ isOpen, onClose, user }) {
     mutationFn: (data) => base44.entities.Measurement.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       toast.success("✅ תוצאת Baseline נשמרה");
       handleClose();
     },

@@ -6,7 +6,7 @@
  */
 export const syncActions = {
   measurementChanged(queryClient) {
-    queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+    queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
     queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
   },

@@ -34,7 +34,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
     mutationFn: (data) => base44.entities.Measurement.create(data),
     onSuccess: () => {
       syncActions.measurementChanged(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       setShowMeasurementDialog(false);
       setEditingMeasurement(null);
@@ -48,7 +48,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
     mutationFn: ({ id, data }) => base44.entities.Measurement.update(id, data),
     onSuccess: () => {
       syncActions.measurementChanged(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       setShowMeasurementDialog(false);
       setEditingMeasurement(null);
@@ -62,7 +62,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
     mutationFn: (id) => base44.entities.Measurement.delete(id),
     onSuccess: () => {
       syncActions.measurementChanged(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       toast.success("✅ מדידה נמחקה");
     },

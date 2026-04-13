@@ -124,7 +124,7 @@ export default function BaselineTestDialog({ isOpen, onClose }) {
   const createMutation = useMutation({
     mutationFn: async (data) => base44.entities.ResultsLog.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       toast.success("✅ מבחן Baseline נשמר בהצלחה");
       onClose();
     },

@@ -37,10 +37,10 @@ const buildTraineeSteps = (userId) => [
     queryKey: ['trainee-services', userId],
     fn: () => base44.entities.ClientService.filter({ trainee_id: userId }).catch(() => []) },
   { key: "measurements", label: "טוען מדידות",
-    queryKey: ['my-measurements'],
+    queryKey: ['my-measurements', userId],
     fn: () => base44.entities.Measurement.filter({ trainee_id: userId }, '-date').catch(() => []) },
   { key: "results", label: "טוען שיאים",
-    queryKey: ['my-results'],
+    queryKey: ['my-results', userId],
     fn: () => base44.entities.ResultsLog.filter({ trainee_id: userId }, '-date').catch(() => []) },
 ];
 

@@ -121,7 +121,7 @@ export default function Progress() {
     mutationFn: (data) => base44.entities.Measurement.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       setShowAddMeasurement(false);
       setEditingMeasurement(null);
       setMeasurementForm({
@@ -143,7 +143,7 @@ export default function Progress() {
     mutationFn: ({ id, data }) => base44.entities.Measurement.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       setShowAddMeasurement(false);
       setEditingMeasurement(null);
       setMeasurementForm({
@@ -165,7 +165,7 @@ export default function Progress() {
     mutationFn: (id) => base44.entities.Measurement.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-measurements'] });
+      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       setShowDeleteDialog(false);
       setDeletingItem(null);
       toast.success("✅ מדידה נמחקה");
@@ -177,7 +177,7 @@ export default function Progress() {
     mutationFn: (data) => base44.entities.ResultsLog.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       setShowAddResult(false);
       setEditingResult(null);
       setResultForm({
@@ -194,7 +194,7 @@ export default function Progress() {
     mutationFn: ({ id, data }) => base44.entities.ResultsLog.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       setShowAddResult(false);
       setEditingResult(null);
       setResultForm({
@@ -211,7 +211,7 @@ export default function Progress() {
     mutationFn: (id) => base44.entities.ResultsLog.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
       setShowDeleteDialog(false);
       setDeletingItem(null);
       toast.success("✅ הישג נמחק");
