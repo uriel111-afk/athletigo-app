@@ -779,12 +779,6 @@ export default function TraineeProfile() {
       gender: formData.gender || null,
       address: formData.address || null,
       city: formData.city || null,
-      main_goal: formData.main_goal || null,
-      sport_background: formData.sport_background || null,
-      fitness_level: formData.fitness_level || null,
-      training_goals: formData.training_goals || null,
-      training_frequency: formData.training_frequency || null,
-      preferred_training_style: formData.preferred_training_style || null,
       medical_history: formData.medical_history || null,
       notes: formData.notes || null,
       coach_notes: formData.coach_notes || null,
@@ -1319,7 +1313,6 @@ export default function TraineeProfile() {
                         { icon: <Mail className="w-4 h-4" />, label: 'אימייל', value: user.email || '—' },
                         { icon: <Calendar className="w-4 h-4" />, label: 'גיל', value: user.age ? user.age + ' שנים' : '—' },
                         { icon: <MapPin className="w-4 h-4" />, label: 'עיר', value: user.city || '—' },
-                        { icon: <Heart className="w-4 h-4" />, label: 'מטרה', value: user.main_goal || '—' },
                       ].map((item, i) => (
                         <div key={i} className="flex items-start gap-2">
                           <div className="text-gray-400 mt-0.5 flex-shrink-0">{item.icon}</div>
@@ -1764,26 +1757,6 @@ export default function TraineeProfile() {
                       <SelectContent><SelectItem value="active">פעיל</SelectItem><SelectItem value="inactive">לא פעיל</SelectItem><SelectItem value="frozen">מוקפא</SelectItem></SelectContent>
                     </Select>
                   </div>
-                </div>
-              </div>
-
-              {/* ── פרטים מקצועיים ── */}
-              <div>
-                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">פרטים מקצועיים</h3>
-                <div className="space-y-3">
-                  <div><Label className="text-xs text-gray-500 mb-1 block">מטרה עיקרית</Label><Input value={formData.main_goal} onChange={e => setFormData({ ...formData, main_goal: e.target.value })} className="rounded-lg" /></div>
-                  <div><Label className="text-xs text-gray-500 mb-1 block">מטרות אימון</Label><Textarea value={formData.training_goals} onChange={e => setFormData({ ...formData, training_goals: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label className="text-xs text-gray-500 mb-1 block">רמת כושר</Label>
-                      <Select value={formData.fitness_level} onValueChange={v => setFormData({ ...formData, fitness_level: v })}>
-                        <SelectTrigger className="rounded-lg"><SelectValue placeholder="—" /></SelectTrigger>
-                        <SelectContent><SelectItem value="מתחיל">מתחיל</SelectItem><SelectItem value="בינוני">בינוני</SelectItem><SelectItem value="מתקדם">מתקדם</SelectItem><SelectItem value="מקצועי">מקצועי</SelectItem></SelectContent>
-                      </Select>
-                    </div>
-                    <div><Label className="text-xs text-gray-500 mb-1 block">תדירות אימון</Label><Input value={formData.training_frequency} onChange={e => setFormData({ ...formData, training_frequency: e.target.value })} placeholder="לדוגמה: 3 פעמים בשבוע" className="rounded-lg" /></div>
-                  </div>
-                  <div><Label className="text-xs text-gray-500 mb-1 block">רקע ספורטיבי</Label><Textarea value={formData.sport_background} onChange={e => setFormData({ ...formData, sport_background: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
-                  <div><Label className="text-xs text-gray-500 mb-1 block">סגנון אימון מועדף</Label><Input value={formData.preferred_training_style} onChange={e => setFormData({ ...formData, preferred_training_style: e.target.value })} className="rounded-lg" /></div>
                 </div>
               </div>
 
