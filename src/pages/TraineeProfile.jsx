@@ -1284,7 +1284,7 @@ export default function TraineeProfile() {
                       <Edit2 className="w-3 h-3 ml-1" />ערוך
                     </Button>
                   </div>
-                  <div className="p-4 divide-y divide-gray-100">
+                  <div className="p-4 space-y-2.5">
                     {[
                       { label: 'שם מלא', value: user.full_name },
                       { label: 'טלפון', value: user.phone },
@@ -1295,9 +1295,9 @@ export default function TraineeProfile() {
                       { label: 'כתובת', value: user.address },
                       { label: 'מטרה עיקרית', value: user.main_goal },
                     ].map((item, i) => (
-                      <div key={i} className="flex justify-between items-center py-2.5">
-                        <span className="text-sm text-gray-500 font-medium">{item.label}</span>
-                        <span className={`text-sm ${item.value ? 'text-gray-900 font-semibold' : 'text-gray-300'}`}>{item.value || 'לא מולא'}</span>
+                      <div key={i} className="text-right text-sm py-1">
+                        <span className="text-gray-500 font-medium">{item.label}: </span>
+                        <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
                       </div>
                     ))}
                   </div>
@@ -1311,14 +1311,14 @@ export default function TraineeProfile() {
                       <Edit2 className="w-3 h-3 ml-1" />עדכן
                     </Button>
                   </div>
-                  <div className="p-4 divide-y divide-gray-100">
+                  <div className="p-4 space-y-2.5">
                     {[
                       { label: 'בעיות בריאות', value: user.health_issues },
                       { label: 'היסטוריה רפואית', value: user.medical_history },
                     ].map((item, i) => (
-                      <div key={i} className="flex justify-between items-center py-2.5">
-                        <span className="text-sm text-gray-500 font-medium">{item.label}</span>
-                        <span className={`text-sm max-w-[60%] text-left ${item.value ? 'text-gray-900' : 'text-gray-300'}`}>{item.value || 'לא מולא'}</span>
+                      <div key={i} className="text-right text-sm py-1">
+                        <span className="text-gray-500 font-medium">{item.label}: </span>
+                        <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
                       </div>
                     ))}
                   </div>
@@ -1329,14 +1329,14 @@ export default function TraineeProfile() {
                   <div className="p-4 border-b border-gray-50 bg-gray-50/30">
                     <h2 className="text-lg font-bold flex items-center gap-2"><Phone className="w-5 h-5 text-[#FF6F20]" />איש קשר לחירום</h2>
                   </div>
-                  <div className="p-4 divide-y divide-gray-100">
+                  <div className="p-4 space-y-2.5">
                     {[
                       { label: 'שם', value: user.emergency_contact_name },
                       { label: 'טלפון', value: user.emergency_contact_phone },
                     ].map((item, i) => (
-                      <div key={i} className="flex justify-between items-center py-2.5">
-                        <span className="text-sm text-gray-500 font-medium">{item.label}</span>
-                        <span className={`text-sm ${item.value ? 'text-gray-900 font-semibold' : 'text-gray-300'}`}>{item.value || 'לא מולא'}</span>
+                      <div key={i} className="text-right text-sm py-1">
+                        <span className="text-gray-500 font-medium">{item.label}: </span>
+                        <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
                       </div>
                     ))}
                   </div>
@@ -1392,29 +1392,29 @@ export default function TraineeProfile() {
                             <Button onClick={() => { if (window.confirm(`למחוק "${goal.goal_name}"?`)) deleteGoalMutation.mutate(goal.id); }} size="icon" variant="ghost" className="w-8 h-8 text-red-500"><Trash2 className="w-3.5 h-3.5" /></Button>
                           </div>
                         </div>
-                        <div className="p-4 divide-y divide-gray-100">
+                        <div className="p-4 space-y-2">
                           {goal.description && (
-                            <div className="flex justify-between items-center py-2">
-                              <span className="text-sm text-gray-500 font-medium">תיאור</span>
-                              <span className="text-sm text-gray-900 max-w-[60%] text-left">{goal.description}</span>
+                            <div className="text-right text-sm py-1">
+                              <span className="text-gray-500 font-medium">תיאור: </span>
+                              <span className="text-gray-900">{goal.description}</span>
                             </div>
                           )}
-                          <div className="flex justify-between items-center py-2">
-                            <span className="text-sm text-gray-500 font-medium">ערך יעד</span>
-                            <span className="text-sm text-gray-900 font-semibold">{goal.target_value} {goal.unit}</span>
+                          <div className="text-right text-sm py-1">
+                            <span className="text-gray-500 font-medium">ערך יעד: </span>
+                            <span className="text-gray-900 font-semibold">{goal.target_value} {goal.unit}</span>
                           </div>
-                          <div className="flex justify-between items-center py-2">
-                            <span className="text-sm text-gray-500 font-medium">התקדמות</span>
-                            <span className="text-sm font-bold text-[#FF6F20]">{goal.current_value || 0} / {goal.target_value} {goal.unit}</span>
+                          <div className="text-right text-sm py-1">
+                            <span className="text-gray-500 font-medium">התקדמות: </span>
+                            <span className="font-bold text-[#FF6F20]">{goal.current_value || 0} / {goal.target_value} {goal.unit}</span>
                           </div>
-                          <div className="py-2">
+                          <div className="py-1">
                             <div className="h-2 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${goal.progress_percentage || 0}%` }} /></div>
-                            <p className="text-xs text-left mt-1 font-bold text-[#FF6F20]">{goal.progress_percentage || 0}%</p>
+                            <p className="text-xs text-right mt-1 font-bold text-[#FF6F20]">{goal.progress_percentage || 0}%</p>
                           </div>
                           {goal.target_date && (
-                            <div className="flex justify-between items-center py-2">
-                              <span className="text-sm text-gray-500 font-medium">תאריך יעד</span>
-                              <span className="text-sm text-gray-900">{format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}</span>
+                            <div className="text-right text-sm py-1">
+                              <span className="text-gray-500 font-medium">תאריך יעד: </span>
+                              <span className="text-gray-900">{format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}</span>
                             </div>
                           )}
                         </div>
@@ -1490,20 +1490,20 @@ export default function TraineeProfile() {
                                   </div>
                                   <div className="text-lg font-black" style={{ color: borderColor }}>₪{priceDisplay}<span className="text-xs font-normal text-gray-400 block">{service.billing_model === 'subscription' ? 'לחודש' : 'סה"כ'}</span></div>
                                 </div>
-                                <div className="p-4 space-y-0 divide-y divide-gray-100">
-                                  <div className="flex justify-between items-center py-2">
-                                    <span className="text-sm text-gray-500 font-medium">תאריך התחלה</span>
-                                    <span className="text-sm text-gray-900">{format(new Date(service.start_date), 'dd/MM/yy')}</span>
+                                <div className="p-4 space-y-2">
+                                  <div className="text-right text-sm py-1">
+                                    <span className="text-gray-500 font-medium">תאריך התחלה: </span>
+                                    <span className="text-gray-900">{format(new Date(service.start_date), 'dd/MM/yy')}</span>
                                   </div>
                                   {service.next_billing_date && (
-                                    <div className="flex justify-between items-center py-2">
-                                      <span className="text-sm text-gray-500 font-medium">חיוב הבא</span>
-                                      <span className="text-sm text-blue-700 font-semibold">{format(new Date(service.next_billing_date), 'dd/MM/yy')}</span>
+                                    <div className="text-right text-sm py-1">
+                                      <span className="text-gray-500 font-medium">חיוב הבא: </span>
+                                      <span className="text-blue-700 font-semibold">{format(new Date(service.next_billing_date), 'dd/MM/yy')}</span>
                                     </div>
                                   )}
-                                  <div className="flex justify-between items-center py-2">
-                                    <span className="text-sm text-gray-500 font-medium">אמצעי תשלום</span>
-                                    <span className="text-sm text-gray-900">{service.payment_method === 'credit' ? 'אשראי' : service.payment_method === 'cash' ? 'מזומן' : service.payment_method === 'bit' ? 'ביט' : service.payment_method || 'לא מולא'}</span>
+                                  <div className="text-right text-sm py-1">
+                                    <span className="text-gray-500 font-medium">אמצעי תשלום: </span>
+                                    <span className="text-gray-900">{service.payment_method === 'credit' ? 'אשראי' : service.payment_method === 'cash' ? 'מזומן' : service.payment_method === 'bit' ? 'ביט' : service.payment_method || 'לא מולא'}</span>
                                   </div>
                                   {isPunchCard && (
                                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
@@ -1524,7 +1524,7 @@ export default function TraineeProfile() {
                                         )}
                                       </div>
                                       <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full" style={{ width: `${Math.min(100, (service.used_sessions / service.total_sessions) * 100)}%`, backgroundColor: borderColor }} /></div>
-                                      <p className="text-xs text-center mt-1 font-bold" style={{ color: borderColor }}>נותרו {remaining} אימונים</p>
+                                      <p className="text-xs text-right mt-1 font-bold" style={{ color: borderColor }}>נותרו {remaining} אימונים</p>
                                     </div>
                                   )}
                                   {isCoach && service.notes_internal && <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100"><span className="font-bold">🔒 הערות פנימיות:</span> {service.notes_internal}</div>}
