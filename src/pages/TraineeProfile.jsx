@@ -367,7 +367,7 @@ export default function TraineeProfile() {
     staleTime: 60000,
   });
 
-  const { data: attendanceLog = [] } = useQuery({
+  const { data: attendanceLog = [], isLoading: attendanceLoading } = useQuery({
     queryKey: ['trainee-attendance-log', user?.id],
     queryFn: () => base44.entities.AttendanceLog.filter({ user_id: user.id }, '-date').catch(() => []),
     enabled: !!user?.id,
@@ -389,7 +389,7 @@ export default function TraineeProfile() {
     staleTime: 60000,
   });
 
-  const { data: workoutHistory = [] } = useQuery({
+  const { data: workoutHistory = [], isLoading: workoutLoading } = useQuery({
     queryKey: ['trainee-workout-history', user?.id],
     queryFn: () => base44.entities.WorkoutHistory.filter({ user_id: user.id }, '-date').catch(() => []),
     enabled: !!user?.id,
@@ -419,7 +419,7 @@ export default function TraineeProfile() {
       };
   };
 
-  const { data: coach } = useQuery({
+  const { data: coach, isLoading: coachLoading } = useQuery({
     queryKey: ['trainee-coach', user?.id],
     queryFn: async () => {
       const users = await base44.entities.User.list('-created_at', 1000);
@@ -1118,8 +1118,8 @@ export default function TraineeProfile() {
     );
   }
 
-  // Full loading gate — show branded loader until user AND core data are ready
-  const coreDataLoading = profileLoading || !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading;
+  // Full loading gate — show branded loader until user AND ALL tab data are ready
+  const coreDataLoading = profileLoading || !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading || attendanceLoading || workoutLoading || coachLoading;
 
   if (coreDataLoading) {
     return (
