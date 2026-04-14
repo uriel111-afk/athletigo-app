@@ -142,7 +142,7 @@ export default function LeadFormDialog({
       }
     }}>
       {/* onInteractOutside prevents dialog close when interacting with Select portals */}
-      <DialogContent className="w-[95vw] md:w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white" dir="rtl"
+      <DialogContent className="max-w-3xl"
         onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle className="text-2xl md:text-3xl font-black text-[#222]">

@@ -304,7 +304,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
           resetMeasurementForm();
         }
       }}>
-        <DialogContent className="max-w-2xl" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: '#000000' }}>
               {editingMeasurement ? 'ערוך מדידה' : 'הוסף מדידה חדשה'}

@@ -231,7 +231,7 @@ export default function SessionFormDialog({
         onClose();
       }
     }}>
-      <DialogContent className="w-[95vw] md:max-w-3xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl md:text-2xl font-black mb-2" style={{ color: '#000000' }}>
             {editingSession ? '✏️ ערוך מפגש' : '➕ צור מפגש חדש'}

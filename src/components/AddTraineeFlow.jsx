@@ -229,7 +229,7 @@ export default function AddTraineeFlow({ open, onClose, coach, onSuccess, preSel
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="text-3xl font-bold" style={{ color: '#000000' }}>
             ➕ הוסף מתאמן חדש

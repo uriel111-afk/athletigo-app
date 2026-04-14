@@ -180,7 +180,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) confirmClose(); }}>
-      <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto bg-white p-0 relative" dir="rtl"
+      <DialogContent className="max-w-md p-0"
         onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         {ConfirmDialog}
         <DialogHeader className="px-3 pt-3 pb-1">

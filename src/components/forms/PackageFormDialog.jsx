@@ -142,7 +142,7 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-white" dir="rtl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <Package className="w-5 h-5 text-[#FF6F20]" />

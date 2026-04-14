@@ -498,7 +498,7 @@ export default function CoachProfileManager({ trainee, services, onUpdate }) {
 
       {/* Edit All Dialog */}
       <Dialog open={showEditAll} onOpenChange={setShowEditAll}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: '#000000' }}>
               ערוך פרופיל מתאמן
@@ -790,7 +790,7 @@ export default function CoachProfileManager({ trainee, services, onUpdate }) {
 
       {/* Coach Notes Dialog */}
       <Dialog open={showCoachNotes} onOpenChange={setShowCoachNotes}>
-        <DialogContent className="max-w-2xl" style={{ backgroundColor: '#FFFFFF' }}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: '#000000' }}>
               הערות פנימיות למאמן

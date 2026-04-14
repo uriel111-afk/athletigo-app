@@ -144,7 +144,7 @@ export default function AddTraineeDialog({ open, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !loading && onClose(isOpen)}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white" dir="rtl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black text-[#222]">
             יצירת מתאמן חדש

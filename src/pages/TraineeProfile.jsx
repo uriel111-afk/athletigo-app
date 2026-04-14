@@ -1944,7 +1944,7 @@ export default function TraineeProfile() {
 
         {/* Edit Profile Dialog */}
         <Dialog open={showEdit} onOpenChange={setShowEdit}>
-          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
+          <DialogContent className="max-w-2xl">
             <DialogHeader><DialogTitle className="text-lg font-bold">ערוך פרופיל</DialogTitle></DialogHeader>
             <div className="space-y-5">
               {/* ── פרטים אישיים ── */}
@@ -2016,7 +2016,7 @@ export default function TraineeProfile() {
 
         {/* Health Declaration Dialog */}
         <Dialog open={showHealthUpdate} onOpenChange={setShowHealthUpdate}>
-          <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>עדכון הצהרת בריאות</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border">
@@ -2073,7 +2073,7 @@ export default function TraineeProfile() {
 
         {/* Add/Edit Service Dialog */}
         <Dialog open={showAddService} onOpenChange={setShowAddService}>
-          <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>{editingService ? 'ערוך שירות' : 'הוסף שירות'}</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -2119,7 +2119,7 @@ export default function TraineeProfile() {
 
         {/* Manual Attendance Dialog */}
         <Dialog open={showManualAttendance} onOpenChange={setShowManualAttendance}>
-          <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>הוסף נוכחות ידנית</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -2140,7 +2140,7 @@ export default function TraineeProfile() {
 
         {/* Password Change Dialog */}
         <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
-          <DialogContent className="w-[95vw] max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>שינוי סיסמא</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div><Label className="text-sm font-bold block mb-1">סיסמה חדשה</Label><Input type="password" placeholder="לפחות 6 תווים" value={passwordForm.newPass} onChange={e => setPasswordForm({ ...passwordForm, newPass: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
@@ -2155,7 +2155,7 @@ export default function TraineeProfile() {
 
         {/* Delete Trainee Confirmation Dialog */}
         <Dialog open={showDeleteConfirm} onOpenChange={(open) => { if (!deleting) setShowDeleteConfirm(open); }}>
-          <DialogContent className="w-[90vw] max-w-md" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold text-red-600 flex items-center gap-2">
                 <Trash2 className="w-5 h-5" />מחיקת מתאמן

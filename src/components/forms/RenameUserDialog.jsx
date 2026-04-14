@@ -25,7 +25,7 @@ export default function RenameUserDialog({ isOpen, onClose, onSubmit, user, isLo
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]" dir="rtl">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>שינוי שם משתמש</DialogTitle>
         </DialogHeader>

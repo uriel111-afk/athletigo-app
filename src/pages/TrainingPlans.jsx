@@ -749,7 +749,7 @@ export default function TrainingPlans() {
 
         {/* Share Plan Dialog */}
         <Dialog open={showSharePlanDialog} onOpenChange={setShowSharePlanDialog}>
-          <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF', WebkitOverflowScrolling: 'touch' }}>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="text-xl md:text-2xl font-black mb-2" style={{ color: '#000000' }}>
                 👥 שתף תוכנית למתאמנים
@@ -886,7 +886,7 @@ export default function TrainingPlans() {
         />
 
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <DialogContent className="w-[95vw] md:w-full max-w-md max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF', WebkitOverflowScrolling: 'touch' }}>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="text-xl md:text-2xl font-black flex items-center gap-3" style={{ color: '#000000' }}>
                 <Trash2 className="w-7 h-7" style={{ color: '#f44336' }} />

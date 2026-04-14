@@ -44,7 +44,7 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white" dir="rtl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center md:text-right">עריכת מטרות וחזון</DialogTitle>
         </DialogHeader>

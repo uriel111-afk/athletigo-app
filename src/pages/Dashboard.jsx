@@ -287,7 +287,7 @@ export default function Dashboard() {
 
       {/* Select Trainee Dialog */}
       <Dialog open={showSelectTraineeDialog} onOpenChange={setShowSelectTraineeDialog}>
-        <DialogContent className="w-[90vw] max-w-sm max-h-[80vh] overflow-y-auto p-4 bg-white" dir="rtl">
+        <DialogContent className="max-w-sm p-4">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-right">בחר מתאמן</DialogTitle>
           </DialogHeader>

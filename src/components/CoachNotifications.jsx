@@ -107,7 +107,7 @@ export default function CoachNotifications({ coach }) {
       </button>
 
       <Dialog open={showPanel} onOpenChange={setShowPanel}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="text-3xl font-black" style={{ color: '#000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>

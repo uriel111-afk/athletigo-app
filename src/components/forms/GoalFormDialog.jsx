@@ -165,7 +165,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
-      <DialogContent className="w-[95vw] md:w-full max-w-lg max-h-[90vh] overflow-y-auto relative" style={{ backgroundColor: '#FFF', WebkitOverflowScrolling: 'touch' }} dir="rtl">
+      <DialogContent className="max-w-lg">
         {ConfirmDialog}
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">

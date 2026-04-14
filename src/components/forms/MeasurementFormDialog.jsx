@@ -102,7 +102,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
-      <DialogContent className="w-[95vw] md:w-full max-w-3xl max-h-[90vh] overflow-y-auto relative" style={{ backgroundColor: '#FFFFFF' }} dir="rtl">
+      <DialogContent className="max-w-3xl">
         {ConfirmDialog}
         <DialogHeader>
           <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>

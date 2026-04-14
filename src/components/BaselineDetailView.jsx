@@ -33,7 +33,7 @@ export default function BaselineDetailView({ isOpen, onClose, baselineId }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto bg-white p-0" dir="rtl">
+      <DialogContent className="max-w-md p-0">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20]" />

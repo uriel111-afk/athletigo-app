@@ -463,7 +463,7 @@ export default function CoachProfile() {
 
           {/* Edit Dialog */}
           <Dialog open={showEdit} onOpenChange={setShowEdit}>
-            <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
                   ערוך פרופיל
@@ -538,7 +538,7 @@ export default function CoachProfile() {
 
           {/* Password Change Dialog */}
           <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
-            <DialogContent className="w-[95vw] md:w-full max-w-md" style={{ backgroundColor: '#FFFFFF' }}>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle className="text-xl md:text-2xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
                   שינוי סיסמה

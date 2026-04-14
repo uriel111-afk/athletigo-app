@@ -17,7 +17,7 @@ export default function AddCustomValueDialog({ isOpen, onClose, onSave, title, i
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[90vw] max-w-md" style={{ backgroundColor: '#FFFFFF' }} dir="rtl">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-center">{title || "הוסף ערך חדש"}</DialogTitle>
         </DialogHeader>

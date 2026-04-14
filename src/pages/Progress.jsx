@@ -791,7 +791,7 @@ export default function Progress() {
 
       {/* Add/Edit Measurement Dialog */}
       <Dialog open={showAddMeasurement} onOpenChange={setShowAddMeasurement}>
-        <DialogContent className="w-[95vw] md:w-full max-w-3xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
               {editingMeasurement ? '✏️ ערוך מדידה' : '➕ הוסף מדידה חדשה'}
@@ -970,7 +970,7 @@ export default function Progress() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="w-[95vw] md:w-full max-w-md" style={{ backgroundColor: '#FFFFFF' }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: '#000000' }}>
               ⚠️ אישור מחיקה

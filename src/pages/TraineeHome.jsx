@@ -183,7 +183,7 @@ export default function TraineeHome() {
     <ErrorBoundary>
       {/* Unread notifications modal */}
       <Dialog open={showUnreadModal} onOpenChange={setShowUnreadModal}>
-        <DialogContent className="w-[95vw] max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-black flex items-center gap-2">
               <Bell className="w-5 h-5 text-[#FF6F20]" />

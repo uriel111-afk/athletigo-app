@@ -471,7 +471,7 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Logout confirmation dialog */}
           <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
-            <DialogContent className="w-[85vw] max-w-xs p-5 bg-white text-center" dir="rtl">
+            <DialogContent className="max-w-xs p-5 text-center">
               <DialogHeader>
                 <DialogTitle className="text-lg font-bold">התנתקות</DialogTitle>
               </DialogHeader>

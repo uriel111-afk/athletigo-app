@@ -1362,7 +1362,7 @@ export default function Sessions() {
 
           {/* ── Group Create/Edit Dialog ── */}
           <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
-            <DialogContent className="w-[95vw] max-w-sm" dir="rtl">
+            <DialogContent className="max-w-sm">
               <DialogHeader><DialogTitle>{editingGroup ? 'ערוך קבוצה' : 'קבוצה חדשה'}</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div><Label>שם הקבוצה</Label><Input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} className="rounded-xl mt-1" style={{ fontSize: 16 }} placeholder="למשל: קבוצת בוקר" /></div>
@@ -1380,7 +1380,7 @@ export default function Sessions() {
 
           {/* ── Group Members Dialog ── */}
           <Dialog open={showGroupMembersDialog} onOpenChange={setShowGroupMembersDialog}>
-            <DialogContent className="w-[95vw] max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
+            <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>חברי קבוצה: {selectedGroup?.name}</DialogTitle></DialogHeader>
               <div className="space-y-3">
                 <p className="text-sm text-gray-500">לחץ על מתאמן להוספה/הסרה מהקבוצה</p>
@@ -1410,7 +1410,7 @@ export default function Sessions() {
 
           {/* ── Group Session Dialog ── */}
           <Dialog open={showGroupSessionDialog} onOpenChange={setShowGroupSessionDialog}>
-            <DialogContent className="w-[95vw] max-w-sm" dir="rtl">
+            <DialogContent className="max-w-sm">
               <DialogHeader><DialogTitle>אימון קבוצתי: {selectedGroup?.name}</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <p className="text-xs text-gray-500">כל חברי הקבוצה ({groupMembers.filter(m => m.group_id === selectedGroup?.id).length}) יתווספו אוטומטית</p>
@@ -1431,7 +1431,7 @@ export default function Sessions() {
 
           {/* ── Mark Group Attendance Dialog ── */}
           <Dialog open={!!markingGroupAttendance} onOpenChange={() => setMarkingGroupAttendance(null)}>
-            <DialogContent className="w-[95vw] max-w-sm" dir="rtl">
+            <DialogContent className="max-w-sm">
               <DialogHeader><DialogTitle>סימון נוכחות קבוצתית</DialogTitle></DialogHeader>
               {markingGroupAttendance && (
                 <div className="space-y-4">
@@ -1465,7 +1465,7 @@ export default function Sessions() {
 
           {/* Delete Confirmation Dialog */}
           <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-            <DialogContent className="max-w-md" style={{ backgroundColor: '#FFFFFF' }}>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle className="text-2xl font-bold flex items-center gap-3" style={{ color: '#000000' }}>
                   <AlertTriangle className="w-8 h-8" style={{ color: '#f44336' }} />
