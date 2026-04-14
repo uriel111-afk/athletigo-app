@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -18,6 +18,7 @@ export default function AddTraineeDialog({ open, onClose }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(true);
   const [coach, setCoach] = useState(null);
 
   const defaultFormData = {
@@ -90,11 +91,11 @@ export default function AddTraineeDialog({ open, onClose }) {
         },
       });
 
-      console.log("[AddTrainee] Response:", { fnData, fnError });
+      console.log("[AddTrainee] Response:", JSON.stringify({ fnData, fnError }, null, 2));
 
       if (fnError || !fnData?.profile) {
-        const raw = fnData?.error || fnError?.message || JSON.stringify(fnError) || '';
-        console.error("[AddTrainee] Failed:", raw);
+        const raw = fnData?.error || fnError?.message || fnError?.context?.body || JSON.stringify(fnError) || '';
+        console.error("[AddTrainee] Failed:", raw, fnError, fnData);
         let msg = "שגיאה לא צפויה";
         if (raw.includes("already registered") || raw.includes("duplicate")) msg = "משתמש עם אימייל זה כבר קיים";
         else if (raw.includes("password")) msg = "הסיסמה חייבת להכיל לפחות 6 תווים";
@@ -180,14 +181,20 @@ export default function AddTraineeDialog({ open, onClose }) {
             </div>
             <div>
               <Label className="mb-2 block font-bold text-gray-700">סיסמה</Label>
-              <Input
-                type="password"
-                value={formData.password}
-                onChange={(e) => handleChange('password', e.target.value)}
-                className="h-12 rounded-xl border-gray-200 focus:border-[#4CAF50] focus:ring-[#4CAF50]"
-                placeholder="אופציונלי — תיווצר אוטומטית אם ריק"
-                autoComplete="new-password"
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => handleChange('password', e.target.value)}
+                  className="h-12 rounded-xl border-gray-200 focus:border-[#4CAF50] focus:ring-[#4CAF50] pl-10"
+                  placeholder="אופציונלי — תיווצר אוטומטית אם ריק"
+                  autoComplete="new-password"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
 
