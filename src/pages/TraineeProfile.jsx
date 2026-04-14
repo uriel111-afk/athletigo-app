@@ -1732,47 +1732,52 @@ export default function TraineeProfile() {
               {/* Attendance Tab */}
               <TabsContent value="attendance" className="space-y-4 w-full">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-[#FF6F20]" />יומן נוכחות</h2>
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-[#FF6F20]" />מפגשים</h2>
                   {isCoach && (
                     <Button onClick={() => setShowManualAttendance(true)} variant="ghost" size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
                       <Plus className="w-3 h-3 ml-1" />נוכחות ידנית
                     </Button>
                   )}
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" dir="rtl">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-right">
-                      <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">סוג</th><th className="px-3 py-2 text-right font-bold text-gray-600">מיקום</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th></tr></thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {sessions.length === 0 ? (
-                          <tr><td colSpan="4" className="px-4 py-8 text-center text-gray-500">לא נמצאו אימונים</td></tr>
-                        ) : (
-                          sessions.map(session => {
-                            const participant = session.participants?.find(p => p.trainee_id === user.id);
-                            const displayStatus = participant?.attendance_status || 'ממתין';
-                            return (
-                              <tr key={session.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 text-right"><div className="font-bold text-gray-800">{format(new Date(session.date), 'dd/MM/yy')}</div><div className="text-xs text-gray-500">{session.time}</div></td>
-                                <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full border ${session.session_type === 'אישי' ? 'bg-purple-50 border-purple-100 text-purple-700' : session.session_type === 'קבוצתי' ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-green-50 border-green-100 text-green-700'}`}>{session.session_type}</span></td>
-                                <td className="px-3 py-2 text-right text-gray-500 text-xs truncate max-w-[80px]">{session.location}</td>
-                                <td className="px-3 py-2">
-                                  {isCoach ? (
-                                    <Select value={displayStatus} onValueChange={val => { if (val !== displayStatus) updateSessionStatusMutation.mutate({ session, newStatus: val }); }}>
-                                      <SelectTrigger className="h-8 text-xs w-auto min-w-[80px] border-gray-200"><SelectValue /></SelectTrigger>
-                                      <SelectContent><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="ממתין">ממתין</SelectItem></SelectContent>
-                                    </Select>
-                                  ) : (
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${displayStatus === 'הגיע' || displayStatus === 'התקיים' ? 'bg-green-100 text-green-800' : displayStatus?.includes('בוטל') ? 'bg-red-100 text-red-800' : displayStatus === 'לא הגיע' ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}`}>{displayStatus}</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
+                {sessions.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg"><Calendar className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">לא נמצאו מפגשים</p></div>
+                ) : (
+                  <div className="space-y-3">
+                    {[...sessions].sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)).map(session => {
+                      const participant = session.participants?.find(p => p.trainee_id === user.id);
+                      const displayStatus = participant?.attendance_status || session.status || 'ממתין';
+                      const typeColors = { 'אישי': { bg: '#F3E8FF', border: '#D8B4FE', text: '#7C3AED' }, 'קבוצתי': { bg: '#DBEAFE', border: '#93C5FD', text: '#2563EB' }, 'אונליין': { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' } };
+                      const tc = typeColors[session.session_type] || typeColors['אישי'];
+                      const statusColors = {
+                        'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800',
+                        'בוטל': 'bg-red-100 text-red-800', 'בוטל על ידי מאמן': 'bg-red-100 text-red-800',
+                        'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800',
+                        'ממתין לאישור': 'bg-yellow-100 text-yellow-800',
+                      };
+                      return (
+                        <div key={session.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4" dir="rtl">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="text-right">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text, border: `1px solid ${tc.border}` }}>{session.session_type}</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
+                              </div>
+                              <h4 className="font-bold text-base text-gray-900">{format(new Date(session.date), 'EEEE, dd/MM/yy', { locale: he })}</h4>
+                              <p className="text-xs text-gray-500">{session.time} • {session.location || 'לא צוין'} • {session.duration || 60} דקות</p>
+                            </div>
+                            {isCoach && (
+                              <Select value={displayStatus} onValueChange={val => { if (val !== displayStatus) updateSessionStatusMutation.mutate({ session, newStatus: val }); }}>
+                                <SelectTrigger className="h-8 text-xs w-auto min-w-[80px] border-gray-200"><SelectValue /></SelectTrigger>
+                                <SelectContent><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="ממתין">ממתין</SelectItem></SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                          {session.coach_notes && <p className="text-xs text-gray-500 text-right mt-1 bg-gray-50 p-2 rounded-lg">{session.coach_notes}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
+                )}
               </TabsContent>
 
               {/* Plans Tab */}
