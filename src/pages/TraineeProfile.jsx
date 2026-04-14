@@ -1177,7 +1177,7 @@ export default function TraineeProfile() {
 
       // Sort each group by date
       Object.keys(groups).forEach(key => {
-        groups[key].sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+        groups[key].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
       });
 
       return groups;
