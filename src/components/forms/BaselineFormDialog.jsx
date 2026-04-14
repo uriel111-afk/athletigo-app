@@ -163,84 +163,77 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) confirmClose(); }}>
-      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-white p-0 relative" dir="rtl"
+      <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto bg-white p-0 relative" dir="rtl"
         onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         {ConfirmDialog}
-        <DialogHeader className="p-4 pb-0">
-          <DialogTitle className="text-xl font-black text-gray-900">מדידת בייסליין</DialogTitle>
-          {traineeName && <p className="text-sm text-gray-500">{traineeName}</p>}
+        <DialogHeader className="px-3 pt-3 pb-1">
+          <DialogTitle className="text-base font-black text-gray-900">מדידת בייסליין</DialogTitle>
+          {traineeName && <p className="text-xs text-gray-400">{traineeName}</p>}
         </DialogHeader>
 
-        <div className="p-4 space-y-5">
-          {/* Technique Selection */}
-          <div>
-            <label className="text-sm font-bold text-gray-700 block mb-2 text-right">טכניקה</label>
-            <div className="grid grid-cols-3 gap-2">
-              {TECHNIQUES.map(t => {
-                const Icon = t.icon;
-                const active = technique === t.id;
-                return (
-                  <button key={t.id} type="button" onClick={() => setTechnique(t.id)}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all active:scale-95
-                      ${active ? 'shadow-md' : 'border-gray-100 bg-white hover:border-gray-200'}`}
-                    style={active ? { borderColor: t.color, backgroundColor: t.color + '10' } : {}}>
-                    <Icon className="w-6 h-6" style={{ color: active ? t.color : '#9CA3AF' }} />
-                    <span className="text-xs font-black" style={{ color: active ? t.color : '#6B7280' }}>{t.label}</span>
-                    <span className="text-[10px] text-gray-400">{t.labelHe}</span>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="px-3 pb-3 space-y-2">
+          {/* Technique Selection — compact horizontal */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {TECHNIQUES.map(t => {
+              const Icon = t.icon;
+              const active = technique === t.id;
+              return (
+                <button key={t.id} type="button" onClick={() => setTechnique(t.id)}
+                  className={`flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 transition-all active:scale-95
+                    ${active ? 'shadow-sm' : 'border-gray-100 bg-white'}`}
+                  style={active ? { borderColor: t.color, backgroundColor: t.color + '10' } : {}}>
+                  <Icon className="w-4 h-4" style={{ color: active ? t.color : '#9CA3AF' }} />
+                  <span className="text-[11px] font-black" style={{ color: active ? t.color : '#6B7280' }}>{t.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Parameters */}
-          <div className="flex justify-around items-start bg-gray-50 rounded-xl p-3 border border-gray-100">
-            <TimePicker label="זמן עבודה" value={workTime} onChange={setWorkTime} />
+          {/* Parameters — single row */}
+          <div className="flex justify-around items-start bg-gray-50 rounded-lg p-2 border border-gray-100">
+            <TimePicker label="עבודה" value={workTime} onChange={setWorkTime} />
             <NumPicker label="סיבובים" value={roundsCount} onChange={handleRoundsCountChange} min={1} max={10} />
-            <TimePicker label="זמן מנוחה" value={restTime} onChange={setRestTime} />
+            <TimePicker label="מנוחה" value={restTime} onChange={setRestTime} />
           </div>
 
-          {/* Round Inputs */}
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-700 block text-right">סיבובים</label>
-            <div className="grid grid-cols-3 gap-2">
-              {rounds.map((r, i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-200 p-2 shadow-sm">
-                  <div className="text-[10px] font-bold text-gray-400 text-center mb-1">ROUND {i + 1}</div>
-                  <Input type="number" min={0} placeholder="קפיצות" value={r.jumps}
-                    onChange={e => setRoundField(i, 'jumps', e.target.value)}
-                    className="text-center font-black text-lg h-10 border-[#FF6F20] focus-visible:ring-[#FF6F20] focus-visible:ring-1 mb-1" />
-                  <Input type="number" min={0} placeholder="פספוסים" value={r.misses}
-                    onChange={e => setRoundField(i, 'misses', e.target.value)}
-                    className="text-center text-xs h-7 bg-gray-50 border-transparent placeholder:text-gray-400" />
-                </div>
-              ))}
-            </div>
+          {/* Round Inputs — compact */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {rounds.map((r, i) => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-1.5">
+                <div className="text-[9px] font-bold text-gray-400 text-center mb-0.5">R{i + 1}</div>
+                <Input type="number" min={0} placeholder="קפיצות" value={r.jumps}
+                  onChange={e => setRoundField(i, 'jumps', e.target.value)}
+                  className="text-center font-black text-base h-8 border-[#FF6F20] focus-visible:ring-[#FF6F20] focus-visible:ring-1 mb-0.5" />
+                <Input type="number" min={0} placeholder="פספוס" value={r.misses}
+                  onChange={e => setRoundField(i, 'misses', e.target.value)}
+                  className="text-center text-[10px] h-6 bg-gray-50 border-transparent placeholder:text-gray-300" />
+              </div>
+            ))}
           </div>
 
-          {/* Real-time Score */}
-          <div className="grid grid-cols-3 gap-2 bg-gray-900 rounded-xl p-3">
+          {/* Real-time Score — compact */}
+          <div className="grid grid-cols-3 bg-gray-900 rounded-lg p-2">
             <div className="text-center">
-              <div className="text-[10px] text-gray-400 font-bold mb-0.5">סה"כ קפיצות</div>
-              <div className="text-lg font-black text-white">{calc.totalJumps}</div>
+              <div className="text-[9px] text-gray-400 font-bold">סה"כ</div>
+              <div className="text-sm font-black text-white">{calc.totalJumps}</div>
             </div>
             <div className="text-center border-x border-gray-700">
-              <div className="text-[10px] text-gray-400 font-bold mb-0.5">ממוצע</div>
-              <div className="text-lg font-black text-white">{calc.avg}</div>
+              <div className="text-[9px] text-gray-400 font-bold">ממוצע</div>
+              <div className="text-sm font-black text-white">{calc.avg}</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] text-[#FF6F20] font-bold mb-0.5">SCORE</div>
-              <div className="text-xl font-black text-[#FF6F20]">{calc.score} <span className="text-xs">JPS</span></div>
+              <div className="text-[9px] text-[#FF6F20] font-bold">SCORE</div>
+              <div className="text-lg font-black text-[#FF6F20]">{calc.score}<span className="text-[10px] mr-0.5">JPS</span></div>
             </div>
           </div>
 
-          {/* Notes */}
-          <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-            placeholder="הערות (אופציונלי)" className="text-right resize-none rounded-xl text-sm" />
+          {/* Notes — single line */}
+          <Input value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="הערות (אופציונלי)" className="text-right text-xs h-8 rounded-lg" />
 
           {/* Save Button */}
           <Button onClick={handleSave} disabled={saving || !canSave}
-            className="w-full rounded-xl py-3 font-bold text-white min-h-[48px] text-base"
+            className="w-full rounded-lg py-2 font-bold text-white min-h-[40px] text-sm"
             style={{ backgroundColor: canSave ? '#FF6F20' : '#ccc' }}>
             {saving ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />שומר...</> : 'שמור תוצאות'}
           </Button>
