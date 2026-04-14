@@ -29,10 +29,10 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
     <DialogPrimitive.Content
       ref={ref}
       dir="rtl"
+      style={{ position: 'fixed', zIndex: 50, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
       className={cn(
-        "fixed z-50 bg-white rounded-xl shadow-xl p-6 max-h-[90vh] overflow-y-auto",
+        "bg-white rounded-xl shadow-xl p-6 max-h-[90vh] overflow-y-auto",
         "w-[calc(100vw-2rem)] max-w-lg",
-        "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className
       )}
