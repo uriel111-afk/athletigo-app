@@ -14,6 +14,18 @@ const PHASE_COLORS = {
   idle: { bg: '#F9FAFB', stroke: '#D1D5DB', text: '#6B7280' },
 };
 
+// Bold full-screen colors for running view
+const PHASE_BG = {
+  prepare: '#16A34A',
+  work: '#F97316',
+  rest: '#3B82F6',
+  set_rest: '#8B5CF6',
+  running: '#F97316',
+  paused: '#EAB308',
+  done: '#16A34A',
+  idle: '#6B7280',
+};
+
 function fmt(ms, showMs = false) {
   if (ms < 0) ms = 0;
   const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
@@ -123,6 +135,48 @@ function SetDots({ current, total }) {
   return <div className="flex justify-center gap-2 mt-3">{Array.from({length:total},(_,i)=><div key={i} className={`w-3.5 h-3.5 rounded-full ${i<=current?'bg-[#F97316]':'bg-gray-200'}`}/>)}</div>;
 }
 
+function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false }) {
+  const bg = PHASE_BG[phase] || PHASE_BG.idle;
+  return (
+    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" style={{ backgroundColor: bg }}>
+      {/* Phase name */}
+      <div className="text-white font-black text-center" style={{ fontSize: 'clamp(32px, 10vw, 64px)' }}>
+        {phaseLabel}
+      </div>
+
+      {/* Giant number */}
+      <div className="text-white font-black text-center tabular-nums" style={{ fontSize: 'clamp(200px, 45vw, 400px)', lineHeight: 1, fontFamily: 'system-ui, sans-serif' }}>
+        {fmt(ms, showMs)}
+      </div>
+
+      {/* Round info */}
+      {roundInfo && (
+        <div className="text-white/80 font-bold text-center mt-2" style={{ fontSize: 'clamp(20px, 5vw, 40px)' }}>
+          {roundInfo}
+        </div>
+      )}
+
+      {/* Controls at bottom */}
+      <div className="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-8">
+        {onStop && (
+          <button onClick={onStop} className="rounded-full bg-white/20 flex items-center justify-center active:scale-90 backdrop-blur-sm" style={{ width: 56, height: 56 }}>
+            <Square className="w-7 h-7 text-white" />
+          </button>
+        )}
+        {isRunning ? (
+          <button onClick={onPause} className="rounded-full bg-white/30 flex items-center justify-center active:scale-95 backdrop-blur-sm shadow-lg" style={{ width: 80, height: 80 }}>
+            <Pause className="w-10 h-10 text-white" />
+          </button>
+        ) : (
+          <button onClick={onResume} className="rounded-full bg-white/30 flex items-center justify-center active:scale-95 backdrop-blur-sm shadow-lg" style={{ width: 80, height: 80 }}>
+            <Play className="w-10 h-10 text-white" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ControlRow({ isRunning, onPause, onResume, onStop }) {
   return (
     <div className="flex gap-6 justify-center items-center mt-6">
@@ -139,21 +193,27 @@ function ControlRow({ isRunning, onPause, onResume, onStop }) {
 function StopwatchView() {
   const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps } = useClock();
   const active = activeClock === 'stopwatch';
+
+  if (active) {
+    return (
+      <>
+        <FullScreenRunning ms={display} phase={isRunning ? 'running' : 'paused'} phaseLabel="סטופר" isRunning={isRunning} onPause={pause} onResume={resume} onStop={reset} showMs={true} />
+        {isRunning && (
+          <button onClick={lapStopwatch} className="fixed bottom-8 right-6 z-[91] rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center active:scale-90" style={{width:56,height:56}}>
+            <Flag className="w-7 h-7 text-white" />
+          </button>
+        )}
+      </>
+    );
+  }
+
   return (
-    <div className="px-4 py-4">
-      <CircleClock ms={display} total={0} phase={active&&isRunning?'running':active?'paused':'idle'} />
-      <div className="text-center font-black font-mono text-gray-900 mt-3 tabular-nums" style={{fontSize:'clamp(80px,20vw,160px)'}}>{fmt(display,true)}</div>
-      <div className="flex gap-4 justify-center items-center mt-6">
-        {!active ? <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:72,height:72}}><Play className="w-9 h-9 text-white"/></button>
-        : <>
-            <button onClick={reset} className="rounded-full bg-gray-100 text-gray-500 flex items-center justify-center" style={{width:52,height:52}}><RotateCcw className="w-6 h-6"/></button>
-            {isRunning
-              ? <button onClick={pause} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:72,height:72}}><Pause className="w-9 h-9 text-white"/></button>
-              : <button onClick={resume} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:72,height:72}}><Play className="w-9 h-9 text-white"/></button>}
-            {isRunning && <button onClick={lapStopwatch} className="rounded-full bg-gray-100 text-gray-600 flex items-center justify-center" style={{width:52,height:52}}><Flag className="w-6 h-6"/></button>}
-          </>}
-      </div>
-      {laps.length>0 && <div className="bg-gray-50 rounded-xl p-3 mt-5 max-h-40 overflow-y-auto">{laps.map((l,i)=><div key={i} className="flex justify-between text-sm py-1.5 border-b border-gray-100 last:border-0"><span className="text-gray-500 font-medium">הקפה {i+1}</span><span className="font-mono font-bold text-gray-900">{fmt(l,true)}</span></div>)}</div>}
+    <div className="px-4 py-8 flex flex-col items-center">
+      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(80px,20vw,160px)',lineHeight:1}}>00:00.00</div>
+      <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:80,height:80}}>
+        <Play className="w-10 h-10 text-white" />
+      </button>
+      {laps.length>0 && <div className="w-full bg-gray-50 rounded-xl p-3 mt-6 max-h-40 overflow-y-auto">{laps.map((l,i)=><div key={i} className="flex justify-between text-sm py-1.5 border-b border-gray-100 last:border-0"><span className="text-gray-500 font-medium">הקפה {i+1}</span><span className="font-mono font-bold text-gray-900">{fmt(l,true)}</span></div>)}</div>}
     </div>
   );
 }
@@ -181,14 +241,7 @@ function TimerView() {
     );
   }
   return (
-    <div className="px-4 py-4">
-      <div className="text-center font-black mb-2" style={{fontSize:'clamp(32px,10vw,64px)',color:PHASE_COLORS[phase]?.text}}>{phase==='prepare'?'הכנה...':'טיימר'}</div>
-      <div className="rounded-2xl p-4" style={{backgroundColor:PHASE_COLORS[phase]?.bg}}>
-        <CircleClock ms={display} total={totalDuration} phase={phase} />
-      </div>
-      <div className="text-center font-black font-mono mt-3 tabular-nums" style={{fontSize:'clamp(80px,20vw,160px)',color:PHASE_COLORS[phase]?.text}}>{fmt(display)}</div>
-      <ControlRow isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
-    </div>
+    <FullScreenRunning ms={display} phase={phase} phaseLabel={phase==='prepare'?'הכנה':'טיימר'} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
   );
 }
 
@@ -233,20 +286,8 @@ function TabataView() {
     );
   }
 
-  const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;
   return (
-    <div className="px-4 py-4">
-      <div className="text-center mb-3">
-        <div className="font-black" style={{fontSize:'clamp(40px,12vw,80px)',color:c.text}}>{phaseLabel}</div>
-        {roundInfo && <div className="text-xl font-bold text-gray-400 mt-1">{roundInfo}</div>}
-      </div>
-      <div className="rounded-2xl p-4" style={{backgroundColor:c.bg}}>
-        <CircleClock ms={display} total={totalDuration} phase={phase} />
-      </div>
-      <div className="text-center font-black font-mono mt-3 tabular-nums" style={{fontSize:'clamp(80px,20vw,160px)',color:c.text}}>{fmt(display)}</div>
-      <SetDots current={setProgress?.current||0} total={setProgress?.total||0} />
-      <ControlRow isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
-    </div>
+    <FullScreenRunning ms={display} phase={phase} phaseLabel={phaseLabel} roundInfo={roundInfo} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
   );
 }
 
