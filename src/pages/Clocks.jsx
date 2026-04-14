@@ -151,7 +151,7 @@ function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPaus
       <div className="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-8">
         {onStop && (
           <button onClick={onStop} className="rounded-full flex items-center justify-center active:scale-90 shadow-md" style={{ width: 56, height: 56, backgroundColor: '#F3F4F6' }}>
-            <Square className="w-7 h-7 text-red-500" />
+            <Square className="w-7 h-7 text-gray-500" />
           </button>
         )}
         {isRunning ? (
@@ -171,7 +171,7 @@ function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPaus
 function ControlRow({ isRunning, onPause, onResume, onStop }) {
   return (
     <div className="flex gap-6 justify-center items-center mt-6">
-      {onStop && <button onClick={onStop} className="rounded-full bg-gray-100 text-red-500 flex items-center justify-center hover:bg-red-50 active:scale-90" style={{width:60,height:60}}><Square className="w-7 h-7"/></button>}
+      {onStop && <button onClick={onStop} className="rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 active:scale-90" style={{width:60,height:60}}><Square className="w-7 h-7"/></button>}
       {isRunning
         ? <button onClick={onPause} className="rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{backgroundColor:BRAND,width:84,height:84}}><Pause className="w-10 h-10 text-white"/></button>
         : <button onClick={onResume} className="rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{backgroundColor:BRAND,width:84,height:84}}><Play className="w-10 h-10 text-white"/></button>
