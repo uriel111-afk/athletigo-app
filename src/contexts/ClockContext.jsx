@@ -75,6 +75,9 @@ export function ClockProvider({ children }) {
         playTone(ctx, 800, 200, 'sine', 0.5);
         setTimeout(() => playTone(ctx, 500, 400, 'sine', 0.5), 350);
         break;
+      case 'start': playTone(ctx, 800, 100, 'sine', 0.5); break;
+      case 'pause': playTone(ctx, 400, 150, 'sine', 0.5); break;
+      case 'lap': playTone(ctx, 600, 50, 'sine', 0.4); break;
       case 'done':
         playTone(ctx, 440, 400, 'triangle', 0.6);
         setTimeout(() => playTone(ctx, 660, 400, 'triangle', 0.6), 600);
@@ -111,15 +114,17 @@ export function ClockProvider({ children }) {
     setLaps([]);
     elapsedRef.current = 0;
     startTimeRef.current = Date.now();
+    beep('start');
     intervalRef.current = setInterval(() => {
       setDisplay(Date.now() - startTimeRef.current + elapsedRef.current);
     }, 50);
-  }, [ensureAudio, stop]);
+  }, [ensureAudio, stop, beep]);
 
   const lapStopwatch = useCallback(() => {
     if (activeClock !== 'stopwatch' || !isRunning) return;
+    beep('lap');
     setLaps(prev => [...prev, Date.now() - startTimeRef.current + elapsedRef.current]);
-  }, [activeClock, isRunning]);
+  }, [activeClock, isRunning, beep]);
 
   // === Phase runner (shared by timer & tabata) ===
   const runPhase = useCallback((idx, phases) => {
@@ -209,12 +214,14 @@ export function ClockProvider({ children }) {
   const pause = useCallback(() => {
     if (!isRunning) return;
     clearTick();
+    beep('pause');
     elapsedRef.current = Date.now() - startTimeRef.current;
     setIsRunning(false);
-  }, [isRunning, clearTick]);
+  }, [isRunning, clearTick, beep]);
 
   const resume = useCallback(() => {
     if (isRunning) return;
+    beep('start');
     startTimeRef.current = Date.now() - elapsedRef.current;
     setIsRunning(true);
     if (activeClock === 'stopwatch') {
