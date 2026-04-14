@@ -1360,17 +1360,66 @@ export default function TraineeProfile() {
                     if (!window.confirm(`האם אתה בטוח שברצונך למחוק את ${user.full_name}?\n\nפעולה זו תמחק את כל הנתונים הקשורים אליו לצמיתות.`)) return;
                     if (!window.confirm(`אישור סופי: למחוק את ${user.full_name}? אי אפשר לשחזר.`)) return;
                     (async () => {
+                      const tid = userIdParam;
                       try {
-                        toast.loading("מוחק מתאמן...");
-                        const { error } = await supabase.functions.invoke('delete-trainee', { body: { trainee_id: userIdParam } });
-                        if (error) throw error;
+                        toast.loading("מוחק מתאמן ונתונים...");
+                        // Delete related data from all tables
+                        const tables = [
+                          { entity: 'ServiceTransaction', filter: null, raw: true },
+                          { entity: 'ServicePayment', filter: null, raw: true },
+                          { entity: 'ClientService', filter: { trainee_id: tid } },
+                          { entity: 'Measurement', filter: { trainee_id: tid } },
+                          { entity: 'ResultsLog', filter: { trainee_id: tid } },
+                          { entity: 'Baseline', filter: { trainee_id: tid } },
+                          { entity: 'Goal', filter: { trainee_id: tid } },
+                          { entity: 'Notification', filter: { user_id: tid } },
+                          { entity: 'Message', filter: null, raw: true },
+                          { entity: 'AttendanceLog', filter: { user_id: tid } },
+                        ];
+                        // Delete services-related first
+                        try {
+                          const svcs = await base44.entities.ClientService.filter({ trainee_id: tid });
+                          for (const svc of svcs) {
+                            try { await supabase.from('service_transactions').delete().eq('service_id', svc.id); } catch {}
+                            try { await supabase.from('service_payments').delete().eq('service_id', svc.id); } catch {}
+                          }
+                        } catch {}
+                        // Delete from each table
+                        for (const t of tables) {
+                          if (t.raw || !t.filter) continue;
+                          try {
+                            const items = await base44.entities[t.entity].filter(t.filter);
+                            for (const item of items) { try { await base44.entities[t.entity].delete(item.id); } catch {} }
+                          } catch {}
+                        }
+                        // Delete messages
+                        try { await supabase.from('messages').delete().eq('sender_id', tid); } catch {}
+                        try { await supabase.from('messages').delete().eq('receiver_id', tid); } catch {}
+                        // Delete sessions with this trainee
+                        try { await supabase.from('sessions').delete().contains('participants', JSON.stringify([{ trainee_id: tid }])); } catch {}
+                        // Delete training plans
+                        try {
+                          const plans = await base44.entities.TrainingPlan.filter({ assigned_to: tid });
+                          for (const p of plans) {
+                            try { await supabase.from('exercises').delete().in('section_id', (await supabase.from('training_sections').select('id').eq('plan_id', p.id)).data?.map(s => s.id) || []); } catch {}
+                            try { await supabase.from('training_sections').delete().eq('plan_id', p.id); } catch {}
+                            try { await base44.entities.TrainingPlan.delete(p.id); } catch {}
+                          }
+                        } catch {}
+                        // Delete user profile
+                        try { await supabase.from('users').delete().eq('id', tid); } catch {}
+                        // Try to delete auth user via Edge Function (optional)
+                        try { await supabase.functions.invoke('delete-trainee', { body: { trainee_id: tid } }); } catch {}
+
                         toast.dismiss();
                         toast.success(`${user.full_name} נמחק בהצלחה`);
                         queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
                         navigate('/');
                       } catch (err) {
                         toast.dismiss();
-                        toast.error("שגיאה במחיקה: " + (err?.message || "נסה למחוק ידנית דרך SQL Editor"));
+                        toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
                         console.error("[DeleteTrainee]", err);
                       }
                     })();

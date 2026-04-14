@@ -170,14 +170,12 @@ export default function Layout({ children, currentPageName }) {
       <PWANotifications userId={user?.id} />
       <DataLoader user={user} />
 
-      <div dir="rtl" className="min-h-screen flex" style={{
+      <div dir="rtl" className="h-screen flex" style={{
         backgroundColor: '#FFFFFF',
         fontFamily: "'Heebo', 'Assistant', sans-serif",
-        minHeight: '-webkit-fill-available',
-        position: 'relative',
-        overflow: 'hidden',
         maxWidth: '100vw',
-        width: '100%'
+        width: '100%',
+        overflow: 'hidden',
       }}>
         {shouldShowBackButton && (
           <button
@@ -290,15 +288,10 @@ export default function Layout({ children, currentPageName }) {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col" style={{ overflowX: 'hidden' }}>
-          <header className="md:hidden p-4 safe-area-top" style={{
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <header className="md:hidden p-4 safe-area-top flex-shrink-0 z-50" style={{
             backgroundColor: '#FFFFFF',
             borderBottom: `1px solid #E0E0E0`,
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 50,
             boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
           }}>
             <div className="flex items-center justify-between">
@@ -334,14 +327,9 @@ export default function Layout({ children, currentPageName }) {
           </header>
 
           {mobileMenuOpen && (
-            <div className="md:hidden p-4 space-y-2 max-h-[70vh] overflow-y-auto safe-area-inset" style={{
+            <div className="md:hidden p-4 space-y-2 max-h-[60vh] overflow-y-auto safe-area-inset flex-shrink-0 z-[99]" style={{
               backgroundColor: '#FFFFFF',
               borderBottom: `1px solid #E0E0E0`,
-              position: 'fixed',
-              top: '72px',
-              left: 0,
-              right: 0,
-              zIndex: 99,
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
             }}>
               {(() => {
@@ -368,15 +356,12 @@ export default function Layout({ children, currentPageName }) {
             </div>
           )}
 
-          <div className="flex-1 overflow-auto page-container safe-area-bottom" style={{ 
-            paddingBottom: '90px',
-            paddingTop: '88px',
-            paddingLeft: '16px', 
+          <div className="flex-1 overflow-y-auto page-container" style={{
+            paddingLeft: '16px',
             paddingRight: '16px',
+            paddingBottom: '16px',
             WebkitOverflowScrolling: 'touch',
             overflowX: 'hidden',
-            maxWidth: '100vw',
-            width: '100%'
           }}>
             <ErrorBoundary>
               {children}
@@ -384,7 +369,7 @@ export default function Layout({ children, currentPageName }) {
           </div>
 
           {/* Mobile Bottom Navigation */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 safe-area-bottom z-50" 
+          <div className="md:hidden flex-shrink-0 safe-area-bottom z-50"
                style={{ backgroundColor: '#FFFFFF', borderTop: `1px solid #E0E0E0`, boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
             <div className="grid grid-cols-5 gap-1 p-2">
               {isCoach ? (
