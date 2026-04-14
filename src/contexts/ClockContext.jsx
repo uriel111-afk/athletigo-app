@@ -3,34 +3,53 @@ import React, { createContext, useContext, useState, useRef, useCallback, useEff
 const ClockContext = createContext(null);
 export const useClock = () => useContext(ClockContext);
 
-// Sound system
 function createAudioCtx() {
   return new (window.AudioContext || window.webkitAudioContext)();
 }
 
-function playTone(audioCtx, freq, duration, type = 'sine') {
-  if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
+function playTone(ctx, freq, duration, type = 'sine', vol = 0.5) {
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
+  const now = ctx.currentTime;
+  gain.gain.setValueAtTime(vol, now);
+  gain.gain.setValueAtTime(vol, now + Math.max(0, duration / 1000 - 0.02));
+  gain.gain.linearRampToValueAtTime(0.001, now + duration / 1000);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + duration / 1000);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + duration / 1000);
+}
+
+function playWhistle(ctx, startFreq, endFreq, duration, vol = 0.5) {
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  const now = ctx.currentTime;
+  osc.frequency.setValueAtTime(startFreq, now);
+  osc.frequency.linearRampToValueAtTime(endFreq, now + duration / 1000);
+  gain.gain.setValueAtTime(vol, now);
+  gain.gain.setValueAtTime(vol, now + Math.max(0, duration / 1000 - 0.02));
+  gain.gain.linearRampToValueAtTime(0.001, now + duration / 1000);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + duration / 1000);
 }
 
 export function ClockProvider({ children }) {
-  const [activeClock, setActiveClock] = useState(null); // 'stopwatch' | 'timer' | 'tabata'
-  const [phase, setPhase] = useState('idle'); // idle | prepare | work | rest | set_rest | done | running | paused
-  const [display, setDisplay] = useState(0); // ms to display
+  const [activeClock, setActiveClock] = useState(null);
+  const [phase, setPhase] = useState('idle');
+  const [display, setDisplay] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
   const [phaseLabel, setPhaseLabel] = useState('');
   const [roundInfo, setRoundInfo] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [laps, setLaps] = useState([]);
+  const [setProgress, setSetProgress] = useState({ current: 0, total: 0 });
 
   const intervalRef = useRef(null);
   const startTimeRef = useRef(0);
@@ -49,14 +68,17 @@ export function ClockProvider({ children }) {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     switch (type) {
-      case 'countdown': playTone(ctx, 600, 80); break;
-      case 'work': playTone(ctx, 880, 150, 'square'); break;
-      case 'rest': playTone(ctx, 440, 400); break;
-      case 'set_rest': playTone(ctx, 880, 200); setTimeout(() => playTone(ctx, 440, 200), 220); break;
+      case 'countdown': playTone(ctx, 800, 150, 'sine', 0.5); break;
+      case 'work': playWhistle(ctx, 600, 1200, 400, 0.5); break;
+      case 'rest': playWhistle(ctx, 1000, 500, 500, 0.5); break;
+      case 'set_rest':
+        playTone(ctx, 800, 200, 'sine', 0.5);
+        setTimeout(() => playTone(ctx, 500, 400, 'sine', 0.5), 350);
+        break;
       case 'done':
-        playTone(ctx, 440, 300);
-        setTimeout(() => playTone(ctx, 660, 300), 320);
-        setTimeout(() => playTone(ctx, 880, 300), 640);
+        playTone(ctx, 440, 400, 'triangle', 0.6);
+        setTimeout(() => playTone(ctx, 660, 400, 'triangle', 0.6), 600);
+        setTimeout(() => playTone(ctx, 880, 400, 'triangle', 0.6), 1200);
         break;
       default: break;
     }
@@ -74,6 +96,7 @@ export function ClockProvider({ children }) {
     setDisplay(0);
     setPhaseLabel('');
     setRoundInfo('');
+    setSetProgress({ current: 0, total: 0 });
     phasesRef.current = [];
     phaseIdxRef.current = 0;
   }, [clearTick]);
@@ -98,43 +121,7 @@ export function ClockProvider({ children }) {
     setLaps(prev => [...prev, Date.now() - startTimeRef.current + elapsedRef.current]);
   }, [activeClock, isRunning]);
 
-  // === TIMER (Countdown) ===
-  const startTimer = useCallback((totalMs, prepareMs = 3000) => {
-    ensureAudio();
-    stop();
-    setActiveClock('timer');
-    const phases = [];
-    if (prepareMs > 0) phases.push({ type: 'prepare', duration: prepareMs, label: 'הכנה' });
-    phases.push({ type: 'work', duration: totalMs, label: 'טיימר' });
-    phasesRef.current = phases;
-    phaseIdxRef.current = 0;
-    runPhase(0, phases);
-  }, [ensureAudio, stop]);
-
-  // === TABATA ===
-  const startTabata = useCallback((settings) => {
-    ensureAudio();
-    stop();
-    setActiveClock('tabata');
-    const { workTime = 20, restTime = 10, rounds = 8, sets = 1, setRest = 60, prepareTime = 3 } = settings;
-    const phases = [];
-    if (prepareTime > 0) phases.push({ type: 'prepare', duration: prepareTime * 1000, label: 'הכנה' });
-    for (let s = 0; s < sets; s++) {
-      for (let r = 0; r < rounds; r++) {
-        phases.push({ type: 'work', duration: workTime * 1000, label: `עבודה`, round: `סט ${s + 1} • סיבוב ${r + 1}/${rounds}` });
-        if (r < rounds - 1 || s < sets - 1) {
-          phases.push({ type: 'rest', duration: restTime * 1000, label: 'מנוחה', round: `סט ${s + 1} • סיבוב ${r + 1}/${rounds}` });
-        }
-      }
-      if (s < sets - 1) {
-        phases.push({ type: 'set_rest', duration: setRest * 1000, label: 'מנוחה בין סטים', round: `סט ${s + 1} סיום` });
-      }
-    }
-    phasesRef.current = phases;
-    phaseIdxRef.current = 0;
-    runPhase(0, phases);
-  }, [ensureAudio, stop]);
-
+  // === Phase runner (shared by timer & tabata) ===
   const runPhase = useCallback((idx, phases) => {
     clearTick();
     if (idx >= phases.length) {
@@ -156,6 +143,7 @@ export function ClockProvider({ children }) {
     lastBeepRef.current = -1;
     startTimeRef.current = Date.now();
     elapsedRef.current = 0;
+    if (p.setIdx !== undefined) setSetProgress({ current: p.setIdx, total: p.totalSets });
 
     if (p.type === 'work') beep('work');
     else if (p.type === 'rest') beep('rest');
@@ -171,14 +159,51 @@ export function ClockProvider({ children }) {
         return;
       }
       setDisplay(remaining);
-      // Countdown beeps at 3,2,1
       const secRemaining = Math.ceil(remaining / 1000);
       if (secRemaining <= 3 && secRemaining !== lastBeepRef.current && secRemaining > 0) {
         lastBeepRef.current = secRemaining;
         beep('countdown');
       }
-    }, 200);
+    }, 100);
   }, [clearTick, beep]);
+
+  // === TIMER ===
+  const startTimer = useCallback((totalMs, prepareMs = 3000) => {
+    ensureAudio();
+    stop();
+    setActiveClock('timer');
+    const phases = [];
+    if (prepareMs > 0) phases.push({ type: 'prepare', duration: prepareMs, label: 'הכנה' });
+    phases.push({ type: 'work', duration: totalMs, label: 'טיימר' });
+    phasesRef.current = phases;
+    phaseIdxRef.current = 0;
+    runPhase(0, phases);
+  }, [ensureAudio, stop, runPhase]);
+
+  // === TABATA ===
+  const startTabata = useCallback((settings) => {
+    ensureAudio();
+    stop();
+    setActiveClock('tabata');
+    const { workTime = 20, restTime = 10, rounds = 8, sets = 1, setRest = 60, prepareTime = 10 } = settings;
+    const phases = [];
+    if (prepareTime > 0) phases.push({ type: 'prepare', duration: prepareTime * 1000, label: 'הכנה', setIdx: 0, totalSets: sets });
+    for (let s = 0; s < sets; s++) {
+      for (let r = 0; r < rounds; r++) {
+        phases.push({ type: 'work', duration: workTime * 1000, label: 'עבודה', round: `סט ${s + 1}/${sets} • סיבוב ${r + 1}/${rounds}`, setIdx: s, totalSets: sets });
+        if (r < rounds - 1 || s < sets - 1) {
+          phases.push({ type: 'rest', duration: restTime * 1000, label: 'מנוחה', round: `סט ${s + 1}/${sets} • סיבוב ${r + 1}/${rounds}`, setIdx: s, totalSets: sets });
+        }
+      }
+      if (s < sets - 1) {
+        phases.push({ type: 'set_rest', duration: setRest * 1000, label: 'מנוחה בין סטים', round: `סט ${s + 1} הושלם`, setIdx: s + 1, totalSets: sets });
+      }
+    }
+    phasesRef.current = phases;
+    phaseIdxRef.current = 0;
+    setSetProgress({ current: 0, total: sets });
+    runPhase(0, phases);
+  }, [ensureAudio, stop, runPhase]);
 
   // === PAUSE / RESUME ===
   const pause = useCallback(() => {
@@ -186,17 +211,16 @@ export function ClockProvider({ children }) {
     clearTick();
     elapsedRef.current = Date.now() - startTimeRef.current;
     setIsRunning(false);
-    setPhase(prev => prev === 'running' ? 'paused' : prev);
   }, [isRunning, clearTick]);
 
   const resume = useCallback(() => {
     if (isRunning) return;
     startTimeRef.current = Date.now() - elapsedRef.current;
     setIsRunning(true);
-
     if (activeClock === 'stopwatch') {
+      const saved = elapsedRef.current;
       intervalRef.current = setInterval(() => {
-        setDisplay(Date.now() - startTimeRef.current + elapsedRef.current);
+        setDisplay(Date.now() - startTimeRef.current + saved);
       }, 50);
     } else {
       const phases = phasesRef.current;
@@ -218,7 +242,7 @@ export function ClockProvider({ children }) {
           lastBeepRef.current = secRemaining;
           beep('countdown');
         }
-      }, 200);
+      }, 100);
     }
   }, [isRunning, activeClock, beep, runPhase]);
 
@@ -237,7 +261,7 @@ export function ClockProvider({ children }) {
 
   return (
     <ClockContext.Provider value={{
-      activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps,
+      activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps, setProgress,
       startStopwatch, lapStopwatch, startTimer, startTabata,
       pause, resume, stop, reset,
     }}>
