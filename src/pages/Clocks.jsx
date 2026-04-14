@@ -139,27 +139,30 @@ function SetDots({ current, total }) {
 
 function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false, useMMSS = false }) {
   const s = PHASE_STYLE[phase] || PHASE_STYLE.idle;
+  const numberSize = showMs ? 'clamp(70px, 16vw, 140px)' : 'clamp(280px, 60vw, 500px)';
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" style={{ backgroundColor: s.bg }}>
-      {/* Phase name */}
-      <div className="font-black text-center" style={{ fontSize: 'clamp(32px, 10vw, 64px)', color: s.accent }}>
+    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-between py-6" style={{ backgroundColor: s.bg }}>
+      {/* Top: Phase name */}
+      <div className="font-bold text-center pt-2" style={{ fontSize: 'clamp(48px, 10vw, 100px)', color: s.accent }}>
         {phaseLabel}
       </div>
 
-      {/* Giant number — uniform size for all modes */}
-      <div className="font-black text-center tabular-nums" style={{ fontSize: showMs ? 'clamp(70px, 16vw, 140px)' : 'clamp(200px, 45vw, 380px)', lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
+      {/* Center: Giant number */}
+      <div className="font-black text-center tabular-nums" style={{ fontSize: numberSize, lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
         {showMs ? `${fmtStopwatch(ms).main}${fmtStopwatch(ms).ms}` : (useMMSS ? fmtMMSS(ms) : fmt(ms))}
       </div>
 
-      {/* Round info */}
-      {roundInfo && (
-        <div className="font-bold text-center mt-2" style={{ fontSize: 'clamp(20px, 5vw, 40px)', color: s.accent, opacity: 0.7 }}>
-          {roundInfo}
-        </div>
-      )}
+      {/* Bottom section: round info + controls */}
+      <div className="flex flex-col items-center gap-4 pb-2">
+        {/* Round info */}
+        {roundInfo && (
+          <div className="font-bold text-center" style={{ fontSize: 'clamp(28px, 6vw, 56px)', color: s.accent, opacity: 0.8 }}>
+            {roundInfo}
+          </div>
+        )}
 
-      {/* Controls at bottom */}
-      <div className="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-8">
+        {/* Controls */}
+        <div className="flex justify-center items-center gap-8">
         {onStop && (
           <button onClick={onStop} className="rounded-full flex items-center justify-center active:scale-90 shadow-md" style={{ width: 56, height: 56, backgroundColor: '#F3F4F6' }}>
             <Square className="w-7 h-7 text-gray-500" />
@@ -174,6 +177,7 @@ function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPaus
             <Play className="w-10 h-10 text-white" />
           </button>
         )}
+        </div>
       </div>
     </div>
   );
