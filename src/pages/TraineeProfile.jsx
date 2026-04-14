@@ -219,7 +219,10 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
 
 export default function TraineeProfile() {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState("personal");
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'personal';
+  });
   const [showEdit, setShowEdit] = useState(false);
   const [showHealthUpdate, setShowHealthUpdate] = useState(false);
   const [showVisionDialog, setShowVisionDialog] = useState(false);

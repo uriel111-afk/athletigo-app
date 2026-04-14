@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package } from "lucide-react";
+import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import TraineeSessionBooking from "../components/TraineeSessionBooking";
@@ -298,39 +298,32 @@ export default function TraineeHome() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <Link to={createPageUrl("MyPlan")} className="no-underline">
-            <div className="p-6 rounded-2xl bg-[#FF6F20] text-white hover:shadow-lg transition-all cursor-pointer h-full">
-              <Dumbbell className="w-8 h-8 mb-4" />
-              <h3 className="text-2xl font-bold mb-1">התוכנית שלי</h3>
-              <p className="opacity-90">צפה בתוכניות האימון שלך והתחל להתאמן</p>
-            </div>
-          </Link>
+        {/* Quick Access Grid */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {[
+            { label: 'מפגשים', icon: Calendar, to: createPageUrl("TraineeProfile") + "?tab=attendance", color: '#7C3AED' },
+            { label: 'התוכנית שלי', icon: ClipboardList, to: createPageUrl("MyWorkoutLog"), color: '#F97316' },
+            { label: 'התקדמות', icon: TrendingUp, to: createPageUrl("Progress"), color: '#10B981' },
+            { label: 'פרופיל', icon: User, to: createPageUrl("TraineeProfile"), color: '#3B82F6' },
+          ].map(item => (
+            <Link key={item.label} to={item.to} className="no-underline">
+              <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-[0.97]">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: item.color + '15' }}>
+                  <item.icon className="w-6 h-6" style={{ color: item.color }} />
+                </div>
+                <span className="text-sm font-bold text-gray-800">{item.label}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
 
-          <div 
-            onClick={() => setShowBookingDialog(true)}
-            className="p-6 rounded-2xl bg-white border-2 border-[#FF6F20] text-[#FF6F20] hover:bg-[#FFF8F3] transition-all cursor-pointer h-full"
-          >
-            <Calendar className="w-8 h-8 mb-4" />
-            <h3 className="text-2xl font-bold mb-1">קבע אימון</h3>
-            <p className="text-gray-600">הזמן מפגש חדש עם המאמן שלך</p>
-          </div>
-
-          <Link to={createPageUrl("Progress")} className="no-underline">
-            <div className="p-6 rounded-2xl bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer h-full">
-              <TrendingUp className="w-8 h-8 mb-4 text-gray-700" />
-              <h3 className="text-2xl font-bold mb-1 text-gray-900">התקדמות</h3>
-              <p className="text-gray-600">עקוב אחר המדדים וההישגים שלך</p>
-            </div>
-          </Link>
-
-          <Link to={createPageUrl("TraineeProfile")} className="no-underline">
-            <div className="p-6 rounded-2xl bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer h-full">
-              <User className="w-8 h-8 mb-4 text-gray-700" />
-              <h3 className="text-2xl font-bold mb-1 text-gray-900">פרופיל</h3>
-              <p className="text-gray-600">צפה ועדכן את הפרטים האישיים</p>
-            </div>
-          </Link>
+        {/* Book Session Button */}
+        <div className="mb-6">
+          <button onClick={() => setShowBookingDialog(true)}
+            className="w-full p-4 rounded-xl bg-[#FF6F20] text-white hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-md active:scale-[0.98]">
+            <Calendar className="w-5 h-5" />
+            <span className="font-bold text-base">קבע אימון חדש</span>
+          </button>
         </div>
 
         <TraineeSessionBooking 

@@ -442,11 +442,11 @@ export default function Layout({ children, currentPageName }) {
                   </Link>
 
                   <Link
-                    to={createPageUrl("Sessions")}
+                    to={createPageUrl("TraineeProfile") + "?tab=attendance"}
                     className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
                     style={{
-                      backgroundColor: location.pathname === createPageUrl("Sessions") ? primaryColorLight : 'transparent',
-                      color: location.pathname === createPageUrl("Sessions") ? primaryColor : '#7D7D7D'
+                      backgroundColor: location.search?.includes('attendance') ? primaryColorLight : 'transparent',
+                      color: location.search?.includes('attendance') ? primaryColor : '#7D7D7D'
                     }}
                   >
                     <Calendar className="w-6 h-6" />
