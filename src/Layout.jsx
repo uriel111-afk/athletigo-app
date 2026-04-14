@@ -161,10 +161,8 @@ export default function Layout({ children, currentPageName }) {
   //   - מסכי שגיאה/ErrorBoundary — שם Layout עלול לא להיות מרונדר
   //   - כפתורי סגירה (X) של מודאלים — אלה לא כפתורי "חזרה"
   // ═══════════════════════════════════════════════════════════════════
-  const noBackButtonPages = ["Dashboard", "TraineeHome", "Onboarding"];
-  // Also hide back button when trainee views their own profile (no userId param = own profile)
-  const isTraineeOwnProfile = !isCoach && currentPageName === "TraineeProfile" && !new URLSearchParams(window.location.search).get('userId');
-  const shouldShowBackButton = !noBackButtonPages.includes(currentPageName) && !isTraineeOwnProfile;
+  const noBackButtonPages = ["Dashboard", "TraineeHome", "Onboarding", "TraineeProfile"];
+  const shouldShowBackButton = !noBackButtonPages.includes(currentPageName);
 
   return (
     <ErrorBoundary>
