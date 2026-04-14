@@ -17,8 +17,9 @@ const PHASE_COLORS = {
 function fmt(ms, showMs = false) {
   if (ms < 0) ms = 0;
   const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
-  const base = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  return showMs ? `${base}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}` : base;
+  if (showMs) return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}`;
+  if (m === 0) return String(s);
+  return `${m}:${String(s).padStart(2,'0')}`;
 }
 
 function fmtTotal(sec) { return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`; }
@@ -73,14 +74,9 @@ function NumberPicker({ isOpen, value, onChange, onClose, min=0, max=59, label }
   );
 }
 
-// Time setting row: MM:SS with separate +/- for each
-function TimeSettingRow({ icon: Icon, label, totalSeconds, onChange }) {
-  const mins = Math.floor(totalSeconds / 60), secs = totalSeconds % 60;
-  const setM = m => onChange(Math.max(0, Math.min(59, m)) * 60 + secs);
-  const setS = s => onChange(mins * 60 + Math.max(0, Math.min(59, s)));
-  const [pickM, setPickM] = useState(false);
-  const [pickS, setPickS] = useState(false);
-
+// Seconds-only setting row
+function SecondsSettingRow({ icon: Icon, label, value, onChange, min=1, max=500 }) {
+  const [showPicker, setShowPicker] = useState(false);
   return (
     <>
       <div className="flex items-center py-4 border-b border-gray-100 last:border-0 px-2">
@@ -89,21 +85,14 @@ function TimeSettingRow({ icon: Icon, label, totalSeconds, onChange }) {
         </div>
         <div className="flex-1">
           <div className="text-xl font-semibold text-gray-700 mb-2 text-center">{label}</div>
-          <div className="flex items-center justify-center gap-1" dir="ltr">
-            {/* Minutes */}
-            <HoldButton onClick={()=>setM(mins-1)} className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-bold active:scale-90" style={{backgroundColor:BRAND}}>−</HoldButton>
-            <button onClick={()=>setPickM(true)} className="w-14 text-center"><span className="text-4xl font-black text-gray-900 tabular-nums">{String(mins).padStart(2,'0')}</span></button>
-            <HoldButton onClick={()=>setM(mins+1)} className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-bold active:scale-90" style={{backgroundColor:BRAND}}>+</HoldButton>
-            <span className="text-3xl font-black text-gray-400 mx-1">:</span>
-            {/* Seconds */}
-            <HoldButton onClick={()=>setS(secs-1)} className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-bold active:scale-90" style={{backgroundColor:BRAND}}>−</HoldButton>
-            <button onClick={()=>setPickS(true)} className="w-14 text-center"><span className="text-4xl font-black text-gray-900 tabular-nums">{String(secs).padStart(2,'0')}</span></button>
-            <HoldButton onClick={()=>setS(secs+1)} className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-bold active:scale-90" style={{backgroundColor:BRAND}}>+</HoldButton>
+          <div className="flex items-center justify-center gap-5">
+            <HoldButton onClick={()=>onChange(Math.max(min,value-1))} className="w-12 h-12 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow active:scale-90" style={{backgroundColor:BRAND}}>−</HoldButton>
+            <button onClick={()=>setShowPicker(true)} className="min-w-[70px] text-center"><span className="text-5xl font-black text-gray-900 tabular-nums">{value}</span><span className="text-sm text-gray-400 block">שניות</span></button>
+            <HoldButton onClick={()=>onChange(Math.min(max,value+1))} className="w-12 h-12 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow active:scale-90" style={{backgroundColor:BRAND}}>+</HoldButton>
           </div>
         </div>
       </div>
-      <NumberPicker isOpen={pickM} value={mins} onChange={m=>setM(m)} onClose={()=>setPickM(false)} label={`${label} — דקות`} />
-      <NumberPicker isOpen={pickS} value={secs} onChange={s=>setS(s)} onClose={()=>setPickS(false)} label={`${label} — שניות`} />
+      <NumberPicker isOpen={showPicker} value={value} onChange={onChange} onClose={()=>setShowPicker(false)} min={min} max={max} label={label} />
     </>
   );
 }
@@ -181,8 +170,8 @@ function TimerView() {
     return (
       <div className="px-4 py-4">
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <TimeSettingRow icon={PersonStanding} label="הכנה" totalSeconds={prepSec} onChange={setPrepSec} />
-          <TimeSettingRow icon={Timer} label="טיימר" totalSeconds={timerSec} onChange={setTimerSec} />
+          <SecondsSettingRow icon={PersonStanding} label="הכנה" value={prepSec} onChange={setPrepSec} />
+          <SecondsSettingRow icon={Timer} label="טיימר" value={timerSec} onChange={setTimerSec} />
         </div>
         <button onClick={()=>startTimer(timerSec*1000,prepSec*1000)} disabled={timerSec===0}
           className="w-full mt-5 py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-white font-bold text-xl disabled:opacity-40 active:scale-[0.98]" style={{backgroundColor:BRAND}}>
@@ -227,12 +216,12 @@ function TabataView() {
           </div>
         </div>
         <div className="bg-white">
-          <TimeSettingRow icon={PersonStanding} label="הכנה" totalSeconds={prepSec} onChange={setPrepSec} />
-          <TimeSettingRow icon={Dumbbell} label="עבודה" totalSeconds={workSec} onChange={setWorkSec} />
-          <TimeSettingRow icon={Coffee} label="מנוחה" totalSeconds={restSec} onChange={setRestSec} />
+          <SecondsSettingRow icon={PersonStanding} label="הכנה" value={prepSec} onChange={setPrepSec} />
+          <SecondsSettingRow icon={Dumbbell} label="עבודה" value={workSec} onChange={setWorkSec} />
+          <SecondsSettingRow icon={Coffee} label="מנוחה" value={restSec} onChange={setRestSec} />
           <CountSettingRow icon={Repeat} label="מחזורים" value={rounds} onChange={setRounds} min={1} max={50} />
           <CountSettingRow icon={Hourglass} label="סטים" value={sets} onChange={setSets} min={1} max={10} />
-          {sets>1 && <TimeSettingRow icon={Armchair} label="מנוחה בין סטים" totalSeconds={setsRestSec} onChange={setSetsRestSec} />}
+          {sets>1 && <SecondsSettingRow icon={Armchair} label="מנוחה בין סטים" value={setsRestSec} onChange={setSetsRestSec} />}
         </div>
         <div className="px-4 py-4">
           <button onClick={()=>startTabata({workTime:workSec,restTime:restSec,rounds,sets,setRest:setsRestSec,prepareTime:prepSec})}
