@@ -3,26 +3,16 @@ import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, Square, Dumbbell, Coff
 import { useClock } from "@/contexts/ClockContext";
 
 const BRAND = '#F97316';
-const PHASE_COLORS = {
-  prepare: { bg: '#FEF3C7', stroke: '#F59E0B', text: '#92400E' },
-  work: { bg: '#D1FAE5', stroke: '#10B981', text: '#065F46' },
-  rest: { bg: '#DBEAFE', stroke: '#3B82F6', text: '#1E40AF' },
-  set_rest: { bg: '#EDE9FE', stroke: '#8B5CF6', text: '#5B21B6' },
-  running: { bg: '#FFF7ED', stroke: BRAND, text: '#9A3412' },
-  paused: { bg: '#FEF3C7', stroke: '#F59E0B', text: '#92400E' },
-  done: { bg: '#D1FAE5', stroke: '#10B981', text: '#065F46' },
-  idle: { bg: '#F9FAFB', stroke: '#D1D5DB', text: '#6B7280' },
-};
 
-// Brand-style running view — light bg with colored accents
+// AthletiGo brand-only colors: orange, cream, white, black, gray
 const PHASE_STYLE = {
-  prepare: { bg: '#FFF7ED', accent: '#F97316', text: '#1F2937' },
-  work:    { bg: '#F0FDF4', accent: '#16A34A', text: '#1F2937' },
-  rest:    { bg: '#EFF6FF', accent: '#3B82F6', text: '#1F2937' },
-  set_rest:{ bg: '#FAF5FF', accent: '#8B5CF6', text: '#1F2937' },
-  running: { bg: '#FFF7ED', accent: '#F97316', text: '#1F2937' },
-  paused:  { bg: '#FFFBEB', accent: '#F59E0B', text: '#1F2937' },
-  done:    { bg: '#F0FDF4', accent: '#16A34A', text: '#1F2937' },
+  prepare: { bg: '#FAF8F3', accent: '#C2410C', text: '#C2410C' },
+  work:    { bg: '#F97316', accent: '#FFFFFF', text: '#FFFFFF' },
+  rest:    { bg: '#FFFFFF', accent: '#F97316', text: '#EA580C' },
+  set_rest:{ bg: '#FFEDD5', accent: '#C2410C', text: '#C2410C' },
+  running: { bg: '#F97316', accent: '#FFFFFF', text: '#FFFFFF' },
+  paused:  { bg: '#FFF7ED', accent: '#F97316', text: '#9A3412' },
+  done:    { bg: '#FFF7ED', accent: '#F97316', text: '#9A3412' },
   idle:    { bg: '#FAF8F3', accent: '#9CA3AF', text: '#6B7280' },
 };
 
