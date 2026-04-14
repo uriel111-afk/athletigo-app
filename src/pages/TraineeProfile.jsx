@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -125,24 +125,68 @@ const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
   );
 };
 
+const BaselineCard = ({ result, onEdit, onDelete }) => {
+  // Parse description: "147 קפיצות, ממוצע 49, 3 סיבובים × 30 שניות"
+  const desc = result.description || '';
+  const technique = result.title?.replace('Baseline - ', '') || 'Basic';
+  const techColors = { Basic: '#FF6F20', 'Foot Switch': '#2196F3', 'High Knees': '#4CAF50' };
+  const color = techColors[technique] || '#FF6F20';
+
+  return (
+    <div className="rounded-xl bg-white border-2 shadow-sm overflow-hidden" style={{ borderColor: color + '40' }}>
+      {/* Orange header strip */}
+      <div className="flex items-center gap-2 px-3 py-1.5" style={{ backgroundColor: color + '10' }}>
+        <Activity className="w-3.5 h-3.5" style={{ color }} />
+        <span className="text-[11px] font-black tracking-wider" style={{ color }}>BASELINE</span>
+      </div>
+      <div className="p-3">
+        <div className="flex justify-between items-start mb-2">
+          <div className="text-right">
+            <h4 className="font-bold text-base text-gray-900">{technique}</h4>
+            <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+              <Calendar className="w-3 h-3" />
+              {format(new Date(result.date), 'dd/MM/yy')}
+            </p>
+          </div>
+          <div className="text-left flex-shrink-0">
+            <span className="text-2xl font-black" style={{ color }}>{result.record_value}</span>
+            <span className="text-xs font-bold text-gray-400 block">JPS</span>
+          </div>
+        </div>
+        {desc && <p className="text-xs text-gray-500 text-right mb-2">{desc}</p>}
+        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+          <button onClick={() => onEdit(result)} className="text-xs font-bold text-[#FF6F20] hover:underline flex items-center gap-1">
+            <Eye className="w-3 h-3" />צפייה בפרטים
+          </button>
+          <Button onClick={(e) => { e.stopPropagation(); if (window.confirm(`למחוק "${result.title}"?`)) onDelete(result.id); }}
+            size="sm" variant="ghost" className="h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50 text-xs">
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const count = results.length;
+  const isBaseline = type === 'בייסליין';
 
   return (
     <div className="mb-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
        {/* Group Header */}
-       <button 
+       <button
          onClick={() => setIsExpanded(!isExpanded)}
          className="w-full flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 transition-all group"
        >
          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isExpanded ? 'bg-orange-100 text-[#FF6F20]' : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'}`}>
-               {isExpanded ? <FolderOpen className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isExpanded ? (isBaseline ? 'bg-orange-100 text-[#FF6F20]' : 'bg-orange-100 text-[#FF6F20]') : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'}`}>
+               {isBaseline ? <Zap className="w-5 h-5" /> : (isExpanded ? <FolderOpen className="w-5 h-5" /> : <Folder className="w-5 h-5" />)}
             </div>
             <div className="text-right">
                <h3 className="font-bold text-sm md:text-base text-gray-900">{type || 'כללי / אחר'}</h3>
-               <p className="text-xs text-gray-500">{count} הישגים</p>
+               <p className="text-xs text-gray-500">{count} {isBaseline ? 'מדידות' : 'הישגים'}</p>
             </div>
          </div>
          <div className="text-gray-400 group-hover:text-gray-600">
@@ -154,13 +198,17 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
        {isExpanded && (
          <div className="mt-3 space-y-2 px-1 md:px-2">
             {results.map(result => (
-               <AchievementItem 
-                 key={result.id} 
-                 result={result} 
-                 relatedGoal={goals.find(g => g.id === result.related_goal_id)}
-                 onEdit={onEdit}
-                 onDelete={onDelete}
-               />
+              result.category === 'baseline' ? (
+                <BaselineCard key={result.id} result={result} onEdit={onEdit} onDelete={onDelete} />
+              ) : (
+                <AchievementItem
+                  key={result.id}
+                  result={result}
+                  relatedGoal={goals.find(g => g.id === result.related_goal_id)}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              )
             ))}
          </div>
        )}
