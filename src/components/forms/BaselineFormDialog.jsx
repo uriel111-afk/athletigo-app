@@ -140,10 +140,11 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
 
       // 3. Invalidate caches
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-results'] });
       queryClient.invalidateQueries({ queryKey: ['baselines'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
-      toast.success(`בייסליין נשמר — ${calc.score} JPS`);
+      toast.success(`בייסליין נשמר בהצלחה — ${calc.score} JPS`);
       onClose();
     } catch (error) {
       console.error("[BaselineForm] Error:", error);

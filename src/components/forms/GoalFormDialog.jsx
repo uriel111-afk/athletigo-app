@@ -81,8 +81,9 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       if (onSuccess) onSuccess();
-      clearDraft(); // Clear draft on success
+      clearDraft();
       toast.success("היעד נשמר בהצלחה");
       onClose();
     },
@@ -97,8 +98,9 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       if (onSuccess) onSuccess();
-      clearDraft(); // Clear draft on success
+      clearDraft();
       toast.success("היעד עודכן בהצלחה");
       onClose();
     },

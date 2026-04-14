@@ -129,6 +129,8 @@ export default function Dashboard() {
     },
     onSuccess: async (s) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SESSIONS });
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast.success("המפגש נקבע בהצלחה");
       if (s?.participants && coach) {
@@ -165,6 +167,8 @@ export default function Dashboard() {
     },
     onSuccess: async (results) => {
       await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast.success("תוכנית נוצרה!");
       if (results?.length === 1 && results[0]?.id) {
