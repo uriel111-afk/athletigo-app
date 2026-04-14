@@ -260,44 +260,6 @@ export default function TraineeHome() {
           )}
         </div>
 
-        {/* Package remaining sessions */}
-        {activeServices.length > 0 && (
-          <div className="mb-6 space-y-2">
-            {activeServices.map(svc => {
-              const total = svc.total_sessions || 0;
-              const used = svc.used_sessions || 0;
-              const remaining = total > 0 ? total - used : null;
-              const isLow = remaining !== null && remaining <= 2;
-              const isEmpty = remaining !== null && remaining <= 0;
-              if (remaining === null) return null;
-              return (
-                <div
-                  key={svc.id}
-                  className="flex items-center justify-between p-4 rounded-xl border-2"
-                  style={{
-                    borderColor: isEmpty ? '#f44336' : isLow ? '#FF6F20' : '#E0E0E0',
-                    backgroundColor: isEmpty ? '#FFEBEE' : isLow ? '#FFF8F3' : '#FAFAFA',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <Package className="w-5 h-5" style={{ color: isEmpty ? '#f44336' : '#FF6F20' }} />
-                    <div>
-                      <p className="font-bold text-sm">{svc.service_type || svc.package_name}</p>
-                      <p className="text-xs text-gray-500">{used}/{total} אימונים נוצלו</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-xl font-black ${isEmpty ? 'text-red-600' : isLow ? 'text-[#FF6F20]' : 'text-gray-900'}`}>
-                      {remaining}
-                    </p>
-                    <p className="text-xs text-gray-400">נותרו</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
         {/* Quick Access Grid */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           {[
