@@ -68,5 +68,12 @@ export function useFormPersistence(key, defaultValues) {
     return false;
   })();
 
-  return [values, setValues, clearDraft, draftExists];
+  // Check if form has been modified from defaults (for close confirmation)
+  const hasChanges = (() => {
+    try {
+      return JSON.stringify(values) !== JSON.stringify(defaultValues);
+    } catch { return false; }
+  })();
+
+  return [values, setValues, clearDraft, draftExists, hasChanges];
 }

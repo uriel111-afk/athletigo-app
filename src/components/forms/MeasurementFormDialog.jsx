@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import { useFormPersistence } from "../hooks/useFormPersistence";
+import { useCloseConfirm } from "../hooks/useCloseConfirm";
 
 export default function MeasurementFormDialog({ isOpen, onClose, traineeId, traineeName, editingMeasurement = null }) {
   const queryClient = useQueryClient();
@@ -36,7 +37,8 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
   } : defaultFormData;
 
   const formKey = `measurement_form_${editingMeasurement ? editingMeasurement.id : 'new'}_${traineeId}`;
-  const [formData, setFormData, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
+  const [formData, setFormData, clearDraft, draftExists, hasChanges] = useFormPersistence(formKey, currentDefaults);
+  const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, () => { clearDraft(); onClose(); });
 
   const createMeasurementMutation = useMutation({
     mutationFn: (data) => base44.entities.Measurement.create(data),
@@ -99,8 +101,9 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] md:w-full max-w-3xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }} dir="rtl">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
+      <DialogContent className="w-[95vw] md:w-full max-w-3xl max-h-[90vh] overflow-y-auto relative" style={{ backgroundColor: '#FFFFFF' }} dir="rtl">
+        {ConfirmDialog}
         <DialogHeader>
           <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
             {editingMeasurement ? '✏️ ערוך מדידה' : '➕ הוסף מדידה חדשה'}

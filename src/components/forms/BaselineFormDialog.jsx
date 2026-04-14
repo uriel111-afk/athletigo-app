@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo } from "react";
+import React, { useState, useContext, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { AuthContext } from "@/lib/AuthContext";
 import { toast } from "sonner";
+import { useCloseConfirm } from "../hooks/useCloseConfirm";
 
 const TECHNIQUES = [
   { id: 'basic', label: 'Basic', labelHe: 'בסיס', icon: Zap, color: '#FF6F20' },
@@ -68,6 +69,9 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
   const [rounds, setRounds] = useState(Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })));
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const hasChanges = rounds.some(r => r.jumps !== '' || r.misses !== '') || notes !== '';
+  const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, onClose);
 
   // Keep rounds array in sync with roundsCount
   const handleRoundsCountChange = (n) => {
@@ -158,9 +162,10 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-white p-0" dir="rtl"
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) confirmClose(); }}>
+      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-white p-0 relative" dir="rtl"
         onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
+        {ConfirmDialog}
         <DialogHeader className="p-4 pb-0">
           <DialogTitle className="text-xl font-black text-gray-900">מדידת בייסליין</DialogTitle>
           {traineeName && <p className="text-sm text-gray-500">{traineeName}</p>}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Award } from "lucide-react";
+import { useCloseConfirm } from "../hooks/useCloseConfirm";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -43,7 +44,7 @@ const CONTEXTS = [
 
 export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeName, editingResult = null, onSuccess }) {
   const queryClient = useQueryClient();
-  
+
   const [formData, setFormData] = useState({
     title: "",
     record_type: "",
@@ -88,6 +89,9 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
       }
     }
   }, [isOpen, editingResult]);
+
+  const hasChanges = !!(formData.title || formData.record_value || formData.description);
+  const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, onClose);
 
   const createResultMutation = useMutation({
     mutationFn: (data) => base44.entities.ResultsLog.create(data),
@@ -161,8 +165,9 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
   const isLoading = createResultMutation.isPending || updateResultMutation.isPending;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] md:w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFF', WebkitOverflowScrolling: 'touch' }} dir="rtl">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
+      <DialogContent className="w-[95vw] md:w-full max-w-lg max-h-[90vh] overflow-y-auto relative" style={{ backgroundColor: '#FFF', WebkitOverflowScrolling: 'touch' }} dir="rtl">
+        {ConfirmDialog}
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <Award className="w-6 h-6 text-[#FFD700]" />
