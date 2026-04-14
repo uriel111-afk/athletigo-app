@@ -1896,12 +1896,36 @@ export default function TraineeProfile() {
                                 const statusColors = { 'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800', 'בוטל': 'bg-red-100 text-red-800', 'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800' };
                                 return (
                                   <div key={session.id} className="bg-gray-50 rounded-xl border border-gray-100 p-3" dir="rtl">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text }}>{session.session_type}</span>
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text }}>{session.session_type}</span>
+                                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
+                                        </div>
+                                        <div className="text-sm font-bold text-gray-700">{format(new Date(session.date), 'dd/MM/yy', { locale: he })}</div>
+                                        <div className="text-xs text-gray-400">{session.time} • {session.location || 'לא צוין'}</div>
+                                      </div>
+                                      {isCoach && (
+                                        <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-300 hover:text-red-500 flex-shrink-0"
+                                          onClick={async () => {
+                                            if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
+                                            try {
+                                              if (participant?.attendance_status === 'הגיע' && session.service_id) {
+                                                try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); } catch {}
+                                              }
+                                              await base44.entities.Session.delete(session.id);
+                                              queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                                              queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                                              queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                                              queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                              queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                              toast.success("המפגש נמחק");
+                                            } catch (err) { toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב")); }
+                                          }}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                      )}
                                     </div>
-                                    <div className="text-sm font-bold text-gray-700">{format(new Date(session.date), 'dd/MM/yy', { locale: he })}</div>
-                                    <div className="text-xs text-gray-400">{session.time} • {session.location || 'לא צוין'}</div>
                                   </div>
                                 );
                               })}
