@@ -199,6 +199,7 @@ export default function SessionFormDialog({
       location: sessionForm.location || null,
       duration: sessionForm.duration || 60,
       coach_notes: sessionForm.coach_notes || null,
+      coach_id: currentCoach?.id || null,
       participants: sessionForm.participants || [],
       status: editingSession ? sessionForm.status : 'ממתין לאישור',
     };

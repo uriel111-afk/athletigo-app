@@ -93,7 +93,8 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
     mutationFn: (data) => base44.entities.ResultsLog.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       if (onSuccess) onSuccess();
       toast.success("השיא נשמר בהצלחה");
       onClose();
@@ -108,7 +109,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
     mutationFn: ({ id, data }) => base44.entities.ResultsLog.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       if (onSuccess) onSuccess();
       toast.success("השיא עודכן בהצלחה");
       onClose();

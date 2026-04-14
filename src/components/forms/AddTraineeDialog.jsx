@@ -86,6 +86,7 @@ export default function AddTraineeDialog({ open, onClose }) {
           address: formData.address || null,
           coach_notes: formData.coachNotes || null,
           client_status: formData.clientStatus || 'לקוח פעיל',
+          coach_id: coach?.id || null,
         },
       });
 

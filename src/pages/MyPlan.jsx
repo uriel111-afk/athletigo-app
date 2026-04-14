@@ -112,14 +112,14 @@ export default function MyPlan() {
     retry: false
   });
 
-  const isCoach = user?.isCoach || user?.role === 'admin';
+  const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
 
   const { data: coach } = useQuery({
     queryKey: ['myplan-coach'],
     queryFn: async () => {
       try {
         const users = await base44.entities.User.list('-created_at', 1000);
-        return users.find(u => u.isCoach === true) || null;
+        return users.find(u => u.is_coach === true || u.role === 'coach') || null;
       } catch {
         return null;
       }

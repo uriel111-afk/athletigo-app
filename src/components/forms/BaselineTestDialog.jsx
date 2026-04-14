@@ -68,7 +68,7 @@ export default function BaselineTestDialog({ isOpen, onClose }) {
     queryKey: ['trainees-list'],
     queryFn: async () => {
       const users = await base44.entities.User.list('-created_at', 1000);
-      return users.filter(u => (u.role === 'user' || u.role === 'trainee') && !u.isCoach);
+      return users.filter(u => (u.role === 'user' || u.role === 'trainee') && !u.is_coach);
     },
     initialData: []
   });

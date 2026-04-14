@@ -42,8 +42,8 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     mutationFn: (data) => base44.entities.Measurement.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      clearDraft(); // Clear draft on success
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      clearDraft();
       toast.success("✅ מדידה נוספה");
       onClose();
     },
@@ -54,8 +54,8 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     mutationFn: ({ id, data }) => base44.entities.Measurement.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      clearDraft(); // Clear draft on success
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      clearDraft();
       toast.success("✅ מדידה עודכנה");
       onClose();
     },

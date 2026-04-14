@@ -428,7 +428,7 @@ export default function TraineeProfile() {
     queryKey: ['trainee-coach', user?.id],
     queryFn: async () => {
       const users = await base44.entities.User.list('-created_at', 1000);
-      return users.find(u => u.isCoach === true) || null;
+      return users.find(u => u.is_coach === true || u.role === 'coach') || null;
     },
     enabled: !!user?.id,
     staleTime: 60000,
