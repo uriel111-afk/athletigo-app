@@ -20,10 +20,14 @@ export default function CoachProfile() {
     full_name: "",
     email: "",
     phone: "",
+    birth_date: "",
+    gender: "",
     address: "",
     city: "",
     bio: "",
-    certifications: ""
+    certifications: "",
+    business_name: "",
+    services_description: "",
   });
 
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -42,22 +46,27 @@ export default function CoachProfile() {
   const { data: currentUser, refetch } = useQuery({
     queryKey: ['current-user-coach-profile'],
     queryFn: () => base44.auth.me(),
-    refetchInterval: 3000,
-    refetchIntervalInBackground: true
+    staleTime: 60000,
   });
 
   useEffect(() => {
     if (currentUser) {
       setUser(currentUser);
-      setFormData({
-        full_name: currentUser.full_name || "",
-        email: currentUser.email || "",
-        phone: currentUser.phone || "",
-        address: currentUser.address || "",
-        city: currentUser.city || "",
-        bio: currentUser.bio || "",
-        certifications: currentUser.certifications || ""
-      });
+      if (!showEdit) {
+        setFormData({
+          full_name: currentUser.full_name || "",
+          email: currentUser.email || "",
+          phone: currentUser.phone || "",
+          birth_date: currentUser.birth_date ? new Date(currentUser.birth_date).toISOString().split('T')[0] : "",
+          gender: currentUser.gender || "",
+          address: currentUser.address || "",
+          city: currentUser.city || "",
+          bio: currentUser.bio || "",
+          certifications: currentUser.certifications || "",
+          business_name: currentUser.business_name || "",
+          services_description: currentUser.services_description || "",
+        });
+      }
     }
   }, [currentUser]);
 
@@ -152,13 +161,22 @@ export default function CoachProfile() {
   });
 
   const handleSave = async () => {
+    if (!formData.full_name?.trim()) {
+      toast.error("שם מלא הוא שדה חובה");
+      return;
+    }
     try {
       await updateUserMutation.mutateAsync({
-        phone: formData.phone,
-        address: formData.address,
-        city: formData.city,
-        bio: formData.bio,
-        certifications: formData.certifications
+        full_name: formData.full_name,
+        phone: formData.phone || null,
+        birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
+        gender: formData.gender || null,
+        address: formData.address || null,
+        city: formData.city || null,
+        bio: formData.bio || null,
+        certifications: formData.certifications || null,
+        business_name: formData.business_name || null,
+        services_description: formData.services_description || null,
       });
     } catch {
       // error handled by onError
@@ -287,69 +305,46 @@ export default function CoachProfile() {
               </Button>
             </div>
 
-            <div className="athletigo-card">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <div className="flex items-start gap-3">
-                  <Mail className="w-4 h-4 md:w-5 md:h-5 mt-1" style={{ color: '#FF6F20' }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="athletigo-stat-label mb-1 text-xs">אימייל</p>
-                    <p className="font-medium text-sm md:text-base break-all" style={{ color: '#000000' }}>{user.email || '-'}</p>
-                  </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2.5">
+              {[
+                { label: 'שם מלא', value: user.full_name },
+                { label: 'אימייל', value: user.email },
+                { label: 'טלפון', value: user.phone },
+                { label: 'תאריך לידה', value: user.birth_date ? new Date(user.birth_date).toLocaleDateString('he-IL') : null },
+                { label: 'מין', value: user.gender },
+                { label: 'עיר', value: user.city },
+                { label: 'כתובת', value: user.address },
+              ].map((item, i) => (
+                <div key={i} className="text-right text-sm py-1">
+                  <span className="text-gray-500 font-medium">{item.label}: </span>
+                  <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
                 </div>
-                
-                <div className="flex items-start gap-3">
-                  <Phone className="w-4 h-4 md:w-5 md:h-5 mt-1" style={{ color: '#FF6F20' }} />
-                  <div>
-                    <p className="athletigo-stat-label mb-1 text-xs">טלפון</p>
-                    <p className="font-medium text-sm md:text-base" style={{ color: '#000000' }}>{user.phone || '-'}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-4 h-4 md:w-5 md:h-5 mt-1" style={{ color: '#FF6F20' }} />
-                  <div>
-                    <p className="athletigo-stat-label mb-1 text-xs">כתובת</p>
-                    <p className="font-medium text-sm md:text-base" style={{ color: '#000000' }}>{user.address || '-'}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-4 h-4 md:w-5 md:h-5 mt-1" style={{ color: '#FF6F20' }} />
-                  <div>
-                    <p className="athletigo-stat-label mb-1 text-xs">עיר</p>
-                    <p className="font-medium text-sm md:text-base" style={{ color: '#000000' }}>{user.city || '-'}</p>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Bio */}
-          {user.bio && (
-            <div className="mb-6 md:mb-8 athletigo-section">
-              <h2 className="text-2xl md:text-3xl font-black mb-4 md:mb-6" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                אודותיי
-              </h2>
-              <div className="athletigo-card">
-                <p className="leading-relaxed text-sm md:text-base" style={{ color: '#000000' }}>{user.bio}</p>
-              </div>
+          {/* Professional Info */}
+          <div className="mb-6 md:mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl md:text-2xl font-black" style={{ color: '#000000' }}>פרטים מקצועיים</h2>
+              <Button onClick={() => setShowEdit(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                <Edit2 className="w-3 h-3 ml-1" />ערוך
+              </Button>
             </div>
-          )}
-
-          {/* Certifications */}
-          {user.certifications && (
-            <div className="mb-6 md:mb-8 athletigo-section">
-              <h2 className="text-2xl md:text-3xl font-black mb-4 md:mb-6" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                הסמכות ותעודות
-              </h2>
-              <div className="athletigo-card">
-                <div className="flex items-start gap-3">
-                  <Briefcase className="w-4 h-4 md:w-5 md:h-5 mt-1" style={{ color: '#FF6F20' }} />
-                  <p className="leading-relaxed text-sm md:text-base" style={{ color: '#000000' }}>{user.certifications}</p>
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2.5">
+              {[
+                { label: 'אודותיי', value: user.bio },
+                { label: 'הסמכות ותעודות', value: user.certifications },
+                { label: 'שם העסק', value: user.business_name },
+                { label: 'תיאור שירותים', value: user.services_description },
+              ].map((item, i) => (
+                <div key={i} className="text-right text-sm py-1">
+                  <span className="text-gray-500 font-medium">{item.label}: </span>
+                  <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
                 </div>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Trainee Settings */}
           <div className="mb-6 md:mb-8 athletigo-section">
@@ -473,68 +468,67 @@ export default function CoachProfile() {
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="space-y-4 md:space-y-6">
+              <div className="space-y-4" dir="rtl">
+                <h3 className="text-sm font-bold text-[#FF6F20]">פרטים אישיים</h3>
                 <div>
-                  <Label className="text-sm md:text-base font-bold mb-2 md:mb-3 block" style={{ color: '#000000' }}>טלפון</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="050-1234567"
-                    className="rounded-xl text-sm md:text-base"
-                  />
+                  <Label className="text-xs text-gray-500 mb-1 block">שם מלא *</Label>
+                  <Input value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-sm md:text-base font-bold mb-2 md:mb-3 block" style={{ color: '#000000' }}>כתובת</Label>
-                    <Input
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="רחוב ומספר"
-                      className="rounded-xl text-sm md:text-base"
-                    />
+                    <Label className="text-xs text-gray-500 mb-1 block">טלפון</Label>
+                    <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="050-1234567" className="rounded-lg" />
                   </div>
                   <div>
-                    <Label className="text-sm md:text-base font-bold mb-2 md:mb-3 block" style={{ color: '#000000' }}>עיר</Label>
-                    <Input
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      placeholder="שם העיר"
-                      className="rounded-xl text-sm md:text-base"
-                    />
+                    <Label className="text-xs text-gray-500 mb-1 block">אימייל</Label>
+                    <Input value={formData.email} disabled className="rounded-lg bg-gray-50 text-gray-400" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-gray-500 mb-1 block">תאריך לידה</Label>
+                    <Input type="date" value={formData.birth_date} onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })} className="rounded-lg" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500 mb-1 block">מין</Label>
+                    <Select value={formData.gender} onValueChange={(v) => setFormData({ ...formData, gender: v })}>
+                      <SelectTrigger className="rounded-lg"><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectContent><SelectItem value="זכר">זכר</SelectItem><SelectItem value="נקבה">נקבה</SelectItem><SelectItem value="אחר">אחר</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-gray-500 mb-1 block">עיר</Label>
+                    <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="rounded-lg" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500 mb-1 block">כתובת</Label>
+                    <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="rounded-lg" />
                   </div>
                 </div>
 
+                <h3 className="text-sm font-bold text-[#FF6F20] pt-2">פרטים מקצועיים</h3>
                 <div>
-                  <Label className="text-sm md:text-base font-bold mb-2 md:mb-3 block" style={{ color: '#000000' }}>אודותיי</Label>
-                  <Textarea
-                    value={formData.bio}
-                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                    placeholder="ספר קצת על עצמך..."
-                    className="rounded-xl min-h-[80px] md:min-h-[100px] text-sm md:text-base"
-                  />
+                  <Label className="text-xs text-gray-500 mb-1 block">אודותיי</Label>
+                  <Textarea value={formData.bio} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} placeholder="ספר קצת על עצמך..." className="rounded-lg resize-none min-h-[60px]" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">הסמכות ותעודות</Label>
+                  <Textarea value={formData.certifications} onChange={(e) => setFormData({ ...formData, certifications: e.target.value })} placeholder="הסמכות מקצועיות..." className="rounded-lg resize-none min-h-[60px]" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">שם העסק</Label>
+                  <Input value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} className="rounded-lg" />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">תיאור שירותים</Label>
+                  <Textarea value={formData.services_description} onChange={(e) => setFormData({ ...formData, services_description: e.target.value })} className="rounded-lg resize-none min-h-[60px]" />
                 </div>
 
-                <div>
-                  <Label className="text-sm md:text-base font-bold mb-2 md:mb-3 block" style={{ color: '#000000' }}>הסמכות ותעודות</Label>
-                  <Textarea
-                    value={formData.certifications}
-                    onChange={(e) => setFormData({ ...formData, certifications: e.target.value })}
-                    placeholder="הסמכות מקצועיות..."
-                    className="rounded-xl min-h-[80px] md:min-h-[100px] text-sm md:text-base"
-                  />
-                </div>
-
-                <Button
-                  onClick={handleSave}
-                  disabled={updateUserMutation.isPending}
-                  className="athletigo-button-primary w-full py-4 md:py-6 font-bold text-white text-base md:text-lg"
-                >
-                  {updateUserMutation.isPending ? (
-                    <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</>
-                  ) : (
-                    "שמור שינויים"
-                  )}
+                <Button onClick={handleSave} disabled={updateUserMutation.isPending}
+                  className="w-full py-3 font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+                  {updateUserMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</> : 'שמור שינויים'}
                 </Button>
               </div>
             </DialogContent>
