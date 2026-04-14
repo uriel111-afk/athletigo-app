@@ -14,16 +14,16 @@ const PHASE_COLORS = {
   idle: { bg: '#F9FAFB', stroke: '#D1D5DB', text: '#6B7280' },
 };
 
-// Bold full-screen colors for running view
-const PHASE_BG = {
-  prepare: '#16A34A',
-  work: '#F97316',
-  rest: '#3B82F6',
-  set_rest: '#8B5CF6',
-  running: '#F97316',
-  paused: '#EAB308',
-  done: '#16A34A',
-  idle: '#6B7280',
+// Brand-style running view — light bg with colored accents
+const PHASE_STYLE = {
+  prepare: { bg: '#FFF7ED', accent: '#F97316', text: '#1F2937' },
+  work:    { bg: '#F0FDF4', accent: '#16A34A', text: '#1F2937' },
+  rest:    { bg: '#EFF6FF', accent: '#3B82F6', text: '#1F2937' },
+  set_rest:{ bg: '#FAF5FF', accent: '#8B5CF6', text: '#1F2937' },
+  running: { bg: '#FFF7ED', accent: '#F97316', text: '#1F2937' },
+  paused:  { bg: '#FFFBEB', accent: '#F59E0B', text: '#1F2937' },
+  done:    { bg: '#F0FDF4', accent: '#16A34A', text: '#1F2937' },
+  idle:    { bg: '#FAF8F3', accent: '#9CA3AF', text: '#6B7280' },
 };
 
 function fmt(ms, showMs = false) {
@@ -135,24 +135,24 @@ function SetDots({ current, total }) {
   return <div className="flex justify-center gap-2 mt-3">{Array.from({length:total},(_,i)=><div key={i} className={`w-3.5 h-3.5 rounded-full ${i<=current?'bg-[#F97316]':'bg-gray-200'}`}/>)}</div>;
 }
 
-function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false, numberSize }) {
-  const bg = PHASE_BG[phase] || PHASE_BG.idle;
-  const size = numberSize || (showMs ? 'clamp(100px, 22vw, 180px)' : 'clamp(240px, 55vw, 480px)');
+function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false }) {
+  const s = PHASE_STYLE[phase] || PHASE_STYLE.idle;
+  const numSize = showMs ? 'clamp(90px, 20vw, 160px)' : 'clamp(240px, 55vw, 480px)';
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" style={{ backgroundColor: bg }}>
+    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" style={{ backgroundColor: s.bg }}>
       {/* Phase name */}
-      <div className="text-white font-black text-center" style={{ fontSize: 'clamp(32px, 10vw, 64px)' }}>
+      <div className="font-black text-center" style={{ fontSize: 'clamp(32px, 10vw, 64px)', color: s.accent }}>
         {phaseLabel}
       </div>
 
       {/* Giant number */}
-      <div className="text-white font-black text-center tabular-nums" style={{ fontSize: size, lineHeight: 1, fontFamily: 'system-ui, sans-serif' }}>
+      <div className="font-black text-center tabular-nums" style={{ fontSize: numSize, lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
         {fmt(ms, showMs)}
       </div>
 
       {/* Round info */}
       {roundInfo && (
-        <div className="text-white/80 font-bold text-center mt-2" style={{ fontSize: 'clamp(20px, 5vw, 40px)' }}>
+        <div className="font-bold text-center mt-2" style={{ fontSize: 'clamp(20px, 5vw, 40px)', color: s.accent, opacity: 0.7 }}>
           {roundInfo}
         </div>
       )}
@@ -160,16 +160,16 @@ function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPaus
       {/* Controls at bottom */}
       <div className="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-8">
         {onStop && (
-          <button onClick={onStop} className="rounded-full bg-white/20 flex items-center justify-center active:scale-90 backdrop-blur-sm" style={{ width: 56, height: 56 }}>
-            <Square className="w-7 h-7 text-white" />
+          <button onClick={onStop} className="rounded-full flex items-center justify-center active:scale-90 shadow-md" style={{ width: 56, height: 56, backgroundColor: '#F3F4F6' }}>
+            <Square className="w-7 h-7 text-red-500" />
           </button>
         )}
         {isRunning ? (
-          <button onClick={onPause} className="rounded-full bg-white/30 flex items-center justify-center active:scale-95 backdrop-blur-sm shadow-lg" style={{ width: 80, height: 80 }}>
+          <button onClick={onPause} className="rounded-full flex items-center justify-center active:scale-95 shadow-lg" style={{ width: 80, height: 80, backgroundColor: s.accent }}>
             <Pause className="w-10 h-10 text-white" />
           </button>
         ) : (
-          <button onClick={onResume} className="rounded-full bg-white/30 flex items-center justify-center active:scale-95 backdrop-blur-sm shadow-lg" style={{ width: 80, height: 80 }}>
+          <button onClick={onResume} className="rounded-full flex items-center justify-center active:scale-95 shadow-lg" style={{ width: 80, height: 80, backgroundColor: s.accent }}>
             <Play className="w-10 h-10 text-white" />
           </button>
         )}
@@ -210,7 +210,7 @@ function StopwatchView() {
 
   return (
     <div className="px-4 py-8 flex flex-col items-center">
-      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(100px,22vw,180px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>00:00.00</div>
+      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(90px,20vw,160px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>00:00.00</div>
       <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:80,height:80}}>
         <Play className="w-10 h-10 text-white" />
       </button>
