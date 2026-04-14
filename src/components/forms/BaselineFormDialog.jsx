@@ -22,12 +22,22 @@ function TimePicker({ value, onChange, label }) {
     <div className="flex flex-col items-center">
       <span className="text-[10px] font-bold text-gray-400 mb-1">{label}</span>
       <div className="flex items-center gap-1" dir="ltr">
-        <Input type="number" min={0} max={59} value={String(mins).padStart(2, '0')}
-          onChange={e => onChange(Math.max(0, parseInt(e.target.value) || 0) * 60 + secs)}
+        <Input type="text" inputMode="numeric" maxLength={2}
+          value={String(mins).padStart(2, '0')}
+          onFocus={e => e.target.select()}
+          onChange={e => {
+            const v = e.target.value.replace(/\D/g, '');
+            onChange(Math.min(59, parseInt(v) || 0) * 60 + secs);
+          }}
           className="w-12 h-9 text-center text-sm font-bold p-0" />
-        <span className="text-gray-400 font-bold">:</span>
-        <Input type="number" min={0} max={59} value={String(secs).padStart(2, '0')}
-          onChange={e => onChange(mins * 60 + Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))}
+        <span className="text-gray-400 font-bold text-lg">:</span>
+        <Input type="text" inputMode="numeric" maxLength={2}
+          value={String(secs).padStart(2, '0')}
+          onFocus={e => e.target.select()}
+          onChange={e => {
+            const v = e.target.value.replace(/\D/g, '');
+            onChange(mins * 60 + Math.min(59, parseInt(v) || 0));
+          }}
           className="w-12 h-9 text-center text-sm font-bold p-0" />
       </div>
     </div>
