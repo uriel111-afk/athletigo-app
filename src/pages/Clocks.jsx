@@ -6,7 +6,7 @@ const BRAND = '#F97316';
 
 // AthletiGo brand-only colors: orange, cream, white, black, gray
 const PHASE_STYLE = {
-  prepare: { bg: '#FAF8F3', accent: '#C2410C', text: '#C2410C' },
+  prepare: { bg: '#FFF7ED', accent: '#EA580C', text: '#EA580C' },
   work:    { bg: '#F97316', accent: '#FFFFFF', text: '#FFFFFF' },
   rest:    { bg: '#FFFFFF', accent: '#F97316', text: '#EA580C' },
   set_rest:{ bg: '#FFEDD5', accent: '#C2410C', text: '#C2410C' },
@@ -127,7 +127,7 @@ function SetDots({ current, total }) {
 
 function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false }) {
   const s = PHASE_STYLE[phase] || PHASE_STYLE.idle;
-  const numSize = showMs ? 'clamp(90px, 20vw, 160px)' : 'clamp(240px, 55vw, 480px)';
+  const numSize = showMs ? 'clamp(60px, 15vw, 120px)' : 'clamp(240px, 55vw, 480px)';
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" style={{ backgroundColor: s.bg }}>
       {/* Phase name */}
@@ -200,7 +200,7 @@ function StopwatchView() {
 
   return (
     <div className="px-4 py-8 flex flex-col items-center">
-      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(90px,20vw,160px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>00:00.00</div>
+      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(60px,15vw,120px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>00:00.00</div>
       <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:80,height:80}}>
         <Play className="w-10 h-10 text-white" />
       </button>
