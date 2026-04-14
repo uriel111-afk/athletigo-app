@@ -72,6 +72,8 @@ export default function AddTraineeDialog({ open, onClose }) {
     try {
       const age = calculateAge(formData.birthDate);
 
+      console.log("[AddTrainee] Invoking create-trainee Edge Function...", { email, fullName: formData.fullName });
+
       const { data: fnData, error: fnError } = await supabase.functions.invoke('create-trainee', {
         body: {
           email,
@@ -87,12 +89,16 @@ export default function AddTraineeDialog({ open, onClose }) {
         },
       });
 
+      console.log("[AddTrainee] Response:", { fnData, fnError });
+
       if (fnError || !fnData?.profile) {
-        const raw = fnData?.error || fnError?.message || '';
+        const raw = fnData?.error || fnError?.message || JSON.stringify(fnError) || '';
+        console.error("[AddTrainee] Failed:", raw);
         let msg = "שגיאה לא צפויה";
         if (raw.includes("already registered") || raw.includes("duplicate")) msg = "משתמש עם אימייל זה כבר קיים";
         else if (raw.includes("password")) msg = "הסיסמה חייבת להכיל לפחות 6 תווים";
         else if (raw.includes("email")) msg = "כתובת האימייל אינה תקינה";
+        else if (raw.includes("non-2xx") || raw.includes("500")) msg = "שגיאת שרת — ודא שה-Edge Function פעילה";
         else if (raw) msg = raw;
         toast.error("שגיאה ביצירת המתאמן: " + msg);
         setLoading(false);

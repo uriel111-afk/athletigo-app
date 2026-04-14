@@ -1353,6 +1353,33 @@ export default function TraineeProfile() {
                   <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
                   <div className="font-bold text-xs text-white">שינוי סיסמא</div>
                 </button>
+
+                {/* Delete Trainee — coach only */}
+                {isCoach && userIdParam && (
+                  <button onClick={() => {
+                    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את ${user.full_name}?\n\nפעולה זו תמחק את כל הנתונים הקשורים אליו לצמיתות.`)) return;
+                    if (!window.confirm(`אישור סופי: למחוק את ${user.full_name}? אי אפשר לשחזר.`)) return;
+                    (async () => {
+                      try {
+                        toast.loading("מוחק מתאמן...");
+                        const { error } = await supabase.functions.invoke('delete-trainee', { body: { trainee_id: userIdParam } });
+                        if (error) throw error;
+                        toast.dismiss();
+                        toast.success(`${user.full_name} נמחק בהצלחה`);
+                        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                        navigate('/');
+                      } catch (err) {
+                        toast.dismiss();
+                        toast.error("שגיאה במחיקה: " + (err?.message || "נסה למחוק ידנית דרך SQL Editor"));
+                        console.error("[DeleteTrainee]", err);
+                      }
+                    })();
+                  }}
+                    className="w-full rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform border border-red-200 bg-red-50 mt-4">
+                    <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><Trash2 className="w-4 h-4 text-red-500" /></div>
+                    <div className="font-bold text-xs text-red-600">מחק מתאמן</div>
+                  </button>
+                )}
               </TabsContent>
 
               {/* Goals Tab */}
