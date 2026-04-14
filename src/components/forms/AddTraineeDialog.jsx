@@ -73,6 +73,15 @@ export default function AddTraineeDialog({ open, onClose }) {
     try {
       const age = calculateAge(formData.birthDate);
 
+      // Verify session exists before calling Edge Function
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log("[AddTrainee] Session exists:", !!session, "Token:", !!session?.access_token);
+      if (!session?.access_token) {
+        toast.error("אתה לא מחובר. נא להתחבר מחדש.");
+        setLoading(false);
+        return;
+      }
+
       console.log("[AddTrainee] Invoking create-trainee Edge Function...", { email, fullName: formData.fullName });
 
       const { data: fnData, error: fnError } = await supabase.functions.invoke('create-trainee', {
@@ -94,8 +103,8 @@ export default function AddTraineeDialog({ open, onClose }) {
       console.log("[AddTrainee] Response:", JSON.stringify({ fnData, fnError }, null, 2));
 
       if (fnError || !fnData?.profile) {
-        const raw = fnData?.error || fnError?.message || fnError?.context?.body || JSON.stringify(fnError) || '';
-        console.error("[AddTrainee] Failed:", raw, fnError, fnData);
+        const raw = fnData?.error || fnError?.message || fnError?.context?.body || (typeof fnData === 'string' ? fnData : JSON.stringify(fnError || fnData)) || '';
+        console.error("[AddTrainee] Failed — fnError:", fnError, "fnData:", fnData, "raw:", raw);
         let msg = "שגיאה לא צפויה";
         if (raw.includes("already registered") || raw.includes("duplicate")) msg = "משתמש עם אימייל זה כבר קיים";
         else if (raw.includes("password")) msg = "הסיסמה חייבת להכיל לפחות 6 תווים";
