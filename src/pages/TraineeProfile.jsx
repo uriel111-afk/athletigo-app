@@ -1089,11 +1089,13 @@ export default function TraineeProfile() {
   // Group results by type for Achievements tab
   const groupedResults = React.useMemo(() => {
     const groups = {};
-    results.filter(r => r.category !== 'baseline').forEach(r => {
-      const type = r.skill_or_exercise || 'אחר';
+    results.forEach(r => {
+      const type = r.category === 'baseline' ? 'בייסליין' : (r.skill_or_exercise || 'אחר');
       if (!groups[type]) groups[type] = [];
       groups[type].push(r);
     });
+    // Sort each group by date desc
+    Object.values(groups).forEach(arr => arr.sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)));
     return groups;
   }, [results]);
 
@@ -1416,7 +1418,7 @@ export default function TraineeProfile() {
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Target className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין יעדים מוגדרים</p></div>
                 ) : (
                   <div className="space-y-3">
-                    {goals.map(goal => (
+                    {[...goals].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map(goal => (
                       <div key={goal.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         <div className="p-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/30">
                           <h4 className="font-bold text-base text-gray-900">{goal.goal_name}</h4>
@@ -1509,28 +1511,53 @@ export default function TraineeProfile() {
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
                 ) : (
                   <div className="space-y-3">
-                    {baselines.map(b => {
+                    {[...baselines].sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date)).map(b => {
                       const techColors = { basic: '#FF6F20', foot_switch: '#2196F3', high_knees: '#4CAF50' };
                       const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees' };
                       return (
-                        <button key={b.id} onClick={() => setShowBaselineDetail(b.id)}
-                          className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-right active:scale-[0.98] transition-transform">
+                        <div key={b.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
                           <div className="flex justify-between items-start">
-                            <div>
+                            <button onClick={() => setShowBaselineDetail(b.id)} className="flex-1 text-right active:scale-[0.98] transition-transform">
                               <h4 className="font-bold text-base text-gray-900">Baseline — {techLabels[b.technique] || b.technique}</h4>
                               <p className="text-xs text-gray-500 mt-0.5">{new Date(b.date).toLocaleDateString('he-IL')} • {b.rounds_count} סיבובים × {b.work_time_seconds} שניות</p>
-                            </div>
-                            <div className="text-left">
-                              <span className="text-xl font-black" style={{ color: techColors[b.technique] || '#FF6F20' }}>{b.baseline_score}</span>
-                              <span className="text-xs font-bold text-gray-400 block">JPS</span>
+                            </button>
+                            <div className="flex items-start gap-2 flex-shrink-0">
+                              <div className="text-left">
+                                <span className="text-xl font-black" style={{ color: techColors[b.technique] || '#FF6F20' }}>{b.baseline_score}</span>
+                                <span className="text-xs font-bold text-gray-400 block">JPS</span>
+                              </div>
+                              {isCoach && (
+                                <Button variant="ghost" size="icon" className="w-8 h-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!window.confirm(`למחוק את הבייסליין מתאריך ${new Date(b.date).toLocaleDateString('he-IL')}?`)) return;
+                                    (async () => {
+                                      try {
+                                        // Delete linked results_log entry
+                                        try { await supabase.from('results_log').delete().eq('baseline_id', b.id); } catch {}
+                                        // Delete the baseline
+                                        await base44.entities.Baseline.delete(b.id);
+                                        toast.success("בייסליין נמחק");
+                                        queryClient.invalidateQueries({ queryKey: ['baselines'] });
+                                        queryClient.invalidateQueries({ queryKey: ['my-results'] });
+                                        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                      } catch (err) {
+                                        toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
+                                      }
+                                    })();
+                                  }}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
                             </div>
                           </div>
-                          <div className="text-right text-sm mt-2">
+                          <button onClick={() => setShowBaselineDetail(b.id)} className="w-full text-right text-sm mt-2 active:opacity-70">
                             <span className="text-gray-500 font-medium">סה"כ: </span><span className="text-gray-900">{b.total_jumps} קפיצות</span>
                             <span className="text-gray-300 mx-2">|</span>
                             <span className="text-gray-500 font-medium">ממוצע: </span><span className="text-gray-900">{b.average_jumps}</span>
-                          </div>
-                        </button>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
