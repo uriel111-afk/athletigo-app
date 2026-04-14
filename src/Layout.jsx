@@ -147,11 +147,20 @@ export default function Layout({ children, currentPageName }) {
   const primaryColor = '#FF6F20';
   const primaryColorLight = '#FFF8F3';
 
-  // ── כפתור חזרה מרכזי ──────────────────────────────────────────────
-  // זהו המקור היחיד לכפתור חזרה בכל האפליקציה (מאמן + מתאמן).
-  // אין להוסיף כפתורי navigate(-1) בתוך מסכים ספציפיים.
-  // כפתורי "חזרה" לגיטימיים בתוך מסכים: ניווט בין טאבים, שלבי wizard,
-  // ומצבי שגיאה עם ניווט לדף ספציפי (לא navigate(-1)).
+  // ═══════════════════════════════════════════════════════════════════
+  // כפתור חזרה מרכזי — מקור אמת יחיד
+  // ═══════════════════════════════════════════════════════════════════
+  // זהו כפתור החזרה היחיד באפליקציה. הוא מוצג בכל מסך (מלבד דפי בית).
+  //
+  // אסור להוסיף כפתורי navigate(-1) או window.history.back()
+  // בתוך מסכים בודדים — זה יוצר כפתור חזרה כפול.
+  //
+  // חריגים לגיטימיים שאינם כפתורי "חזרה":
+  //   - שלבי wizard (הקודם/הבא) — ניווט פנימי בטופס מרובה שלבים
+  //   - ניווט לדף ספציפי (navigate('/path')) — לא navigate(-1)
+  //   - מסכי שגיאה/ErrorBoundary — שם Layout עלול לא להיות מרונדר
+  //   - כפתורי סגירה (X) של מודאלים — אלה לא כפתורי "חזרה"
+  // ═══════════════════════════════════════════════════════════════════
   const noBackButtonPages = ["Dashboard", "TraineeHome", "Onboarding"];
   // Also hide back button when trainee views their own profile (no userId param = own profile)
   const isTraineeOwnProfile = !isCoach && currentPageName === "TraineeProfile" && !new URLSearchParams(window.location.search).get('userId');

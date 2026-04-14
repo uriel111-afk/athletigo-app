@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Zap, Activity, TrendingUp, Calendar, Clock, ArrowRight } from "lucide-react";
+import { Loader2, Zap, Activity, TrendingUp, Calendar, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
