@@ -15,30 +15,28 @@ const TECHNIQUES = [
   { id: 'high_knees', label: 'High Knees', labelHe: 'הרמת ברכיים', icon: TrendingUp, color: '#4CAF50' },
 ];
 
+function TimeScrollPicker({ value, onChange, max = 59 }) {
+  return (
+    <select value={value} onChange={e => onChange(parseInt(e.target.value))}
+      className="h-10 rounded-lg border border-gray-200 bg-white text-center text-base font-bold text-gray-900 appearance-none cursor-pointer focus:border-[#FF6F20] focus:ring-1 focus:ring-[#FF6F20] outline-none"
+      style={{ width: 56, minWidth: 56, paddingLeft: 4, paddingRight: 4 }}>
+      {Array.from({ length: max + 1 }, (_, i) => (
+        <option key={i} value={i}>{String(i).padStart(2, '0')}</option>
+      ))}
+    </select>
+  );
+}
+
 function TimePicker({ value, onChange, label }) {
   const mins = Math.floor(value / 60);
   const secs = value % 60;
   return (
     <div className="flex flex-col items-center">
       <span className="text-[10px] font-bold text-gray-400 mb-1">{label}</span>
-      <div className="flex items-center gap-1.5" dir="ltr">
-        <Input type="text" inputMode="numeric" maxLength={2}
-          value={String(mins).padStart(2, '0')}
-          onFocus={e => e.target.select()}
-          onChange={e => {
-            const v = e.target.value.replace(/\D/g, '');
-            onChange(Math.min(59, parseInt(v) || 0) * 60 + secs);
-          }}
-          className="h-10 text-center text-base font-bold px-2" style={{ width: 52, minWidth: 52 }} />
+      <div className="flex items-center gap-1" dir="ltr">
+        <TimeScrollPicker value={mins} max={59} onChange={m => onChange(m * 60 + secs)} />
         <span className="text-gray-400 font-black text-lg select-none">:</span>
-        <Input type="text" inputMode="numeric" maxLength={2}
-          value={String(secs).padStart(2, '0')}
-          onFocus={e => e.target.select()}
-          onChange={e => {
-            const v = e.target.value.replace(/\D/g, '');
-            onChange(mins * 60 + Math.min(59, parseInt(v) || 0));
-          }}
-          className="h-10 text-center text-base font-bold px-2" style={{ width: 52, minWidth: 52 }} />
+        <TimeScrollPicker value={secs} max={59} onChange={s => onChange(mins * 60 + s)} />
       </div>
     </div>
   );

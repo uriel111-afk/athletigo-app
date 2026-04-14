@@ -18,7 +18,7 @@ import { Home, Dumbbell, FileText, User } from "lucide-react";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import BaselineSection from "../components/progress/BaselineSection";
-import BaselineJumpRopeDialog from "../components/progress/BaselineJumpRopeDialog";
+import BaselineFormDialog from "../components/forms/BaselineFormDialog";
 
 export default function Progress() {
   const [user, setUser] = useState(null);
@@ -1022,12 +1022,13 @@ export default function Progress() {
         </DialogContent>
       </Dialog>
 
-      {/* Baseline Jump Rope Dialog */}
+      {/* Baseline Dialog */}
       {user && (
-        <BaselineJumpRopeDialog
+        <BaselineFormDialog
           isOpen={showBaselineDialog}
           onClose={() => setShowBaselineDialog(false)}
-          user={user}
+          traineeId={user.id}
+          traineeName={user.full_name}
         />
       )}
 
