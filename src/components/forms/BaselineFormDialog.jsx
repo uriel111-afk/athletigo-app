@@ -21,7 +21,7 @@ function TimePicker({ value, onChange, label }) {
   return (
     <div className="flex flex-col items-center">
       <span className="text-[10px] font-bold text-gray-400 mb-1">{label}</span>
-      <div className="flex items-center gap-1" dir="ltr">
+      <div className="flex items-center gap-1.5" dir="ltr">
         <Input type="text" inputMode="numeric" maxLength={2}
           value={String(mins).padStart(2, '0')}
           onFocus={e => e.target.select()}
@@ -29,8 +29,8 @@ function TimePicker({ value, onChange, label }) {
             const v = e.target.value.replace(/\D/g, '');
             onChange(Math.min(59, parseInt(v) || 0) * 60 + secs);
           }}
-          className="w-12 h-9 text-center text-sm font-bold p-0" />
-        <span className="text-gray-400 font-bold text-lg">:</span>
+          className="h-10 text-center text-base font-bold px-2" style={{ width: 52, minWidth: 52 }} />
+        <span className="text-gray-400 font-black text-lg select-none">:</span>
         <Input type="text" inputMode="numeric" maxLength={2}
           value={String(secs).padStart(2, '0')}
           onFocus={e => e.target.select()}
@@ -38,7 +38,7 @@ function TimePicker({ value, onChange, label }) {
             const v = e.target.value.replace(/\D/g, '');
             onChange(mins * 60 + Math.min(59, parseInt(v) || 0));
           }}
-          className="w-12 h-9 text-center text-sm font-bold p-0" />
+          className="h-10 text-center text-base font-bold px-2" style={{ width: 52, minWidth: 52 }} />
       </div>
     </div>
   );
