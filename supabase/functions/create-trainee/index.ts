@@ -35,12 +35,12 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await supabaseAdmin
       .from('users')
-      .select('id, role, isCoach')
+      .select('id, role, is_coach')
       .eq('id', callerAuth.id)
       .single();
 
     const isCoach =
-      callerProfile?.isCoach === true ||
+      callerProfile?.is_coach === true ||
       callerProfile?.role === 'coach' ||
       callerProfile?.role === 'admin';
 
