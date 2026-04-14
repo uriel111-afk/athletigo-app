@@ -202,9 +202,9 @@ function TimerView() {
     return (
       <div className="px-4 py-4">
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <SettingRow icon={PersonStanding} label="הכנה (שניות)" value={prep} onChange={setPrep} max={10} />
           <SettingRow icon={Timer} label="דקות" value={mins} onChange={setMins} max={59} />
           <SettingRow icon={Clock} label="שניות" value={secs} onChange={setSecs} max={59} />
-          <SettingRow icon={PersonStanding} label="הכנה (שניות)" value={prep} onChange={setPrep} max={10} />
         </div>
         <button onClick={() => startTimer((mins * 60 + secs) * 1000, prep * 1000)}
           disabled={mins === 0 && secs === 0}
