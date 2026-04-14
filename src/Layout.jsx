@@ -25,7 +25,6 @@ import {
   Dumbbell,
   Shield,
   ChevronRight,
-  ArrowRight,
   UserPlus,
   BarChart3,
   Bell,
@@ -148,21 +147,11 @@ export default function Layout({ children, currentPageName }) {
   const primaryColorLight = '#FFF8F3';
 
   // ═══════════════════════════════════════════════════════════════════
-  // כפתור חזרה מרכזי — מקור אמת יחיד
+  // הבר העליון אינו מכיל כפתור חזרה לעמוד הקודם.
+  // זו החלטה מכוונת — הניווט באפליקציה מבוסס על התפריט התחתון,
+  // התפריט ההמבורגר, וניווט הדפדפן הטבעי.
+  // אל תוסיף כפתור חזרה לבר העליון או כאלמנט צף בשום מסך.
   // ═══════════════════════════════════════════════════════════════════
-  // זהו כפתור החזרה היחיד באפליקציה. הוא מוצג בכל מסך (מלבד דפי בית).
-  //
-  // אסור להוסיף כפתורי navigate(-1) או window.history.back()
-  // בתוך מסכים בודדים — זה יוצר כפתור חזרה כפול.
-  //
-  // חריגים לגיטימיים שאינם כפתורי "חזרה":
-  //   - שלבי wizard (הקודם/הבא) — ניווט פנימי בטופס מרובה שלבים
-  //   - ניווט לדף ספציפי (navigate('/path')) — לא navigate(-1)
-  //   - מסכי שגיאה/ErrorBoundary — שם Layout עלול לא להיות מרונדר
-  //   - כפתורי סגירה (X) של מודאלים — אלה לא כפתורי "חזרה"
-  // ═══════════════════════════════════════════════════════════════════
-  const noBackButtonPages = ["Dashboard", "TraineeHome", "Onboarding", "TraineeProfile"];
-  const shouldShowBackButton = !noBackButtonPages.includes(currentPageName);
 
   return (
     <ErrorBoundary>
@@ -177,21 +166,6 @@ export default function Layout({ children, currentPageName }) {
         width: '100%',
         overflow: 'hidden',
       }}>
-        {shouldShowBackButton && (
-          <button
-            onClick={() => navigate(-1)}
-            className="fixed top-4 left-4 z-[60] w-10 h-10 rounded-full flex items-center justify-center transition-all hover:bg-gray-50 shadow-md hover:shadow-lg"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              color: '#000000',
-              border: '1px solid #E0E0E0'
-            }}
-            title="חזור"
-          >
-            <ArrowRight className="w-5 h-5" strokeWidth={2.5} />
-          </button>
-        )}
-
         <aside className="hidden md:flex flex-col w-64 p-6" style={{
           backgroundColor: '#FFFFFF',
           borderLeft: `1px solid #E0E0E0`
