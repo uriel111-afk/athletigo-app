@@ -1261,18 +1261,6 @@ export default function TraineeProfile() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 mt-2">
-                {[
-                  { value: attendedSessions.length, label: 'אימונים' },
-                  { value: trainingPlans.length, label: 'תוכניות' },
-                  { value: attendancePct + '%', label: 'נוכחות' },
-                ].map((s, i) => (
-                  <div key={i} className="flex-1 bg-white/15 rounded-xl py-1.5 text-center">
-                    <div className="text-sm font-black text-white">{s.value}</div>
-                    <div className="text-[9px] text-white/60 font-medium">{s.label}</div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         ) : (
