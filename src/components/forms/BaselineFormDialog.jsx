@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Zap, Activity, TrendingUp } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { useCloseConfirm } from "../hooks/useCloseConfirm";
@@ -108,42 +109,58 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
     setSaving(true);
     try {
       const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toTimeString().slice(0, 5);
       const roundsData = rounds.map((r, i) => ({ round: i + 1, jumps: parseInt(r.jumps) || 0, misses: parseInt(r.misses) || 0 }));
-
-      console.log("[BaselineForm] Saving baseline...", { traineeId, technique, score: calc.score });
-
-      // 1. Save to baselines table
-      const baseline = await base44.entities.Baseline.create({
-        trainee_id: traineeId,
-        coach_id: coach?.id || null,
-        date: now.toISOString().split('T')[0],
-        time: now.toTimeString().slice(0, 5),
-        technique,
-        work_time_seconds: workTime,
-        rest_time_seconds: restTime,
-        rounds_count: roundsCount,
-        rounds_data: roundsData,
-        total_jumps: calc.totalJumps,
-        average_jumps: calc.avg,
-        baseline_score: calc.score,
-        notes: notes || null,
-      });
-
-      console.log("[BaselineForm] Baseline saved:", baseline.id);
-
-      // 2. Save to results_log for display in achievements tab
       const techLabel = TECHNIQUES.find(t => t.id === technique)?.label || technique;
-      await base44.entities.ResultsLog.create({
-        trainee_id: traineeId,
-        created_by: coach?.id || null,
-        title: `Baseline - ${techLabel}`,
-        record_value: calc.score,
-        record_unit: 'JPS',
-        category: 'baseline',
-        date: now.toISOString().split('T')[0],
-        baseline_id: baseline.id,
-        description: `${calc.totalJumps} קפיצות, ממוצע ${calc.avg}, ${roundsCount} סיבובים × ${workTime} שניות`,
-      });
+
+      console.log("[BaselineForm] Saving...", { traineeId, technique, score: calc.score });
+
+      // 1. INSERT to baselines
+      const { data: baselineData, error: baselineErr } = await supabase
+        .from('baselines')
+        .insert({
+          trainee_id: traineeId,
+          coach_id: coach?.id || null,
+          date: dateStr,
+          time: timeStr,
+          technique,
+          work_time_seconds: workTime,
+          rest_time_seconds: restTime,
+          rounds_count: roundsCount,
+          rounds_data: roundsData,
+          total_jumps: calc.totalJumps,
+          average_jumps: calc.avg,
+          baseline_score: calc.score,
+          notes: notes || null,
+        })
+        .select()
+        .single();
+
+      if (baselineErr) throw baselineErr;
+      console.log("[BaselineForm] Baseline saved:", baselineData.id);
+
+      // 2. INSERT to results_log (for achievements tab)
+      const { error: resultErr } = await supabase
+        .from('results_log')
+        .insert({
+          trainee_id: traineeId,
+          created_by: coach?.id || null,
+          title: `Baseline - ${techLabel}`,
+          record_value: String(calc.score),
+          record_unit: 'JPS',
+          category: 'baseline',
+          baseline_id: baselineData.id,
+          date: dateStr,
+          description: `${calc.totalJumps} קפיצות, ממוצע ${calc.avg}, ${roundsCount} סיבובים × ${workTime} שניות`,
+        });
+
+      if (resultErr) {
+        console.error("[BaselineForm] results_log insert failed:", resultErr);
+        // Don't throw — baseline was saved, just log the issue
+      } else {
+        console.log("[BaselineForm] results_log saved for baseline:", baselineData.id);
+      }
 
       // 3. Invalidate caches
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
