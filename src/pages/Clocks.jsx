@@ -210,11 +210,11 @@ function TabataView() {
   const [restSec, setRestSec] = useState(10);
   const [rounds, setRounds] = useState(8);
   const [sets, setSets] = useState(1);
-  const [setRestSec, setSetRestSec] = useState(60);
+  const [setsRestSec, setSetsRestSec] = useState(60);
   const [prepSec, setPrepSec] = useState(10);
   const active = activeClock === 'tabata';
   const showSetup = !active || phase === 'idle' || phase === 'done';
-  const totalTime = (workSec+restSec)*rounds*sets + (sets>1?setRestSec*(sets-1):0) + prepSec;
+  const totalTime = (workSec+restSec)*rounds*sets + (sets>1?setsRestSec*(sets-1):0) + prepSec;
 
   if (showSetup) {
     return (
@@ -232,10 +232,10 @@ function TabataView() {
           <TimeSettingRow icon={Coffee} label="מנוחה" totalSeconds={restSec} onChange={setRestSec} />
           <CountSettingRow icon={Repeat} label="מחזורים" value={rounds} onChange={setRounds} min={1} max={50} />
           <CountSettingRow icon={Hourglass} label="סטים" value={sets} onChange={setSets} min={1} max={10} />
-          {sets>1 && <TimeSettingRow icon={Armchair} label="מנוחה בין סטים" totalSeconds={setRestSec} onChange={setSetRestSec} />}
+          {sets>1 && <TimeSettingRow icon={Armchair} label="מנוחה בין סטים" totalSeconds={setsRestSec} onChange={setSetsRestSec} />}
         </div>
         <div className="px-4 py-4">
-          <button onClick={()=>startTabata({workTime:workSec,restTime:restSec,rounds,sets,setRest:setRestSec,prepareTime:prepSec})}
+          <button onClick={()=>startTabata({workTime:workSec,restTime:restSec,rounds,sets,setRest:setsRestSec,prepareTime:prepSec})}
             className="w-full py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-white font-bold text-xl active:scale-[0.98]" style={{backgroundColor:BRAND}}>
             <Play className="w-6 h-6"/>התחל
           </button>
