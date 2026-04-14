@@ -13,6 +13,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import AppLoader from '@/components/AppLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
+import { ClockProvider } from './contexts/ClockContext';
 import TraineeHome from './pages/TraineeHome';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -64,7 +65,7 @@ const AuthenticatedApp = () => {
   const isCoach = user?.role === 'coach' || user?.isCoach === true || user?.role === 'admin';
   const isTrainee = user?.role === 'trainee' || user?.role === 'user';
   const traineeOnlyPages = new Set(['TraineeHome', 'MyPlan', 'MyWorkoutLog', 'Progress', 'MyAttendance', 'Forms']);
-  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile']);
+  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks']);
 
   const PageRouteGuard = ({ pageKey, children }) => {
     if (isLoadingAuth) {
@@ -138,15 +139,17 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <NavigationTracker />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="*" element={<AuthenticatedApp />} />
-          </Routes>
-        </Router>
-        <Toaster />
-        <VisualEditAgent />
+        <ClockProvider>
+          <Router>
+            <NavigationTracker />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="*" element={<AuthenticatedApp />} />
+            </Routes>
+          </Router>
+          <Toaster />
+          <VisualEditAgent />
+        </ClockProvider>
       </QueryClientProvider>
     </AuthProvider>
   )

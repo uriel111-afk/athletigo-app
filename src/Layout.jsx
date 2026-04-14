@@ -28,9 +28,11 @@ import {
   UserPlus,
   BarChart3,
   Bell,
-  Zap
+  Zap,
+  Clock
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import FloatingClockBar from "@/components/FloatingClockBar";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
 const LOGO_ICON = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/64e812e61_Untitleddesign3.jpg";
@@ -64,6 +66,8 @@ export default function Layout({ children, currentPageName }) {
     { title: "סיכום כספי", url: createPageUrl("FinancialOverview"), icon: DollarSign, section: "business" },
     { title: "חבילות", url: createPageUrl("PackageStats"), icon: ClipboardList, section: "business" },
     { title: "המרות", url: createPageUrl("ConversionDashboard"), icon: TrendingUp, section: "business" },
+    // ── כלים ──
+    { title: "שעונים", url: createPageUrl("Clocks"), icon: Clock, section: "content" },
     // ── הגדרות ──
     { title: "פרופיל מאמן", url: createPageUrl("CoachProfile"), icon: User, section: "settings" },
   ];
@@ -95,6 +99,12 @@ export default function Layout({ children, currentPageName }) {
       section: "trainee"
     },
 
+    {
+      title: "שעונים",
+      url: createPageUrl("Clocks"),
+      icon: Clock,
+      section: "trainee"
+    },
     {
       title: "פרופיל מתאמן",
       url: createPageUrl("TraineeProfile"),
@@ -335,6 +345,9 @@ export default function Layout({ children, currentPageName }) {
               {children}
             </ErrorBoundary>
           </div>
+
+          {/* Floating Clock Bar */}
+          <FloatingClockBar />
 
           {/* Mobile Bottom Navigation */}
           <div className="md:hidden flex-shrink-0 safe-area-bottom z-50"

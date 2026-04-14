@@ -71,6 +71,7 @@ import TraineeHome from './pages/TraineeHome';
 import TraineeProfile from './pages/TraineeProfile';
 import TrainingPlans from './pages/TrainingPlans';
 import TrainingPlanView from './pages/TrainingPlanView';
+import Clocks from './pages/Clocks';
 import __Layout from './Layout.jsx';
 
 
@@ -99,6 +100,7 @@ export const PAGES = {
     "TraineeProfile": TraineeProfile,
     "TrainingPlans": TrainingPlans,
     "TrainingPlanView": TrainingPlanView,
+    "Clocks": Clocks,
 }
 
 export const pagesConfig = {
