@@ -146,17 +146,10 @@ function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPaus
         {phaseLabel}
       </div>
 
-      {/* Giant number */}
-      {showMs ? (
-        <div className="flex items-end justify-center tabular-nums" style={{ lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
-          <span className="font-black" style={{ fontSize: 'clamp(140px, 32vw, 260px)' }}>{fmtStopwatch(ms).main}</span>
-          <span className="font-black" style={{ fontSize: 'clamp(50px, 11vw, 90px)', marginBottom: '0.05em' }}>{fmtStopwatch(ms).ms}</span>
-        </div>
-      ) : (
-        <div className="font-black text-center tabular-nums" style={{ fontSize: 'clamp(200px, 45vw, 380px)', lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
-          {useMMSS ? fmtMMSS(ms) : fmt(ms)}
-        </div>
-      )}
+      {/* Giant number — uniform size for all modes */}
+      <div className="font-black text-center tabular-nums" style={{ fontSize: showMs ? 'clamp(70px, 16vw, 140px)' : 'clamp(200px, 45vw, 380px)', lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
+        {showMs ? `${fmtStopwatch(ms).main}${fmtStopwatch(ms).ms}` : (useMMSS ? fmtMMSS(ms) : fmt(ms))}
+      </div>
 
       {/* Round info */}
       {roundInfo && (
@@ -218,9 +211,8 @@ function StopwatchView() {
 
   return (
     <div className="px-4 py-8 flex flex-col items-center">
-      <div className="flex items-end justify-center tabular-nums text-gray-300 mb-8" style={{lineHeight:1,fontFamily:'system-ui,sans-serif'}}>
-        <span className="font-black" style={{fontSize:'clamp(140px,32vw,260px)'}}>00:00</span>
-        <span className="font-black" style={{fontSize:'clamp(50px,11vw,90px)',marginBottom:'0.05em'}}>.00</span>
+      <div className="text-center font-black tabular-nums text-gray-300 mb-8" style={{fontSize:'clamp(70px,16vw,140px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>
+        00:00.00
       </div>
       <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:80,height:80}}>
         <Play className="w-10 h-10 text-white" />
