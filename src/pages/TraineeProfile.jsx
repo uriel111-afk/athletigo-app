@@ -424,6 +424,13 @@ export default function TraineeProfile() {
       };
   };
 
+  const { data: baselines = [], isLoading: baselinesLoading } = useQuery({
+    queryKey: ['baselines', user?.id],
+    queryFn: () => base44.entities.Baseline.filter({ trainee_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
+  });
+
   const { data: coach, isLoading: coachLoading } = useQuery({
     queryKey: ['trainee-coach', user?.id],
     queryFn: async () => {
@@ -1066,7 +1073,7 @@ export default function TraineeProfile() {
   // Group results by type for Achievements tab
   const groupedResults = React.useMemo(() => {
     const groups = {};
-    results.forEach(r => {
+    results.filter(r => r.category !== 'baseline' && r.record_type !== 'baseline').forEach(r => {
       const type = r.record_type || 'אחר';
       if (!groups[type]) groups[type] = [];
       groups[type].push(r);
@@ -1122,7 +1129,7 @@ export default function TraineeProfile() {
   }
 
   // Full loading gate — show branded loader until user AND ALL tab data are ready
-  const coreDataLoading = profileLoading || !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading || attendanceLoading || workoutLoading || coachLoading;
+  const coreDataLoading = profileLoading || !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading || attendanceLoading || workoutLoading || coachLoading || baselinesLoading;
 
   if (coreDataLoading) {
     return (
@@ -1149,6 +1156,7 @@ export default function TraineeProfile() {
     { id: 'attendance', label: 'מפגשים', icon: Calendar },
     { id: 'metrics', label: 'מדידות', icon: Activity },
     { id: 'achievements', label: 'שיאים', icon: Award },
+    { id: 'baselines', label: 'בייסליין', icon: Zap },
     { id: 'goals', label: 'יעדים', icon: Target },
     { id: 'services', label: 'חבילות', icon: Package },
     { id: 'documents', label: 'מסמכים', icon: FileText },
@@ -1467,6 +1475,48 @@ export default function TraineeProfile() {
                         onDelete={(id) => { if (window.confirm('למחוק?')) deleteResultMutation.mutate(id); }}
                       />
                     ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Baselines Tab */}
+              <TabsContent value="baselines" className="space-y-4 w-full">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין</h2>
+                  {isCoach && (
+                    <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                      <Plus className="w-3 h-3 ml-1" />הוסף בייסליין
+                    </Button>
+                  )}
+                </div>
+                {baselines.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
+                ) : (
+                  <div className="space-y-3">
+                    {baselines.map(b => {
+                      const techColors = { basic: '#FF6F20', foot_switch: '#2196F3', high_knees: '#4CAF50' };
+                      const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees' };
+                      return (
+                        <button key={b.id} onClick={() => setShowBaselineDetail(b.id)}
+                          className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-right active:scale-[0.98] transition-transform">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-bold text-base text-gray-900">Baseline — {techLabels[b.technique] || b.technique}</h4>
+                              <p className="text-xs text-gray-500 mt-0.5">{new Date(b.date).toLocaleDateString('he-IL')} • {b.rounds_count} סיבובים × {b.work_time_seconds} שניות</p>
+                            </div>
+                            <div className="text-left">
+                              <span className="text-xl font-black" style={{ color: techColors[b.technique] || '#FF6F20' }}>{b.baseline_score}</span>
+                              <span className="text-xs font-bold text-gray-400 block">JPS</span>
+                            </div>
+                          </div>
+                          <div className="text-right text-sm mt-2">
+                            <span className="text-gray-500 font-medium">סה"כ: </span><span className="text-gray-900">{b.total_jumps} קפיצות</span>
+                            <span className="text-gray-300 mx-2">|</span>
+                            <span className="text-gray-500 font-medium">ממוצע: </span><span className="text-gray-900">{b.average_jumps}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>

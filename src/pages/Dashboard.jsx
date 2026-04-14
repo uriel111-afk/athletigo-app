@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import {
   Users, UserPlus, Calendar, ClipboardList, Loader2,
   Target, Plus, Award, Search, Dumbbell, Bell,
-  DollarSign, Ruler, LogOut, Package
+  DollarSign, Ruler, LogOut, Package, Zap
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -24,6 +24,7 @@ import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
 import PackageFormDialog from "../components/forms/PackageFormDialog";
+import BaselineFormDialog from "../components/forms/BaselineFormDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
@@ -58,6 +59,7 @@ export default function Dashboard() {
 
   const [showActionPicker, setShowActionPicker] = useState(false);
   const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
+  const [isBaselineDialogOpen, setIsBaselineDialogOpen] = useState(false);
 
   // Trainee selection for goal/result/measurement actions
   const [showSelectTraineeDialog, setShowSelectTraineeDialog] = useState(false);
@@ -98,6 +100,7 @@ export default function Dashboard() {
     if (pendingAction === "result") setIsResultDialogOpen(true);
     if (pendingAction === "measurement") setIsMeasurementDialogOpen(true);
     if (pendingAction === "package") setIsPackageDialogOpen(true);
+    if (pendingAction === "baseline") setIsBaselineDialogOpen(true);
   };
 
   // ── Mutations ───────────────────────────────────────────────────────
@@ -235,13 +238,14 @@ export default function Dashboard() {
 
           {/* ═══ SECTION 3 — גישה מהירה ═══════════════════════ */}
           <SectionHeader title="גישה מהירה" />
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
-              { label: "שיאים ויעדים", icon: Award,      action: () => setShowActionPicker(true) },
-              { label: "מדידות",       icon: Ruler,       action: () => handleActionClick("measurement") },
-              { label: "חבילה",        icon: Package,     action: () => handleActionClick("package") },
-              { label: "דוח כספי",     icon: DollarSign,  action: () => navigate(createPageUrl("FinancialOverview") + "?period=current_month") },
-              { label: "התראות",       icon: Bell,        action: () => navigate(createPageUrl("Notifications")) },
+              { label: "שיא",       icon: Award,      action: () => handleActionClick("result") },
+              { label: "יעד",       icon: Target,     action: () => handleActionClick("goal") },
+              { label: "בייסליין",  icon: Zap,        action: () => handleActionClick("baseline") },
+              { label: "מדידה",     icon: Ruler,      action: () => handleActionClick("measurement") },
+              { label: "חבילה",     icon: Package,    action: () => handleActionClick("package") },
+              { label: "התראות",    icon: Bell,       action: () => navigate(createPageUrl("Notifications")) },
             ].map((q) => (
               <button key={q.label} onClick={q.action}
                 className="bg-white rounded-xl border border-gray-100 shadow-sm py-3 flex flex-col items-center gap-1.5 cursor-pointer hover:border-[#FF6F20]/30 hover:shadow-md transition-all active:scale-[0.97]">
@@ -272,25 +276,9 @@ export default function Dashboard() {
         onSubmit={async (data) => { await createPlanMutation.mutateAsync(data); }}
         trainees={allTrainees} isLoading={createPlanMutation.isPending} />
 
-      {/* Action Picker — שיא או יעד */}
-      <Dialog open={showActionPicker} onOpenChange={setShowActionPicker}>
-        <DialogContent className="w-[80vw] max-w-xs p-4 bg-white" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-right">מה להוסיף?</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            <button onClick={() => { setShowActionPicker(false); handleActionClick("result"); }}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-100 hover:border-[#FF6F20] hover:bg-orange-50 transition-all active:scale-95">
-              <Award className="w-8 h-8 text-[#FF6F20]" />
-              <span className="text-sm font-bold text-gray-800">הוסף שיא</span>
-            </button>
-            <button onClick={() => { setShowActionPicker(false); handleActionClick("goal"); }}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-100 hover:border-[#FF6F20] hover:bg-orange-50 transition-all active:scale-95">
-              <Target className="w-8 h-8 text-[#FF6F20]" />
-              <span className="text-sm font-bold text-gray-800">הוסף יעד</span>
-            </button>
-          </div>
-        </DialogContent>
+      {/* Action Picker removed — שיא/יעד/בייסליין are separate buttons now */}
+      <Dialog open={false} onOpenChange={() => {}}>
+        <DialogContent><div /></DialogContent>
       </Dialog>
 
       {/* Select Trainee Dialog */}
@@ -329,6 +317,8 @@ export default function Dashboard() {
           <MeasurementFormDialog isOpen={isMeasurementDialogOpen} onClose={() => setIsMeasurementDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
           <PackageFormDialog isOpen={isPackageDialogOpen} onClose={() => setIsPackageDialogOpen(false)}
+            traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
+          <BaselineFormDialog isOpen={isBaselineDialogOpen} onClose={() => setIsBaselineDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
         </>
       )}
