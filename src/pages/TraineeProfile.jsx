@@ -273,7 +273,7 @@ export default function TraineeProfile() {
     retry: false
   });
 
-  const isCoach = currentUser?.isCoach || currentUser?.role === 'admin';
+  const isCoach = currentUser?.is_coach === true || currentUser?.role === 'coach' || currentUser?.role === 'admin';
 
   const { data: targetUser, isLoading: targetUserLoading, isError: targetUserError } = useQuery({
     queryKey: ['target-user-profile', userIdParam],
