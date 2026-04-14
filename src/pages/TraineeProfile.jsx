@@ -181,6 +181,8 @@ export default function TraineeProfile() {
   const [editingResult, setEditingResult] = useState(null);
   const [showBaselineForm, setShowBaselineForm] = useState(false);
   const [showBaselineDetail, setShowBaselineDetail] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPass: "", confirm: "" });
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -1356,78 +1358,14 @@ export default function TraineeProfile() {
 
                 {/* Delete Trainee — coach only */}
                 {isCoach && userIdParam && (
-                  <button onClick={() => {
-                    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את ${user.full_name}?\n\nפעולה זו תמחק את כל הנתונים הקשורים אליו לצמיתות.`)) return;
-                    if (!window.confirm(`אישור סופי: למחוק את ${user.full_name}? אי אפשר לשחזר.`)) return;
-                    (async () => {
-                      const tid = userIdParam;
-                      try {
-                        toast.loading("מוחק מתאמן ונתונים...");
-                        // Delete related data from all tables
-                        const tables = [
-                          { entity: 'ServiceTransaction', filter: null, raw: true },
-                          { entity: 'ServicePayment', filter: null, raw: true },
-                          { entity: 'ClientService', filter: { trainee_id: tid } },
-                          { entity: 'Measurement', filter: { trainee_id: tid } },
-                          { entity: 'ResultsLog', filter: { trainee_id: tid } },
-                          { entity: 'Baseline', filter: { trainee_id: tid } },
-                          { entity: 'Goal', filter: { trainee_id: tid } },
-                          { entity: 'Notification', filter: { user_id: tid } },
-                          { entity: 'Message', filter: null, raw: true },
-                          { entity: 'AttendanceLog', filter: { user_id: tid } },
-                        ];
-                        // Delete services-related first
-                        try {
-                          const svcs = await base44.entities.ClientService.filter({ trainee_id: tid });
-                          for (const svc of svcs) {
-                            try { await supabase.from('service_transactions').delete().eq('service_id', svc.id); } catch {}
-                            try { await supabase.from('service_payments').delete().eq('service_id', svc.id); } catch {}
-                          }
-                        } catch {}
-                        // Delete from each table
-                        for (const t of tables) {
-                          if (t.raw || !t.filter) continue;
-                          try {
-                            const items = await base44.entities[t.entity].filter(t.filter);
-                            for (const item of items) { try { await base44.entities[t.entity].delete(item.id); } catch {} }
-                          } catch {}
-                        }
-                        // Delete messages
-                        try { await supabase.from('messages').delete().eq('sender_id', tid); } catch {}
-                        try { await supabase.from('messages').delete().eq('receiver_id', tid); } catch {}
-                        // Delete sessions with this trainee
-                        try { await supabase.from('sessions').delete().contains('participants', JSON.stringify([{ trainee_id: tid }])); } catch {}
-                        // Delete training plans
-                        try {
-                          const plans = await base44.entities.TrainingPlan.filter({ assigned_to: tid });
-                          for (const p of plans) {
-                            try { await supabase.from('exercises').delete().in('section_id', (await supabase.from('training_sections').select('id').eq('plan_id', p.id)).data?.map(s => s.id) || []); } catch {}
-                            try { await supabase.from('training_sections').delete().eq('plan_id', p.id); } catch {}
-                            try { await base44.entities.TrainingPlan.delete(p.id); } catch {}
-                          }
-                        } catch {}
-                        // Delete user profile
-                        try { await supabase.from('users').delete().eq('id', tid); } catch {}
-                        // Try to delete auth user via Edge Function (optional)
-                        try { await supabase.functions.invoke('delete-trainee', { body: { trainee_id: tid } }); } catch {}
-
-                        toast.dismiss();
-                        toast.success(`${user.full_name} נמחק בהצלחה`);
-                        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-                        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
-                        navigate('/');
-                      } catch (err) {
-                        toast.dismiss();
-                        toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
-                        console.error("[DeleteTrainee]", err);
-                      }
-                    })();
-                  }}
-                    className="w-full rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform border border-red-200 bg-red-50 mt-4">
-                    <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><Trash2 className="w-4 h-4 text-red-500" /></div>
-                    <div className="font-bold text-xs text-red-600">מחק מתאמן</div>
-                  </button>
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] text-gray-400 font-medium mb-2 text-right">אזור מסוכן</p>
+                    <button onClick={() => setShowDeleteConfirm(true)}
+                      className="w-full rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform border border-red-300 bg-white hover:bg-red-50">
+                      <Trash2 className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <span className="font-bold text-sm text-red-600">מחק מתאמן</span>
+                    </button>
+                  </div>
                 )}
               </TabsContent>
 
@@ -1982,6 +1920,99 @@ export default function TraineeProfile() {
           </DialogContent>
         </Dialog>
 
+
+        {/* Delete Trainee Confirmation Dialog */}
+        <Dialog open={showDeleteConfirm} onOpenChange={(open) => { if (!deleting) setShowDeleteConfirm(open); }}>
+          <DialogContent className="w-[90vw] max-w-md" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-red-600 flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />מחיקת מתאמן
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-700 text-right">
+                האם אתה בטוח שברצונך למחוק את <strong>{user.full_name}</strong>?
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-right text-xs text-red-700 space-y-1">
+                <p className="font-bold">פעולה זו תמחק לצמיתות את:</p>
+                <ul className="list-disc list-inside space-y-0.5 mr-2">
+                  <li>כל המפגשים שלו</li>
+                  <li>כל התוכניות שלו</li>
+                  <li>כל המדידות והשיאים</li>
+                  <li>כל החבילות והתשלומים</li>
+                  <li>כל המסמכים והיעדים</li>
+                  <li>כל היסטוריית האימון</li>
+                </ul>
+                <p className="font-bold pt-1">הפעולה אינה ניתנת לביטול.</p>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}
+                  className="flex-1 rounded-xl">ביטול</Button>
+                <Button onClick={async () => {
+                  const tid = userIdParam;
+                  if (!tid) return;
+                  setDeleting(true);
+                  try {
+                    // 1. Delete service transactions & payments
+                    const { data: svcs } = await supabase.from('client_services').select('id').eq('trainee_id', tid);
+                    if (svcs?.length) {
+                      const svcIds = svcs.map(s => s.id);
+                      await supabase.from('service_transactions').delete().in('service_id', svcIds);
+                      await supabase.from('service_payments').delete().in('service_id', svcIds);
+                    }
+                    // 2. Delete direct child tables
+                    await supabase.from('client_services').delete().eq('trainee_id', tid);
+                    await supabase.from('measurements').delete().eq('trainee_id', tid);
+                    await supabase.from('results_log').delete().eq('trainee_id', tid);
+                    await supabase.from('baselines').delete().eq('trainee_id', tid);
+                    await supabase.from('goals').delete().eq('trainee_id', tid);
+                    await supabase.from('notifications').delete().eq('user_id', tid);
+                    await supabase.from('messages').delete().eq('sender_id', tid);
+                    await supabase.from('messages').delete().eq('receiver_id', tid);
+                    await supabase.from('attendance_log').delete().eq('user_id', tid);
+                    await supabase.from('workout_logs').delete().eq('user_id', tid);
+                    await supabase.from('workout_history').delete().eq('user_id', tid);
+                    await supabase.from('reflections').delete().eq('user_id', tid);
+                    // 3. Delete training plans cascade
+                    const { data: plans } = await supabase.from('training_plans').select('id').or(`assigned_to.eq.${tid},created_by.eq.${tid}`);
+                    if (plans?.length) {
+                      const planIds = plans.map(p => p.id);
+                      const { data: sections } = await supabase.from('training_sections').select('id').in('plan_id', planIds);
+                      if (sections?.length) await supabase.from('exercises').delete().in('section_id', sections.map(s => s.id));
+                      await supabase.from('training_sections').delete().in('plan_id', planIds);
+                      await supabase.from('training_plans').delete().in('id', planIds);
+                    }
+                    // 4. Delete sessions
+                    const { data: allSessions } = await supabase.from('sessions').select('id,participants');
+                    const sessionsToDelete = (allSessions || []).filter(s =>
+                      s.participants?.some(p => p.trainee_id === tid)
+                    );
+                    if (sessionsToDelete.length) await supabase.from('sessions').delete().in('id', sessionsToDelete.map(s => s.id));
+                    // 5. Delete user
+                    await supabase.from('users').delete().eq('id', tid);
+                    // 6. Try auth cleanup
+                    try { await supabase.functions.invoke('delete-trainee', { body: { trainee_id: tid } }); } catch {}
+
+                    toast.success(`${user.full_name} נמחק בהצלחה`);
+                    setShowDeleteConfirm(false);
+                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
+                    queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                    navigate('/');
+                  } catch (err) {
+                    console.error("[DeleteTrainee]", err);
+                    toast.error("לא הצלחנו למחוק את המתאמן. נסה שוב או פנה לתמיכה.");
+                  } finally {
+                    setDeleting(false);
+                  }
+                }} disabled={deleting}
+                  className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold">
+                  {deleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />מוחק...</> : 'כן, מחק לצמיתות'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </ErrorBoundary>
