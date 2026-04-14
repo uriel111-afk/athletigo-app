@@ -1089,8 +1089,8 @@ export default function TraineeProfile() {
   // Group results by type for Achievements tab
   const groupedResults = React.useMemo(() => {
     const groups = {};
-    results.filter(r => r.category !== 'baseline' && r.record_type !== 'baseline').forEach(r => {
-      const type = r.record_type || 'אחר';
+    results.filter(r => r.category !== 'baseline').forEach(r => {
+      const type = r.skill_or_exercise || 'אחר';
       if (!groups[type]) groups[type] = [];
       groups[type].push(r);
     });

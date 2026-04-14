@@ -106,6 +106,8 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
       const now = new Date();
       const roundsData = rounds.map((r, i) => ({ round: i + 1, jumps: parseInt(r.jumps) || 0, misses: parseInt(r.misses) || 0 }));
 
+      console.log("[BaselineForm] Saving baseline...", { traineeId, technique, score: calc.score });
+
       // 1. Save to baselines table
       const baseline = await base44.entities.Baseline.create({
         trainee_id: traineeId,
@@ -123,15 +125,16 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
         notes: notes || null,
       });
 
+      console.log("[BaselineForm] Baseline saved:", baseline.id);
+
       // 2. Save to results_log for display in achievements tab
       const techLabel = TECHNIQUES.find(t => t.id === technique)?.label || technique;
       await base44.entities.ResultsLog.create({
         trainee_id: traineeId,
-        coach_id: coach?.id || null,
+        created_by: coach?.id || null,
         title: `Baseline - ${techLabel}`,
         record_value: calc.score,
         record_unit: 'JPS',
-        record_type: 'baseline',
         category: 'baseline',
         date: now.toISOString().split('T')[0],
         baseline_id: baseline.id,
