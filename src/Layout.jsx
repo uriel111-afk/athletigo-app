@@ -450,7 +450,7 @@ export default function Layout({ children, currentPageName }) {
                     }}
                   >
                     <Calendar className="w-6 h-6" />
-                    <span className="text-xs font-bold">סשנים</span>
+                    <span className="text-xs font-bold">מפגשים</span>
                   </Link>
 
                   <Link
