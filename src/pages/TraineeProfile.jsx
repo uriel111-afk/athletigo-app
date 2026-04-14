@@ -1691,7 +1691,36 @@ export default function TraineeProfile() {
                                     </div>
                                   )}
                                   {isCoach && service.notes_internal && <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100"><span className="font-bold">🔒 הערות פנימיות:</span> {service.notes_internal}</div>}
-                                  {isCoach && <div className="pt-2 border-t border-gray-100 flex justify-end"><Button variant="ghost" size="sm" className="text-xs h-9" onClick={() => openEditService(service)}><Edit2 className="w-3 h-3 ml-1 text-gray-400" />ערוך</Button></div>}
+                                  {isCoach && (
+                                    <div className="pt-2 border-t border-gray-100 flex justify-between">
+                                      <Button variant="ghost" size="sm" className="text-xs h-9 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                        onClick={async () => {
+                                          if (!window.confirm(`למחוק את החבילה "${service.package_name || service.group_name || 'ללא שם'}"?\n\nפעולה זו תמחק את החבילה ואת כל התשלומים והתנועות הקשורים אליה לצמיתות.`)) return;
+                                          try {
+                                            // Unlink sessions (don't delete them)
+                                            try { await supabase.from('sessions').update({ service_id: null }).eq('service_id', service.id); } catch {}
+                                            // Delete related records
+                                            try { await supabase.from('service_transactions').delete().eq('service_id', service.id); } catch {}
+                                            try { await supabase.from('service_payments').delete().eq('service_id', service.id); } catch {}
+                                            // Delete the package
+                                            await supabase.from('client_services').delete().eq('id', service.id);
+                                            queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                                            queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+                                            queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                            queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                                            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                            toast.success("החבילה נמחקה");
+                                          } catch (err) {
+                                            toast.error("שגיאה במחיקת חבילה: " + (err?.message || "נסה שוב"));
+                                          }
+                                        }}>
+                                        <Trash2 className="w-3 h-3 ml-1" />מחק
+                                      </Button>
+                                      <Button variant="ghost" size="sm" className="text-xs h-9" onClick={() => openEditService(service)}>
+                                        <Edit2 className="w-3 h-3 ml-1 text-gray-400" />ערוך
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             );
