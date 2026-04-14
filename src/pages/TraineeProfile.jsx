@@ -1775,11 +1775,47 @@ export default function TraineeProfile() {
                     </Button>
                   )}
                 </div>
+
+                {/* Stats */}
+                {(() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+                  const thisWeek = sessions.filter(s => s.date >= weekAgo && s.date <= today);
+                  const completed = sessions.filter(s => s.participants?.some(p => p.trainee_id === user.id && (p.attendance_status === 'הגיע' || p.attendance_status === 'התקיים')));
+                  const upcoming = sessions.filter(s => s.date >= today);
+                  return (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                        <div className="text-xl font-black text-[#FF6F20]">{thisWeek.length}</div>
+                        <div className="text-[10px] text-gray-500 font-medium">השבוע</div>
+                      </div>
+                      <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                        <div className="text-xl font-black text-green-600">{completed.length}</div>
+                        <div className="text-[10px] text-gray-500 font-medium">בוצעו</div>
+                      </div>
+                      <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                        <div className="text-xl font-black text-blue-600">{upcoming.length}</div>
+                        <div className="text-[10px] text-gray-500 font-medium">מתוכננים</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {sessions.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Calendar className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">לא נמצאו מפגשים</p></div>
                 ) : (
-                  <div className="space-y-3">
-                    {[...sessions].sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)).map(session => {
+                  <div className="space-y-4">
+                    {/* Upcoming */}
+                    {(() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      const upcomingSessions = [...sessions].filter(s => s.date >= today).sort((a, b) => new Date(a.date) - new Date(b.date));
+                      const pastSessions = [...sessions].filter(s => s.date < today).sort((a, b) => new Date(b.date) - new Date(a.date));
+                      return (<>
+                        {upcomingSessions.length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-1">מפגשים קרובים <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">{upcomingSessions.length}</span></h3>
+                            <div className="space-y-2">
+                              {upcomingSessions.map(session => {
                       const participant = session.participants?.find(p => p.trainee_id === user.id);
                       const displayStatus = participant?.attendance_status || session.status || 'ממתין';
                       const typeColors = { 'אישי': { bg: '#F3E8FF', border: '#D8B4FE', text: '#7C3AED' }, 'קבוצתי': { bg: '#DBEAFE', border: '#93C5FD', text: '#2563EB' }, 'אונליין': { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' } };
@@ -1845,6 +1881,35 @@ export default function TraineeProfile() {
                         </div>
                       );
                     })}
+                            </div>
+                          </div>
+                        )}
+                        {pastSessions.length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-1">היסטוריה <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{pastSessions.length}</span></h3>
+                            <div className="space-y-2">
+                              {pastSessions.map(session => {
+                                const participant = session.participants?.find(p => p.trainee_id === user.id);
+                                const displayStatus = participant?.attendance_status || session.status || 'ממתין';
+                                const typeColors = { 'אישי': { bg: '#F3E8FF', border: '#D8B4FE', text: '#7C3AED' }, 'קבוצתי': { bg: '#DBEAFE', border: '#93C5FD', text: '#2563EB' }, 'אונליין': { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' } };
+                                const tc = typeColors[session.session_type] || typeColors['אישי'];
+                                const statusColors = { 'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800', 'בוטל': 'bg-red-100 text-red-800', 'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800' };
+                                return (
+                                  <div key={session.id} className="bg-gray-50 rounded-xl border border-gray-100 p-3" dir="rtl">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text }}>{session.session_type}</span>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-700">{format(new Date(session.date), 'dd/MM/yy', { locale: he })}</div>
+                                    <div className="text-xs text-gray-400">{session.time} • {session.location || 'לא צוין'}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </>);
+                    })()}
                   </div>
                 )}
               </TabsContent>
