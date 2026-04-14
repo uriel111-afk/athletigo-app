@@ -25,15 +25,15 @@ function fmtTotal(sec) { return `${String(Math.floor(sec/60)).padStart(2,'0')}:$
 
 function CircleClock({ ms, total, phase }) {
   const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;
-  const r = 120, circ = 2 * Math.PI * r;
+  const r = 170, circ = 2 * Math.PI * r;
   const progress = total > 0 ? Math.max(0, Math.min(1, ms / total)) : (phase === 'running' ? 1 : 0);
   return (
     <div className="flex justify-center">
-      <svg width="240" height="240" viewBox="0 0 280 280">
-        <circle cx="140" cy="140" r={r} fill="none" stroke="#F3F4F6" strokeWidth="10" />
-        <circle cx="140" cy="140" r={r} fill="none" stroke={c.stroke} strokeWidth="12" strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={circ*(1-progress)} transform="rotate(-90 140 140)" style={{ transition: 'stroke-dashoffset 0.1s linear' }} />
-        <text x="140" y="150" textAnchor="middle" fontSize="52" fontWeight="900" fontFamily="'Courier New',monospace" fill={c.text}>{fmt(ms)}</text>
+      <svg className="w-full" style={{ maxWidth: 340, maxHeight: 340 }} viewBox="0 0 400 400">
+        <circle cx="200" cy="200" r={r} fill="none" stroke="#F3F4F6" strokeWidth="12" />
+        <circle cx="200" cy="200" r={r} fill="none" stroke={c.stroke} strokeWidth="16" strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={circ*(1-progress)} transform="rotate(-90 200 200)" style={{ transition: 'stroke-dashoffset 0.1s linear' }} />
+        <text x="200" y="215" textAnchor="middle" fontSize="90" fontWeight="900" fontFamily="'Courier New',monospace" fill={c.text}>{fmt(ms)}</text>
       </svg>
     </div>
   );
@@ -136,11 +136,11 @@ function SetDots({ current, total }) {
 
 function ControlRow({ isRunning, onPause, onResume, onStop }) {
   return (
-    <div className="flex gap-5 justify-center items-center mt-6">
-      {onStop && <button onClick={onStop} className="rounded-full bg-gray-100 text-red-500 flex items-center justify-center hover:bg-red-50 active:scale-90" style={{width:52,height:52}}><Square className="w-6 h-6"/></button>}
+    <div className="flex gap-6 justify-center items-center mt-6">
+      {onStop && <button onClick={onStop} className="rounded-full bg-gray-100 text-red-500 flex items-center justify-center hover:bg-red-50 active:scale-90" style={{width:60,height:60}}><Square className="w-7 h-7"/></button>}
       {isRunning
-        ? <button onClick={onPause} className="rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{backgroundColor:BRAND,width:72,height:72}}><Pause className="w-9 h-9 text-white"/></button>
-        : <button onClick={onResume} className="rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{backgroundColor:BRAND,width:72,height:72}}><Play className="w-9 h-9 text-white"/></button>
+        ? <button onClick={onPause} className="rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{backgroundColor:BRAND,width:84,height:84}}><Pause className="w-10 h-10 text-white"/></button>
+        : <button onClick={onResume} className="rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{backgroundColor:BRAND,width:84,height:84}}><Play className="w-10 h-10 text-white"/></button>
       }
     </div>
   );
@@ -153,7 +153,7 @@ function StopwatchView() {
   return (
     <div className="px-4 py-4">
       <CircleClock ms={display} total={0} phase={active&&isRunning?'running':active?'paused':'idle'} />
-      <div className="text-center text-5xl font-black font-mono text-gray-900 mt-3">{fmt(display,true)}</div>
+      <div className="text-center font-black font-mono text-gray-900 mt-3 tabular-nums" style={{fontSize:'clamp(80px,20vw,160px)'}}>{fmt(display,true)}</div>
       <div className="flex gap-4 justify-center items-center mt-6">
         {!active ? <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:72,height:72}}><Play className="w-9 h-9 text-white"/></button>
         : <>
@@ -193,11 +193,11 @@ function TimerView() {
   }
   return (
     <div className="px-4 py-4">
-      <div className="text-center text-2xl font-bold mb-2" style={{color:PHASE_COLORS[phase]?.text}}>{phase==='prepare'?'הכנה...':'טיימר'}</div>
+      <div className="text-center font-black mb-2" style={{fontSize:'clamp(32px,10vw,64px)',color:PHASE_COLORS[phase]?.text}}>{phase==='prepare'?'הכנה...':'טיימר'}</div>
       <div className="rounded-2xl p-4" style={{backgroundColor:PHASE_COLORS[phase]?.bg}}>
         <CircleClock ms={display} total={totalDuration} phase={phase} />
       </div>
-      <div className="text-center text-6xl font-black font-mono mt-3" style={{color:PHASE_COLORS[phase]?.text}}>{fmt(display)}</div>
+      <div className="text-center font-black font-mono mt-3 tabular-nums" style={{fontSize:'clamp(80px,20vw,160px)',color:PHASE_COLORS[phase]?.text}}>{fmt(display)}</div>
       <ControlRow isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
     </div>
   );
@@ -248,13 +248,13 @@ function TabataView() {
   return (
     <div className="px-4 py-4">
       <div className="text-center mb-3">
-        <div className="text-5xl font-black" style={{color:c.text}}>{phaseLabel}</div>
-        {roundInfo && <div className="text-base font-bold text-gray-400 mt-1">{roundInfo}</div>}
+        <div className="font-black" style={{fontSize:'clamp(40px,12vw,80px)',color:c.text}}>{phaseLabel}</div>
+        {roundInfo && <div className="text-xl font-bold text-gray-400 mt-1">{roundInfo}</div>}
       </div>
       <div className="rounded-2xl p-4" style={{backgroundColor:c.bg}}>
         <CircleClock ms={display} total={totalDuration} phase={phase} />
       </div>
-      <div className="text-center text-6xl font-black font-mono mt-3" style={{color:c.text}}>{fmt(display)}</div>
+      <div className="text-center font-black font-mono mt-3 tabular-nums" style={{fontSize:'clamp(80px,20vw,160px)',color:c.text}}>{fmt(display)}</div>
       <SetDots current={setProgress?.current||0} total={setProgress?.total||0} />
       <ControlRow isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
     </div>
