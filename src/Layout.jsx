@@ -289,14 +289,8 @@ export default function Layout({ children, currentPageName }) {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-xl"
-                style={{ backgroundColor: '#FFFFFF', border: `1px solid #E0E0E0` }}
-                title="התנתק"
-              >
-                <LogOut className="w-6 h-6" />
-              </button>
+              {/* Spacer to balance the hamburger on the other side */}
+              <div className="w-10" />
             </div>
           </header>
 
