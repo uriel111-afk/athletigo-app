@@ -497,15 +497,12 @@ export default function TraineeProfile() {
 
   const updateUserMutation = useMutation({
     mutationFn: (data) => {
-      console.log("[updateUserMutation] calling updateMe with:", data);
       return base44.auth.updateMe(data);
     },
     onSuccess: (serverData, _variables) => {
-      console.log("[updateUserMutation] onSuccess — server returned:", serverData);
       // Use server-returned data so local state matches what was actually saved
       setUser(prev => {
         const merged = prev ? { ...prev, ...serverData } : serverData;
-        console.log("[updateUserMutation] merged user state:", merged);
         return merged;
       });
       queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
@@ -719,14 +716,11 @@ export default function TraineeProfile() {
 
   const updateTargetUserMutation = useMutation({
     mutationFn: ({ id, data }) => {
-      console.log("[updateTargetUserMutation] calling User.update id:", id, "data:", data);
       return base44.entities.User.update(id, data);
     },
     onSuccess: (serverData, _variables) => {
-      console.log("[updateTargetUserMutation] onSuccess — server returned:", serverData);
       setUser(prev => {
         const merged = prev ? { ...prev, ...serverData } : serverData;
-        console.log("[updateTargetUserMutation] merged user state:", merged);
         return merged;
       });
       queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });

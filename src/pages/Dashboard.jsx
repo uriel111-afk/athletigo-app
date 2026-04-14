@@ -106,9 +106,7 @@ export default function Dashboard() {
   // ── Mutations ───────────────────────────────────────────────────────
   const createLeadMutation = useMutation({
     mutationFn: async (data) => {
-      console.log("[Dashboard] Creating lead:", data);
       const result = await base44.entities.Lead.create(data);
-      console.log("[Dashboard] Lead created:", result);
       return result;
     },
     onSuccess: () => {
@@ -124,7 +122,6 @@ export default function Dashboard() {
 
   const createSessionMutation = useMutation({
     mutationFn: (d) => {
-      console.log("[Dashboard] Creating session with:", JSON.stringify(d));
       return base44.entities.Session.create(d);
     },
     onSuccess: async (s) => {

@@ -114,7 +114,6 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
       const roundsData = rounds.map((r, i) => ({ round: i + 1, jumps: parseInt(r.jumps) || 0, misses: parseInt(r.misses) || 0 }));
       const techLabel = TECHNIQUES.find(t => t.id === technique)?.label || technique;
 
-      console.log("[BaselineForm] Saving...", { traineeId, technique, score: calc.score });
 
       // 1. INSERT to baselines
       const { data: baselineData, error: baselineErr } = await supabase
@@ -138,7 +137,6 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
         .single();
 
       if (baselineErr) throw baselineErr;
-      console.log("[BaselineForm] Baseline saved:", baselineData.id);
 
       // 2. INSERT to results_log (for achievements tab)
       const { error: resultErr } = await supabase
@@ -159,7 +157,6 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
         console.error("[BaselineForm] results_log insert failed:", resultErr);
         // Don't throw — baseline was saved, just log the issue
       } else {
-        console.log("[BaselineForm] results_log saved for baseline:", baselineData.id);
       }
 
       // 3. Invalidate caches
