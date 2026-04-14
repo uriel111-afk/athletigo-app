@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import {
   Users, UserPlus, Calendar, ClipboardList, Loader2,
   Target, Plus, Award, Search, Dumbbell, Bell,
-  DollarSign, Ruler, LogOut, Package, Zap
+  DollarSign, Ruler, LogOut, Package, Zap, Clock
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -249,6 +249,7 @@ export default function Dashboard() {
               { label: "בייסליין",  icon: Zap,        action: () => handleActionClick("baseline") },
               { label: "מדידה",     icon: Ruler,      action: () => handleActionClick("measurement") },
               { label: "חבילה",     icon: Package,    action: () => handleActionClick("package") },
+              { label: "שעונים",    icon: Clock,      action: () => navigate(createPageUrl("Clocks")) },
               { label: "התראות",    icon: Bell,       action: () => navigate(createPageUrl("Notifications")) },
             ].map((q) => (
               <button key={q.label} onClick={q.action}

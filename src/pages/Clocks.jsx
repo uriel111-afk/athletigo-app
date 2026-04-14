@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, Square, Hourglass, Dumbbell, Coffee, Repeat, Layers, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, Square, Dumbbell, Coffee, Repeat, Hourglass, PersonStanding, Armchair } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 
 const BRAND = '#F97316';
+
 const PHASE_COLORS = {
   prepare: { bg: '#FEF3C7', stroke: '#F59E0B', text: '#92400E' },
   work: { bg: '#D1FAE5', stroke: '#10B981', text: '#065F46' },
@@ -25,16 +25,22 @@ function fmt(ms, showMs = false) {
   return `${base}.${String(Math.floor((ms % 1000) / 10)).padStart(2, '0')}`;
 }
 
-function CircleClock({ ms, total, phase }) {
+function fmtTotal(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function CircleClock({ ms, total, phase, size = 220 }) {
   const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;
   const r = 120;
   const circ = 2 * Math.PI * r;
-  const progress = total > 0 ? Math.max(0, Math.min(1, ms / total)) : 0;
+  const progress = total > 0 ? Math.max(0, Math.min(1, ms / total)) : (phase === 'running' ? 1 : 0);
   const offset = circ * (1 - progress);
   return (
     <div className="flex justify-center">
-      <svg width="220" height="220" viewBox="0 0 280 280">
-        <circle cx="140" cy="140" r={r} fill="none" stroke="#E5E7EB" strokeWidth="10" />
+      <svg width={size} height={size} viewBox="0 0 280 280">
+        <circle cx="140" cy="140" r={r} fill="none" stroke="#F3F4F6" strokeWidth="10" />
         <circle cx="140" cy="140" r={r} fill="none" stroke={c.stroke} strokeWidth="12" strokeLinecap="round"
           strokeDasharray={circ} strokeDashoffset={offset}
           transform="rotate(-90 140 140)" style={{ transition: 'stroke-dashoffset 0.1s linear' }} />
@@ -46,57 +52,62 @@ function CircleClock({ ms, total, phase }) {
   );
 }
 
-function SettingRow({ icon: Icon, label, value, onChange, min = 0, max = 999, suffix }) {
+// ─── Tabata Setting Row ───
+function SettingRow({ icon: Icon, label, value, onChange, min = 0, max = 999, step = 1 }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-      <div className="flex items-center gap-3">
-        <Icon className="w-5 h-5" style={{ color: BRAND }} />
-        <span className="text-sm font-bold text-gray-800">{label}</span>
+    <div className="flex items-center py-4 border-b border-gray-100 last:border-0">
+      <div className="w-12 flex justify-center flex-shrink-0">
+        <Icon className="w-6 h-6" style={{ color: BRAND }} />
       </div>
-      <div className="flex items-center gap-2">
-        <button onClick={() => onChange(Math.max(min, value - (suffix === 'שנ' ? 5 : 1)))}
-          className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-95">−</button>
-        <div className="w-14 text-center">
-          <span className="text-lg font-black text-gray-900">{value}</span>
-          {suffix && <span className="text-[10px] text-gray-400 block -mt-1">{suffix}</span>}
+      <div className="flex-1 text-center">
+        <div className="text-xs font-bold text-gray-500 mb-1">{label}</div>
+        <div className="flex items-center justify-center gap-4">
+          <button onClick={() => onChange(Math.max(min, value - step))}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-sm active:scale-90" style={{ backgroundColor: BRAND }}>
+            −
+          </button>
+          <span className="text-3xl font-black text-gray-900 w-16 text-center tabular-nums">{value}</span>
+          <button onClick={() => onChange(Math.min(max, value + step))}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-sm active:scale-90" style={{ backgroundColor: BRAND }}>
+            +
+          </button>
         </div>
-        <button onClick={() => onChange(Math.min(max, value + (suffix === 'שנ' ? 5 : 1)))}
-          className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-95">+</button>
       </div>
     </div>
   );
 }
 
 function SetDots({ current, total }) {
+  if (total <= 1) return null;
   return (
-    <div className="flex justify-center gap-2 mt-2">
+    <div className="flex justify-center gap-2 mt-3">
       {Array.from({ length: total }, (_, i) => (
-        <div key={i} className={`w-3 h-3 rounded-full ${i < current ? 'bg-[#F97316]' : 'bg-gray-200'}`} />
+        <div key={i} className={`w-3 h-3 rounded-full transition-colors ${i <= current ? 'bg-[#F97316]' : 'bg-gray-200'}`} />
       ))}
     </div>
   );
 }
 
-function ControlButtons({ isRunning, onPause, onResume, onStop, onReset }) {
+function ControlRow({ isRunning, onPause, onResume, onStop, onReset }) {
   return (
-    <div className="flex gap-4 justify-center items-center mt-4">
-      {onReset && (
-        <button onClick={onReset} className="w-11 h-11 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200">
-          <RotateCcw className="w-5 h-5" />
+    <div className="flex gap-5 justify-center items-center mt-5">
+      {onStop && (
+        <button onClick={onStop} className="w-12 h-12 rounded-full bg-gray-100 text-red-500 flex items-center justify-center hover:bg-red-50 active:scale-90">
+          <Square className="w-5 h-5" />
         </button>
       )}
       {isRunning ? (
-        <button onClick={onPause} className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: BRAND }}>
-          <Pause className="w-7 h-7 text-white" />
+        <button onClick={onPause} className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{ backgroundColor: BRAND }}>
+          <Pause className="w-8 h-8 text-white" />
         </button>
       ) : (
-        <button onClick={onResume} className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: BRAND }}>
-          <Play className="w-7 h-7 text-white" />
+        <button onClick={onResume} className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg active:scale-95" style={{ backgroundColor: BRAND }}>
+          <Play className="w-8 h-8 text-white" />
         </button>
       )}
-      {onStop && (
-        <button onClick={onStop} className="w-11 h-11 rounded-full bg-gray-100 text-red-500 flex items-center justify-center hover:bg-red-50">
-          <Square className="w-5 h-5" />
+      {onReset && (
+        <button onClick={onReset} className="w-12 h-12 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 active:scale-90">
+          <RotateCcw className="w-5 h-5" />
         </button>
       )}
     </div>
@@ -108,28 +119,30 @@ function StopwatchView() {
   const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps } = useClock();
   const active = activeClock === 'stopwatch';
   return (
-    <div className="space-y-4">
-      <CircleClock ms={display} total={0} phase={active && isRunning ? 'running' : active ? 'paused' : 'idle'} />
-      <div className="text-center text-4xl font-black font-mono text-gray-900">{fmt(display, true)}</div>
-      <div className="flex gap-3 justify-center items-center">
+    <div>
+      <div className="py-4">
+        <CircleClock ms={display} total={0} phase={active && isRunning ? 'running' : active ? 'paused' : 'idle'} />
+        <div className="text-center text-4xl font-black font-mono text-gray-900 mt-2">{fmt(display, true)}</div>
+      </div>
+      <div className="flex gap-4 justify-center items-center">
         {!active ? (
-          <button onClick={startStopwatch} className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center" style={{ backgroundColor: BRAND }}>
-            <Play className="w-7 h-7 text-white" />
+          <button onClick={startStopwatch} className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{ backgroundColor: BRAND }}>
+            <Play className="w-8 h-8 text-white" />
           </button>
         ) : (
           <>
-            <button onClick={reset} className="w-11 h-11 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center"><RotateCcw className="w-5 h-5" /></button>
+            <button onClick={reset} className="w-12 h-12 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center"><RotateCcw className="w-5 h-5" /></button>
             {isRunning ? (
-              <button onClick={pause} className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center" style={{ backgroundColor: BRAND }}><Pause className="w-7 h-7 text-white" /></button>
+              <button onClick={pause} className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{ backgroundColor: BRAND }}><Pause className="w-8 h-8 text-white" /></button>
             ) : (
-              <button onClick={resume} className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center" style={{ backgroundColor: BRAND }}><Play className="w-7 h-7 text-white" /></button>
+              <button onClick={resume} className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{ backgroundColor: BRAND }}><Play className="w-8 h-8 text-white" /></button>
             )}
-            {isRunning && <button onClick={lapStopwatch} className="w-11 h-11 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center"><Flag className="w-5 h-5" /></button>}
+            {isRunning && <button onClick={lapStopwatch} className="w-12 h-12 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center"><Flag className="w-5 h-5" /></button>}
           </>
         )}
       </div>
       {laps.length > 0 && (
-        <div className="bg-gray-50 rounded-xl p-3 max-h-40 overflow-y-auto">
+        <div className="bg-gray-50 rounded-xl p-3 mt-4 max-h-40 overflow-y-auto">
           {laps.map((l, i) => (
             <div key={i} className="flex justify-between text-sm py-1.5 border-b border-gray-100 last:border-0">
               <span className="text-gray-500 font-medium">הקפה {i + 1}</span>
@@ -153,32 +166,31 @@ function TimerView() {
 
   if (showSetup) {
     return (
-      <div className="space-y-4">
-        <div className="bg-gray-50 rounded-xl p-4">
+      <div>
+        <div className="px-2">
           <SettingRow icon={Timer} label="דקות" value={mins} onChange={setMins} max={59} />
           <SettingRow icon={Clock} label="שניות" value={secs} onChange={setSecs} max={59} />
-          <SettingRow icon={Shield} label="הכנה" value={prep} onChange={setPrep} max={10} suffix="שנ" />
+          <SettingRow icon={PersonStanding} label="הכנה (שניות)" value={prep} onChange={setPrep} max={10} />
         </div>
-        <div className="flex justify-center">
+        <div className="flex justify-center mt-6">
           <button onClick={() => startTimer((mins * 60 + secs) * 1000, prep * 1000)}
             disabled={mins === 0 && secs === 0}
-            className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center disabled:opacity-40" style={{ backgroundColor: BRAND }}>
-            <Play className="w-7 h-7 text-white" />
+            className="px-10 py-4 rounded-full shadow-lg flex items-center gap-2 text-white font-bold text-lg disabled:opacity-40 active:scale-95" style={{ backgroundColor: BRAND }}>
+            <Play className="w-6 h-6" />התחל
           </button>
         </div>
       </div>
     );
   }
-
   return (
-    <div className="space-y-3">
-      <div className="text-center text-sm font-bold" style={{ color: PHASE_COLORS[phase]?.text }}>
+    <div>
+      <div className="text-center text-sm font-bold mb-1" style={{ color: PHASE_COLORS[phase]?.text }}>
         {phase === 'prepare' ? 'הכנה...' : 'טיימר'}
       </div>
-      <div className="rounded-2xl p-3" style={{ backgroundColor: PHASE_COLORS[phase]?.bg }}>
+      <div className="rounded-2xl p-4" style={{ backgroundColor: PHASE_COLORS[phase]?.bg }}>
         <CircleClock ms={display} total={totalDuration} phase={phase} />
       </div>
-      <ControlButtons isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
+      <ControlRow isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
     </div>
   );
 }
@@ -200,33 +212,33 @@ function TabataView() {
 
   if (showSetup) {
     return (
-      <div className="space-y-4">
-        {/* Summary */}
-        <div className="bg-orange-50 rounded-xl p-3 text-center">
-          <div className="flex justify-center gap-4 text-xs font-bold text-gray-600">
-            <span>{Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, '0')} דקות</span>
-            <span>•</span>
+      <div>
+        {/* Summary header */}
+        <div className="rounded-xl px-4 py-3 mb-4 text-center" style={{ backgroundColor: BRAND }}>
+          <div className="flex justify-center gap-3 text-white text-sm font-bold">
+            <span>{fmtTotal(totalTime)}</span>
+            <span className="opacity-60">•</span>
             <span>{totalIntervals} אינטרוולים</span>
-            <span>•</span>
-            <span>{sets} סטים</span>
+            <span className="opacity-60">•</span>
+            <span>{sets} {sets === 1 ? 'סט' : 'סטים'}</span>
           </div>
         </div>
 
         {/* Settings */}
-        <div className="bg-white rounded-xl border border-gray-100 px-4">
-          <SettingRow icon={Shield} label="הכנה" value={prep} onChange={setPrep} max={30} suffix="שנ" />
-          <SettingRow icon={Dumbbell} label="עבודה" value={work} onChange={setWork} min={5} max={120} suffix="שנ" />
-          <SettingRow icon={Coffee} label="מנוחה" value={rest} onChange={setRest} max={120} suffix="שנ" />
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <SettingRow icon={PersonStanding} label="הכנה" value={prep} onChange={setPrep} max={30} step={5} />
+          <SettingRow icon={Dumbbell} label="עבודה" value={work} onChange={setWork} min={5} max={120} step={5} />
+          <SettingRow icon={Coffee} label="מנוחה" value={rest} onChange={setRest} max={120} step={5} />
           <SettingRow icon={Repeat} label="מחזורים" value={rounds} onChange={setRounds} min={1} max={50} />
-          <SettingRow icon={Layers} label="סטים" value={sets} onChange={setSets} min={1} max={10} />
-          {sets > 1 && <SettingRow icon={Hourglass} label="מנוחה בין סטים" value={setRst} onChange={setSetRst} max={300} suffix="שנ" />}
+          <SettingRow icon={Hourglass} label="סטים" value={sets} onChange={setSets} min={1} max={10} />
+          {sets > 1 && <SettingRow icon={Armchair} label="מנוחה בין סטים" value={setRst} onChange={setSetRst} max={300} step={10} />}
         </div>
 
         {/* Start */}
-        <div className="flex justify-center">
+        <div className="flex justify-center mt-6">
           <button onClick={() => startTabata({ workTime: work, restTime: rest, rounds, sets, setRest: setRst, prepareTime: prep })}
-            className="w-16 h-16 rounded-full shadow-lg flex items-center justify-center" style={{ backgroundColor: BRAND }}>
-            <Play className="w-7 h-7 text-white" />
+            className="px-10 py-4 rounded-full shadow-lg flex items-center gap-2 text-white font-bold text-lg active:scale-95" style={{ backgroundColor: BRAND }}>
+            <Play className="w-6 h-6" />התחל
           </button>
         </div>
       </div>
@@ -236,52 +248,54 @@ function TabataView() {
   // Running view
   const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;
   return (
-    <div className="space-y-3">
-      <div className="text-center">
+    <div>
+      <div className="text-center mb-2">
         <div className="text-2xl font-black" style={{ color: c.text }}>{phaseLabel}</div>
         {roundInfo && <div className="text-xs font-bold text-gray-400 mt-1">{roundInfo}</div>}
       </div>
-      <div className="rounded-2xl p-4" style={{ backgroundColor: c.bg }}>
+      <div className="rounded-2xl p-4 mb-2" style={{ backgroundColor: c.bg }}>
         <CircleClock ms={display} total={totalDuration} phase={phase} />
       </div>
-      {setProgress.total > 1 && <SetDots current={setProgress.current} total={setProgress.total} />}
-      <ControlButtons isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
+      <SetDots current={setProgress?.current || 0} total={setProgress?.total || 0} />
+      <ControlRow isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
     </div>
   );
 }
 
+// ═══ MODE TABS ═══
 const MODES = [
-  { id: 'stopwatch', label: 'סטופר', icon: Clock },
-  { id: 'timer', label: 'טיימר', icon: Timer },
   { id: 'tabata', label: 'טבטה', icon: Zap },
+  { id: 'timer', label: 'טיימר', icon: Timer },
+  { id: 'stopwatch', label: 'סטופר', icon: Clock },
 ];
 
 export default function Clocks() {
   const [mode, setMode] = useState('tabata');
 
   return (
-    <div className="min-h-screen pb-8" dir="rtl" style={{ backgroundColor: '#FAF8F3' }}>
-      <div className="max-w-lg mx-auto px-4 py-4">
-        <h1 className="text-2xl font-black text-gray-900 mb-4 text-right">שעונים</h1>
-        <div className="grid grid-cols-3 gap-2 mb-5">
+    <div className="min-h-screen" dir="rtl" style={{ backgroundColor: '#FAF8F3' }}>
+      <div className="max-w-md mx-auto">
+        {/* Top Tabs */}
+        <div className="flex bg-white border-b border-gray-200">
           {MODES.map(m => {
             const active = mode === m.id;
             const Icon = m.icon;
             return (
               <button key={m.id} onClick={() => setMode(m.id)}
-                className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm transition-all
-                  ${active ? 'text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#F97316]'}`}
-                style={active ? { backgroundColor: BRAND } : {}}>
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold transition-all border-b-2
+                  ${active ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                 <Icon className="w-4 h-4" />
                 {m.label}
               </button>
             );
           })}
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          {mode === 'stopwatch' && <StopwatchView />}
-          {mode === 'timer' && <TimerView />}
+
+        {/* Content */}
+        <div className="px-4 py-4 pb-24">
           {mode === 'tabata' && <TabataView />}
+          {mode === 'timer' && <TimerView />}
+          {mode === 'stopwatch' && <StopwatchView />}
         </div>
       </div>
     </div>

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye } from "lucide-react";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye, Clock } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -1233,6 +1233,7 @@ export default function TraineeProfile() {
     { id: 'services', label: 'חבילות', icon: Package },
     { id: 'documents', label: 'מסמכים', icon: FileText },
     { id: 'messages', label: 'הערות', icon: MessageSquare },
+    { id: 'clocks', label: 'שעונים', icon: Clock, isLink: true },
   ];
 
   return (
@@ -1339,7 +1340,7 @@ export default function TraineeProfile() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => tab.isLink ? navigate(createPageUrl('Clocks')) : setActiveTab(tab.id)}
                   className={`flex flex-col items-center justify-center rounded-xl transition-all active:scale-95
                     py-2.5 sm:py-3 md:py-3.5
                     ${isActive
