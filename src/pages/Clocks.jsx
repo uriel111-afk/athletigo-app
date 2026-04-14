@@ -16,12 +16,24 @@ const PHASE_STYLE = {
   idle:    { bg: '#FAF8F3', accent: '#9CA3AF', text: '#6B7280' },
 };
 
-function fmt(ms, showMs = false) {
+function fmt(ms) {
   if (ms < 0) ms = 0;
   const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
-  if (showMs) return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}`;
   if (m === 0) return String(s);
   return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function fmtMMSS(ms) {
+  if (ms < 0) ms = 0;
+  const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function fmtStopwatch(ms) {
+  if (ms < 0) ms = 0;
+  const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
+  const cs = Math.floor((ms % 1000) / 10);
+  return { main: `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`, ms: `.${String(cs).padStart(2,'0')}` };
 }
 
 function fmtTotal(sec) { return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`; }
@@ -125,9 +137,8 @@ function SetDots({ current, total }) {
   return <div className="flex justify-center gap-2 mt-3">{Array.from({length:total},(_,i)=><div key={i} className={`w-3.5 h-3.5 rounded-full ${i<=current?'bg-[#F97316]':'bg-gray-200'}`}/>)}</div>;
 }
 
-function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false }) {
+function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false, useMMSS = false }) {
   const s = PHASE_STYLE[phase] || PHASE_STYLE.idle;
-  const numSize = showMs ? 'clamp(60px, 15vw, 120px)' : 'clamp(240px, 55vw, 480px)';
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" style={{ backgroundColor: s.bg }}>
       {/* Phase name */}
@@ -136,9 +147,16 @@ function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPaus
       </div>
 
       {/* Giant number */}
-      <div className="font-black text-center tabular-nums" style={{ fontSize: numSize, lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
-        {fmt(ms, showMs)}
-      </div>
+      {showMs ? (
+        <div className="flex items-end justify-center tabular-nums" style={{ lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
+          <span className="font-black" style={{ fontSize: 'clamp(140px, 32vw, 260px)' }}>{fmtStopwatch(ms).main}</span>
+          <span className="font-black" style={{ fontSize: 'clamp(50px, 11vw, 90px)', marginBottom: '0.05em' }}>{fmtStopwatch(ms).ms}</span>
+        </div>
+      ) : (
+        <div className="font-black text-center tabular-nums" style={{ fontSize: 'clamp(200px, 45vw, 380px)', lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
+          {useMMSS ? fmtMMSS(ms) : fmt(ms)}
+        </div>
+      )}
 
       {/* Round info */}
       {roundInfo && (
@@ -200,11 +218,14 @@ function StopwatchView() {
 
   return (
     <div className="px-4 py-8 flex flex-col items-center">
-      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(60px,15vw,120px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>00:00.00</div>
+      <div className="flex items-end justify-center tabular-nums text-gray-300 mb-8" style={{lineHeight:1,fontFamily:'system-ui,sans-serif'}}>
+        <span className="font-black" style={{fontSize:'clamp(140px,32vw,260px)'}}>00:00</span>
+        <span className="font-black" style={{fontSize:'clamp(50px,11vw,90px)',marginBottom:'0.05em'}}>.00</span>
+      </div>
       <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:80,height:80}}>
         <Play className="w-10 h-10 text-white" />
       </button>
-      {laps.length>0 && <div className="w-full bg-gray-50 rounded-xl p-3 mt-6 max-h-40 overflow-y-auto">{laps.map((l,i)=><div key={i} className="flex justify-between text-sm py-1.5 border-b border-gray-100 last:border-0"><span className="text-gray-500 font-medium">הקפה {i+1}</span><span className="font-mono font-bold text-gray-900">{fmt(l,true)}</span></div>)}</div>}
+      {laps.length>0 && <div className="w-full bg-gray-50 rounded-xl p-3 mt-6 max-h-40 overflow-y-auto">{laps.map((l,i)=><div key={i} className="flex justify-between text-sm py-1.5 border-b border-gray-100 last:border-0"><span className="text-gray-500 font-medium">הקפה {i+1}</span><span className="font-mono font-bold text-gray-900">{`${fmtStopwatch(l).main}${fmtStopwatch(l).ms}`}</span></div>)}</div>}
     </div>
   );
 }
@@ -213,18 +234,21 @@ function StopwatchView() {
 function TimerView() {
   const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase } = useClock();
   const [prepSec, setPrepSec] = useState(3);
-  const [timerSec, setTimerSec] = useState(60);
+  const [timerMin, setTimerMin] = useState(0);
+  const [timerSec, setTimerSec] = useState(30);
   const active = activeClock === 'timer';
   const showSetup = !active || phase === 'idle' || phase === 'done';
+  const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
 
   if (showSetup) {
     return (
       <div className="px-4 py-4">
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <SecondsSettingRow icon={PersonStanding} label="הכנה" value={prepSec} onChange={setPrepSec} />
-          <SecondsSettingRow icon={Timer} label="טיימר" value={timerSec} onChange={setTimerSec} />
+          <CountSettingRow icon={Timer} label="דקות" value={timerMin} onChange={setTimerMin} min={0} max={59} />
+          <CountSettingRow icon={Clock} label="שניות" value={timerSec} onChange={setTimerSec} min={0} max={59} />
         </div>
-        <button onClick={()=>startTimer(timerSec*1000,prepSec*1000)} disabled={timerSec===0}
+        <button onClick={()=>startTimer(totalTimerMs,prepSec*1000)} disabled={totalTimerMs===0}
           className="w-full mt-5 py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 text-white font-bold text-xl disabled:opacity-40 active:scale-[0.98]" style={{backgroundColor:BRAND}}>
           <Play className="w-6 h-6"/>התחל
         </button>
@@ -232,7 +256,7 @@ function TimerView() {
     );
   }
   return (
-    <FullScreenRunning ms={display} phase={phase} phaseLabel={phase==='prepare'?'הכנה':'טיימר'} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
+    <FullScreenRunning ms={display} phase={phase} phaseLabel={phase==='prepare'?'הכנה':'טיימר'} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} useMMSS={true} />
   );
 }
 
