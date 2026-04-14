@@ -219,18 +219,18 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
                   type="number" 
                   value={formData.current_value} 
                   onChange={(e) => setFormData({ ...formData, current_value: e.target.value })}
-                  placeholder="הקלד מספר" 
-                  className="rounded-lg h-9 text-center bg-white"
+                  placeholder="הקלד מספר"
+                  className="rounded-lg h-9 text-center text-sm placeholder:text-xs bg-white"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-gray-500">יעד מספרי</Label>
-                <Input 
-                  type="number" 
-                  value={formData.target_value} 
+                <Input
+                  type="number"
+                  value={formData.target_value}
                   onChange={(e) => setFormData({ ...formData, target_value: e.target.value })}
-                  placeholder="הקלד מספר" 
-                  className="rounded-lg h-9 text-center bg-white"
+                  placeholder="הקלד מספר"
+                  className="rounded-lg h-9 text-center text-sm placeholder:text-xs bg-white"
                 />
               </div>
               <div className="space-y-1">
