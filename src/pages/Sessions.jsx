@@ -186,6 +186,8 @@ export default function Sessions() {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowSessionDialog(false);
       setEditingSession(null);
@@ -224,6 +226,8 @@ export default function Sessions() {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowSessionDialog(false);
       setEditingSession(null);

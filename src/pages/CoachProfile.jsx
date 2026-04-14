@@ -74,6 +74,8 @@ export default function CoachProfile() {
     mutationFn: (data) => base44.auth.updateMe(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['current-user-coach-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       refetch();
       setShowEdit(false);
       toast.success("✅ הפרופיל עודכן בהצלחה");

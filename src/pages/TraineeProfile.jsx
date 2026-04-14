@@ -455,6 +455,7 @@ export default function TraineeProfile() {
         return merged;
       });
       queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       setShowEdit(false);
       toast.success("✅ הפרופיל עודכן");
     },
@@ -512,6 +513,8 @@ export default function TraineeProfile() {
     mutationFn: (data) => base44.entities.Goal.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['my-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowAddGoal(false);
       setGoalForm({ goal_name: "", description: "", target_value: "", current_value: "", unit: "", target_date: "", status: "בתהליך" });
       toast.success("✅ יעד נוסף");
@@ -525,6 +528,8 @@ export default function TraineeProfile() {
     mutationFn: ({ id, data }) => base44.entities.Goal.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['my-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setEditingGoal(null);
       toast.success("✅ יעד עודכן");
     },
@@ -671,6 +676,7 @@ export default function TraineeProfile() {
         return merged;
       });
       queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       setShowEdit(false);
       toast.success("✅ פרופיל מתאמן עודכן");
     },
