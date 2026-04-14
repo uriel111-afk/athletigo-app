@@ -135,8 +135,9 @@ function SetDots({ current, total }) {
   return <div className="flex justify-center gap-2 mt-3">{Array.from({length:total},(_,i)=><div key={i} className={`w-3.5 h-3.5 rounded-full ${i<=current?'bg-[#F97316]':'bg-gray-200'}`}/>)}</div>;
 }
 
-function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false }) {
+function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false, numberSize }) {
   const bg = PHASE_BG[phase] || PHASE_BG.idle;
+  const size = numberSize || (showMs ? 'clamp(100px, 22vw, 180px)' : 'clamp(240px, 55vw, 480px)');
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" style={{ backgroundColor: bg }}>
       {/* Phase name */}
@@ -145,7 +146,7 @@ function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPaus
       </div>
 
       {/* Giant number */}
-      <div className="text-white font-black text-center tabular-nums" style={{ fontSize: 'clamp(200px, 45vw, 400px)', lineHeight: 1, fontFamily: 'system-ui, sans-serif' }}>
+      <div className="text-white font-black text-center tabular-nums" style={{ fontSize: size, lineHeight: 1, fontFamily: 'system-ui, sans-serif' }}>
         {fmt(ms, showMs)}
       </div>
 
@@ -209,7 +210,7 @@ function StopwatchView() {
 
   return (
     <div className="px-4 py-8 flex flex-col items-center">
-      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(80px,20vw,160px)',lineHeight:1}}>00:00.00</div>
+      <div className="text-center font-black text-gray-300 tabular-nums mb-8" style={{fontSize:'clamp(100px,22vw,180px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>00:00.00</div>
       <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:80,height:80}}>
         <Play className="w-10 h-10 text-white" />
       </button>
