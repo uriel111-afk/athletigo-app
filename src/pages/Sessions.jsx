@@ -487,6 +487,7 @@ export default function Sessions() {
 
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
             queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+            queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
 
             // Send low-package notifications
             if (isNowAttended && totalSessions > 0) {

@@ -127,6 +127,7 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
       }
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ["trainee-services"] });
+      queryClient.invalidateQueries({ queryKey: ["all-trainees"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       onClose();
     } catch (error) {

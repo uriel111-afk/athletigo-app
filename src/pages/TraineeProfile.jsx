@@ -537,7 +537,9 @@ export default function TraineeProfile() {
     mutationFn: (data) => base44.entities.ClientService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-      queryClient.invalidateQueries({ queryKey: ['all-services-list'] }); // Sync financial stats
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowAddService(false);
       setServiceForm({
         service_type: "אימונים אישיים",
@@ -558,7 +560,9 @@ export default function TraineeProfile() {
     mutationFn: ({ id, data }) => base44.entities.ClientService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-      queryClient.invalidateQueries({ queryKey: ['all-services-list'] }); // Sync financial stats
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowAddService(false);
       setEditingService(null);
       setServiceForm({
@@ -585,7 +589,9 @@ export default function TraineeProfile() {
       },
       onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-          queryClient.invalidateQueries({ queryKey: ['all-services-list'] }); // Sync financial stats
+          queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+          queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
           setEditingUsage(null);
           setUsageValue("");
           toast.success("✅ ניצול אימונים עודכן ידנית");
@@ -640,8 +646,10 @@ export default function TraineeProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-      queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] }); // Sync AllUsers
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES }); // Sync AllUsers
+      queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast.success("✅ סטטוס עודכן וסונכרן");
     },
     onError: (error) => {
@@ -906,7 +914,9 @@ export default function TraineeProfile() {
 
         queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
         queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
-        
+        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+
         setShowManualAttendance(false);
         setManualAttendanceForm({ date: new Date().toISOString().split('T')[0], time: "10:00", session_type: "אישי", location: "ידני", notes: "" });
         toast.success("✅ נוכחות נרשמה וסונכרנה עם החבילה");
