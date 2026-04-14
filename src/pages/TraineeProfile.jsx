@@ -26,6 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
+import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
 
 const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
@@ -238,6 +239,8 @@ export default function TraineeProfile() {
   const [showAddService, setShowAddService] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [showManualAttendance, setShowManualAttendance] = useState(false);
+  const [editingSession, setEditingSession] = useState(null);
+  const [showEditSession, setShowEditSession] = useState(false);
   const [editingUsage, setEditingUsage] = useState(null); // service ID being edited
   const [usageValue, setUsageValue] = useState(""); 
 
@@ -1757,7 +1760,7 @@ export default function TraineeProfile() {
                       return (
                         <div key={session.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4" dir="rtl">
                           <div className="flex justify-between items-start mb-2">
-                            <div className="text-right">
+                            <div className="text-right flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text, border: `1px solid ${tc.border}` }}>{session.session_type}</span>
                                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
@@ -1766,10 +1769,43 @@ export default function TraineeProfile() {
                               <p className="text-xs text-gray-500">{session.time} • {session.location || 'לא צוין'} • {session.duration || 60} דקות</p>
                             </div>
                             {isCoach && (
-                              <Select value={displayStatus} onValueChange={val => { if (val !== displayStatus) updateSessionStatusMutation.mutate({ session, newStatus: val }); }}>
-                                <SelectTrigger className="h-8 text-xs w-auto min-w-[80px] border-gray-200"><SelectValue /></SelectTrigger>
-                                <SelectContent><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="ממתין">ממתין</SelectItem></SelectContent>
-                              </Select>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Select value={displayStatus} onValueChange={val => { if (val !== displayStatus) updateSessionStatusMutation.mutate({ session, newStatus: val }); }}>
+                                  <SelectTrigger className="h-8 text-xs w-auto min-w-[70px] border-gray-200"><SelectValue /></SelectTrigger>
+                                  <SelectContent><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="ממתין">ממתין</SelectItem></SelectContent>
+                                </Select>
+                                <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20]"
+                                  onClick={() => { setEditingSession(session); setShowEditSession(true); }}>
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-red-500"
+                                  onClick={async () => {
+                                    if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
+                                    try {
+                                      // Restore package unit if session was attended
+                                      const wasAttended = participant?.attendance_status === 'הגיע';
+                                      if (wasAttended && session.service_id) {
+                                        try {
+                                          const svc = services.find(s => s.id === session.service_id);
+                                          if (svc && svc.used_sessions > 0) {
+                                            await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 });
+                                          }
+                                        } catch {}
+                                      }
+                                      await base44.entities.Session.delete(session.id);
+                                      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                                      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                                      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                                      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                      toast.success("המפגש נמחק בהצלחה");
+                                    } catch (err) {
+                                      toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
+                                    }
+                                  }}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
                             )}
                           </div>
                           {session.coach_notes && <p className="text-xs text-gray-500 text-right mt-1 bg-gray-50 p-2 rounded-lg">{session.coach_notes}</p>}
@@ -1983,6 +2019,27 @@ export default function TraineeProfile() {
 
         {/* Baseline Dialogs */}
         <BaselineFormDialog isOpen={showBaselineForm} onClose={() => setShowBaselineForm(false)} traineeId={user.id} traineeName={user.full_name} />
+
+        {/* Edit Session Dialog */}
+        {showEditSession && editingSession && (
+          <SessionFormDialog
+            isOpen={showEditSession}
+            onClose={() => { setShowEditSession(false); setEditingSession(null); }}
+            onSubmit={async (data) => {
+              await base44.entities.Session.update(editingSession.id, data);
+              queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+              queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+              queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+              queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+              setShowEditSession(false);
+              setEditingSession(null);
+              toast.success("המפגש עודכן בהצלחה");
+            }}
+            editingSession={editingSession}
+            trainees={[user]}
+            isLoading={false}
+          />
+        )}
         <BaselineDetailView isOpen={!!showBaselineDetail} onClose={() => setShowBaselineDetail(null)} baselineId={showBaselineDetail} />
 
         {/* Add/Edit Service Dialog */}
