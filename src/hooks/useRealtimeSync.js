@@ -61,6 +61,13 @@ export function useRealtimeSync(userId) {
         queryClient.invalidateQueries({ queryKey: ['leads'] });
         invalidateDashboard();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reflections' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['trainee-reflections'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_log' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['trainee-attendance-log'] });
+        invalidateDashboard();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };

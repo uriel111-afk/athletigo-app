@@ -13,7 +13,7 @@ import { notifyMetricsUpdated, notifyTraineeMetricsUpdated } from "@/functions/n
 import { syncActions } from "@/functions/RealTimeSyncManager";
 import { toast } from "sonner";
 
-export default function PhysicalMetricsManager({ trainee, measurements, coach }) {
+export default function PhysicalMetricsManager({ trainee, measurements, coach, currentUser }) {
   const [showMeasurementDialog, setShowMeasurementDialog] = useState(false);
   const [editingMeasurement, setEditingMeasurement] = useState(null);
 
@@ -41,7 +41,10 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
       resetMeasurementForm();
       toast.success("✅ מדידה נוספה");
     },
-    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
+    onError: (err) => {
+      console.error("[PhysicalMetrics] Create error:", err);
+      toast.error("❌ שגיאה בשמירת מדידה: " + (err?.message || JSON.stringify(err) || "נסה שוב"));
+    },
   });
 
   const updateMeasurementMutation = useMutation({
@@ -49,13 +52,15 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
     onSuccess: () => {
       syncActions.measurementChanged(queryClient);
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       setShowMeasurementDialog(false);
       setEditingMeasurement(null);
       resetMeasurementForm();
       toast.success("✅ מדידה עודכנה");
     },
-    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
+    onError: (err) => {
+      console.error("[PhysicalMetrics] Update error:", err);
+      toast.error("❌ שגיאה בעדכון מדידה: " + (err?.message || JSON.stringify(err) || "נסה שוב"));
+    },
   });
 
   const deleteMeasurementMutation = useMutation({
@@ -63,10 +68,12 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
     onSuccess: () => {
       syncActions.measurementChanged(queryClient);
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
       toast.success("✅ מדידה נמחקה");
     },
-    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
+    onError: (err) => {
+      console.error("[PhysicalMetrics] Delete error:", err);
+      toast.error("❌ שגיאה במחיקת מדידה: " + (err?.message || JSON.stringify(err) || "נסה שוב"));
+    },
   });
 
   const resetMeasurementForm = () => {
@@ -83,7 +90,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
   };
 
   const handleSaveMeasurement = async () => {
-    if (!coach) return;
+    const creatorId = coach?.id || currentUser?.id || null;
 
     const data = {
       trainee_id: trainee.id,
@@ -95,7 +102,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach })
       waist: measurementForm.waist_circumference ? parseFloat(measurementForm.waist_circumference) : null,
       hips: measurementForm.hips_circumference ? parseFloat(measurementForm.hips_circumference) : null,
       notes: measurementForm.notes || "",
-      created_by: coach.id,
+      created_by: creatorId,
     };
 
     try {

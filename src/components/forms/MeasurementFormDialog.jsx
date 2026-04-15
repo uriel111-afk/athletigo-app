@@ -49,7 +49,10 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
       toast.success("✅ מדידה נוספה");
       onClose();
     },
-    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
+    onError: (err) => {
+      console.error("[MeasurementForm] Create error:", err);
+      toast.error("❌ שגיאה בשמירה: " + (err?.message || JSON.stringify(err) || "נסה שוב"));
+    },
   });
 
   const updateMeasurementMutation = useMutation({
@@ -61,7 +64,10 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
       toast.success("✅ מדידה עודכנה");
       onClose();
     },
-    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
+    onError: (err) => {
+      console.error("[MeasurementForm] Update error:", err);
+      toast.error("❌ שגיאה בעדכון: " + (err?.message || JSON.stringify(err) || "נסה שוב"));
+    },
   });
 
   const isLoading = createMeasurementMutation.isPending || updateMeasurementMutation.isPending;

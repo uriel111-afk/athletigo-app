@@ -61,7 +61,10 @@ function NumPicker({ value, onChange, min = 1, max = 10, label }) {
 
 export default function BaselineFormDialog({ isOpen, onClose, traineeId, traineeName }) {
   const queryClient = useQueryClient();
-  const { user: coach } = useContext(AuthContext);
+  const { user: authUser } = useContext(AuthContext);
+  const isCoach = authUser?.is_coach === true || authUser?.role === 'coach' || authUser?.role === 'admin';
+  // For coach: coach_id = authUser.id. For trainee: coach_id = null
+  const coachId = isCoach ? authUser?.id : null;
 
   const [technique, setTechnique] = useState('basic');
   const [workTime, setWorkTime] = useState(30);
@@ -120,7 +123,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
         .from('baselines')
         .insert({
           trainee_id: traineeId,
-          coach_id: coach?.id || null,
+          coach_id: coachId,
           date: dateStr,
           time: timeStr,
           technique,
@@ -143,7 +146,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
         .from('results_log')
         .insert({
           trainee_id: traineeId,
-          created_by: coach?.id || null,
+          created_by: coachId || authUser?.id || null,
           title: `Baseline - ${techLabel}`,
           record_value: String(calc.score),
           record_unit: 'JPS',

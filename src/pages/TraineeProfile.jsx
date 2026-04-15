@@ -1546,7 +1546,7 @@ export default function TraineeProfile() {
               {/* Metrics Tab */}
               <TabsContent value="metrics" className="space-y-4 w-full">
                 <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#FF6F20]" />מדדים פיזיים</h2>
-                <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} goals={goals} />
+                <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} currentUser={currentUser} goals={goals} />
               </TabsContent>
 
               {/* Achievements Tab */}
@@ -1554,11 +1554,9 @@ export default function TraineeProfile() {
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Award className="w-5 h-5 text-yellow-500" />הישגים</h2>
                   <div className="flex gap-2">
-                    {isCoach && (
-                      <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                        <Zap className="w-3 h-3 ml-1" />בייסליין
-                      </Button>
-                    )}
+                    <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                      <Zap className="w-3 h-3 ml-1" />בייסליין
+                    </Button>
                     <Button onClick={() => { setEditingResult(null); setShowAddResult(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FFD700', color: '#000' }}>
                       <Plus className="w-3 h-3 ml-1" />הוסף שיא
                     </Button>
@@ -1585,11 +1583,9 @@ export default function TraineeProfile() {
               <TabsContent value="baselines" className="space-y-4 w-full">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין</h2>
-                  {isCoach && (
-                    <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                      <Plus className="w-3 h-3 ml-1" />הוסף בייסליין
-                    </Button>
-                  )}
+                  <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                    <Plus className="w-3 h-3 ml-1" />הוסף בייסליין
+                  </Button>
                 </div>
                 {baselines.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
