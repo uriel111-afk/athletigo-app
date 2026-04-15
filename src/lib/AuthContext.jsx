@@ -109,16 +109,18 @@ export const AuthProvider = ({ children }) => {
         isCurrentlyOnLogin
       });
       
-      // If they need to onboard and aren't already on onboarding/login, redirect them
-      if (!isOnboardingComplete && !isCurrentlyOnOnboarding && !isCurrentlyOnLogin && !isCurrentlyOnRoot) {
-        console.log('[AuthContext] User needs onboarding, redirecting to /onboarding');
+      // Coaches NEVER get redirected to onboarding
+      const isCoachUser = userProfile?.is_coach === true || userProfile?.role === 'coach' || userProfile?.role === 'admin';
+
+      if (!isCoachUser && !isOnboardingComplete && !isCurrentlyOnOnboarding && !isCurrentlyOnLogin && !isCurrentlyOnRoot) {
+        console.log('[AuthContext] Trainee needs onboarding, redirecting to /onboarding');
         setTimeout(() => {
           window.location.href = '/onboarding';
         }, 300);
       } else if (isOnboardingComplete && isCurrentlyOnOnboarding) {
-        console.log('[AuthContext] User already completed onboarding but is on /onboarding page, redirecting to /dashboard');
+        console.log('[AuthContext] User already completed onboarding, redirecting away');
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          window.location.href = isCoachUser ? '/dashboard' : '/trainee-home';
         }, 300);
       }
     } catch (error) {
