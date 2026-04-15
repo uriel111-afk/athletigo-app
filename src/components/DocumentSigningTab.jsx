@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
@@ -257,42 +257,61 @@ function CooperationAgreementForm({ user, onSign, isSigning }) {
 export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdate }) {
   const [signingType, setSigning] = useState(null);
   const [expandedDoc, setExpandedDoc] = useState(null);
+  const [signedDocs, setSignedDocs] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(true);
 
   const user = effectiveUser;
+
+  // Fetch signed documents from signed_documents table
+  const fetchDocs = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('signed_documents')
+        .select('*')
+        .eq('trainee_id', user.id)
+        .order('created_at', { ascending: true });
+      if (error) console.error("[DocumentSigning] Fetch error:", error);
+      setSignedDocs(data || []);
+    } catch (e) {
+      console.error("[DocumentSigning] Fetch exception:", e);
+    } finally {
+      setDocsLoading(false);
+    }
+  }, [user?.id]);
+
+  React.useEffect(() => { fetchDocs(); }, [fetchDocs]);
+
   if (!user) return null;
 
-  const docs = [
-    {
-      key: 'health_declaration',
-      label: 'הצהרת בריאות',
-      signedAt: user.health_declaration_signed_at,
-      sigData: user.health_declaration_signature,
-      pdfUrl: user.health_declaration_pdf_url,
-    },
-    {
-      key: 'cooperation_agreement',
-      label: 'הסכם שיתוף פעולה',
-      signedAt: user.cooperation_agreement_signed_at,
-      sigData: user.cooperation_agreement_signature,
-      pdfUrl: user.cooperation_agreement_pdf_url,
-    },
+  const DOC_TYPES = [
+    { key: 'health_declaration', label: 'הצהרת בריאות' },
+    { key: 'cooperation_agreement', label: 'הסכם שיתוף פעולה' },
   ];
+
+  const docs = DOC_TYPES.map(dt => {
+    const record = signedDocs.find(d => d.document_type === dt.key);
+    return {
+      key: dt.key,
+      label: dt.label,
+      signedAt: record?.signed_at || null,
+      sigData: record?.signature_data || null,
+      pdfUrl: record?.file_url || null,
+      metadata: record?.document_data || null,
+    };
+  });
 
   const signedCount = docs.filter(d => d.signedAt).length;
 
   const handleSign = async (docType, signatureDataUrl, pdfFile, metadata) => {
     setSigning(docType);
     try {
-      console.log("[DocumentSigning] Starting save for:", docType, "User:", user.id);
-
       // 1. Upload PDF (best-effort — never blocks signing)
       let pdfUrl = null;
       try {
         const result = await base44.integrations.UploadFile({ file: pdfFile });
         pdfUrl = result.file_url;
-        console.log("[DocumentSigning] PDF uploaded via base44:", pdfUrl);
-      } catch (uploadErr) {
-        console.warn("[DocumentSigning] base44 upload failed:", uploadErr?.message);
+      } catch {
         try {
           const fileName = `documents/${user.id}/${docType}_${Date.now()}.pdf`;
           const { error: storageErr } = await supabase.storage
@@ -301,93 +320,34 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
           if (!storageErr) {
             const { data: urlData } = supabase.storage.from('media').getPublicUrl(fileName);
             pdfUrl = urlData?.publicUrl || null;
-            console.log("[DocumentSigning] PDF uploaded via supabase:", pdfUrl);
-          } else {
-            console.warn("[DocumentSigning] Storage upload failed:", storageErr.message);
           }
-        } catch (e) {
-          console.warn("[DocumentSigning] All PDF uploads failed, continuing without PDF");
-        }
+        } catch {}
       }
 
-      // 2. Build update payload
-      const now = new Date().toISOString();
-      const updateData = {};
-      if (docType === 'health_declaration') {
-        updateData.health_declaration_signed_at = now;
-        updateData.health_declaration_signature = signatureDataUrl;
-        if (pdfUrl) updateData.health_declaration_pdf_url = pdfUrl;
-        if (metadata) updateData.health_declaration_metadata = metadata;
-      } else {
-        updateData.cooperation_agreement_signed_at = now;
-        updateData.cooperation_agreement_signature = signatureDataUrl;
-        if (pdfUrl) updateData.cooperation_agreement_pdf_url = pdfUrl;
-        if (metadata) updateData.cooperation_agreement_metadata = metadata;
-      }
+      // 2. Save to signed_documents table
+      const { error } = await supabase
+        .from('signed_documents')
+        .upsert({
+          trainee_id: user.id,
+          coach_id: user.coach_id || null,
+          document_type: docType,
+          document_data: metadata || {},
+          signature_data: signatureDataUrl,
+          signed_at: new Date().toISOString(),
+          status: 'signed',
+          is_locked: true,
+          file_url: pdfUrl || null,
+        }, { onConflict: 'trainee_id,document_type' });
 
-      console.log("[DocumentSigning] Saving fields:", Object.keys(updateData));
-
-      // 3. Save to user record — try multiple methods
-      let saved = false;
-
-      // Method A: base44 auth update
-      if (!saved) {
-        try {
-          if (isCoach && user.id !== (await base44.auth.me()).id) {
-            await base44.entities.User.update(user.id, updateData);
-          } else {
-            await base44.auth.updateMe(updateData);
-          }
-          saved = true;
-          console.log("[DocumentSigning] Saved via base44");
-        } catch (err) {
-          console.warn("[DocumentSigning] base44 save failed:", err?.message);
-        }
-      }
-
-      // Method B: direct supabase update
-      if (!saved) {
-        const { error: directErr } = await supabase
-          .from('users')
-          .update(updateData)
-          .eq('id', user.id);
-        if (!directErr) {
-          saved = true;
-          console.log("[DocumentSigning] Saved via direct supabase");
-        } else {
-          console.error("[DocumentSigning] Direct supabase failed:", directErr);
-        }
-      }
-
-      // Method C: save only the essential fields (timestamp + signature, skip metadata/pdf)
-      if (!saved) {
-        const minimalData = {};
-        if (docType === 'health_declaration') {
-          minimalData.health_declaration_signed_at = now;
-          minimalData.health_declaration_signature = signatureDataUrl;
-        } else {
-          minimalData.cooperation_agreement_signed_at = now;
-          minimalData.cooperation_agreement_signature = signatureDataUrl;
-        }
-        const { error: minErr } = await supabase
-          .from('users')
-          .update(minimalData)
-          .eq('id', user.id);
-        if (!minErr) {
-          saved = true;
-          console.log("[DocumentSigning] Saved minimal fields via supabase");
-        } else {
-          console.error("[DocumentSigning] Even minimal save failed:", minErr);
-          throw minErr;
-        }
-      }
+      if (error) throw error;
 
       toast.success("המסמך נחתם ונשמר בהצלחה");
       setExpandedDoc(null);
+      await fetchDocs();
       if (onUserUpdate) onUserUpdate();
     } catch (error) {
-      console.error("[DocumentSigning] FINAL ERROR:", error);
-      toast.error("שגיאה בשמירת הטופס: " + (error?.message || JSON.stringify(error) || "נסה שוב"));
+      console.error("[DocumentSigning] Error:", error);
+      toast.error("שגיאה בשמירת הטופס: " + (error?.message || "נסה שוב"));
     } finally {
       setSigning(null);
     }
