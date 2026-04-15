@@ -169,6 +169,7 @@ export function useDashboardStats() {
         ...t,
         activePkg,
         remaining,
+        used,
         total,
         lastSessionDate: lastSession?.date || null,
         hasActivePackage: !!activePkg,

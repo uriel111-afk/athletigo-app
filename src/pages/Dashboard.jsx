@@ -278,8 +278,8 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {t.hasActivePackage && t.remaining !== null ? (
-                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-50 text-green-700">{t.remaining}/{t.total}</span>
+                      {t.hasActivePackage && t.total > 0 ? (
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-50 text-green-700">{t.used || 0}/{t.total}</span>
                       ) : (
                         <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-50 text-red-500">ללא חבילה</span>
                       )}

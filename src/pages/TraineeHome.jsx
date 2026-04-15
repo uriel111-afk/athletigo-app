@@ -281,8 +281,8 @@ export default function TraineeHome() {
                       <p className="text-xs text-gray-500">{svc.start_date ? new Date(svc.start_date).toLocaleDateString('he-IL') : ''} {svc.end_date ? `עד ${new Date(svc.end_date).toLocaleDateString('he-IL')}` : ''}</p>
                     </div>
                     <div className="text-left">
-                      <span className="text-2xl font-black text-[#FF6F20]">{remaining}</span>
-                      <span className="text-xs text-gray-400 block">נותרו</span>
+                      <span className="text-2xl font-black text-[#FF6F20]">{used}</span>
+                      <span className="text-xs text-gray-400 block">/ {total} מפגשים</span>
                     </div>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">

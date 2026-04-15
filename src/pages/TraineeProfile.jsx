@@ -1738,7 +1738,7 @@ export default function TraineeProfile() {
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-2">
-                                    <span className="font-bold text-lg" style={{ color: typeColor }}>{remaining}</span>
+                                    <span className="font-bold text-lg" style={{ color: typeColor }}>{used}</span>
                                     <span className="text-gray-400 font-medium">/ {total} מפגשים</span>
                                     {isCoach && <Button onClick={() => { setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
                                   </div>
