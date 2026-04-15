@@ -72,12 +72,23 @@ export default function AddTraineeDialog({ open, onClose }) {
     try {
       const age = calculateAge(formData.birthDate);
 
-      // Step 1: Create auth user via signUp (bypasses Edge Function)
+      // Save coach session before signUp (signUp switches the active session)
+      const { data: { session: coachSession } } = await supabase.auth.getSession();
+
+      // Step 1: Create auth user via signUp
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { full_name: formData.fullName, role: 'trainee' } }
       });
+
+      // Immediately restore coach session so the app doesn't redirect
+      if (coachSession) {
+        await supabase.auth.setSession({
+          access_token: coachSession.access_token,
+          refresh_token: coachSession.refresh_token,
+        });
+      }
 
       if (signUpError) {
         let msg = signUpError.message;

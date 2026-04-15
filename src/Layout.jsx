@@ -146,7 +146,8 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
-  if (user && !user.onboarding_completed && currentPageName !== "Onboarding") {
+  // Onboarding only for trainees, never for coaches
+  if (user && !user.onboarding_completed && !isCoach && currentPageName !== "Onboarding") {
     window.location.href = createPageUrl("Onboarding");
     return null;
   }
