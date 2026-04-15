@@ -67,7 +67,8 @@ export function useDashboardStats() {
 
     // Filter services by coach
     const coachServices = allServices.filter(s => s.coach_id === coachId);
-    const activeServices = coachServices.filter(s => s.status === 'פעיל');
+    // Accept both Hebrew ('פעיל') and English ('active') status — legacy records use English
+    const activeServices = coachServices.filter(s => s.status === 'פעיל' || s.status === 'active');
 
     // Filter sessions by coach
     const coachSessions = allSessions.filter(s => s.coach_id === coachId);
@@ -158,13 +159,25 @@ export function useDashboardStats() {
 
     // ── Trainee card data ────────────────────────────────────────────
     const traineeCards = trainees.map(t => {
-      const tServices = activeServices.filter(s => s.trainee_id === t.id);
+      // Find best active package: has remaining sessions, earliest end_date
+      const tServices = activeServices
+        .filter(s => s.trainee_id === t.id)
+        .filter(s => {
+          const tot = s.total_sessions || s.sessions_count || 0;
+          const usd = s.used_sessions || 0;
+          return tot === 0 || (tot - usd) > 0; // group (no sessions) or has remaining
+        })
+        .sort((a, b) => {
+          const aEnd = a.end_date || a.expires_at || '9999-12-31';
+          const bEnd = b.end_date || b.expires_at || '9999-12-31';
+          return new Date(aEnd) - new Date(bEnd);
+        });
       const activePkg = tServices[0] || null;
       const total = activePkg ? (activePkg.total_sessions || activePkg.sessions_count || 0) : 0;
       const used = activePkg ? (activePkg.used_sessions || 0) : 0;
       const remaining = total > 0 ? total - used : null;
       const tSessions = coachSessions.filter(s => s.participants?.some(p => p.trainee_id === t.id));
-      const lastSession = tSessions.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+      const lastSession = [...tSessions].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
       return {
         ...t,
         activePkg,
