@@ -133,9 +133,12 @@ function FullScreenRunning({
   ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop,
   showMs = false, useMMSS = false, total,
   statsCells = null, nextPhaseText = null, headerLabel = null,
+  bigNumber = false,
 }) {
   const s = PS[phase] || PS.idle;
-  const R = 127, circ = 2 * Math.PI * R;
+  const ringSize = bigNumber ? 300 : 280;
+  const R = bigNumber ? 137 : 127;
+  const circ = 2 * Math.PI * R;
   const progress = total > 0 ? Math.max(0, Math.min(1, ms / total)) : (showMs ? 1 : 0);
   const offset = circ * (1 - progress);
   const timeStr = showMs ? `${fmtStopwatch(ms).main}${fmtStopwatch(ms).ms}` : (useMMSS ? fmtMMSS(ms) : fmt(ms));
@@ -160,17 +163,17 @@ function FullScreenRunning({
       <div style={{ flex: '1 0 8px', maxHeight: 20 }} />
 
       {/* Ring + number */}
-      <div className="relative flex-shrink-0" style={{ width: 280, height: 280 }}>
-        <svg width="280" height="280" viewBox="0 0 280 280">
-          <circle cx="140" cy="140" r={R} fill="none" stroke="#F0F0F0" strokeWidth="13" />
-          <circle cx="140" cy="140" r={R} fill="none" stroke={s.ring} strokeWidth="13" strokeLinecap="round"
+      <div className="relative flex-shrink-0" style={{ width: ringSize, height: ringSize }}>
+        <svg width={ringSize} height={ringSize} viewBox={`0 0 ${ringSize} ${ringSize}`}>
+          <circle cx={ringSize/2} cy={ringSize/2} r={R} fill="none" stroke="#F0F0F0" strokeWidth="13" />
+          <circle cx={ringSize/2} cy={ringSize/2} r={R} fill="none" stroke={s.ring} strokeWidth="13" strokeLinecap="round"
             strokeDasharray={circ} strokeDashoffset={offset}
-            transform="rotate(-90 140 140)" className="transition-colors duration-300"
+            transform={`rotate(-90 ${ringSize/2} ${ringSize/2})`} className="transition-colors duration-300"
             style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="tabular-nums leading-none transition-colors duration-300" style={{
-            fontSize: showMs ? 44 : 86,
+            fontSize: showMs ? 44 : (bigNumber ? 108 : 86),
             fontWeight: 900,
             fontFamily: FN,
             color: s.text,
@@ -353,9 +356,10 @@ function TabataView() {
     parts.forEach(p => { if (p.startsWith('סט')) setStr = p.replace('סט ',''); if (p.startsWith('סיבוב')) roundStr = p.replace('סיבוב ',''); });
   }
 
-  // Compute elapsed from totalDuration
+  // Compute remaining total time (counts DOWN)
+  const totalTabataMs = totalTime * 1000;
   const elapsedMs = totalDuration > 0 ? totalDuration - display : 0;
-  const elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
+  const remainingSec = Math.max(0, totalTime - Math.floor(elapsedMs / 1000));
 
   // Next phase preview
   let nextText = null;
@@ -366,12 +370,12 @@ function TabataView() {
 
   return (
     <FullScreenRunning ms={display} total={totalDuration} phase={phase}
-      phaseLabel={phaseLabel} headerLabel="TABATA"
+      phaseLabel={phaseLabel} headerLabel="TABATA" bigNumber
       isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop}
       statsCells={[
         { label: 'סיבוב', value: roundStr },
         { label: 'סט', value: setStr },
-        { label: 'זמן כולל', value: fmtTotal(elapsedSec) },
+        { label: 'נותר לסיום', value: fmtTotal(remainingSec) },
       ]}
       nextPhaseText={nextText} />
   );
