@@ -321,10 +321,23 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       }
 
       // Use the appropriate update method
-      if (isCoach && user.id !== (await base44.auth.me()).id) {
-        await base44.entities.User.update(user.id, updateData);
-      } else {
-        await base44.auth.updateMe(updateData);
+      try {
+        if (isCoach && user.id !== (await base44.auth.me()).id) {
+          await base44.entities.User.update(user.id, updateData);
+        } else {
+          await base44.auth.updateMe(updateData);
+        }
+      } catch (saveErr) {
+        console.error("[DocumentSigning] updateMe/update failed, trying direct supabase:", saveErr);
+        // Fallback: direct supabase update on users table
+        const { error: directErr } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', user.id);
+        if (directErr) {
+          console.error("[DocumentSigning] Direct supabase update also failed:", directErr);
+          throw directErr;
+        }
       }
 
       toast.success("המסמך נחתם ונשמר בהצלחה");
@@ -332,7 +345,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       if (onUserUpdate) onUserUpdate();
     } catch (error) {
       console.error("[DocumentSigning] Error:", error);
-      toast.error("שגיאה בשמירת הטופס: " + (error?.message || "נסה שוב"));
+      toast.error("שגיאה בשמירת הטופס: " + (error?.message || JSON.stringify(error) || "נסה שוב"));
     } finally {
       setSigning(null);
     }
