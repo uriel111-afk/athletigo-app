@@ -446,9 +446,9 @@ export default function Layout({ children, currentPageName }) {
           {/* Floating Clock Bar */}
           <FloatingClockBar />
 
-          {/* Mobile Bottom Navigation */}
-          <div className="md:hidden flex-shrink-0 safe-area-bottom z-50"
-               style={{ backgroundColor: '#FFFFFF', borderTop: `1px solid #E0E0E0`, boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
+          {/* Mobile Bottom Navigation — fixed to bottom */}
+          <div className="md:hidden safe-area-bottom"
+               style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: '#FFFFFF', borderTop: '1px solid #E0E0E0', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)' }}>
             <div className="grid grid-cols-5 gap-1 p-2">
               {isCoach ? (
                 <>
