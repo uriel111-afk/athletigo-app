@@ -695,6 +695,21 @@ export default function TraineeProfile() {
                     await base44.entities.ClientService.update(activePackage.id, {
                         used_sessions: newUsedCount
                     });
+
+                    // Low balance alert — notify coach when 1 session remains
+                    const totalSessions = activePackage.total_sessions || 0;
+                    const remaining = totalSessions - newUsedCount;
+                    if (remaining === 1 && isNowAttended) {
+                      try {
+                        await base44.entities.Notification.create({
+                          user_id: currentUser?.id || coach?.id,
+                          type: 'low_balance',
+                          title: 'נותר מפגש אחד בחבילה',
+                          message: `נותר מפגש אחד בחבילה של ${user.full_name}. לשלוח בקשת חידוש?`,
+                          is_read: false
+                        });
+                      } catch {}
+                    }
                 }
             }
         }

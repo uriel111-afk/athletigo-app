@@ -225,6 +225,37 @@ export default function TraineeHome() {
           <p className="text-xl text-gray-500">מוכן לאימון הבא שלך?</p>
         </div>
 
+        {/* Active Packages */}
+        {activeServices.length > 0 && (
+          <div className="mb-6 space-y-2">
+            {activeServices.map(svc => {
+              const total = svc.total_sessions || 0;
+              const used = svc.used_sessions || 0;
+              const remaining = total > 0 ? total - used : null;
+              if (remaining === null) return null;
+              const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+              return (
+                <div key={svc.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold text-base text-gray-900">{svc.package_name || svc.service_type || 'חבילה'}</h3>
+                      <p className="text-xs text-gray-500">{svc.start_date ? new Date(svc.start_date).toLocaleDateString('he-IL') : ''} {svc.end_date ? `עד ${new Date(svc.end_date).toLocaleDateString('he-IL')}` : ''}</p>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-2xl font-black text-[#FF6F20]">{remaining}</span>
+                      <span className="text-xs text-gray-400 block">נותרו</span>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#FF6F20] rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1 text-left">{used}/{total} אימונים נוצלו</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Upcoming Sessions Section */}
         <div className="mb-8">
           <h2 className="text-xl font-bold mb-4 text-gray-800 border-r-4 border-[#FF6F20] pr-3">המפגשים שלי</h2>

@@ -39,6 +39,12 @@ export function useRealtimeSync(userId) {
         queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
         queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'training_plans' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
