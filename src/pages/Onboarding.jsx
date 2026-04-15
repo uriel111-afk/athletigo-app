@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import InstallPrompt from "@/components/InstallPrompt";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
 
@@ -288,6 +289,7 @@ export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const queryClient = useQueryClient();
 
   // Form State
@@ -508,14 +510,16 @@ export default function Onboarding() {
         // Don't block completion if notification fails
       }
 
-      console.log("[Onboarding] Onboarding completion successful! Redirecting to dashboard...");
-      toast.success("תהליך האונבורדינג הושלם בהצלחה! 🎉");
-      
-      // Give a moment for the database to fully confirm the update
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      console.log("[Onboarding] Now redirecting to trainee home...");
-      window.location.href = createPageUrl("TraineeHome");
+      console.log("[Onboarding] Onboarding completion successful!");
+      toast.success("תהליך האונבורדינג הושלם בהצלחה!");
+
+      // Show install prompt if not shown before, then redirect
+      if (localStorage.getItem('install_prompt_shown') !== 'true') {
+        setShowInstallPrompt(true);
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.location.href = createPageUrl("TraineeHome");
+      }
       
     } catch (error) {
       console.error("[Onboarding] Completion error:", error);
@@ -538,6 +542,13 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-[#F8F8F8] flex flex-col items-center justify-center p-4" dir="rtl">
+      {/* Install prompt — shown once after onboarding completes */}
+      {showInstallPrompt && (
+        <InstallPrompt onDismiss={() => {
+          setShowInstallPrompt(false);
+          setTimeout(() => { window.location.href = createPageUrl("TraineeHome"); }, 300);
+        }} />
+      )}
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-6 md:p-8 relative overflow-hidden">
         {/* Progress Bar */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100">
