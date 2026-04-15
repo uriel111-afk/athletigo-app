@@ -69,27 +69,27 @@ function ParamCard({ label, value, unit, onChange, min = 0, max = 999, highlight
    Ring 280×280, r=108, phase label 28px, time 80px, stats 12/24px
    ═══════════════════════════════════════════════════════════════════ */
 function RunningScreen({ statusLabel, statusColor, timeStr, ringProgress, ringColor, statsCells, nextPhaseBar, isRunning, onPause, onResume, onStop, extraBottom }) {
-  const R = 108, circ = 2 * Math.PI * R;
+  const R = 130, circ = 2 * Math.PI * R;
   const offset = circ * (1 - Math.max(0, Math.min(1, ringProgress)));
 
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center" dir="rtl"
-      style={{ backgroundColor: '#FFFFFF', padding: '16px 16px 100px', gap: 14, overflowY: 'auto' }}>
+    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
+      style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16, overflowY: 'auto' }}>
 
       {/* Ring + label + time */}
-      <div className="relative flex-shrink-0" style={{ width: 280, height: 280, marginTop: 4 }}>
-        <svg width="280" height="280" viewBox="0 0 280 280">
-          <circle cx="140" cy="140" r={R} fill="none" stroke="#F0F0F0" strokeWidth="14" />
-          <circle cx="140" cy="140" r={R} fill="none" stroke={ringColor} strokeWidth="14" strokeLinecap="round"
-            strokeDasharray={circ} strokeDashoffset={offset} transform="rotate(-90 140 140)"
+      <div className="relative flex-shrink-0 flex justify-center items-center" style={{ width: 320, height: 320 }}>
+        <svg width="320" height="320" viewBox="0 0 320 320">
+          <circle cx="160" cy="160" r={R} fill="none" stroke="#F0F0F0" strokeWidth="14" />
+          <circle cx="160" cy="160" r={R} fill="none" stroke={ringColor} strokeWidth="14" strokeLinecap="round"
+            strokeDasharray={circ} strokeDashoffset={offset} transform="rotate(-90 160 160)"
             className="transition-colors duration-300"
             style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="transition-colors duration-300" style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: statusColor }}>
+          <div className="transition-colors duration-300" style={{ fontSize: 32, fontWeight: 700, fontFamily: FL, color: statusColor, marginBottom: 8 }}>
             {statusLabel}
           </div>
-          <span className="tabular-nums leading-none" style={{ fontSize: 80, fontWeight: 900, fontFamily: FN, color: C1 }}>
+          <span className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: C1 }}>
             {timeStr}
           </span>
         </div>
@@ -99,9 +99,9 @@ function RunningScreen({ statusLabel, statusColor, timeStr, ringProgress, ringCo
       {statsCells && (
         <div className="flex w-full" style={{ border: `0.5px solid ${BRD}`, borderRadius: 10, overflow: 'hidden' }}>
           {statsCells.map((c, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center justify-center py-2.5" style={{ borderRight: i > 0 ? `0.5px solid ${BRD}` : 'none' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{c.label}</span>
-              <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 700, fontFamily: FN, color: C1 }}>{c.value}</span>
+            <div key={i} className="flex-1 flex flex-col items-center justify-center py-3" style={{ borderRight: i > 0 ? `0.5px solid ${BRD}` : 'none' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>{c.label}</span>
+              <span className="tabular-nums" style={{ fontSize: 28, fontWeight: 700, fontFamily: FN, color: C1 }}>{c.value}</span>
             </div>
           ))}
         </div>
@@ -122,19 +122,19 @@ function RunningScreen({ statusLabel, statusColor, timeStr, ringProgress, ringCo
       <div className="flex w-full" style={{ gap: 10 }}>
         {onStop && (
           <button onClick={onStop} className="flex items-center justify-center active:scale-90 transition-transform"
-            style={{ flex: 1, height: 56, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 16, fontWeight: 700, fontFamily: FL, color: C2 }}>
-            <RotateCcw className="w-4 h-4 ml-1.5" />אפס
+            style={{ flex: 1, height: 64, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 18, fontWeight: 700, fontFamily: FL, color: C2 }}>
+            <RotateCcw className="w-5 h-5 ml-1.5" />אפס
           </button>
         )}
         {isRunning ? (
           <button onClick={onPause} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-            <Pause className="w-5 h-5 ml-2" />השהה
+            style={{ flex: 2, height: 64, borderRadius: 12, backgroundColor: BRAND, fontSize: 22, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            <Pause className="w-6 h-6 ml-2" />השהה
           </button>
         ) : (
           <button onClick={onResume} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-            <Play className="w-5 h-5 ml-2" />המשך
+            style={{ flex: 2, height: 64, borderRadius: 12, backgroundColor: BRAND, fontSize: 22, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            <Play className="w-6 h-6 ml-2" />המשך
           </button>
         )}
       </div>
