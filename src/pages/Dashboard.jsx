@@ -69,15 +69,25 @@ export default function Dashboard() {
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
 
-  // Direct trainees query — available immediately for dialogs (doesn't wait for full stats)
+  // Direct trainees query — shared key with useDashboardStats, no initialData
   const { data: allTrainees = [] } = useQuery({
     queryKey: QUERY_KEYS.TRAINEES,
     queryFn: async () => {
       const users = await base44.entities.User.list('-created_at', 1000);
       return users.filter(u => u.role === 'user' || u.role === 'trainee');
     },
-    initialData: [],
+    staleTime: 1000 * 30,
+    refetchOnMount: 'always',
   });
+
+  // Force-refresh all dashboard data after any mutation
+  const refreshAll = () => {
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SESSIONS });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
+  };
 
   const {
     activeClientsCount = 0,
@@ -113,8 +123,7 @@ export default function Dashboard() {
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      refreshAll();
       toast.success("ליד חדש נוסף בהצלחה");
     },
     onError: (e) => {
@@ -128,10 +137,8 @@ export default function Dashboard() {
       return base44.entities.Session.create(d);
     },
     onSuccess: async (s) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SESSIONS });
+      refreshAll();
       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast.success("המפגש נקבע בהצלחה");
       if (s?.participants && coach) {
         for (const p of s.participants) {
@@ -166,10 +173,8 @@ export default function Dashboard() {
       return results;
     },
     onSuccess: async (results) => {
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
+      refreshAll();
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast.success("תוכנית נוצרה!");
       // Notify assigned trainees
       if (results && coach) {
@@ -251,7 +256,11 @@ export default function Dashboard() {
             ].map((m) => (
               <button key={m.label} onClick={() => navigate(m.to)}
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.97]">
-                <span className="text-2xl font-black leading-none" style={{ color: m.color }}>{m.value}</span>
+                {statsLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+                ) : (
+                  <span className="text-2xl font-black leading-none" style={{ color: m.color }}>{m.value}</span>
+                )}
                 <span className="text-[10px] font-bold text-gray-500 mt-1">{m.label}</span>
               </button>
             ))}
@@ -322,7 +331,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Dialogs ──────────────────────────────────────────────── */}
-      <AddTraineeDialog open={isAddTraineeOpen} onClose={() => setIsAddTraineeOpen(false)} />
+      <AddTraineeDialog open={isAddTraineeOpen} onClose={() => { setIsAddTraineeOpen(false); refreshAll(); }} />
       <LeadFormDialog isOpen={isLeadDialogOpen} onClose={() => setIsLeadDialogOpen(false)}
         onSubmit={async (data) => {
           await createLeadMutation.mutateAsync({ ...data, coach_id: coach?.id || null });

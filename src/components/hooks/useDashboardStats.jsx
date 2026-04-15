@@ -14,43 +14,43 @@ import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 export function useDashboardStats() {
   const { user } = useContext(AuthContext);
 
-  // ── Shared queries (same keys as useAppPrefetch) ─────────────────
+  // ── Shared queries — NO initialData so isLoading is accurate ──────
   const { data: allUsers = [], isLoading: usersLoading } = useQuery({
     queryKey: QUERY_KEYS.TRAINEES,
     queryFn: async () => {
       const users = await base44.entities.User.list('-created_at', 1000);
       return users.filter(u => u.role === 'user' || u.role === 'trainee');
     },
-    initialData: [],
     staleTime: CACHE_CONFIG.STALE_TIME,
+    refetchOnMount: 'always',
   });
 
   const { data: allServices = [], isLoading: servicesLoading } = useQuery({
     queryKey: QUERY_KEYS.SERVICES,
     queryFn: () => base44.entities.ClientService.list('-created_at', 2000).catch(() => []),
-    initialData: [],
     staleTime: CACHE_CONFIG.STALE_TIME,
+    refetchOnMount: 'always',
   });
 
   const { data: allSessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: QUERY_KEYS.SESSIONS,
     queryFn: () => base44.entities.Session.list('-date', 1000).catch(() => []),
-    initialData: [],
     staleTime: CACHE_CONFIG.STALE_TIME,
+    refetchOnMount: 'always',
   });
 
   const { data: allPlans = [], isLoading: plansLoading } = useQuery({
     queryKey: QUERY_KEYS.PLANS,
     queryFn: () => base44.entities.TrainingPlan.list('-created_at', 1000).catch(() => []),
-    initialData: [],
     staleTime: CACHE_CONFIG.STALE_TIME,
+    refetchOnMount: 'always',
   });
 
   const { data: allLeads = [], isLoading: leadsLoading } = useQuery({
     queryKey: QUERY_KEYS.LEADS,
     queryFn: () => base44.entities.Lead.list('-created_at', 1000).catch(() => []),
-    initialData: [],
     staleTime: CACHE_CONFIG.STALE_TIME,
+    refetchOnMount: 'always',
   });
 
   const isLoading = usersLoading || servicesLoading || sessionsLoading || plansLoading || leadsLoading;
