@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Loader2, FileText, CheckCircle, Download, Eye, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -282,13 +283,25 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
   const handleSign = async (docType, signatureDataUrl, pdfFile, metadata) => {
     setSigning(docType);
     try {
-      // 1. Upload PDF to Supabase Storage
+      // 1. Upload PDF — try base44 first, then direct Supabase Storage
       let pdfUrl = null;
       try {
         const result = await base44.integrations.UploadFile({ file: pdfFile });
         pdfUrl = result.file_url;
       } catch (uploadErr) {
-        console.warn("[DocumentSigning] PDF upload failed, saving without PDF:", uploadErr);
+        console.warn("[DocumentSigning] base44 upload failed, trying direct Supabase Storage:", uploadErr);
+        try {
+          const fileName = `documents/${user.id}/${docType}_${Date.now()}.pdf`;
+          const { error: storageErr } = await supabase.storage
+            .from('media')
+            .upload(fileName, pdfFile, { contentType: 'application/pdf', upsert: true });
+          if (storageErr) throw storageErr;
+          const { data: urlData } = supabase.storage.from('media').getPublicUrl(fileName);
+          pdfUrl = urlData?.publicUrl || null;
+        } catch (directErr) {
+          console.warn("[DocumentSigning] Direct storage upload also failed:", directErr);
+          // Continue without PDF — signature data is still saved
+        }
       }
 
       // 2. Update user record
@@ -314,7 +327,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         await base44.auth.updateMe(updateData);
       }
 
-      toast.success("הטופס נחתם ונשמר בהצלחה");
+      toast.success("המסמך נחתם ונשמר בהצלחה");
       setExpandedDoc(null);
       if (onUserUpdate) onUserUpdate();
     } catch (error) {
