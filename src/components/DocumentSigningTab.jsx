@@ -395,7 +395,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
               <div className="px-4 pb-3 flex items-center justify-between">
                 <p className="text-xs text-gray-500">נחתם ב-{format(new Date(doc.signedAt), 'dd/MM/yyyy HH:mm', { locale: he })}</p>
                 <div className="flex gap-2">
-                  {doc.pdfUrl && (
+                  {doc.pdfUrl ? (
                     <>
                       <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={(e) => { e.stopPropagation(); window.open(doc.pdfUrl, '_blank'); }}>
                         <Eye className="w-3 h-3" />צפייה
@@ -407,6 +407,10 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                         <Download className="w-3 h-3" />הורדה
                       </Button>
                     </>
+                  ) : (
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={(e) => { e.stopPropagation(); setExpandedDoc(doc.key); }}>
+                      <Eye className="w-3 h-3" />צפה בחתימה
+                    </Button>
                   )}
                 </div>
               </div>
@@ -425,7 +429,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                     <img src={doc.sigData} alt="חתימה" className="h-16 border rounded-lg bg-white" style={{ border: '1px solid #E0E0E0' }} />
                   </div>
                 )}
-                {doc.pdfUrl && (
+                {doc.pdfUrl ? (
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="h-9 text-xs gap-1 flex-1" onClick={() => window.open(doc.pdfUrl, '_blank')}>
                       <Eye className="w-3.5 h-3.5" />צפייה ב-PDF
@@ -436,6 +440,8 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                       <Download className="w-3.5 h-3.5" />הורד PDF
                     </Button>
                   </div>
+                ) : (
+                  <p className="text-xs text-gray-400 text-center">PDF לא זמין — החתימה נשמרה במערכת</p>
                 )}
               </div>
             )}
