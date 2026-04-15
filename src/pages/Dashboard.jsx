@@ -80,13 +80,13 @@ export default function Dashboard() {
     refetchOnMount: 'always',
   });
 
-  // Force-refresh all dashboard data after any mutation
+  // Force-refetch all dashboard data after any mutation
   const refreshAll = () => {
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SESSIONS });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
+    queryClient.refetchQueries({ queryKey: QUERY_KEYS.TRAINEES });
+    queryClient.refetchQueries({ queryKey: QUERY_KEYS.SERVICES });
+    queryClient.refetchQueries({ queryKey: QUERY_KEYS.SESSIONS });
+    queryClient.refetchQueries({ queryKey: QUERY_KEYS.PLANS });
+    queryClient.refetchQueries({ queryKey: QUERY_KEYS.LEADS });
   };
 
   const {
