@@ -264,96 +264,60 @@ export default function TraineeHome() {
           <p className="text-xl text-gray-500">מוכן לאימון הבא שלך?</p>
         </div>
 
-        {/* Active Packages */}
-        {activeServices.length > 0 && (
-          <div className="mb-6 space-y-2">
-            {activeServices.map(svc => {
-              const total = svc.total_sessions || 0;
-              const used = svc.used_sessions || 0;
-              const remaining = total > 0 ? total - used : null;
-              if (remaining === null) return null;
-              const pct = total > 0 ? Math.round((used / total) * 100) : 0;
-              return (
-                <div key={svc.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-base text-gray-900">{svc.package_name || svc.service_type || 'חבילה'}</h3>
-                      <p className="text-xs text-gray-500">{svc.start_date ? new Date(svc.start_date).toLocaleDateString('he-IL') : ''} {svc.end_date ? `עד ${new Date(svc.end_date).toLocaleDateString('he-IL')}` : ''}</p>
-                    </div>
-                    <div className="text-left">
-                      <span className="text-2xl font-black text-[#FF6F20]">{used}</span>
-                      <span className="text-xs text-gray-400 block">/ {total} מפגשים</span>
-                    </div>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#FF6F20] rounded-full" style={{ width: `${pct}%` }} />
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-1 text-left">{used}/{total} אימונים נוצלו</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Upcoming Sessions Section */}
-        <div className="mb-8">
-          <h2 className="text-xl font-bold mb-4 text-gray-800 border-r-4 border-[#FF6F20] pr-3">המפגשים שלי</h2>
-          {mySessions.filter(s => new Date(`${s.date}T${s.time}`) >= new Date()).length === 0 ? (
-            <div className="bg-gray-50 p-6 rounded-xl text-center border border-gray-100">
-              <p className="text-gray-500 mb-2">אין מפגשים עתידיים</p>
-              <Button onClick={() => setShowBookingDialog(true)} variant="link" className="text-[#FF6F20]">
-                קבע מפגש חדש
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {mySessions
-                .filter(s => new Date(`${s.date}T${s.time}`) >= new Date())
-                .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
-                .map(session => (
-                <div key={session.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        {getStatusBadge(session.status)}
-                        <span className="text-sm text-gray-500">{session.session_type}</span>
+        {/* Upcoming Sessions — only shown when there are future approved/pending sessions */}
+        {(() => {
+          const upcoming = mySessions
+            .filter(s => new Date(`${s.date}T${s.time}`) >= new Date() && !['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'התקיים', 'לא הגיע'].includes(s.status))
+            .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+          if (upcoming.length === 0) return null;
+          return (
+            <div className="mb-6">
+              <h2 className="text-lg font-bold mb-3 text-gray-800 border-r-4 border-[#FF6F20] pr-3">מפגש קרוב</h2>
+              <div className="space-y-3">
+                {upcoming.map(session => (
+                  <div key={session.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          {getStatusBadge(session.status)}
+                          <span className="text-sm text-gray-500">{session.session_type}</span>
+                        </div>
+                        <div className="font-bold text-lg">
+                          {new Date(session.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })} | {session.time}
+                        </div>
+                        <div className="text-sm text-gray-500">{session.location}</div>
                       </div>
-                      <div className="font-bold text-lg">
-                        {new Date(session.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })} | {session.time}
-                      </div>
-                      <div className="text-sm text-gray-500">{session.location}</div>
                     </div>
-                  </div>
-                  {/* Cancel / Reschedule buttons for active sessions */}
-                  {!['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'התקיים', 'לא הגיע'].includes(session.status) && (
-                    <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100">
-                      {(() => {
-                        const sessionStart = new Date(`${session.date}T${session.time}`);
-                        const hoursAway = (sessionStart - new Date()) / (1000 * 60 * 60);
-                        if (hoursAway >= 24) {
-                          return (
+                    {(() => {
+                      const sessionStart = new Date(`${session.date}T${session.time}`);
+                      const hoursAway = (sessionStart - new Date()) / (1000 * 60 * 60);
+                      if (hoursAway >= 24) {
+                        return (
+                          <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100">
                             <button onClick={() => handleCancelSession(session)}
                               className="flex-1 text-xs font-bold text-red-500 bg-red-50 rounded-lg py-2 hover:bg-red-100 transition-colors">
                               ביטול מפגש
                             </button>
-                          );
-                        } else {
-                          return (
+                          </div>
+                        );
+                      } else if (hoursAway > 0) {
+                        return (
+                          <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100">
                             <button onClick={() => handleRescheduleRequest(session)}
                               className="flex-1 text-xs font-bold text-[#FF6F20] bg-orange-50 rounded-lg py-2 hover:bg-orange-100 transition-colors flex items-center justify-center gap-1">
-                              <ClockIcon className="w-3 h-3" />
-                              בקש שינוי תאריך
+                              <ClockIcon className="w-3 h-3" />בקש שינוי תאריך
                             </button>
-                          );
-                        }
-                      })()}
-                    </div>
-                  )}
-                </div>
-              ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Quick Access Grid */}
         <div className="grid grid-cols-2 gap-3 mb-6">
