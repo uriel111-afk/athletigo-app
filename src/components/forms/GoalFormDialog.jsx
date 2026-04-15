@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Target } from "lucide-react";
 import { toast } from "sonner";
+import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFormPersistence } from "../hooks/useFormPersistence";
@@ -83,7 +84,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       if (onSuccess) onSuccess();
       clearDraft();
       toast.success("היעד נשמר בהצלחה");
@@ -100,7 +101,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       if (onSuccess) onSuccess();
       clearDraft();
       toast.success("היעד עודכן בהצלחה");

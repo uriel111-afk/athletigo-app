@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { QUERY_KEYS } from "@/components/utils/queryKeys";
+import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 
 /**
  * Central cache invalidation hook.
@@ -24,8 +24,8 @@ export function useInvalidateRelated() {
       traineeKeys.forEach(k => qc.invalidateQueries({ queryKey: [k, traineeId] }));
     }
 
-    // Always bust dashboard
-    qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    // Always bust dashboard — invalidates all 5 real query keys
+    invalidateDashboard(qc);
   };
 
   return invalidate;

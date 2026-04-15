@@ -13,7 +13,11 @@ export function useRealtimeSync(userId) {
     if (!userId) return;
 
     const invalidateDashboard = () => {
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     };
 
     const channel = supabase.channel('app-sync')

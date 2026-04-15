@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useLeadStats } from "../components/hooks/useLeadStats";
-import { QUERY_KEYS } from "@/components/utils/queryKeys";
+import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,7 +62,7 @@ export default function Leads() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowAddDialog(false);
       setLeadForm({ full_name: "", phone: "", email: "", source: "אחר", main_goal: "", status: "חדש", coach_notes: "" });
       toast.success("✅ ליד נוסף בהצלחה");
@@ -82,7 +82,7 @@ export default function Leads() {
     mutationFn: ({ id, data }) => base44.entities.Lead.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowEditDialog(false);
       setEditingLead(null);
       toast.success("הליד עודכן בהצלחה");
@@ -97,7 +97,7 @@ export default function Leads() {
     mutationFn: (id) => base44.entities.Lead.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       toast.success("הליד נמחק בהצלחה");
     },
     onError: (error) => {
@@ -180,7 +180,7 @@ export default function Leads() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['users-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       if (result.wasAutoEmail) {
         toast.success(`הליד "${variables.lead.full_name}" הומר ל${variables.type} בהצלחה`);
       } else {

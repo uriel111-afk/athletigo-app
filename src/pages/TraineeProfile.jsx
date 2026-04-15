@@ -16,7 +16,7 @@ import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { createPageUrl } from "@/utils";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
-import { QUERY_KEYS } from "@/components/utils/queryKeys";
+import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import PhysicalMetricsManager from "../components/PhysicalMetricsManager";
 import MessageCenter from "../components/MessageCenter";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
@@ -566,7 +566,7 @@ export default function TraineeProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowAddGoal(false);
       setGoalForm({ goal_name: "", description: "", target_value: "", current_value: "", unit: "", target_date: "", status: "בתהליך" });
       toast.success("✅ יעד נוסף");
@@ -581,7 +581,7 @@ export default function TraineeProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setEditingGoal(null);
       toast.success("✅ יעד עודכן");
     },
@@ -655,7 +655,7 @@ export default function TraineeProfile() {
           queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
           queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
           queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+          invalidateDashboard(queryClient);
           setEditingUsage(null);
           setUsageValue("");
           toast.success("✅ ניצול אימונים עודכן ידנית");
@@ -776,7 +776,7 @@ export default function TraineeProfile() {
       queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       toast.success("✅ סטטוס עודכן וסונכרן");
     },
     onError: (error) => {
@@ -1049,7 +1049,7 @@ export default function TraineeProfile() {
         queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
         queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
         queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        invalidateDashboard(queryClient);
 
         setShowManualAttendance(false);
         setManualAttendanceForm({ date: new Date().toISOString().split('T')[0], time: "10:00", session_type: "אישי", location: "ידני", notes: "" });
@@ -1671,7 +1671,7 @@ export default function TraineeProfile() {
                                         queryClient.invalidateQueries({ queryKey: ['baselines'] });
                                         queryClient.invalidateQueries({ queryKey: ['my-results'] });
                                         queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                                        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                        invalidateDashboard(queryClient);
                                       } catch (err) {
                                         toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
                                       }
@@ -1782,7 +1782,7 @@ export default function TraineeProfile() {
                                     queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
                                     queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
                                     queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-                                    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                    invalidateDashboard(queryClient);
                                     toast.success("החבילה נמחקה");
                                   } catch (err) {
                                     toast.error("שגיאה במחיקת חבילה: " + (err?.message || "נסה שוב"));
@@ -1948,7 +1948,7 @@ export default function TraineeProfile() {
                                       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
                                       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
                                       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                                      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                      invalidateDashboard(queryClient);
                                       toast.success("המפגש נמחק בהצלחה");
                                     } catch (err) {
                                       toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
@@ -2000,7 +2000,7 @@ export default function TraineeProfile() {
                                               queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
                                               queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
                                               queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                                              queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                              invalidateDashboard(queryClient);
                                               toast.success("המפגש נמחק");
                                             } catch (err) { toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב")); }
                                           }}>
@@ -2234,7 +2234,7 @@ export default function TraineeProfile() {
               queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
               queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
               queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-              queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+              invalidateDashboard(queryClient);
               setShowEditSession(false);
               setEditingSession(null);
               toast.success("המפגש עודכן בהצלחה");
@@ -2404,7 +2404,7 @@ export default function TraineeProfile() {
                     setShowDeleteConfirm(false);
                     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
                     queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                    invalidateDashboard(queryClient);
                     navigate('/');
                   } catch (err) {
                     console.error("[DeleteTrainee]", err);

@@ -166,7 +166,11 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['baselines'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
 
       toast.success(`בייסליין נשמר בהצלחה — ${calc.score} JPS`);
       onClose();

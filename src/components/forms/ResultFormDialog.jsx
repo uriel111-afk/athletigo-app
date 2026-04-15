@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AuthContext } from "@/lib/AuthContext";
 import { notifyNewRecord } from "@/functions/notificationTriggers";
+import { invalidateDashboard } from "@/components/utils/queryKeys";
 
 const RECORD_TYPES = [
   "חבל",
@@ -102,7 +103,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       if (onSuccess) onSuccess();
       toast.success("השיא נשמר בהצלחה");
       // Notify coach when trainee adds a record
@@ -127,7 +128,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
     mutationFn: ({ id, data }) => base44.entities.ResultsLog.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       if (onSuccess) onSuccess();
       toast.success("השיא עודכן בהצלחה");
       onClose();

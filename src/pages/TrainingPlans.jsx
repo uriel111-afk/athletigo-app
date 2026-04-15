@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useProgramStats } from "../components/hooks/useProgramStats";
 import { createPageUrl } from "@/utils";
 import { cn } from "@/lib/utils";
+import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -224,7 +225,7 @@ export default function TrainingPlans() {
     onSuccess: async (createdPlans) => {
       await queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowPlanDialog(false);
       setEditingPlan(null);
 
@@ -268,7 +269,7 @@ export default function TrainingPlans() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowPlanDialog(false);
       setEditingPlan(null);
       toast.success("✅ תוכנית עודכנה בהצלחה!");
@@ -295,7 +296,7 @@ export default function TrainingPlans() {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['training-sections'] });
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setSelectedPlan(null);
       toast.success("✅ נמחק");
     },
@@ -356,7 +357,7 @@ export default function TrainingPlans() {
     },
     onSuccess: (newPlanResult) => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setSelectedPlan(newPlanResult);
       toast.success("✅ תוכנית שוכפלה בהצלחה");
     },
@@ -435,7 +436,7 @@ export default function TrainingPlans() {
     onSuccess: (createdPlans) => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowSharePlanDialog(false);
       setSelectedShareTrainees([]);
       setSharingPlan(null);

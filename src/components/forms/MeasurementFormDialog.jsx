@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, CheckCircle, Activity } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { base44 } from "@/api/base44Client";
 import { useFormPersistence } from "../hooks/useFormPersistence";
 import { useCloseConfirm } from "../hooks/useCloseConfirm";
@@ -44,7 +45,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     mutationFn: (data) => base44.entities.Measurement.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       clearDraft();
       toast.success("✅ מדידה נוספה");
       onClose();
@@ -59,7 +60,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     mutationFn: ({ id, data }) => base44.entities.Measurement.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       clearDraft();
       toast.success("✅ מדידה עודכנה");
       onClose();

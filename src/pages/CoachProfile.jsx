@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock, Settings, Bell, Send, Loader2, LogOut } from "lucide-react";
+import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -75,7 +76,7 @@ export default function CoachProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['current-user-coach-profile'] });
       queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       refetch();
       setShowEdit(false);
       toast.success("✅ הפרופיל עודכן בהצלחה");

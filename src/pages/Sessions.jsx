@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useSessionStats } from "../components/hooks/useSessionStats";
 import { deductSessionFromService, restoreSessionToService } from "../components/hooks/useServiceDeduction";
-import { QUERY_KEYS } from "@/components/utils/queryKeys";
+import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -188,7 +188,7 @@ export default function Sessions() {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowSessionDialog(false);
       setEditingSession(null);
       toast.success("✅ המפגש נוצר בהצלחה");
@@ -228,7 +228,7 @@ export default function Sessions() {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowSessionDialog(false);
       setEditingSession(null);
       setAddingParticipantsTo(null);
@@ -246,7 +246,7 @@ export default function Sessions() {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       setShowDeleteDialog(false);
       setDeletingSession(null);
       toast.success("✅ המפגש נמחק בהצלחה");
@@ -345,7 +345,7 @@ export default function Sessions() {
       }
       toast.success("✅ נוכחות נרשמה ויתרות עודכנו");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     }
     // If status changed FROM 'התקיים' TO something else (Cancelled/No Show), we might need to RESTORE
@@ -379,7 +379,7 @@ export default function Sessions() {
 
       toast.success("סטטוס עודכן וזיכויים הוחזרו");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      invalidateDashboard(queryClient);
     }
   };
 
