@@ -151,8 +151,8 @@ function StopwatchView() {
     const t = Math.floor(display / 1000), m = Math.floor(t / 60), s = t % 60, cs = Math.floor((display % 1000) / 10);
     return (
       <RunningScreen
-        statusLabel="רץ" statusColor={isRunning ? BRAND : C2}
-        timeStr={fmtMMSS(display)} ringProgress={1} ringColor={BRAND}
+        statusLabel={isRunning ? 'רץ' : 'עצור'} statusColor={isRunning ? BRAND : C2}
+        timeStr={fmtMMSS(display)} ringProgress={(display % 60000) / 60000} ringColor={BRAND}
         statsCells={[
           { label: 'דקות', value: String(m).padStart(2, '0') },
           { label: 'שניות', value: String(s).padStart(2, '0') },
