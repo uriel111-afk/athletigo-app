@@ -319,22 +319,22 @@ function ParamCard({ label, value, unit, onChange, min = 0, max = 999, highlight
       <div style={{
         border: highlight ? `2px solid ${BRAND}` : `0.5px solid ${BRD}`,
         backgroundColor: highlight ? '#FFF8F5' : '#FFFFFF',
-        borderRadius: 10, padding: '8px 10px',
+        borderRadius: 10, padding: '10px 12px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, fontFamily: FL, color: C3, marginBottom: 2 }}>{label}</div>
-          <button onClick={() => setPick(true)} className="tabular-nums" style={{ fontSize: 16, fontWeight: 500, fontFamily: FN, color: highlight ? BRAND : C1, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-            {value}{unit ? <span style={{ fontSize: 11, color: C3, marginRight: 2 }}> {unit}</span> : null}
+          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2, marginBottom: 3 }}>{label}</div>
+          <button onClick={() => setPick(true)} className="tabular-nums" style={{ fontSize: 22, fontWeight: 700, fontFamily: FN, color: highlight ? BRAND : C1, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            {value}{unit ? <span style={{ fontSize: 13, color: C3, marginRight: 3 }}> {unit}</span> : null}
           </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <HoldButton onClick={() => onChange(Math.min(max, value + 1))}
             className="flex items-center justify-center active:scale-90 transition-transform"
-            style={{ width: 22, height: 22, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 14, fontWeight: 700, border: 'none', lineHeight: 1 }}>+</HoldButton>
+            style={{ width: 26, height: 26, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 16, fontWeight: 700, border: 'none', lineHeight: 1 }}>+</HoldButton>
           <HoldButton onClick={() => onChange(Math.max(min, value - 1))}
             className="flex items-center justify-center active:scale-90 transition-transform"
-            style={{ width: 22, height: 22, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 14, fontWeight: 700, border: `0.5px solid ${BRD}`, lineHeight: 1 }}>−</HoldButton>
+            style={{ width: 26, height: 26, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 16, fontWeight: 700, border: `0.5px solid ${BRD}`, lineHeight: 1 }}>−</HoldButton>
         </div>
       </div>
       <NumberPicker isOpen={pick} value={value} onChange={onChange} onClose={() => setPick(false)} min={min} max={max} label={label} />
@@ -358,8 +358,8 @@ function TabataView() {
   /* ── Settings screen ── */
   if (showSetup) {
     return (
-      <div dir="rtl" style={{ padding: '12px 20px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+      <div dir="rtl" style={{ padding: '16px 16px 100px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           <ParamCard label="הכנה" value={prepSec} unit="שנ׳" onChange={setPrepSec} min={0} max={60} />
           <ParamCard label="עבודה" value={workSec} unit="שנ׳" onChange={setWorkSec} min={1} max={300} highlight />
           <ParamCard label="מנוחה" value={restSec} unit="שנ׳" onChange={setRestSec} min={0} max={300} />
@@ -367,35 +367,39 @@ function TabataView() {
           <ParamCard label="סטים" value={sets} onChange={setSets} min={1} max={10} />
           <ParamCard label="מנ׳ בין סטים" value={setsRestSec} unit="שנ׳" onChange={setSetsRestSec} min={0} max={300} />
         </div>
-        {/* Summary */}
-        <div className="flex justify-center gap-3" style={{ marginTop: 10, fontSize: 13, fontWeight: 500, fontFamily: FL, color: C2 }}>
+        <div className="flex justify-center gap-3" style={{ marginTop: 12, fontSize: 14, fontWeight: 600, fontFamily: FL, color: C2 }}>
           <span>{fmtTotal(totalTime)} סה״כ</span>
           <span style={{ opacity: 0.3 }}>|</span>
           <span>{rounds * sets} אינטרוולים</span>
         </div>
-        {/* Start */}
-        <div className="flex" style={{ marginTop: 14, gap: 10 }}>
-          <button onClick={() => startTabata({ workTime: workSec, restTime: restSec, rounds, sets, setRest: setsRestSec, prepareTime: prepSec })}
-            className="flex-1 flex items-center justify-center active:scale-[0.98] transition-transform"
-            style={{ height: 52, borderRadius: 12, backgroundColor: BRAND, fontSize: 18, fontWeight: 500, fontFamily: FL, color: '#FFF' }}>
-            <Play className="w-5 h-5 ml-2" />התחל
-          </button>
-        </div>
+        <button onClick={() => startTabata({ workTime: workSec, restTime: restSec, rounds, sets, setRest: setsRestSec, prepareTime: prepSec })}
+          className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
+          style={{ marginTop: 14, height: 60, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+          <Play className="w-6 h-6 ml-2" />התחל
+        </button>
       </div>
     );
   }
 
   /* ── Active timer ── */
-  const s = PS[phase] || PS.idle;
+  const isWork = phase === 'work' || phase === 'prepare';
+  const ringStroke = isWork ? BRAND : '#AAAAAA';
+
+  // Ring progress for current phase
+  const R = 108, circ = 2 * Math.PI * R;
+  const progress = totalDuration > 0 ? Math.max(0, Math.min(1, display / totalDuration)) : 0;
+  const offset = circ * (1 - progress);
 
   // Parse round info
   let setStr = '—', roundStr = '—';
   if (roundInfo) {
-    const parts = roundInfo.split('•').map(x => x.trim());
-    parts.forEach(p => { if (p.startsWith('סט')) setStr = p.replace('סט ', ''); if (p.startsWith('סיבוב')) roundStr = p.replace('סיבוב ', ''); });
+    roundInfo.split('•').map(x => x.trim()).forEach(p => {
+      if (p.startsWith('סט')) setStr = p.replace('סט ', '');
+      if (p.startsWith('סיבוב')) roundStr = p.replace('סיבוב ', '');
+    });
   }
 
-  // Remaining total
+  // Remaining total (counts down)
   const elapsedMs = totalDuration > 0 ? totalDuration - display : 0;
   const remainingSec = Math.max(0, totalTime - Math.floor(elapsedMs / 1000));
 
@@ -406,61 +410,66 @@ function TabataView() {
   else if (phase === 'set_rest') { nextLabel = 'עבודה'; nextDur = workSec; }
   else if (phase === 'prepare') { nextLabel = 'עבודה'; nextDur = workSec; }
 
-  const isWork = phase === 'work' || phase === 'prepare';
-
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col" dir="rtl"
-      style={{ backgroundColor: '#FFFFFF', padding: '20px 20px 24px' }}>
+    <div className="fixed inset-0 z-[90] flex flex-col items-center" dir="rtl"
+      style={{ backgroundColor: '#FFFFFF', padding: '16px 16px 100px', gap: 14, overflowY: 'auto' }}>
 
-      {/* Total remaining — top right */}
-      <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 500, fontFamily: FL, color: C3, marginBottom: 4 }}>
-        {fmtTotal(remainingSec)} נותר לסיום
-      </div>
-
-      {/* Header row: phase + round/set */}
-      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-        <div className="transition-colors duration-300" style={{ fontSize: 24, fontWeight: 500, fontFamily: FL, color: isWork ? BRAND : C2 }}>
-          {phaseLabel}
+      {/* ── Ring + phase + time ── */}
+      <div className="relative flex-shrink-0" style={{ width: 280, height: 280, marginTop: 4 }}>
+        <svg width="280" height="280" viewBox="0 0 280 280">
+          <circle cx="140" cy="140" r={R} fill="none" stroke="#F0F0F0" strokeWidth="14" />
+          <circle cx="140" cy="140" r={R} fill="none" stroke={ringStroke} strokeWidth="14" strokeLinecap="round"
+            strokeDasharray={circ} strokeDashoffset={offset}
+            transform="rotate(-90 140 140)"
+            className="transition-colors duration-300"
+            style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <div className="transition-colors duration-300" style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: isWork ? BRAND : C2 }}>
+            {phaseLabel}
+          </div>
+          <span className="tabular-nums leading-none" style={{ fontSize: 80, fontWeight: 900, fontFamily: FN, color: C1 }}>
+            {fmt(display)}
+          </span>
         </div>
-        <div style={{ textAlign: 'left' }}>
-          <div style={{ fontSize: 15, fontWeight: 500, fontFamily: FN, color: C1 }}>סיבוב {roundStr}</div>
-          <div style={{ fontSize: 13, fontWeight: 500, fontFamily: FN, color: C3 }}>סט {setStr}</div>
-        </div>
       </div>
 
-      {/* Giant countdown */}
-      <div className="flex-1 flex items-center justify-center">
-        <span className="tabular-nums leading-none transition-colors duration-300" style={{
-          fontSize: 110, fontWeight: 900, fontFamily: FN, color: C1,
-        }}>
-          {fmt(display)}
-        </span>
+      {/* ── Stats row ── */}
+      <div className="flex w-full" style={{ border: `0.5px solid ${BRD}`, borderRadius: 10, overflow: 'hidden' }}>
+        {[
+          { label: 'סיבוב', value: roundStr },
+          { label: 'סט', value: setStr },
+          { label: 'נותר לסיום', value: fmtTotal(remainingSec) },
+        ].map((c, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center justify-center py-2.5" style={{ borderRight: i > 0 ? `0.5px solid ${BRD}` : 'none' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{c.label}</span>
+            <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 700, fontFamily: FN, color: C1 }}>{c.value}</span>
+          </div>
+        ))}
       </div>
 
-      {/* Next phase bar */}
+      {/* ── Next phase bar ── */}
       {nextLabel && (
-        <div className="flex items-center justify-between" style={{
-          backgroundColor: BG2, borderRadius: 10, padding: '10px 16px', marginBottom: 12,
-        }}>
-          <span style={{ fontSize: 14, fontWeight: 500, fontFamily: FL, color: C2 }}>הבא: {nextLabel}</span>
-          <span className="tabular-nums" style={{ fontSize: 14, fontWeight: 500, fontFamily: FN, color: C1 }}>{nextDur} שניות</span>
+        <div className="flex items-center justify-between w-full" style={{ backgroundColor: BG2, borderRadius: 10, padding: '12px 16px' }}>
+          <span style={{ fontSize: 16, fontWeight: 600, fontFamily: FL, color: C2 }}>הבא: {nextLabel}</span>
+          <span className="tabular-nums" style={{ fontSize: 16, fontWeight: 600, fontFamily: FN, color: C1 }}>{nextDur} שניות</span>
         </div>
       )}
 
-      {/* Controls */}
-      <div className="flex" style={{ gap: 10 }}>
+      {/* ── Controls ── */}
+      <div className="flex w-full" style={{ gap: 10 }}>
         <button onClick={stop} className="flex items-center justify-center active:scale-90 transition-transform"
-          style={{ flex: 1, height: 52, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 14, fontWeight: 500, fontFamily: FL, color: C2 }}>
+          style={{ flex: 1, height: 56, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 16, fontWeight: 700, fontFamily: FL, color: C2 }}>
           <RotateCcw className="w-4 h-4 ml-1.5" />אפס
         </button>
         {isRunning ? (
           <button onClick={pause} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 52, borderRadius: 12, backgroundColor: BRAND, fontSize: 18, fontWeight: 500, fontFamily: FL, color: '#FFF' }}>
+            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
             <Pause className="w-5 h-5 ml-2" />השהה
           </button>
         ) : (
           <button onClick={resume} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 52, borderRadius: 12, backgroundColor: BRAND, fontSize: 18, fontWeight: 500, fontFamily: FL, color: '#FFF' }}>
+            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
             <Play className="w-5 h-5 ml-2" />המשך
           </button>
         )}
