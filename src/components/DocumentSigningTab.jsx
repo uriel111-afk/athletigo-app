@@ -283,31 +283,36 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
   const handleSign = async (docType, signatureDataUrl, pdfFile, metadata) => {
     setSigning(docType);
     try {
-      // 1. Upload PDF — try base44 first, then direct Supabase Storage
+      console.log("[DocumentSigning] Starting save for:", docType, "User:", user.id);
+
+      // 1. Upload PDF (best-effort — never blocks signing)
       let pdfUrl = null;
       try {
         const result = await base44.integrations.UploadFile({ file: pdfFile });
         pdfUrl = result.file_url;
+        console.log("[DocumentSigning] PDF uploaded via base44:", pdfUrl);
       } catch (uploadErr) {
-        console.warn("[DocumentSigning] base44 upload failed, trying direct Supabase Storage:", uploadErr);
+        console.warn("[DocumentSigning] base44 upload failed:", uploadErr?.message);
         try {
           const fileName = `documents/${user.id}/${docType}_${Date.now()}.pdf`;
           const { error: storageErr } = await supabase.storage
             .from('media')
             .upload(fileName, pdfFile, { contentType: 'application/pdf', upsert: true });
-          if (storageErr) throw storageErr;
-          const { data: urlData } = supabase.storage.from('media').getPublicUrl(fileName);
-          pdfUrl = urlData?.publicUrl || null;
-        } catch (directErr) {
-          console.warn("[DocumentSigning] Direct storage upload also failed:", directErr);
-          // Continue without PDF — signature data is still saved
+          if (!storageErr) {
+            const { data: urlData } = supabase.storage.from('media').getPublicUrl(fileName);
+            pdfUrl = urlData?.publicUrl || null;
+            console.log("[DocumentSigning] PDF uploaded via supabase:", pdfUrl);
+          } else {
+            console.warn("[DocumentSigning] Storage upload failed:", storageErr.message);
+          }
+        } catch (e) {
+          console.warn("[DocumentSigning] All PDF uploads failed, continuing without PDF");
         }
       }
 
-      // 2. Update user record
+      // 2. Build update payload
       const now = new Date().toISOString();
       const updateData = {};
-
       if (docType === 'health_declaration') {
         updateData.health_declaration_signed_at = now;
         updateData.health_declaration_signature = signatureDataUrl;
@@ -320,23 +325,60 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         if (metadata) updateData.cooperation_agreement_metadata = metadata;
       }
 
-      // Use the appropriate update method
-      try {
-        if (isCoach && user.id !== (await base44.auth.me()).id) {
-          await base44.entities.User.update(user.id, updateData);
-        } else {
-          await base44.auth.updateMe(updateData);
+      console.log("[DocumentSigning] Saving fields:", Object.keys(updateData));
+
+      // 3. Save to user record — try multiple methods
+      let saved = false;
+
+      // Method A: base44 auth update
+      if (!saved) {
+        try {
+          if (isCoach && user.id !== (await base44.auth.me()).id) {
+            await base44.entities.User.update(user.id, updateData);
+          } else {
+            await base44.auth.updateMe(updateData);
+          }
+          saved = true;
+          console.log("[DocumentSigning] Saved via base44");
+        } catch (err) {
+          console.warn("[DocumentSigning] base44 save failed:", err?.message);
         }
-      } catch (saveErr) {
-        console.error("[DocumentSigning] updateMe/update failed, trying direct supabase:", saveErr);
-        // Fallback: direct supabase update on users table
+      }
+
+      // Method B: direct supabase update
+      if (!saved) {
         const { error: directErr } = await supabase
           .from('users')
           .update(updateData)
           .eq('id', user.id);
-        if (directErr) {
-          console.error("[DocumentSigning] Direct supabase update also failed:", directErr);
-          throw directErr;
+        if (!directErr) {
+          saved = true;
+          console.log("[DocumentSigning] Saved via direct supabase");
+        } else {
+          console.error("[DocumentSigning] Direct supabase failed:", directErr);
+        }
+      }
+
+      // Method C: save only the essential fields (timestamp + signature, skip metadata/pdf)
+      if (!saved) {
+        const minimalData = {};
+        if (docType === 'health_declaration') {
+          minimalData.health_declaration_signed_at = now;
+          minimalData.health_declaration_signature = signatureDataUrl;
+        } else {
+          minimalData.cooperation_agreement_signed_at = now;
+          minimalData.cooperation_agreement_signature = signatureDataUrl;
+        }
+        const { error: minErr } = await supabase
+          .from('users')
+          .update(minimalData)
+          .eq('id', user.id);
+        if (!minErr) {
+          saved = true;
+          console.log("[DocumentSigning] Saved minimal fields via supabase");
+        } else {
+          console.error("[DocumentSigning] Even minimal save failed:", minErr);
+          throw minErr;
         }
       }
 
@@ -344,7 +386,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       setExpandedDoc(null);
       if (onUserUpdate) onUserUpdate();
     } catch (error) {
-      console.error("[DocumentSigning] Error:", error);
+      console.error("[DocumentSigning] FINAL ERROR:", error);
       toast.error("שגיאה בשמירת הטופס: " + (error?.message || JSON.stringify(error) || "נסה שוב"));
     } finally {
       setSigning(null);
