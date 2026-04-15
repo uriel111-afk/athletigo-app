@@ -144,8 +144,40 @@ export function useDashboardStats() {
       return diff >= 0 && diff <= 30;
     }).length;
 
+    // ── Pending session requests ────────────────────────────────────
+    const pendingSessionsCount = coachSessions.filter(s => s.status === 'ממתין לאישור').length;
+
+    // ── Packages expiring within 7 days ─────────────────────────────
+    const expiringPackages = activeServices.filter(s => {
+      const endDate = s.end_date || s.expires_at;
+      if (!endDate) return false;
+      const d = new Date(endDate);
+      const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+      return diff >= 0 && diff <= 7;
+    });
+
+    // ── Trainee card data ────────────────────────────────────────────
+    const traineeCards = trainees.map(t => {
+      const tServices = activeServices.filter(s => s.trainee_id === t.id);
+      const activePkg = tServices[0] || null;
+      const total = activePkg ? (activePkg.total_sessions || activePkg.sessions_count || 0) : 0;
+      const used = activePkg ? (activePkg.used_sessions || 0) : 0;
+      const remaining = total > 0 ? total - used : null;
+      const tSessions = coachSessions.filter(s => s.participants?.some(p => p.trainee_id === t.id));
+      const lastSession = tSessions.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+      return {
+        ...t,
+        activePkg,
+        remaining,
+        total,
+        lastSessionDate: lastSession?.date || null,
+        hasActivePackage: !!activePkg,
+      };
+    });
+
     return {
       trainees,
+      traineeCards,
       totalClientsCount: trainees.length,
       activeClientsCount: activeClientIds.size,
       monthlyRevenue,
@@ -159,6 +191,8 @@ export function useDashboardStats() {
       },
       activePlansCount: activePlans.length,
       newLeadsCount: newLeads.length,
+      pendingSessionsCount,
+      expiringPackagesCount: expiringPackages.length,
       conversionRate,
       todaySessionsCount: todaySessions.length,
       upcomingSessionsCount: upcomingSessions.length,

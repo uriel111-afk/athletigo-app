@@ -1118,7 +1118,24 @@ export default function TraineeProfile() {
 
   const activeGoals = goals.filter(g => g.status === 'בתהליך');
   const completedGoals = goals.filter(g => g.status === 'הושג');
-  const activeServices = services.filter(s => s.status === 'פעיל');
+
+  // Derive active vs history packages from real data, not just status string
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const activeServices = services.filter(s => {
+    // Explicit non-active statuses → always history
+    if (['expired', 'completed', 'cancelled', 'ended', 'הסתיים', 'פג תוקף'].includes(s.status)) return false;
+    // Derive: if punch-card and all sessions used → not active
+    const total = s.total_sessions || s.sessions_count || 0;
+    const used = s.used_sessions || 0;
+    if (total > 0 && used >= total) return false;
+    // Derive: if end_date/expires_at passed → not active
+    const endDate = s.end_date || s.expires_at;
+    if (endDate && new Date(endDate) < today) return false;
+    return true;
+  });
+  const historyServices = services.filter(s => !activeServices.includes(s));
+
   const latestMeasurement = measurements[0];
 
   const getWeightChange = () => {
@@ -1626,135 +1643,142 @@ export default function TraineeProfile() {
                     </Button>
                   )}
                 </div>
-                <div className="space-y-6">
-                  {['personal', 'group', 'online'].map(type => {
-                    const typeServices = activeServices.filter(s => {
-                      if (type === 'personal') return s.service_type === 'personal' || s.service_type === 'אימונים אישיים';
-                      if (type === 'group') return s.service_type === 'group' || s.service_type === 'פעילות קבוצתית';
-                      if (type === 'online') return s.service_type === 'online' || s.service_type === 'ליווי אונליין';
-                      return false;
-                    });
-                    if (typeServices.length === 0) return null;
-                    const title = type === 'personal' ? '🏋️‍♂️ אימונים אישיים' : type === 'group' ? '👥 אימונים קבוצתיים' : '💻 ליווי אונליין';
-                    const borderColor = type === 'personal' ? '#FF6F20' : type === 'group' ? '#2196F3' : '#9C27B0';
+
+                {/* Active Packages */}
+                <div className="space-y-3">
+                  {activeServices.map(service => {
+                    const svcType = (service.service_type || service.package_type || 'personal').toLowerCase();
+                    const isPersonal = svcType === 'personal' || svcType.includes('אישי');
+                    const isGroup = svcType === 'group' || svcType.includes('קבוצ');
+                    const typeLabel = isPersonal ? 'אישי' : isGroup ? 'קבוצתי' : 'אונליין';
+                    const typeColor = isPersonal ? '#FF6F20' : isGroup ? '#2196F3' : '#9C27B0';
+                    const total = service.total_sessions || service.sessions_count || 0;
+                    const used = service.used_sessions || 0;
+                    const remaining = total > 0 ? total - used : null;
+                    const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+                    const priceDisplay = service.final_price || service.price || 0;
+                    const endDate = service.end_date || service.expires_at;
+
                     return (
-                      <div key={type} className="space-y-3">
-                        <h3 className="text-base font-bold text-gray-800">{title}</h3>
-                        <div className="grid gap-4">
-                          {typeServices.map(service => {
-                            const isPunchCard = service.billing_model === 'punch_card' || service.total_sessions > 0;
-                            const remaining = isPunchCard ? service.total_sessions - (service.used_sessions || 0) : null;
-                            const priceDisplay = service.final_price || service.price;
-                            return (
-                              <div key={service.id} className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor }}>
-                                <div className="p-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/30">
-                                  <div>
-                                    <h4 className="font-bold text-lg text-gray-900">{service.group_name || service.package_name || (type === 'personal' ? 'חבילה אישית' : 'מנוי')}</h4>
-                                    <p className="text-xs text-gray-500 mt-0.5">{service.billing_model === 'subscription' ? '📅 מנוי' : service.billing_model === 'punch_card' ? '🎫 כרטיסייה' : '⚡ חד פעמי'}{service.sessions_per_week ? ` • ${service.sessions_per_week}/שבוע` : ''}</p>
-                                  </div>
-                                  <div className="text-lg font-black" style={{ color: borderColor }}>₪{priceDisplay}<span className="text-xs font-normal text-gray-400 block">{service.billing_model === 'subscription' ? 'לחודש' : 'סה"כ'}</span></div>
-                                </div>
-                                <div className="p-4 space-y-2">
-                                  <div className="text-right text-sm py-1">
-                                    <span className="text-gray-500 font-medium">תאריך התחלה: </span>
-                                    <span className="text-gray-900">{format(new Date(service.start_date), 'dd/MM/yy')}</span>
-                                  </div>
-                                  {service.next_billing_date && (
-                                    <div className="text-right text-sm py-1">
-                                      <span className="text-gray-500 font-medium">חיוב הבא: </span>
-                                      <span className="text-blue-700 font-semibold">{format(new Date(service.next_billing_date), 'dd/MM/yy')}</span>
-                                    </div>
-                                  )}
-                                  <div className="text-right text-sm py-1">
-                                    <span className="text-gray-500 font-medium">אמצעי תשלום: </span>
-                                    <span className="text-gray-900">{service.payment_method === 'credit' ? 'אשראי' : service.payment_method === 'cash' ? 'מזומן' : service.payment_method === 'bit' ? 'ביט' : service.payment_method || 'לא מולא'}</span>
-                                  </div>
-                                  {isPunchCard && (
-                                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                      <div className="flex justify-between items-center text-sm mb-2">
-                                        <span className="font-bold text-gray-700">ניצול כרטיסייה</span>
-                                        {editingUsage === service.id ? (
-                                          <div className="flex items-center gap-2">
-                                            <Input type="number" value={usageValue} onChange={e => setUsageValue(e.target.value)} className="w-16 h-8 text-center bg-white" />
-                                            <span className="text-gray-500">/ {service.total_sessions}</span>
-                                            <Button onClick={() => updateServiceUsageMutation.mutate()} size="icon" className="h-8 w-8 bg-green-500 rounded-full"><CheckCircle className="w-4 h-4" /></Button>
-                                            <Button onClick={() => setEditingUsage(null)} size="icon" variant="ghost" className="h-8 w-8 text-red-500"><Trash2 className="w-4 h-4" /></Button>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-mono font-bold">{service.used_sessions} / {service.total_sessions}</span>
-                                            {isCoach && <Button onClick={() => { setEditingUsage(service.id); setUsageValue(String(service.used_sessions)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full" style={{ width: `${Math.min(100, (service.used_sessions / service.total_sessions) * 100)}%`, backgroundColor: borderColor }} /></div>
-                                      <p className="text-xs text-right mt-1 font-bold" style={{ color: borderColor }}>נותרו {remaining} אימונים</p>
-                                    </div>
-                                  )}
-                                  {isCoach && service.notes_internal && <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100"><span className="font-bold">🔒 הערות פנימיות:</span> {service.notes_internal}</div>}
-                                  {isCoach && (
-                                    <div className="pt-2 border-t border-gray-100 flex justify-between">
-                                      <Button variant="ghost" size="sm" className="text-xs h-9 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                        onClick={async () => {
-                                          if (!window.confirm(`למחוק את החבילה "${service.package_name || service.group_name || 'ללא שם'}"?\n\nפעולה זו תמחק את החבילה ואת כל התשלומים והתנועות הקשורים אליה לצמיתות.`)) return;
-                                          try {
-                                            // Unlink sessions (don't delete them)
-                                            try { await supabase.from('sessions').update({ service_id: null }).eq('service_id', service.id); } catch {}
-                                            // Delete related records
-                                            try { await supabase.from('service_transactions').delete().eq('service_id', service.id); } catch {}
-                                            try { await supabase.from('service_payments').delete().eq('service_id', service.id); } catch {}
-                                            // Delete the package
-                                            await supabase.from('client_services').delete().eq('id', service.id);
-                                            queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-                                            queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
-                                            queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                                            queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-                                            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-                                            toast.success("החבילה נמחקה");
-                                          } catch (err) {
-                                            toast.error("שגיאה במחיקת חבילה: " + (err?.message || "נסה שוב"));
-                                          }
-                                        }}>
-                                        <Trash2 className="w-3 h-3 ml-1" />מחק
-                                      </Button>
-                                      <Button variant="ghost" size="sm" className="text-xs h-9" onClick={() => openEditService(service)}>
-                                        <Edit2 className="w-3 h-3 ml-1 text-gray-400" />ערוך
-                                      </Button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
+                      <div key={service.id} className="bg-white rounded-xl border-2 shadow-sm overflow-hidden" style={{ borderColor: typeColor + '40' }}>
+                        {/* Header */}
+                        <div className="p-4 flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-bold text-lg text-gray-900 truncate">{service.package_name || service.group_name || 'חבילה'}</h4>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: typeColor + '15', color: typeColor }}>{typeLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                              <span>{service.start_date ? format(new Date(service.start_date), 'dd/MM/yy') : '—'}</span>
+                              {endDate && <><span className="text-gray-300">→</span><span>{format(new Date(endDate), 'dd/MM/yy')}</span></>}
+                            </div>
+                          </div>
+                          <div className="text-left flex-shrink-0 mr-3">
+                            <div className="text-xl font-black" style={{ color: typeColor }}>₪{priceDisplay}</div>
+                          </div>
                         </div>
+
+                        {/* Sessions progress */}
+                        {remaining !== null && total > 0 && (
+                          <div className="px-4 pb-3">
+                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                              <div className="flex justify-between items-center text-sm mb-2">
+                                <span className="font-bold text-gray-700">מפגשים</span>
+                                {editingUsage === service.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <Input type="number" value={usageValue} onChange={e => setUsageValue(e.target.value)} className="w-16 h-8 text-center bg-white" />
+                                    <span className="text-gray-500">/ {total}</span>
+                                    <Button onClick={() => updateServiceUsageMutation.mutate()} size="icon" className="h-8 w-8 bg-green-500 rounded-full"><CheckCircle className="w-4 h-4" /></Button>
+                                    <Button onClick={() => setEditingUsage(null)} size="icon" variant="ghost" className="h-8 w-8 text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-lg" style={{ color: typeColor }}>{remaining}</span>
+                                    <span className="text-gray-400 font-medium">/ {total} מפגשים</span>
+                                    {isCoach && <Button onClick={() => { setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: typeColor }} /></div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Coach-only actions */}
+                        {isCoach && (
+                          <div className="px-4 pb-3">
+                            {service.notes_internal && <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100 mb-2"><span className="font-bold">הערות פנימיות:</span> {service.notes_internal}</div>}
+                            <div className="pt-2 border-t border-gray-100 flex justify-between">
+                              <Button variant="ghost" size="sm" className="text-xs h-9 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                onClick={async () => {
+                                  if (!window.confirm(`למחוק את החבילה "${service.package_name || service.group_name || 'ללא שם'}"?\n\nפעולה זו תמחק את החבילה ואת כל התשלומים והתנועות הקשורים אליה לצמיתות.`)) return;
+                                  try {
+                                    try { await supabase.from('sessions').update({ service_id: null }).eq('service_id', service.id); } catch {}
+                                    try { await supabase.from('service_transactions').delete().eq('service_id', service.id); } catch {}
+                                    try { await supabase.from('service_payments').delete().eq('service_id', service.id); } catch {}
+                                    await supabase.from('client_services').delete().eq('id', service.id);
+                                    queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                                    queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+                                    queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                    queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                                    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+                                    toast.success("החבילה נמחקה");
+                                  } catch (err) {
+                                    toast.error("שגיאה במחיקת חבילה: " + (err?.message || "נסה שוב"));
+                                  }
+                                }}>
+                                <Trash2 className="w-3 h-3 ml-1" />מחק
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-xs h-9 text-[#FF6F20] hover:bg-orange-50" onClick={() => openEditService(service)}>
+                                <Edit2 className="w-3 h-3 ml-1" />ערוך
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                   {activeServices.length === 0 && (
                     <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                       <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                      <p className="text-gray-500">אין שירותים פעילים</p>
-                      {isCoach && <Button variant="link" onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} className="text-[#FF6F20]">הוסף שירות ראשון</Button>}
+                      <p className="text-gray-500">אין חבילות פעילות</p>
+                      {isCoach && <Button variant="link" onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} className="text-[#FF6F20]">הוסף חבילה ראשונה</Button>}
                     </div>
                   )}
                 </div>
+
+                {/* Purchase History — only completed/expired/cancelled */}
                 <div className="space-y-3 pt-4">
                   <h3 className="text-base font-bold text-gray-800 border-b pb-2">היסטוריית רכישות</h3>
                   <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200" dir="rtl">
                     <table className="w-full text-sm text-right">
                       <thead className="bg-gray-100 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">שירות</th><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">מחיר</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th></tr></thead>
                       <tbody className="divide-y divide-gray-200">
-                        {services.length === 0 ? (
+                        {historyServices.length === 0 ? (
                           <tr><td colSpan="4" className="px-4 py-4 text-center text-gray-500 italic">אין היסטוריה</td></tr>
                         ) : (
-                          services.map(s => (
-                            <tr key={s.id} className="bg-white">
-                              <td className="px-3 py-2 text-right"><div className="font-medium">{s.service_type}</div><div className="text-xs text-gray-500">{s.package_name}</div></td>
-                              <td className="px-3 py-2 text-right text-gray-600">{format(new Date(s.start_date), 'dd/MM/yy')}</td>
-                              <td className="px-3 py-2 text-right font-medium">₪{s.price}</td>
-                              <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'הסתיים' ? 'bg-blue-100 text-blue-800' : s.status === 'פג תוקף' ? 'bg-red-100 text-red-800' : s.status === 'פעיל' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{s.status}</span></td>
-                            </tr>
-                          ))
+                          historyServices.map(s => {
+                            const derivedStatus = (() => {
+                              if (s.status === 'completed' || s.status === 'הסתיים') return 'הסתיים';
+                              if (s.status === 'expired' || s.status === 'פג תוקף') return 'פג תוקף';
+                              if (s.status === 'cancelled') return 'בוטל';
+                              const t = s.total_sessions || s.sessions_count || 0;
+                              const u = s.used_sessions || 0;
+                              if (t > 0 && u >= t) return 'הסתיים';
+                              const ed = s.end_date || s.expires_at;
+                              if (ed && new Date(ed) < new Date()) return 'פג תוקף';
+                              return s.status || '—';
+                            })();
+                            const statusClass = derivedStatus === 'הסתיים' ? 'bg-blue-100 text-blue-800' : derivedStatus === 'פג תוקף' ? 'bg-red-100 text-red-800' : derivedStatus === 'בוטל' ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-800';
+                            return (
+                              <tr key={s.id} className="bg-white">
+                                <td className="px-3 py-2 text-right"><div className="font-medium">{s.package_name || s.service_type}</div></td>
+                                <td className="px-3 py-2 text-right text-gray-600">{s.start_date ? format(new Date(s.start_date), 'dd/MM/yy') : '—'}</td>
+                                <td className="px-3 py-2 text-right font-medium">₪{s.final_price || s.price || 0}</td>
+                                <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{derivedStatus}</span></td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
