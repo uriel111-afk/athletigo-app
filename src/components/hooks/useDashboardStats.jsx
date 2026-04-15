@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useContext } from "react";
+import { useMemo, useContext, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { startOfMonth, endOfMonth, format, addMonths } from "date-fns";
 import { AuthContext } from "@/lib/AuthContext";
 import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
@@ -13,6 +14,29 @@ import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 
 export function useDashboardStats() {
   const { user } = useContext(AuthContext);
+
+  // ── DEBUG: Direct Supabase query to verify trainee data ──────────
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data: debugData, error: debugError } = await supabase
+        .from('users')
+        .select(`
+          id, full_name, role, coach_id,
+          client_services (
+            id, package_name, status, used_sessions, total_sessions
+          )
+        `)
+        .eq('coach_id', user.id)
+        .in('role', ['trainee', 'user']);
+
+      console.log('=== TRAINEE DEBUG ===');
+      console.log('Coach ID:', user.id);
+      console.log('Count:', debugData?.length);
+      console.log('Data:', JSON.stringify(debugData, null, 2));
+      console.log('Error:', debugError);
+    })();
+  }, [user?.id]);
 
   // ── Shared queries — NO initialData so isLoading is accurate ──────
   const { data: allUsers = [], isLoading: usersLoading } = useQuery({
