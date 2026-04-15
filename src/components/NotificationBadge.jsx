@@ -18,7 +18,7 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
     enabled: !!userId
   });
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   if (inline) {
     return unreadCount > 0 ? (

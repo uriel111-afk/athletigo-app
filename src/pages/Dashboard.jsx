@@ -14,7 +14,7 @@ import { usePackageExpiry } from "../components/hooks/usePackageExpiry";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
-import { notifySessionScheduled } from "@/functions/notificationTriggers";
+import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
@@ -171,6 +171,21 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast.success("תוכנית נוצרה!");
+      // Notify assigned trainees
+      if (results && coach) {
+        for (const plan of results) {
+          if (plan.assigned_to) {
+            try {
+              await notifyPlanCreated({
+                traineeId: plan.assigned_to,
+                traineeName: plan.assigned_to_name,
+                planName: plan.plan_name || plan.title,
+                coachName: coach.full_name,
+              });
+            } catch {}
+          }
+        }
+      }
       if (results?.length === 1 && results[0]?.id) {
         navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
       } else {

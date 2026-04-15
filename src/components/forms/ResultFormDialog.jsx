@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useContext } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { useCloseConfirm } from "../hooks/useCloseConfirm";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { AuthContext } from "@/lib/AuthContext";
+import { notifyNewRecord } from "@/functions/notificationTriggers";
 
 const RECORD_TYPES = [
   "חבל",
@@ -44,6 +46,8 @@ const CONTEXTS = [
 
 export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeName, editingResult = null, onSuccess }) {
   const queryClient = useQueryClient();
+  const { user: authUser } = useContext(AuthContext);
+  const isTraineeAdding = authUser && !authUser.is_coach && authUser.role !== 'coach' && authUser.role !== 'admin';
 
   const [formData, setFormData] = useState({
     title: "",
@@ -95,12 +99,22 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
 
   const createResultMutation = useMutation({
     mutationFn: (data) => base44.entities.ResultsLog.create(data),
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       if (onSuccess) onSuccess();
       toast.success("השיא נשמר בהצלחה");
+      // Notify coach when trainee adds a record
+      if (isTraineeAdding && formData.title) {
+        try {
+          const coaches = await base44.entities.User.list('-created_at', 100);
+          const coach = coaches.find(u => u.is_coach === true || u.role === 'coach');
+          if (coach) {
+            await notifyNewRecord({ coachId: coach.id, traineeId, traineeName: traineeName || authUser?.full_name, recordName: formData.title });
+          }
+        } catch {}
+      }
       onClose();
     },
     onError: (error) => {

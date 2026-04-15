@@ -12,12 +12,20 @@ import { toast } from "sonner";
 const TYPE_CONFIG = {
   session_scheduled: { icon: Calendar, color: "#FF6F20", label: "מפגש חדש" },
   session_completed: { icon: Check, color: "#4CAF50", label: "מפגש הושלם" },
+  session_approved: { icon: Check, color: "#4CAF50", label: "מפגש אושר" },
+  session_rejected: { icon: X, color: "#F44336", label: "מפגש נדחה" },
+  session_request: { icon: Calendar, color: "#FF6F20", label: "בקשת מפגש" },
+  session_confirmed: { icon: Check, color: "#4CAF50", label: "מפגש אושר" },
   plan_created: { icon: ClipboardList, color: "#4CAF50", label: "תוכנית חדשה" },
   plan_updated: { icon: ClipboardList, color: "#2196F3", label: "תוכנית עודכנה" },
   exercise_updated: { icon: Activity, color: "#9C27B0", label: "תרגיל עודכן" },
   metrics_updated_by_coach: { icon: Activity, color: "#2196F3", label: "מדידות עודכנו" },
   new_trainee: { icon: Bell, color: "#607D8B", label: "מתאמן חדש" },
   service_completed: { icon: AlertTriangle, color: "#FFC107", label: "חבילה הסתיימה" },
+  new_record: { icon: Award, color: "#FFD700", label: "שיא חדש" },
+  new_baseline: { icon: Activity, color: "#FF6F20", label: "בייסליין חדש" },
+  renewal_request: { icon: Bell, color: "#FF6F20", label: "בקשת חידוש" },
+  low_balance: { icon: AlertTriangle, color: "#F44336", label: "יתרה נמוכה" },
 };
 
 const DEFAULT_CONFIG = { icon: Bell, color: "#607D8B", label: "התראה" };

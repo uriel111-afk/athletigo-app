@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar, Clock, MapPin, User, Plus, Loader2, Laptop } from "lucide-react";
 import { toast } from "sonner";
+import { notifySessionRequest } from "@/functions/notificationTriggers";
 
 export default function TraineeSessionBooking({ open, onClose, user, coach }) {
   const [formData, setFormData] = useState({
@@ -27,12 +28,13 @@ export default function TraineeSessionBooking({ open, onClose, user, coach }) {
       
       // Create notification for coach about session request
       if (coach?.id && user) {
-        await base44.entities.Notification.create({
-          user_id: coach.id,
-          type: "session_request",
-          title: `בקשת פגישה מ-${user.full_name}`,
-          message: `${sessionData.session_type} ב-${sessionData.date} בשעה ${sessionData.time}`,
-          is_read: false
+        await notifySessionRequest({
+          coachId: coach.id,
+          traineeId: user.id,
+          traineeName: user.full_name,
+          sessionId: newSession?.id,
+          sessionDate: sessionData.date,
+          sessionTime: sessionData.time,
         });
       }
       

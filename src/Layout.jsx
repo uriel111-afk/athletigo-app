@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { supabase } from "@/lib/supabaseClient";
@@ -9,6 +9,8 @@ import AdminCoachActivator from "@/components/AdminCoachActivator";
 import NotificationBadge from "@/components/NotificationBadge";
 import PWANotifications from "@/components/PWANotifications";
 import DataLoader from "@/components/DataLoader";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Users,
@@ -41,6 +43,7 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isLoadingAuth } = useContext(AuthContext);
+  const queryClient = useQueryClient();
   const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
@@ -49,6 +52,59 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
+
+  // ── Live toast notifications via Supabase Realtime ──────────────
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase.channel('notifications-live')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        const n = payload.new;
+        if (!n || n.is_read) return;
+
+        // Map notification type to emoji
+        const typeIcons = {
+          session_scheduled: '📅', session_approved: '✅', session_rejected: '❌',
+          session_request: '📅', session_confirmed: '✅', session_completed: '✅',
+          plan_created: '💪', plan_updated: '📋', new_record: '🏆',
+          new_baseline: '📊', renewal_request: '🔄', new_message: '💬',
+          exercise_completed: '🎯', metrics_updated: '📏', low_balance: '⚠️',
+          service_completed: '📦',
+        };
+        const icon = typeIcons[n.type] || '🔔';
+
+        // Show toast with action button if applicable
+        if (n.action_label && n.data?.session_id) {
+          toast(
+            `${icon} ${n.title}`,
+            {
+              description: n.message,
+              duration: 8000,
+              action: {
+                label: n.action_label,
+                onClick: () => navigate(createPageUrl("Sessions")),
+              },
+            }
+          );
+        } else {
+          toast(`${icon} ${n.title}`, {
+            description: n.message,
+            duration: 5000,
+          });
+        }
+
+        // Refresh notification badge count
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, queryClient, navigate]);
 
   const coachNavItems = [
     // ── ניהול יומיומי ──
@@ -300,8 +356,11 @@ export default function Layout({ children, currentPageName }) {
                   </p>
                 </div>
               </div>
-              {/* Spacer to balance the hamburger on the other side */}
-              <div className="w-10" />
+              {/* Notification bell */}
+              {user && (
+                <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
+              )}
+              {!user && <div className="w-10" />}
             </div>
           </header>
 

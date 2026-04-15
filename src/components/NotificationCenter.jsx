@@ -77,12 +77,32 @@ export default function NotificationCenter({ userId }) {
 
   const getNotificationIcon = (type) => {
     switch (type) {
-      case 'session': return <Calendar className="w-5 h-5" style={{ color: '#FF6F20' }} />;
-      case 'training_plan': return <FileText className="w-5 h-5" style={{ color: '#2196F3' }} />;
-      case 'message': return <MessageSquare className="w-5 h-5" style={{ color: '#9C27B0' }} />;
-      case 'subscription': return <Package className="w-5 h-5" style={{ color: '#4CAF50' }} />;
-      case 'workout_completion': return <TrendingUp className="w-5 h-5" style={{ color: '#FF6F20' }} />;
-      case 'new_trainee': return <Users className="w-5 h-5" style={{ color: '#2196F3' }} />;
+      case 'session':
+      case 'session_scheduled':
+      case 'session_request':
+      case 'session_approved':
+      case 'session_rejected':
+      case 'session_confirmed':
+      case 'session_completed':
+        return <Calendar className="w-5 h-5" style={{ color: '#FF6F20' }} />;
+      case 'training_plan':
+      case 'plan_created':
+      case 'plan_updated':
+        return <FileText className="w-5 h-5" style={{ color: '#2196F3' }} />;
+      case 'message':
+      case 'new_message':
+        return <MessageSquare className="w-5 h-5" style={{ color: '#9C27B0' }} />;
+      case 'subscription':
+      case 'renewal_request':
+      case 'service_completed':
+      case 'low_balance':
+        return <Package className="w-5 h-5" style={{ color: '#4CAF50' }} />;
+      case 'workout_completion':
+      case 'new_record':
+      case 'new_baseline':
+        return <TrendingUp className="w-5 h-5" style={{ color: '#FF6F20' }} />;
+      case 'new_trainee':
+        return <Users className="w-5 h-5" style={{ color: '#2196F3' }} />;
       default: return <Bell className="w-5 h-5" style={{ color: '#7D7D7D' }} />;
     }
   };
@@ -126,7 +146,11 @@ export default function NotificationCenter({ userId }) {
         return (
           <div
             key={notification.id}
-            onClick={() => {
+            onClick={async () => {
+              // Mark as read on click
+              if (!notification.is_read && !needsAck) {
+                try { await base44.entities.Notification.update(notification.id, { is_read: true }); queryClient.invalidateQueries({ queryKey: ['notifications'] }); } catch {}
+              }
               if (!needsAck && notification.actionUrl) navigate(notification.actionUrl);
             }}
             className="p-4 rounded-xl transition-all"

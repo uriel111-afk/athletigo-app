@@ -28,6 +28,7 @@ import DocumentSigningTab from "@/components/DocumentSigningTab";
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
+import { notifySessionApproved, notifySessionRejected, notifySessionCompleted } from "@/functions/notificationTriggers";
 
 const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -672,6 +673,20 @@ export default function TraineeProfile() {
         }
 
         await base44.entities.Session.update(session.id, sessionUpdateData);
+
+        // 2a. Send notification to trainee about status change (coach only)
+        if (isCoach && user?.id) {
+          try {
+            const sessionDate = session.date ? new Date(session.date).toLocaleDateString('he-IL') : '';
+            if (newStatus === 'הגיע' || sessionUpdateData.status === 'התקיים') {
+              await notifySessionCompleted({ traineeId: user.id, sessionDate, sessionType: session.session_type, coachName: currentUser?.full_name || 'המאמן' });
+            } else if (newStatus === 'בוטל' || sessionUpdateData.status?.includes('בוטל')) {
+              await notifySessionRejected({ traineeId: user.id, sessionId: session.id, sessionDate, coachName: currentUser?.full_name });
+            } else if (sessionUpdateData.status === 'מאושר' || newStatus === 'מאושר') {
+              await notifySessionApproved({ traineeId: user.id, sessionId: session.id, sessionDate, coachName: currentUser?.full_name });
+            }
+          } catch {}
+        }
 
         // 2. Update Package (Sync Logic) - Only for Personal Training with Punch Card
         if (session.session_type === 'אישי' || session.session_type === 'אימונים אישיים') {
