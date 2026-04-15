@@ -9,12 +9,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   // </React.StrictMode>,
 )
 
-// Register PWA Service Worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-}
+// PWA Service Worker is registered automatically by vite-plugin-pwa
 
 if (import.meta.hot) {
   import.meta.hot.on('vite:beforeUpdate', () => {
