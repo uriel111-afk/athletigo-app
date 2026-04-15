@@ -31,7 +31,8 @@ import {
   BarChart3,
   Bell,
   Zap,
-  Clock
+  Clock,
+  Download
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FloatingClockBar from "@/components/FloatingClockBar";
@@ -46,7 +47,23 @@ export default function Layout({ children, currentPageName }) {
   const queryClient = useQueryClient();
   const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
+  const [showIOSModal, setShowIOSModal] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
+
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); setShowInstallBtn(true); };
+    const installed = () => { setShowInstallBtn(false); setDeferredPrompt(null); };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', installed);
+    // Show button on iOS Safari (no beforeinstallprompt event)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (isIOS && !isStandalone) setShowInstallBtn(true);
+    return () => { window.removeEventListener('beforeinstallprompt', handler); window.removeEventListener('appinstalled', installed); };
+  }, []);
 
   // Scroll to top on page change
   useEffect(() => {
@@ -173,6 +190,17 @@ export default function Layout({ children, currentPageName }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => setShowLogoutConfirm(true);
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setShowInstallBtn(false);
+      setDeferredPrompt(null);
+    } else {
+      setShowIOSModal(true);
+    }
+  };
 
   const confirmLogout = async () => {
     try {
@@ -357,11 +385,19 @@ export default function Layout({ children, currentPageName }) {
                   </p>
                 </div>
               </div>
-              {/* Notification bell */}
-              {user && (
-                <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
-              )}
-              {!user && <div className="w-10" />}
+              <div className="flex items-center gap-2">
+                {showInstallBtn && (
+                  <button onClick={handleInstall}
+                    className="flex items-center gap-1 active:scale-95 transition-transform"
+                    style={{ background: primaryColor, color: 'white', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600 }}>
+                    <Download className="w-3.5 h-3.5" />הורד
+                  </button>
+                )}
+                {user && (
+                  <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
+                )}
+                {!user && <div className="w-10" />}
+              </div>
             </div>
           </header>
 
@@ -554,6 +590,28 @@ export default function Layout({ children, currentPageName }) {
                 <Button onClick={() => setShowLogoutConfirm(false)} variant="outline" className="flex-1 rounded-xl">ביטול</Button>
                 <Button onClick={confirmLogout} className="flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white">כן, התנתק</Button>
               </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* iOS install instructions modal */}
+          <Dialog open={showIOSModal} onOpenChange={setShowIOSModal}>
+            <DialogContent className="max-w-sm p-5">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-bold text-right">הוסף למסך הבית</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 mt-2" dir="rtl">
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="font-bold text-sm text-gray-900 mb-1">🍎 אייפון (Safari)</p>
+                  <p className="text-xs text-gray-600">לחץ על כפתור השיתוף <span className="bg-gray-200 rounded px-1 text-[10px] font-mono">⬆</span> ← גלול למטה ← <strong>הוסף למסך הבית</strong></p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="font-bold text-sm text-gray-900 mb-1">🤖 אנדרואיד (Chrome)</p>
+                  <p className="text-xs text-gray-600">תפריט <span className="bg-gray-200 rounded px-1 text-[10px] font-mono">⋮</span> ← <strong>הוסף למסך הבית</strong> או <strong>התקן אפליקציה</strong></p>
+                </div>
+              </div>
+              <Button onClick={() => setShowIOSModal(false)} className="w-full mt-3 rounded-xl" style={{ backgroundColor: primaryColor, color: 'white' }}>
+                הבנתי!
+              </Button>
             </DialogContent>
           </Dialog>
 
