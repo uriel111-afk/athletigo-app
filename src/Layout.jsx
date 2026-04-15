@@ -434,7 +434,7 @@ export default function Layout({ children, currentPageName }) {
           <div className="flex-1 overflow-y-auto page-container" style={{
             paddingLeft: '16px',
             paddingRight: '16px',
-            paddingBottom: '16px',
+            paddingBottom: '80px',
             WebkitOverflowScrolling: 'touch',
             overflowX: 'hidden',
           }}>
