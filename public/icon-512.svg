@@ -1,4 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#FF6F20"/>
-  <text x="256" y="310" text-anchor="middle" font-family="'Barlow Condensed', 'Arial Black', sans-serif" font-weight="900" font-size="220" fill="white" letter-spacing="-8">AG</text>
+  <rect width="512" height="512" rx="112" fill="white"/>
+  <!-- Shadow -->
+  <g opacity="0.12" transform="translate(3,3)">
+    <polygon points="256,72 72,440 440,440"
+      fill="none" stroke="#888" stroke-width="42" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <!-- Main triangle -->
+  <polygon points="256,72 72,440 440,440"
+    fill="none" stroke="#1A1A1A" stroke-width="38" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- Orange crossbar -->
+  <line x1="215" y1="317" x2="333" y2="317"
+    stroke="#FF6F20" stroke-width="23" stroke-linecap="round"/>
 </svg>
