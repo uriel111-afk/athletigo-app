@@ -28,7 +28,8 @@ import DocumentSigningTab from "@/components/DocumentSigningTab";
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
-import { notifySessionApproved, notifySessionRejected, notifySessionCompleted } from "@/functions/notificationTriggers";
+import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, notifyPlanCreated } from "@/functions/notificationTriggers";
+import PlanFormDialog from "@/components/training/PlanFormDialog";
 
 const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -246,7 +247,8 @@ export default function TraineeProfile() {
   const [editingSession, setEditingSession] = useState(null);
   const [showEditSession, setShowEditSession] = useState(false);
   const [editingUsage, setEditingUsage] = useState(null); // service ID being edited
-  const [usageValue, setUsageValue] = useState(""); 
+  const [usageValue, setUsageValue] = useState("");
+  const [showPlanDialog, setShowPlanDialog] = useState(false); 
 
   const [manualAttendanceForm, setManualAttendanceForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -846,6 +848,46 @@ export default function TraineeProfile() {
       toast.success("✅ הישג נמחק");
     },
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
+  });
+
+  const createPlanForTraineeMutation = useMutation({
+    mutationFn: async ({ planData, selectedTrainees }) => {
+      if (!currentUser?.id) throw new Error("פרטי מאמן חסרים");
+      const gf = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0 ? planData.goal_focus : ["כוח"];
+      // Use the viewed trainee if no trainees explicitly selected
+      const targets = selectedTrainees?.length > 0 ? selectedTrainees : [effectiveUser?.id || user?.id];
+      const results = [];
+      for (const tid of targets) {
+        const tName = tid === (effectiveUser?.id || user?.id) ? (effectiveUser?.full_name || user?.full_name) : '';
+        results.push(await base44.entities.TrainingPlan.create({
+          title: planData.plan_name, plan_name: planData.plan_name,
+          assigned_to: tid || "", assigned_to_name: tName || "",
+          created_by: currentUser.id, created_by_name: currentUser.full_name,
+          goal_focus: gf, description: planData.description || "",
+          start_date: new Date().toISOString().split("T")[0], status: "פעילה", is_template: false,
+        }));
+      }
+      return results;
+    },
+    onSuccess: async (results) => {
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      invalidateDashboard(queryClient);
+      toast.success("תוכנית נוצרה בהצלחה!");
+      if (results && currentUser) {
+        for (const plan of results) {
+          if (plan.assigned_to) {
+            try { await notifyPlanCreated({ traineeId: plan.assigned_to, traineeName: plan.assigned_to_name, planName: plan.plan_name || plan.title, coachName: currentUser.full_name }); } catch {}
+          }
+        }
+      }
+      if (results?.length === 1 && results[0]?.id) {
+        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
+      }
+    },
+    onError: (e) => {
+      console.error("[TraineeProfile] Plan creation error:", e);
+      toast.error("שגיאה ביצירת תוכנית: " + (e.message || "נסה שוב"));
+    },
   });
 
   const isSavingRef = useRef(false);
@@ -2024,7 +2066,7 @@ export default function TraineeProfile() {
               <TabsContent value="plans" className="space-y-4 w-full">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-[#FF6F20]" />תוכניות אימון</h2>
-                  {isCoach && <Button onClick={() => navigate(createPageUrl(`TrainingPlans?create=true`))} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}><Plus className="w-3 h-3 ml-1" />צור תוכנית</Button>}
+                  {isCoach && <Button onClick={() => setShowPlanDialog(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}><Plus className="w-3 h-3 ml-1" />צור תוכנית</Button>}
                 </div>
                 {trainingPlans.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין תוכניות אימון</p></div>
@@ -2245,6 +2287,16 @@ export default function TraineeProfile() {
           />
         )}
         <BaselineDetailView isOpen={!!showBaselineDetail} onClose={() => setShowBaselineDetail(null)} baselineId={showBaselineDetail} />
+
+        {/* Plan Form Dialog — pre-selects current trainee */}
+        <PlanFormDialog
+          isOpen={showPlanDialog}
+          onClose={() => setShowPlanDialog(false)}
+          onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
+          trainees={effectiveUser ? [effectiveUser] : user ? [user] : []}
+          isLoading={createPlanForTraineeMutation.isPending}
+          hideTraineeSelection
+        />
 
         {/* Add/Edit Service Dialog */}
         <Dialog open={showAddService} onOpenChange={setShowAddService}>
