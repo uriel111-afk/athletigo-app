@@ -71,10 +71,11 @@ export default function Layout({ children, currentPageName }) {
         const typeIcons = {
           session_scheduled: '📅', session_approved: '✅', session_rejected: '❌',
           session_request: '📅', session_confirmed: '✅', session_completed: '✅',
+          session_cancelled_by_trainee: '🚫', reschedule_request: '🔄',
           plan_created: '💪', plan_updated: '📋', new_record: '🏆',
-          new_baseline: '📊', renewal_request: '🔄', new_message: '💬',
-          exercise_completed: '🎯', metrics_updated: '📏', low_balance: '⚠️',
-          service_completed: '📦',
+          new_baseline: '📊', renewal_request: '🔄', renewal_alert: '⚠️',
+          new_message: '💬', exercise_completed: '🎯', metrics_updated: '📏',
+          low_balance: '⚠️', service_completed: '📦',
         };
         const icon = typeIcons[n.type] || '🔔';
 

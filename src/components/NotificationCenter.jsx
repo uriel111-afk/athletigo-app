@@ -94,9 +94,13 @@ export default function NotificationCenter({ userId }) {
         return <MessageSquare className="w-5 h-5" style={{ color: '#9C27B0' }} />;
       case 'subscription':
       case 'renewal_request':
+      case 'renewal_alert':
       case 'service_completed':
       case 'low_balance':
         return <Package className="w-5 h-5" style={{ color: '#4CAF50' }} />;
+      case 'session_cancelled_by_trainee':
+      case 'reschedule_request':
+        return <Calendar className="w-5 h-5" style={{ color: '#F44336' }} />;
       case 'workout_completion':
       case 'new_record':
       case 'new_baseline':

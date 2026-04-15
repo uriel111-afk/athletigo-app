@@ -25,7 +25,10 @@ const TYPE_CONFIG = {
   new_record: { icon: Award, color: "#FFD700", label: "שיא חדש" },
   new_baseline: { icon: Activity, color: "#FF6F20", label: "בייסליין חדש" },
   renewal_request: { icon: Bell, color: "#FF6F20", label: "בקשת חידוש" },
+  renewal_alert: { icon: AlertTriangle, color: "#FF6F20", label: "חידוש חבילה" },
   low_balance: { icon: AlertTriangle, color: "#F44336", label: "יתרה נמוכה" },
+  session_cancelled_by_trainee: { icon: X, color: "#F44336", label: "מפגש בוטל" },
+  reschedule_request: { icon: Clock, color: "#FF6F20", label: "בקשת שינוי מועד" },
 };
 
 const DEFAULT_CONFIG = { icon: Bell, color: "#607D8B", label: "התראה" };

@@ -688,40 +688,74 @@ export default function TraineeProfile() {
           } catch {}
         }
 
-        // 2. Update Package (Sync Logic) - Only for Personal Training with Punch Card
-        if (session.session_type === 'אישי' || session.session_type === 'אימונים אישיים') {
+        // 2. Update Package (Sync Logic) — matches session type to package type
+        {
             const oldStatus = session.participants?.find(p => p.trainee_id === user.id)?.attendance_status || 'ממתין';
-            
             const isNowAttended = newStatus === 'הגיע';
             const wasAttended = oldStatus === 'הגיע';
 
             if (isNowAttended !== wasAttended) {
-                // Find active package for personal training (must be punch_card or legacy with total_sessions)
-                const activePackage = services.find(s => 
-                    (s.status === 'פעיל' || s.status === 'active') && 
-                    (s.service_type === 'אימונים אישיים' || s.service_type === 'אישי' || s.service_type === 'personal') &&
-                    (s.billing_model === 'punch_card' || (s.total_sessions > 0 && !s.billing_model))
-                );
-                
+                // Map session type to package type for matching
+                const sessionTypeMap = {
+                  'אישי': ['personal', 'אימונים אישיים', 'אישי'],
+                  'קבוצתי': ['group', 'פעילות קבוצתית', 'קבוצתי'],
+                  'אונליין': ['online', 'ליווי אונליין', 'אונליין'],
+                };
+                const matchTypes = sessionTypeMap[session.session_type] || sessionTypeMap['אישי'];
+
+                // Find active packages matching the session type — pick earliest end_date first
+                const matchingPackages = services
+                  .filter(s =>
+                    (s.status === 'פעיל' || s.status === 'active') &&
+                    (matchTypes.includes(s.service_type) || matchTypes.includes(s.package_type)) &&
+                    (s.total_sessions > 0 || s.sessions_count > 0)
+                  )
+                  .sort((a, b) => {
+                    const aEnd = a.end_date || a.expires_at || '9999-12-31';
+                    const bEnd = b.end_date || b.expires_at || '9999-12-31';
+                    return new Date(aEnd) - new Date(bEnd);
+                  });
+
+                const activePackage = matchingPackages[0];
+
                 if (activePackage) {
+                    const total = activePackage.total_sessions || activePackage.sessions_count || 0;
                     const change = isNowAttended ? 1 : -1;
                     const newUsedCount = Math.max(0, (activePackage.used_sessions || 0) + change);
-                    
-                    await base44.entities.ClientService.update(activePackage.id, {
-                        used_sessions: newUsedCount
-                    });
+                    const remaining = total - newUsedCount;
+
+                    const updatePayload = { used_sessions: newUsedCount };
+                    // Auto-set status to 'used' when depleted
+                    if (remaining <= 0 && isNowAttended) {
+                      updatePayload.status = 'completed';
+                    }
+
+                    await base44.entities.ClientService.update(activePackage.id, updatePayload);
 
                     // Low balance alert — notify coach when 1 session remains
-                    const totalSessions = activePackage.total_sessions || 0;
-                    const remaining = totalSessions - newUsedCount;
                     if (remaining === 1 && isNowAttended) {
                       try {
                         await base44.entities.Notification.create({
                           user_id: currentUser?.id || coach?.id,
-                          type: 'low_balance',
-                          title: 'נותר מפגש אחד בחבילה',
-                          message: `נותר מפגש אחד בחבילה של ${user.full_name}. לשלוח בקשת חידוש?`,
-                          is_read: false
+                          type: 'renewal_alert',
+                          title: 'חידוש חבילה',
+                          message: `נותר אימון אחד בחבילה של ${user.full_name}. לשלוח בקשת חידוש?`,
+                          is_read: false,
+                          related_id: activePackage.id,
+                          action_label: 'שלח בקשה',
+                          data: { trainee_id: user.id, package_id: activePackage.id, trainee_name: user.full_name },
+                        });
+                      } catch {}
+                    }
+                    // Package depleted notification
+                    if (remaining <= 0 && isNowAttended) {
+                      try {
+                        await base44.entities.Notification.create({
+                          user_id: currentUser?.id || coach?.id,
+                          type: 'service_completed',
+                          title: 'חבילה הסתיימה',
+                          message: `חבילה "${activePackage.package_name || 'חבילה'}" של ${user.full_name} הסתיימה — 0 מפגשים נותרו`,
+                          is_read: false,
                         });
                       } catch {}
                     }

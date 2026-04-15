@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList } from "lucide-react";
+import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList, Clock as ClockIcon } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import TraineeSessionBooking from "../components/TraineeSessionBooking";
@@ -83,33 +83,72 @@ export default function TraineeHome() {
     const diffHours = (sessionStart - now) / (1000 * 60 * 60);
 
     if (diffHours < 24) {
-      alert("ביטול אפשרי רק עד 24 שעות לפני המפגש. לביטול מאוחר יותר פנה למאמן.");
+      // Less than 24 hours — cannot cancel, offer reschedule request
+      toast.error("לא ניתן לבטל פחות מ-24 שעות לפני המפגש", { duration: 4000 });
       return;
     }
 
     if (confirm("האם לבטל את המפגש?")) {
       try {
-        // Check if 24h before
-        const sessionDate = new Date(session.date + 'T' + session.time);
-        if ((sessionDate - new Date()) < 24 * 60 * 60 * 1000) {
-             alert("לא ניתן לבטל מפגש פחות מ-24 שעות לפני המועד. אנא צור קשר עם המאמן.");
-             return;
-        }
-
         await base44.entities.Session.update(session.id, {
           status: "בוטל על ידי מתאמן",
           status_updated_at: new Date().toISOString(),
           status_updated_by: user.id
         });
-        
-        // Update local state
+
+        // Refund balance — find matching active package and restore 1 session
+        if (session.service_id) {
+          try {
+            const svcs = await base44.entities.ClientService.filter({ id: session.service_id });
+            const svc = svcs?.[0];
+            if (svc && svc.used_sessions > 0) {
+              await base44.entities.ClientService.update(svc.id, {
+                used_sessions: Math.max(0, svc.used_sessions - 1),
+                status: svc.status === 'completed' ? 'פעיל' : svc.status,
+              });
+            }
+          } catch {}
+        }
+
+        // Notify coach
+        if (coach?.id) {
+          try {
+            await base44.entities.Notification.create({
+              user_id: coach.id,
+              type: 'session_cancelled_by_trainee',
+              title: 'מפגש בוטל על ידי מתאמן',
+              message: `${user.full_name} ביטל את המפגש ב-${new Date(session.date).toLocaleDateString('he-IL')}`,
+              is_read: false,
+              data: { session_id: session.id },
+            });
+          } catch {}
+        }
+
         setMySessions(prev => prev.map(s => s.id === session.id ? { ...s, status: "בוטל על ידי מתאמן" } : s));
-        
-        // Note: No credit restoration needed as we only deduct on 'Attended' status now.
-        
+        toast.success("המפגש בוטל והיתרה הוחזרה לחבילה");
       } catch (err) {
         console.error("Error cancelling session", err);
+        toast.error("שגיאה בביטול המפגש: " + (err?.message || "נסה שוב"));
       }
+    }
+  };
+
+  const handleRescheduleRequest = async (session) => {
+    try {
+      if (coach?.id) {
+        await base44.entities.Notification.create({
+          user_id: coach.id,
+          type: 'reschedule_request',
+          title: 'בקשה לשינוי מועד',
+          message: `${user.full_name} מבקש לשנות את תאריך המפגש ב-${new Date(session.date).toLocaleDateString('he-IL')} ${session.time}`,
+          is_read: false,
+          data: { session_id: session.id, trainee_id: user.id },
+        });
+      }
+      toast.success("בקשת שינוי תאריך נשלחה למאמן");
+    } catch (err) {
+      console.error("Error sending reschedule request:", err);
+      toast.error("שגיאה בשליחת הבקשה");
     }
   };
 
@@ -272,19 +311,44 @@ export default function TraineeHome() {
                 .filter(s => new Date(`${s.date}T${s.time}`) >= new Date())
                 .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
                 .map(session => (
-                <div key={session.id} className="bg-white border border-gray-200 p-4 rounded-xl flex justify-between items-center shadow-sm">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      {getStatusBadge(session.status)}
-                      <span className="text-sm text-gray-500">{session.session_type}</span>
+                <div key={session.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        {getStatusBadge(session.status)}
+                        <span className="text-sm text-gray-500">{session.session_type}</span>
+                      </div>
+                      <div className="font-bold text-lg">
+                        {new Date(session.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })} | {session.time}
+                      </div>
+                      <div className="text-sm text-gray-500">{session.location}</div>
                     </div>
-                    <div className="font-bold text-lg">
-                      {new Date(session.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })} | {session.time}
-                    </div>
-                    <div className="text-sm text-gray-500">{session.location}</div>
                   </div>
-                  
-                  {/* Cancel button removed — only coach can cancel sessions */}
+                  {/* Cancel / Reschedule buttons for active sessions */}
+                  {!['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'התקיים', 'לא הגיע'].includes(session.status) && (
+                    <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100">
+                      {(() => {
+                        const sessionStart = new Date(`${session.date}T${session.time}`);
+                        const hoursAway = (sessionStart - new Date()) / (1000 * 60 * 60);
+                        if (hoursAway >= 24) {
+                          return (
+                            <button onClick={() => handleCancelSession(session)}
+                              className="flex-1 text-xs font-bold text-red-500 bg-red-50 rounded-lg py-2 hover:bg-red-100 transition-colors">
+                              ביטול מפגש
+                            </button>
+                          );
+                        } else {
+                          return (
+                            <button onClick={() => handleRescheduleRequest(session)}
+                              className="flex-1 text-xs font-bold text-[#FF6F20] bg-orange-50 rounded-lg py-2 hover:bg-orange-100 transition-colors flex items-center justify-center gap-1">
+                              <ClockIcon className="w-3 h-3" />
+                              בקש שינוי תאריך
+                            </button>
+                          );
+                        }
+                      })()}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

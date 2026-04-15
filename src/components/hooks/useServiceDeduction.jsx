@@ -34,7 +34,7 @@ export async function deductSessionFromService(session, coachId) {
 
     // Check if online package also expired by date
     let finalStatus = service.status;
-    if (service.package_type === "online" && service.expires_at) {
+    if (service.expires_at) {
       const expiryDate = new Date(service.expires_at);
       if (expiryDate < new Date()) finalStatus = "expired";
     }
