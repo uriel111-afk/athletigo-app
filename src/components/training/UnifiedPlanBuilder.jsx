@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [currentSection, setCurrentSection] = useState(null);
   const [editingPlanName, setEditingPlanName] = useState(false);
   const [tempPlanName, setTempPlanName] = useState(plan.plan_name || "");
+  const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
   const [sectionFeedbackData, setSectionFeedbackData] = useState({ sectionId: null, sectionName: "", control_rating: 5, difficulty_rating: 5, notes: "" });
   const [completedSections, setCompletedSections] = useState(new Set());
@@ -586,13 +587,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </DialogHeader>
           <SectionForm
             section={editingSection || { category: "חימום", section_name: "", description: "" }}
-            onChange={(data) => setEditingSection({ ...editingSection, ...data })} />
+            onChange={(data) => {
+              const merged = { ...editingSection, ...data };
+              setEditingSection(merged);
+              sectionFormRef.current = merged;
+            }} />
 
           <div className="flex gap-3 pt-4">
             <Button
               onClick={() => {
                 setShowSectionDialog(false);
                 setEditingSection(null);
+                sectionFormRef.current = null;
               }}
               variant="outline"
               className="flex-1 rounded-xl py-6 font-bold">
@@ -600,7 +606,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             </Button>
             <Button
               onClick={async () => {
-                const formData = editingSection || {};
+                // Use ref to get the absolute latest form data (avoids stale closure)
+                const formData = sectionFormRef.current || editingSection || {};
                 if (!formData.section_name) {
                   toast.error("נא למלא שם סקשן");
                   return;
