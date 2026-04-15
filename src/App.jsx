@@ -14,6 +14,7 @@ import AppLoader from '@/components/AppLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import { ClockProvider } from './contexts/ClockContext';
+import { useRealtimeSync } from './hooks/useRealtimeSync';
 import TraineeHome from './pages/TraineeHome';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -28,6 +29,9 @@ const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, user } = useAuth();
   const location = useLocation();
   const { isReady, progress, label, timedOut, retry, forceReady } = useDataGate(user);
+
+  // Real-time sync — listen to Supabase changes and auto-refresh
+  useRealtimeSync(user?.id);
 
   // Show branded loading screen while auth is initializing
   if (isLoadingPublicSettings || isLoadingAuth) {
