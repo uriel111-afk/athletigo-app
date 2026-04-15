@@ -117,7 +117,7 @@ export default function AddTraineeDialog({ open, onClose }) {
         client_status: formData.clientStatus || 'לקוח פעיל',
         coach_id: coach?.id || null,
         role: 'trainee',
-        onboarding_completed: true,
+        onboarding_completed: false,
         created_at: new Date().toISOString(),
       });
 
