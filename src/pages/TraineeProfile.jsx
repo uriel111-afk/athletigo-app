@@ -596,20 +596,24 @@ export default function TraineeProfile() {
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       setShowAddService(false);
+      setEditingService(null);
       setServiceForm({
-        service_type: "אימונים אישיים",
-        package_name: "",
-        total_sessions: "",
-        price: "",
-        start_date: new Date().toISOString().split('T')[0],
-        end_date: ""
+        service_type: "personal", group_name: "", billing_model: "punch_card",
+        sessions_per_week: "", package_name: "", base_price: "",
+        discount_type: "none", discount_value: 0, final_price: "",
+        payment_method: "credit", start_date: new Date().toISOString().split('T')[0],
+        end_date: "", next_billing_date: "", total_sessions: "",
+        payment_status: "ממתין לתשלום", notes_internal: "", status: "active"
       });
-      toast.success("✅ שירות נוסף");
+      toast.success("✅ חבילה נוספה בהצלחה");
     },
     onError: (error) => {
-      toast.error("❌ שגיאה בהוספת שירות: " + (error.message || "נסה שוב"));
+      console.error("[createServiceMutation] Error:", error);
+      toast.error("❌ שגיאה בהוספת חבילה: " + (error?.message || "נסה שוב"));
     }
   });
 
@@ -619,21 +623,24 @@ export default function TraineeProfile() {
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       setShowAddService(false);
       setEditingService(null);
       setServiceForm({
-        service_type: "אימונים אישיים",
-        package_name: "",
-        total_sessions: "",
-        price: "",
-        start_date: new Date().toISOString().split('T')[0],
-        end_date: ""
+        service_type: "personal", group_name: "", billing_model: "punch_card",
+        sessions_per_week: "", package_name: "", base_price: "",
+        discount_type: "none", discount_value: 0, final_price: "",
+        payment_method: "credit", start_date: new Date().toISOString().split('T')[0],
+        end_date: "", next_billing_date: "", total_sessions: "",
+        payment_status: "ממתין לתשלום", notes_internal: "", status: "active"
       });
-      toast.success("✅ שירות עודכן");
+      toast.success("✅ חבילה עודכנה");
     },
     onError: (error) => {
-      toast.error("❌ שגיאה בעדכון שירות: " + (error.message || "נסה שוב"));
+      console.error("[updateServiceMutation] Error:", error);
+      toast.error("❌ שגיאה בעדכון חבילה: " + (error?.message || "נסה שוב"));
     }
   });
 
@@ -944,16 +951,25 @@ export default function TraineeProfile() {
       if (editingService) {
         await updateServiceMutation.mutateAsync({ id: editingService.id, data });
       } else {
+        const traineeId = effectiveUser?.id || user?.id;
+        if (!traineeId) {
+          toast.error("שגיאה: לא ניתן לזהות את המתאמן");
+          return;
+        }
         await createServiceMutation.mutateAsync({
             ...data,
-            trainee_id: user.id,
-            trainee_name: user.full_name,
+            trainee_id: traineeId,
+            trainee_name: effectiveUser?.full_name || user?.full_name || "",
+            coach_id: currentUser?.id || null,
+            created_by: currentUser?.id || null,
             used_sessions: 0,
-            created_by_coach: currentUser?.id || null
+            sessions_remaining: data.total_sessions || null,
+            status: data.status === 'active' ? 'פעיל' : (data.status || 'פעיל'),
         });
       }
     } catch (error) {
       console.error("handleAddOrUpdateService error:", error);
+      toast.error("❌ שגיאה בשמירת חבילה: " + (error?.message || "נסה שוב"));
     }
   };
 
