@@ -4,16 +4,16 @@ import { useClock } from "@/contexts/ClockContext";
 
 const BRAND = '#F97316';
 
-// AthletiGo brand-only colors: orange, cream, white, black, gray
+// Dark theme for running view — black bg, orange/white accents
 const PHASE_STYLE = {
-  prepare: { bg: '#FFF7ED', accent: '#EA580C', text: '#EA580C' },
-  work:    { bg: '#F97316', accent: '#FFFFFF', text: '#FFFFFF' },
-  rest:    { bg: '#FFFFFF', accent: '#F97316', text: '#EA580C' },
-  set_rest:{ bg: '#FFEDD5', accent: '#C2410C', text: '#C2410C' },
-  running: { bg: '#F97316', accent: '#FFFFFF', text: '#FFFFFF' },
-  paused:  { bg: '#FFF7ED', accent: '#F97316', text: '#9A3412' },
-  done:    { bg: '#FFF7ED', accent: '#F97316', text: '#9A3412' },
-  idle:    { bg: '#FAF8F3', accent: '#9CA3AF', text: '#6B7280' },
+  prepare: { bg: '#111111', ring: '#F97316', text: '#F97316', label: '#F97316' },
+  work:    { bg: '#111111', ring: '#FF6F20', text: '#FFFFFF', label: '#FF6F20' },
+  rest:    { bg: '#111111', ring: '#888888', text: '#CCCCCC', label: '#AAAAAA' },
+  set_rest:{ bg: '#111111', ring: '#C2410C', text: '#EA580C', label: '#C2410C' },
+  running: { bg: '#111111', ring: '#FF6F20', text: '#FFFFFF', label: '#FF6F20' },
+  paused:  { bg: '#1A1A1A', ring: '#F97316', text: '#F97316', label: '#F97316' },
+  done:    { bg: '#111111', ring: '#FF6F20', text: '#FF6F20', label: '#FF6F20' },
+  idle:    { bg: '#FAF8F3', ring: '#D1D5DB', text: '#6B7280', label: '#9CA3AF' },
 };
 
 function fmt(ms) {
@@ -137,46 +137,63 @@ function SetDots({ current, total }) {
   return <div className="flex justify-center gap-2 mt-3">{Array.from({length:total},(_,i)=><div key={i} className={`w-3.5 h-3.5 rounded-full ${i<=current?'bg-[#F97316]':'bg-gray-200'}`}/>)}</div>;
 }
 
-function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false, useMMSS = false }) {
+function FullScreenRunning({ ms, phase, phaseLabel, roundInfo, isRunning, onPause, onResume, onStop, showMs = false, useMMSS = false, total }) {
   const s = PHASE_STYLE[phase] || PHASE_STYLE.idle;
-  const numberSize = showMs ? 'clamp(70px, 16vw, 140px)' : 'clamp(280px, 60vw, 500px)';
+  const r = 140, circ = 2 * Math.PI * r;
+  const progress = total > 0 ? Math.max(0, Math.min(1, ms / total)) : (showMs ? 1 : 0);
+  const offset = circ * (1 - progress);
+  const displayText = showMs ? `${fmtStopwatch(ms).main}${fmtStopwatch(ms).ms}` : (useMMSS ? fmtMMSS(ms) : fmt(ms));
+
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-between py-6" style={{ backgroundColor: s.bg }}>
-      {/* Top: Phase name */}
-      <div className="font-bold text-center pt-2" style={{ fontSize: 'clamp(48px, 10vw, 100px)', color: s.accent }}>
+      {/* Phase label */}
+      <div className="text-center pt-4" style={{ fontSize: 'clamp(28px, 7vw, 56px)', fontWeight: 700, fontFamily: "'Barlow Condensed', sans-serif", color: s.label, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
         {phaseLabel}
       </div>
 
-      {/* Center: Giant number */}
-      <div className="font-black text-center tabular-nums" style={{ fontSize: numberSize, lineHeight: 1, fontFamily: 'system-ui, sans-serif', color: s.text }}>
-        {showMs ? `${fmtStopwatch(ms).main}${fmtStopwatch(ms).ms}` : (useMMSS ? fmtMMSS(ms) : fmt(ms))}
+      {/* Center: ring + number */}
+      <div className="relative flex items-center justify-center">
+        <svg width="320" height="320" viewBox="0 0 320 320" className="drop-shadow-lg">
+          <circle cx="160" cy="160" r={r} fill="none" stroke="#333333" strokeWidth="8" />
+          <circle cx="160" cy="160" r={r} fill="none" stroke={s.ring} strokeWidth="10" strokeLinecap="round"
+            strokeDasharray={circ} strokeDashoffset={offset}
+            transform="rotate(-90 160 160)" style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="tabular-nums text-center" style={{
+            fontSize: showMs ? 'clamp(44px, 11vw, 72px)' : 'clamp(72px, 18vw, 130px)',
+            fontWeight: 900,
+            fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+            lineHeight: 1,
+            color: s.text,
+          }}>
+            {displayText}
+          </span>
+        </div>
       </div>
 
-      {/* Bottom section: round info + controls */}
-      <div className="flex flex-col items-center gap-4 pb-2">
-        {/* Round info */}
+      {/* Bottom: round info + controls */}
+      <div className="flex flex-col items-center gap-5 pb-4">
         {roundInfo && (
-          <div className="font-bold text-center" style={{ fontSize: 'clamp(28px, 6vw, 56px)', color: s.accent, opacity: 0.8 }}>
+          <div className="text-center" style={{ fontSize: 'clamp(18px, 5vw, 36px)', fontWeight: 700, fontFamily: "'Barlow Condensed', sans-serif", color: s.label, opacity: 0.7 }}>
             {roundInfo}
           </div>
         )}
-
-        {/* Controls */}
         <div className="flex justify-center items-center gap-8">
-        {onStop && (
-          <button onClick={onStop} className="rounded-full flex items-center justify-center active:scale-90 shadow-md" style={{ width: 56, height: 56, backgroundColor: '#F3F4F6' }}>
-            <Square className="w-7 h-7 text-gray-500" />
-          </button>
-        )}
-        {isRunning ? (
-          <button onClick={onPause} className="rounded-full flex items-center justify-center active:scale-95 shadow-lg" style={{ width: 80, height: 80, backgroundColor: s.accent }}>
-            <Pause className="w-10 h-10 text-white" />
-          </button>
-        ) : (
-          <button onClick={onResume} className="rounded-full flex items-center justify-center active:scale-95 shadow-lg" style={{ width: 80, height: 80, backgroundColor: s.accent }}>
-            <Play className="w-10 h-10 text-white" />
-          </button>
-        )}
+          {onStop && (
+            <button onClick={onStop} className="rounded-full flex items-center justify-center active:scale-90" style={{ width: 56, height: 56, backgroundColor: '#333333' }}>
+              <Square className="w-6 h-6" style={{ color: '#999999' }} />
+            </button>
+          )}
+          {isRunning ? (
+            <button onClick={onPause} className="rounded-full flex items-center justify-center active:scale-95 shadow-lg" style={{ width: 80, height: 80, backgroundColor: s.ring }}>
+              <Pause className="w-10 h-10 text-white" />
+            </button>
+          ) : (
+            <button onClick={onResume} className="rounded-full flex items-center justify-center active:scale-95 shadow-lg" style={{ width: 80, height: 80, backgroundColor: s.ring }}>
+              <Play className="w-10 h-10 text-white" />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -203,7 +220,7 @@ function StopwatchView() {
   if (active) {
     return (
       <>
-        <FullScreenRunning ms={display} phase={isRunning ? 'running' : 'paused'} phaseLabel="סטופר" isRunning={isRunning} onPause={pause} onResume={resume} onStop={reset} showMs={true} />
+        <FullScreenRunning ms={display} total={0} phase={isRunning ? 'running' : 'paused'} phaseLabel="סטופר" isRunning={isRunning} onPause={pause} onResume={resume} onStop={reset} showMs={true} />
         {isRunning && (
           <button onClick={lapStopwatch} className="fixed bottom-8 right-6 z-[91] rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center active:scale-90" style={{width:56,height:56}}>
             <Flag className="w-7 h-7 text-white" />
@@ -215,7 +232,7 @@ function StopwatchView() {
 
   return (
     <div className="px-4 py-8 flex flex-col items-center">
-      <div className="text-center font-black tabular-nums text-gray-300 mb-8" style={{fontSize:'clamp(70px,16vw,140px)',lineHeight:1,fontFamily:'system-ui,sans-serif'}}>
+      <div className="text-center tabular-nums text-gray-300 mb-8" style={{fontSize:'clamp(60px,14vw,110px)',lineHeight:1,fontWeight:900,fontFamily:"'Barlow Condensed',system-ui,sans-serif"}}>
         00:00.00
       </div>
       <button onClick={startStopwatch} className="rounded-full shadow-lg flex items-center justify-center active:scale-95" style={{backgroundColor:BRAND,width:80,height:80}}>
@@ -252,7 +269,7 @@ function TimerView() {
     );
   }
   return (
-    <FullScreenRunning ms={display} phase={phase} phaseLabel={phase==='prepare'?'הכנה':'טיימר'} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} useMMSS={true} />
+    <FullScreenRunning ms={display} total={totalDuration} phase={phase} phaseLabel={phase==='prepare'?'הכנה':'טיימר'} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} useMMSS={true} />
   );
 }
 
@@ -298,7 +315,7 @@ function TabataView() {
   }
 
   return (
-    <FullScreenRunning ms={display} phase={phase} phaseLabel={phaseLabel} roundInfo={roundInfo} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
+    <FullScreenRunning ms={display} total={totalDuration} phase={phase} phaseLabel={phaseLabel} roundInfo={roundInfo} isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop} />
   );
 }
 
