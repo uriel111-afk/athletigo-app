@@ -59,8 +59,19 @@ const Step1_PersonalInfo = ({ formData, setFormData }) => (
       </div>
 
       <div className="space-y-2">
+        <Label className="text-right block font-bold">אימייל *</Label>
+        <Input
+          value={formData.email}
+          onChange={e => setFormData({...formData, email: e.target.value})}
+          className="bg-white border-gray-200 h-12 text-right"
+          placeholder="email@example.com"
+          type="email"
+        />
+      </div>
+
+      <div className="space-y-2">
         <Label className="text-right block font-bold">תאריך לידה *</Label>
-        <Input 
+        <Input
           value={formData.birth_date}
           onChange={e => setFormData({...formData, birth_date: e.target.value})}
           className="bg-white border-gray-200 h-12 text-right"
@@ -283,6 +294,7 @@ export default function Onboarding() {
   const [formData, setFormData] = useState({
     full_name: "",
     phone: "",
+    email: "",
     birth_date: "",
     training_goals: [],
     other_goal: "",
@@ -313,6 +325,7 @@ export default function Onboarding() {
             ...prev,
             full_name: currentUser.full_name || "",
             phone: currentUser.phone || "",
+            email: currentUser.email || "",
             birth_date: currentUser.birth_date ? currentUser.birth_date.split('T')[0] : "",
             training_goals: currentUser.training_goals || [],
             // other fields
@@ -400,7 +413,7 @@ export default function Onboarding() {
   const isStepValid = () => {
     switch (step) {
       case 1: // Mandatory Info
-        return formData.full_name && formData.phone && formData.birth_date;
+        return formData.full_name && formData.phone && formData.email && formData.birth_date;
       case 2: // Goals
         return true; 
       default:
@@ -501,8 +514,8 @@ export default function Onboarding() {
       // Give a moment for the database to fully confirm the update
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      console.log("[Onboarding] Now redirecting to /dashboard...");
-      window.location.href = "/dashboard";
+      console.log("[Onboarding] Now redirecting to trainee home...");
+      window.location.href = createPageUrl("TraineeHome");
       
     } catch (error) {
       console.error("[Onboarding] Completion error:", error);
