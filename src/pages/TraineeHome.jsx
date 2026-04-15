@@ -361,6 +361,7 @@ export default function TraineeHome() {
             { label: 'מפגשים', icon: Calendar, to: createPageUrl("TraineeProfile") + "?tab=attendance", color: '#7C3AED' },
             { label: 'התוכנית שלי', icon: ClipboardList, to: createPageUrl("MyWorkoutLog"), color: '#F97316' },
             { label: 'התקדמות', icon: TrendingUp, to: createPageUrl("Progress"), color: '#10B981' },
+            { label: 'שעונים', icon: ClockIcon, to: createPageUrl("Clocks"), color: '#FF6F20' },
             { label: 'פרופיל', icon: User, to: createPageUrl("TraineeProfile"), color: '#3B82F6' },
           ].map(item => (
             <Link key={item.label} to={item.to} className="no-underline">
