@@ -281,6 +281,9 @@ export default function TraineeProfile() {
   const [showEditSession, setShowEditSession] = useState(false);
   const [editingUsage, setEditingUsage] = useState(null); // service ID being edited
   const [usageValue, setUsageValue] = useState("");
+  const [selectedPackageHistory, setSelectedPackageHistory] = useState(null);
+  const [packageSessions, setPackageSessions] = useState([]);
+  const [packageSessionsLoading, setPackageSessionsLoading] = useState(false);
   const [showPlanDialog, setShowPlanDialog] = useState(false); 
 
   const [manualAttendanceForm, setManualAttendanceForm] = useState({
@@ -1072,6 +1075,20 @@ export default function TraineeProfile() {
     setShowAddService(true);
   };
 
+  const openPackageHistory = async (service) => {
+    setSelectedPackageHistory(service);
+    setPackageSessionsLoading(true);
+    setPackageSessions([]);
+    try {
+      const sessions = await base44.entities.Session.filter({ service_id: service.id });
+      setPackageSessions(sessions.sort((a, b) => new Date(b.date) - new Date(a.date)));
+    } catch (err) {
+      console.error("Error fetching package sessions:", err);
+      setPackageSessions([]);
+    }
+    setPackageSessionsLoading(false);
+  };
+
   const handleManualAttendanceSubmit = async () => {
     if (!manualAttendanceForm.date || !manualAttendanceForm.time) {
         toast.error("נא למלא תאריך ושעה");
@@ -1827,7 +1844,7 @@ export default function TraineeProfile() {
                     const endDate = service.end_date || service.expires_at;
 
                     return (
-                      <div key={service.id} className="bg-white rounded-xl border-2 shadow-sm overflow-hidden" style={{ borderColor: typeColor + '40' }}>
+                      <div key={service.id} className="bg-white rounded-xl border-2 shadow-sm overflow-hidden cursor-pointer active:scale-[0.99] transition-transform" style={{ borderColor: typeColor + '40' }} onClick={() => openPackageHistory(service)}>
                         {/* Header */}
                         <div className="p-4 flex justify-between items-start">
                           <div className="flex-1 min-w-0">
@@ -1871,9 +1888,14 @@ export default function TraineeProfile() {
                           </div>
                         )}
 
+                        {/* Tap hint */}
+                        <div className="px-4 pb-2 text-center">
+                          <span className="text-[10px] text-gray-400 font-medium">לחץ לפרטי מפגשים</span>
+                        </div>
+
                         {/* Coach-only actions */}
                         {isCoach && (
-                          <div className="px-4 pb-3">
+                          <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
                             {service.notes_internal && <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-100 mb-2"><span className="font-bold">הערות פנימיות:</span> {service.notes_internal}</div>}
                             <div className="pt-2 border-t border-gray-100 flex justify-between">
                               <Button variant="ghost" size="sm" className="text-xs h-9 text-red-400 hover:text-red-600 hover:bg-red-50"
@@ -2534,6 +2556,90 @@ export default function TraineeProfile() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Package Session History Dialog */}
+        <Dialog open={!!selectedPackageHistory} onOpenChange={(open) => { if (!open) setSelectedPackageHistory(null); }}>
+          <DialogContent className="w-[95vw] max-w-lg max-h-[85vh] overflow-y-auto bg-white" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#FF6F20]" />
+                {selectedPackageHistory?.package_name || 'חבילה'}
+              </DialogTitle>
+            </DialogHeader>
+
+            {selectedPackageHistory && (() => {
+              const pkg = selectedPackageHistory;
+              const total = pkg.total_sessions || pkg.sessions_count || 0;
+              const used = pkg.used_sessions || 0;
+              const remaining = Math.max(0, total - used);
+              const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+              const completedSessions = packageSessions.filter(s =>
+                s.status === 'התקיים' || s.status === 'completed' || s.status === 'מאושר'
+              );
+
+              return (
+                <div className="space-y-4">
+                  {/* Summary */}
+                  <div className="bg-orange-50 rounded-xl p-4 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-gray-700">{completedSessions.length} מפגשים קוימו</span>
+                      <span className="text-sm font-bold text-gray-700">{remaining} מפגשים נותרו ביתרה</span>
+                    </div>
+                    <div className="h-3 bg-white rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: '#FF6F20' }} />
+                    </div>
+                    <div className="text-center text-xs text-gray-500 font-medium">{used} / {total} מפגשים</div>
+                  </div>
+
+                  {/* Sessions list */}
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-700 mb-2">מפגשים מקושרים</h3>
+                    {packageSessionsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-[#FF6F20]" />
+                      </div>
+                    ) : packageSessions.length === 0 ? (
+                      <div className="text-center py-6 text-gray-400 text-sm">אין מפגשים מקושרים לחבילה זו</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {packageSessions.map(s => {
+                          const sessionType = s.session_type === 'אישי' || s.session_type === 'personal' ? 'אישי'
+                            : s.session_type === 'קבוצתי' || s.session_type === 'group' ? 'קבוצתי' : 'אונליין';
+                          const isDone = s.status === 'התקיים' || s.status === 'completed';
+                          const isApproved = s.status === 'מאושר';
+                          return (
+                            <div key={s.id} className="bg-gray-50 rounded-xl p-3 flex items-center justify-between border border-gray-100">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-gray-800">
+                                    {s.date ? new Date(s.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                                  </span>
+                                  {s.time && <span className="text-xs text-gray-500">{s.time}</span>}
+                                </div>
+                                <span className="text-[11px] text-gray-400">{sessionType}</span>
+                              </div>
+                              <div>
+                                {isDone ? (
+                                  <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">הושלם ✓</span>
+                                ) : isApproved ? (
+                                  <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700">מאושר</span>
+                                ) : (
+                                  <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500">{s.status}</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button onClick={() => setSelectedPackageHistory(null)} variant="outline" className="w-full rounded-xl min-h-[44px]">סגור</Button>
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
