@@ -23,36 +23,39 @@ function HoldButton({ onClick, children, className, style }) {
   return <button onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={(e) => { e.preventDefault(); start(); }} onTouchEnd={stop} onTouchCancel={stop} className={className} style={style}>{children}</button>;
 }
 
-function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, step = 1, unit = '', label = 'בחר ערך' }) {
+function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, step = 1, unit = '', label = 'בחר ערך', options: propOptions }) {
   const listRef = useRef(null);
-  const values = useRef([]);
-  if (values.current.length === 0 || values.current[0] !== min) { values.current = []; for (let i = min; i <= max; i += step) values.current.push(i); }
+
+  // Build options array fresh every render — no stale ref
+  const options = propOptions || (() => { const a = []; for (let i = min; i <= max; i += step) a.push(i); return a; })();
 
   useEffect(() => {
-    if (isOpen && listRef.current) {
-      const idx = values.current.indexOf(value);
-      if (idx > 0 && listRef.current.children[idx]) {
+    if (isOpen && listRef.current && options.length > 0) {
+      const idx = options.findIndex(v => v === value);
+      if (idx >= 0) {
         setTimeout(() => {
-          listRef.current?.children[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' });
-        }, 50);
+          listRef.current?.children?.[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }, 100);
       }
     }
   }, [isOpen, value]);
 
-  if (!isOpen) return null;
+  if (!isOpen || options.length === 0) return null;
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', direction: 'rtl', paddingBottom: 20 }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500, direction: 'rtl', paddingBottom: 20 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #eee' }}>
-          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: C1 }}>{label}{unit ? ` (${unit})` : ''}</span>
-          <button onClick={onClose} style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 24px', fontSize: 16, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>אישור</button>
+          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: C1 }}>{unit ? `בחר (${unit})` : 'בחר ערך'}</span>
+          <button onClick={onClose} style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 28px', fontSize: 17, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>סגור</button>
         </div>
-        <div ref={listRef} style={{ overflowY: 'auto', maxHeight: 300, padding: '8px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {values.current.map(v => (
-            <div key={v} onClick={() => { onChange(v); onClose(); }} style={{
-              padding: '12px 16px', borderRadius: 10, fontSize: 22, fontWeight: v === value ? 900 : 500, fontFamily: FN,
+        <div ref={listRef} style={{ overflowY: 'auto', maxHeight: 320, padding: '8px 20px', WebkitOverflowScrolling: 'touch' }}>
+          {options.map((v, i) => (
+            <div key={`${v}-${i}`} onClick={() => { onChange(v); onClose(); }} style={{
+              padding: '12px 16px', marginBottom: 4, borderRadius: 10, fontSize: 22, fontWeight: v === value ? 900 : 500, fontFamily: FN,
               color: v === value ? BRAND : C1, background: v === value ? '#FFF0E8' : 'transparent',
               border: v === value ? `2px solid ${BRAND}` : '2px solid transparent', cursor: 'pointer', textAlign: 'center',
+              minHeight: 48, display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>{v} {unit || ''}</div>
           ))}
         </div>
@@ -397,9 +400,7 @@ function TabataView() {
         {/* Scroll Picker */}
         {pickerOpen && (
           <ScrollPicker isOpen value={pickerOpen.value} onChange={pickerOpen.onChange} onClose={() => setPickerOpen(null)}
-            min={pickerOpen.options[0]} max={pickerOpen.options[pickerOpen.options.length - 1]}
-            step={pickerOpen.options.length > 1 ? pickerOpen.options[1] - pickerOpen.options[0] : 1}
-            unit={pickerOpen.unit} />
+            options={pickerOpen.options} unit={pickerOpen.unit} />
         )}
       </div>
     );
