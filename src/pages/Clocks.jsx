@@ -602,64 +602,72 @@ export default function Clocks() {
   const [activeTab, setActiveTab] = useState('tabata');
   const [tabataActive, setTabataActive] = useState(false);
   const clock = useClock();
-  const { tabata, liveTimer, setLiveTimer, settingsRef: tabataSettingsRef } = useActiveTimer();
+  const { tabata, setLiveTimer, settingsRef: tabataSettingsRef, resetTabata } = useActiveTimer();
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = tabataActive || timerOrStopwatchRunning;
+  const lastBackPress = useRef(0);
 
-  // Format helpers for minimize
+  // Format helper
   const fmtSec = (s) => { if (!s || s <= 0) return '0'; const m = Math.floor(s / 60); const sc = s % 60; return m === 0 ? String(sc) : `${m}:${String(sc).padStart(2, '0')}`; };
 
-  const handleMinimize = useCallback(() => {
+  // Minimize — NEVER stops intervals
+  const minimizeTimer = useCallback(() => {
+    const { rounds, sets } = tabataSettingsRef?.current || {};
     if (tabata.running || tabata.screen === 'running' || tabata.screen === 'countdown') {
-      const { rounds, sets } = tabataSettingsRef?.current || {};
       setLiveTimer({
         type: 'tabata', display: fmtSec(tabata.timeLeft), phase: tabata.phase,
         info: `סיבוב ${tabata.currentRound}/${rounds || '?'} • סט ${tabata.currentSet}/${sets || '?'}`,
-        color: '#FF6F20', isMinimized: true,
       });
     } else if (clock?.isRunning && clock?.activeClock === 'timer') {
-      setLiveTimer({
-        type: 'timer', display: fmt(clock.display), phase: 'טיימר',
-        info: null, color: '#FF6F20', isMinimized: true,
-      });
+      setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null });
     } else if (clock?.isRunning && clock?.activeClock === 'stopwatch') {
-      setLiveTimer({
-        type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר',
-        info: null, color: '#FF6F20', isMinimized: true,
-      });
+      setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null });
     }
     navigate(-1);
-  }, [tabata, clock, setLiveTimer, navigate]);
+  }, [tabata, clock, setLiveTimer, navigate, tabataSettingsRef]);
 
-  // Keep liveTimer updated every second while minimized
+  // Update floating widget every tick (tabata)
   useEffect(() => {
-    if (!liveTimer?.isMinimized) return;
-    if (liveTimer.type === 'tabata' && (tabata.running || tabata.screen === 'running')) {
+    setLiveTimer(prev => {
+      if (!prev || prev.type !== 'tabata') return prev;
+      if (!tabata.running && tabata.screen !== 'running') return null; // completed/reset
       const { rounds, sets } = tabataSettingsRef?.current || {};
-      setLiveTimer(prev => ({ ...prev, display: fmtSec(tabata.timeLeft), phase: tabata.phase,
-        info: `סיבוב ${tabata.currentRound}/${rounds || '?'} • סט ${tabata.currentSet}/${sets || '?'}` }));
-    } else if (liveTimer.type === 'timer' && clock?.isRunning) {
-      setLiveTimer(prev => ({ ...prev, display: fmt(clock.display) }));
-    } else if (liveTimer.type === 'stopwatch' && clock?.isRunning) {
-      setLiveTimer(prev => ({ ...prev, display: fmtStopwatch(clock.display) }));
-    }
-  }, [tabata.timeLeft, clock?.display, liveTimer?.isMinimized, liveTimer?.type]);
+      return { ...prev, display: fmtSec(tabata.timeLeft), phase: tabata.phase,
+        info: `סיבוב ${tabata.currentRound}/${rounds || '?'} • סט ${tabata.currentSet}/${sets || '?'}` };
+    });
+  }, [tabata.timeLeft]);
 
-  // Clear minimized state when returning to clocks page
+  // Update floating widget every tick (timer/stopwatch from ClockContext)
+  useEffect(() => {
+    setLiveTimer(prev => {
+      if (!prev) return prev;
+      if (prev.type === 'timer' && clock?.isRunning) return { ...prev, display: fmt(clock.display) };
+      if (prev.type === 'stopwatch' && clock?.isRunning) return { ...prev, display: fmtStopwatch(clock.display) };
+      return prev;
+    });
+  }, [clock?.display]);
+
+  // When returning to clocks page — hide floating widget
   useEffect(() => { setLiveTimer(null); }, []);
 
-  // Back button = minimize when running
+  // Back button: single = minimize, double (300ms) = go to dashboard
   useEffect(() => {
     window.history.pushState(null, '', window.location.href);
     const onPop = () => {
+      const now = Date.now();
+      const isDouble = now - lastBackPress.current < 300;
       if (anyRunning) {
         window.history.pushState(null, '', window.location.href);
-        handleMinimize();
+        if (isDouble) { minimizeTimer(); navigate('/'); }
+        else { lastBackPress.current = now; minimizeTimer(); }
+      } else {
+        if (isDouble) navigate('/');
+        else { lastBackPress.current = now; navigate(-1); }
       }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [anyRunning, handleMinimize]);
+  }, [anyRunning, minimizeTimer]);
 
   // FIX 3 — Unified wake lock for all timers
   const globalWakeLockRef = useRef(null);
@@ -723,13 +731,13 @@ export default function Clocks() {
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
         <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <TabataView onRunningChange={setTabataActive} onMinimize={handleMinimize} />
+          <TabataView onRunningChange={setTabataActive} onMinimize={minimizeTimer} />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <TimerView onMinimize={handleMinimize} />
+          <TimerView onMinimize={minimizeTimer} />
         </div>
         <div style={{ display: activeTab === 'stopwatch' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <StopwatchView onMinimize={handleMinimize} />
+          <StopwatchView onMinimize={minimizeTimer} />
         </div>
       </div>
     </div>

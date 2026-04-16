@@ -1,72 +1,62 @@
-import React, { useState, useRef } from "react";
-import { useActiveTimer } from "@/contexts/ActiveTimerContext";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useRef } from 'react';
+import { useActiveTimer } from '@/contexts/ActiveTimerContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 
-export default function FloatingTimer() {
+const FloatingTimer = () => {
   const { liveTimer, setLiveTimer } = useActiveTimer();
   const navigate = useNavigate();
   const location = useLocation();
   const [pos, setPos] = useState({ x: 16, bottom: 90 });
-  const dragRef = useRef({ dragging: false, startX: 0, startY: 0, moved: false });
+  const drag = useRef({ active: false, startX: 0, startY: 0, initBottom: 90, moved: false });
 
-  // Hide on clocks page or when not minimized
-  if (!liveTimer?.isMinimized) return null;
-  if (location.pathname.toLowerCase().includes('clock')) return null;
+  // Show on ALL pages EXCEPT clocks page
+  if (!liveTimer || location.pathname.toLowerCase().includes('clock')) return null;
 
-  const handleTouchStart = (e) => {
-    dragRef.current = {
-      dragging: true, moved: false,
+  const onTouchStart = (e) => {
+    drag.current = {
+      active: true, moved: false,
       startX: e.touches[0].clientX - pos.x,
       startY: e.touches[0].clientY,
+      initBottom: pos.bottom,
     };
   };
-  const handleTouchMove = (e) => {
-    if (!dragRef.current.dragging) return;
-    dragRef.current.moved = true;
-    const newX = Math.max(0, Math.min(window.innerWidth - 160, e.touches[0].clientX - dragRef.current.startX));
-    const newBottom = Math.max(70, Math.min(window.innerHeight - 120, window.innerHeight - e.touches[0].clientY - 60));
-    setPos({ x: newX, bottom: newBottom });
+  const onTouchMove = (e) => {
+    if (!drag.current.active) return;
+    drag.current.moved = true;
+    e.preventDefault();
+    setPos({
+      x: Math.max(0, Math.min(window.innerWidth - 170, e.touches[0].clientX - drag.current.startX)),
+      bottom: Math.max(70, Math.min(window.innerHeight - 160, drag.current.initBottom + (drag.current.startY - e.touches[0].clientY))),
+    });
   };
-  const handleTouchEnd = () => { dragRef.current.dragging = false; };
+  const onTouchEnd = () => { drag.current.active = false; };
   const handleTap = () => {
-    if (dragRef.current.moved) return;
-    setLiveTimer(prev => prev ? { ...prev, isMinimized: false } : null);
+    if (drag.current.moved) return;
     navigate('/clocks');
   };
 
   return (
     <div
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       onClick={handleTap}
       style={{
-        position: 'fixed',
-        left: pos.x,
-        bottom: pos.bottom,
-        zIndex: 999,
-        background: liveTimer.color || '#FF6F20',
-        borderRadius: 20,
-        padding: '10px 16px',
-        minWidth: 150,
-        boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 2,
-        cursor: 'pointer',
-        direction: 'rtl',
-        userSelect: 'none',
-        touchAction: 'none',
+        position: 'fixed', left: pos.x, bottom: pos.bottom,
+        zIndex: 9998, background: '#FF6F20', borderRadius: 20,
+        padding: '10px 18px', minWidth: 155,
+        boxShadow: '0 6px 24px rgba(0,0,0,0.4)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+        cursor: 'pointer', direction: 'rtl', userSelect: 'none', touchAction: 'none',
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
         {liveTimer.phase}
       </div>
       <div style={{
-        fontSize: 48, fontWeight: 900, color: 'white',
-        lineHeight: 1, fontVariantNumeric: 'tabular-nums',
-        letterSpacing: -2, fontFamily: "'Barlow Condensed', system-ui",
+        fontSize: 48, fontWeight: 900, color: 'white', lineHeight: 1,
+        fontVariantNumeric: 'tabular-nums', letterSpacing: -2,
+        fontFamily: "'Barlow Condensed', system-ui",
       }}>
         {liveTimer.display}
       </div>
@@ -76,8 +66,10 @@ export default function FloatingTimer() {
         </div>
       )}
       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-        לחץ לחזרה
+        לחץ לחזרה לשעון
       </div>
     </div>
   );
-}
+};
+
+export default FloatingTimer;
