@@ -557,10 +557,13 @@ function TabataView() {
   if (tabataScreen === 'running') {
     return (
       <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
-        {/* Header — NO minimize button */}
-        <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: 'white', fontFamily: FN }}>TABATA</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontFamily: FL }}>ספירה לאחור: {formatTime(tabataCountdown)}</div>
+        {/* Header */}
+        <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 900, color: 'white', letterSpacing: 1 }}>TABATA</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>ספירה לאחור</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatTime(tabataCountdown)}</div>
+          </div>
         </div>
 
         {/* Main */}
