@@ -333,7 +333,8 @@ export default function Layout({ children, currentPageName }) {
         </aside>
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="md:hidden p-4 safe-area-top flex-shrink-0 z-50" style={{
+          <header className="md:hidden p-4 safe-area-top" style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
             backgroundColor: '#FFFFFF',
             borderBottom: `1px solid #E0E0E0`,
             boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
@@ -401,6 +402,7 @@ export default function Layout({ children, currentPageName }) {
           <div className="flex-1 overflow-y-auto page-container" style={{
             paddingLeft: '16px',
             paddingRight: '16px',
+            paddingTop: '64px',
             paddingBottom: '80px',
             WebkitOverflowScrolling: 'touch',
             overflowX: 'hidden',
