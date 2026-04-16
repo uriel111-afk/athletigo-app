@@ -357,7 +357,7 @@ function TabataView() {
     ];
 
     return (
-      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%' }}>
+      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
         {/* Header */}
         <div style={{ padding: '8px 20px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
@@ -502,7 +502,7 @@ const MODES = [
 export default function Clocks() {
   const [mode, setMode] = useState('tabata');
   return (
-    <div dir="rtl" style={{ backgroundColor: '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: '0 -16px' }}>
+    <div dir="rtl" style={{ backgroundColor: '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: '0 -16px', width: 'calc(100% + 32px)', maxWidth: 'none', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}` }}>
         <div className="flex" style={{ padding: '10px 12px 8px', gap: 8 }}>
           {MODES.map(m => {
