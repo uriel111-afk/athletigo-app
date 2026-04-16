@@ -64,9 +64,23 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
   );
 }
 
+const createAudioContext = () => new (window.AudioContext || window.webkitAudioContext)();
+
+function unlockAudio() {
+  try {
+    const ctx = createAudioContext();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+    ctx.resume();
+  } catch {}
+}
+
 function playBeep(freq = 660, duration = 0.15) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = createAudioContext();
     const osc = ctx.createOscillator(); const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
     osc.frequency.value = freq;
@@ -76,19 +90,102 @@ function playBeep(freq = 660, duration = 0.15) {
   } catch {}
 }
 
-function playEndBeeps() {
+function playCountdownBeep() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 0.4, 0.8].forEach(delay => {
-      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    const ctx = createAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15);
+  } catch {}
+}
+
+function playGoSound() {
+  try {
+    const ctx = createAudioContext();
+    [0, 0.08, 0.16].forEach((delay, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = 880;
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(440 * (i + 1), ctx.currentTime + delay);
       gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
-      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.12);
     });
   } catch {}
 }
+
+function playWorkSound() {
+  try {
+    const ctx = createAudioContext();
+    [0, 0.15].forEach(delay => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.35, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.12);
+    });
+  } catch {}
+}
+
+function playRestSound() {
+  try {
+    const ctx = createAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.4);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+  } catch {}
+}
+
+function playRestBetweenSetsSound() {
+  try {
+    const ctx = createAudioContext();
+    [0, 0.3].forEach(delay => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(528, ctx.currentTime + delay);
+      osc.frequency.exponentialRampToValueAtTime(264, ctx.currentTime + delay + 0.35);
+      gain.gain.setValueAtTime(0.28, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.35);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.35);
+    });
+  } catch {}
+}
+
+function playCompleteSound() {
+  try {
+    const ctx = createAudioContext();
+    [523, 659, 784].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18);
+      gain.gain.setValueAtTime(0.35, ctx.currentTime + i * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.4);
+      osc.start(ctx.currentTime + i * 0.18); osc.stop(ctx.currentTime + i * 0.18 + 0.4);
+    });
+  } catch {}
+}
+
+function playEndBeeps() { playCompleteSound(); }
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView() {
@@ -325,12 +422,13 @@ function TabataView({ onRunningChange }) {
     tabataIntervalRef.current = setInterval(() => {
       setTabataTimeLeft(prev => {
         if (prev <= 1) {
-          // Phase is ending — schedule transition without showing 0
           setTimeout(() => advancePhase(), 0);
-          return prev; // keep showing 1 briefly
+          return prev;
         }
-        timeLeftRef.current = prev - 1;
-        return prev - 1;
+        const next = prev - 1;
+        timeLeftRef.current = next;
+        if (next === 3 || next === 2 || next === 1) playCountdownBeep();
+        return next;
       });
     }, 1000);
   }, []);
@@ -375,6 +473,11 @@ function TabataView({ onRunningChange }) {
     roundRef.current = newRound;
     setNumRef.current = newSet;
 
+    // Play phase transition sound
+    if (newPhase === 'עבודה') playWorkSound();
+    else if (newPhase === 'מנוחה') playRestSound();
+    else if (newPhase === 'מנוחה בין סטים') playRestBetweenSetsSound();
+
     // Update state for display
     setTabataPhase(newPhase);
     setTabataTimeLeft(newTime);
@@ -389,20 +492,21 @@ function TabataView({ onRunningChange }) {
 
   // === START / PAUSE / RESET ===
   const handleTabataStart = () => {
+    unlockAudio();
     setTabataScreen('countdown');
     setCountdown321(3);
-    playBeep(660);
+    playCountdownBeep();
 
     let count = 3;
     countdown321Ref.current = setInterval(() => {
       count -= 1;
       if (count > 0) {
         setCountdown321(count);
-        playBeep(660);
+        playCountdownBeep();
       } else {
         clearInterval(countdown321Ref.current);
         setCountdown321('GO');
-        playBeep(880);
+        playGoSound();
         setTimeout(() => {
           const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
           const initTime = prepTime > 0 ? prepTime : workTime;
