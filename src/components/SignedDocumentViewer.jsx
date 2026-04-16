@@ -6,14 +6,60 @@ const LABELS = {
   cooperation_agreement: 'הסכם שיתוף פעולה',
 };
 
+const HEALTH_TEMPLATE = `הצהרת בריאות לפעילות גופנית
+
+אני החתום/ה מטה מצהיר/ת בזאת כי מילאתי את השאלון הבא בנוגע למצב בריאותי:
+
+1. האם רופא אמר לך אי פעם שיש לך בעיה בלב ושעליך לבצע פעילות גופנית רק בהמלצת רופא?
+2. האם אתה סובל מכאבים בחזה במנוחה או במאמץ?
+3. האם אתה מאבד שיווי משקל בגלל סחרחורות או מאבד הכרה?
+4. האם יש לך בעיית עצמות או מפרקים שעלולה להחמיר עם פעילות גופנית?
+5. האם רופא רושם לך תרופות לחץ דם או לב?
+6. האם אתה יודע על סיבה רפואית אחרת שבגללה אסור לך להתאמן?
+7. האם עברת ניתוח בחצי השנה האחרונה?
+
+הצהרה:
+אני מצהיר/ת כי כל המידע שמסרתי הוא נכון ומדויק.
+אני מודע/ת שפעילות גופנית כרוכה בסיכונים מסוימים ואני נוטל/ת על עצמי את האחריות לבריאותי.
+אני מתחייב/ת לעדכן את המאמן על כל שינוי במצבי הבריאותי.`;
+
+const COOP_TEMPLATE = `הסכם שיתוף פעולה — AthletiGo
+
+חלקי כמאמן:
+ללוות אותך בתהליך רכישת המיומנויות, להעצים אותך, לאתגר את היכולות שלך, לעודד אותך ולתמוך בך להשגת התוצאות.
+
+תוצאות:
+האימון מיועד להשגת תוצאות, בדגש על פיתוח היכולות שלך. אולם אינני יכול להתחייב לתוצאות מסוימות.
+
+חלקך כמתאמן/ת:
+עליך לפעול מתוך אחריות ומחויבות. אורך האימון הוא 60 דקות.
+
+סודיות:
+כל מידע או ידע שנמסר הוא סודי בהחלט.
+
+הגנת פרטיות:
+בהתאם לחוק הגנת הפרטיות התשמ"א-1981.
+
+ביטול אימון:
+יש לבטל אימון לפחות 24 שעות מראש דרך האפליקציה. ביטול באיחור — חיוב מלא.
+
+כרטיסיות והרשמה חודשית:
+כרטיסיית אימון בתוקף שלושה חודשים מיום הרכישה.
+
+נטילת אחריות:
+הנני מבין שפעילות גופנית כרוכה בסיכון מסוים.
+
+תוקף ההסכם:
+בתוקף לכל אורך תהליך האימון. ניתן לסיים בהודעה מראש של שני הצדדים.`;
+
 const PAR_Q = [
-  "האם רופא אמר לך שיש לך בעיה בלב ושעליך לבצע פעילות גופנית רק בהמלצת רופא?",
-  "האם אתה סובל מכאבים בחזה במנוחה או במאמץ?",
-  "האם אתה מאבד שיווי משקל בגלל סחרחורות או מאבד הכרה?",
-  "האם יש לך בעיית עצמות או מפרקים שעלולה להחמיר עם פעילות גופנית?",
-  "האם רופא רושם לך תרופות לחץ דם או לב?",
-  "האם אתה יודע על סיבה רפואית אחרת שבגללה אסור לך להתאמן?",
-  "האם עברת ניתוח בחצי השנה האחרונה?",
+  "בעיה בלב ופעילות רק בהמלצת רופא",
+  "כאבים בחזה במנוחה או במאמץ",
+  "איבוד שיווי משקל / סחרחורות",
+  "בעיית עצמות או מפרקים",
+  "תרופות לחץ דם או לב",
+  "סיבה רפואית אחרת שאוסרת אימון",
+  "ניתוח בחצי השנה האחרונה",
 ];
 
 async function generateAndDownloadPDF(doc, traineeName) {
@@ -27,31 +73,26 @@ async function generateAndDownloadPDF(doc, traineeName) {
   pdf.text(`תאריך חתימה: ${new Date(doc.signed_at).toLocaleDateString("he-IL")}`, 20, 42);
   pdf.line(20, 47, 190, 47);
   let y = 55;
-  if (doc.document_data) {
-    const data = doc.document_data;
-    if (data.answers && Array.isArray(data.answers)) {
-      data.answers.forEach((ans, i) => {
-        if (y > 250) { pdf.addPage(); y = 20; }
-        pdf.text(`${PAR_Q[i] || `שאלה ${i + 1}`}: ${ans ? "כן" : "לא"}`, 20, y);
-        y += 8;
-      });
-    }
-    if (data.healthNotes) { pdf.text(`הערות: ${data.healthNotes}`, 20, y); y += 8; }
-    if (data.photoConsent !== undefined) { pdf.text(`הסכמה לשימוש בתמונות: ${data.photoConsent ? "כן" : "לא"}`, 20, y); y += 8; }
-  }
+  const template = doc.document_type === 'health_declaration' ? HEALTH_TEMPLATE : COOP_TEMPLATE;
+  const data = doc.document_data || {};
+  const fullText = data.full_text || data.full_template || template;
+  fullText.split('\n').forEach(line => {
+    if (y > 270) { pdf.addPage(); y = 20; }
+    pdf.text(line, 20, y, { maxWidth: 170 });
+    y += 6;
+  });
   if (doc.signature_data) {
-    pdf.line(20, 260, 100, 260);
-    pdf.text("חתימה", 20, 267);
-    pdf.text(`תאריך: ${new Date(doc.signed_at).toLocaleDateString("he-IL")}`, 120, 267);
-    try { pdf.addImage(doc.signature_data, "PNG", 20, 238, 70, 22); } catch {}
+    if (y > 240) { pdf.addPage(); y = 20; }
+    pdf.line(20, y + 5, 100, y + 5);
+    pdf.text("חתימה", 20, y + 12);
+    try { pdf.addImage(doc.signature_data, "PNG", 20, y - 18, 70, 22); } catch {}
   }
   pdf.save(`${title}_חתום.pdf`);
 }
 
 export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName }) {
-  // Lock body scroll when open
   useEffect(() => {
-    if (isOpen) { document.body.style.overflow = 'hidden'; }
+    if (isOpen) document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
@@ -60,130 +101,110 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
   const title = LABELS[doc.document_type] || "מסמך";
   const data = doc.document_data || {};
   const signedDate = doc.signed_at ? new Date(doc.signed_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const isHealth = doc.document_type === 'health_declaration';
+
+  // Get full template — from saved data or hardcoded fallback
+  const fullTemplate = data.full_text || data.full_template || (isHealth ? HEALTH_TEMPLATE : COOP_TEMPLATE);
+
+  // Get questions list — from saved or fallback
+  const questions = data.questions || PAR_Q;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 9999, display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>{title}</span>
+            <span style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>{title}</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', backgroundColor: '#22c55e', padding: '2px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <CheckCircle style={{ width: 12, height: 12 }} />חתום
             </span>
           </div>
-          <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>נחתם ב: {signedDate}</div>
+          <div style={{ fontSize: 14, color: '#6B7280', marginTop: 2 }}>נחתם ב: {signedDate}</div>
         </div>
         <button onClick={onClose} style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: '#f5f5f5', cursor: 'pointer' }}>
           <X style={{ width: 20, height: 20, color: '#6B7280' }} />
         </button>
       </div>
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 20, WebkitOverflowScrolling: 'touch' }}>
 
-        {/* Full document text (if saved) */}
-        {data.full_text && (
-          <div style={{ marginBottom: 20, padding: 16, background: '#FAFAFA', borderRadius: 10, border: '1px solid #eee' }}>
-            <div style={{ fontSize: 15, whiteSpace: 'pre-line', lineHeight: 1.8, color: '#1a1a1a', fontFamily: "'Heebo', sans-serif" }}>
-              {data.full_text}
-            </div>
-          </div>
-        )}
-
-        {/* Trainee details (shown if no full_text — fallback for old docs) */}
-        {!data.full_text && traineeName && (
+        {/* Trainee name */}
+        {traineeName && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>שם</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{traineeName}</div>
+            <span style={{ fontSize: 14, color: '#666' }}>שם: </span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>{data.signed_name || traineeName}</span>
           </div>
         )}
-        {!data.full_text && <div style={{ height: 1, background: '#eee', marginBottom: 20 }} />}
 
-        {/* Health declaration answers (shown for old docs without full_text, or as structured view) */}
-        {!data.full_text && data.answers && Array.isArray(data.answers) && (
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', marginBottom: 12 }}>שאלון בריאות (PAR-Q)</div>
+        {/* Full document template text */}
+        <div style={{ whiteSpace: 'pre-line', fontSize: 15, lineHeight: 1.8, color: '#1a1a1a', marginBottom: 24, padding: 16, background: '#FAFAFA', borderRadius: 10, border: '1px solid #eee' }}>
+          {fullTemplate}
+        </div>
+
+        {/* Health declaration — answers */}
+        {isHealth && data.answers && Array.isArray(data.answers) && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 12 }}>תשובות המתאמן:</div>
             {data.answers.map((ans, i) => {
-              const q = (data.questions && data.questions[i]) || PAR_Q[i] || `שאלה ${i + 1}`;
+              const q = questions[i] || `שאלה ${i + 1}`;
               return (
-                <div key={i} style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{
-                    flexShrink: 0, fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                    backgroundColor: ans ? '#FEE2E2' : '#DCFCE7', color: ans ? '#B91C1C' : '#166534',
-                  }}>{ans ? 'כן' : 'לא'}</span>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', lineHeight: 1.5 }}>{q}</div>
-                  </div>
+                <div key={i} style={{ marginBottom: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 20, backgroundColor: ans ? '#FEE2E2' : '#DCFCE7', color: ans ? '#B91C1C' : '#166534' }}>
+                    {ans ? 'כן' : 'לא'}
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{q}</span>
                 </div>
               );
             })}
           </div>
         )}
 
+        {/* Health notes */}
         {data.healthNotes && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>הערות בריאותיות</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{data.healthNotes}</div>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#666' }}>הערות בריאותיות: </span>
+            <span style={{ fontSize: 15, color: '#1a1a1a' }}>{data.healthNotes}</span>
           </div>
         )}
 
+        {/* Medical alert */}
         {data.hasYes && (
-          <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: 12, fontSize: 14, fontWeight: 700, color: '#92400E', marginBottom: 16 }}>
-            נדרש אישור רפואי לפני תחילת האימונים
+          <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: 12, fontSize: 14, fontWeight: 700, color: '#92400E', marginBottom: 16 }}>
+            ⚠️ נדרש אישור רופא לפני תחילת האימונים
           </div>
         )}
 
-        {/* Declaration text for health form */}
-        {data.declaration_text && (
-          <div style={{ marginBottom: 16, padding: 14, background: '#F0FFF4', border: '1px solid #BBF7D0', borderRadius: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#166534', lineHeight: 1.6 }}>
-              ✓ {data.declaration_text}
-            </div>
+        {/* Declaration confirmed */}
+        {(data.declaration_confirmed || data.agreement_confirmed) && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #22c55e', borderRadius: 8, padding: '12px 16px', fontSize: 14, color: '#166534', marginBottom: 16 }}>
+            ✓ {data.declaration_text || 'אני מצהיר/ת כי כל המידע שמסרתי הוא נכון ומדויק'}
           </div>
         )}
 
-        {/* Cooperation agreement sections */}
-        {data.sections && Array.isArray(data.sections) && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>סעיפי ההסכם שאושרו</div>
-            {data.sections.map((s, i) => (
-              <div key={i} style={{ fontSize: 14, color: '#374151', padding: '6px 0', borderBottom: '1px solid #f3f4f6' }}>✓ {s}</div>
-            ))}
-          </div>
-        )}
-
-        {data.agreement_confirmed && (
-          <div style={{ marginBottom: 16, padding: 14, background: '#F0FFF4', border: '1px solid #BBF7D0', borderRadius: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#166534' }}>✓ קראתי והסכמתי לכל תנאי ההסכם</div>
-          </div>
-        )}
-
+        {/* Photo consent */}
         {data.photoConsent !== undefined && (
-          <div style={{ marginBottom: 16, padding: 14, background: data.photoConsent ? '#F0FFF4' : '#FEF2F2', border: `1px solid ${data.photoConsent ? '#BBF7D0' : '#FECACA'}`, borderRadius: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: data.photoConsent ? '#166534' : '#991B1B' }}>
-              {data.photoConsent ? '✓ מסכים/ה לשימוש בתמונות לצורכי שיווק' : '✗ לא מסכים/ה לשימוש בתמונות'}
-            </div>
+          <div style={{ background: data.photoConsent ? '#f0fdf4' : '#FEF2F2', border: `1px solid ${data.photoConsent ? '#22c55e' : '#FECACA'}`, borderRadius: 8, padding: '12px 16px', fontSize: 14, fontWeight: 600, color: data.photoConsent ? '#166534' : '#991B1B', marginBottom: 16 }}>
+            {data.photoConsent ? '✓ מסכים/ה לשימוש בתמונות לצורכי שיווק' : '✗ לא מסכים/ה לשימוש בתמונות'}
           </div>
         )}
 
         {/* Signature */}
-        <div style={{ marginTop: 32, padding: 20, background: '#F9F9F9', borderRadius: 12, border: '1px solid #eee' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 12 }}>חתימה דיגיטלית</div>
+        <div style={{ borderTop: '2px solid #eee', paddingTop: 20, marginTop: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#666', marginBottom: 8 }}>חתימה דיגיטלית</div>
           {doc.signature_data && (
-            <img src={doc.signature_data} alt="חתימה" style={{ maxWidth: '100%', height: 80, objectFit: 'contain', border: '1px solid #ddd', borderRadius: 8, background: 'white', padding: 8 }} />
+            <img src={doc.signature_data} alt="חתימה" style={{ maxWidth: 220, height: 80, objectFit: 'contain', border: '1px solid #ddd', borderRadius: 8, background: 'white', padding: 8, display: 'block' }} />
           )}
-          <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>תאריך: {signedDate}</div>
-          {traineeName && <div style={{ fontSize: 13, color: '#666' }}>שם: {traineeName}</div>}
+          <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>שם: {data.signed_name || traineeName}</div>
+          <div style={{ fontSize: 13, color: '#666' }}>תאריך: {signedDate}</div>
         </div>
       </div>
 
-      {/* ── Footer ── */}
+      {/* Footer */}
       <div style={{ padding: '16px 20px', borderTop: '1px solid #eee', display: 'flex', gap: 8, flexShrink: 0, background: 'white' }}>
-        <button onClick={onClose} style={{ flex: 1, height: 52, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff', fontSize: 16, fontWeight: 700, color: '#6B7280', cursor: 'pointer' }}>
-          סגור
-        </button>
+        <button onClick={onClose} style={{ flex: 1, height: 52, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff', fontSize: 16, fontWeight: 700, color: '#6B7280', cursor: 'pointer' }}>סגור</button>
         <button onClick={() => { if (doc.file_url) window.open(doc.file_url, '_blank'); else generateAndDownloadPDF(doc, traineeName); }}
           style={{ flex: 1, height: 52, borderRadius: 12, border: 'none', background: '#FF6F20', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <Download style={{ width: 18, height: 18 }} />הורד PDF

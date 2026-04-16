@@ -80,7 +80,9 @@ function HealthDeclarationForm({ user, onSign, isSigning }) {
       answers,
       healthNotes,
       hasYes,
+      declaration_text: 'אני מצהיר/ת כי כל המידע שמסרתי הוא נכון ומדויק',
       declaration_confirmed: true,
+      signed_name: user.full_name,
     });
   };
 
@@ -175,6 +177,7 @@ function CooperationAgreementForm({ user, onSign, isSigning }) {
       full_text: agreementText,
       photoConsent,
       agreement_confirmed: true,
+      signed_name: user.full_name,
     });
   };
 
