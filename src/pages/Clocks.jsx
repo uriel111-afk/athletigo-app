@@ -210,12 +210,29 @@ function TabataView() {
   const [rounds, setRounds] = useState(8);
   const [sets, setSets] = useState(1);
   const [setsRestSec, setSetsRestSec] = useState(60);
-  const [countdown, setCountdown] = useState(null); // 3,2,1,'GO',null
+  const [countdownSec, setCountdownSec] = useState(30);
+  const [countdownRemaining, setCountdownRemaining] = useState(null); // null = not running
+  const countdownRef = useRef(null);
+  const [countdown321, setCountdown321] = useState(null); // 3,2,1,'GO',null
   const [showDone, setShowDone] = useState(false);
   const prevPhaseRef = useRef(null);
   const active = activeClock === 'tabata';
   const showSetup = !active || phase === 'idle';
   const totalTime = (workSec + restSec) * rounds * sets + (sets > 1 ? setsRestSec * (sets - 1) : 0);
+
+  // Parallel countdown timer
+  useEffect(() => {
+    if (active && isRunning && countdownRemaining !== null && countdownRemaining > 0) {
+      countdownRef.current = setInterval(() => {
+        setCountdownRemaining(prev => {
+          if (prev <= 1) { playEndBeeps(); clearInterval(countdownRef.current); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(countdownRef.current);
+    }
+    if (!isRunning && countdownRef.current) clearInterval(countdownRef.current);
+  }, [active, isRunning, countdownRemaining !== null]);
 
   // Detect done
   useEffect(() => {
@@ -228,22 +245,21 @@ function TabataView() {
 
   // 3-2-1-GO countdown
   const startWithCountdown = () => {
-    setCountdown(3);
-    playBeep(660);
-    setTimeout(() => { setCountdown(2); playBeep(660); }, 1000);
-    setTimeout(() => { setCountdown(1); playBeep(660); }, 2000);
-    setTimeout(() => { setCountdown('GO'); playBeep(880, 0.3); }, 3000);
+    setCountdown321(3); playBeep(660);
+    setTimeout(() => { setCountdown321(2); playBeep(660); }, 1000);
+    setTimeout(() => { setCountdown321(1); playBeep(660); }, 2000);
+    setTimeout(() => { setCountdown321('GO'); playBeep(880, 0.3); }, 3000);
     setTimeout(() => {
-      setCountdown(null);
+      setCountdown321(null);
+      setCountdownRemaining(countdownSec);
       startTabata({ workTime: workSec, restTime: restSec, rounds, sets, setRest: setsRestSec, prepareTime: 0 });
     }, 3800);
   };
 
-  // Countdown overlay
-  if (countdown !== null) {
+  if (countdown321 !== null) {
     return (
       <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <span style={{ fontSize: 120, fontWeight: 900, fontFamily: FN, color: countdown === 'GO' ? BRAND : C1 }}>{countdown}</span>
+        <span style={{ fontSize: 120, fontWeight: 900, fontFamily: FN, color: countdown321 === 'GO' ? BRAND : C1 }}>{countdown321}</span>
       </div>
     );
   }
@@ -258,7 +274,7 @@ function TabataView() {
         <div style={{ fontSize: 16, fontWeight: 500, fontFamily: FL, color: C2 }}>
           {sets} סטים | {rounds} מחזורים | {totalMin} דקות
         </div>
-        <button onClick={() => { setShowDone(false); stop(); }}
+        <button onClick={() => { setShowDone(false); setCountdownRemaining(null); stop(); }}
           className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
           style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
           התחל מחדש
@@ -275,6 +291,7 @@ function TabataView() {
       { l: 'מחזורים', v: rounds, set: setRounds, min: 1, max: 50 },
       { l: 'סטים', v: sets, set: setSets, min: 1, max: 10 },
       { l: 'מנ׳ סטים', v: setsRestSec, set: setSetsRestSec, min: 0, max: 300 },
+      { l: 'COUNTDOWN', v: countdownSec, set: setCountdownSec, min: 10, max: 300, dark: true },
     ];
     return (
       <div dir="rtl" style={{ padding: '16px 12px 100px' }} className="flex flex-col items-center gap-4">
@@ -285,13 +302,13 @@ function TabataView() {
                 style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 18, fontWeight: 700, border: 'none' }}>+</HoldButton>
               <div className="flex items-center justify-center tabular-nums" style={{
                 width: 52, height: 52, borderRadius: '50%',
-                backgroundColor: p.hi ? BRAND : BG2,
-                color: p.hi ? '#FFF' : C1,
+                backgroundColor: p.dark ? C1 : (p.hi ? BRAND : BG2),
+                color: (p.dark || p.hi) ? '#FFF' : C1,
                 fontSize: 20, fontWeight: 700, fontFamily: FN,
               }}>{p.v}</div>
-              <div style={{ fontSize: 10, fontWeight: 700, fontFamily: FL, color: p.hi ? BRAND : C2, textAlign: 'center' }}>{p.l}</div>
+              <div style={{ fontSize: p.dark ? 9 : 10, fontWeight: 700, fontFamily: p.dark ? FN : FL, color: p.dark ? C1 : (p.hi ? BRAND : C2), textAlign: 'center', letterSpacing: p.dark ? 0.5 : 0 }}>{p.l}</div>
               <HoldButton onClick={() => p.set(Math.max(p.min, p.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform"
-                style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: p.hi ? '#FFF0E8' : BG2, color: p.hi ? BRAND : C2, fontSize: 18, fontWeight: 700, border: `0.5px solid ${p.hi ? BRAND+'40' : BRD}` }}>−</HoldButton>
+                style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: p.dark ? BG2 : (p.hi ? '#FFF0E8' : BG2), color: p.dark ? C1 : (p.hi ? BRAND : C2), fontSize: 18, fontWeight: 700, border: `0.5px solid ${p.hi ? BRAND+'40' : BRD}` }}>−</HoldButton>
             </div>
           ))}
         </div>
@@ -307,10 +324,11 @@ function TabataView() {
 
   // Running
   const isWork = phase === 'work' || phase === 'prepare';
+  const RR = 118, circR = 2 * Math.PI * RR;
+  const ringProgress = totalDuration > 0 ? display / totalDuration : 0;
+  const ringOffset = circR * (1 - Math.max(0, Math.min(1, ringProgress)));
   let setStr = '—', roundStr = '—';
   if (roundInfo) { roundInfo.split('•').map(x => x.trim()).forEach(p => { if (p.startsWith('סט')) setStr = p.replace('סט ', ''); if (p.startsWith('סיבוב')) roundStr = p.replace('סיבוב ', ''); }); }
-  const elapsedMs = totalDuration > 0 ? totalDuration - display : 0;
-  const remainingSec = Math.max(0, totalTime - Math.floor(elapsedMs / 1000));
   let nextLabel = '', nextDur = 0;
   if (phase === 'work') { nextLabel = 'מנוחה'; nextDur = restSec; }
   else if (phase === 'rest') { nextLabel = 'עבודה'; nextDur = workSec; }
@@ -318,25 +336,44 @@ function TabataView() {
   else if (phase === 'prepare') { nextLabel = 'עבודה'; nextDur = workSec; }
 
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col" dir="rtl"
-      style={{ backgroundColor: '#FFFFFF', padding: '16px 16px 100px', gap: 14 }}>
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="transition-colors duration-300" style={{ fontSize: 24, fontWeight: 700, fontFamily: FL, color: isWork ? BRAND : C2 }}>{phaseLabel}</div>
-        <div style={{ textAlign: 'left' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C2 }}>סיבוב {roundStr}</div>
-          <div style={{ fontSize: 12, fontFamily: FN, color: C3 }}>סט {setStr} | {fmtTotal(remainingSec)} נותר</div>
+    <div className="fixed inset-0 z-[90] flex flex-col items-center" dir="rtl"
+      style={{ backgroundColor: '#FFFFFF', padding: '16px 16px 100px', gap: 12 }}>
+
+      {/* Phase label */}
+      <div className="transition-colors duration-300" style={{ fontSize: 32, fontWeight: 900, fontFamily: FL, color: isWork ? BRAND : C2 }}>{phaseLabel}</div>
+
+      {/* Ring + time */}
+      <div className="relative flex-shrink-0" style={{ width: 260, height: 260 }}>
+        <svg width="260" height="260" viewBox="0 0 260 260">
+          <circle cx="130" cy="130" r={RR} fill="none" stroke="#FFF0E8" strokeWidth="10" />
+          <circle cx="130" cy="130" r={RR} fill="none" stroke={isWork ? BRAND : '#BBBBBB'} strokeWidth="10" strokeLinecap="round"
+            strokeDasharray={circR} strokeDashoffset={ringOffset} transform="rotate(-90 130 130)"
+            className="transition-colors duration-300" style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: C1 }}>{fmt(display)}</span>
         </div>
       </div>
-      {/* Main time */}
-      <div className="flex-1 flex items-center justify-center">
-        <span className="tabular-nums leading-none" style={{ fontSize: 100, fontWeight: 900, fontFamily: FN, color: C1, letterSpacing: -4 }}>{fmt(display)}</span>
+
+      {/* Round + Set row */}
+      <div className="flex items-center justify-center gap-4" style={{ fontSize: 20, fontWeight: 700, fontFamily: FN, color: C2 }}>
+        <span>סיבוב {roundStr}</span>
+        <span style={{ opacity: 0.3 }}>|</span>
+        <span>סט {setStr}</span>
       </div>
+
+      {/* Countdown display */}
+      {countdownRemaining !== null && countdownRemaining > 0 && (
+        <div className="tabular-nums" style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C1, backgroundColor: C1, color: '#FFF', padding: '4px 14px', borderRadius: 20 }}>
+          COUNTDOWN: {fmtTotal(countdownRemaining)}
+        </div>
+      )}
+
       {/* Next phase */}
       {nextLabel && (
-        <div className="flex items-center justify-between" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
-          <span style={{ fontSize: 14, fontWeight: 600, fontFamily: FL, color: C2 }}>הבא: {nextLabel}</span>
-          <span className="tabular-nums" style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C1 }}>{nextDur} שניות</span>
+        <div className="flex items-center justify-between w-full" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
+          <span style={{ fontSize: 20, fontWeight: 600, fontFamily: FL, color: C2 }}>הבא: {nextLabel}</span>
+          <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 900, fontFamily: FN, color: C1 }}>{nextDur} שניות</span>
         </div>
       )}
       {/* Controls */}
