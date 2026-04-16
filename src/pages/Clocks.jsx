@@ -576,19 +576,19 @@ function TabataView({ onRunningChange }) {
 
         {/* Ring — fills available space */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '4px 0' }}>
-          <div style={{ position: 'relative', width: 'min(75vw, 300px)', height: 'min(75vw, 300px)' }}>
-            <svg width="100%" height="100%" viewBox="0 0 300 300" style={{ position: 'absolute', inset: 0 }}>
-              <circle cx="150" cy="150" r="136" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
-              <circle cx="150" cy="150" r="136" fill="none" stroke="white" strokeWidth="10"
-                strokeDasharray="855"
-                strokeDashoffset={tabataPhaseDuration > 0 ? 855 - (855 * (tabataTimeLeft / tabataPhaseDuration)) : 0}
+          <div style={{ position: 'relative', width: 'min(62vw, 250px)', height: 'min(62vw, 250px)' }}>
+            <svg width="100%" height="100%" viewBox="0 0 250 250" style={{ position: 'absolute', inset: 0 }}>
+              <circle cx="125" cy="125" r="112" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
+              <circle cx="125" cy="125" r="112" fill="none" stroke="white" strokeWidth="10"
+                strokeDasharray="704"
+                strokeDashoffset={tabataPhaseDuration > 0 ? 704 - (704 * (tabataTimeLeft / tabataPhaseDuration)) : 0}
                 strokeLinecap="round"
-                transform="rotate(-90 150 150)"
+                transform="rotate(-90 125 125)"
                 style={{ transition: 'stroke-dashoffset 0.9s linear' }}
               />
             </svg>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontSize: 'min(38vw, 148px)', fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, fontFamily: FN }}>{tabataTimeLeft}</div>
+              <div style={{ fontSize: 'min(32vw, 124px)', fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, fontFamily: FN }}>{tabataTimeLeft}</div>
             </div>
           </div>
         </div>
