@@ -80,18 +80,32 @@ export default function Layout({ children, currentPageName }) {
         const icon = typeIcons[n.type] || '🔔';
 
         // Show toast with action button if applicable
-        if (n.action_label && n.data?.session_id) {
+        if (n.type === 'session_request' && n.data?.session_id) {
           toast(
             `${icon} ${n.title}`,
             {
               description: n.message,
-              duration: 8000,
+              duration: 10000,
               action: {
-                label: n.action_label,
-                onClick: () => navigate(createPageUrl("Sessions")),
+                label: 'אשר',
+                onClick: async () => {
+                  try {
+                    await supabase.from('sessions').update({ status: 'מאושר' }).eq('id', n.data.session_id);
+                    if (n.data.trainee_id) {
+                      await supabase.from('notifications').insert({
+                        user_id: n.data.trainee_id, type: 'session_approved', title: 'המפגש אושר',
+                        message: n.message?.replace('ביקש', 'אושר') || 'המפגש שלך אושר', is_read: false,
+                      });
+                    }
+                    queryClient.refetchQueries({ queryKey: ['all-sessions'] });
+                    toast.success('המפגש אושר');
+                  } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+                },
               },
             }
           );
+        } else if (n.action_label && n.data?.session_id) {
+          toast(`${icon} ${n.title}`, { description: n.message, duration: 8000, action: { label: n.action_label, onClick: () => navigate(createPageUrl("Sessions")) } });
         } else {
           toast(`${icon} ${n.title}`, {
             description: n.message,
