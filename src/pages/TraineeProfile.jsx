@@ -31,6 +31,39 @@ import BaselineDetailView from "@/components/BaselineDetailView";
 import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, notifyPlanCreated } from "@/functions/notificationTriggers";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
 
+const MOTIVATION = [
+  'כל חזרה היא הצעד הבא לשליטה',
+  'הגוף שלך הוא הכלי, התנועה היא השפה',
+  'משמעת היא חופש',
+  'אין קיצורי דרך, יש רק הדרך',
+  'כשהגוף אומר לעצור, הראש מחליט להמשיך',
+  'כל אימון הוא השקעה בעצמך',
+  'הכוח האמיתי מתחיל כשהרצון נגמר',
+  'תנועה היא חיים',
+  'השיפור מגיע מהעקביות, לא מהשלמות',
+  'אתה מסוגל ליותר ממה שאתה חושב',
+  'הדרך לפסגה מתחילה בצעד אחד',
+  'כל יום הוא הזדמנות חדשה להיות חזק יותר',
+  'אל תשווה את עצמך לאחרים, רק לעצמך של אתמול',
+  'הכאב הוא זמני, הגאווה היא לנצח',
+  'אין אימון גרוע, יש רק אימון שלא עשית',
+  'הגוף משיג את מה שהמוח מאמין',
+  'השקט שאחרי אימון קשה — זה השלום האמיתי',
+  'בנה את הגוף שלך כמו שבונים בניין — קומה אחרי קומה',
+  'כל טיפת זיעה מקרבת אותך למטרה',
+  'תהליך ההתקדמות הוא לא ישר, אבל הוא תמיד קדימה',
+  'הכוח לא בא מהיכולת, הוא בא מהרצון',
+  'שלוט בתנועה, תשלוט בחיים',
+  'אל תפחד מאימון קשה, תפחד מלהישאר באותו מקום',
+  'ההצלחה שלך נמדדת בעקביות, לא במזל',
+  'תרגל כאילו אתה מתמודד, התמודד כאילו אתה מתרגל',
+  'כושר זה לא יעד, זה דרך חיים',
+  'גם כשלא בא לך — זה הרגע הכי חשוב לבוא',
+  'הגוף שלך יודע להודות לך על כל אימון',
+  'מי שממשיך גם כשקשה — הוא זה שמנצח',
+  'היום אתה יותר חזק מאתמול, ומחר תהיה חזק מהיום',
+];
+
 const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -1391,6 +1424,9 @@ export default function TraineeProfile() {
                   </h2>
                   <p className="text-white/70 text-[11px] mt-0.5">
                     {user.age ? user.age + ' שנים' : ''}{user.age && user.phone ? ' • ' : ''}{user.phone || ''}
+                  </p>
+                  <p className="text-white/50 text-[10px] mt-1 italic leading-tight">
+                    {MOTIVATION[Math.floor((new Date().getFullYear() * 366 + Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000)) % MOTIVATION.length)]}
                   </p>
                 </div>
               </div>

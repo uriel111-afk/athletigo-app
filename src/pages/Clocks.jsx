@@ -336,12 +336,12 @@ function TabataView() {
 
   const pickerConfigs = {
     prep:     { options: rng(0, 60, 1),   unit: 'שנ׳' },
-    work:     { options: rng(5, 120, 5),  unit: 'שנ׳' },
-    rest:     { options: rng(0, 120, 5),  unit: 'שנ׳' },
+    work:     { options: rng(1, 120, 1),  unit: 'שנ׳' },
+    rest:     { options: rng(0, 120, 1),  unit: 'שנ׳' },
     rounds:   { options: rng(1, 30, 1),   unit: '×' },
     sets:     { options: rng(1, 10, 1),   unit: '×' },
-    restBtw:  { options: rng(0, 180, 10), unit: 'שנ׳' },
-    countdown:{ options: rng(0, 600, 30), unit: 'שנ׳' },
+    restBtw:  { options: rng(0, 180, 1),  unit: 'שנ׳' },
+    countdown:{ options: rng(0, 600, 1),  unit: 'שנ׳' },
   };
 
   if (showSetup) {
@@ -350,13 +350,13 @@ function TabataView() {
     const ss = String(totalSecs % 60).padStart(2, '0');
 
     const params = [
-      { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepSec,      setter: setPrepSec,      step: 1,  lbl: 20 },
-      { key: 'work',     icon: '💪', label: 'עבודה',           value: workSec,      setter: setWorkSec,      step: 5,  lbl: 20 },
-      { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restSec,      setter: setRestSec,      step: 5,  lbl: 20 },
-      { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,       setter: setRounds,       step: 1,  lbl: 20 },
-      { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,         setter: setSets,         step: 1,  lbl: 20 },
-      { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: setsRestSec,  setter: setSetsRestSec,  step: 10, lbl: 18 },
-      { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownSec, setter: setCountdownSec, step: 30, lbl: 18 },
+      { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepSec,      setter: setPrepSec,      step: 1, lbl: 20 },
+      { key: 'work',     icon: '💪', label: 'עבודה',           value: workSec,      setter: setWorkSec,      step: 1, lbl: 20 },
+      { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restSec,      setter: setRestSec,      step: 1, lbl: 20 },
+      { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,       setter: setRounds,       step: 1, lbl: 20 },
+      { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,         setter: setSets,         step: 1, lbl: 20 },
+      { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: setsRestSec,  setter: setSetsRestSec,  step: 1, lbl: 18 },
+      { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownSec, setter: setCountdownSec, step: 1, lbl: 18 },
     ];
 
     return (
@@ -446,7 +446,7 @@ function TabataView() {
             style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="tabular-nums leading-none" style={{ fontSize: 88, fontWeight: 900, fontFamily: FN, color: '#FFF', maxWidth: 170 }}>{fmt(display)}</span>
+          <span className="tabular-nums leading-none" style={{ fontSize: 'clamp(100px, 20vh, 160px)', fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{fmt(display)}</span>
         </div>
       </div>
 

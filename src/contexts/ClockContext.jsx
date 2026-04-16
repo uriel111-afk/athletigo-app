@@ -58,6 +58,22 @@ export function ClockProvider({ children }) {
   const phasesRef = useRef([]);
   const phaseIdxRef = useRef(0);
   const lastBeepRef = useRef(-1);
+  const wakeLockRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Wake Lock — keep screen on while timer runs
+  useEffect(() => {
+    const acquireWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && isRunning) {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        }
+      } catch {}
+    };
+    if (isRunning) { acquireWakeLock(); setIsFullscreen(true); }
+    else { wakeLockRef.current?.release().catch(() => {}); wakeLockRef.current = null; setIsFullscreen(false); }
+    return () => { wakeLockRef.current?.release().catch(() => {}); };
+  }, [isRunning]);
 
   const ensureAudio = useCallback(() => {
     if (!audioCtxRef.current) audioCtxRef.current = createAudioCtx();
@@ -68,20 +84,20 @@ export function ClockProvider({ children }) {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     switch (type) {
-      case 'countdown': playTone(ctx, 800, 150, 'sine', 0.5); break;
-      case 'work': playWhistle(ctx, 600, 1200, 400, 0.5); break;
-      case 'rest': playWhistle(ctx, 1000, 500, 500, 0.5); break;
+      case 'countdown': playTone(ctx, 800, 150, 'sine', 0.9); break;
+      case 'work': playWhistle(ctx, 600, 1200, 400, 0.9); break;
+      case 'rest': playWhistle(ctx, 1000, 500, 500, 0.9); break;
       case 'set_rest':
-        playTone(ctx, 800, 200, 'sine', 0.5);
-        setTimeout(() => playTone(ctx, 500, 400, 'sine', 0.5), 350);
+        playTone(ctx, 800, 200, 'sine', 0.9);
+        setTimeout(() => playTone(ctx, 500, 400, 'sine', 0.9), 350);
         break;
-      case 'start': playTone(ctx, 800, 100, 'sine', 0.5); break;
-      case 'pause': playTone(ctx, 400, 150, 'sine', 0.5); break;
-      case 'lap': playTone(ctx, 600, 50, 'sine', 0.4); break;
+      case 'start': playTone(ctx, 800, 100, 'sine', 0.9); break;
+      case 'pause': playTone(ctx, 400, 150, 'sine', 0.7); break;
+      case 'lap': playTone(ctx, 600, 50, 'sine', 0.7); break;
       case 'done':
-        playTone(ctx, 440, 400, 'triangle', 0.6);
-        setTimeout(() => playTone(ctx, 660, 400, 'triangle', 0.6), 600);
-        setTimeout(() => playTone(ctx, 880, 400, 'triangle', 0.6), 1200);
+        playTone(ctx, 440, 400, 'triangle', 1.0);
+        setTimeout(() => playTone(ctx, 660, 400, 'triangle', 1.0), 600);
+        setTimeout(() => playTone(ctx, 880, 400, 'triangle', 1.0), 1200);
         break;
       default: break;
     }
@@ -268,7 +284,7 @@ export function ClockProvider({ children }) {
 
   return (
     <ClockContext.Provider value={{
-      activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps, setProgress,
+      activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps, setProgress, isFullscreen,
       startStopwatch, lapStopwatch, startTimer, startTabata,
       pause, resume, stop, reset,
     }}>
