@@ -355,7 +355,7 @@ function TimerView({ onMinimize }) {
 
 /* ═══ TABATA ═══ */
 function TabataView({ onRunningChange, onMinimize }) {
-  const { tabata, phaseChange, startTabata, pauseTabata, resetTabata, settingsRef } = useActiveTimer();
+  const { tabata, startTabata, pauseTabata, resetTabata, settingsRef } = useActiveTimer();
   const { screen: tabataScreen, running: tabataRunning, phase: tabataPhase, timeLeft: tabataTimeLeft,
     phaseDuration: tabataPhaseDuration, currentRound: tabataCurrentRound, currentSet: tabataCurrentSet,
     countdown: tabataCountdown, countdown321 } = tabata;
@@ -402,20 +402,7 @@ function TabataView({ onRunningChange, onMinimize }) {
     return { label: '', duration: 0 };
   };
 
-  // === SOUNDS via phaseChange from context ===
-  const lastPhaseIdRef = useRef(0);
-  useEffect(() => {
-    if (!phaseChange || phaseChange.id === lastPhaseIdRef.current) return;
-    lastPhaseIdRef.current = phaseChange.id;
-    const p = phaseChange.phase;
-    if (p === 'countdown') playCountdownBeep();
-    else if (p === 'go') playGoSound();
-    else if (p === 'עבודה') playWorkSound();
-    else if (p === 'מנוחה') playRestSound();
-    else if (p === 'מנוחה בין סטים') playRestBetweenSetsSound();
-    else if (p === 'complete' || p === 'parallel_done') playCompleteSound();
-    else if (p === 'tick') playCountdownBeep();
-  }, [phaseChange]);
+  // Sounds are now played directly in ActiveTimerContext — no event chain needed
 
   // === HANDLERS ===
   const handleTabataStart = () => {

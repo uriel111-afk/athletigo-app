@@ -1,5 +1,55 @@
 import React, { createContext, useContext, useState, useRef, useCallback } from "react";
 
+// ── Direct sound functions (no event chain, always fires) ──
+const _createCtx = () => {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume();
+  const m = ctx.createGain(); m.gain.value = 1.4; m.connect(ctx.destination);
+  return { ctx, m };
+};
+const _tone = (freq, dur, gv = 0.65, delay = 0) => {
+  try {
+    const { ctx, m } = _createCtx();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, ctx.currentTime + delay);
+    g.gain.linearRampToValueAtTime(gv, ctx.currentTime + delay + 0.005);
+    g.gain.setValueAtTime(gv, ctx.currentTime + delay + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+    o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + dur);
+  } catch(e) {}
+};
+const _TICK = () => _tone(880, 0.07, 0.65);
+const _WORK = () => {
+  try {
+    const { ctx, m } = _createCtx();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = 1350;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.65, ctx.currentTime + 0.01);
+    g.gain.setValueAtTime(0.65, ctx.currentTime + 0.28);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.38);
+    o.start(); o.stop(ctx.currentTime + 0.38);
+  } catch(e) {}
+};
+const _BELL = () => {
+  try {
+    const { ctx, m } = _createCtx();
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(m); o1.type = 'sine'; o1.frequency.value = 520;
+    g1.gain.setValueAtTime(0.65, ctx.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+    o1.start(); o1.stop(ctx.currentTime + 1.5);
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(m); o2.type = 'sine'; o2.frequency.value = 1040;
+    g2.gain.setValueAtTime(0.2, ctx.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9);
+    o2.start(); o2.stop(ctx.currentTime + 0.9);
+  } catch(e) {}
+};
+const _DOUBLE_BELL = () => { _BELL(); setTimeout(_BELL, 600); };
+const _TRIPLE_BELL = () => { _BELL(); setTimeout(_BELL, 500); setTimeout(_BELL, 1000); };
+
 const ActiveTimerContext = createContext(null);
 export const useActiveTimer = () => useContext(ActiveTimerContext);
 
@@ -58,35 +108,34 @@ export function ActiveTimerProvider({ children }) {
     let newPhase, newTime, newRound = currentRound, newSet = currentSet;
 
     if (phase === 'הכנה') {
-      newPhase = 'עבודה'; newTime = workTime;
+      newPhase = 'עבודה'; newTime = workTime; _WORK();
     } else if (phase === 'עבודה') {
-      newPhase = 'מנוחה'; newTime = restTime;
+      newPhase = 'מנוחה'; newTime = restTime; _BELL();
     } else if (phase === 'מנוחה') {
       if (currentRound < rounds) {
         newRound = currentRound + 1;
-        newPhase = 'עבודה'; newTime = workTime;
+        newPhase = 'עבודה'; newTime = workTime; _WORK();
       } else if (currentSet < sets) {
         newRound = 1; newSet = currentSet + 1;
-        newPhase = 'מנוחה בין סטים'; newTime = restBetweenSets;
+        newPhase = 'מנוחה בין סטים'; newTime = restBetweenSets; _DOUBLE_BELL();
       } else {
         // COMPLETE
         clearInterval(intervalRef.current);
         clearInterval(parallelRef.current);
         update({ screen: 'complete', running: false, timeLeft: 0 });
-        emitPhase('complete');
+        _TRIPLE_BELL();
         setLiveTimer(null);
         return;
       }
     } else if (phase === 'מנוחה בין סטים') {
-      newPhase = 'עבודה'; newTime = workTime;
+      newPhase = 'עבודה'; newTime = workTime; _WORK();
     } else { return; }
 
     update({
       phase: newPhase, timeLeft: newTime, phaseDuration: newTime,
       currentRound: newRound, currentSet: newSet,
     });
-    emitPhase(newPhase);
-  }, [update, emitPhase]);
+  }, [update]);
 
   // === INTERVAL ===
   const startInterval = useCallback(() => {
@@ -95,9 +144,9 @@ export function ActiveTimerProvider({ children }) {
       sRef.current.timeLeft -= 1;
       const next = sRef.current.timeLeft;
 
-      // Play beep for last 3 seconds FIRST (before state update)
+      // Direct sound — fires immediately, no event chain
       if (next === 3 || next === 2 || next === 1) {
-        emitPhase('tick');
+        _TICK();
       }
 
       if (next <= 0) {
@@ -106,27 +155,27 @@ export function ActiveTimerProvider({ children }) {
         setTabata(prev => ({ ...prev, timeLeft: next }));
       }
     }, 1000);
-  }, [advancePhase, emitPhase]);
+  }, [advancePhase]);
 
   // === START ===
   const startTabata = useCallback((settings) => {
     settingsRef.current = { ...settingsRef.current, ...settings };
     const { prepTime, workTime, countdownTime } = settingsRef.current;
 
-    // 3-2-1-GO countdown
+    // 3-2-1-GO countdown — sounds called directly
     update({ screen: 'countdown', countdown321: 3 });
-    emitPhase('countdown');
+    _TICK();
 
     let count = 3;
     countdown321Ref.current = setInterval(() => {
       count -= 1;
       if (count > 0) {
         update({ countdown321: count });
-        emitPhase('countdown');
+        _TICK();
       } else {
         clearInterval(countdown321Ref.current);
         update({ countdown321: 'GO' });
-        emitPhase('go');
+        _tone(1100, 0.10, 0.65, 0); _tone(1600, 0.15, 0.65, 0.11); // GO sound
 
         setTimeout(() => {
           const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
@@ -146,7 +195,6 @@ export function ActiveTimerProvider({ children }) {
             setTabata(prev => ({ ...prev, countdown: parallelVal.current }));
             if (parallelVal.current <= 0) {
               clearInterval(parallelRef.current);
-              emitPhase('parallel_done');
             }
           }, 1000);
 
@@ -154,7 +202,7 @@ export function ActiveTimerProvider({ children }) {
         }, 800);
       }
     }, 1000);
-  }, [update, startInterval, emitPhase]);
+  }, [update, startInterval]);
 
   // === PAUSE / RESUME ===
   const pauseTabata = useCallback(() => {
