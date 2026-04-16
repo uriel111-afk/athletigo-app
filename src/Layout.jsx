@@ -249,6 +249,10 @@ export default function Layout({ children, currentPageName }) {
         maxWidth: '100vw',
         width: '100%',
         overflow: 'hidden',
+        touchAction: 'pan-x pan-y',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        overflowX: 'hidden',
       }}>
         <aside className="hidden md:flex flex-col w-64 p-6" style={{
           backgroundColor: '#FFFFFF',
