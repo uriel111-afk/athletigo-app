@@ -18,29 +18,40 @@ function fmtTotal(sec) { return `${String(Math.floor(sec / 60)).padStart(2,'0')}
 
 function HoldButton({ onClick, children, className, style }) {
   const intRef = useRef(null), toRef = useRef(null);
-  const start = useCallback(() => { onClick(); toRef.current = setTimeout(() => { intRef.current = setInterval(onClick, 100); }, 300); }, [onClick]);
+  const start = useCallback(() => { onClick(); toRef.current = setTimeout(() => { intRef.current = setInterval(onClick, 80); }, 400); }, [onClick]);
   const stop = useCallback(() => { if (toRef.current) { clearTimeout(toRef.current); toRef.current = null; } if (intRef.current) { clearInterval(intRef.current); intRef.current = null; } }, []);
-  return <button onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={start} onTouchEnd={stop} className={className} style={style}>{children}</button>;
+  return <button onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={(e) => { e.preventDefault(); start(); }} onTouchEnd={stop} onTouchCancel={stop} className={className} style={style}>{children}</button>;
 }
 
 function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, step = 1, unit = '', label = 'בחר ערך' }) {
+  const listRef = useRef(null);
+  const values = useRef([]);
+  if (values.current.length === 0 || values.current[0] !== min) { values.current = []; for (let i = min; i <= max; i += step) values.current.push(i); }
+
+  useEffect(() => {
+    if (isOpen && listRef.current) {
+      const idx = values.current.indexOf(value);
+      if (idx !== -1 && listRef.current.children[idx]) {
+        listRef.current.children[idx].scrollIntoView({ block: 'center', behavior: 'instant' });
+      }
+    }
+  }, [isOpen, value]);
+
   if (!isOpen) return null;
-  const values = [];
-  for (let i = min; i <= max; i += step) values.push(i);
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxHeight: '60vh', direction: 'rtl' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: C1 }}>{label}</span>
-          <button onClick={onClose} style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 16, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>אישור</button>
+      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', direction: 'rtl', paddingBottom: 20 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #eee' }}>
+          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: C1 }}>{label}{unit ? ` (${unit})` : ''}</span>
+          <button onClick={onClose} style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 24px', fontSize: 16, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>אישור</button>
         </div>
-        <div style={{ overflowY: 'scroll', maxHeight: 280, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {values.map(v => (
-            <div key={v} onClick={() => onChange(v)} style={{
-              padding: '14px 20px', background: v === value ? '#FFF0E8' : 'transparent', borderRadius: 8,
-              fontSize: 22, fontWeight: v === value ? 900 : 500, fontFamily: FN, color: v === value ? BRAND : C1,
-              cursor: 'pointer', border: v === value ? `2px solid ${BRAND}` : '2px solid transparent', textAlign: 'center',
-            }}>{v}{unit ? ` ${unit}` : ''}</div>
+        <div ref={listRef} style={{ overflowY: 'auto', maxHeight: 300, padding: '8px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {values.current.map(v => (
+            <div key={v} onClick={() => { onChange(v); onClose(); }} style={{
+              padding: '12px 16px', borderRadius: 10, fontSize: 22, fontWeight: v === value ? 900 : 500, fontFamily: FN,
+              color: v === value ? BRAND : C1, background: v === value ? '#FFF0E8' : 'transparent',
+              border: v === value ? `2px solid ${BRAND}` : '2px solid transparent', cursor: 'pointer', textAlign: 'center',
+            }}>{v} {unit || ''}</div>
           ))}
         </div>
       </div>
