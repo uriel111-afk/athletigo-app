@@ -75,8 +75,8 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
   );
 }
 
-// iOS audio unlock
-function unlockAudio() {
+// ═══ SOUND LIBRARY ═══════════════════════════════════════════════════
+const unlockAudio = () => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     ctx.resume();
@@ -84,94 +84,88 @@ function unlockAudio() {
     const src = ctx.createBufferSource();
     src.buffer = buf; src.connect(ctx.destination); src.start(0);
   } catch(e) {}
-}
+};
 
-// Master-gain sound helper
-const playSound = (setup) => {
+const createCtx = () => {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume();
+  const master = ctx.createGain();
+  master.gain.value = 1.4;
+  master.connect(ctx.destination);
+  return { ctx, master };
+};
+
+const tone = (freq, dur, type = 'sine', gainVal = 0.65, delay = 0) => {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    ctx.resume();
-    const master = ctx.createGain();
-    master.gain.value = 1.5;
-    master.connect(ctx.destination);
-    setup(ctx, master);
+    const { ctx, master } = createCtx();
+    const osc = ctx.createOscillator(); const g = ctx.createGain();
+    osc.connect(g); g.connect(master);
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, ctx.currentTime + delay);
+    g.gain.linearRampToValueAtTime(gainVal, ctx.currentTime + delay + 0.005);
+    g.gain.setValueAtTime(gainVal, ctx.currentTime + delay + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+    osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + dur);
   } catch(e) {}
 };
 
-// 3-2-1 click
-const playCountdownBeep = () => playSound((ctx, out) => {
-  const osc = ctx.createOscillator(); const g = ctx.createGain();
-  osc.connect(g); g.connect(out);
-  osc.type = 'sine'; osc.frequency.value = 1000;
-  g.gain.setValueAtTime(0.7, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-  osc.start(); osc.stop(ctx.currentTime + 0.08);
-});
-
-// GO — two ascending tones
-const playGoSound = () => playSound((ctx, out) => {
-  [[1200, 0, 0.12], [1600, 0.14, 0.18]].forEach(([freq, start, dur]) => {
+// TICK — 3-2-1 countdown
+const SOUND_TICK = () => tone(880, 0.07, 'sine', 0.65);
+// GO — tabata start
+const SOUND_GO = () => { tone(1100, 0.10, 'sine', 0.65, 0); tone(1600, 0.15, 'sine', 0.65, 0.11); };
+// WHISTLE — work start
+const SOUND_WORK = () => {
+  try {
+    const { ctx, master } = createCtx();
     const osc = ctx.createOscillator(); const g = ctx.createGain();
-    osc.connect(g); g.connect(out);
-    osc.type = 'sine'; osc.frequency.value = freq;
-    g.gain.setValueAtTime(0.7, ctx.currentTime + start);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
-    osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + start + dur);
-  });
-});
-
-// WORK — long referee whistle
-const playWorkSound = () => playSound((ctx, out) => {
-  const osc = ctx.createOscillator(); const g = ctx.createGain();
-  osc.connect(g); g.connect(out);
-  osc.type = 'sine'; osc.frequency.value = 1400;
-  g.gain.setValueAtTime(0, ctx.currentTime);
-  g.gain.linearRampToValueAtTime(0.7, ctx.currentTime + 0.01);
-  g.gain.setValueAtTime(0.7, ctx.currentTime + 0.28);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-  osc.start(); osc.stop(ctx.currentTime + 0.4);
-});
-
-// REST — boxing bell
-const playRestSound = () => playSound((ctx, out) => {
-  [[520, 1.4, 0.7], [1040, 0.6, 0.25]].forEach(([freq, dur, vol]) => {
-    const osc = ctx.createOscillator(); const g = ctx.createGain();
-    osc.connect(g); g.connect(out);
-    osc.type = 'sine'; osc.frequency.value = freq;
-    g.gain.setValueAtTime(vol, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-    osc.start(); osc.stop(ctx.currentTime + dur);
-  });
-});
-
-// REST BETWEEN SETS — two bell hits
-const playRestBetweenSetsSound = () => {
-  [0, 0.5].forEach(delay => setTimeout(() => playRestSound(), delay * 1000));
+    osc.connect(g); g.connect(master);
+    osc.type = 'sine'; osc.frequency.value = 1350;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.65, ctx.currentTime + 0.01);
+    g.gain.setValueAtTime(0.65, ctx.currentTime + 0.28);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.38);
+    osc.start(); osc.stop(ctx.currentTime + 0.38);
+  } catch(e) {}
 };
-
-// COMPLETE — three bell hits
-const playCompleteSound = () => {
-  [0, 0.45, 0.9].forEach(delay => setTimeout(() => playRestSound(), delay * 1000));
+// BELL — rest / timer complete
+const SOUND_BELL = () => {
+  try {
+    const { ctx, master } = createCtx();
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(master);
+    o1.type = 'sine'; o1.frequency.value = 520;
+    g1.gain.setValueAtTime(0.65, ctx.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+    o1.start(); o1.stop(ctx.currentTime + 1.5);
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(master);
+    o2.type = 'sine'; o2.frequency.value = 1040;
+    g2.gain.setValueAtTime(0.2, ctx.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9);
+    o2.start(); o2.stop(ctx.currentTime + 0.9);
+  } catch(e) {}
 };
+// DOUBLE BELL — rest between sets
+const SOUND_DOUBLE_BELL = () => { SOUND_BELL(); setTimeout(() => SOUND_BELL(), 600); };
+// TRIPLE BELL — complete / finish
+const SOUND_TRIPLE_BELL = () => { SOUND_BELL(); setTimeout(() => SOUND_BELL(), 500); setTimeout(() => SOUND_BELL(), 1000); };
+// START CLICK — stopwatch/timer start
+const SOUND_START = () => { tone(660, 0.06, 'sine', 0.65, 0); tone(880, 0.08, 'sine', 0.65, 0.07); };
+// PAUSE CLICK
+const SOUND_PAUSE = () => { tone(880, 0.06, 'sine', 0.65, 0); tone(660, 0.08, 'sine', 0.65, 0.07); };
+// RESET CLICK
+const SOUND_RESET = () => tone(440, 0.08, 'sine', 0.5);
+// ALERT — timer warning at 10s
+const SOUND_ALERT = () => { tone(1200, 0.06, 'sine', 0.65, 0); tone(1200, 0.06, 'sine', 0.65, 0.15); };
 
-// START — whistle
-const playStartSound = () => playWorkSound();
-
-// STOP — descending tone
-const playStopSound = () => playSound((ctx, out) => {
-  const osc = ctx.createOscillator(); const g = ctx.createGain();
-  osc.connect(g); g.connect(out);
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(800, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.4);
-  g.gain.setValueAtTime(0.7, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-  osc.start(); osc.stop(ctx.currentTime + 0.4);
-});
-
-// Legacy aliases
-const playBeep = () => playCountdownBeep();
-function playEndBeeps() { playCompleteSound(); }
+// Aliases for tabata context sounds
+const playCountdownBeep = SOUND_TICK;
+const playGoSound = SOUND_GO;
+const playWorkSound = SOUND_WORK;
+const playRestSound = SOUND_BELL;
+const playRestBetweenSetsSound = SOUND_DOUBLE_BELL;
+const playCompleteSound = SOUND_TRIPLE_BELL;
+function playEndBeeps() { SOUND_TRIPLE_BELL(); }
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
@@ -200,7 +194,7 @@ function StopwatchView({ onMinimize }) {
           </div>
         )}
         <div className="flex w-full" style={{ gap: 10 }}>
-          <button onClick={reset} className="flex items-center justify-center active:scale-90 transition-transform"
+          <button onClick={() => { SOUND_RESET(); reset(); }} className="flex items-center justify-center active:scale-90 transition-transform"
             style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF', border: 'none' }}>
             <RotateCcw className="w-5 h-5 ml-1.5" />אפס
           </button>
@@ -211,12 +205,12 @@ function StopwatchView({ onMinimize }) {
             </button>
           )}
           {isRunning ? (
-            <button onClick={() => { playStopSound(); pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
+            <button onClick={() => { SOUND_PAUSE(); pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
               style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 700, fontFamily: FL, color: BRAND }}>
               <Pause className="w-6 h-6 ml-2" />השהה
             </button>
           ) : (
-            <button onClick={() => { playStartSound(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
+            <button onClick={() => { SOUND_START(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
               style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 700, fontFamily: FL, color: BRAND }}>
               <Play className="w-6 h-6 ml-2" />המשך
             </button>
@@ -230,7 +224,7 @@ function StopwatchView({ onMinimize }) {
     <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
       <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase', marginTop: 16 }}>STOPWATCH</div>
       <div className="text-center tabular-nums leading-none" style={{ fontSize: 80, fontWeight: 900, fontFamily: FN, color: '#D1D5DB' }}>00:00.00</div>
-      <button onClick={() => { unlockAudio(); playStartSound(); startStopwatch(); }} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
+      <button onClick={() => { unlockAudio(); SOUND_START(); startStopwatch(); }} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
         style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
         <Play className="w-6 h-6 ml-2" />התחל
       </button>
@@ -264,17 +258,18 @@ function TimerView({ onMinimize }) {
   const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
   const lastBeepRef = useRef(-1);
 
-  // Timer countdown beeps at 3, 2, 1 seconds + completion
+  // Timer countdown beeps at 10, 3, 2, 1 seconds + completion
   useEffect(() => {
     if (!active || !isRunning || phase === 'prepare') return;
     const secLeft = Math.ceil(display / 1000);
+    if (secLeft === 10 && lastBeepRef.current !== 10) { lastBeepRef.current = 10; SOUND_ALERT(); }
     if ((secLeft === 3 || secLeft === 2 || secLeft === 1) && secLeft !== lastBeepRef.current) {
       lastBeepRef.current = secLeft;
-      playCountdownBeep();
+      SOUND_TICK();
     }
     if (display <= 50 && lastBeepRef.current !== 0) {
       lastBeepRef.current = 0;
-      playCompleteSound();
+      SOUND_TRIPLE_BELL();
     }
   }, [display, active, isRunning, phase]);
 
@@ -298,7 +293,7 @@ function TimerView({ onMinimize }) {
           <HoldButton onClick={() => setPrepSec(Math.min(60, prepSec + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 18, fontWeight: 700, border: 'none' }}>+</HoldButton>
           <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FL, color: C3 }}>שניות</span>
         </div>
-        <button onClick={() => { unlockAudio(); playStartSound(); startTimer(totalTimerMs, prepSec * 1000); }} disabled={totalTimerMs === 0}
+        <button onClick={() => { unlockAudio(); SOUND_START(); startTimer(totalTimerMs, prepSec * 1000); }} disabled={totalTimerMs === 0}
           className="w-full flex items-center justify-center disabled:opacity-40 active:scale-[0.98] transition-transform"
           style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
           <Play className="w-6 h-6 ml-2" />התחל
@@ -338,17 +333,17 @@ function TimerView({ onMinimize }) {
         </div>
       </div>
       <div className="flex w-full" style={{ gap: 10 }}>
-        <button onClick={() => { playStopSound(); stop(); }} className="flex items-center justify-center active:scale-90 transition-transform"
+        <button onClick={() => { SOUND_RESET(); stop(); }} className="flex items-center justify-center active:scale-90 transition-transform"
           style={{ flex: 1, height: 56, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 16, fontWeight: 700, fontFamily: FL, color: C2 }}>
           <RotateCcw className="w-5 h-5 ml-1.5" />אפס
         </button>
         {isRunning ? (
-          <button onClick={pause} className="flex items-center justify-center active:scale-95 transition-transform"
+          <button onClick={() => { SOUND_PAUSE(); pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
             style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
             <Pause className="w-6 h-6 ml-2" />השהה
           </button>
         ) : (
-          <button onClick={resume} className="flex items-center justify-center active:scale-95 transition-transform"
+          <button onClick={() => { SOUND_START(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
             style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
             <Play className="w-6 h-6 ml-2" />המשך
           </button>
