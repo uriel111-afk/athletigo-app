@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback } from "react";
-import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, Square, Dumbbell, Coffee, Repeat, Hourglass, PersonStanding, Armchair } from "lucide-react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 
 const BRAND = '#FF6F20';
@@ -11,13 +11,11 @@ const C3 = '#9CA3AF';
 const BRD = '#E5E7EB';
 const BG2 = '#F5F5F5';
 
-/* ── Formatters ── */
 function fmt(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; if (m === 0) return String(s); return `${m}:${String(s).padStart(2,'0')}`; }
 function fmtMMSS(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
-function fmtStopwatch(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; const cs = Math.floor((ms % 1000) / 10); return { main: `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`, ms: `.${String(cs).padStart(2,'0')}` }; }
+function fmtStopwatch(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; const cs = Math.floor((ms % 1000) / 10); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`; }
 function fmtTotal(sec) { return `${String(Math.floor(sec / 60)).padStart(2,'0')}:${String(sec % 60).padStart(2,'0')}`; }
 
-/* ── Shared helpers (logic unchanged) ── */
 function HoldButton({ onClick, children, className, style }) {
   const intRef = useRef(null), toRef = useRef(null);
   const start = useCallback(() => { onClick(); toRef.current = setTimeout(() => { intRef.current = setInterval(onClick, 100); }, 300); }, [onClick]);
@@ -43,103 +41,30 @@ function NumberPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, lab
   );
 }
 
-function ParamCard({ label, value, unit, onChange, min = 0, max = 999, highlight = false }) {
-  const [pick, setPick] = useState(false);
-  return (
-    <>
-      <div style={{ border: highlight ? `2px solid ${BRAND}` : `0.5px solid ${BRD}`, backgroundColor: highlight ? '#FFF8F5' : '#FFF', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2, marginBottom: 3 }}>{label}</div>
-          <button onClick={() => setPick(true)} className="tabular-nums" style={{ fontSize: 22, fontWeight: 700, fontFamily: FN, color: highlight ? BRAND : C1, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-            {value}{unit ? <span style={{ fontSize: 13, color: C3, marginRight: 3 }}> {unit}</span> : null}
-          </button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <HoldButton onClick={() => onChange(Math.min(max, value + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 26, height: 26, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 16, fontWeight: 700, border: 'none', lineHeight: 1 }}>+</HoldButton>
-          <HoldButton onClick={() => onChange(Math.max(min, value - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 26, height: 26, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 16, fontWeight: 700, border: `0.5px solid ${BRD}`, lineHeight: 1 }}>−</HoldButton>
-        </div>
-      </div>
-      <NumberPicker isOpen={pick} value={value} onChange={onChange} onClose={() => setPick(false)} min={min} max={max} label={label} />
-    </>
-  );
+function playBeep(freq = 660, duration = 0.15) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + duration);
+  } catch {}
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   UNIFIED RUNNING SCREEN — used by all 3 timer modes
-   Ring 280×280, r=108, phase label 28px, time 80px, stats 12/24px
-   ═══════════════════════════════════════════════════════════════════ */
-function RunningScreen({ statusLabel, statusColor, timeStr, ringProgress, ringColor, statsCells, nextPhaseBar, isRunning, onPause, onResume, onStop, extraBottom }) {
-  const R = 130, circ = 2 * Math.PI * R;
-  const offset = circ * (1 - Math.max(0, Math.min(1, ringProgress)));
-
-  return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
-      style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16, overflowY: 'auto' }}>
-
-      {/* Ring + label + time */}
-      <div className="relative flex-shrink-0 flex justify-center items-center" style={{ width: 320, height: 320 }}>
-        <svg width="320" height="320" viewBox="0 0 320 320">
-          <circle cx="160" cy="160" r={R} fill="none" stroke="#F0F0F0" strokeWidth="14" />
-          <circle cx="160" cy="160" r={R} fill="none" stroke={ringColor} strokeWidth="14" strokeLinecap="round"
-            strokeDasharray={circ} strokeDashoffset={offset} transform="rotate(-90 160 160)"
-            className="transition-colors duration-300"
-            style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="transition-colors duration-300" style={{ fontSize: 32, fontWeight: 700, fontFamily: FL, color: statusColor, marginBottom: 8 }}>
-            {statusLabel}
-          </div>
-          <span className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: C1 }}>
-            {timeStr}
-          </span>
-        </div>
-      </div>
-
-      {/* Stats row */}
-      {statsCells && (
-        <div className="flex w-full" style={{ border: `0.5px solid ${BRD}`, borderRadius: 10, overflow: 'hidden' }}>
-          {statsCells.map((c, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center justify-center py-3" style={{ borderRight: i > 0 ? `0.5px solid ${BRD}` : 'none' }}>
-              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>{c.label}</span>
-              <span className="tabular-nums" style={{ fontSize: 28, fontWeight: 700, fontFamily: FN, color: C1 }}>{c.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Next phase bar (Tabata only) */}
-      {nextPhaseBar && (
-        <div className="flex items-center justify-between w-full" style={{ backgroundColor: BG2, borderRadius: 10, padding: '12px 16px' }}>
-          <span style={{ fontSize: 16, fontWeight: 600, fontFamily: FL, color: C2 }}>{nextPhaseBar.label}</span>
-          <span className="tabular-nums" style={{ fontSize: 16, fontWeight: 600, fontFamily: FN, color: C1 }}>{nextPhaseBar.value}</span>
-        </div>
-      )}
-
-      {/* Extra (e.g. lap button for stopwatch) */}
-      {extraBottom}
-
-      {/* Controls */}
-      <div className="flex w-full" style={{ gap: 10 }}>
-        {onStop && (
-          <button onClick={onStop} className="flex items-center justify-center active:scale-90 transition-transform"
-            style={{ flex: 1, height: 64, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 18, fontWeight: 700, fontFamily: FL, color: C2 }}>
-            <RotateCcw className="w-5 h-5 ml-1.5" />אפס
-          </button>
-        )}
-        {isRunning ? (
-          <button onClick={onPause} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 64, borderRadius: 12, backgroundColor: BRAND, fontSize: 22, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-            <Pause className="w-6 h-6 ml-2" />השהה
-          </button>
-        ) : (
-          <button onClick={onResume} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 64, borderRadius: 12, backgroundColor: BRAND, fontSize: 22, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-            <Play className="w-6 h-6 ml-2" />המשך
-          </button>
-        )}
-      </div>
-    </div>
-  );
+function playEndBeeps() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.4, 0.8].forEach(delay => {
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.3);
+    });
+  } catch {}
 }
 
 /* ═══ STOPWATCH ═══ */
@@ -148,50 +73,56 @@ function StopwatchView() {
   const active = activeClock === 'stopwatch';
 
   if (active) {
-    const t = Math.floor(display / 1000), m = Math.floor(t / 60), s = t % 60, cs = Math.floor((display % 1000) / 10);
     return (
-      <RunningScreen
-        statusLabel={isRunning ? 'רץ' : 'עצור'} statusColor={isRunning ? BRAND : C2}
-        timeStr={fmtMMSS(display)} ringProgress={(display % 60000) / 60000} ringColor={BRAND}
-        statsCells={[
-          { label: 'דקות', value: String(m).padStart(2, '0') },
-          { label: 'שניות', value: String(s).padStart(2, '0') },
-          { label: 'מאיות', value: String(cs).padStart(2, '0') },
-        ]}
-        isRunning={isRunning} onPause={pause} onResume={resume} onStop={reset}
-        extraBottom={
-          <>
-            {laps.length > 0 && (
-              <div className="w-full rounded-xl p-3 max-h-32 overflow-y-auto" style={{ border: `0.5px solid ${BRD}` }}>
-                {laps.map((l, i) => (
-                  <div key={i} className="flex justify-between py-1" style={{ borderBottom: i < laps.length - 1 ? `0.5px solid ${BRD}` : 'none' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, fontFamily: FL, color: C2 }}>הקפה {i + 1}</span>
-                    <span className="tabular-nums" style={{ fontSize: 16, fontWeight: 700, fontFamily: FN, color: C1 }}>{`${fmtStopwatch(l).main}${fmtStopwatch(l).ms}`}</span>
-                  </div>
-                ))}
+      <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
+        style={{ backgroundColor: BRAND, padding: '20px 16px 100px', gap: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
+        <div className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: '#FFF', letterSpacing: -2 }}>
+          {fmtStopwatch(display)}
+        </div>
+        {laps.length > 0 && (
+          <div className="w-full rounded-xl p-3 max-h-28 overflow-y-auto" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
+            {laps.map((l, i) => (
+              <div key={i} className="flex justify-between py-1">
+                <span style={{ fontSize: 13, fontWeight: 600, fontFamily: FL, color: 'rgba(255,255,255,0.7)' }}>הקפה {i + 1}</span>
+                <span className="tabular-nums" style={{ fontSize: 16, fontWeight: 700, fontFamily: FN, color: '#FFF' }}>{fmtStopwatch(l)}</span>
               </div>
-            )}
-            {isRunning && (
-              <button onClick={lapStopwatch} className="w-full flex items-center justify-center active:scale-95 transition-transform"
-                style={{ height: 44, borderRadius: 10, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>
-                <Flag className="w-4 h-4 ml-1.5" style={{ color: BRAND }} />הקפה
-              </button>
-            )}
-          </>
-        }
-      />
+            ))}
+          </div>
+        )}
+        <div className="flex w-full" style={{ gap: 10 }}>
+          <button onClick={reset} className="flex items-center justify-center active:scale-90 transition-transform"
+            style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF', border: 'none' }}>
+            <RotateCcw className="w-5 h-5 ml-1.5" />אפס
+          </button>
+          {isRunning && (
+            <button onClick={lapStopwatch} className="flex items-center justify-center active:scale-90 transition-transform"
+              style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF', border: 'none' }}>
+              <Flag className="w-5 h-5 ml-1.5" />הקפה
+            </button>
+          )}
+          {isRunning ? (
+            <button onClick={pause} className="flex items-center justify-center active:scale-95 transition-transform"
+              style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 700, fontFamily: FL, color: BRAND }}>
+              <Pause className="w-6 h-6 ml-2" />השהה
+            </button>
+          ) : (
+            <button onClick={resume} className="flex items-center justify-center active:scale-95 transition-transform"
+              style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 700, fontFamily: FL, color: BRAND }}>
+              <Play className="w-6 h-6 ml-2" />המשך
+            </button>
+          )}
+        </div>
+      </div>
     );
   }
 
-  /* Setup */
   return (
     <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
-      <div style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: C2, marginTop: 16 }}>מוכן</div>
-      <div className="text-center tabular-nums leading-none" style={{ fontSize: 80, fontWeight: 900, fontFamily: FN, color: '#D1D5DB' }}>
-        00:00
-      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase', marginTop: 16 }}>STOPWATCH</div>
+      <div className="text-center tabular-nums leading-none" style={{ fontSize: 80, fontWeight: 900, fontFamily: FN, color: '#D1D5DB' }}>00:00.00</div>
       <button onClick={startStopwatch} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-        style={{ height: 60, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+        style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
         <Play className="w-6 h-6 ml-2" />התחל
       </button>
     </div>
@@ -210,36 +141,64 @@ function TimerView() {
 
   if (showSetup) {
     return (
-      <div dir="rtl" style={{ padding: '16px 16px 100px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-          <ParamCard label="הכנה" value={prepSec} unit="שנ׳" onChange={setPrepSec} min={0} max={60} />
-          <ParamCard label="דקות" value={timerMin} onChange={setTimerMin} min={0} max={59} highlight />
-          <ParamCard label="שניות" value={timerSec} onChange={setTimerSec} min={0} max={59} />
+      <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-4">
+        <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
+        <div className="w-full flex gap-3 justify-center">
+          {[{ l: 'דקות', v: timerMin, set: setTimerMin, max: 59 }, { l: 'שניות', v: timerSec, set: setTimerSec, max: 59 }].map(p => (
+            <div key={p.l} className="flex flex-col items-center gap-2">
+              <HoldButton onClick={() => p.set(Math.min(p.max, p.v + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
+              <div className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C1 }}>{String(p.v).padStart(2, '0')}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{p.l}</div>
+              <HoldButton onClick={() => p.set(Math.max(0, p.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
+            </div>
+          ))}
         </div>
         <button onClick={() => startTimer(totalTimerMs, prepSec * 1000)} disabled={totalTimerMs === 0}
           className="w-full flex items-center justify-center disabled:opacity-40 active:scale-[0.98] transition-transform"
-          style={{ marginTop: 14, height: 60, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+          style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
           <Play className="w-6 h-6 ml-2" />התחל
         </button>
       </div>
     );
   }
 
+  const R = 128, circ = 2 * Math.PI * R;
   const progress = totalDuration > 0 ? display / totalDuration : 0;
-  const elapsed = totalDuration > 0 ? totalDuration - display : 0;
-  const label = phase === 'prepare' ? 'הכנה' : 'ספירה לאחור';
+  const offset = circ * (1 - Math.max(0, Math.min(1, progress)));
 
   return (
-    <RunningScreen
-      statusLabel={label} statusColor={BRAND}
-      timeStr={fmtMMSS(display)} ringProgress={progress} ringColor={BRAND}
-      statsCells={[
-        { label: 'זמן שהוגדר', value: fmtMMSS(totalTimerMs) },
-        { label: 'זמן שעבר', value: fmtMMSS(elapsed) },
-        { label: 'נותר', value: fmtMMSS(display) },
-      ]}
-      isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop}
-    />
+    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
+      style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C2, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
+      <div className="relative flex-shrink-0" style={{ width: 280, height: 280 }}>
+        <svg width="280" height="280" viewBox="0 0 280 280">
+          <circle cx="140" cy="140" r={R} fill="none" stroke="#FFF0E8" strokeWidth="10" />
+          <circle cx="140" cy="140" r={R} fill="none" stroke={BRAND} strokeWidth="10" strokeLinecap="round"
+            strokeDasharray={circ} strokeDashoffset={offset} transform="rotate(-90 140 140)"
+            style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="tabular-nums leading-none" style={{ fontSize: 88, fontWeight: 900, fontFamily: FN, color: C1, letterSpacing: -4 }}>{fmtMMSS(display)}</span>
+        </div>
+      </div>
+      <div className="flex w-full" style={{ gap: 10 }}>
+        <button onClick={stop} className="flex items-center justify-center active:scale-90 transition-transform"
+          style={{ flex: 1, height: 56, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 16, fontWeight: 700, fontFamily: FL, color: C2 }}>
+          <RotateCcw className="w-5 h-5 ml-1.5" />אפס
+        </button>
+        {isRunning ? (
+          <button onClick={pause} className="flex items-center justify-center active:scale-95 transition-transform"
+            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            <Pause className="w-6 h-6 ml-2" />השהה
+          </button>
+        ) : (
+          <button onClick={resume} className="flex items-center justify-center active:scale-95 transition-transform"
+            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            <Play className="w-6 h-6 ml-2" />המשך
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -251,43 +210,107 @@ function TabataView() {
   const [rounds, setRounds] = useState(8);
   const [sets, setSets] = useState(1);
   const [setsRestSec, setSetsRestSec] = useState(60);
-  const [prepSec, setPrepSec] = useState(10);
+  const [countdown, setCountdown] = useState(null); // 3,2,1,'GO',null
+  const [showDone, setShowDone] = useState(false);
+  const prevPhaseRef = useRef(null);
   const active = activeClock === 'tabata';
-  const showSetup = !active || phase === 'idle' || phase === 'done';
-  const totalTime = (prepSec + (workSec + restSec) * rounds) * sets + (sets > 1 ? setsRestSec * (sets - 1) : 0);
+  const showSetup = !active || phase === 'idle';
+  const totalTime = (workSec + restSec) * rounds * sets + (sets > 1 ? setsRestSec * (sets - 1) : 0);
 
-  if (showSetup) {
+  // Detect done
+  useEffect(() => {
+    if (prevPhaseRef.current && prevPhaseRef.current !== 'idle' && prevPhaseRef.current !== 'done' && phase === 'done') {
+      playEndBeeps();
+      setShowDone(true);
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
+
+  // 3-2-1-GO countdown
+  const startWithCountdown = () => {
+    setCountdown(3);
+    playBeep(660);
+    setTimeout(() => { setCountdown(2); playBeep(660); }, 1000);
+    setTimeout(() => { setCountdown(1); playBeep(660); }, 2000);
+    setTimeout(() => { setCountdown('GO'); playBeep(880, 0.3); }, 3000);
+    setTimeout(() => {
+      setCountdown(null);
+      startTabata({ workTime: workSec, restTime: restSec, rounds, sets, setRest: setsRestSec, prepareTime: 0 });
+    }, 3800);
+  };
+
+  // Countdown overlay
+  if (countdown !== null) {
     return (
-      <div dir="rtl" style={{ padding: '16px 16px 100px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-          <ParamCard label="הכנה" value={prepSec} unit="שנ׳" onChange={setPrepSec} min={0} max={60} />
-          <ParamCard label="עבודה" value={workSec} unit="שנ׳" onChange={setWorkSec} min={1} max={300} highlight />
-          <ParamCard label="מנוחה" value={restSec} unit="שנ׳" onChange={setRestSec} min={0} max={300} />
-          <ParamCard label="מחזורים" value={rounds} onChange={setRounds} min={1} max={50} />
-          <ParamCard label="סטים" value={sets} onChange={setSets} min={1} max={10} />
-          <ParamCard label="מנ׳ בין סטים" value={setsRestSec} unit="שנ׳" onChange={setSetsRestSec} min={0} max={300} />
+      <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
+        <span style={{ fontSize: 120, fontWeight: 900, fontFamily: FN, color: countdown === 'GO' ? BRAND : C1 }}>{countdown}</span>
+      </div>
+    );
+  }
+
+  // Done screen
+  if (showDone) {
+    const totalMin = Math.round(totalTime / 60);
+    return (
+      <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl" style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16 }}>
+        <div style={{ fontSize: 72, color: BRAND }}>✓</div>
+        <div style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: C1 }}>כל הכבוד! סיימת!</div>
+        <div style={{ fontSize: 16, fontWeight: 500, fontFamily: FL, color: C2 }}>
+          {sets} סטים | {rounds} מחזורים | {totalMin} דקות
         </div>
-        <div className="flex justify-center gap-3" style={{ marginTop: 12, fontSize: 14, fontWeight: 600, fontFamily: FL, color: C2 }}>
-          <span>{fmtTotal(totalTime)} סה״כ</span><span style={{ opacity: 0.3 }}>|</span><span>{rounds * sets} אינטרוולים</span>
-        </div>
-        <button onClick={() => startTabata({ workTime: workSec, restTime: restSec, rounds, sets, setRest: setsRestSec, prepareTime: prepSec })}
+        <button onClick={() => { setShowDone(false); stop(); }}
           className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-          style={{ marginTop: 14, height: 60, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-          <Play className="w-6 h-6 ml-2" />התחל
+          style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+          התחל מחדש
         </button>
       </div>
     );
   }
 
-  const isWork = phase === 'work' || phase === 'prepare';
-  const progress = totalDuration > 0 ? display / totalDuration : 0;
+  // Settings
+  if (showSetup) {
+    const params = [
+      { l: 'עבודה', v: workSec, set: setWorkSec, min: 1, max: 300, hi: true },
+      { l: 'מנוחה', v: restSec, set: setRestSec, min: 0, max: 300 },
+      { l: 'מחזורים', v: rounds, set: setRounds, min: 1, max: 50 },
+      { l: 'סטים', v: sets, set: setSets, min: 1, max: 10 },
+      { l: 'מנ׳ סטים', v: setsRestSec, set: setSetsRestSec, min: 0, max: 300 },
+    ];
+    return (
+      <div dir="rtl" style={{ padding: '16px 12px 100px' }} className="flex flex-col items-center gap-4">
+        <div className="flex w-full justify-between" style={{ gap: 4 }}>
+          {params.map(p => (
+            <div key={p.l} className="flex-1 flex flex-col items-center gap-1.5">
+              <HoldButton onClick={() => p.set(Math.min(p.max, p.v + 1))} className="flex items-center justify-center active:scale-90 transition-transform"
+                style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 18, fontWeight: 700, border: 'none' }}>+</HoldButton>
+              <div className="flex items-center justify-center tabular-nums" style={{
+                width: 52, height: 52, borderRadius: '50%',
+                backgroundColor: p.hi ? BRAND : BG2,
+                color: p.hi ? '#FFF' : C1,
+                fontSize: 20, fontWeight: 700, fontFamily: FN,
+              }}>{p.v}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, fontFamily: FL, color: p.hi ? BRAND : C2, textAlign: 'center' }}>{p.l}</div>
+              <HoldButton onClick={() => p.set(Math.max(p.min, p.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform"
+                style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: p.hi ? '#FFF0E8' : BG2, color: p.hi ? BRAND : C2, fontSize: 18, fontWeight: 700, border: `0.5px solid ${p.hi ? BRAND+'40' : BRD}` }}>−</HoldButton>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, fontFamily: FL, color: C2 }}>{fmtTotal(totalTime)} סה״כ | {rounds * sets} אינטרוולים</div>
+        <button onClick={startWithCountdown}
+          className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
+          style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+          התחל ▶
+        </button>
+      </div>
+    );
+  }
 
+  // Running
+  const isWork = phase === 'work' || phase === 'prepare';
   let setStr = '—', roundStr = '—';
   if (roundInfo) { roundInfo.split('•').map(x => x.trim()).forEach(p => { if (p.startsWith('סט')) setStr = p.replace('סט ', ''); if (p.startsWith('סיבוב')) roundStr = p.replace('סיבוב ', ''); }); }
-
   const elapsedMs = totalDuration > 0 ? totalDuration - display : 0;
   const remainingSec = Math.max(0, totalTime - Math.floor(elapsedMs / 1000));
-
   let nextLabel = '', nextDur = 0;
   if (phase === 'work') { nextLabel = 'מנוחה'; nextDur = restSec; }
   else if (phase === 'rest') { nextLabel = 'עבודה'; nextDur = workSec; }
@@ -295,21 +318,49 @@ function TabataView() {
   else if (phase === 'prepare') { nextLabel = 'עבודה'; nextDur = workSec; }
 
   return (
-    <RunningScreen
-      statusLabel={phaseLabel} statusColor={isWork ? BRAND : C2}
-      timeStr={fmt(display)} ringProgress={progress} ringColor={isWork ? BRAND : '#AAAAAA'}
-      statsCells={[
-        { label: 'סיבוב', value: roundStr },
-        { label: 'סט', value: setStr },
-        { label: 'נותר לסיום', value: fmtTotal(remainingSec) },
-      ]}
-      nextPhaseBar={nextLabel ? { label: `הבא: ${nextLabel}`, value: `${nextDur} שניות` } : null}
-      isRunning={isRunning} onPause={pause} onResume={resume} onStop={stop}
-    />
+    <div className="fixed inset-0 z-[90] flex flex-col" dir="rtl"
+      style={{ backgroundColor: '#FFFFFF', padding: '16px 16px 100px', gap: 14 }}>
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="transition-colors duration-300" style={{ fontSize: 24, fontWeight: 700, fontFamily: FL, color: isWork ? BRAND : C2 }}>{phaseLabel}</div>
+        <div style={{ textAlign: 'left' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C2 }}>סיבוב {roundStr}</div>
+          <div style={{ fontSize: 12, fontFamily: FN, color: C3 }}>סט {setStr} | {fmtTotal(remainingSec)} נותר</div>
+        </div>
+      </div>
+      {/* Main time */}
+      <div className="flex-1 flex items-center justify-center">
+        <span className="tabular-nums leading-none" style={{ fontSize: 100, fontWeight: 900, fontFamily: FN, color: C1, letterSpacing: -4 }}>{fmt(display)}</span>
+      </div>
+      {/* Next phase */}
+      {nextLabel && (
+        <div className="flex items-center justify-between" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
+          <span style={{ fontSize: 14, fontWeight: 600, fontFamily: FL, color: C2 }}>הבא: {nextLabel}</span>
+          <span className="tabular-nums" style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C1 }}>{nextDur} שניות</span>
+        </div>
+      )}
+      {/* Controls */}
+      <div className="flex" style={{ gap: 10 }}>
+        <button onClick={stop} className="flex items-center justify-center active:scale-90 transition-transform"
+          style={{ flex: 1, height: 52, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>
+          <RotateCcw className="w-4 h-4 ml-1.5" />אפס
+        </button>
+        {isRunning ? (
+          <button onClick={pause} className="flex items-center justify-center active:scale-95 transition-transform"
+            style={{ flex: 2, height: 52, borderRadius: 12, backgroundColor: BRAND, fontSize: 18, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            <Pause className="w-5 h-5 ml-2" />השהה
+          </button>
+        ) : (
+          <button onClick={resume} className="flex items-center justify-center active:scale-95 transition-transform"
+            style={{ flex: 2, height: 52, borderRadius: 12, backgroundColor: BRAND, fontSize: 18, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            <Play className="w-5 h-5 ml-2" />המשך
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
-/* ═══ Mode tabs + page ═══ */
 const MODES = [
   { id: 'tabata', label: 'טבטה', icon: Zap },
   { id: 'timer', label: 'טיימר', icon: Timer },
