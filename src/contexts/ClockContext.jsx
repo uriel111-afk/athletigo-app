@@ -229,7 +229,7 @@ export function ClockProvider({ children }) {
     setActiveClock('tabata');
     const { workTime = 20, restTime = 10, rounds = 8, sets = 1, setRest = 60, prepareTime = 10 } = settings;
     const phases = [];
-    if (prepareTime > 0) phases.push({ type: 'prepare', duration: prepareTime * 1000, label: 'הכנה', setIdx: 0, totalSets: sets });
+    if (prepareTime > 0) phases.push({ type: 'prepare', duration: prepareTime * 1000, label: 'הכנה', round: `סט 1/${sets} • סיבוב 1/${rounds}`, setIdx: 0, totalSets: sets });
     for (let s = 0; s < sets; s++) {
       for (let r = 0; r < rounds; r++) {
         phases.push({ type: 'work', duration: workTime * 1000, label: 'עבודה', round: `סט ${s + 1}/${sets} • סיבוב ${r + 1}/${rounds}`, setIdx: s, totalSets: sets });
@@ -238,7 +238,7 @@ export function ClockProvider({ children }) {
         }
       }
       if (s < sets - 1) {
-        phases.push({ type: 'set_rest', duration: setRest * 1000, label: 'מנוחה בין סטים', round: `סט ${s + 1} הושלם`, setIdx: s + 1, totalSets: sets });
+        phases.push({ type: 'set_rest', duration: setRest * 1000, label: 'מנוחה בין סטים', round: `סט ${s + 1}/${sets} • סיבוב ${rounds}/${rounds}`, setIdx: s + 1, totalSets: sets });
       }
     }
     phasesRef.current = phases;
