@@ -31,8 +31,10 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
   useEffect(() => {
     if (isOpen && listRef.current) {
       const idx = values.current.indexOf(value);
-      if (idx !== -1 && listRef.current.children[idx]) {
-        listRef.current.children[idx].scrollIntoView({ block: 'center', behavior: 'instant' });
+      if (idx > 0 && listRef.current.children[idx]) {
+        setTimeout(() => {
+          listRef.current?.children[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }, 50);
       }
     }
   }, [isOpen, value]);
@@ -245,17 +247,17 @@ function TabataRow({ row: r }) {
   const [picking, setPicking] = useState(false);
   return (
     <>
-      <div className="flex items-center" style={{ padding: '6px 16px', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+      <div className="flex items-center" style={{ height: 72, padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
         <div className="flex items-center gap-2 flex-1">
-          <div className="flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 15 }}>{r.icon}</div>
-          <span style={{ fontSize: r.small ? 15 : 17, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{r.l}</span>
+          <div className="flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 14 }}>{r.icon}</div>
+          <span style={{ fontSize: r.small ? 14 : 16, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{r.l}</span>
         </div>
         <div className="flex items-center gap-2">
           <HoldButton onClick={() => r.set(Math.max(r.min, r.v - (r.step || 1)))} className="flex items-center justify-center active:scale-90 transition-transform"
-            style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 20, fontWeight: 700, border: 'none' }}>−</HoldButton>
-          <span onClick={() => setPicking(true)} className="tabular-nums text-center" style={{ fontSize: 30, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 44, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3, textDecorationColor: 'rgba(255,255,255,0.4)' }}>{r.v}</span>
+            style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 20, fontWeight: 700, border: 'none' }}>−</HoldButton>
+          <span onClick={() => setPicking(true)} className="tabular-nums text-center" style={{ fontSize: 28, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 44, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3, textDecorationColor: 'rgba(255,255,255,0.4)' }}>{r.v}</span>
           <HoldButton onClick={() => r.set(Math.min(r.max, r.v + (r.step || 1)))} className="flex items-center justify-center active:scale-90 transition-transform"
-            style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#FFF', color: BRAND, fontSize: 20, fontWeight: 700, border: 'none' }}>+</HoldButton>
+            style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: '#FFF', color: BRAND, fontSize: 20, fontWeight: 700, border: 'none' }}>+</HoldButton>
         </div>
       </div>
       <ScrollPicker isOpen={picking} value={r.v} onChange={r.set} onClose={() => setPicking(false)}
@@ -352,20 +354,20 @@ function TabataView() {
       { icon: '⏱', l: 'הכנה', v: prepSec, set: setPrepSec, min: 0, max: 60, step: 1, unit: 'שנ׳' },
       { icon: '💪', l: 'עבודה', v: workSec, set: setWorkSec, min: 5, max: 120, step: 5, unit: 'שנ׳' },
       { icon: '😮‍💨', l: 'מנוחה', v: restSec, set: setRestSec, min: 5, max: 120, step: 5, unit: 'שנ׳' },
-      { icon: '🔄', l: 'מחזורים', v: rounds, set: setRounds, min: 1, max: 20, step: 1, unit: '×' },
+      { icon: '🔄', l: 'מחזורים', v: rounds, set: setRounds, min: 1, max: 30, step: 1, unit: '×' },
       { icon: '📋', l: 'סטים', v: sets, set: setSets, min: 1, max: 10, step: 1, unit: '×' },
       { icon: '⏸', l: 'מנוחה בין סטים', v: setsRestSec, set: setSetsRestSec, min: 0, max: 180, step: 10, unit: 'שנ׳', small: true },
       { icon: '🔔', l: 'ספירה לאחור', v: countdownSec, set: setCountdownSec, min: 0, max: 600, step: 30, unit: 'שנ׳', small: true },
     ];
     return (
-      <div dir="rtl" style={{ backgroundColor: BRAND, borderRadius: 12, margin: '0 -16px', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1 }}>
-        <div className="flex items-center justify-between" style={{ padding: '6px 16px', backgroundColor: 'rgba(0,0,0,0.15)', flexShrink: 0 }}>
+      <div dir="rtl" style={{ backgroundColor: BRAND, borderRadius: 12, margin: '0 -16px', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 178px)' }}>
+        <div className="flex items-center justify-between" style={{ padding: '6px 16px', backgroundColor: 'rgba(0,0,0,0.15)', flexShrink: 0, height: 42 }}>
           <span style={{ fontSize: 18, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
           <span style={{ fontSize: 11, fontFamily: FL, color: 'rgba(255,255,255,0.85)' }}>
             {fmtTotal(totalTime)} • {rounds * sets} אינטרוולים • {sets} סטים
           </span>
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', overflow: 'hidden' }}>
           {rows.map(r => <TabataRow key={r.l} row={r} />)}
         </div>
         <div style={{ padding: '8px 16px', flexShrink: 0 }}>
