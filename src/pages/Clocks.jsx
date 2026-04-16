@@ -276,11 +276,11 @@ function TabataView() {
     }, 3800);
   };
 
-  // 3-2-1-GO overlay — orange
+  // 3-2-1-GO overlay — orange, giant numbers
   if (countdown321 !== null) {
     return (
-      <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ backgroundColor: BRAND }}>
-        <span style={{ fontSize: countdown321 === 'GO' ? 100 : 160, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{countdown321}</span>
+      <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ backgroundColor: BRAND, touchAction: 'none', userSelect: 'none' }}>
+        <span style={{ fontSize: countdown321 === 'GO' ? 120 : 200, fontWeight: 900, fontFamily: FN, color: '#FFF', lineHeight: 1 }}>{countdown321}</span>
       </div>
     );
   }
@@ -315,34 +315,31 @@ function TabataView() {
       { icon: '🔔', l: 'ספירה לאחור', v: countdownSec, set: setCountdownSec, min: 10, max: 300, small: true },
     ];
     return (
-      <div dir="rtl" style={{ padding: '0 0 100px', backgroundColor: BRAND, borderRadius: 12, margin: '0 -16px' }}>
-        {/* Header */}
-        <div className="flex items-center justify-between" style={{ padding: '14px 20px', backgroundColor: 'rgba(0,0,0,0.15)' }}>
-          <span style={{ fontSize: 24, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
-          <span style={{ fontSize: 13, fontFamily: FL, color: 'rgba(255,255,255,0.85)' }}>
+      <div dir="rtl" style={{ backgroundColor: BRAND, borderRadius: 12, margin: '0 -16px', touchAction: 'pan-y', userSelect: 'none' }}>
+        <div className="flex items-center justify-between" style={{ padding: '10px 16px', backgroundColor: 'rgba(0,0,0,0.15)' }}>
+          <span style={{ fontSize: 22, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
+          <span style={{ fontSize: 12, fontFamily: FL, color: 'rgba(255,255,255,0.85)' }}>
             {fmtTotal(totalTime)} • {rounds * sets} אינטרוולים • {sets} סטים
           </span>
         </div>
-        {/* Rows */}
         {rows.map(r => (
-          <div key={r.l} className="flex items-center" style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-            <div className="flex items-center gap-3 flex-1">
-              <div className="flex items-center justify-center" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 20 }}>{r.icon}</div>
-              <span style={{ fontSize: r.small ? 20 : 22, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{r.l}</span>
+          <div key={r.l} className="flex items-center" style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+            <div className="flex items-center gap-2.5 flex-1">
+              <div className="flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 18 }}>{r.icon}</div>
+              <span style={{ fontSize: r.small ? 18 : 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{r.l}</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <HoldButton onClick={() => r.set(Math.max(r.min, r.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform"
-                style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 26, fontWeight: 700, border: 'none' }}>−</HoldButton>
-              <span className="tabular-nums text-center" style={{ fontSize: 38, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 52 }}>{r.v}</span>
+                style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 24, fontWeight: 700, border: 'none' }}>−</HoldButton>
+              <span className="tabular-nums text-center" style={{ fontSize: 34, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 48 }}>{r.v}</span>
               <HoldButton onClick={() => r.set(Math.min(r.max, r.v + 1))} className="flex items-center justify-center active:scale-90 transition-transform"
-                style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: '#FFF', color: BRAND, fontSize: 26, fontWeight: 700, border: 'none' }}>+</HoldButton>
+                style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#FFF', color: BRAND, fontSize: 24, fontWeight: 700, border: 'none' }}>+</HoldButton>
             </div>
           </div>
         ))}
-        {/* Start */}
-        <div style={{ padding: '16px 20px' }}>
+        <div style={{ padding: '12px 16px' }}>
           <button onClick={startWithCountdown} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-            style={{ height: 64, borderRadius: 12, backgroundColor: '#FFF', fontSize: 24, fontWeight: 900, fontFamily: FL, color: BRAND }}>
+            style={{ height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 22, fontWeight: 900, fontFamily: FL, color: BRAND }}>
             ▶ התחל
           </button>
         </div>
@@ -350,8 +347,8 @@ function TabataView() {
     );
   }
 
-  // ── Running screen — orange bg ──
-  const RR = 126, circR = 2 * Math.PI * RR;
+  // ── Running screen — orange bg, mobile-fit ──
+  const RR = 116, circR = 2 * Math.PI * RR;
   const ringProgress = totalDuration > 0 ? display / totalDuration : 0;
   const ringOffset = circR * (1 - Math.max(0, Math.min(1, ringProgress)));
   let setStr = '—', roundStr = '—';
@@ -366,58 +363,58 @@ function TabataView() {
 
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center" dir="rtl"
-      style={{ backgroundColor: BRAND, padding: '0 16px 100px' }}>
+      style={{ backgroundColor: BRAND, padding: '0 16px 90px', touchAction: 'pan-y', userSelect: 'none' }}>
 
       {/* Header bar */}
-      <div className="w-full flex items-center justify-between" style={{ padding: '14px 4px', backgroundColor: 'rgba(0,0,0,0.15)', margin: '0 -16px', paddingLeft: 20, paddingRight: 20 }}>
-        <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
+      <div className="w-full flex items-center justify-between" style={{ padding: '10px 20px', backgroundColor: 'rgba(0,0,0,0.15)', margin: '0 -16px' }}>
+        <span style={{ fontSize: 18, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
         {countdownRemaining !== null && countdownRemaining > 0 && (
-          <span className="tabular-nums" style={{ fontSize: 14, fontFamily: FN, color: 'rgba(255,255,255,0.85)' }}>
+          <span className="tabular-nums" style={{ fontSize: 13, fontFamily: FN, color: 'rgba(255,255,255,0.85)' }}>
             ספירה לאחור: {fmtTotal(countdownRemaining)}
           </span>
         )}
       </div>
 
       {/* Phase label */}
-      <div style={{ fontSize: 48, fontWeight: 900, fontFamily: FL, color: '#FFF', marginTop: 8 }}>{phaseLabel}</div>
+      <div style={{ fontSize: 44, fontWeight: 900, fontFamily: FL, color: '#FFF', marginTop: 6 }}>{phaseLabel}</div>
 
-      {/* Ring + time */}
-      <div className="relative flex-shrink-0" style={{ width: 280, height: 280, marginTop: 4 }}>
-        <svg width="280" height="280" viewBox="0 0 280 280">
-          <circle cx="140" cy="140" r={RR} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
-          <circle cx="140" cy="140" r={RR} fill="none" stroke="#FFF" strokeWidth="10" strokeLinecap="round"
-            strokeDasharray={circR} strokeDashoffset={ringOffset} transform="rotate(-90 140 140)"
+      {/* Ring + time — 260×260, r=116 */}
+      <div className="relative flex-shrink-0" style={{ width: 260, height: 260, marginTop: 4 }}>
+        <svg width="260" height="260" viewBox="0 0 260 260">
+          <circle cx="130" cy="130" r={RR} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
+          <circle cx="130" cy="130" r={RR} fill="none" stroke="#FFF" strokeWidth="10" strokeLinecap="round"
+            strokeDasharray={circR} strokeDashoffset={ringOffset} transform="rotate(-90 130 130)"
             style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="tabular-nums leading-none" style={{ fontSize: 110, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{fmt(display)}</span>
+          <span className="tabular-nums leading-none" style={{ fontSize: 100, fontWeight: 900, fontFamily: FN, color: '#FFF', maxWidth: 180 }}>{fmt(display)}</span>
         </div>
       </div>
 
       {/* Stats row */}
-      <div className="flex w-full" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '14px 20px', marginTop: 8 }}>
+      <div className="flex w-full" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '10px 16px', marginTop: 6 }}>
         {[
           { l: 'סיבוב', v: roundStr },
           { l: 'סט', v: setStr },
           { l: 'נותר', v: fmtTotal(remainingSec) },
         ].map((c, i) => (
           <div key={i} className="flex-1 flex flex-col items-center" style={{ borderRight: i > 0 ? '1px solid rgba(255,255,255,0.2)' : 'none' }}>
-            <span style={{ fontSize: 13, fontWeight: 500, fontFamily: FL, color: 'rgba(255,255,255,0.7)' }}>{c.l}</span>
-            <span className="tabular-nums" style={{ fontSize: 28, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{c.v}</span>
+            <span style={{ fontSize: 12, fontWeight: 500, fontFamily: FL, color: 'rgba(255,255,255,0.7)' }}>{c.l}</span>
+            <span className="tabular-nums" style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{c.v}</span>
           </div>
         ))}
       </div>
 
       {/* Next phase */}
       {nextLabel && (
-        <div className="flex items-center justify-between w-full" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '14px 20px', marginTop: 8 }}>
-          <span style={{ fontSize: 22, fontWeight: 700, fontFamily: FL, color: 'rgba(255,255,255,0.9)' }}>הבא: {nextLabel}</span>
-          <span className="tabular-nums" style={{ fontSize: 28, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{nextDur} שנ׳</span>
+        <div className="flex items-center justify-between w-full" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '10px 16px', marginTop: 6 }}>
+          <span style={{ fontSize: 20, fontWeight: 700, fontFamily: FL, color: 'rgba(255,255,255,0.9)' }}>הבא: {nextLabel}</span>
+          <span className="tabular-nums" style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{nextDur} שנ׳</span>
         </div>
       )}
 
       {/* Controls */}
-      <div className="flex w-full" style={{ gap: 10, marginTop: 12 }}>
+      <div className="flex w-full" style={{ gap: 10, marginTop: 8 }}>
         <button onClick={stop} className="flex items-center justify-center active:scale-90 transition-transform"
           style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF', border: 'none' }}>
           <RotateCcw className="w-4 h-4 ml-1.5" />אפס
@@ -447,7 +444,7 @@ const MODES = [
 export default function Clocks() {
   const [mode, setMode] = useState('tabata');
   return (
-    <div className="min-h-screen" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
+    <div className="min-h-screen" dir="rtl" style={{ backgroundColor: '#FFFFFF', touchAction: 'pan-y', userSelect: 'none' }}>
       <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}` }}>
         <div className="flex" style={{ padding: '12px 16px 10px', gap: 10 }}>
           {MODES.map(m => {
