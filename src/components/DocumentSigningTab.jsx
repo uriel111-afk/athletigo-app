@@ -68,12 +68,18 @@ function HealthDeclarationForm({ user, onSign, isSigning }) {
     if (!sigRef.current?.hasSignature()) { toast.error("יש לחתום לפני השליחה"); return; }
     const sig = sigRef.current.getSignature();
     const pdfFile = await generatePdfFromRef(formRef.current, `הצהרת_בריאות_${user.full_name}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    // Build full_text with questions + answers inline
+    const fullText = `הצהרת בריאות לפעילות גופנית\n\nשם: ${user.full_name}\nתאריך: ${format(new Date(), 'dd/MM/yyyy')}\n\nשאלון PAR-Q:\n` +
+      PAR_Q_QUESTIONS.map((q, i) => `${i+1}. ${q} — ${answers[i] ? 'כן' : 'לא'}`).join('\n') +
+      (healthNotes ? `\n\nהערות: ${healthNotes}` : '') +
+      `\n\nהצהרה:\nאני החתום/ה מטה מצהיר/ה כי כל המידע שמסרתי לעיל הוא נכון ומדויק.\nאני מודע/ת שפעילות גופנית כרוכה בסיכונים מסוימים ואני נוטל/ת על עצמי את האחריות לבריאותי.`;
+
     await onSign('health_declaration', sig, pdfFile, {
+      full_text: fullText,
       questions: PAR_Q_QUESTIONS,
       answers,
       healthNotes,
       hasYes,
-      declaration_text: 'אני החתום/ה מטה מצהיר/ה כי כל המידע שמסרתי לעיל הוא נכון ומדויק. אני מודע/ת שפעילות גופנית כרוכה בסיכונים מסוימים ואני נוטל/ת על עצמי את האחריות לבריאותי.',
       declaration_confirmed: true,
     });
   };
@@ -163,10 +169,12 @@ function CooperationAgreementForm({ user, onSign, isSigning }) {
     if (!sigRef.current?.hasSignature()) { toast.error("יש לחתום לפני השליחה"); return; }
     const sig = sigRef.current.getSignature();
     const pdfFile = await generatePdfFromRef(formRef.current, `הסכם_שיתוף_פעולה_${user.full_name}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const agreementText = `הסכם שיתוף פעולה — AthletiGo\n\nשם: ${user.full_name}\nתאריך: ${format(new Date(), 'dd/MM/yyyy')}\n\nחלקי כמאמן:\nללוות אותך בתהליך רכישת המיומנויות, להעצים אותך, לאתגר את היכולות שלך, לעודד אותך ולתמוך בך.\n\nתוצאות:\nהאימון מיועד להשגת תוצאות, בדגש על פיתוח היכולות שלך.\n\nחלקך כמתאמן/ת:\nעליך לפעול מתוך אחריות ומחויבות. אורך האימון הוא 60 דקות.\n\nסודיות:\nכל מידע שנמסר הוא סודי בהחלט.\n\nהגנת פרטיות:\nבהתאם לחוק הגנת הפרטיות התשמ"א-1981.\n\nביטול אימון:\nיש לבטל לפחות 24 שעות מראש. ביטול באיחור — חיוב מלא.\n\nכרטיסיות והרשמה חודשית:\nכרטיסייה בתוקף 3 חודשים.\n\nנטילת אחריות:\nהנני מבין שפעילות גופנית כרוכה בסיכון מסוים.\n\nתוקף ההסכם:\nבתוקף לכל אורך תהליך האימון.\n\nהסכמה לתמונות: ${photoConsent ? 'כן' : 'לא'}`;
+
     await onSign('cooperation_agreement', sig, pdfFile, {
+      full_text: agreementText,
       photoConsent,
       agreement_confirmed: true,
-      sections: ['חלקי כמאמן', 'תוצאות', 'חלקך כמתאמן/ת', 'סודיות', 'הגנת פרטיות', 'ביטול אימון', 'כרטיסיות והרשמה חודשית', 'נטילת אחריות', 'תוקף ההסכם'],
     });
   };
 
@@ -297,25 +305,57 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
   if (!user) return null;
 
-  const DOC_TYPES = [
-    { key: 'health_declaration', label: 'הצהרת בריאות' },
-    { key: 'cooperation_agreement', label: 'הסכם שיתוף פעולה' },
+  // Build docs list: one cooperation_agreement + all health_declarations (newest first)
+  const coopRecord = signedDocs.find(d => d.document_type === 'cooperation_agreement');
+  const healthRecords = signedDocs.filter(d => d.document_type === 'health_declaration').sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const docs = [
+    {
+      key: 'cooperation_agreement',
+      label: 'הסכם שיתוף פעולה',
+      signedAt: coopRecord?.signed_at || null,
+      sigData: coopRecord?.signature_data || null,
+      pdfUrl: coopRecord?.file_url || null,
+      metadata: coopRecord?.document_data || null,
+      record: coopRecord || null,
+    },
+    ...healthRecords.map((r, idx) => ({
+      key: `health_declaration_${r.id}`,
+      docType: 'health_declaration',
+      label: `הצהרת בריאות${healthRecords.length > 1 ? ` ${new Date(r.created_at).getFullYear()}` : ''}`,
+      signedAt: r.signed_at || null,
+      sigData: r.signature_data || null,
+      pdfUrl: r.file_url || null,
+      metadata: r.document_data || null,
+      record: r,
+      recordId: r.id,
+    })),
   ];
 
-  const docs = DOC_TYPES.map(dt => {
-    const record = signedDocs.find(d => d.document_type === dt.key);
-    return {
-      key: dt.key,
-      label: dt.label,
-      signedAt: record?.signed_at || null,
-      sigData: record?.signature_data || null,
-      pdfUrl: record?.file_url || null,
-      metadata: record?.document_data || null,
-      record: record || null, // full DB record for viewer
-    };
-  });
+  // If no health declaration exists at all, show a pending placeholder
+  if (healthRecords.length === 0) {
+    docs.push({ key: 'health_declaration_new', docType: 'health_declaration', label: 'הצהרת בריאות', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null });
+  }
 
   const signedCount = docs.filter(d => d.signedAt).length;
+  const totalDocs = docs.length;
+
+  // Coach adds a new health declaration
+  const handleAddHealthDeclaration = async () => {
+    try {
+      await supabase.from('signed_documents').insert({
+        trainee_id: user.id,
+        coach_id: user.coach_id || null,
+        document_type: 'health_declaration',
+        status: 'pending',
+        is_locked: false,
+      });
+      toast.success("הצהרת בריאות חדשה נוספה למתאמן");
+      await fetchDocs();
+    } catch (e) {
+      toast.error("שגיאה: " + (e?.message || "נסה שוב"));
+    }
+  };
 
   const handleSign = async (docType, signatureDataUrl, pdfFile, metadata) => {
     setSigning(docType);
@@ -373,9 +413,16 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         <h2 className="text-lg font-bold flex items-center gap-2">
           <FileText className="w-5 h-5 text-[#FF6F20]" />טפסים ומסמכים
         </h2>
-        <span className={`text-xs font-bold px-3 py-1 rounded-full ${signedCount === docs.length ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
-          {signedCount}/{docs.length} נחתמו
-        </span>
+        <div className="flex items-center gap-2">
+          {isCoach && (
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" style={{ borderColor: '#FF6F20', color: '#FF6F20' }} onClick={handleAddHealthDeclaration}>
+              + הצהרת בריאות
+            </Button>
+          )}
+          <span className={`text-xs font-bold px-3 py-1 rounded-full ${signedCount === totalDocs ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+            {signedCount}/{totalDocs} נחתמו
+          </span>
+        </div>
       </div>
 
       {docs.map(doc => {
@@ -450,7 +497,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
             {/* Expanded: signing form */}
             {!isSigned && isExpanded && canSign && (
               <div className="border-t border-gray-100">
-                {doc.key === 'health_declaration' ? (
+                {(doc.key.startsWith('health_declaration') || doc.docType === 'health_declaration') ? (
                   <HealthDeclarationForm user={user} onSign={handleSign} isSigning={signingType === doc.key} />
                 ) : (
                   <CooperationAgreementForm user={user} onSign={handleSign} isSigning={signingType === doc.key} />

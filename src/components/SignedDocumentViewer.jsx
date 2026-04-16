@@ -83,17 +83,26 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
       {/* ── Body ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 20, WebkitOverflowScrolling: 'touch' }}>
 
-        {/* Trainee details */}
-        {traineeName && (
+        {/* Full document text (if saved) */}
+        {data.full_text && (
+          <div style={{ marginBottom: 20, padding: 16, background: '#FAFAFA', borderRadius: 10, border: '1px solid #eee' }}>
+            <div style={{ fontSize: 15, whiteSpace: 'pre-line', lineHeight: 1.8, color: '#1a1a1a', fontFamily: "'Heebo', sans-serif" }}>
+              {data.full_text}
+            </div>
+          </div>
+        )}
+
+        {/* Trainee details (shown if no full_text — fallback for old docs) */}
+        {!data.full_text && traineeName && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>שם</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{traineeName}</div>
           </div>
         )}
-        <div style={{ height: 1, background: '#eee', marginBottom: 20 }} />
+        {!data.full_text && <div style={{ height: 1, background: '#eee', marginBottom: 20 }} />}
 
-        {/* Health declaration answers — use saved questions or fallback */}
-        {data.answers && Array.isArray(data.answers) && (
+        {/* Health declaration answers (shown for old docs without full_text, or as structured view) */}
+        {!data.full_text && data.answers && Array.isArray(data.answers) && (
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', marginBottom: 12 }}>שאלון בריאות (PAR-Q)</div>
             {data.answers.map((ans, i) => {
