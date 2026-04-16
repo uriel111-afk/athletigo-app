@@ -49,7 +49,7 @@ export default function Layout({ children, currentPageName }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
   const clock = useClock();
-  const clockFullscreen = clock?.isFullscreen && location.pathname.toLowerCase().includes('clock');
+  const clockFullscreen = clock?.isFullscreen === true && location.pathname.toLowerCase().includes('clock');
 
   // Scroll to top on page change
   useEffect(() => {

@@ -25,7 +25,9 @@ export default function FloatingClockBar() {
 
   if (!clock?.activeClock) return null;
   if (clock.phase === 'idle' || clock.phase === 'done') return null;
-  if (location.pathname.toLowerCase().includes('clock')) return null;
+  // Show floating widget when: running + (minimized OR not on clocks page)
+  const onClocksPage = location.pathname.toLowerCase().includes('clock');
+  if (onClocksPage && !clock.isMinimized) return null;
 
   const Icon = ICONS[clock.activeClock] || Zap;
   const bg = COLORS[clock.phase] || '#FF6F20';
@@ -46,7 +48,12 @@ export default function FloatingClockBar() {
     });
   };
   const onTouchEnd = () => setDragging(false);
-  const handleTap = () => { if (!movedRef.current) navigate(createPageUrl('Clocks')); };
+  const handleTap = () => {
+    if (!movedRef.current) {
+      if (clock.maximize) clock.maximize();
+      navigate(createPageUrl('Clocks'));
+    }
+  };
 
   return (
     <div

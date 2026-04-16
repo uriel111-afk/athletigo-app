@@ -59,9 +59,15 @@ export function ClockProvider({ children }) {
   const phaseIdxRef = useRef(0);
   const lastBeepRef = useRef(-1);
   const wakeLockRef = useRef(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
-  // Wake Lock — keep screen on while timer runs
+  // isFullscreen = running AND not minimized
+  const isFullscreen = isRunning && !isMinimized;
+
+  const minimize = useCallback(() => setIsMinimized(true), []);
+  const maximize = useCallback(() => setIsMinimized(false), []);
+
+  // Wake Lock — active whenever timer runs (fullscreen or minimized)
   useEffect(() => {
     const acquireWakeLock = async () => {
       try {
@@ -70,8 +76,8 @@ export function ClockProvider({ children }) {
         }
       } catch {}
     };
-    if (isRunning) { acquireWakeLock(); setIsFullscreen(true); }
-    else { wakeLockRef.current?.release().catch(() => {}); wakeLockRef.current = null; setIsFullscreen(false); }
+    if (isRunning) acquireWakeLock();
+    else { wakeLockRef.current?.release().catch(() => {}); wakeLockRef.current = null; setIsMinimized(false); }
     return () => { wakeLockRef.current?.release().catch(() => {}); };
   }, [isRunning]);
 
@@ -284,7 +290,8 @@ export function ClockProvider({ children }) {
 
   return (
     <ClockContext.Provider value={{
-      activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps, setProgress, isFullscreen,
+      activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps, setProgress,
+      isFullscreen, isMinimized, minimize, maximize,
       startStopwatch, lapStopwatch, startTimer, startTabata,
       pause, resume, stop, reset,
     }}>

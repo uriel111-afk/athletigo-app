@@ -250,7 +250,7 @@ function TimerView() {
 
 /* ═══ TABATA ═══ */
 function TabataView() {
-  const { startTabata, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase, phaseLabel, roundInfo } = useClock();
+  const { startTabata, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase, phaseLabel, roundInfo, minimize } = useClock();
   const [workSec, setWorkSec] = useState(20);
   const [restSec, setRestSec] = useState(10);
   const [rounds, setRounds] = useState(8);
@@ -426,7 +426,12 @@ function TabataView() {
 
       {/* Header bar */}
       <div className="w-full flex items-center justify-between" style={{ padding: '10px 20px', backgroundColor: 'rgba(0,0,0,0.15)' }}>
-        <span style={{ fontSize: 18, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
+        <div className="flex items-center gap-3">
+          <span style={{ fontSize: 18, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
+          <button onClick={minimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#FFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            ⬇ מזער
+          </button>
+        </div>
         {countdownRemaining !== null && countdownRemaining > 0 && (
           <span className="tabular-nums" style={{ fontSize: 13, fontFamily: FN, color: 'rgba(255,255,255,0.85)' }}>
             ספירה לאחור: {fmtTotal(countdownRemaining)}
