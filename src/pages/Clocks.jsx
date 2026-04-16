@@ -347,19 +347,19 @@ function TabataView() {
     const ss = String(totalSecs % 60).padStart(2, '0');
 
     const params = [
-      { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepSec,      setter: setPrepSec,      step: 1,  lbl: 22 },
-      { key: 'work',     icon: '💪', label: 'עבודה',           value: workSec,      setter: setWorkSec,      step: 5,  lbl: 22 },
-      { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restSec,      setter: setRestSec,      step: 5,  lbl: 22 },
-      { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,       setter: setRounds,       step: 1,  lbl: 22 },
-      { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,         setter: setSets,         step: 1,  lbl: 22 },
-      { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: setsRestSec,  setter: setSetsRestSec,  step: 10, lbl: 20 },
-      { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownSec, setter: setCountdownSec, step: 30, lbl: 20 },
+      { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepSec,      setter: setPrepSec,      step: 1,  lbl: 20 },
+      { key: 'work',     icon: '💪', label: 'עבודה',           value: workSec,      setter: setWorkSec,      step: 5,  lbl: 20 },
+      { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restSec,      setter: setRestSec,      step: 5,  lbl: 20 },
+      { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,       setter: setRounds,       step: 1,  lbl: 20 },
+      { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,         setter: setSets,         step: 1,  lbl: 20 },
+      { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: setsRestSec,  setter: setSetsRestSec,  step: 10, lbl: 18 },
+      { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownSec, setter: setCountdownSec, step: 30, lbl: 18 },
     ];
 
     return (
-      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', borderRadius: 12, margin: '0 -16px' }}>
+      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: '0 -16px', padding: 0, borderRadius: 0 }}>
         {/* Header */}
-        <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '8px 14px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
           <span style={{ fontSize: 15, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{mm}:{ss} • {rounds} סיבובים • {sets} סטים</span>
         </div>
@@ -368,29 +368,29 @@ function TabataView() {
           {params.map(p => {
             const cfg = pickerConfigs[p.key];
             return (
-              <div key={p.key} style={{ height: 64, padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{p.icon}</div>
+              <div key={p.key} style={{ height: 58, padding: '0 14px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 8 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{p.icon}</div>
                   <span style={{ fontSize: p.lbl, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{p.label}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <HoldButton onClick={() => p.setter(Math.max(cfg.options[0], p.value - p.step))}
                     className="flex items-center justify-center active:scale-90 transition-transform"
-                    style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>−</HoldButton>
+                    style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 20, fontWeight: 700, border: 'none' }}>−</HoldButton>
                   <span onClick={() => setPickerOpen({ value: p.value, options: cfg.options, unit: cfg.unit, onChange: p.setter })}
-                    style={{ fontSize: 28, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 42, textAlign: 'center', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{p.value}</span>
+                    style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 40, textAlign: 'center', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{p.value}</span>
                   <HoldButton onClick={() => p.setter(Math.min(cfg.options[cfg.options.length - 1], p.value + p.step))}
                     className="flex items-center justify-center active:scale-90 transition-transform"
-                    style={{ width: 36, height: 36, borderRadius: '50%', background: '#FFF', color: '#FF6F20', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
+                    style={{ width: 34, height: 34, borderRadius: '50%', background: '#FFF', color: '#FF6F20', fontSize: 20, fontWeight: 700, border: 'none' }}>+</HoldButton>
                 </div>
               </div>
             );
           })}
         </div>
         {/* Start */}
-        <div style={{ padding: '8px 16px 12px', flexShrink: 0 }}>
+        <div style={{ padding: '6px 14px 10px', flexShrink: 0 }}>
           <button onClick={startWithCountdown} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-            style={{ height: 52, borderRadius: 12, background: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: '#FF6F20' }}>
+            style={{ height: 48, borderRadius: 12, background: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: '#FF6F20' }}>
             ▶ התחל
           </button>
         </div>
@@ -502,9 +502,9 @@ const MODES = [
 export default function Clocks() {
   const [mode, setMode] = useState('tabata');
   return (
-    <div dir="rtl" style={{ backgroundColor: '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div dir="rtl" style={{ backgroundColor: '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: '0 -16px' }}>
       <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}` }}>
-        <div className="flex" style={{ padding: '12px 16px 10px', gap: 10 }}>
+        <div className="flex" style={{ padding: '10px 0 8px', gap: 8, margin: '0 8px' }}>
           {MODES.map(m => {
             const on = mode === m.id; const Icon = m.icon;
             return (
