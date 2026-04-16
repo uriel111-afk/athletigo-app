@@ -262,6 +262,7 @@ function TabataView() {
   const countdownRef = useRef(null);
   const [countdown321, setCountdown321] = useState(null);
   const [showDone, setShowDone] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(null);
   const prevPhaseRef = useRef(null);
   const active = activeClock === 'tabata';
   const showSetup = !active || phase === 'idle';
@@ -331,7 +332,6 @@ function TabataView() {
   }
 
   // Settings — orange bg
-  const [pickerOpen, setPickerOpen] = useState(null);
   const rng = (min, max, step) => { const a = []; for (let i = min; i <= max; i += step) a.push(i); return a; };
 
   const pickerConfigs = {
