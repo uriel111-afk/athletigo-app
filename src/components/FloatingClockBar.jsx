@@ -2,17 +2,16 @@ import React from "react";
 import { useClock } from "@/contexts/ClockContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Pause, Play, X } from "lucide-react";
+import { Pause, Play, X, Zap, Timer, Clock } from "lucide-react";
 
 function fmt(ms) {
   if (ms < 0) ms = 0;
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
+  const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
+  if (m === 0) return String(s);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-const LABELS = { stopwatch: 'סטופר', timer: 'טיימר', tabata: 'טבטה' };
+const ICONS = { tabata: Zap, timer: Timer, stopwatch: Clock };
 
 export default function FloatingClockBar() {
   const clock = useClock();
@@ -21,30 +20,38 @@ export default function FloatingClockBar() {
 
   if (!clock?.activeClock) return null;
   if (clock.phase === 'idle' || clock.phase === 'done') return null;
-  // Don't show on the Clocks page itself
   if (location.pathname.toLowerCase().includes('clock')) return null;
 
+  const Icon = ICONS[clock.activeClock] || Zap;
+
   return (
-    <div className="flex items-center justify-between px-3 py-2 bg-[#F97316] text-white text-sm font-bold z-40 flex-shrink-0"
-      style={{ minHeight: 40 }}>
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-base">{fmt(clock.display)}</span>
-        <span className="text-[10px] opacity-80">{clock.phaseLabel || LABELS[clock.activeClock]}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <button onClick={() => navigate(createPageUrl('Clocks'))}
-          className="px-2 py-1 rounded-lg bg-white/20 text-[11px] font-bold hover:bg-white/30">פתח</button>
+    <div onClick={() => navigate(createPageUrl('Clocks'))}
+      style={{
+        position: 'fixed', bottom: 80, left: 16, zIndex: 500,
+        background: '#FF6F20', borderRadius: 24,
+        padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10,
+        boxShadow: '0 4px 16px rgba(255,111,32,0.4)', cursor: 'pointer',
+        direction: 'rtl',
+      }}>
+      <Icon style={{ width: 18, height: 18, color: '#FFF' }} />
+      <span style={{ fontSize: 20, fontWeight: 900, fontFamily: "'Barlow Condensed', system-ui", color: '#FFF', fontVariantNumeric: 'tabular-nums' }}>
+        {fmt(clock.display)}
+      </span>
+      {clock.phaseLabel && (
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>{clock.phaseLabel}</span>
+      )}
+      <div style={{ display: 'flex', gap: 6, marginRight: 4 }} onClick={e => e.stopPropagation()}>
         {clock.isRunning ? (
-          <button onClick={clock.pause} className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30">
-            <Pause className="w-3.5 h-3.5" />
+          <button onClick={clock.pause} style={{ width: 32, height: 32, borderRadius: '50%', background: '#FFF', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <Pause style={{ width: 14, height: 14, color: '#FF6F20' }} />
           </button>
         ) : (
-          <button onClick={clock.resume} className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30">
-            <Play className="w-3.5 h-3.5" />
+          <button onClick={clock.resume} style={{ width: 32, height: 32, borderRadius: '50%', background: '#FFF', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <Play style={{ width: 14, height: 14, color: '#FF6F20' }} />
           </button>
         )}
-        <button onClick={clock.stop} className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30">
-          <X className="w-3.5 h-3.5" />
+        <button onClick={clock.stop} style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <X style={{ width: 14, height: 14, color: '#FFF' }} />
         </button>
       </div>
     </div>
