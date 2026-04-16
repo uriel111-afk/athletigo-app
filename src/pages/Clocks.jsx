@@ -561,71 +561,72 @@ function TabataView({ onRunningChange }) {
   // Running
   if (tabataScreen === 'running') {
     return (
-      <div style={{ background: '#FF6F20', height: '100%', minHeight: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
+      <div style={{ background: '#FF6F20', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {/* Header */}
-        <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, minHeight: 56 }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'white', letterSpacing: 1 }}>TABATA</div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>ספירה לאחור</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatTime(tabataCountdown)}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatTime(tabataCountdown)}</div>
           </div>
         </div>
 
-        {/* Main */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 16px', gap: 14 }}>
-          {/* Phase label */}
-          <div style={{ fontSize: 48, fontWeight: 900, color: 'white', letterSpacing: 1, fontFamily: FL }}>{tabataPhase}</div>
+        {/* Phase label */}
+        <div style={{ fontSize: 44, fontWeight: 900, color: 'white', textAlign: 'center', paddingTop: 10, flexShrink: 0, fontFamily: FL }}>{tabataPhase}</div>
 
-          {/* Ring + number */}
-          <div style={{ position: 'relative', width: 310, height: 310, flexShrink: 0 }}>
-            <svg width="310" height="310" viewBox="0 0 310 310">
-              <circle cx="155" cy="155" r="142" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
-              <circle cx="155" cy="155" r="142" fill="none" stroke="white" strokeWidth="10"
-                strokeDasharray="892"
-                strokeDashoffset={tabataPhaseDuration > 0 ? 892 - (892 * (tabataTimeLeft / tabataPhaseDuration)) : 0}
+        {/* Ring — fills available space */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '4px 0' }}>
+          <div style={{ position: 'relative', width: 'min(75vw, 300px)', height: 'min(75vw, 300px)' }}>
+            <svg width="100%" height="100%" viewBox="0 0 300 300" style={{ position: 'absolute', inset: 0 }}>
+              <circle cx="150" cy="150" r="136" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
+              <circle cx="150" cy="150" r="136" fill="none" stroke="white" strokeWidth="10"
+                strokeDasharray="855"
+                strokeDashoffset={tabataPhaseDuration > 0 ? 855 - (855 * (tabataTimeLeft / tabataPhaseDuration)) : 0}
                 strokeLinecap="round"
-                transform="rotate(-90 155 155)"
+                transform="rotate(-90 150 150)"
                 style={{ transition: 'stroke-dashoffset 0.9s linear' }}
               />
             </svg>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontSize: 148, fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -6, fontFamily: FN }}>{tabataTimeLeft}</div>
+              <div style={{ fontSize: 'min(38vw, 148px)', fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, fontFamily: FN }}>{tabataTimeLeft}</div>
             </div>
           </div>
+        </div>
 
+        {/* Bottom section */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 12px', flexShrink: 0 }}>
           {/* Stats */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px 16px' }}>
-            <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>סיבוב</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{tabataCurrentRound} / {rounds}</div>
-            </div>
-            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
-            <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>סט</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{tabataCurrentSet} / {sets}</div>
-            </div>
-            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
-            <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>נותר</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{formatTime(tabataCountdown)}</div>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px' }}>
+            {[
+              { label: 'סיבוב', value: `${tabataCurrentRound} / ${rounds}` },
+              { label: 'סט', value: `${tabataCurrentSet} / ${sets}` },
+              { label: 'נותר', value: formatTime(tabataCountdown) },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center' }}>
+                {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,0.2)', height: 40, margin: '0 12px' }} />}
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 3, fontFamily: FL }}>{item.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{item.value}</div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Next phase */}
           {(() => {
             const next = getNextPhaseInfo(tabataPhase, tabataCurrentRound, tabataCurrentSet);
-            if (!next.label || next.label === 'סיום') return null;
+            if (!next?.label || next.label === 'סיום') return null;
             return (
-              <div style={{ width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.9)', fontFamily: FL }}>הבא: {next.label}</div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontFamily: FN }}>{next.duration} שנ׳</div>
+              <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.9)', fontFamily: FL }}>הבא: {next.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'white', fontFamily: FN }}>{next.duration} שנ׳</div>
               </div>
             );
           })()}
 
           {/* Controls */}
-          <div style={{ display: 'flex', gap: 10, width: '100%' }}>
-            <button onClick={handleTabataReset} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: FL }}>אפס</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleTabataReset} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: FL }}>עצור</button>
             <button onClick={handleTabataPause} style={{ flex: 2, height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>
               {tabataRunning ? 'השהה ‖' : 'המשך ▶'}
             </button>
@@ -718,6 +719,61 @@ const MODES = [
 export default function Clocks() {
   const [activeTab, setActiveTab] = useState('tabata');
   const [tabataActive, setTabataActive] = useState(false);
+  const clock = useClock();
+  const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
+  const anyRunning = tabataActive || timerOrStopwatchRunning;
+
+  // FIX 2 — Intercept back button when any timer is running
+  useEffect(() => {
+    if (!anyRunning) return;
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.href);
+    };
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [anyRunning]);
+
+  // FIX 3 — Unified wake lock for all timers
+  const globalWakeLockRef = useRef(null);
+  useEffect(() => {
+    const acquireWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && !globalWakeLockRef.current) {
+          globalWakeLockRef.current = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) { console.warn('Wake lock:', err.message); }
+    };
+    if (anyRunning) {
+      acquireWakeLock();
+    } else if (globalWakeLockRef.current) {
+      globalWakeLockRef.current.release().catch(() => {});
+      globalWakeLockRef.current = null;
+    }
+  }, [anyRunning]);
+
+  // Re-acquire on visibility change
+  useEffect(() => {
+    const onVisible = async () => {
+      if (document.visibilityState === 'visible' && anyRunning) {
+        try {
+          if ('wakeLock' in navigator) {
+            globalWakeLockRef.current = await navigator.wakeLock.request('screen');
+          }
+        } catch {}
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [anyRunning]);
+
+  // Release wake lock on unmount
+  useEffect(() => () => {
+    if (globalWakeLockRef.current) {
+      globalWakeLockRef.current.release().catch(() => {});
+      globalWakeLockRef.current = null;
+    }
+  }, []);
 
   return (
     <div dir="rtl" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', boxSizing: 'border-box', overflowX: 'hidden' }}>
