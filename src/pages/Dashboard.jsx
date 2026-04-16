@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import {
   Users, UserPlus, Calendar, ClipboardList, Loader2,
   Target, Plus, Award, Search, Dumbbell, Bell,
@@ -47,6 +48,52 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { user: coach } = useContext(AuthContext);
   usePackageExpiry(coach?.id);
+
+  // Trainees with packages — real-time
+  const [trainees, setTrainees] = useState([]);
+
+  const fetchTrainees = useCallback(async () => {
+    if (!coach?.id) return;
+    try {
+      const { data: services } = await supabase
+        .from('client_services')
+        .select('trainee_id')
+        .eq('coach_id', coach.id);
+
+      const traineeIds = [...new Set((services || []).map(s => s.trainee_id).filter(Boolean))];
+      if (traineeIds.length === 0) { setTrainees([]); return; }
+
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, full_name, client_services(id, status, total_sessions, remaining_sessions, used_sessions, start_date, end_date, package_name)')
+        .in('id', traineeIds)
+        .order('full_name');
+
+      setTrainees(users || []);
+    } catch (err) {
+      console.error('[Dashboard] fetchTrainees error:', err);
+    }
+  }, [coach?.id]);
+
+  useEffect(() => {
+    fetchTrainees();
+
+    if (!coach?.id) return;
+
+    const traineeChannel = supabase
+      .channel('dashboard-trainees')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchTrainees())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services' }, () => fetchTrainees())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => fetchTrainees())
+      .subscribe();
+
+    window.addEventListener('data-changed', fetchTrainees);
+
+    return () => {
+      supabase.removeChannel(traineeChannel);
+      window.removeEventListener('data-changed', fetchTrainees);
+    };
+  }, [coach?.id, fetchTrainees]);
 
   // Dialog states
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
@@ -267,34 +314,35 @@ export default function Dashboard() {
           </div>
 
           {/* ═══ SECTION 3 — מתאמנים ═══════════════════════════ */}
-          {traineeCards.length > 0 && (
+          {trainees.length > 0 && (
             <>
               <SectionHeader title="מתאמנים" />
-              <div className="trainees-scroll" style={{
+              <div style={{
                 overflowX: 'auto',
+                overflowY: 'hidden',
                 WebkitOverflowScrolling: 'touch',
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 padding: '4px 0 8px'
               }}>
-                <div style={{
+                <style>{`.trainees-row::-webkit-scrollbar { display: none; }`}</style>
+                <div className="trainees-row" style={{
                   display: 'flex',
                   flexDirection: 'row',
                   gap: '12px',
                   width: 'max-content',
-                  padding: '0 4px'
+                  padding: '0 16px'
                 }}>
-                  {traineeCards.map((trainee) => {
-                    const activePackage = trainee.client_services?.find(pkg => {
-                      const hasRemaining = (pkg.remaining_sessions ?? 0) > 0;
-                      const notExpired = !pkg.end_date || new Date(pkg.end_date) >= new Date();
-                      return pkg.status === 'active' && hasRemaining && notExpired;
-                    });
+                  {trainees.map((trainee) => {
+                    const activePackage = trainee.client_services?.find(pkg =>
+                      (pkg.status === 'active' || pkg.status === 'פעיל') &&
+                      ((pkg.remaining_sessions ?? (pkg.total_sessions - (pkg.used_sessions || 0))) > 0) &&
+                      (!pkg.end_date || new Date(pkg.end_date) >= new Date())
+                    );
 
-                    const used = activePackage
-                      ? activePackage.total_sessions - activePackage.remaining_sessions
-                      : 0;
                     const total = activePackage?.total_sessions ?? 0;
+                    const remaining = activePackage?.remaining_sessions ?? (total - (activePackage?.used_sessions || 0));
+                    const used = total - remaining;
 
                     return (
                       <div
@@ -317,31 +365,21 @@ export default function Dashboard() {
                       >
                         {/* Avatar */}
                         <div style={{
-                          width: '48px',
-                          height: '48px',
+                          width: '48px', height: '48px',
                           borderRadius: '50%',
                           background: '#FF6F20',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '20px',
-                          fontWeight: '900',
-                          color: 'white',
-                          flexShrink: 0
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '20px', fontWeight: '900', color: 'white'
                         }}>
                           {(trainee.full_name || '?')[0]}
                         </div>
 
                         {/* Name */}
                         <div style={{
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#1a1a1a',
+                          fontSize: '13px', fontWeight: '700', color: '#1a1a1a',
                           textAlign: 'center',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          width: '100%'
+                          overflow: 'hidden', textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap', width: '100%'
                         }}>
                           {trainee.full_name}
                         </div>
@@ -349,34 +387,25 @@ export default function Dashboard() {
                         {/* Package info */}
                         {activePackage ? (
                           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{
-                              fontSize: '11px',
-                              color: '#666',
-                              textAlign: 'center'
-                            }}>
-                              {used} / {total} מפגשים
+                            <div style={{ fontSize: '11px', color: '#666', textAlign: 'center' }}>
+                              {remaining} נותרו
                             </div>
                             <div style={{
-                              height: '4px',
-                              background: '#F0F0F0',
-                              borderRadius: '2px',
-                              overflow: 'hidden',
-                              width: '100%'
+                              height: '4px', background: '#F0F0F0',
+                              borderRadius: '2px', overflow: 'hidden'
                             }}>
                               <div style={{
                                 height: '100%',
                                 width: `${total > 0 ? (used / total) * 100 : 0}%`,
-                                background: '#FF6F20',
+                                background: remaining <= 1 ? '#ef4444' : '#FF6F20',
                                 borderRadius: '2px'
                               }}/>
                             </div>
                           </div>
                         ) : (
                           <div style={{
-                            fontSize: '10px',
-                            color: '#FF6F20',
-                            fontWeight: '600',
-                            textAlign: 'center'
+                            fontSize: '10px', color: '#FF6F20',
+                            fontWeight: '600', textAlign: 'center'
                           }}>
                             אין חבילה
                           </div>
