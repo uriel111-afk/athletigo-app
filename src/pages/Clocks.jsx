@@ -74,126 +74,134 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
   );
 }
 
-const createAudioContext = () => new (window.AudioContext || window.webkitAudioContext)();
-
+// iOS audio unlock
 function unlockAudio() {
   try {
-    const ctx = createAudioContext();
-    const buf = ctx.createBuffer(1, 1, 22050);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    src.start(0);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
     ctx.resume();
-  } catch {}
+  } catch(e) {}
 }
 
+// Legacy beep (used by timer/stopwatch via ClockContext)
 function playBeep(freq = 660, duration = 0.15) {
   try {
-    const ctx = createAudioContext();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator(); const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.3, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + duration);
-  } catch {}
+  } catch(e) {}
 }
 
-function playCountdownBeep() {
+// 3-2-1 — metronome click
+const playCountdownBeep = () => {
   try {
-    const ctx = createAudioContext();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.4, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15);
-  } catch {}
-}
+    osc.frequency.value = 1000;
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+  } catch(e) {}
+};
 
-function playGoSound() {
+// GO — two sharp ascending tones
+const playGoSound = () => {
   try {
-    const ctx = createAudioContext();
-    [0, 0.08, 0.16].forEach((delay, i) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [{ freq: 1200, start: 0, dur: 0.12 }, { freq: 1600, start: 0.14, dur: 0.18 }].forEach(({ freq, start, dur }) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(440 * (i + 1), ctx.currentTime + delay);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
-      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.12);
+      osc.type = 'sine'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.5, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + start + dur);
     });
-  } catch {}
-}
+  } catch(e) {}
+};
 
-function playWorkSound() {
+// WORK — referee whistle: long single sharp tone
+const playWorkSound = () => {
   try {
-    const ctx = createAudioContext();
-    [0, 0.15].forEach(delay => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(880, ctx.currentTime + delay);
-      gain.gain.setValueAtTime(0.35, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
-      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.12);
-    });
-  } catch {}
-}
-
-function playRestSound() {
-  try {
-    const ctx = createAudioContext();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(660, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.4);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
-  } catch {}
-}
+    osc.frequency.setValueAtTime(1400, ctx.currentTime);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.01);
+    gain.gain.setValueAtTime(0.5, ctx.currentTime + 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.35);
+  } catch(e) {}
+};
 
-function playRestBetweenSetsSound() {
+// REST — boxing bell: rich, low, resonant
+const playRestSound = () => {
   try {
-    const ctx = createAudioContext();
-    [0, 0.3].forEach(delay => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.connect(gain1); gain1.connect(ctx.destination);
+    osc1.type = 'sine'; osc1.frequency.value = 520;
+    gain1.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+    osc1.start(ctx.currentTime); osc1.stop(ctx.currentTime + 1.2);
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2); gain2.connect(ctx.destination);
+    osc2.type = 'sine'; osc2.frequency.value = 1040;
+    gain2.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc2.start(ctx.currentTime); osc2.stop(ctx.currentTime + 0.8);
+  } catch(e) {}
+};
+
+// REST BETWEEN SETS — two boxing bell hits
+const playRestBetweenSetsSound = () => {
+  try {
+    [0, 0.5].forEach(delay => {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(528, ctx.currentTime + delay);
-      osc.frequency.exponentialRampToValueAtTime(264, ctx.currentTime + delay + 0.35);
-      gain.gain.setValueAtTime(0.28, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.35);
-      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.35);
+      osc.type = 'sine'; osc.frequency.value = 520;
+      gain.gain.setValueAtTime(0.45, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.0);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 1.0);
     });
-  } catch {}
-}
+  } catch(e) {}
+};
 
-function playCompleteSound() {
+// COMPLETE — three boxing bell hits
+const playCompleteSound = () => {
   try {
-    const ctx = createAudioContext();
-    [523, 659, 784].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18);
-      gain.gain.setValueAtTime(0.35, ctx.currentTime + i * 0.18);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.4);
-      osc.start(ctx.currentTime + i * 0.18); osc.stop(ctx.currentTime + i * 0.18 + 0.4);
+    [0, 0.45, 0.9].forEach(delay => {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.connect(gain1); gain1.connect(ctx.destination);
+      osc1.type = 'sine'; osc1.frequency.value = 520;
+      gain1.gain.setValueAtTime(0.5, ctx.currentTime + delay);
+      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.0);
+      osc1.start(ctx.currentTime + delay); osc1.stop(ctx.currentTime + delay + 1.0);
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2); gain2.connect(ctx.destination);
+      osc2.type = 'sine'; osc2.frequency.value = 1040;
+      gain2.gain.setValueAtTime(0.2, ctx.currentTime + delay);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.7);
+      osc2.start(ctx.currentTime + delay); osc2.stop(ctx.currentTime + delay + 0.7);
     });
-  } catch {}
-}
+  } catch(e) {}
+};
 
 function playEndBeeps() { playCompleteSound(); }
 
