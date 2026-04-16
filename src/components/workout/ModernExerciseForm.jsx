@@ -13,6 +13,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AddCustomValueDialog from "../forms/AddCustomValueDialog";
 import { toast } from "sonner";
+import { searchExercises } from "@/data/exercises";
 
 // ── Icons ─────────────────────────────────────────────────────────────
 const ICONS = {
@@ -407,6 +408,50 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, getOptions, onAdd
 // MAIN FORM
 // ══════════════════════════════════════════════════════════════════════
 
+function ExerciseNameInput({ value, onChange }) {
+  const [query, setQuery] = useState(value);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  const handleChange = (e) => {
+    const v = e.target.value;
+    setQuery(v);
+    onChange(v, null);
+    const results = searchExercises(v);
+    setSuggestions(results);
+    setShowSuggestions(results.length > 0);
+  };
+
+  const selectSuggestion = (ex) => {
+    setQuery(ex.name);
+    onChange(ex.name, ex);
+    setShowSuggestions(false);
+  };
+
+  return (
+    <div className="mb-4 px-1 relative">
+      <label className="text-[10px] font-black text-gray-400 mb-1 block uppercase tracking-wider">שם התרגיל</label>
+      <input value={query} onChange={handleChange} onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        placeholder="הקלד שם תרגיל..." autoFocus
+        className="w-full h-11 text-base font-black border-b-2 border-gray-200 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1 transition-colors placeholder:text-gray-300" />
+      {showSuggestions && (
+        <div className="absolute left-0 right-0 top-full z-50 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto" dir="rtl">
+          {suggestions.map(ex => (
+            <div key={ex.id} onMouseDown={() => selectSuggestion(ex)}
+              className="px-3 py-2 hover:bg-orange-50 cursor-pointer border-b border-gray-50 last:border-0">
+              <div className="font-bold text-sm text-gray-900">{ex.name}</div>
+              <div className="text-[10px] text-gray-400">{ex.category}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ModernExerciseForm({ exercise, onChange }) {
   const [editingParam, setEditingParam] = useState(null);
   const [confirmedParams, setConfirmedParams] = useState(new Set());
@@ -607,17 +652,13 @@ export default function ModernExerciseForm({ exercise, onChange }) {
   return (
     <div className="w-full" dir="rtl">
 
-      {/* ── Name ─────────────────────────────────────────────── */}
-      <div className="mb-4 px-1">
-        <label className="text-[10px] font-black text-gray-400 mb-1 block uppercase tracking-wider">שם התרגיל</label>
-        <input
-          value={exercise.exercise_name || ""}
-          onChange={(e) => updateEx("exercise_name", e.target.value)}
-          placeholder="לדוגמה: סקוואט"
-          autoFocus
-          className="w-full h-11 text-base font-black border-b-2 border-gray-200 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1 transition-colors placeholder:text-gray-300"
-        />
-      </div>
+      {/* ── Name with autocomplete ───────────────────────────── */}
+      <ExerciseNameInput value={exercise.exercise_name || ""} onChange={(name, libEx) => {
+        updateEx("exercise_name", name);
+        if (libEx?.defaultParams) {
+          Object.entries(libEx.defaultParams).forEach(([k, v]) => updateEx(k, String(v)));
+        }
+      }} />
 
       {/* ── Parameters Grid — ALL params, always visible ──────── */}
       <div className="mb-3 px-1">
