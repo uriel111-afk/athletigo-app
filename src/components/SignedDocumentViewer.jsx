@@ -92,22 +92,24 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
         )}
         <div style={{ height: 1, background: '#eee', marginBottom: 20 }} />
 
-        {/* Health declaration answers */}
+        {/* Health declaration answers — use saved questions or fallback */}
         {data.answers && Array.isArray(data.answers) && (
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', marginBottom: 12 }}>שאלון בריאות (PAR-Q)</div>
-            {data.answers.map((ans, i) => (
-              <div key={i} style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span style={{
-                  flexShrink: 0, fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                  backgroundColor: ans ? '#FEE2E2' : '#DCFCE7', color: ans ? '#B91C1C' : '#166534',
-                }}>{ans ? 'כן' : 'לא'}</span>
-                <div>
-                  <div style={{ fontSize: 13, color: '#666', marginBottom: 2 }}>שאלה {i + 1}</div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', lineHeight: 1.5 }}>{PAR_Q[i]}</div>
+            {data.answers.map((ans, i) => {
+              const q = (data.questions && data.questions[i]) || PAR_Q[i] || `שאלה ${i + 1}`;
+              return (
+                <div key={i} style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{
+                    flexShrink: 0, fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                    backgroundColor: ans ? '#FEE2E2' : '#DCFCE7', color: ans ? '#B91C1C' : '#166534',
+                  }}>{ans ? 'כן' : 'לא'}</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', lineHeight: 1.5 }}>{q}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -124,10 +126,36 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
           </div>
         )}
 
-        {data.photoConsent !== undefined && (
+        {/* Declaration text for health form */}
+        {data.declaration_text && (
+          <div style={{ marginBottom: 16, padding: 14, background: '#F0FFF4', border: '1px solid #BBF7D0', borderRadius: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#166534', lineHeight: 1.6 }}>
+              ✓ {data.declaration_text}
+            </div>
+          </div>
+        )}
+
+        {/* Cooperation agreement sections */}
+        {data.sections && Array.isArray(data.sections) && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>הסכמה לשימוש בתמונות</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{data.photoConsent ? 'כן — מסכים/ה' : 'לא'}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>סעיפי ההסכם שאושרו</div>
+            {data.sections.map((s, i) => (
+              <div key={i} style={{ fontSize: 14, color: '#374151', padding: '6px 0', borderBottom: '1px solid #f3f4f6' }}>✓ {s}</div>
+            ))}
+          </div>
+        )}
+
+        {data.agreement_confirmed && (
+          <div style={{ marginBottom: 16, padding: 14, background: '#F0FFF4', border: '1px solid #BBF7D0', borderRadius: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#166534' }}>✓ קראתי והסכמתי לכל תנאי ההסכם</div>
+          </div>
+        )}
+
+        {data.photoConsent !== undefined && (
+          <div style={{ marginBottom: 16, padding: 14, background: data.photoConsent ? '#F0FFF4' : '#FEF2F2', border: `1px solid ${data.photoConsent ? '#BBF7D0' : '#FECACA'}`, borderRadius: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: data.photoConsent ? '#166534' : '#991B1B' }}>
+              {data.photoConsent ? '✓ מסכים/ה לשימוש בתמונות לצורכי שיווק' : '✗ לא מסכים/ה לשימוש בתמונות'}
+            </div>
           </div>
         )}
 

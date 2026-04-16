@@ -68,7 +68,14 @@ function HealthDeclarationForm({ user, onSign, isSigning }) {
     if (!sigRef.current?.hasSignature()) { toast.error("יש לחתום לפני השליחה"); return; }
     const sig = sigRef.current.getSignature();
     const pdfFile = await generatePdfFromRef(formRef.current, `הצהרת_בריאות_${user.full_name}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-    await onSign('health_declaration', sig, pdfFile, { answers, healthNotes, hasYes });
+    await onSign('health_declaration', sig, pdfFile, {
+      questions: PAR_Q_QUESTIONS,
+      answers,
+      healthNotes,
+      hasYes,
+      declaration_text: 'אני החתום/ה מטה מצהיר/ה כי כל המידע שמסרתי לעיל הוא נכון ומדויק. אני מודע/ת שפעילות גופנית כרוכה בסיכונים מסוימים ואני נוטל/ת על עצמי את האחריות לבריאותי.',
+      declaration_confirmed: true,
+    });
   };
 
   return (
@@ -156,7 +163,11 @@ function CooperationAgreementForm({ user, onSign, isSigning }) {
     if (!sigRef.current?.hasSignature()) { toast.error("יש לחתום לפני השליחה"); return; }
     const sig = sigRef.current.getSignature();
     const pdfFile = await generatePdfFromRef(formRef.current, `הסכם_שיתוף_פעולה_${user.full_name}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-    await onSign('cooperation_agreement', sig, pdfFile, { photoConsent });
+    await onSign('cooperation_agreement', sig, pdfFile, {
+      photoConsent,
+      agreement_confirmed: true,
+      sections: ['חלקי כמאמן', 'תוצאות', 'חלקך כמתאמן/ת', 'סודיות', 'הגנת פרטיות', 'ביטול אימון', 'כרטיסיות והרשמה חודשית', 'נטילת אחריות', 'תוקף ההסכם'],
+    });
   };
 
   const name = user.full_name || "המתאמן/ת";
