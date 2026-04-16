@@ -246,92 +246,341 @@ function TimerView() {
   );
 }
 
-/* TabataRow is now inlined in TabataView to share picker state */
-
 /* ═══ TABATA ═══ */
 function TabataView() {
-  const { startTabata, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase, phaseLabel, roundInfo, minimize } = useClock();
-  const [workSec, setWorkSec] = useState(20);
-  const [restSec, setRestSec] = useState(10);
+  // === STATE ===
+  const [tabataRunning, setTabataRunning] = useState(false);
+  const [tabataPhase, setTabataPhase] = useState('הכנה');
+  const [tabataTimeLeft, setTabataTimeLeft] = useState(0);
+  const [tabataPhaseDuration, setTabataPhaseDuration] = useState(0);
+  const [tabataCurrentRound, setTabataCurrentRound] = useState(1);
+  const [tabataCurrentSet, setTabataCurrentSet] = useState(1);
+  const [tabataCountdown, setTabataCountdown] = useState(0);
+  const [countdown321, setCountdown321] = useState(3);
+  const [tabataScreen, setTabataScreen] = useState('settings');
+
+  // Settings
+  const [prepTime, setPrepTime] = useState(10);
+  const [workTime, setWorkTime] = useState(20);
+  const [restTime, setRestTime] = useState(10);
   const [rounds, setRounds] = useState(8);
   const [sets, setSets] = useState(3);
-  const [setsRestSec, setSetsRestSec] = useState(60);
-  const [prepSec, setPrepSec] = useState(10);
-  const [countdownSec, setCountdownSec] = useState(30);
-  const [countdownRemaining, setCountdownRemaining] = useState(null);
-  const countdownRef = useRef(null);
-  const [countdown321, setCountdown321] = useState(null);
-  const [showDone, setShowDone] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(null);
-  const prevPhaseRef = useRef(null);
-  const active = activeClock === 'tabata';
-  const showSetup = !active || phase === 'idle';
-  const totalTime = (workSec + restSec) * rounds * sets + (sets > 1 ? setsRestSec * (sets - 1) : 0);
+  const [restBetweenSets, setRestBetweenSets] = useState(60);
+  const [countdownTime, setCountdownTime] = useState(30);
 
-  // Parallel countdown timer
-  useEffect(() => {
-    if (active && isRunning && countdownRemaining !== null && countdownRemaining > 0) {
-      countdownRef.current = setInterval(() => {
-        setCountdownRemaining(prev => {
-          if (prev <= 1) { playEndBeeps(); clearInterval(countdownRef.current); return 0; }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(countdownRef.current);
-    }
-    if (!isRunning && countdownRef.current) clearInterval(countdownRef.current);
-  }, [active, isRunning, countdownRemaining !== null]);
+  const tabataIntervalRef = useRef(null);
+  const countdown321Ref = useRef(null);
+  const parallelCountdownRef = useRef(null);
+  const parallelCountdownVal = useRef(0);
+  const wakeLockRef = useRef(null);
+  const hiddenAtRef = useRef(null);
 
-  // Detect done
-  useEffect(() => {
-    if (prevPhaseRef.current && prevPhaseRef.current !== 'idle' && prevPhaseRef.current !== 'done' && phase === 'done') {
-      playEndBeeps();
-      setShowDone(true);
-    }
-    prevPhaseRef.current = phase;
-  }, [phase]);
+  // Picker state
+  const [picker, setPicker] = useState(null);
 
-  // 3-2-1-GO countdown
-  const startWithCountdown = () => {
-    setCountdown321(3); playBeep(660);
-    setTimeout(() => { setCountdown321(2); playBeep(660); }, 1000);
-    setTimeout(() => { setCountdown321(1); playBeep(660); }, 2000);
-    setTimeout(() => { setCountdown321('GO'); playBeep(880, 0.3); }, 3000);
-    setTimeout(() => {
-      setCountdown321(null);
-      setCountdownRemaining(countdownSec);
-      startTabata({ workTime: workSec, restTime: restSec, rounds, sets, setRest: setsRestSec, prepareTime: prepSec });
-    }, 3800);
+  // === HELPERS ===
+  const formatTime = (secs) => {
+    if (secs === null || secs === undefined) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  // 3-2-1-GO overlay — orange, giant numbers
-  if (countdown321 !== null) {
+  const getNextPhaseInfo = (phase, round, set) => {
+    if (phase === 'הכנה') return { label: 'עבודה', duration: workTime };
+    if (phase === 'עבודה') return { label: 'מנוחה', duration: restTime };
+    if (phase === 'מנוחה') {
+      if (round < rounds) return { label: 'עבודה', duration: workTime };
+      if (set < sets) return { label: 'מנוחה בין סטים', duration: restBetweenSets };
+      return { label: 'סיום', duration: 0 };
+    }
+    if (phase === 'מנוחה בין סטים') return { label: 'עבודה', duration: workTime };
+    return { label: '', duration: 0 };
+  };
+
+  // === TIMER LOGIC ===
+  const startTabataInterval = (phase, timeLeft, round, set) => {
+    clearInterval(tabataIntervalRef.current);
+
+    let currentPhase = phase;
+    let currentTime = timeLeft;
+    let currentRound = round;
+    let currentSet = set;
+
+    tabataIntervalRef.current = setInterval(() => {
+      currentTime -= 1;
+
+      if (currentTime <= 0) {
+        // Direct version for use inside interval (captures settings from closure)
+        const getNext = (p, r, s) => {
+          if (p === 'הכנה') return { label: 'עבודה', duration: workTime };
+          if (p === 'עבודה') return { label: 'מנוחה', duration: restTime };
+          if (p === 'מנוחה') {
+            if (r < rounds) return { label: 'עבודה', duration: workTime };
+            if (s < sets) return { label: 'מנוחה בין סטים', duration: restBetweenSets };
+            return { label: 'סיום', duration: 0 };
+          }
+          if (p === 'מנוחה בין סטים') return { label: 'עבודה', duration: workTime };
+          return { label: 'סיום', duration: 0 };
+        };
+
+        const next = getNext(currentPhase, currentRound, currentSet);
+
+        if (next.label === 'סיום') {
+          clearInterval(tabataIntervalRef.current);
+          clearInterval(parallelCountdownRef.current);
+          setTabataScreen('complete');
+          setTabataRunning(false);
+          playEndBeeps();
+          releaseWakeLock();
+          return;
+        }
+
+        // Update round/set
+        if (currentPhase === 'מנוחה') {
+          if (currentRound < rounds) {
+            currentRound += 1;
+          } else if (currentSet < sets) {
+            currentRound = 1;
+            currentSet += 1;
+          }
+        }
+
+        currentPhase = next.label;
+        currentTime = next.duration;
+
+        setTabataPhase(currentPhase);
+        setTabataTimeLeft(currentTime);
+        setTabataPhaseDuration(currentTime);
+        setTabataCurrentRound(currentRound);
+        setTabataCurrentSet(currentSet);
+      } else {
+        setTabataTimeLeft(currentTime);
+      }
+    }, 1000);
+  };
+
+  // === START / PAUSE / RESET ===
+  const handleTabataStart = () => {
+    setTabataScreen('countdown');
+    setCountdown321(3);
+    playBeep(660);
+
+    let count = 3;
+    countdown321Ref.current = setInterval(() => {
+      count -= 1;
+      if (count > 0) {
+        setCountdown321(count);
+        playBeep(660);
+      } else {
+        clearInterval(countdown321Ref.current);
+        setCountdown321('GO');
+        playBeep(880);
+        setTimeout(() => {
+          const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
+          const initTime = prepTime > 0 ? prepTime : workTime;
+          setTabataPhase(initPhase);
+          setTabataTimeLeft(initTime);
+          setTabataPhaseDuration(initTime);
+          setTabataCurrentRound(1);
+          setTabataCurrentSet(1);
+          setTabataRunning(true);
+          setTabataScreen('running');
+
+          // Parallel countdown
+          parallelCountdownVal.current = countdownTime;
+          setTabataCountdown(countdownTime);
+          parallelCountdownRef.current = setInterval(() => {
+            parallelCountdownVal.current -= 1;
+            setTabataCountdown(parallelCountdownVal.current);
+            if (parallelCountdownVal.current <= 0) {
+              clearInterval(parallelCountdownRef.current);
+              playEndBeeps();
+            }
+          }, 1000);
+
+          startTabataInterval(initPhase, initTime, 1, 1);
+          requestWakeLock();
+        }, 800);
+      }
+    }, 1000);
+  };
+
+  const handleTabataPause = () => {
+    if (tabataRunning) {
+      clearInterval(tabataIntervalRef.current);
+      clearInterval(parallelCountdownRef.current);
+      setTabataRunning(false);
+    } else {
+      setTabataRunning(true);
+      startTabataInterval(tabataPhase, tabataTimeLeft, tabataCurrentRound, tabataCurrentSet);
+      // Resume parallel countdown
+      parallelCountdownRef.current = setInterval(() => {
+        parallelCountdownVal.current -= 1;
+        setTabataCountdown(parallelCountdownVal.current);
+        if (parallelCountdownVal.current <= 0) clearInterval(parallelCountdownRef.current);
+      }, 1000);
+    }
+  };
+
+  const handleTabataReset = () => {
+    clearInterval(tabataIntervalRef.current);
+    clearInterval(parallelCountdownRef.current);
+    clearInterval(countdown321Ref.current);
+    setTabataScreen('settings');
+    setTabataRunning(false);
+    setTabataPhase('הכנה');
+    setTabataTimeLeft(0);
+    setTabataCurrentRound(1);
+    setTabataCurrentSet(1);
+    setTabataCountdown(countdownTime);
+    releaseWakeLock();
+  };
+
+  // === WAKE LOCK ===
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      }
+    } catch (err) { console.log('WakeLock:', err); }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+  };
+
+  // Re-acquire on visibility change
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && tabataRunning) {
+        requestWakeLock();
+        if (hiddenAtRef.current) {
+          const elapsed = Math.floor((Date.now() - hiddenAtRef.current) / 1000);
+          setTabataTimeLeft(prev => {
+            const newTime = prev - elapsed;
+            if (newTime <= 0) return 1;
+            return newTime;
+          });
+          hiddenAtRef.current = null;
+        }
+      } else if (document.visibilityState === 'hidden' && tabataRunning) {
+        hiddenAtRef.current = Date.now();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [tabataRunning]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      clearInterval(tabataIntervalRef.current);
+      clearInterval(parallelCountdownRef.current);
+      clearInterval(countdown321Ref.current);
+      releaseWakeLock();
+    };
+  }, []);
+
+  // === SCREENS ===
+
+  // 3-2-1-GO
+  if (tabataScreen === 'countdown') {
     return (
-      <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ backgroundColor: BRAND, touchAction: 'none', userSelect: 'none' }}>
-        <span style={{ fontSize: countdown321 === 'GO' ? 120 : 200, fontWeight: 900, fontFamily: FN, color: '#FFF', lineHeight: 1 }}>{countdown321}</span>
+      <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: countdown321 === 'GO' ? 120 : 200, fontWeight: 900, color: 'white', lineHeight: 1, fontFamily: FN }}>{countdown321}</div>
       </div>
     );
   }
 
-  // Done screen — orange
-  if (showDone) {
+  // Complete
+  if (tabataScreen === 'complete') {
     return (
-      <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl" style={{ backgroundColor: BRAND, padding: '20px 16px 100px', gap: 16 }}>
-        <div style={{ fontSize: 80, color: '#FFF' }}>✓</div>
-        <div style={{ fontSize: 32, fontWeight: 900, fontFamily: FL, color: '#FFF' }}>כל הכבוד! סיימת!</div>
-        <div style={{ fontSize: 18, fontWeight: 500, fontFamily: FL, color: 'rgba(255,255,255,0.8)' }}>
-          {sets} סטים | {rounds} מחזורים
+      <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, direction: 'rtl', padding: 20 }}>
+        <div style={{ fontSize: 80, color: 'white' }}>✓</div>
+        <div style={{ fontSize: 32, fontWeight: 900, color: 'white', fontFamily: FL }}>כל הכבוד! סיימת!</div>
+        <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.8)', fontFamily: FL }}>{sets} סטים • {rounds} מחזורים</div>
+        <button onClick={handleTabataReset} style={{ marginTop: 20, width: '100%', height: 56, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>התחל מחדש</button>
+      </div>
+    );
+  }
+
+  // Running
+  if (tabataScreen === 'running') {
+    return (
+      <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
+        {/* Header */}
+        <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: 'white', fontFamily: FN }}>TABATA</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontFamily: FL }}>ספירה לאחור: {formatTime(tabataCountdown)}</div>
         </div>
-        <button onClick={() => { setShowDone(false); setCountdownRemaining(null); stop(); }}
-          className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-          style={{ height: 60, borderRadius: 12, backgroundColor: '#FFF', fontSize: 22, fontWeight: 900, fontFamily: FL, color: BRAND }}>
-          התחל מחדש
-        </button>
+
+        {/* Main content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 16px', gap: 14 }}>
+          {/* Phase label */}
+          <div style={{ fontSize: 48, fontWeight: 900, color: 'white', letterSpacing: 1, fontFamily: FL }}>{tabataPhase}</div>
+
+          {/* Ring */}
+          <div style={{ position: 'relative', width: 310, height: 310, flexShrink: 0 }}>
+            <svg width="310" height="310" viewBox="0 0 310 310">
+              <circle cx="155" cy="155" r="142" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
+              <circle cx="155" cy="155" r="142" fill="none" stroke="white" strokeWidth="10"
+                strokeDasharray="892"
+                strokeDashoffset={tabataPhaseDuration > 0 ? 892 * (1 - tabataTimeLeft / tabataPhaseDuration) : 0}
+                strokeLinecap="round"
+                transform="rotate(-90 155 155)"
+                style={{ transition: 'stroke-dashoffset 0.9s linear' }}
+              />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ fontSize: 148, fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -6, fontFamily: FN }}>{tabataTimeLeft}</div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px 16px' }}>
+            {[
+              { label: 'סיבוב', value: `${tabataCurrentRound} / ${rounds}` },
+              { label: 'סט', value: `${tabataCurrentSet} / ${sets}` },
+              { label: 'נותר', value: formatTime(tabataTimeLeft) },
+            ].map((item, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />}
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>{item.label}</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{item.value}</div>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Next phase */}
+          {(() => {
+            const next = getNextPhaseInfo(tabataPhase, tabataCurrentRound, tabataCurrentSet);
+            return next.label && next.label !== 'סיום' ? (
+              <div style={{ width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.9)', fontFamily: FL }}>הבא: {next.label}</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontFamily: FN }}>{next.duration} שנ׳</div>
+              </div>
+            ) : null;
+          })()}
+
+          {/* Controls */}
+          <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+            <button onClick={handleTabataReset} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: FL }}>אפס</button>
+            <button onClick={handleTabataPause} style={{ flex: 2, height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>
+              {tabataRunning ? 'השהה ‖' : 'המשך ▶'}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // Settings — orange bg
+  // === SETTINGS SCREEN ===
   const rng = (min, max, step) => { const a = []; for (let i = min; i <= max; i += step) a.push(i); return a; };
 
   const pickerConfigs = {
@@ -344,162 +593,63 @@ function TabataView() {
     countdown:{ options: rng(0, 600, 1),  unit: 'שנ׳' },
   };
 
-  if (showSetup) {
-    const totalSecs = (prepSec + (workSec + restSec) * rounds) * sets + (sets > 1 ? setsRestSec * (sets - 1) : 0);
-    const mm = String(Math.floor(totalSecs / 60)).padStart(2, '0');
-    const ss = String(totalSecs % 60).padStart(2, '0');
+  const totalSecs = (prepTime + (workTime + restTime) * rounds) * sets + (sets > 1 ? restBetweenSets * (sets - 1) : 0);
+  const mm = String(Math.floor(totalSecs / 60)).padStart(2, '0');
+  const ss = String(totalSecs % 60).padStart(2, '0');
 
-    const params = [
-      { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepSec,      setter: setPrepSec,      step: 1, lbl: 20 },
-      { key: 'work',     icon: '💪', label: 'עבודה',           value: workSec,      setter: setWorkSec,      step: 1, lbl: 20 },
-      { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restSec,      setter: setRestSec,      step: 1, lbl: 20 },
-      { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,       setter: setRounds,       step: 1, lbl: 20 },
-      { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,         setter: setSets,         step: 1, lbl: 20 },
-      { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: setsRestSec,  setter: setSetsRestSec,  step: 1, lbl: 18 },
-      { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownSec, setter: setCountdownSec, step: 1, lbl: 18 },
-    ];
-
-    return (
-      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
-        {/* Header */}
-        <div style={{ padding: '8px 20px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
-          <span style={{ fontSize: 15, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{mm}:{ss} • {rounds} סיבובים • {sets} סטים</span>
-        </div>
-        {/* Rows */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', overflow: 'hidden' }}>
-          {params.map(p => {
-            const cfg = pickerConfigs[p.key];
-            return (
-              <div key={p.key} style={{ height: 58, padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{p.icon}</div>
-                  <span style={{ fontSize: p.lbl, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{p.label}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <HoldButton onClick={() => p.setter(Math.max(cfg.options[0], p.value - p.step))}
-                    className="flex items-center justify-center active:scale-90 transition-transform"
-                    style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 20, fontWeight: 700, border: 'none' }}>−</HoldButton>
-                  <span onClick={() => setPickerOpen({ value: p.value, options: cfg.options, unit: cfg.unit, onChange: p.setter })}
-                    style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 40, textAlign: 'center', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{p.value}</span>
-                  <HoldButton onClick={() => p.setter(Math.min(cfg.options[cfg.options.length - 1], p.value + p.step))}
-                    className="flex items-center justify-center active:scale-90 transition-transform"
-                    style={{ width: 34, height: 34, borderRadius: '50%', background: '#FFF', color: '#FF6F20', fontSize: 20, fontWeight: 700, border: 'none' }}>+</HoldButton>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {/* Start */}
-        <div style={{ padding: '6px 20px 10px', flexShrink: 0 }}>
-          <button onClick={startWithCountdown} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-            style={{ height: 48, borderRadius: 12, background: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: '#FF6F20' }}>
-            ▶ התחל
-          </button>
-        </div>
-        {/* Scroll Picker */}
-        {pickerOpen && (
-          <ScrollPicker isOpen value={pickerOpen.value} onChange={pickerOpen.onChange} onClose={() => setPickerOpen(null)}
-            options={pickerOpen.options} unit={pickerOpen.unit} />
-        )}
-      </div>
-    );
-  }
-
-  // ── Running screen — orange bg, mobile-fit ──
-  const ringProgress = totalDuration > 0 ? display / totalDuration : 0;
-  let setStr = '—', roundStr = '—';
-  if (roundInfo) { roundInfo.split('•').map(x => x.trim()).forEach(p => { if (p.startsWith('סט')) setStr = p.replace('סט ', ''); if (p.startsWith('סיבוב')) roundStr = p.replace('סיבוב ', ''); }); }
-  let nextLabel = '', nextDur = 0;
-  if (phase === 'work') { nextLabel = 'מנוחה'; nextDur = restSec; }
-  else if (phase === 'rest') { nextLabel = 'עבודה'; nextDur = workSec; }
-  else if (phase === 'set_rest') { nextLabel = 'עבודה'; nextDur = workSec; }
-  else if (phase === 'prepare') { nextLabel = 'עבודה'; nextDur = workSec; }
-  const elapsedMs = totalDuration > 0 ? totalDuration - display : 0;
-  const remainingSec = Math.max(0, totalTime - Math.floor(elapsedMs / 1000));
-
-  const ringR = 142, ringCirc = 2 * Math.PI * ringR;
-  const ringOff = ringCirc * (1 - Math.max(0, Math.min(1, ringProgress)));
+  const params = [
+    { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepTime,        setter: setPrepTime,        step: 1, lbl: 20 },
+    { key: 'work',     icon: '💪', label: 'עבודה',           value: workTime,        setter: setWorkTime,        step: 1, lbl: 20 },
+    { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restTime,        setter: setRestTime,        step: 1, lbl: 20 },
+    { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,          setter: setRounds,          step: 1, lbl: 20 },
+    { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,            setter: setSets,            step: 1, lbl: 20 },
+    { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: restBetweenSets, setter: setRestBetweenSets, step: 1, lbl: 18 },
+    { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownTime,   setter: setCountdownTime,   step: 1, lbl: 18 },
+  ];
 
   return (
-    <div style={{ background: BRAND, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl' }}>
-
+    <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
       {/* Header */}
-      <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
-          <button onClick={minimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#FFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            ⬇ מזער
-          </button>
-        </div>
-        {countdownRemaining !== null && countdownRemaining > 0 && (
-          <span className="tabular-nums" style={{ fontSize: 13, fontFamily: FN, color: 'rgba(255,255,255,0.85)' }}>
-            {fmtTotal(countdownRemaining)}
-          </span>
-        )}
+      <div style={{ padding: '8px 20px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
+        <span style={{ fontSize: 15, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{mm}:{ss} • {rounds} סיבובים • {sets} סטים</span>
       </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 16px', gap: 12 }}>
-
-        {/* Phase */}
-        <div style={{ fontSize: 48, fontWeight: 900, fontFamily: FL, color: '#FFF', letterSpacing: 1 }}>{phaseLabel}</div>
-
-        {/* Ring + number — 310×310 */}
-        <div style={{ position: 'relative', width: 310, height: 310, flexShrink: 0 }}>
-          <svg width="310" height="310" viewBox="0 0 310 310">
-            <circle cx="155" cy="155" r={ringR} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
-            <circle cx="155" cy="155" r={ringR} fill="none" stroke="#FFF" strokeWidth="10" strokeLinecap="round"
-              strokeDasharray={ringCirc} strokeDashoffset={ringOff} transform="rotate(-90 155 155)"
-              style={{ transition: 'stroke-dashoffset 0.9s linear' }} />
-          </svg>
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="tabular-nums" style={{ fontSize: 148, fontWeight: 900, fontFamily: FN, color: '#FFF', lineHeight: 1, letterSpacing: -6 }}>{fmt(display)}</span>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px 16px' }}>
-          {[
-            { l: 'סיבוב', v: roundStr },
-            { l: 'סט', v: setStr },
-            { l: 'נותר', v: fmtTotal(remainingSec) },
-          ].map((c, i) => (
-            <React.Fragment key={i}>
-              {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />}
-              <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>{c.l}</div>
-                <div className="tabular-nums" style={{ fontSize: 26, fontWeight: 900, color: '#FFF', fontFamily: FN }}>{c.v}</div>
+      {/* Rows */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', overflow: 'hidden' }}>
+        {params.map(p => {
+          const cfg = pickerConfigs[p.key];
+          return (
+            <div key={p.key} style={{ height: 58, padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{p.icon}</div>
+                <span style={{ fontSize: p.lbl, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{p.label}</span>
               </div>
-            </React.Fragment>
-          ))}
-        </div>
-
-        {/* Next phase */}
-        {nextLabel && (
-          <div style={{ width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: 'rgba(255,255,255,0.9)' }}>הבא: {nextLabel}</span>
-            <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{nextDur} שנ׳</span>
-          </div>
-        )}
-
-        {/* Controls */}
-        <div style={{ display: 'flex', gap: 10, width: '100%' }}>
-          <button onClick={stop} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: '#FFF', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>
-            אפס
-          </button>
-          {isRunning ? (
-            <button onClick={pause} style={{ flex: 2, height: 52, background: '#FFF', color: BRAND, border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, fontFamily: FL, cursor: 'pointer' }}>
-              השהה ‖
-            </button>
-          ) : (
-            <button onClick={resume} style={{ flex: 2, height: 52, background: '#FFF', color: BRAND, border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, fontFamily: FL, cursor: 'pointer' }}>
-              המשך ▶
-            </button>
-          )}
-        </div>
-
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <HoldButton onClick={() => p.setter(Math.max(cfg.options[0], p.value - p.step))}
+                  className="flex items-center justify-center active:scale-90 transition-transform"
+                  style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 20, fontWeight: 700, border: 'none' }}>−</HoldButton>
+                <span onClick={() => setPicker({ value: p.value, options: cfg.options, unit: cfg.unit, onChange: p.setter })}
+                  style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 40, textAlign: 'center', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{p.value}</span>
+                <HoldButton onClick={() => p.setter(Math.min(cfg.options[cfg.options.length - 1], p.value + p.step))}
+                  className="flex items-center justify-center active:scale-90 transition-transform"
+                  style={{ width: 34, height: 34, borderRadius: '50%', background: '#FFF', color: '#FF6F20', fontSize: 20, fontWeight: 700, border: 'none' }}>+</HoldButton>
+              </div>
+            </div>
+          );
+        })}
       </div>
+      {/* Start */}
+      <div style={{ padding: '6px 20px 10px', flexShrink: 0 }}>
+        <button onClick={handleTabataStart} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
+          style={{ height: 48, borderRadius: 12, background: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: '#FF6F20' }}>
+          ▶ התחל
+        </button>
+      </div>
+      {/* Scroll Picker */}
+      {picker && (
+        <ScrollPicker isOpen value={picker.value} onChange={picker.onChange} onClose={() => setPicker(null)}
+          options={picker.options} unit={picker.unit} />
+      )}
     </div>
   );
 }
