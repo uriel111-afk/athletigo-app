@@ -23,17 +23,24 @@ function HoldButton({ onClick, children, className, style }) {
   return <button onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={start} onTouchEnd={stop} className={className} style={style}>{children}</button>;
 }
 
-function NumberPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, label }) {
+function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, step = 1, unit = '', label = 'בחר ערך' }) {
   if (!isOpen) return null;
+  const values = [];
+  for (let i = min; i <= max; i += step) values.push(i);
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-[70vw] max-w-[200px] max-h-[50vh] overflow-hidden" style={{ border: `0.5px solid ${BRD}` }} onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-2.5 text-center font-bold text-base" style={{ borderBottom: `0.5px solid ${BRD}`, color: C1 }}>{label}</div>
-        <div className="overflow-y-auto max-h-[40vh]">
-          {Array.from({ length: max - min + 1 }, (_, i) => min + i).map(v => (
-            <button key={v} onClick={() => { onChange(v); onClose(); }}
-              className={`w-full py-2.5 text-center text-xl font-medium transition-colors ${v === value ? 'bg-orange-50' : 'hover:bg-gray-50'}`}
-              style={{ color: v === value ? BRAND : C1 }}>{String(v).padStart(2, '0')}</button>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxHeight: '60vh', direction: 'rtl' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: C1 }}>{label}</span>
+          <button onClick={onClose} style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 16, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>אישור</button>
+        </div>
+        <div style={{ overflowY: 'scroll', maxHeight: 280, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {values.map(v => (
+            <div key={v} onClick={() => onChange(v)} style={{
+              padding: '14px 20px', background: v === value ? '#FFF0E8' : 'transparent', borderRadius: 8,
+              fontSize: 22, fontWeight: v === value ? 900 : 500, fontFamily: FN, color: v === value ? BRAND : C1,
+              cursor: 'pointer', border: v === value ? `2px solid ${BRAND}` : '2px solid transparent', textAlign: 'center',
+            }}>{v}{unit ? ` ${unit}` : ''}</div>
           ))}
         </div>
       </div>
@@ -130,6 +137,21 @@ function StopwatchView() {
 }
 
 /* ═══ TIMER ═══ */
+function TimerCol({ label, value, onChange, max, step, unit }) {
+  const [picking, setPicking] = useState(false);
+  return (
+    <>
+      <div className="flex flex-col items-center gap-2">
+        <HoldButton onClick={() => onChange(Math.min(max, value + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
+        <div onClick={() => setPicking(true)} className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C1, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4, textDecorationColor: '#D1D5DB' }}>{String(value).padStart(2, '0')}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{label}</div>
+        <HoldButton onClick={() => onChange(Math.max(0, value - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
+      </div>
+      <ScrollPicker isOpen={picking} value={value} onChange={onChange} onClose={() => setPicking(false)} min={0} max={max} step={step || 1} unit={unit || ''} label={label} />
+    </>
+  );
+}
+
 function TimerView() {
   const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase } = useClock();
   const [prepSec, setPrepSec] = useState(0);
@@ -140,26 +162,13 @@ function TimerView() {
   const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
 
   if (showSetup) {
-    const cols = [
-      { l: 'דקות', v: timerMin, set: setTimerMin, max: 99 },
-      { l: 'שניות', v: timerSec, set: setTimerSec, max: 59 },
-    ];
     return (
       <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
         <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
-        {/* MM:SS input — LTR order: דקות left, שניות right */}
         <div className="flex items-center gap-3" dir="ltr">
-          {cols.map((p, idx) => (
-            <React.Fragment key={p.l}>
-              <div className="flex flex-col items-center gap-2">
-                <HoldButton onClick={() => p.set(Math.min(p.max, p.v + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
-                <div className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C1 }}>{String(p.v).padStart(2, '0')}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{p.l}</div>
-                <HoldButton onClick={() => p.set(Math.max(0, p.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
-              </div>
-              {idx === 0 && <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>}
-            </React.Fragment>
-          ))}
+          <TimerCol label="דקות" value={timerMin} onChange={setTimerMin} max={99} step={1} unit="דק׳" />
+          <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>
+          <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} step={5} unit="שנ׳" />
         </div>
         {/* Prep time */}
         <div className="flex items-center gap-3 w-full justify-center" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
@@ -218,6 +227,29 @@ function TimerView() {
         )}
       </div>
     </div>
+  );
+}
+
+function TabataRow({ row: r }) {
+  const [picking, setPicking] = useState(false);
+  return (
+    <>
+      <div className="flex items-center" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+        <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center justify-center" style={{ width: 38, height: 38, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16 }}>{r.icon}</div>
+          <span style={{ fontSize: r.small ? 17 : 19, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{r.l}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <HoldButton onClick={() => r.set(Math.max(r.min, r.v - (r.step || 1)))} className="flex items-center justify-center active:scale-90 transition-transform"
+            style={{ width: 38, height: 38, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>−</HoldButton>
+          <span onClick={() => setPicking(true)} className="tabular-nums text-center" style={{ fontSize: 32, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 48, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4, textDecorationColor: 'rgba(255,255,255,0.4)' }}>{r.v}</span>
+          <HoldButton onClick={() => r.set(Math.min(r.max, r.v + (r.step || 1)))} className="flex items-center justify-center active:scale-90 transition-transform"
+            style={{ width: 38, height: 38, borderRadius: '50%', backgroundColor: '#FFF', color: BRAND, fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
+        </div>
+      </div>
+      <ScrollPicker isOpen={picking} value={r.v} onChange={r.set} onClose={() => setPicking(false)}
+        min={r.min} max={r.max} step={r.step || 1} unit={r.unit || ''} label={r.l} />
+    </>
   );
 }
 
@@ -306,40 +338,28 @@ function TabataView() {
   // Settings — orange bg
   if (showSetup) {
     const rows = [
-      { icon: '⏱', l: 'הכנה', v: prepSec, set: setPrepSec, min: 0, max: 60 },
-      { icon: '💪', l: 'עבודה', v: workSec, set: setWorkSec, min: 1, max: 300 },
-      { icon: '😮‍💨', l: 'מנוחה', v: restSec, set: setRestSec, min: 0, max: 300 },
-      { icon: '🔄', l: 'מחזורים', v: rounds, set: setRounds, min: 1, max: 20 },
-      { icon: '📋', l: 'סטים', v: sets, set: setSets, min: 1, max: 10 },
-      { icon: '⏸', l: 'מנוחה בין סטים', v: setsRestSec, set: setSetsRestSec, min: 0, max: 300 },
-      { icon: '🔔', l: 'ספירה לאחור', v: countdownSec, set: setCountdownSec, min: 10, max: 300, small: true },
+      { icon: '⏱', l: 'הכנה', v: prepSec, set: setPrepSec, min: 0, max: 60, step: 1, unit: 'שנ׳' },
+      { icon: '💪', l: 'עבודה', v: workSec, set: setWorkSec, min: 5, max: 120, step: 5, unit: 'שנ׳' },
+      { icon: '😮‍💨', l: 'מנוחה', v: restSec, set: setRestSec, min: 5, max: 120, step: 5, unit: 'שנ׳' },
+      { icon: '🔄', l: 'מחזורים', v: rounds, set: setRounds, min: 1, max: 20, step: 1, unit: '×' },
+      { icon: '📋', l: 'סטים', v: sets, set: setSets, min: 1, max: 10, step: 1, unit: '×' },
+      { icon: '⏸', l: 'מנוחה בין סטים', v: setsRestSec, set: setSetsRestSec, min: 0, max: 180, step: 10, unit: 'שנ׳', small: true },
+      { icon: '🔔', l: 'ספירה לאחור', v: countdownSec, set: setCountdownSec, min: 0, max: 600, step: 30, unit: 'שנ׳', small: true },
     ];
     return (
-      <div dir="rtl" style={{ backgroundColor: BRAND, borderRadius: 12, margin: '0 -16px', touchAction: 'pan-y', userSelect: 'none' }}>
-        <div className="flex items-center justify-between" style={{ padding: '10px 16px', backgroundColor: 'rgba(0,0,0,0.15)' }}>
-          <span style={{ fontSize: 22, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
-          <span style={{ fontSize: 12, fontFamily: FL, color: 'rgba(255,255,255,0.85)' }}>
+      <div dir="rtl" style={{ backgroundColor: BRAND, borderRadius: 12, margin: '0 -16px', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', overflow: 'hidden' }}>
+        <div className="flex items-center justify-between" style={{ padding: '8px 16px', backgroundColor: 'rgba(0,0,0,0.15)' }}>
+          <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
+          <span style={{ fontSize: 11, fontFamily: FL, color: 'rgba(255,255,255,0.85)' }}>
             {fmtTotal(totalTime)} • {rounds * sets} אינטרוולים • {sets} סטים
           </span>
         </div>
         {rows.map(r => (
-          <div key={r.l} className="flex items-center" style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-            <div className="flex items-center gap-2.5 flex-1">
-              <div className="flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 18 }}>{r.icon}</div>
-              <span style={{ fontSize: r.small ? 18 : 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{r.l}</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <HoldButton onClick={() => r.set(Math.max(r.min, r.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform"
-                style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 24, fontWeight: 700, border: 'none' }}>−</HoldButton>
-              <span className="tabular-nums text-center" style={{ fontSize: 34, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 48 }}>{r.v}</span>
-              <HoldButton onClick={() => r.set(Math.min(r.max, r.v + 1))} className="flex items-center justify-center active:scale-90 transition-transform"
-                style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#FFF', color: BRAND, fontSize: 24, fontWeight: 700, border: 'none' }}>+</HoldButton>
-            </div>
-          </div>
+          <TabataRow key={r.l} row={r} />
         ))}
-        <div style={{ padding: '12px 16px' }}>
+        <div style={{ padding: '10px 16px' }}>
           <button onClick={startWithCountdown} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-            style={{ height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 22, fontWeight: 900, fontFamily: FL, color: BRAND }}>
+            style={{ height: 52, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: BRAND }}>
             ▶ התחל
           </button>
         </div>
