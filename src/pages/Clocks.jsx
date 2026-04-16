@@ -247,7 +247,7 @@ function TimerView() {
 }
 
 /* ═══ TABATA ═══ */
-function TabataView() {
+function TabataView({ onRunningChange }) {
   // === DISPLAY STATE ===
   const [tabataRunning, setTabataRunning] = useState(false);
   const [tabataPhase, setTabataPhase] = useState('הכנה');
@@ -530,12 +530,17 @@ function TabataView() {
     };
   }, []);
 
+  // Notify parent of active state
+  useEffect(() => {
+    onRunningChange?.(tabataScreen === 'running' || tabataScreen === 'countdown');
+  }, [tabataScreen, onRunningChange]);
+
   // === SCREENS ===
 
   // 3-2-1-GO
   if (tabataScreen === 'countdown') {
     return (
-      <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#FF6F20', height: '100%', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontSize: countdown321 === 'GO' ? 120 : 200, fontWeight: 900, color: 'white', lineHeight: 1, fontFamily: FN }}>{countdown321}</div>
       </div>
     );
@@ -544,7 +549,7 @@ function TabataView() {
   // Complete
   if (tabataScreen === 'complete') {
     return (
-      <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, direction: 'rtl', padding: 20 }}>
+      <div style={{ background: '#FF6F20', height: '100%', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, direction: 'rtl', padding: 20 }}>
         <div style={{ fontSize: 80, color: 'white' }}>✓</div>
         <div style={{ fontSize: 32, fontWeight: 900, color: 'white', fontFamily: FL }}>כל הכבוד! סיימת!</div>
         <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.8)', fontFamily: FL }}>{sets} סטים • {rounds} מחזורים</div>
@@ -556,7 +561,7 @@ function TabataView() {
   // Running
   if (tabataScreen === 'running') {
     return (
-      <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
+      <div style={{ background: '#FF6F20', height: '100%', minHeight: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
         {/* Header */}
         <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'white', letterSpacing: 1 }}>TABATA</div>
@@ -658,7 +663,7 @@ function TabataView() {
   ];
 
   return (
-    <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
+    <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '8px 20px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
@@ -711,27 +716,38 @@ const MODES = [
 ];
 
 export default function Clocks() {
-  const [mode, setMode] = useState('tabata');
+  const [activeTab, setActiveTab] = useState('tabata');
+  const [tabataActive, setTabataActive] = useState(false);
+
   return (
-    <div dir="rtl" style={{ backgroundColor: '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: '0 -16px', width: 'calc(100% + 32px)', maxWidth: 'none', boxSizing: 'border-box', overflowX: 'hidden' }}>
-      <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}` }}>
+    <div dir="rtl" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', boxSizing: 'border-box', overflowX: 'hidden' }}>
+      <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}`, flexShrink: 0 }}>
         <div className="flex" style={{ padding: '10px 12px 8px', gap: 8 }}>
           {MODES.map(m => {
-            const on = mode === m.id; const Icon = m.icon;
+            const on = activeTab === m.id; const Icon = m.icon;
             return (
-              <button key={m.id} onClick={() => setMode(m.id)}
+              <button key={m.id} onClick={() => setActiveTab(m.id)}
                 className="flex-1 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-                style={{ height: 42, borderRadius: 10, backgroundColor: on ? BRAND : BG2, color: on ? '#FFF' : C2, fontWeight: 700, fontSize: 16, fontFamily: FN, border: on ? 'none' : `0.5px solid ${BRD}` }}>
+                style={{ height: 42, borderRadius: 10, backgroundColor: on ? BRAND : BG2, color: on ? '#FFF' : C2, fontWeight: 700, fontSize: 16, fontFamily: FN, border: on ? 'none' : `0.5px solid ${BRD}`, position: 'relative' }}>
                 <Icon className="w-4 h-4" />{m.label}
+                {m.id === 'tabata' && tabataActive && !on && (
+                  <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: BRAND, animation: 'pulse 1s infinite' }} />
+                )}
               </button>
             );
           })}
         </div>
       </div>
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        {mode === 'tabata' && <TabataView />}
-        {mode === 'timer' && <TimerView />}
-        {mode === 'stopwatch' && <StopwatchView />}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
+        <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <TabataView onRunningChange={setTabataActive} />
+        </div>
+        <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <TimerView />
+        </div>
+        <div style={{ display: activeTab === 'stopwatch' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <StopwatchView />
+        </div>
       </div>
     </div>
   );

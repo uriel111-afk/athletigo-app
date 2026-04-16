@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
-import { useClock } from "@/contexts/ClockContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AdminCoachActivator from "@/components/AdminCoachActivator";
@@ -48,8 +47,7 @@ export default function Layout({ children, currentPageName }) {
   const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
-  const clock = useClock();
-  const clockFullscreen = clock?.isFullscreen === true && location.pathname.toLowerCase().includes('clock');
+  const isClocks = location.pathname.toLowerCase().includes('clock');
 
   // Scroll to top on page change
   useEffect(() => {
@@ -353,7 +351,7 @@ export default function Layout({ children, currentPageName }) {
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="md:hidden p-4 safe-area-top" style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-            display: clockFullscreen ? 'none' : undefined,
+            display: isClocks ? 'none' : undefined,
             backgroundColor: '#FFFFFF',
             borderBottom: `1px solid #E0E0E0`,
             boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
@@ -418,11 +416,15 @@ export default function Layout({ children, currentPageName }) {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto page-container" style={{
-            paddingLeft: '16px',
-            paddingRight: '16px',
-            paddingTop: clockFullscreen ? 0 : '64px',
-            paddingBottom: '80px',
+          <div className="flex-1 page-container" style={{
+            paddingLeft: isClocks ? 0 : '16px',
+            paddingRight: isClocks ? 0 : '16px',
+            paddingTop: isClocks ? 0 : '64px',
+            paddingBottom: isClocks ? 0 : '80px',
+            overflowY: isClocks ? 'hidden' : 'auto',
+            height: isClocks ? '100dvh' : undefined,
+            display: 'flex',
+            flexDirection: 'column',
             WebkitOverflowScrolling: 'touch',
             overflowX: 'hidden',
           }}>
@@ -436,7 +438,7 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Mobile Bottom Navigation — fixed to bottom */}
           <div className="md:hidden safe-area-bottom"
-               style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: '#FFFFFF', borderTop: '1px solid #E0E0E0', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)', display: clockFullscreen ? 'none' : undefined }}>
+               style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: '#FFFFFF', borderTop: '1px solid #E0E0E0', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)', display: isClocks ? 'none' : undefined }}>
             <div className="grid grid-cols-5 gap-1 p-2">
               {isCoach ? (
                 <>
