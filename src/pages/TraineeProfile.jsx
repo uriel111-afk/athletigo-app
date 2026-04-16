@@ -1702,14 +1702,25 @@ export default function TraineeProfile() {
                                 <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50"
                                   onClick={async (e) => {
                                     e.stopPropagation();
-                                    const newDate = prompt('ערוך תאריך (YYYY-MM-DD):', b.date);
-                                    if (!newDate || newDate === b.date) return;
+                                    const newDate = prompt('תאריך (YYYY-MM-DD):', b.date);
+                                    if (newDate === null) return;
+                                    const newScore = prompt('ציון JPS:', b.baseline_score);
+                                    if (newScore === null) return;
+                                    const newNotes = prompt('הערות:', b.notes || '');
+                                    if (newNotes === null) return;
                                     try {
-                                      await supabase.from('baselines').update({ date: newDate }).eq('id', b.id);
-                                      try { await supabase.from('results_log').update({ date: newDate }).eq('baseline_id', b.id); } catch {}
-                                      toast.success("תאריך עודכן");
+                                      const updates = {};
+                                      if (newDate && newDate !== b.date) updates.date = newDate;
+                                      if (newScore && parseFloat(newScore) !== b.baseline_score) updates.baseline_score = parseFloat(newScore);
+                                      if (newNotes !== (b.notes || '')) updates.notes = newNotes || null;
+                                      if (Object.keys(updates).length === 0) return;
+                                      await supabase.from('baselines').update(updates).eq('id', b.id);
+                                      if (updates.date) { try { await supabase.from('results_log').update({ date: updates.date }).eq('baseline_id', b.id); } catch {} }
+                                      if (updates.baseline_score) { try { await supabase.from('results_log').update({ record_value: String(updates.baseline_score) }).eq('baseline_id', b.id); } catch {} }
+                                      toast.success("בייסליין עודכן");
                                       queryClient.invalidateQueries({ queryKey: ['baselines'] });
                                       queryClient.invalidateQueries({ queryKey: ['my-results'] });
+                                      invalidateDashboard(queryClient);
                                     } catch (err) { toast.error("שגיאה: " + (err?.message || '')); }
                                   }}>
                                   <Edit2 className="w-4 h-4" />
