@@ -72,6 +72,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
   const [roundsCount, setRoundsCount] = useState(3);
   const [rounds, setRounds] = useState(Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })));
   const [notes, setNotes] = useState('');
+  const [baselineDate, setBaselineDate] = useState(new Date().toISOString().split('T')[0]);
   const [saving, setSaving] = useState(false);
 
   const hasChanges = rounds.some(r => r.jumps !== '' || r.misses !== '') || notes !== '';
@@ -111,9 +112,8 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
 
     setSaving(true);
     try {
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const timeStr = now.toTimeString().slice(0, 5);
+      const dateStr = baselineDate || new Date().toISOString().split('T')[0];
+      const timeStr = new Date().toTimeString().slice(0, 5);
       const roundsData = rounds.map((r, i) => ({ round: i + 1, jumps: parseInt(r.jumps) || 0, misses: parseInt(r.misses) || 0 }));
       const techLabel = TECHNIQUES.find(t => t.id === technique)?.label || technique;
 
@@ -193,6 +193,15 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
         </DialogHeader>
 
         <div className="px-3 pb-3 space-y-2">
+          {/* Date — editable for coach, shown for trainee */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-400">תאריך:</span>
+            <input type="date" value={baselineDate} onChange={e => setBaselineDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              className="text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1"
+              style={{ fontSize: 16 }} />
+          </div>
+
           {/* Technique Selection — compact horizontal */}
           <div className="grid grid-cols-3 gap-1.5">
             {TECHNIQUES.map(t => {
@@ -204,7 +213,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
                     ${active ? 'shadow-sm' : 'border-gray-100 bg-white'}`}
                   style={active ? { borderColor: t.color, backgroundColor: t.color + '10' } : {}}>
                   <Icon className="w-4 h-4" style={{ color: active ? t.color : '#9CA3AF' }} />
-                  <span className="text-[11px] font-black" style={{ color: active ? t.color : '#6B7280' }}>{t.label}</span>
+                  <span className="text-[11px] font-black" style={{ color: active ? t.color : '#6B7280' }}>{t.labelHe}</span>
                 </button>
               );
             })}
@@ -217,11 +226,11 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
             <TimePicker label="מנוחה" value={restTime} onChange={setRestTime} />
           </div>
 
-          {/* Round Inputs — compact */}
-          <div className="grid grid-cols-3 gap-1.5">
+          {/* Round Inputs — RTL horizontal */}
+          <div style={{ display: 'flex', flexDirection: 'row', direction: 'rtl', gap: 6, width: '100%' }}>
             {rounds.map((r, i) => (
-              <div key={i} className="bg-white rounded-lg border border-gray-200 p-1.5">
-                <div className="text-[9px] font-bold text-gray-400 text-center mb-0.5">R{i + 1}</div>
+              <div key={i} style={{ flex: 1 }} className="bg-white rounded-lg border border-gray-200 p-1.5">
+                <div className="text-[9px] font-bold text-gray-400 text-center mb-0.5">סיבוב {i + 1}</div>
                 <Input type="number" min={0} placeholder="קפיצות" value={r.jumps}
                   onChange={e => setRoundField(i, 'jumps', e.target.value)}
                   className="text-center font-black text-base h-8 border-[#FF6F20] focus-visible:ring-[#FF6F20] focus-visible:ring-1 mb-0.5" />
