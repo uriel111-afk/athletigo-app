@@ -380,14 +380,25 @@ function TabataView({ onRunningChange, onMinimize }) {
     phaseDuration: tabataPhaseDuration, currentRound: tabataCurrentRound, currentSet: tabataCurrentSet,
     countdown: tabataCountdown, countdown321 } = tabata;
 
-  // Settings state (local — only used in settings screen)
-  const [prepTime, setPrepTime] = useState(settingsRef.current.prepTime);
-  const [workTime, setWorkTime] = useState(settingsRef.current.workTime);
-  const [restTime, setRestTime] = useState(settingsRef.current.restTime);
-  const [rounds, setRounds] = useState(settingsRef.current.rounds);
-  const [sets, setSets] = useState(settingsRef.current.sets);
-  const [restBetweenSets, setRestBetweenSets] = useState(settingsRef.current.restBetweenSets);
-  const [countdownTime, setCountdownTime] = useState(settingsRef.current.countdownTime);
+  // Settings state — load from localStorage, fallback to context defaults
+  const loadSavedSettings = () => {
+    try { const s = localStorage.getItem('tabata_settings'); if (s) return JSON.parse(s); } catch(e) {}
+    return null;
+  };
+  const saved = useRef(loadSavedSettings()).current;
+
+  const [prepTime, setPrepTime] = useState(saved?.prepTime ?? settingsRef.current.prepTime);
+  const [workTime, setWorkTime] = useState(saved?.workTime ?? settingsRef.current.workTime);
+  const [restTime, setRestTime] = useState(saved?.restTime ?? settingsRef.current.restTime);
+  const [rounds, setRounds] = useState(saved?.rounds ?? settingsRef.current.rounds);
+  const [sets, setSets] = useState(saved?.sets ?? settingsRef.current.sets);
+  const [restBetweenSets, setRestBetweenSets] = useState(saved?.restBetweenSets ?? settingsRef.current.restBetweenSets);
+  const [countdownTime, setCountdownTime] = useState(saved?.countdownTime ?? settingsRef.current.countdownTime);
+
+  // Save settings to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem('tabata_settings', JSON.stringify({ prepTime, workTime, restTime, rounds, sets, restBetweenSets, countdownTime }));
+  }, [prepTime, workTime, restTime, rounds, sets, restBetweenSets, countdownTime]);
 
   const [picker, setPicker] = useState(null);
 
