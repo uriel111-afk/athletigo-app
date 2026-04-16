@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
+import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
 const MinimizeBtn = ({ onClick }) => (
   <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -374,55 +375,20 @@ function TimerView({ onMinimize }) {
 
 /* ═══ TABATA ═══ */
 function TabataView({ onRunningChange, onMinimize }) {
-  // === DISPLAY STATE ===
-  const [tabataRunning, setTabataRunning] = useState(false);
-  const [tabataPhase, setTabataPhase] = useState('הכנה');
-  const [tabataTimeLeft, setTabataTimeLeft] = useState(0);
-  const [tabataPhaseDuration, setTabataPhaseDuration] = useState(0);
-  const [tabataCurrentRound, setTabataCurrentRound] = useState(1);
-  const [tabataCurrentSet, setTabataCurrentSet] = useState(1);
-  const [tabataCountdown, setTabataCountdown] = useState(0);
-  const [countdown321, setCountdown321] = useState(3);
-  const [tabataScreen, setTabataScreen] = useState('settings');
+  const { tabata, phaseChange, startTabata, pauseTabata, resetTabata, settingsRef } = useActiveTimer();
+  const { screen: tabataScreen, running: tabataRunning, phase: tabataPhase, timeLeft: tabataTimeLeft,
+    phaseDuration: tabataPhaseDuration, currentRound: tabataCurrentRound, currentSet: tabataCurrentSet,
+    countdown: tabataCountdown, countdown321 } = tabata;
 
-  // Settings state
-  const [prepTime, setPrepTime] = useState(10);
-  const [workTime, setWorkTime] = useState(20);
-  const [restTime, setRestTime] = useState(10);
-  const [rounds, setRounds] = useState(8);
-  const [sets, setSets] = useState(3);
-  const [restBetweenSets, setRestBetweenSets] = useState(60);
-  const [countdownTime, setCountdownTime] = useState(30);
+  // Settings state (local — only used in settings screen)
+  const [prepTime, setPrepTime] = useState(settingsRef.current.prepTime);
+  const [workTime, setWorkTime] = useState(settingsRef.current.workTime);
+  const [restTime, setRestTime] = useState(settingsRef.current.restTime);
+  const [rounds, setRounds] = useState(settingsRef.current.rounds);
+  const [sets, setSets] = useState(settingsRef.current.sets);
+  const [restBetweenSets, setRestBetweenSets] = useState(settingsRef.current.restBetweenSets);
+  const [countdownTime, setCountdownTime] = useState(settingsRef.current.countdownTime);
 
-  // Interval refs
-  const tabataIntervalRef = useRef(null);
-  const countdown321Ref = useRef(null);
-  const parallelCountdownRef = useRef(null);
-  const parallelCountdownVal = useRef(0);
-  const wakeLockRef = useRef(null);
-  const hiddenAtRef = useRef(null);
-
-  // Refs for current phase/round/set — avoids stale closures in setInterval
-  const phaseRef = useRef('הכנה');
-  const timeLeftRef = useRef(0);
-  const roundRef = useRef(1);
-  const setNumRef = useRef(1);
-
-  // Refs for settings — avoids stale closures
-  const workTimeRef = useRef(workTime);
-  const restTimeRef = useRef(restTime);
-  const roundsRef = useRef(rounds);
-  const setsRef = useRef(sets);
-  const restBetweenRef = useRef(restBetweenSets);
-
-  // Keep settings refs in sync
-  useEffect(() => { workTimeRef.current = workTime; }, [workTime]);
-  useEffect(() => { restTimeRef.current = restTime; }, [restTime]);
-  useEffect(() => { roundsRef.current = rounds; }, [rounds]);
-  useEffect(() => { setsRef.current = sets; }, [sets]);
-  useEffect(() => { restBetweenRef.current = restBetweenSets; }, [restBetweenSets]);
-
-  // Picker state
   const [picker, setPicker] = useState(null);
 
   // === HELPERS ===
@@ -445,223 +411,26 @@ function TabataView({ onRunningChange, onMinimize }) {
     return { label: '', duration: 0 };
   };
 
-  // === CORE INTERVAL ===
-  const startInterval = useCallback(() => {
-    clearInterval(tabataIntervalRef.current);
-    tabataIntervalRef.current = setInterval(() => {
-      setTabataTimeLeft(prev => {
-        if (prev <= 1) {
-          setTimeout(() => advancePhase(), 0);
-          return prev;
-        }
-        const next = prev - 1;
-        timeLeftRef.current = next;
-        if (next === 3 || next === 2 || next === 1) playCountdownBeep();
-        return next;
-      });
-    }, 1000);
-  }, []);
+  // === SOUNDS via phaseChange from context ===
+  const lastPhaseChangeRef = useRef(null);
+  useEffect(() => {
+    if (!phaseChange || phaseChange === lastPhaseChangeRef.current) return;
+    lastPhaseChangeRef.current = phaseChange;
+    const p = phaseChange.phase;
+    if (p === 'countdown') playCountdownBeep();
+    else if (p === 'go') playGoSound();
+    else if (p === 'עבודה') playWorkSound();
+    else if (p === 'מנוחה') playRestSound();
+    else if (p === 'מנוחה בין סטים') playRestBetweenSetsSound();
+    else if (p === 'complete' || p === 'parallel_done') playCompleteSound();
+    else if (p === 'tick') playCountdownBeep();
+  }, [phaseChange]);
 
-  const advancePhase = useCallback(() => {
-    const phase = phaseRef.current;
-    const round = roundRef.current;
-    const set = setNumRef.current;
-
-    let newPhase, newTime, newRound = round, newSet = set;
-
-    if (phase === 'הכנה') {
-      newPhase = 'עבודה'; newTime = workTimeRef.current;
-    } else if (phase === 'עבודה') {
-      newPhase = 'מנוחה'; newTime = restTimeRef.current;
-    } else if (phase === 'מנוחה') {
-      if (round < roundsRef.current) {
-        newRound = round + 1;
-        newPhase = 'עבודה'; newTime = workTimeRef.current;
-      } else if (set < setsRef.current) {
-        newRound = 1; newSet = set + 1;
-        newPhase = 'מנוחה בין סטים'; newTime = restBetweenRef.current;
-      } else {
-        // COMPLETE
-        clearInterval(tabataIntervalRef.current);
-        clearInterval(parallelCountdownRef.current);
-        setTabataScreen('complete');
-        setTabataRunning(false);
-        playEndBeeps();
-        releaseWakeLock();
-        return;
-      }
-    } else if (phase === 'מנוחה בין סטים') {
-      newPhase = 'עבודה'; newTime = workTimeRef.current;
-    } else {
-      return;
-    }
-
-    // Update refs
-    phaseRef.current = newPhase;
-    timeLeftRef.current = newTime;
-    roundRef.current = newRound;
-    setNumRef.current = newSet;
-
-    // Play phase transition sound
-    if (newPhase === 'עבודה') playWorkSound();
-    else if (newPhase === 'מנוחה') playRestSound();
-    else if (newPhase === 'מנוחה בין סטים') playRestBetweenSetsSound();
-
-    // Update state for display
-    setTabataPhase(newPhase);
-    setTabataTimeLeft(newTime);
-    setTabataPhaseDuration(newTime);
-    setTabataCurrentRound(newRound);
-    setTabataCurrentSet(newSet);
-
-    // Restart interval for new phase
-    clearInterval(tabataIntervalRef.current);
-    startInterval();
-  }, [startInterval]);
-
-  // === START / PAUSE / RESET ===
+  // === HANDLERS ===
   const handleTabataStart = () => {
     unlockAudio();
-    setTabataScreen('countdown');
-    setCountdown321(3);
-    playCountdownBeep();
-
-    let count = 3;
-    countdown321Ref.current = setInterval(() => {
-      count -= 1;
-      if (count > 0) {
-        setCountdown321(count);
-        playCountdownBeep();
-      } else {
-        clearInterval(countdown321Ref.current);
-        setCountdown321('GO');
-        playGoSound();
-        setTimeout(() => {
-          const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
-          const initTime = prepTime > 0 ? prepTime : workTime;
-
-          // Set refs
-          phaseRef.current = initPhase;
-          timeLeftRef.current = initTime;
-          roundRef.current = 1;
-          setNumRef.current = 1;
-
-          // Set state
-          setTabataPhase(initPhase);
-          setTabataTimeLeft(initTime);
-          setTabataPhaseDuration(initTime);
-          setTabataCurrentRound(1);
-          setTabataCurrentSet(1);
-          setTabataRunning(true);
-          setTabataScreen('running');
-
-          // Parallel countdown
-          parallelCountdownVal.current = countdownTime;
-          setTabataCountdown(countdownTime);
-          parallelCountdownRef.current = setInterval(() => {
-            parallelCountdownVal.current -= 1;
-            setTabataCountdown(parallelCountdownVal.current);
-            if (parallelCountdownVal.current <= 0) {
-              clearInterval(parallelCountdownRef.current);
-              playEndBeeps();
-            }
-          }, 1000);
-
-          startInterval();
-          requestWakeLock();
-        }, 800);
-      }
-    }, 1000);
+    startTabata({ prepTime, workTime, restTime, rounds, sets, restBetweenSets, countdownTime });
   };
-
-  const handleTabataPause = () => {
-    if (tabataRunning) {
-      clearInterval(tabataIntervalRef.current);
-      clearInterval(parallelCountdownRef.current);
-      setTabataRunning(false);
-    } else {
-      setTabataRunning(true);
-      // Sync refs from current state before restarting
-      phaseRef.current = tabataPhase;
-      timeLeftRef.current = tabataTimeLeft;
-      roundRef.current = tabataCurrentRound;
-      setNumRef.current = tabataCurrentSet;
-      startInterval();
-      // Resume parallel countdown
-      parallelCountdownRef.current = setInterval(() => {
-        parallelCountdownVal.current -= 1;
-        setTabataCountdown(parallelCountdownVal.current);
-        if (parallelCountdownVal.current <= 0) clearInterval(parallelCountdownRef.current);
-      }, 1000);
-    }
-  };
-
-  const handleTabataReset = () => {
-    clearInterval(tabataIntervalRef.current);
-    clearInterval(parallelCountdownRef.current);
-    clearInterval(countdown321Ref.current);
-    setTabataScreen('settings');
-    setTabataRunning(false);
-    setTabataPhase('הכנה');
-    setTabataTimeLeft(0);
-    setTabataCurrentRound(1);
-    setTabataCurrentSet(1);
-    setTabataCountdown(countdownTime);
-    phaseRef.current = 'הכנה';
-    timeLeftRef.current = 0;
-    roundRef.current = 1;
-    setNumRef.current = 1;
-    releaseWakeLock();
-  };
-
-  // === WAKE LOCK ===
-  const requestWakeLock = async () => {
-    try {
-      if ('wakeLock' in navigator) {
-        wakeLockRef.current = await navigator.wakeLock.request('screen');
-      }
-    } catch (err) { console.log('WakeLock:', err); }
-  };
-
-  const releaseWakeLock = () => {
-    if (wakeLockRef.current) {
-      wakeLockRef.current.release();
-      wakeLockRef.current = null;
-    }
-  };
-
-  // Re-acquire on visibility change
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && tabataRunning) {
-        requestWakeLock();
-        if (hiddenAtRef.current) {
-          const elapsed = Math.floor((Date.now() - hiddenAtRef.current) / 1000);
-          setTabataTimeLeft(prev => {
-            const newTime = prev - elapsed;
-            if (newTime <= 0) return 1; // let advancePhase handle it
-            timeLeftRef.current = newTime;
-            return newTime;
-          });
-          hiddenAtRef.current = null;
-        }
-      } else if (document.visibilityState === 'hidden' && tabataRunning) {
-        hiddenAtRef.current = Date.now();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [tabataRunning]);
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      clearInterval(tabataIntervalRef.current);
-      clearInterval(parallelCountdownRef.current);
-      clearInterval(countdown321Ref.current);
-      releaseWakeLock();
-    };
-  }, []);
 
   // Notify parent of active state
   useEffect(() => {
@@ -686,7 +455,7 @@ function TabataView({ onRunningChange, onMinimize }) {
         <div style={{ fontSize: 80, color: 'white' }}>✓</div>
         <div style={{ fontSize: 32, fontWeight: 900, color: 'white', fontFamily: FL }}>כל הכבוד! סיימת!</div>
         <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.8)', fontFamily: FL }}>{sets} סטים • {rounds} מחזורים</div>
-        <button onClick={handleTabataReset} style={{ marginTop: 20, width: '100%', height: 56, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>התחל מחדש</button>
+        <button onClick={resetTabata} style={{ marginTop: 20, width: '100%', height: 56, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>התחל מחדש</button>
       </div>
     );
   }
@@ -760,8 +529,8 @@ function TabataView({ onRunningChange, onMinimize }) {
 
           {/* Controls */}
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={handleTabataReset} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: FL }}>עצור</button>
-            <button onClick={handleTabataPause} style={{ flex: 2, height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>
+            <button onClick={resetTabata} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: FL }}>עצור</button>
+            <button onClick={pauseTabata} style={{ flex: 2, height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>
               {tabataRunning ? 'השהה ‖' : 'המשך ▶'}
             </button>
           </div>
@@ -861,17 +630,6 @@ export default function Clocks() {
   const handleMinimize = useCallback(() => {
     navigate(-1);
   }, [navigate]);
-
-  // FIX 2 — Intercept back button when any timer is running
-  useEffect(() => {
-    if (!anyRunning) return;
-    const handlePopState = () => {
-      window.history.pushState(null, '', window.location.href);
-    };
-    window.history.pushState(null, '', window.location.href);
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [anyRunning]);
 
   // FIX 3 — Unified wake lock for all timers
   const globalWakeLockRef = useRef(null);

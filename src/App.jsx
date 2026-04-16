@@ -14,6 +14,7 @@ import AppLoader from '@/components/AppLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import { ClockProvider } from './contexts/ClockContext';
+import { ActiveTimerProvider } from './contexts/ActiveTimerContext';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
 import TraineeHome from './pages/TraineeHome';
 
@@ -144,6 +145,7 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <ClockProvider>
+        <ActiveTimerProvider>
           <Router>
             <NavigationTracker />
             <Routes>
@@ -153,6 +155,7 @@ function App() {
           </Router>
           <Toaster />
           <VisualEditAgent />
+        </ActiveTimerProvider>
         </ClockProvider>
       </QueryClientProvider>
     </AuthProvider>
