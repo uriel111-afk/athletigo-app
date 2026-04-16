@@ -81,6 +81,21 @@ export function ClockProvider({ children }) {
     return () => { wakeLockRef.current?.release().catch(() => {}); };
   }, [isRunning]);
 
+  // Re-acquire wake lock when page becomes visible again
+  useEffect(() => {
+    const handler = async () => {
+      if (document.visibilityState === 'visible' && isRunning) {
+        try {
+          if ('wakeLock' in navigator) {
+            wakeLockRef.current = await navigator.wakeLock.request('screen');
+          }
+        } catch {}
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [isRunning]);
+
   const ensureAudio = useCallback(() => {
     if (!audioCtxRef.current) audioCtxRef.current = createAudioCtx();
     if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume();

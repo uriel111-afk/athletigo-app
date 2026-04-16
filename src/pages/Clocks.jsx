@@ -407,9 +407,7 @@ function TabataView() {
   }
 
   // ── Running screen — orange bg, mobile-fit ──
-  const RR = 106, circR = 2 * Math.PI * RR;
   const ringProgress = totalDuration > 0 ? display / totalDuration : 0;
-  const ringOffset = circR * (1 - Math.max(0, Math.min(1, ringProgress)));
   let setStr = '—', roundStr = '—';
   if (roundInfo) { roundInfo.split('•').map(x => x.trim()).forEach(p => { if (p.startsWith('סט')) setStr = p.replace('סט ', ''); if (p.startsWith('סיבוב')) roundStr = p.replace('סיבוב ', ''); }); }
   let nextLabel = '', nextDur = 0;
@@ -420,13 +418,15 @@ function TabataView() {
   const elapsedMs = totalDuration > 0 ? totalDuration - display : 0;
   const remainingSec = Math.max(0, totalTime - Math.floor(elapsedMs / 1000));
 
-  return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center" dir="rtl"
-      style={{ backgroundColor: BRAND, padding: '0 16px 90px', touchAction: 'pan-y', userSelect: 'none' }}>
+  const ringR = 142, ringCirc = 2 * Math.PI * ringR;
+  const ringOff = ringCirc * (1 - Math.max(0, Math.min(1, ringProgress)));
 
-      {/* Header bar */}
-      <div className="w-full flex items-center justify-between" style={{ padding: '10px 20px', backgroundColor: 'rgba(0,0,0,0.15)' }}>
-        <div className="flex items-center gap-3">
+  return (
+    <div style={{ background: BRAND, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl' }}>
+
+      {/* Header */}
+      <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
           <button onClick={minimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#FFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             ⬇ מזער
@@ -434,66 +434,71 @@ function TabataView() {
         </div>
         {countdownRemaining !== null && countdownRemaining > 0 && (
           <span className="tabular-nums" style={{ fontSize: 13, fontFamily: FN, color: 'rgba(255,255,255,0.85)' }}>
-            ספירה לאחור: {fmtTotal(countdownRemaining)}
+            {fmtTotal(countdownRemaining)}
           </span>
         )}
       </div>
 
-      {/* Phase label */}
-      <div style={{ fontSize: 40, fontWeight: 900, fontFamily: FL, color: '#FFF', marginTop: 4 }}>{phaseLabel}</div>
+      {/* Content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 16px', gap: 12 }}>
 
-      {/* Ring + time — 240×240, r=106 */}
-      <div className="relative flex-shrink-0" style={{ width: 240, height: 240, marginTop: 2 }}>
-        <svg width="240" height="240" viewBox="0 0 240 240">
-          <circle cx="120" cy="120" r={RR} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
-          <circle cx="120" cy="120" r={RR} fill="none" stroke="#FFF" strokeWidth="10" strokeLinecap="round"
-            strokeDasharray={circR} strokeDashoffset={ringOffset} transform="rotate(-90 120 120)"
-            style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="tabular-nums leading-none" style={{ fontSize: 'clamp(100px, 20vh, 160px)', fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{fmt(display)}</span>
-        </div>
-      </div>
+        {/* Phase */}
+        <div style={{ fontSize: 48, fontWeight: 900, fontFamily: FL, color: '#FFF', letterSpacing: 1 }}>{phaseLabel}</div>
 
-      {/* Stats row */}
-      <div className="flex w-full" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '8px 16px', marginTop: 4 }}>
-        {[
-          { l: 'סיבוב', v: roundStr },
-          { l: 'סט', v: setStr },
-          { l: 'נותר', v: fmtTotal(remainingSec) },
-        ].map((c, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center" style={{ borderRight: i > 0 ? '1px solid rgba(255,255,255,0.2)' : 'none' }}>
-            <span style={{ fontSize: 12, fontWeight: 500, fontFamily: FL, color: 'rgba(255,255,255,0.7)' }}>{c.l}</span>
-            <span className="tabular-nums" style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{c.v}</span>
+        {/* Ring + number — 310×310 */}
+        <div style={{ position: 'relative', width: 310, height: 310, flexShrink: 0 }}>
+          <svg width="310" height="310" viewBox="0 0 310 310">
+            <circle cx="155" cy="155" r={ringR} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
+            <circle cx="155" cy="155" r={ringR} fill="none" stroke="#FFF" strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={ringCirc} strokeDashoffset={ringOff} transform="rotate(-90 155 155)"
+              style={{ transition: 'stroke-dashoffset 0.9s linear' }} />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="tabular-nums" style={{ fontSize: 148, fontWeight: 900, fontFamily: FN, color: '#FFF', lineHeight: 1, letterSpacing: -6 }}>{fmt(display)}</span>
           </div>
-        ))}
-      </div>
-
-      {/* Next phase */}
-      {nextLabel && (
-        <div className="flex items-center justify-between w-full" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '10px 16px', marginTop: 6 }}>
-          <span style={{ fontSize: 20, fontWeight: 700, fontFamily: FL, color: 'rgba(255,255,255,0.9)' }}>הבא: {nextLabel}</span>
-          <span className="tabular-nums" style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{nextDur} שנ׳</span>
         </div>
-      )}
 
-      {/* Controls */}
-      <div className="flex w-full" style={{ gap: 10, marginTop: 8 }}>
-        <button onClick={stop} className="flex items-center justify-center active:scale-90 transition-transform"
-          style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF', border: 'none' }}>
-          <RotateCcw className="w-4 h-4 ml-1.5" />אפס
-        </button>
-        {isRunning ? (
-          <button onClick={pause} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: BRAND }}>
-            <Pause className="w-5 h-5 ml-2" />השהה
-          </button>
-        ) : (
-          <button onClick={resume} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: BRAND }}>
-            <Play className="w-5 h-5 ml-2" />המשך
-          </button>
+        {/* Stats */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px 16px' }}>
+          {[
+            { l: 'סיבוב', v: roundStr },
+            { l: 'סט', v: setStr },
+            { l: 'נותר', v: fmtTotal(remainingSec) },
+          ].map((c, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />}
+              <div style={{ textAlign: 'center', flex: 1 }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>{c.l}</div>
+                <div className="tabular-nums" style={{ fontSize: 26, fontWeight: 900, color: '#FFF', fontFamily: FN }}>{c.v}</div>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Next phase */}
+        {nextLabel && (
+          <div style={{ width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: 'rgba(255,255,255,0.9)' }}>הבא: {nextLabel}</span>
+            <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>{nextDur} שנ׳</span>
+          </div>
         )}
+
+        {/* Controls */}
+        <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+          <button onClick={stop} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: '#FFF', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>
+            אפס
+          </button>
+          {isRunning ? (
+            <button onClick={pause} style={{ flex: 2, height: 52, background: '#FFF', color: BRAND, border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, fontFamily: FL, cursor: 'pointer' }}>
+              השהה ‖
+            </button>
+          ) : (
+            <button onClick={resume} style={{ flex: 2, height: 52, background: '#FFF', color: BRAND, border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, fontFamily: FL, cursor: 'pointer' }}>
+              המשך ▶
+            </button>
+          )}
+        </div>
+
       </div>
     </div>
   );
