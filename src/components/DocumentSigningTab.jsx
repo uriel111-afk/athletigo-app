@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, CheckCircle, Download, Eye, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { Loader2, FileText, CheckCircle, Download, Eye, ChevronDown, ChevronUp, AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -357,6 +357,21 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     }
   };
 
+  const handleDeleteDocument = async (docId, isSigned) => {
+    if (isSigned) {
+      const confirmed = window.confirm('האם למחוק מסמך חתום? פעולה זו אינה הפיכה.');
+      if (!confirmed) return;
+    }
+    try {
+      const { error } = await supabase.from('signed_documents').delete().eq('id', docId);
+      if (error) throw error;
+      toast.success("המסמך נמחק");
+      await fetchDocs();
+    } catch (e) {
+      toast.error("שגיאה במחיקה: " + (e?.message || "נסה שוב"));
+    }
+  };
+
   const handleSign = async (docType, signatureDataUrl, pdfFile, metadata) => {
     setSigning(docType);
     try {
@@ -442,6 +457,12 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                 <span className="font-bold text-sm text-gray-900">{doc.label}</span>
               </div>
               <div className="flex items-center gap-2">
+                {isCoach && doc.record?.id && (
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.record.id, isSigned); }}
+                    className="p-1 rounded-full hover:bg-red-50 transition-colors" title="מחק מסמך">
+                    <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
+                  </button>
+                )}
                 {isSigned ? (
                   <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
                     <CheckCircle className="w-3 h-3" /> נחתם
