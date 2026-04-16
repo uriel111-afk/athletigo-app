@@ -1,6 +1,16 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
+
+const MinimizeBtn = ({ onClick }) => (
+  <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+      <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+      <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+    </svg>
+  </button>
+);
 
 const BRAND = '#FF6F20';
 const FN = "'Barlow Condensed', system-ui, sans-serif";
@@ -188,7 +198,7 @@ function playCompleteSound() {
 function playEndBeeps() { playCompleteSound(); }
 
 /* ═══ STOPWATCH ═══ */
-function StopwatchView() {
+function StopwatchView({ onMinimize }) {
   const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps } = useClock();
   const active = activeClock === 'stopwatch';
 
@@ -196,7 +206,10 @@ function StopwatchView() {
     return (
       <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
         style={{ backgroundColor: BRAND, padding: '20px 16px 100px', gap: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <MinimizeBtn onClick={onMinimize} />
+          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
+        </div>
         <div className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: '#FFF', letterSpacing: -2 }}>
           {fmtStopwatch(display)}
         </div>
@@ -265,7 +278,7 @@ function TimerCol({ label, value, onChange, max, step, unit }) {
   );
 }
 
-function TimerView() {
+function TimerView({ onMinimize }) {
   const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase } = useClock();
   const [prepSec, setPrepSec] = useState(0);
   const [timerMin, setTimerMin] = useState(0);
@@ -308,8 +321,16 @@ function TimerView() {
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
       style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16 }}>
-      <div className="transition-colors duration-300" style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: isPrep ? C2 : BRAND }}>
-        {isPrep ? 'הכנה' : 'ספירה לאחור'}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={onMinimize} style={{ background: '#FFF0E8', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={BRAND} strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+            <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+          </svg>
+        </button>
+        <div className="transition-colors duration-300" style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: isPrep ? C2 : BRAND }}>
+          {isPrep ? 'הכנה' : 'ספירה לאחור'}
+        </div>
       </div>
       <div className="relative flex-shrink-0" style={{ width: 280, height: 280 }}>
         <svg width="280" height="280" viewBox="0 0 280 280">
@@ -344,7 +365,7 @@ function TimerView() {
 }
 
 /* ═══ TABATA ═══ */
-function TabataView({ onRunningChange }) {
+function TabataView({ onRunningChange, onMinimize }) {
   // === DISPLAY STATE ===
   const [tabataRunning, setTabataRunning] = useState(false);
   const [tabataPhase, setTabataPhase] = useState('הכנה');
@@ -668,6 +689,7 @@ function TabataView({ onRunningChange }) {
       <div style={{ background: '#FF6F20', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {/* Header */}
         <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, minHeight: 56 }}>
+          <MinimizeBtn onClick={onMinimize} />
           <div style={{ fontSize: 22, fontWeight: 900, color: 'white', letterSpacing: 1 }}>TABATA</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>ספירה לאחור</div>
@@ -821,11 +843,16 @@ const MODES = [
 ];
 
 export default function Clocks() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tabata');
   const [tabataActive, setTabataActive] = useState(false);
   const clock = useClock();
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = tabataActive || timerOrStopwatchRunning;
+
+  const handleMinimize = useCallback(() => {
+    navigate(-1);
+  }, [navigate]);
 
   // FIX 2 — Intercept back button when any timer is running
   useEffect(() => {
@@ -900,13 +927,13 @@ export default function Clocks() {
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
         <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <TabataView onRunningChange={setTabataActive} />
+          <TabataView onRunningChange={setTabataActive} onMinimize={handleMinimize} />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <TimerView />
+          <TimerView onMinimize={handleMinimize} />
         </div>
         <div style={{ display: activeTab === 'stopwatch' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <StopwatchView />
+          <StopwatchView onMinimize={handleMinimize} />
         </div>
       </div>
     </div>
