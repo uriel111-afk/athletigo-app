@@ -328,60 +328,79 @@ function TabataView() {
   }
 
   // Settings — orange bg
-  const [picker, setPicker] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(null);
   const rng = (min, max, step) => { const a = []; for (let i = min; i <= max; i += step) a.push(i); return a; };
+
+  const pickerConfigs = {
+    prep:     { options: rng(0, 60, 1),   unit: 'שנ׳' },
+    work:     { options: rng(5, 120, 5),  unit: 'שנ׳' },
+    rest:     { options: rng(0, 120, 5),  unit: 'שנ׳' },
+    rounds:   { options: rng(1, 30, 1),   unit: '×' },
+    sets:     { options: rng(1, 10, 1),   unit: '×' },
+    restBtw:  { options: rng(0, 180, 10), unit: 'שנ׳' },
+    countdown:{ options: rng(0, 600, 30), unit: 'שנ׳' },
+  };
 
   if (showSetup) {
     const totalSecs = (prepSec + (workSec + restSec) * rounds) * sets + (sets > 1 ? setsRestSec * (sets - 1) : 0);
-    const rows = [
-      { icon: '⏱', l: 'הכנה', v: prepSec, set: setPrepSec, opts: rng(0,60,1), unit: 'שנ׳', step: 1 },
-      { icon: '💪', l: 'עבודה', v: workSec, set: setWorkSec, opts: rng(5,120,5), unit: 'שנ׳', step: 5 },
-      { icon: '😮‍💨', l: 'מנוחה', v: restSec, set: setRestSec, opts: rng(0,120,5), unit: 'שנ׳', step: 5 },
-      { icon: '🔄', l: 'מחזורים', v: rounds, set: setRounds, opts: rng(1,30,1), unit: '×', step: 1 },
-      { icon: '📋', l: 'סטים', v: sets, set: setSets, opts: rng(1,10,1), unit: '×', step: 1 },
-      { icon: '⏸', l: 'מנוחה בין סטים', v: setsRestSec, set: setSetsRestSec, opts: rng(0,180,10), unit: 'שנ׳', step: 10, small: true },
-      { icon: '🔔', l: 'ספירה לאחור', v: countdownSec, set: setCountdownSec, opts: rng(0,600,30), unit: 'שנ׳', step: 30, small: true },
+    const mm = String(Math.floor(totalSecs / 60)).padStart(2, '0');
+    const ss = String(totalSecs % 60).padStart(2, '0');
+
+    const params = [
+      { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepSec,      setter: setPrepSec,      step: 1,  lbl: 22 },
+      { key: 'work',     icon: '💪', label: 'עבודה',           value: workSec,      setter: setWorkSec,      step: 5,  lbl: 22 },
+      { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restSec,      setter: setRestSec,      step: 5,  lbl: 22 },
+      { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,       setter: setRounds,       step: 1,  lbl: 22 },
+      { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,         setter: setSets,         step: 1,  lbl: 22 },
+      { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: setsRestSec,  setter: setSetsRestSec,  step: 10, lbl: 20 },
+      { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownSec, setter: setCountdownSec, step: 30, lbl: 20 },
     ];
+
     return (
-      <div dir="rtl" style={{ backgroundColor: BRAND, borderRadius: 12, margin: '0 -16px', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 178px)' }}>
+      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', borderRadius: 12, margin: '0 -16px' }}>
         {/* Header */}
-        <div className="flex items-center justify-between" style={{ padding: '10px 16px', backgroundColor: 'rgba(0,0,0,0.15)', flexShrink: 0 }}>
+        <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
-          <span style={{ fontSize: 15, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-            {fmtTotal(totalSecs)} • {rounds} סיבובים • {sets} סטים
-          </span>
+          <span style={{ fontSize: 15, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{mm}:{ss} • {rounds} סיבובים • {sets} סטים</span>
         </div>
         {/* Rows */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', overflow: 'hidden' }}>
-          {rows.map(r => (
-            <div key={r.l} className="flex items-center" style={{ height: 64, padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-              <div className="flex items-center flex-1" style={{ gap: 10 }}>
-                <div className="flex items-center justify-center" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 14 }}>{r.icon}</div>
-                <span style={{ fontSize: r.small ? 20 : 22, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{r.l}</span>
+          {params.map(p => {
+            const cfg = pickerConfigs[p.key];
+            return (
+              <div key={p.key} style={{ height: 64, padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{p.icon}</div>
+                  <span style={{ fontSize: p.lbl, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{p.label}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <HoldButton onClick={() => p.setter(Math.max(cfg.options[0], p.value - p.step))}
+                    className="flex items-center justify-center active:scale-90 transition-transform"
+                    style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>−</HoldButton>
+                  <span onClick={() => setPickerOpen({ value: p.value, options: cfg.options, unit: cfg.unit, onChange: p.setter })}
+                    style={{ fontSize: 28, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 42, textAlign: 'center', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{p.value}</span>
+                  <HoldButton onClick={() => p.setter(Math.min(cfg.options[cfg.options.length - 1], p.value + p.step))}
+                    className="flex items-center justify-center active:scale-90 transition-transform"
+                    style={{ width: 36, height: 36, borderRadius: '50%', background: '#FFF', color: '#FF6F20', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
+                </div>
               </div>
-              <div className="flex items-center" style={{ gap: 8 }}>
-                <HoldButton onClick={() => r.set(Math.max(r.opts[0], r.v - r.step))} className="flex items-center justify-center active:scale-90 transition-transform"
-                  style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>−</HoldButton>
-                <span onClick={() => setPicker({ value: r.v, options: r.opts, unit: r.unit, onChange: r.set })}
-                  className="tabular-nums text-center" style={{ fontSize: 28, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 42, cursor: 'pointer' }}>{r.v}</span>
-                <HoldButton onClick={() => r.set(Math.min(r.opts[r.opts.length - 1], r.v + r.step))} className="flex items-center justify-center active:scale-90 transition-transform"
-                  style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#FFF', color: BRAND, fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {/* Start */}
         <div style={{ padding: '8px 16px 12px', flexShrink: 0 }}>
           <button onClick={startWithCountdown} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-            style={{ height: 52, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: BRAND }}>
+            style={{ height: 52, borderRadius: 12, background: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: '#FF6F20' }}>
             ▶ התחל
           </button>
         </div>
-        {/* Picker */}
-        {picker && <ScrollPicker isOpen value={picker.value} onChange={picker.onChange} onClose={() => setPicker(null)}
-          min={picker.options[0]} max={picker.options[picker.options.length-1]}
-          step={picker.options.length > 1 ? picker.options[1] - picker.options[0] : 1}
-          unit={picker.unit} />}
+        {/* Scroll Picker */}
+        {pickerOpen && (
+          <ScrollPicker isOpen value={pickerOpen.value} onChange={pickerOpen.onChange} onClose={() => setPickerOpen(null)}
+            min={pickerOpen.options[0]} max={pickerOpen.options[pickerOpen.options.length - 1]}
+            step={pickerOpen.options.length > 1 ? pickerOpen.options[1] - pickerOpen.options[0] : 1}
+            unit={pickerOpen.unit} />
+        )}
       </div>
     );
   }
