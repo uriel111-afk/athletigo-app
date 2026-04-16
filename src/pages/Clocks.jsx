@@ -248,7 +248,7 @@ function TimerView() {
 
 /* ═══ TABATA ═══ */
 function TabataView() {
-  // === STATE ===
+  // === DISPLAY STATE ===
   const [tabataRunning, setTabataRunning] = useState(false);
   const [tabataPhase, setTabataPhase] = useState('הכנה');
   const [tabataTimeLeft, setTabataTimeLeft] = useState(0);
@@ -259,7 +259,7 @@ function TabataView() {
   const [countdown321, setCountdown321] = useState(3);
   const [tabataScreen, setTabataScreen] = useState('settings');
 
-  // Settings
+  // Settings state
   const [prepTime, setPrepTime] = useState(10);
   const [workTime, setWorkTime] = useState(20);
   const [restTime, setRestTime] = useState(10);
@@ -268,12 +268,33 @@ function TabataView() {
   const [restBetweenSets, setRestBetweenSets] = useState(60);
   const [countdownTime, setCountdownTime] = useState(30);
 
+  // Interval refs
   const tabataIntervalRef = useRef(null);
   const countdown321Ref = useRef(null);
   const parallelCountdownRef = useRef(null);
   const parallelCountdownVal = useRef(0);
   const wakeLockRef = useRef(null);
   const hiddenAtRef = useRef(null);
+
+  // Refs for current phase/round/set — avoids stale closures in setInterval
+  const phaseRef = useRef('הכנה');
+  const timeLeftRef = useRef(0);
+  const roundRef = useRef(1);
+  const setNumRef = useRef(1);
+
+  // Refs for settings — avoids stale closures
+  const workTimeRef = useRef(workTime);
+  const restTimeRef = useRef(restTime);
+  const roundsRef = useRef(rounds);
+  const setsRef = useRef(sets);
+  const restBetweenRef = useRef(restBetweenSets);
+
+  // Keep settings refs in sync
+  useEffect(() => { workTimeRef.current = workTime; }, [workTime]);
+  useEffect(() => { restTimeRef.current = restTime; }, [restTime]);
+  useEffect(() => { roundsRef.current = rounds; }, [rounds]);
+  useEffect(() => { setsRef.current = sets; }, [sets]);
+  useEffect(() => { restBetweenRef.current = restBetweenSets; }, [restBetweenSets]);
 
   // Picker state
   const [picker, setPicker] = useState(null);
@@ -298,67 +319,73 @@ function TabataView() {
     return { label: '', duration: 0 };
   };
 
-  // === TIMER LOGIC ===
-  const startTabataInterval = (phase, timeLeft, round, set) => {
+  // === CORE INTERVAL ===
+  const startInterval = useCallback(() => {
     clearInterval(tabataIntervalRef.current);
-
-    let currentPhase = phase;
-    let currentTime = timeLeft;
-    let currentRound = round;
-    let currentSet = set;
-
     tabataIntervalRef.current = setInterval(() => {
-      currentTime -= 1;
-
-      if (currentTime <= 0) {
-        // Direct version for use inside interval (captures settings from closure)
-        const getNext = (p, r, s) => {
-          if (p === 'הכנה') return { label: 'עבודה', duration: workTime };
-          if (p === 'עבודה') return { label: 'מנוחה', duration: restTime };
-          if (p === 'מנוחה') {
-            if (r < rounds) return { label: 'עבודה', duration: workTime };
-            if (s < sets) return { label: 'מנוחה בין סטים', duration: restBetweenSets };
-            return { label: 'סיום', duration: 0 };
-          }
-          if (p === 'מנוחה בין סטים') return { label: 'עבודה', duration: workTime };
-          return { label: 'סיום', duration: 0 };
-        };
-
-        const next = getNext(currentPhase, currentRound, currentSet);
-
-        if (next.label === 'סיום') {
-          clearInterval(tabataIntervalRef.current);
-          clearInterval(parallelCountdownRef.current);
-          setTabataScreen('complete');
-          setTabataRunning(false);
-          playEndBeeps();
-          releaseWakeLock();
-          return;
+      setTabataTimeLeft(prev => {
+        if (prev <= 1) {
+          // Phase is ending — schedule transition without showing 0
+          setTimeout(() => advancePhase(), 0);
+          return prev; // keep showing 1 briefly
         }
-
-        // Update round/set
-        if (currentPhase === 'מנוחה') {
-          if (currentRound < rounds) {
-            currentRound += 1;
-          } else if (currentSet < sets) {
-            currentRound = 1;
-            currentSet += 1;
-          }
-        }
-
-        currentPhase = next.label;
-        currentTime = next.duration;
-
-        setTabataPhase(currentPhase);
-        setTabataTimeLeft(currentTime);
-        setTabataPhaseDuration(currentTime);
-        setTabataCurrentRound(currentRound);
-        setTabataCurrentSet(currentSet);
-      } else {
-        setTabataTimeLeft(currentTime);
-      }
+        timeLeftRef.current = prev - 1;
+        return prev - 1;
+      });
     }, 1000);
-  };
+  }, []);
+
+  const advancePhase = useCallback(() => {
+    const phase = phaseRef.current;
+    const round = roundRef.current;
+    const set = setNumRef.current;
+
+    let newPhase, newTime, newRound = round, newSet = set;
+
+    if (phase === 'הכנה') {
+      newPhase = 'עבודה'; newTime = workTimeRef.current;
+    } else if (phase === 'עבודה') {
+      newPhase = 'מנוחה'; newTime = restTimeRef.current;
+    } else if (phase === 'מנוחה') {
+      if (round < roundsRef.current) {
+        newRound = round + 1;
+        newPhase = 'עבודה'; newTime = workTimeRef.current;
+      } else if (set < setsRef.current) {
+        newRound = 1; newSet = set + 1;
+        newPhase = 'מנוחה בין סטים'; newTime = restBetweenRef.current;
+      } else {
+        // COMPLETE
+        clearInterval(tabataIntervalRef.current);
+        clearInterval(parallelCountdownRef.current);
+        setTabataScreen('complete');
+        setTabataRunning(false);
+        playEndBeeps();
+        releaseWakeLock();
+        return;
+      }
+    } else if (phase === 'מנוחה בין סטים') {
+      newPhase = 'עבודה'; newTime = workTimeRef.current;
+    } else {
+      return;
+    }
+
+    // Update refs
+    phaseRef.current = newPhase;
+    timeLeftRef.current = newTime;
+    roundRef.current = newRound;
+    setNumRef.current = newSet;
+
+    // Update state for display
+    setTabataPhase(newPhase);
+    setTabataTimeLeft(newTime);
+    setTabataPhaseDuration(newTime);
+    setTabataCurrentRound(newRound);
+    setTabataCurrentSet(newSet);
+
+    // Restart interval for new phase
+    clearInterval(tabataIntervalRef.current);
+    startInterval();
+  }, [startInterval]);
 
   // === START / PAUSE / RESET ===
   const handleTabataStart = () => {
@@ -379,6 +406,14 @@ function TabataView() {
         setTimeout(() => {
           const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
           const initTime = prepTime > 0 ? prepTime : workTime;
+
+          // Set refs
+          phaseRef.current = initPhase;
+          timeLeftRef.current = initTime;
+          roundRef.current = 1;
+          setNumRef.current = 1;
+
+          // Set state
           setTabataPhase(initPhase);
           setTabataTimeLeft(initTime);
           setTabataPhaseDuration(initTime);
@@ -399,7 +434,7 @@ function TabataView() {
             }
           }, 1000);
 
-          startTabataInterval(initPhase, initTime, 1, 1);
+          startInterval();
           requestWakeLock();
         }, 800);
       }
@@ -413,7 +448,12 @@ function TabataView() {
       setTabataRunning(false);
     } else {
       setTabataRunning(true);
-      startTabataInterval(tabataPhase, tabataTimeLeft, tabataCurrentRound, tabataCurrentSet);
+      // Sync refs from current state before restarting
+      phaseRef.current = tabataPhase;
+      timeLeftRef.current = tabataTimeLeft;
+      roundRef.current = tabataCurrentRound;
+      setNumRef.current = tabataCurrentSet;
+      startInterval();
       // Resume parallel countdown
       parallelCountdownRef.current = setInterval(() => {
         parallelCountdownVal.current -= 1;
@@ -434,6 +474,10 @@ function TabataView() {
     setTabataCurrentRound(1);
     setTabataCurrentSet(1);
     setTabataCountdown(countdownTime);
+    phaseRef.current = 'הכנה';
+    timeLeftRef.current = 0;
+    roundRef.current = 1;
+    setNumRef.current = 1;
     releaseWakeLock();
   };
 
@@ -462,7 +506,8 @@ function TabataView() {
           const elapsed = Math.floor((Date.now() - hiddenAtRef.current) / 1000);
           setTabataTimeLeft(prev => {
             const newTime = prev - elapsed;
-            if (newTime <= 0) return 1;
+            if (newTime <= 0) return 1; // let advancePhase handle it
+            timeLeftRef.current = newTime;
             return newTime;
           });
           hiddenAtRef.current = null;
@@ -512,24 +557,24 @@ function TabataView() {
   if (tabataScreen === 'running') {
     return (
       <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
-        {/* Header */}
+        {/* Header — NO minimize button */}
         <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ fontSize: 18, fontWeight: 900, color: 'white', fontFamily: FN }}>TABATA</div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontFamily: FL }}>ספירה לאחור: {formatTime(tabataCountdown)}</div>
         </div>
 
-        {/* Main content */}
+        {/* Main */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 16px', gap: 14 }}>
           {/* Phase label */}
           <div style={{ fontSize: 48, fontWeight: 900, color: 'white', letterSpacing: 1, fontFamily: FL }}>{tabataPhase}</div>
 
-          {/* Ring */}
+          {/* Ring + number */}
           <div style={{ position: 'relative', width: 310, height: 310, flexShrink: 0 }}>
             <svg width="310" height="310" viewBox="0 0 310 310">
               <circle cx="155" cy="155" r="142" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
               <circle cx="155" cy="155" r="142" fill="none" stroke="white" strokeWidth="10"
                 strokeDasharray="892"
-                strokeDashoffset={tabataPhaseDuration > 0 ? 892 * (1 - tabataTimeLeft / tabataPhaseDuration) : 0}
+                strokeDashoffset={tabataPhaseDuration > 0 ? 892 - (892 * (tabataTimeLeft / tabataPhaseDuration)) : 0}
                 strokeLinecap="round"
                 transform="rotate(-90 155 155)"
                 style={{ transition: 'stroke-dashoffset 0.9s linear' }}
@@ -540,32 +585,34 @@ function TabataView() {
             </div>
           </div>
 
-          {/* Stats row */}
+          {/* Stats */}
           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '12px 16px' }}>
-            {[
-              { label: 'סיבוב', value: `${tabataCurrentRound} / ${rounds}` },
-              { label: 'סט', value: `${tabataCurrentSet} / ${sets}` },
-              { label: 'נותר', value: formatTime(tabataTimeLeft) },
-            ].map((item, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />}
-                <div style={{ textAlign: 'center', flex: 1 }}>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>{item.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{item.value}</div>
-                </div>
-              </React.Fragment>
-            ))}
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>סיבוב</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{tabataCurrentRound} / {rounds}</div>
+            </div>
+            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>סט</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{tabataCurrentSet} / {sets}</div>
+            </div>
+            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, fontFamily: FL }}>נותר</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{formatTime(tabataCountdown)}</div>
+            </div>
           </div>
 
           {/* Next phase */}
           {(() => {
             const next = getNextPhaseInfo(tabataPhase, tabataCurrentRound, tabataCurrentSet);
-            return next.label && next.label !== 'סיום' ? (
+            if (!next.label || next.label === 'סיום') return null;
+            return (
               <div style={{ width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.9)', fontFamily: FL }}>הבא: {next.label}</div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontFamily: FN }}>{next.duration} שנ׳</div>
               </div>
-            ) : null;
+            );
           })()}
 
           {/* Controls */}
