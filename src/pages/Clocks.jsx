@@ -77,131 +77,100 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
 
 // iOS audio unlock
 function unlockAudio() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    ctx.resume();
-  } catch(e) {}
+  try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch(e) {}
 }
 
-// Legacy beep (used by timer/stopwatch via ClockContext)
-function playBeep(freq = 660, duration = 0.15) {
+// Shared audio helper — base volume 0.4
+const playTone = (frequency, duration, type = 'sine', gainVal = 0.4, startTime = 0) => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type; osc.frequency.value = frequency;
+    gain.gain.setValueAtTime(gainVal, ctx.currentTime + startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
+    osc.start(ctx.currentTime + startTime); osc.stop(ctx.currentTime + startTime + duration);
+  } catch(e) {}
+};
+
+// Legacy beep (timer/stopwatch)
+function playBeep(freq = 660, duration = 0.15) { playTone(freq, duration, 'sine', 0.4); }
+
+// 3-2-1 click
+const playCountdownBeep = () => { playTone(1000, 0.08, 'sine', 0.4); };
+
+// GO — two ascending tones
+const playGoSound = () => { playTone(1200, 0.12, 'sine', 0.4, 0); playTone(1600, 0.18, 'sine', 0.4, 0.14); };
+
+// WORK — referee whistle
+const playWorkSound = () => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator(); const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + duration);
-  } catch(e) {}
-}
-
-// 3-2-1 — metronome click
-const playCountdownBeep = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.value = 1000;
-    gain.gain.setValueAtTime(0.5, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
-  } catch(e) {}
-};
-
-// GO — two sharp ascending tones
-const playGoSound = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [{ freq: 1200, start: 0, dur: 0.12 }, { freq: 1600, start: 0.14, dur: 0.18 }].forEach(({ freq, start, dur }) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sine'; osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.5, ctx.currentTime + start);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
-      osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + start + dur);
-    });
-  } catch(e) {}
-};
-
-// WORK — referee whistle: long single sharp tone
-const playWorkSound = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(1400, ctx.currentTime);
+    osc.type = 'sine'; osc.frequency.value = 1400;
     gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.01);
-    gain.gain.setValueAtTime(0.5, ctx.currentTime + 0.25);
+    gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.01);
+    gain.gain.setValueAtTime(0.4, ctx.currentTime + 0.25);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.35);
   } catch(e) {}
 };
 
-// REST — boxing bell: rich, low, resonant
+// REST — boxing bell (two harmonics)
 const playRestSound = () => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
+    const osc1 = ctx.createOscillator(); const gain1 = ctx.createGain();
     osc1.connect(gain1); gain1.connect(ctx.destination);
     osc1.type = 'sine'; osc1.frequency.value = 520;
-    gain1.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain1.gain.setValueAtTime(0.4, ctx.currentTime);
     gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
     osc1.start(ctx.currentTime); osc1.stop(ctx.currentTime + 1.2);
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
+    const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain();
     osc2.connect(gain2); gain2.connect(ctx.destination);
     osc2.type = 'sine'; osc2.frequency.value = 1040;
-    gain2.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain2.gain.setValueAtTime(0.15, ctx.currentTime);
     gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
     osc2.start(ctx.currentTime); osc2.stop(ctx.currentTime + 0.8);
   } catch(e) {}
 };
 
-// REST BETWEEN SETS — two boxing bell hits
+// REST BETWEEN SETS — two bell hits
 const playRestBetweenSetsSound = () => {
-  try {
-    [0, 0.5].forEach(delay => {
+  [0, 0.5].forEach(delay => {
+    try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
       osc.type = 'sine'; osc.frequency.value = 520;
-      gain.gain.setValueAtTime(0.45, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + delay);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.0);
       osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 1.0);
-    });
-  } catch(e) {}
+    } catch(e) {}
+  });
 };
 
-// COMPLETE — three boxing bell hits
+// COMPLETE — three bell hits
 const playCompleteSound = () => {
-  try {
-    [0, 0.45, 0.9].forEach(delay => {
+  [0, 0.45, 0.9].forEach(delay => {
+    try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
+      const osc1 = ctx.createOscillator(); const gain1 = ctx.createGain();
       osc1.connect(gain1); gain1.connect(ctx.destination);
       osc1.type = 'sine'; osc1.frequency.value = 520;
-      gain1.gain.setValueAtTime(0.5, ctx.currentTime + delay);
+      gain1.gain.setValueAtTime(0.4, ctx.currentTime + delay);
       gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.0);
       osc1.start(ctx.currentTime + delay); osc1.stop(ctx.currentTime + delay + 1.0);
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
+      const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain();
       osc2.connect(gain2); gain2.connect(ctx.destination);
       osc2.type = 'sine'; osc2.frequency.value = 1040;
-      gain2.gain.setValueAtTime(0.2, ctx.currentTime + delay);
+      gain2.gain.setValueAtTime(0.15, ctx.currentTime + delay);
       gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.7);
       osc2.start(ctx.currentTime + delay); osc2.stop(ctx.currentTime + delay + 0.7);
-    });
-  } catch(e) {}
+    } catch(e) {}
+  });
 };
 
 function playEndBeeps() { playCompleteSound(); }
