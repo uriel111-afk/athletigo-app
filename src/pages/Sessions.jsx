@@ -17,12 +17,14 @@ import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
+import SessionEditModal from "../components/SessionEditModal";
 import { notifySessionScheduled, notifySessionCompleted } from "@/functions/notificationTriggers";
 import { AuthContext } from "@/lib/AuthContext";
 
 export default function Sessions() {
   const [showSessionDialog, setShowSessionDialog] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
+  const [sessionToEdit, setSessionToEdit] = useState(null);
   const [deletingSession, setDeletingSession] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -766,6 +768,12 @@ export default function Sessions() {
             <span className="text-sm font-medium" style={{ color: '#7D7D7D' }}>
               • {participantNames}
             </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); setSessionToEdit(session); }}
+              className="ml-auto p-2 rounded-lg transition-all hover:bg-orange-50"
+              style={{ color: '#FF6F20', flexShrink: 0 }}>
+              <Edit2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -1550,6 +1558,15 @@ export default function Sessions() {
           </Dialog>
         </div>
       </div>
+      <SessionEditModal
+        session={sessionToEdit}
+        isOpen={!!sessionToEdit}
+        onClose={() => {
+          setSessionToEdit(null);
+          queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+          invalidateDashboard(queryClient);
+        }}
+      />
     </ProtectedCoachPage>);
 
 }
