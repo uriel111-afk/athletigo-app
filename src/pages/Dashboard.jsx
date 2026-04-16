@@ -270,37 +270,121 @@ export default function Dashboard() {
           {traineeCards.length > 0 && (
             <>
               <SectionHeader title="מתאמנים" />
-              <div className="space-y-2 mb-1">
-                {traineeCards.slice(0, 8).map((t) => (
-                  <button key={t.id} onClick={() => navigate(createPageUrl("TraineeProfile") + `?userId=${t.id}`)}
-                    className="w-full bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex items-center gap-3 hover:shadow-md transition-all active:scale-[0.98] text-right">
-                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600 flex-shrink-0">
-                      {t.profile_image
-                        ? <img src={t.profile_image} alt="" className="w-full h-full rounded-full object-cover" />
-                        : (t.full_name?.[0]?.toUpperCase() || '?')
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm text-gray-900 truncate">{t.full_name}</div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-0.5">
-                        {t.lastSessionDate && <span>מפגש אחרון: {new Date(t.lastSessionDate).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}</span>}
+              <div className="trainees-scroll" style={{
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                padding: '4px 0 8px'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  gap: '12px',
+                  width: 'max-content',
+                  padding: '0 4px'
+                }}>
+                  {traineeCards.map((trainee) => {
+                    const activePackage = trainee.client_services?.find(pkg => {
+                      const hasRemaining = (pkg.remaining_sessions ?? 0) > 0;
+                      const notExpired = !pkg.end_date || new Date(pkg.end_date) >= new Date();
+                      return pkg.status === 'active' && hasRemaining && notExpired;
+                    });
+
+                    const used = activePackage
+                      ? activePackage.total_sessions - activePackage.remaining_sessions
+                      : 0;
+                    const total = activePackage?.total_sessions ?? 0;
+
+                    return (
+                      <div
+                        key={trainee.id}
+                        onClick={() => navigate(`/trainee/${trainee.id}`)}
+                        style={{
+                          width: '120px',
+                          flexShrink: 0,
+                          background: 'white',
+                          border: '0.5px solid #eee',
+                          borderRadius: '16px',
+                          padding: '14px 10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '8px',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                        }}
+                      >
+                        {/* Avatar */}
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '50%',
+                          background: '#FF6F20',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '20px',
+                          fontWeight: '900',
+                          color: 'white',
+                          flexShrink: 0
+                        }}>
+                          {(trainee.full_name || '?')[0]}
+                        </div>
+
+                        {/* Name */}
+                        <div style={{
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          color: '#1a1a1a',
+                          textAlign: 'center',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          width: '100%'
+                        }}>
+                          {trainee.full_name}
+                        </div>
+
+                        {/* Package info */}
+                        {activePackage ? (
+                          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#666',
+                              textAlign: 'center'
+                            }}>
+                              {used} / {total} מפגשים
+                            </div>
+                            <div style={{
+                              height: '4px',
+                              background: '#F0F0F0',
+                              borderRadius: '2px',
+                              overflow: 'hidden',
+                              width: '100%'
+                            }}>
+                              <div style={{
+                                height: '100%',
+                                width: `${total > 0 ? (used / total) * 100 : 0}%`,
+                                background: '#FF6F20',
+                                borderRadius: '2px'
+                              }}/>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{
+                            fontSize: '10px',
+                            color: '#FF6F20',
+                            fontWeight: '600',
+                            textAlign: 'center'
+                          }}>
+                            אין חבילה
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {t.hasActivePackage && t.total > 0 ? (
-                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-50 text-green-700">{t.used || 0}/{t.total}</span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-50 text-red-500">ללא חבילה</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-                {traineeCards.length > 8 && (
-                  <button onClick={() => navigate(createPageUrl("AllUsers"))}
-                    className="w-full text-center text-xs font-bold text-[#FF6F20] py-2 hover:underline">
-                    צפה בכל {traineeCards.length} המתאמנים
-                  </button>
-                )}
+                    );
+                  })}
+                </div>
               </div>
             </>
           )}
