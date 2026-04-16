@@ -1699,6 +1699,23 @@ export default function TraineeProfile() {
                                 <span className="text-xs font-bold text-gray-400 block">JPS</span>
                               </div>
                               {isCoach && (
+                                <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const newDate = prompt('ערוך תאריך (YYYY-MM-DD):', b.date);
+                                    if (!newDate || newDate === b.date) return;
+                                    try {
+                                      await supabase.from('baselines').update({ date: newDate }).eq('id', b.id);
+                                      try { await supabase.from('results_log').update({ date: newDate }).eq('baseline_id', b.id); } catch {}
+                                      toast.success("תאריך עודכן");
+                                      queryClient.invalidateQueries({ queryKey: ['baselines'] });
+                                      queryClient.invalidateQueries({ queryKey: ['my-results'] });
+                                    } catch (err) { toast.error("שגיאה: " + (err?.message || '')); }
+                                  }}>
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {isCoach && (
                                 <Button variant="ghost" size="icon" className="w-8 h-8 text-red-400 hover:text-red-600 hover:bg-red-50"
                                   onClick={(e) => {
                                     e.stopPropagation();
