@@ -620,12 +620,64 @@ export default function Clocks() {
   const [activeTab, setActiveTab] = useState('tabata');
   const [tabataActive, setTabataActive] = useState(false);
   const clock = useClock();
+  const { tabata, liveTimer, setLiveTimer, settingsRef: tabataSettingsRef } = useActiveTimer();
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = tabataActive || timerOrStopwatchRunning;
 
+  // Format helpers for minimize
+  const fmtSec = (s) => { if (!s || s <= 0) return '0'; const m = Math.floor(s / 60); const sc = s % 60; return m === 0 ? String(sc) : `${m}:${String(sc).padStart(2, '0')}`; };
+
   const handleMinimize = useCallback(() => {
+    if (tabata.running || tabata.screen === 'running' || tabata.screen === 'countdown') {
+      const { rounds, sets } = tabataSettingsRef?.current || {};
+      setLiveTimer({
+        type: 'tabata', display: fmtSec(tabata.timeLeft), phase: tabata.phase,
+        info: `סיבוב ${tabata.currentRound}/${rounds || '?'} • סט ${tabata.currentSet}/${sets || '?'}`,
+        color: '#FF6F20', isMinimized: true,
+      });
+    } else if (clock?.isRunning && clock?.activeClock === 'timer') {
+      setLiveTimer({
+        type: 'timer', display: fmt(clock.display), phase: 'טיימר',
+        info: null, color: '#FF6F20', isMinimized: true,
+      });
+    } else if (clock?.isRunning && clock?.activeClock === 'stopwatch') {
+      setLiveTimer({
+        type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר',
+        info: null, color: '#FF6F20', isMinimized: true,
+      });
+    }
     navigate(-1);
-  }, [navigate]);
+  }, [tabata, clock, setLiveTimer, navigate]);
+
+  // Keep liveTimer updated every second while minimized
+  useEffect(() => {
+    if (!liveTimer?.isMinimized) return;
+    if (liveTimer.type === 'tabata' && (tabata.running || tabata.screen === 'running')) {
+      const { rounds, sets } = tabataSettingsRef?.current || {};
+      setLiveTimer(prev => ({ ...prev, display: fmtSec(tabata.timeLeft), phase: tabata.phase,
+        info: `סיבוב ${tabata.currentRound}/${rounds || '?'} • סט ${tabata.currentSet}/${sets || '?'}` }));
+    } else if (liveTimer.type === 'timer' && clock?.isRunning) {
+      setLiveTimer(prev => ({ ...prev, display: fmt(clock.display) }));
+    } else if (liveTimer.type === 'stopwatch' && clock?.isRunning) {
+      setLiveTimer(prev => ({ ...prev, display: fmtStopwatch(clock.display) }));
+    }
+  }, [tabata.timeLeft, clock?.display, liveTimer?.isMinimized, liveTimer?.type]);
+
+  // Clear minimized state when returning to clocks page
+  useEffect(() => { setLiveTimer(null); }, []);
+
+  // Back button = minimize when running
+  useEffect(() => {
+    window.history.pushState(null, '', window.location.href);
+    const onPop = () => {
+      if (anyRunning) {
+        window.history.pushState(null, '', window.location.href);
+        handleMinimize();
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [anyRunning, handleMinimize]);
 
   // FIX 3 — Unified wake lock for all timers
   const globalWakeLockRef = useRef(null);

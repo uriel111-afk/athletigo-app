@@ -4,6 +4,9 @@ const ActiveTimerContext = createContext(null);
 export const useActiveTimer = () => useContext(ActiveTimerContext);
 
 export function ActiveTimerProvider({ children }) {
+  // Floating widget state (set when minimized)
+  const [liveTimer, setLiveTimer] = useState(null);
+
   // Live tabata state for UI
   const [tabata, setTabata] = useState({
     screen: 'settings',
@@ -65,6 +68,7 @@ export function ActiveTimerProvider({ children }) {
         clearInterval(parallelRef.current);
         update({ screen: 'complete', running: false, timeLeft: 0 });
         setPhaseChange({ phase: 'complete', ts: Date.now() });
+        setLiveTimer(null);
         return;
       }
     } else if (phase === 'מנוחה בין סטים') {
@@ -177,12 +181,14 @@ export function ActiveTimerProvider({ children }) {
       currentRound: 1, currentSet: 1,
       countdown: 0, countdown321: null,
     });
+    setLiveTimer(null);
   }, []);
 
   return (
     <ActiveTimerContext.Provider value={{
       tabata, settingsRef, phaseChange,
       startTabata, pauseTabata, resetTabata,
+      liveTimer, setLiveTimer,
     }}>
       {children}
     </ActiveTimerContext.Provider>
