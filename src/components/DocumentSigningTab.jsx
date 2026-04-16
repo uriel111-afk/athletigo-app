@@ -9,6 +9,7 @@ import { he } from "date-fns/locale";
 import SignatureCanvas from "./SignatureCanvas";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import SignedDocumentViewer from "./SignedDocumentViewer";
 
 const PAR_Q_QUESTIONS = [
   "האם רופא אמר לך אי פעם שיש לך בעיה בלב ושעליך לבצע פעילות גופנית רק בהמלצת רופא?",
@@ -259,6 +260,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
   const [expandedDoc, setExpandedDoc] = useState(null);
   const [signedDocs, setSignedDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(true);
+  const [viewingDoc, setViewingDoc] = useState(null);
 
   const user = effectiveUser;
 
@@ -298,6 +300,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       sigData: record?.signature_data || null,
       pdfUrl: record?.file_url || null,
       metadata: record?.document_data || null,
+      record: record || null, // full DB record for viewer
     };
   });
 
@@ -396,25 +399,10 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
             {isSigned && !isExpanded && (
               <div className="px-4 pb-3 flex items-center justify-between">
                 <p className="text-xs text-gray-500">נחתם ב-{format(new Date(doc.signedAt), 'dd/MM/yyyy HH:mm', { locale: he })}</p>
-                <div className="flex gap-2">
-                  {doc.pdfUrl ? (
-                    <>
-                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={(e) => { e.stopPropagation(); window.open(doc.pdfUrl, '_blank'); }}>
-                        <Eye className="w-3 h-3" />צפייה
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={(e) => {
-                        e.stopPropagation();
-                        const a = document.createElement('a'); a.href = doc.pdfUrl; a.download = `${doc.label}.pdf`; a.click();
-                      }}>
-                        <Download className="w-3 h-3" />הורדה
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={(e) => { e.stopPropagation(); setExpandedDoc(doc.key); }}>
-                      <Eye className="w-3 h-3" />צפה בחתימה
-                    </Button>
-                  )}
-                </div>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1" style={{ borderColor: '#FF6F20', color: '#FF6F20' }}
+                  onClick={(e) => { e.stopPropagation(); setViewingDoc(doc.record); }}>
+                  <Eye className="w-3 h-3" />צפה במסמך החתום
+                </Button>
               </div>
             )}
 
@@ -469,6 +457,14 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
           </div>
         );
       })}
+
+      {/* Signed document viewer modal */}
+      <SignedDocumentViewer
+        isOpen={!!viewingDoc}
+        onClose={() => setViewingDoc(null)}
+        doc={viewingDoc}
+        traineeName={user?.full_name}
+      />
     </div>
   );
 }
