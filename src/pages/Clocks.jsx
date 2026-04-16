@@ -132,7 +132,7 @@ function StopwatchView() {
 /* ═══ TIMER ═══ */
 function TimerView() {
   const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase } = useClock();
-  const [prepSec, setPrepSec] = useState(3);
+  const [prepSec, setPrepSec] = useState(0);
   const [timerMin, setTimerMin] = useState(0);
   const [timerSec, setTimerSec] = useState(30);
   const active = activeClock === 'timer';
@@ -140,18 +140,34 @@ function TimerView() {
   const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
 
   if (showSetup) {
+    const cols = [
+      { l: 'דקות', v: timerMin, set: setTimerMin, max: 99 },
+      { l: 'שניות', v: timerSec, set: setTimerSec, max: 59 },
+    ];
     return (
-      <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-4">
+      <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
         <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
-        <div className="w-full flex gap-3 justify-center">
-          {[{ l: 'דקות', v: timerMin, set: setTimerMin, max: 59 }, { l: 'שניות', v: timerSec, set: setTimerSec, max: 59 }].map(p => (
-            <div key={p.l} className="flex flex-col items-center gap-2">
-              <HoldButton onClick={() => p.set(Math.min(p.max, p.v + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
-              <div className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C1 }}>{String(p.v).padStart(2, '0')}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{p.l}</div>
-              <HoldButton onClick={() => p.set(Math.max(0, p.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
-            </div>
+        {/* MM:SS input — LTR order: דקות left, שניות right */}
+        <div className="flex items-center gap-3" dir="ltr">
+          {cols.map((p, idx) => (
+            <React.Fragment key={p.l}>
+              <div className="flex flex-col items-center gap-2">
+                <HoldButton onClick={() => p.set(Math.min(p.max, p.v + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
+                <div className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C1 }}>{String(p.v).padStart(2, '0')}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{p.l}</div>
+                <HoldButton onClick={() => p.set(Math.max(0, p.v - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
+              </div>
+              {idx === 0 && <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>}
+            </React.Fragment>
           ))}
+        </div>
+        {/* Prep time */}
+        <div className="flex items-center gap-3 w-full justify-center" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>הכנה</span>
+          <HoldButton onClick={() => setPrepSec(Math.max(0, prepSec - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FFF', color: C2, fontSize: 18, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
+          <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 700, fontFamily: FN, color: C1, minWidth: 32, textAlign: 'center' }}>{prepSec}</span>
+          <HoldButton onClick={() => setPrepSec(Math.min(60, prepSec + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 18, fontWeight: 700, border: 'none' }}>+</HoldButton>
+          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FL, color: C3 }}>שניות</span>
         </div>
         <button onClick={() => startTimer(totalTimerMs, prepSec * 1000)} disabled={totalTimerMs === 0}
           className="w-full flex items-center justify-center disabled:opacity-40 active:scale-[0.98] transition-transform"
@@ -162,6 +178,7 @@ function TimerView() {
     );
   }
 
+  const isPrep = phase === 'prepare';
   const R = 128, circ = 2 * Math.PI * R;
   const progress = totalDuration > 0 ? display / totalDuration : 0;
   const offset = circ * (1 - Math.max(0, Math.min(1, progress)));
@@ -169,13 +186,15 @@ function TimerView() {
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
       style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C2, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
+      <div className="transition-colors duration-300" style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: isPrep ? C2 : BRAND }}>
+        {isPrep ? 'הכנה' : 'ספירה לאחור'}
+      </div>
       <div className="relative flex-shrink-0" style={{ width: 280, height: 280 }}>
         <svg width="280" height="280" viewBox="0 0 280 280">
           <circle cx="140" cy="140" r={R} fill="none" stroke="#FFF0E8" strokeWidth="10" />
-          <circle cx="140" cy="140" r={R} fill="none" stroke={BRAND} strokeWidth="10" strokeLinecap="round"
+          <circle cx="140" cy="140" r={R} fill="none" stroke={isPrep ? '#BBBBBB' : BRAND} strokeWidth="10" strokeLinecap="round"
             strokeDasharray={circ} strokeDashoffset={offset} transform="rotate(-90 140 140)"
-            style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
+            className="transition-colors duration-300" style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="tabular-nums leading-none" style={{ fontSize: 88, fontWeight: 900, fontFamily: FN, color: C1, letterSpacing: -4 }}>{fmtMMSS(display)}</span>
