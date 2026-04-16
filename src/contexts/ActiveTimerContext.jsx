@@ -36,12 +36,18 @@ export function ActiveTimerProvider({ children }) {
   const countdown321Ref = useRef(null);
   const parallelRef = useRef(null);
   const parallelVal = useRef(0);
-  // Track phase changes for sound effects in UI
-  const [phaseChange, setPhaseChange] = useState(null); // { phase, ts }
+  // Track phase changes for sound effects in UI — counter ensures uniqueness
+  const phaseChangeCounter = useRef(0);
+  const [phaseChange, setPhaseChange] = useState(null); // { phase, id }
 
   const update = useCallback((updates) => {
     Object.assign(sRef.current, updates);
     setTabata(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  const emitPhase = useCallback((phase) => {
+    phaseChangeCounter.current += 1;
+    setPhaseChange({ phase, id: phaseChangeCounter.current });
   }, []);
 
   // === PHASE ADVANCEMENT ===
@@ -67,7 +73,7 @@ export function ActiveTimerProvider({ children }) {
         clearInterval(intervalRef.current);
         clearInterval(parallelRef.current);
         update({ screen: 'complete', running: false, timeLeft: 0 });
-        setPhaseChange({ phase: 'complete', ts: Date.now() });
+        emitPhase('complete');
         setLiveTimer(null);
         return;
       }
@@ -79,27 +85,28 @@ export function ActiveTimerProvider({ children }) {
       phase: newPhase, timeLeft: newTime, phaseDuration: newTime,
       currentRound: newRound, currentSet: newSet,
     });
-    setPhaseChange({ phase: newPhase, ts: Date.now() });
-  }, [update]);
+    emitPhase(newPhase);
+  }, [update, emitPhase]);
 
   // === INTERVAL ===
   const startInterval = useCallback(() => {
     clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
-      const t = sRef.current.timeLeft;
-      if (t <= 1) {
-        advancePhase();
-        return;
-      }
-      const next = t - 1;
-      sRef.current.timeLeft = next;
-      setTabata(prev => ({ ...prev, timeLeft: next }));
-      // Signal countdown beep at 3,2,1
+      sRef.current.timeLeft -= 1;
+      const next = sRef.current.timeLeft;
+
+      // Play beep for last 3 seconds FIRST (before state update)
       if (next === 3 || next === 2 || next === 1) {
-        setPhaseChange({ phase: 'tick', ts: Date.now() });
+        emitPhase('tick');
+      }
+
+      if (next <= 0) {
+        advancePhase();
+      } else {
+        setTabata(prev => ({ ...prev, timeLeft: next }));
       }
     }, 1000);
-  }, [advancePhase]);
+  }, [advancePhase, emitPhase]);
 
   // === START ===
   const startTabata = useCallback((settings) => {
@@ -108,18 +115,18 @@ export function ActiveTimerProvider({ children }) {
 
     // 3-2-1-GO countdown
     update({ screen: 'countdown', countdown321: 3 });
-    setPhaseChange({ phase: 'countdown', ts: Date.now() });
+    emitPhase('countdown');
 
     let count = 3;
     countdown321Ref.current = setInterval(() => {
       count -= 1;
       if (count > 0) {
         update({ countdown321: count });
-        setPhaseChange({ phase: 'countdown', ts: Date.now() });
+        emitPhase('countdown');
       } else {
         clearInterval(countdown321Ref.current);
         update({ countdown321: 'GO' });
-        setPhaseChange({ phase: 'go', ts: Date.now() });
+        emitPhase('go');
 
         setTimeout(() => {
           const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
@@ -139,7 +146,7 @@ export function ActiveTimerProvider({ children }) {
             setTabata(prev => ({ ...prev, countdown: parallelVal.current }));
             if (parallelVal.current <= 0) {
               clearInterval(parallelRef.current);
-              setPhaseChange({ phase: 'parallel_done', ts: Date.now() });
+              emitPhase('parallel_done');
             }
           }, 1000);
 
@@ -147,7 +154,7 @@ export function ActiveTimerProvider({ children }) {
         }, 800);
       }
     }, 1000);
-  }, [update, startInterval]);
+  }, [update, startInterval, emitPhase]);
 
   // === PAUSE / RESUME ===
   const pauseTabata = useCallback(() => {

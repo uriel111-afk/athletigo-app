@@ -408,10 +408,10 @@ function TabataView({ onRunningChange, onMinimize }) {
   };
 
   // === SOUNDS via phaseChange from context ===
-  const lastPhaseChangeRef = useRef(null);
+  const lastPhaseIdRef = useRef(0);
   useEffect(() => {
-    if (!phaseChange || phaseChange === lastPhaseChangeRef.current) return;
-    lastPhaseChangeRef.current = phaseChange;
+    if (!phaseChange || phaseChange.id === lastPhaseIdRef.current) return;
+    lastPhaseIdRef.current = phaseChange.id;
     const p = phaseChange.phase;
     if (p === 'countdown') playCountdownBeep();
     else if (p === 'go') playGoSound();
