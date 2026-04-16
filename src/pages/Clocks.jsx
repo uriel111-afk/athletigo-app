@@ -357,9 +357,9 @@ function TabataView() {
     ];
 
     return (
-      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: '0 -16px', padding: 0, borderRadius: 0 }}>
+      <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%' }}>
         {/* Header */}
-        <div style={{ padding: '8px 14px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '8px 20px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
           <span style={{ fontSize: 15, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{mm}:{ss} • {rounds} סיבובים • {sets} סטים</span>
         </div>
@@ -368,7 +368,7 @@ function TabataView() {
           {params.map(p => {
             const cfg = pickerConfigs[p.key];
             return (
-              <div key={p.key} style={{ height: 58, padding: '0 14px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
+              <div key={p.key} style={{ height: 58, padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 8 }}>
                   <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{p.icon}</div>
                   <span style={{ fontSize: p.lbl, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{p.label}</span>
@@ -388,7 +388,7 @@ function TabataView() {
           })}
         </div>
         {/* Start */}
-        <div style={{ padding: '6px 14px 10px', flexShrink: 0 }}>
+        <div style={{ padding: '6px 20px 10px', flexShrink: 0 }}>
           <button onClick={startWithCountdown} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
             style={{ height: 48, borderRadius: 12, background: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: '#FF6F20' }}>
             ▶ התחל
@@ -424,7 +424,7 @@ function TabataView() {
       style={{ backgroundColor: BRAND, padding: '0 16px 90px', touchAction: 'pan-y', userSelect: 'none' }}>
 
       {/* Header bar */}
-      <div className="w-full flex items-center justify-between" style={{ padding: '10px 20px', backgroundColor: 'rgba(0,0,0,0.15)', margin: '0 -16px' }}>
+      <div className="w-full flex items-center justify-between" style={{ padding: '10px 20px', backgroundColor: 'rgba(0,0,0,0.15)' }}>
         <span style={{ fontSize: 18, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
         {countdownRemaining !== null && countdownRemaining > 0 && (
           <span className="tabular-nums" style={{ fontSize: 13, fontFamily: FN, color: 'rgba(255,255,255,0.85)' }}>
@@ -504,7 +504,7 @@ export default function Clocks() {
   return (
     <div dir="rtl" style={{ backgroundColor: '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: '0 -16px' }}>
       <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}` }}>
-        <div className="flex" style={{ padding: '10px 0 8px', gap: 8, margin: '0 8px' }}>
+        <div className="flex" style={{ padding: '10px 12px 8px', gap: 8 }}>
           {MODES.map(m => {
             const on = mode === m.id; const Icon = m.icon;
             return (
