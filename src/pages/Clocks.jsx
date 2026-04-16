@@ -462,7 +462,7 @@ function TabataView({ onRunningChange, onMinimize }) {
               <circle cx="125" cy="125" r="112" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
               <circle cx="125" cy="125" r="112" fill="none" stroke="white" strokeWidth="10"
                 strokeDasharray="704"
-                strokeDashoffset={tabataPhaseDuration > 0 ? 704 - (704 * (tabataTimeLeft / tabataPhaseDuration)) : 0}
+                strokeDashoffset={tabataPhaseDuration > 0 ? 704 * (tabataTimeLeft / tabataPhaseDuration) : 0}
                 strokeLinecap="round"
                 transform="rotate(-90 125 125)"
                 style={{ transition: 'stroke-dashoffset 0.9s linear' }}
