@@ -2,78 +2,95 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 // ─────────────────────────────────────────
-// SOUNDS — defined outside component (stable, never recreated)
+// RICH SOUNDS — defined outside component (stable, never recreated)
 // ─────────────────────────────────────────
-const _audio = () => {
+const _a = (vol = 2.0) => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   ctx.resume();
-  const master = ctx.createGain();
-  master.gain.value = 2.0;
-  master.connect(ctx.destination);
+  const master = ctx.createGain(); master.gain.value = vol; master.connect(ctx.destination);
   return { ctx, master };
 };
 
 const SND_TICK = () => {
   try {
-    const { ctx, master } = _audio();
-    const o = ctx.createOscillator(); const g = ctx.createGain();
-    o.connect(g); g.connect(master);
-    o.type = 'sine'; o.frequency.value = 880;
-    g.gain.setValueAtTime(0.8, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-    o.start(); o.stop(ctx.currentTime + 0.1);
+    const { ctx, master } = _a(2.0);
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(master); o1.type = 'triangle'; o1.frequency.value = 1200;
+    g1.gain.setValueAtTime(0.9, ctx.currentTime); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    o1.start(); o1.stop(ctx.currentTime + 0.06);
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(master); o2.type = 'sine'; o2.frequency.value = 600;
+    g2.gain.setValueAtTime(0.4, ctx.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    o2.start(); o2.stop(ctx.currentTime + 0.08);
   } catch(e) {}
 };
 
 const SND_GO = () => {
   try {
-    const { ctx, master } = _audio();
-    [[1100, 0, 0.12], [1600, 0.14, 0.18]].forEach(([f, d, dur]) => {
+    const { ctx, master } = _a(2.0);
+    [[523,0,0.15],[659,0.14,0.15],[784,0.28,0.25]].forEach(([f,d,dur]) => {
       const o = ctx.createOscillator(); const g = ctx.createGain();
       o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.8, ctx.currentTime + d);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + dur);
-      o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + dur);
+      g.gain.setValueAtTime(0, ctx.currentTime+d); g.gain.linearRampToValueAtTime(0.8, ctx.currentTime+d+0.01);
+      g.gain.setValueAtTime(0.8, ctx.currentTime+d+dur*0.6);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+d+dur);
+      o.start(ctx.currentTime+d); o.stop(ctx.currentTime+d+dur);
     });
   } catch(e) {}
 };
 
 const SND_WORK = () => {
   try {
-    const { ctx, master } = _audio();
-    const o = ctx.createOscillator(); const g = ctx.createGain();
-    o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = 1350;
-    g.gain.setValueAtTime(0, ctx.currentTime);
-    g.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.01);
-    g.gain.setValueAtTime(0.8, ctx.currentTime + 0.30);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.42);
-    o.start(); o.stop(ctx.currentTime + 0.42);
+    const { ctx, master } = _a(2.0);
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(master); o1.type = 'sawtooth'; o1.frequency.value = 1400;
+    g1.gain.setValueAtTime(0, ctx.currentTime); g1.gain.linearRampToValueAtTime(0.7, ctx.currentTime+0.01);
+    g1.gain.setValueAtTime(0.7, ctx.currentTime+0.12); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.18);
+    o1.start(); o1.stop(ctx.currentTime+0.18);
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(master); o2.type = 'sawtooth'; o2.frequency.value = 1700;
+    g2.gain.setValueAtTime(0, ctx.currentTime+0.20); g2.gain.linearRampToValueAtTime(0.8, ctx.currentTime+0.21);
+    g2.gain.setValueAtTime(0.8, ctx.currentTime+0.38); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.46);
+    o2.start(ctx.currentTime+0.20); o2.stop(ctx.currentTime+0.46);
+    const o3 = ctx.createOscillator(); const g3 = ctx.createGain();
+    o3.connect(g3); g3.connect(master); o3.type = 'sine';
+    o3.frequency.setValueAtTime(200, ctx.currentTime); o3.frequency.exponentialRampToValueAtTime(60, ctx.currentTime+0.15);
+    g3.gain.setValueAtTime(0.6, ctx.currentTime); g3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.15);
+    o3.start(); o3.stop(ctx.currentTime+0.15);
   } catch(e) {}
 };
 
 const SND_BELL = () => {
   try {
-    const { ctx, master } = _audio();
-    [[520, 0.8, 1.6], [1040, 0.25, 1.0]].forEach(([f, gain, dur]) => {
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(gain, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-      o.start(); o.stop(ctx.currentTime + dur);
-    });
+    const { ctx, master } = _a(2.0);
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(master); o1.type = 'sine'; o1.frequency.value = 440;
+    g1.gain.setValueAtTime(0.9, ctx.currentTime); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+2.0);
+    o1.start(); o1.stop(ctx.currentTime+2.0);
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(master); o2.type = 'sine'; o2.frequency.value = 880;
+    g2.gain.setValueAtTime(0.4, ctx.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+1.4);
+    o2.start(); o2.stop(ctx.currentTime+1.4);
+    const o3 = ctx.createOscillator(); const g3 = ctx.createGain();
+    o3.connect(g3); g3.connect(master); o3.type = 'sine'; o3.frequency.value = 1320;
+    g3.gain.setValueAtTime(0.2, ctx.currentTime); g3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.9);
+    o3.start(); o3.stop(ctx.currentTime+0.9);
+    const o4 = ctx.createOscillator(); const g4 = ctx.createGain();
+    o4.connect(g4); g4.connect(master); o4.type = 'sine'; o4.frequency.value = 110;
+    g4.gain.setValueAtTime(0.3, ctx.currentTime); g4.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.5);
+    o4.start(); o4.stop(ctx.currentTime+0.5);
   } catch(e) {}
 };
 
-const SND_DOUBLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 600); };
-const SND_TRIPLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 500); setTimeout(SND_BELL, 1000); };
+const SND_DOUBLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 700); };
+const SND_TRIPLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 600); setTimeout(SND_BELL, 1200); };
 
 const unlockAudio = () => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     ctx.resume();
     const b = ctx.createBuffer(1, 1, 22050);
-    const s = ctx.createBufferSource();
-    s.buffer = b; s.connect(ctx.destination); s.start(0);
+    const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
   } catch(e) {}
 };
 

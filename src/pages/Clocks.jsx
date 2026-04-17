@@ -66,45 +66,29 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
   );
 }
 
-// ═══ SOUNDS (Timer & Stopwatch only — Tabata has its own in TabataTimer.jsx) ═══
+// ═══ SOUNDS (Timer & Stopwatch) ═══
 const unlockAudio = () => {
   try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
     const b = ctx.createBuffer(1,1,22050); const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
   } catch(e) {}
 };
-const createCtx = () => {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-  const master = ctx.createGain(); master.gain.value = 1.4; master.connect(ctx.destination);
-  return { ctx, master };
-};
-const tone = (freq, dur, type = 'sine', gainVal = 0.65, delay = 0) => {
+const clockTone = (freq, dur, delay = 0, vol = 1.8) => {
   try {
-    const { ctx, master } = createCtx();
-    const osc = ctx.createOscillator(); const g = ctx.createGain();
-    osc.connect(g); g.connect(master); osc.type = type; osc.frequency.value = freq;
-    g.gain.setValueAtTime(0, ctx.currentTime + delay);
-    g.gain.linearRampToValueAtTime(gainVal, ctx.currentTime + delay + 0.005);
-    g.gain.setValueAtTime(gainVal, ctx.currentTime + delay + dur * 0.7);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+    const master = ctx.createGain(); master.gain.value = vol; master.connect(ctx.destination);
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.8, ctx.currentTime + delay);
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
-    osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + dur);
+    o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + dur);
   } catch(e) {}
 };
-const SOUND_TICK = () => tone(880, 0.07);
-const SOUND_BELL = () => {
-  try { const { ctx, master } = createCtx();
-    [[520, 0.65, 1.5], [1040, 0.2, 0.9]].forEach(([f, gv, d]) => {
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(gv, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d);
-      o.start(); o.stop(ctx.currentTime + d);
-    });
-  } catch(e) {}
-};
-const SOUND_TRIPLE_BELL = () => { SOUND_BELL(); setTimeout(SOUND_BELL, 500); setTimeout(SOUND_BELL, 1000); };
-const SOUND_START = () => { tone(660, 0.06, 'sine', 0.65, 0); tone(880, 0.08, 'sine', 0.65, 0.07); };
-const SOUND_PAUSE = () => { tone(880, 0.06, 'sine', 0.65, 0); tone(660, 0.08, 'sine', 0.65, 0.07); };
-const SOUND_RESET = () => tone(440, 0.08, 'sine', 0.5);
-const SOUND_ALERT = () => { tone(1200, 0.06, 'sine', 0.65, 0); tone(1200, 0.06, 'sine', 0.65, 0.15); };
+const SOUND_START = () => { clockTone(660, 0.08, 0); clockTone(880, 0.09, 0.09); clockTone(1100, 0.12, 0.18); };
+const SOUND_PAUSE = () => { clockTone(1100, 0.08, 0); clockTone(880, 0.08, 0.09); clockTone(660, 0.10, 0.18); };
+const SOUND_RESET = () => { clockTone(1100, 0.08, 0); clockTone(880, 0.08, 0.09); clockTone(660, 0.10, 0.18); };
+const SOUND_TICK = () => { clockTone(1200, 0.06, 0); clockTone(600, 0.08, 0); };
+const SOUND_ALERT = () => { clockTone(1200, 0.06, 0); clockTone(1200, 0.06, 0.15); };
+const SOUND_TRIPLE_BELL = () => { [0, 0.5, 1.0].forEach(d => { clockTone(440, 1.5, d, 1.8); clockTone(880, 1.0, d, 0.6); }); };
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
