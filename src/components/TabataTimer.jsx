@@ -81,13 +81,13 @@ const unlockAudio = () => {
 // PICKER OPTIONS — outside component
 // ─────────────────────────────────────────
 const PICKER_OPTS = {
-  prep:        [0,1,2,3,4,5,6,7,8,9,10,12,15,20,25,30,45,60],
-  work:        [5,10,15,20,25,30,40,45,50,60,75,90,105,120],
-  rest:        [0,5,10,15,20,25,30,40,45,50,60,75,90,120],
-  rounds:      [1,2,3,4,5,6,7,8,10,12,15,20,25,30],
-  sets:        [1,2,3,4,5,6,7,8,9,10],
-  restBetween: [0,10,20,30,45,60,90,120,150,180],
-  countdown:   [0,30,60,90,120,180,240,300,360,420,480,540,600],
+  prep: Array.from({length: 61}, (_, i) => i),
+  work: Array.from({length: 24}, (_, i) => (i + 1) * 5),
+  rest: [0, ...Array.from({length: 24}, (_, i) => (i + 1) * 5)],
+  rounds: Array.from({length: 30}, (_, i) => i + 1),
+  sets: Array.from({length: 10}, (_, i) => i + 1),
+  restBetween: [0, ...Array.from({length: 36}, (_, i) => (i + 1) * 5)],
+  countdown: [0, ...Array.from({length: 20}, (_, i) => (i + 1) * 30)],
 };
 
 // ─────────────────────────────────────────
