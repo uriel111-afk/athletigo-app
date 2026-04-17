@@ -3,7 +3,7 @@ import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const FloatingTimer = () => {
-  const { liveTimer, setLiveTimer } = useActiveTimer();
+  const { liveTimer, setLiveTimer, setShowTabata } = useActiveTimer();
   const navigate = useNavigate();
   const location = useLocation();
   const [pos, setPos] = useState({ x: 16, bottom: 90 });
@@ -33,6 +33,7 @@ const FloatingTimer = () => {
   const onTouchEnd = () => { drag.current.active = false; };
   const handleTap = () => {
     if (drag.current.moved) return;
+    setShowTabata(true);
     navigate('/clocks');
   };
 

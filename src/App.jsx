@@ -14,9 +14,27 @@ import AppLoader from '@/components/AppLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import { ClockProvider } from './contexts/ClockContext';
-import { ActiveTimerProvider } from './contexts/ActiveTimerContext';
+import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
 import TraineeHome from './pages/TraineeHome';
+import TabataTimer from './components/TabataTimer';
+
+// Global TabataTimer — always mounted, never unmounts
+function GlobalTabata() {
+  const { showTabata, setShowTabata, setLiveTimer } = useActiveTimer();
+  return (
+    <div style={{
+      display: showTabata ? 'flex' : 'none',
+      position: 'fixed', inset: 0, zIndex: 200,
+      flexDirection: 'column'
+    }}>
+      <TabataTimer
+        onMinimize={() => setShowTabata(false)}
+        setLiveTimer={setLiveTimer}
+      />
+    </div>
+  );
+}
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -148,6 +166,7 @@ function App() {
         <ActiveTimerProvider>
           <Router>
             <NavigationTracker />
+            <GlobalTabata />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="*" element={<AuthenticatedApp />} />
