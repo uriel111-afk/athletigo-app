@@ -145,7 +145,7 @@ export function ActiveTimerProvider({ children }) {
     intervalRef.current = setInterval(() => {
       sRef.current.timeLeft -= 1;
       const next = sRef.current.timeLeft;
-      console.log('[CTX] tick:', next, 'phase:', sRef.current.phase, 'running:', sRef.current.running);
+      console.log('⏱ CONTEXT TICK', new Date().toLocaleTimeString(), 'timeLeft:', next);
 
       // Direct sound — fires immediately, no event chain
       if (next === 3 || next === 2 || next === 1) {
