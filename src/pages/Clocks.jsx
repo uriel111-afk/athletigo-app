@@ -300,8 +300,8 @@ export default function Clocks() {
     });
   }, [clock?.display]);
 
-  // When returning to clocks page — hide floating widget
-  useEffect(() => { setLiveTimer(null); }, []);
+  // When returning to clocks page — hide floating widget (only if nothing running)
+  useEffect(() => { if (!tabata?.running && !clock?.isRunning) setLiveTimer(null); }, []);
 
   // Back button: single = minimize, double (400ms) = dashboard
   useEffect(() => {

@@ -90,12 +90,16 @@ export default function TabataTimer({ onMinimize }) {
   // Minimize — set liveTimer from context refs (always current)
   const doMinimize = useCallback(() => {
     const { rounds: r, sets: s } = settingsRef.current;
-    console.log('🔽 MINIMIZE CALLED', 'running:', tabata.running, 'timeLeft:', tabata.timeLeft);
+    console.log('🔽 doMinimize - setting liveTimer');
     setLiveTimer({
-      type: 'tabata', display: String(tabata.timeLeft), phase: tabata.phase,
-      info: `סיבוב ${tabata.currentRound}/${r} • סט ${tabata.currentSet}/${s}`, color: '#FF6F20'
+      type: 'tabata',
+      display: String(tabata?.timeLeft || 0),
+      phase: tabata?.phase || 'טבטה',
+      info: `סיבוב ${tabata?.currentRound || 1}/${r} • סט ${tabata?.currentSet || 1}/${s}`,
+      color: '#FF6F20'
     });
-    onMinimize();
+    console.log('🔽 doMinimize - calling onMinimize in 50ms');
+    setTimeout(() => onMinimize(), 50);
   }, [tabata, settingsRef, setLiveTimer, onMinimize]);
 
   // Update liveTimer every tick
@@ -107,8 +111,8 @@ export default function TabataTimer({ onMinimize }) {
     });
   }, [timeLeft]);
 
-  // Clear liveTimer on mount
-  useEffect(() => { setLiveTimer(null); }, []);
+  // Clear liveTimer on mount ONLY if timer is not running
+  useEffect(() => { if (!tabata?.running) setLiveTimer(null); }, []);
 
   // Back button = minimize
   useEffect(() => {
