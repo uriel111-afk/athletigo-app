@@ -26,7 +26,7 @@ function GlobalTabata() {
     <div style={{
       display: showTabata ? 'flex' : 'none',
       position: 'fixed', inset: 0, zIndex: 200,
-      flexDirection: 'column'
+      flexDirection: 'column', background: '#FF6F20'
     }}>
       <TabataTimer
         onMinimize={() => setShowTabata(false)}
