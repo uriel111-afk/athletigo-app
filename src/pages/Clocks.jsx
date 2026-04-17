@@ -357,7 +357,7 @@ export default function Clocks() {
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
         <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <TabataTimer onMinimize={minimizeTimer} setLiveTimer={setLiveTimer} />
+          <TabataTimer onMinimize={minimizeTimer} />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
