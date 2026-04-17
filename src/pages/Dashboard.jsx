@@ -297,8 +297,6 @@ export default function Dashboard() {
               { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#4CAF50", to: createPageUrl("AllUsers") + "?filter=active" },
               { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#9C27B0", to: createPageUrl("Sessions") + "?status=upcoming" },
               { label: "לידים חדשים",    value: newLeadsCount,         color: "#FFC107", to: createPageUrl("Leads") + "?filter=new" },
-              { label: "ממתינים לאישור", value: pendingSessionsCount,  color: "#E91E63", to: createPageUrl("Sessions") + "?status=pending" },
-              { label: "חבילות בפקיעה",  value: expiringPackagesCount, color: "#F44336", to: createPageUrl("AllUsers") },
               { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", to: createPageUrl("ActivePlans") },
             ].map((m) => (
               <button key={m.label} onClick={() => navigate(m.to)}
