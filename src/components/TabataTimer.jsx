@@ -1,54 +1,55 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-// ═══ SOUNDS (outside component — stable, never recreated) ═══════════
-const _ctx = () => {
+// ═══ SOUNDS — outside component, stable, louder (gain 2.0) ═══
+const _a = () => {
   const c = new (window.AudioContext || window.webkitAudioContext)();
   c.resume();
-  const m = c.createGain(); m.gain.value = 1.5; m.connect(c.destination);
+  const m = c.createGain(); m.gain.value = 2.0; m.connect(c.destination);
   return { c, m };
 };
 
 const SND_TICK = () => {
   try {
-    const { c, m } = _ctx();
+    const { c, m } = _a();
     const o = c.createOscillator(); const g = c.createGain();
     o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = 880;
-    g.gain.setValueAtTime(0.7, c.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.09);
-    o.start(c.currentTime); o.stop(c.currentTime + 0.09);
+    g.gain.setValueAtTime(0.8, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.1);
+    o.start(c.currentTime); o.stop(c.currentTime + 0.1);
   } catch(e) {}
 };
 
 const SND_GO = () => {
   try {
-    const { c, m } = _ctx();
-    [[1100, 0, 0.11], [1600, 0.12, 0.17]].forEach(([f, d, dur]) => {
+    const { c, m } = _a();
+    [[1100,0,0.12],[1600,0.13,0.18]].forEach(([f,d,dur]) => {
       const o = c.createOscillator(); const g = c.createGain();
       o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.7, c.currentTime + d);
-      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + d + dur);
-      o.start(c.currentTime + d); o.stop(c.currentTime + d + dur);
+      g.gain.setValueAtTime(0.8, c.currentTime+d);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+d+dur);
+      o.start(c.currentTime+d); o.stop(c.currentTime+d+dur);
     });
   } catch(e) {}
 };
 
 const SND_WORK = () => {
   try {
-    const { c, m } = _ctx();
+    const { c, m } = _a();
     const o = c.createOscillator(); const g = c.createGain();
     o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = 1350;
     g.gain.setValueAtTime(0, c.currentTime);
-    g.gain.linearRampToValueAtTime(0.7, c.currentTime + 0.01);
-    g.gain.setValueAtTime(0.7, c.currentTime + 0.28);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.4);
-    o.start(c.currentTime); o.stop(c.currentTime + 0.4);
+    g.gain.linearRampToValueAtTime(0.8, c.currentTime + 0.01);
+    g.gain.setValueAtTime(0.8, c.currentTime + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.42);
+    o.start(c.currentTime); o.stop(c.currentTime + 0.42);
   } catch(e) {}
 };
 
 const SND_BELL = () => {
   try {
-    const { c, m } = _ctx();
-    [[520, 0.7, 1.5], [1040, 0.22, 0.9]].forEach(([f, gain, dur]) => {
+    const { c, m } = _a();
+    [[520,0.8,1.6],[1040,0.25,1.0]].forEach(([f,gain,dur]) => {
       const o = c.createOscillator(); const g = c.createGain();
       o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
       g.gain.setValueAtTime(gain, c.currentTime);
@@ -65,34 +66,35 @@ const unlockAudio = () => {
   try {
     const c = new (window.AudioContext || window.webkitAudioContext)();
     c.resume();
-    const b = c.createBuffer(1, 1, 22050);
+    const b = c.createBuffer(1,1,22050);
     const s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0);
   } catch(e) {}
 };
 
-// ═══ PICKER OPTIONS ══════════════════════════════════════════════════
+// ═══ PICKER OPTIONS — outside component ═══
 const PICKER = {
-  prep: [0,1,2,3,4,5,6,7,8,9,10,12,15,20,25,30,45,60],
-  work: [5,10,15,20,25,30,40,45,50,60,75,90,105,120],
-  rest: [0,5,10,15,20,25,30,40,45,50,60,75,90,120],
-  rounds: [1,2,3,4,5,6,7,8,10,12,15,20,25,30],
-  sets: [1,2,3,4,5,6,7,8,9,10],
+  prep:        [0,1,2,3,4,5,6,7,8,9,10,12,15,20,25,30,45,60],
+  work:        [5,10,15,20,25,30,40,45,50,60,75,90,105,120],
+  rest:        [0,5,10,15,20,25,30,40,45,50,60,75,90,120],
+  rounds:      [1,2,3,4,5,6,7,8,10,12,15,20,25,30],
+  sets:        [1,2,3,4,5,6,7,8,9,10],
   restBetween: [0,10,20,30,45,60,90,120,150,180],
-  countdown: [0,30,60,90,120,180,240,300,360,420,480,540,600],
+  countdown:   [0,30,60,90,120,180,240,300,360,420,480,540,600],
 };
 
-// ═══ SCROLL PICKER ═══════════════════════════════════════════════════
+// ═══ SCROLL PICKER — outside component ═══
 const ScrollPicker = ({ value, options, unit, onChange, onClose }) => {
   const listRef = useRef(null);
   useEffect(() => {
+    if (!options || options.length === 0) return;
     const idx = options.indexOf(value);
     if (listRef.current && idx >= 0)
-      setTimeout(() => listRef.current?.children[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' }), 50);
+      setTimeout(() => { const el = listRef.current?.children[idx]; if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' }); }, 80);
   }, []);
-
+  if (!options || options.length === 0) return null;
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, direction: 'rtl', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', direction: 'rtl', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #eee' }}>
           <span style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>בחר {unit ? `(${unit})` : ''}</span>
           <button onClick={onClose} style={{ background: '#FF6F20', color: 'white', border: 'none', borderRadius: 10, padding: '8px 28px', fontSize: 17, fontWeight: 700, cursor: 'pointer' }}>אישור</button>
@@ -100,12 +102,13 @@ const ScrollPicker = ({ value, options, unit, onChange, onClose }) => {
         <div ref={listRef} style={{ overflowY: 'auto', maxHeight: 320, padding: '6px 20px', display: 'flex', flexDirection: 'column', gap: 2, WebkitOverflowScrolling: 'touch' }}>
           {options.map((v, i) => (
             <div key={i} onClick={() => { onChange(v); onClose(); }} style={{
-              padding: '11px 16px', borderRadius: 10, fontSize: 22,
+              padding: '12px 16px', borderRadius: 10, fontSize: 24,
               fontWeight: v === value ? 900 : 500,
               color: v === value ? '#FF6F20' : '#1a1a1a',
               background: v === value ? '#FFF0E8' : 'transparent',
               border: `2px solid ${v === value ? '#FF6F20' : 'transparent'}`,
               cursor: 'pointer', textAlign: 'center',
+              minHeight: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>{v}{unit ? ` ${unit}` : ''}</div>
           ))}
         </div>
@@ -114,7 +117,7 @@ const ScrollPicker = ({ value, options, unit, onChange, onClose }) => {
   );
 };
 
-// ═══ LONG PRESS HOOK ═════════════════════════════════════════════════
+// ═══ LONG PRESS HOOK — outside component ═══
 const useLongPress = (cb) => {
   const t = useRef(null); const iv = useRef(null);
   const start = useCallback(() => { cb(); t.current = setTimeout(() => { iv.current = setInterval(cb, 80); }, 400); }, [cb]);
@@ -122,11 +125,12 @@ const useLongPress = (cb) => {
   return { onMouseDown: start, onMouseUp: stop, onMouseLeave: stop, onTouchStart: (e) => { e.preventDefault(); start(); }, onTouchEnd: stop, onTouchCancel: stop };
 };
 
-// ═══ FORMAT ══════════════════════════════════════════════════════════
 const formatT = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-// ═══ MAIN COMPONENT ═════════════════════════════════════════════════
+// ═══ MAIN COMPONENT ═══
 export default function TabataTimer({ onMinimize, setLiveTimer }) {
+  const navigate = useNavigate();
+
   // Load saved settings
   const saved = (() => { try { return JSON.parse(localStorage.getItem('tabata_settings') || '{}'); } catch(e) { return {}; } })();
 
@@ -136,7 +140,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const [rounds, setRounds] = useState(saved.rounds ?? 8);
   const [sets, setSets] = useState(saved.sets ?? 3);
   const [restBetween, setRestBetween] = useState(saved.restBetween ?? 60);
-  const [cdTime, setCdTime] = useState(saved.cdTime ?? saved.countdown ?? saved.countdownTime ?? 30);
+  const [cdTime, setCdTime] = useState(saved.cdTime ?? saved.countdown ?? 30);
 
   useEffect(() => {
     localStorage.setItem('tabata_settings', JSON.stringify({ prepTime, workTime, restTime, rounds, sets, restBetween, cdTime }));
@@ -154,7 +158,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const [isRunning, setIsRunning] = useState(false);
   const [picker, setPicker] = useState(null);
 
-  // Refs
+  // Refs — used INSIDE intervals, never stale
   const intervalRef = useRef(null);
   const parallelRef = useRef(null);
   const cd321Ref = useRef(null);
@@ -185,9 +189,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [isRunning]);
 
-  // Core logic
+  // ─── Core logic ───
   const startPhase = (newPhase, duration) => {
-    timeLeftRef.current = duration;
+    timeLeftRef.current = duration; // FIRST
     phaseRef.current = newPhase;
     setPhase(newPhase);
     setTimeLeft(duration);
@@ -199,6 +203,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     intervalRef.current = setInterval(() => {
       timeLeftRef.current -= 1;
       const t = timeLeftRef.current;
+      // SOUND from ref — NEVER stale — fires EVERY round
       if (t === 3 || t === 2 || t === 1) SND_TICK();
       if (t <= 0) { clearInterval(intervalRef.current); advancePhase(); }
       else setTimeLeft(t);
@@ -206,13 +211,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   };
 
   const advancePhase = () => {
-    const p = phaseRef.current;
-    const r = roundRef.current;
-    const s = setNumRef.current;
-
+    const p = phaseRef.current, r = roundRef.current, s = setNumRef.current;
     if (p === 'הכנה') {
-      roundRef.current = 1; setNumRef.current = 1;
-      setCurRound(1); setCurSet(1);
+      roundRef.current = 1; setNumRef.current = 1; setCurRound(1); setCurSet(1);
       SND_WORK(); startPhase('עבודה', workRef.current); startInterval();
     } else if (p === 'עבודה') {
       SND_BELL(); startPhase('מנוחה', restRef.current); startInterval();
@@ -221,13 +222,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         roundRef.current = r + 1; setCurRound(r + 1);
         SND_WORK(); startPhase('עבודה', workRef.current); startInterval();
       } else if (s < setsRef.current) {
-        roundRef.current = 1; setNumRef.current = s + 1;
-        setCurRound(1); setCurSet(s + 1);
+        roundRef.current = 1; setNumRef.current = s + 1; setCurRound(1); setCurSet(s + 1);
         SND_DOUBLE_BELL(); startPhase('מנוחה בין סטים', restBetRef.current); startInterval();
       } else {
         clearInterval(intervalRef.current); clearInterval(parallelRef.current);
-        setScreen('complete'); setIsRunning(false);
-        setLiveTimer(null); SND_TRIPLE_BELL(); releaseWakeLock();
+        setScreen('complete'); setIsRunning(false); setLiveTimer(null);
+        SND_TRIPLE_BELL(); releaseWakeLock();
       }
     } else if (p === 'מנוחה בין סטים') {
       SND_WORK(); startPhase('עבודה', workRef.current); startInterval();
@@ -235,8 +235,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   };
 
   const handleStart = () => {
-    unlockAudio();
-    setScreen('countdown321');
+    unlockAudio(); setScreen('countdown321');
     let c = 3; setCd321(3); SND_TICK();
     cd321Ref.current = setInterval(() => {
       c -= 1;
@@ -246,8 +245,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         setTimeout(() => {
           const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
           const initDur = prepTime > 0 ? prepTime : workRef.current;
-          roundRef.current = 1; setNumRef.current = 1;
-          setCurRound(1); setCurSet(1);
+          roundRef.current = 1; setNumRef.current = 1; setCurRound(1); setCurSet(1);
           setIsRunning(true); setScreen('running');
           if (initPhase === 'עבודה') SND_WORK();
           startPhase(initPhase, initDur); startInterval();
@@ -280,36 +278,58 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     setIsRunning(false); setScreen('settings'); setLiveTimer(null); releaseWakeLock();
   };
 
-  // Update floating widget
+  // ─── Minimize ───
+  const handleMinimize = () => {
+    setLiveTimer({
+      type: 'tabata', display: String(timeLeft), phase,
+      info: `סיבוב ${curRound}/${rounds} • סט ${curSet}/${sets}`, color: '#FF6F20'
+    });
+    onMinimize();
+  };
+
+  // Update floating widget every tick
   useEffect(() => {
-    setLiveTimer(prev => (!prev || !isRunning) ? prev : {
-      ...prev, display: String(timeLeft), phase,
-      info: `סיבוב ${curRound}/${rounds} • סט ${curSet}/${sets}`
+    setLiveTimer(prev => {
+      if (!prev) return null;
+      return { ...prev, display: String(timeLeft), phase,
+        info: `סיבוב ${curRound}/${rounds} • סט ${curSet}/${sets}` };
     });
   }, [timeLeft]);
 
+  // Clear on mount (entering clocks page)
   useEffect(() => { setLiveTimer(null); }, []);
 
+  // Cleanup on unmount
   useEffect(() => () => {
     clearInterval(intervalRef.current); clearInterval(parallelRef.current); clearInterval(cd321Ref.current);
     releaseWakeLock();
   }, []);
 
-  // Long press handlers
-  const incPrep = useLongPress(useCallback(() => setPrepTime(v => Math.min(60, v + 1)), []));
-  const decPrep = useLongPress(useCallback(() => setPrepTime(v => Math.max(0, v - 1)), []));
-  const incWork = useLongPress(useCallback(() => setWorkTime(v => Math.min(120, v + 5)), []));
-  const decWork = useLongPress(useCallback(() => setWorkTime(v => Math.max(5, v - 5)), []));
-  const incRest = useLongPress(useCallback(() => setRestTime(v => Math.min(120, v + 5)), []));
-  const decRest = useLongPress(useCallback(() => setRestTime(v => Math.max(0, v - 5)), []));
-  const incRounds = useLongPress(useCallback(() => setRounds(v => Math.min(30, v + 1)), []));
-  const decRounds = useLongPress(useCallback(() => setRounds(v => Math.max(1, v - 1)), []));
-  const incSets = useLongPress(useCallback(() => setSets(v => Math.min(10, v + 1)), []));
-  const decSets = useLongPress(useCallback(() => setSets(v => Math.max(1, v - 1)), []));
-  const incRB = useLongPress(useCallback(() => setRestBetween(v => Math.min(180, v + 10)), []));
-  const decRB = useLongPress(useCallback(() => setRestBetween(v => Math.max(0, v - 10)), []));
-  const incCD = useLongPress(useCallback(() => setCdTime(v => Math.min(600, v + 30)), []));
-  const decCD = useLongPress(useCallback(() => setCdTime(v => Math.max(0, v - 30)), []));
+  // Back button = minimize when running
+  useEffect(() => {
+    window.history.pushState(null, '', window.location.href);
+    const onPop = () => {
+      if (isRunning) { window.history.pushState(null, '', window.location.href); handleMinimize(); }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [isRunning, timeLeft, phase, curRound, curSet]);
+
+  // ─── Long press handlers ───
+  const incPrep = useLongPress(useCallback(() => setPrepTime(v => Math.min(60, v+1)), []));
+  const decPrep = useLongPress(useCallback(() => setPrepTime(v => Math.max(0, v-1)), []));
+  const incWork = useLongPress(useCallback(() => setWorkTime(v => Math.min(120, v+5)), []));
+  const decWork = useLongPress(useCallback(() => setWorkTime(v => Math.max(5, v-5)), []));
+  const incRest = useLongPress(useCallback(() => setRestTime(v => Math.min(120, v+5)), []));
+  const decRest = useLongPress(useCallback(() => setRestTime(v => Math.max(0, v-5)), []));
+  const incRounds = useLongPress(useCallback(() => setRounds(v => Math.min(30, v+1)), []));
+  const decRounds = useLongPress(useCallback(() => setRounds(v => Math.max(1, v-1)), []));
+  const incSets = useLongPress(useCallback(() => setSets(v => Math.min(10, v+1)), []));
+  const decSets = useLongPress(useCallback(() => setSets(v => Math.max(1, v-1)), []));
+  const incRB = useLongPress(useCallback(() => setRestBetween(v => Math.min(180, v+10)), []));
+  const decRB = useLongPress(useCallback(() => setRestBetween(v => Math.max(0, v-10)), []));
+  const incCD = useLongPress(useCallback(() => setCdTime(v => Math.min(600, v+30)), []));
+  const decCD = useLongPress(useCallback(() => setCdTime(v => Math.max(0, v-30)), []));
 
   const ROWS = [
     { icon: '⏱', label: 'הכנה', value: prepTime, set: setPrepTime, pk: 'prep', unit: 'שנ׳', inc: incPrep, dec: decPrep },
@@ -323,7 +343,6 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const totalSecs = (prepTime + (workTime + restTime) * rounds) * sets + restBetween * (sets - 1);
 
-  // Next phase helper
   const getNext = () => {
     if (phase === 'הכנה') return { label: 'עבודה', dur: workTime };
     if (phase === 'עבודה') return { label: 'מנוחה', dur: restTime };
@@ -336,7 +355,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     return { label: '', dur: 0 };
   };
 
-  // ═══ SCREENS ═══════════════════════════════════════════════════════
+  const MinimizeBtn = () => (
+    <button onClick={(e) => { e.stopPropagation(); handleMinimize(); }}
+      style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+        <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+      </svg>
+    </button>
+  );
+
+  // ═══ SCREENS ═══
 
   if (screen === 'countdown321') return (
     <div style={{ background: '#FF6F20', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -359,23 +388,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       <div style={{ background: '#FF6F20', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
         {/* Header */}
         <div style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <button onClick={(e) => { e.stopPropagation(); setLiveTimer({ type: 'tabata', display: String(timeLeft), phase, info: `סיבוב ${curRound}/${rounds} • סט ${curSet}/${sets}`, color: '#FF6F20' }); onMinimize(); }}
-            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
-              <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
-            </svg>
-          </button>
+          {isRunning && <MinimizeBtn />}
           <div style={{ fontSize: 20, fontWeight: 900, color: 'white' }}>TABATA</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>נותר לסיום</div>
             <div style={{ fontSize: 34, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatT(parallelCD)}</div>
           </div>
         </div>
-
         {/* Phase */}
         <div style={{ fontSize: 42, fontWeight: 900, color: 'white', textAlign: 'center', paddingTop: 8, flexShrink: 0 }}>{phase}</div>
-
         {/* Ring */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '2px 0' }}>
           <div style={{ position: 'relative', width: 'min(60vw, 240px)', height: 'min(60vw, 240px)' }}>
@@ -391,7 +412,6 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             </div>
           </div>
         </div>
-
         {/* Bottom */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 14px 12px', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px' }}>
@@ -422,7 +442,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     );
   }
 
-  // ═══ SETTINGS ══════════════════════════════════════════════════════
+  // ═══ SETTINGS ═══
   return (
     <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
       <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
@@ -436,8 +456,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             <div style={{ flex: 1, fontSize: row.labelSize || 20, fontWeight: 700, color: 'white' }}>{row.label}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button {...row.dec} style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', border: 'none', color: 'white', fontSize: 20, cursor: 'pointer', lineHeight: 1, flexShrink: 0, touchAction: 'none' }}>−</button>
-              <span onClick={() => setPicker({ value: row.value, options: PICKER[row.pk], unit: row.unit, onChange: row.set })}
-                style={{ fontSize: 26, fontWeight: 900, color: 'white', minWidth: 40, textAlign: 'center', cursor: 'pointer', userSelect: 'none' }}>{row.value}</span>
+              <span onClick={() => {
+                const options = PICKER[row.pk];
+                if (!options) return;
+                setPicker({ value: row.value, options, unit: row.unit, onChange: row.set });
+              }} style={{ fontSize: 26, fontWeight: 900, color: 'white', minWidth: 40, textAlign: 'center', cursor: 'pointer', userSelect: 'none' }}>{row.value}</span>
               <button {...row.inc} style={{ width: 34, height: 34, borderRadius: '50%', background: 'white', border: 'none', color: '#FF6F20', fontSize: 20, cursor: 'pointer', lineHeight: 1, flexShrink: 0, touchAction: 'none' }}>+</button>
             </div>
           </div>
