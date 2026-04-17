@@ -4,13 +4,13 @@ import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 
 // ─── PICKER OPTIONS (outside component) ───
 const PICKER_OPTS = {
-  prep: Array.from({length: 61}, (_, i) => i),
-  work: Array.from({length: 24}, (_, i) => (i + 1) * 5),
-  rest: [0, ...Array.from({length: 24}, (_, i) => (i + 1) * 5)],
-  rounds: Array.from({length: 30}, (_, i) => i + 1),
-  sets: Array.from({length: 10}, (_, i) => i + 1),
-  restBetween: [0, ...Array.from({length: 36}, (_, i) => (i + 1) * 5)],
-  countdown: [0, ...Array.from({length: 20}, (_, i) => (i + 1) * 30)],
+  prep:        Array.from({length: 61}, (_, i) => i),
+  work:        Array.from({length: 120}, (_, i) => i + 1),
+  rest:        Array.from({length: 121}, (_, i) => i),
+  rounds:      Array.from({length: 30}, (_, i) => i + 1),
+  sets:        Array.from({length: 10}, (_, i) => i + 1),
+  restBetween: Array.from({length: 181}, (_, i) => i),
+  countdown:   Array.from({length: 601}, (_, i) => i),
 };
 
 // ─── SCROLL PICKER (outside component) ───
