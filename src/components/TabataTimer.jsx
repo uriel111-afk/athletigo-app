@@ -1,60 +1,65 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-// ═══ SOUNDS — outside component, stable, louder (gain 2.0) ═══
-const _a = () => {
-  const c = new (window.AudioContext || window.webkitAudioContext)();
-  c.resume();
-  const m = c.createGain(); m.gain.value = 2.0; m.connect(c.destination);
-  return { c, m };
+// ─────────────────────────────────────────
+// SOUNDS — defined outside component (stable, never recreated)
+// ─────────────────────────────────────────
+const _audio = () => {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume();
+  const master = ctx.createGain();
+  master.gain.value = 2.0;
+  master.connect(ctx.destination);
+  return { ctx, master };
 };
 
 const SND_TICK = () => {
   try {
-    const { c, m } = _a();
-    const o = c.createOscillator(); const g = c.createGain();
-    o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = 880;
-    g.gain.setValueAtTime(0.8, c.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.1);
-    o.start(c.currentTime); o.stop(c.currentTime + 0.1);
+    const { ctx, master } = _audio();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(master);
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.8, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    o.start(); o.stop(ctx.currentTime + 0.1);
   } catch(e) {}
 };
 
 const SND_GO = () => {
   try {
-    const { c, m } = _a();
-    [[1100,0,0.12],[1600,0.13,0.18]].forEach(([f,d,dur]) => {
-      const o = c.createOscillator(); const g = c.createGain();
-      o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.8, c.currentTime+d);
-      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+d+dur);
-      o.start(c.currentTime+d); o.stop(c.currentTime+d+dur);
+    const { ctx, master } = _audio();
+    [[1100, 0, 0.12], [1600, 0.14, 0.18]].forEach(([f, d, dur]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.8, ctx.currentTime + d);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + dur);
+      o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + dur);
     });
   } catch(e) {}
 };
 
 const SND_WORK = () => {
   try {
-    const { c, m } = _a();
-    const o = c.createOscillator(); const g = c.createGain();
-    o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = 1350;
-    g.gain.setValueAtTime(0, c.currentTime);
-    g.gain.linearRampToValueAtTime(0.8, c.currentTime + 0.01);
-    g.gain.setValueAtTime(0.8, c.currentTime + 0.3);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.42);
-    o.start(c.currentTime); o.stop(c.currentTime + 0.42);
+    const { ctx, master } = _audio();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = 1350;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.01);
+    g.gain.setValueAtTime(0.8, ctx.currentTime + 0.30);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.42);
+    o.start(); o.stop(ctx.currentTime + 0.42);
   } catch(e) {}
 };
 
 const SND_BELL = () => {
   try {
-    const { c, m } = _a();
-    [[520,0.8,1.6],[1040,0.25,1.0]].forEach(([f,gain,dur]) => {
-      const o = c.createOscillator(); const g = c.createGain();
-      o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(gain, c.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
-      o.start(c.currentTime); o.stop(c.currentTime + dur);
+    const { ctx, master } = _audio();
+    [[520, 0.8, 1.6], [1040, 0.25, 1.0]].forEach(([f, gain, dur]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(gain, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      o.start(); o.stop(ctx.currentTime + dur);
     });
   } catch(e) {}
 };
@@ -64,15 +69,18 @@ const SND_TRIPLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 500); setTimeou
 
 const unlockAudio = () => {
   try {
-    const c = new (window.AudioContext || window.webkitAudioContext)();
-    c.resume();
-    const b = c.createBuffer(1,1,22050);
-    const s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();
+    const b = ctx.createBuffer(1, 1, 22050);
+    const s = ctx.createBufferSource();
+    s.buffer = b; s.connect(ctx.destination); s.start(0);
   } catch(e) {}
 };
 
-// ═══ PICKER OPTIONS — outside component ═══
-const PICKER = {
+// ─────────────────────────────────────────
+// PICKER OPTIONS — outside component
+// ─────────────────────────────────────────
+const PICKER_OPTS = {
   prep:        [0,1,2,3,4,5,6,7,8,9,10,12,15,20,25,30,45,60],
   work:        [5,10,15,20,25,30,40,45,50,60,75,90,105,120],
   rest:        [0,5,10,15,20,25,30,40,45,50,60,75,90,120],
@@ -82,33 +90,32 @@ const PICKER = {
   countdown:   [0,30,60,90,120,180,240,300,360,420,480,540,600],
 };
 
-// ═══ SCROLL PICKER — outside component ═══
+// ─────────────────────────────────────────
+// SCROLL PICKER — outside component
+// ─────────────────────────────────────────
 const ScrollPicker = ({ value, options, unit, onChange, onClose }) => {
   const listRef = useRef(null);
   useEffect(() => {
-    if (!options || options.length === 0) return;
+    if (!options?.length) return;
     const idx = options.indexOf(value);
-    if (listRef.current && idx >= 0)
-      setTimeout(() => { const el = listRef.current?.children[idx]; if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' }); }, 80);
+    if (idx >= 0) setTimeout(() => { listRef.current?.children[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' }); }, 80);
   }, []);
-  if (!options || options.length === 0) return null;
+  if (!options?.length) return null;
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', direction: 'rtl', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #eee' }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>בחר {unit ? `(${unit})` : ''}</span>
-          <button onClick={onClose} style={{ background: '#FF6F20', color: 'white', border: 'none', borderRadius: 10, padding: '8px 28px', fontSize: 17, fontWeight: 700, cursor: 'pointer' }}>אישור</button>
+          <span style={{ fontSize: 18, fontWeight: 700 }}>{unit ? `בחר (${unit})` : 'בחר ערך'}</span>
+          <button onClick={onClose} style={{ background: '#FF6F20', color: 'white', border: 'none', borderRadius: 10, padding: '8px 24px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>סגור</button>
         </div>
-        <div ref={listRef} style={{ overflowY: 'auto', maxHeight: 320, padding: '6px 20px', display: 'flex', flexDirection: 'column', gap: 2, WebkitOverflowScrolling: 'touch' }}>
+        <div ref={listRef} style={{ overflowY: 'auto', maxHeight: 300, padding: '6px 20px', WebkitOverflowScrolling: 'touch' }}>
           {options.map((v, i) => (
             <div key={i} onClick={() => { onChange(v); onClose(); }} style={{
-              padding: '12px 16px', borderRadius: 10, fontSize: 24,
-              fontWeight: v === value ? 900 : 500,
+              padding: '12px 0', textAlign: 'center', fontSize: 24,
+              fontWeight: v === value ? 900 : 400,
               color: v === value ? '#FF6F20' : '#1a1a1a',
               background: v === value ? '#FFF0E8' : 'transparent',
-              border: `2px solid ${v === value ? '#FF6F20' : 'transparent'}`,
-              cursor: 'pointer', textAlign: 'center',
-              minHeight: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 8, cursor: 'pointer', borderBottom: '1px solid #f0f0f0',
             }}>{v}{unit ? ` ${unit}` : ''}</div>
           ))}
         </div>
@@ -117,22 +124,25 @@ const ScrollPicker = ({ value, options, unit, onChange, onClose }) => {
   );
 };
 
-// ═══ LONG PRESS HOOK — outside component ═══
+// ─────────────────────────────────────────
+// LONG PRESS HOOK
+// ─────────────────────────────────────────
 const useLongPress = (cb) => {
-  const t = useRef(null); const iv = useRef(null);
-  const start = useCallback(() => { cb(); t.current = setTimeout(() => { iv.current = setInterval(cb, 80); }, 400); }, [cb]);
-  const stop = useCallback(() => { clearTimeout(t.current); clearInterval(iv.current); }, []);
+  const timer = useRef(null); const interval = useRef(null);
+  const start = useCallback(() => { cb(); timer.current = setTimeout(() => { interval.current = setInterval(cb, 80); }, 400); }, [cb]);
+  const stop = useCallback(() => { clearTimeout(timer.current); clearInterval(interval.current); }, []);
   return { onMouseDown: start, onMouseUp: stop, onMouseLeave: stop, onTouchStart: (e) => { e.preventDefault(); start(); }, onTouchEnd: stop, onTouchCancel: stop };
 };
 
-const formatT = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const C = 679; // 2*π*108
 
-// ═══ MAIN COMPONENT ═══
+// ─────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────
 export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const navigate = useNavigate();
-
-  // Load saved settings
-  const saved = (() => { try { return JSON.parse(localStorage.getItem('tabata_settings') || '{}'); } catch(e) { return {}; } })();
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('tabata_v2') || '{}'); } catch(e) { return {}; } })();
 
   const [prepTime, setPrepTime] = useState(saved.prepTime ?? 10);
   const [workTime, setWorkTime] = useState(saved.workTime ?? 20);
@@ -140,182 +150,115 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const [rounds, setRounds] = useState(saved.rounds ?? 8);
   const [sets, setSets] = useState(saved.sets ?? 3);
   const [restBetween, setRestBetween] = useState(saved.restBetween ?? 60);
-  const [cdTime, setCdTime] = useState(saved.cdTime ?? saved.countdown ?? 30);
+  const [cdTime, setCdTime] = useState(saved.cdTime ?? 30);
 
-  useEffect(() => {
-    localStorage.setItem('tabata_settings', JSON.stringify({ prepTime, workTime, restTime, rounds, sets, restBetween, cdTime }));
-  }, [prepTime, workTime, restTime, rounds, sets, restBetween, cdTime]);
+  useEffect(() => { localStorage.setItem('tabata_v2', JSON.stringify({ prepTime, workTime, restTime, rounds, sets, restBetween, cdTime })); }, [prepTime, workTime, restTime, rounds, sets, restBetween, cdTime]);
 
-  // Running state
   const [screen, setScreen] = useState('settings');
   const [phase, setPhase] = useState('עבודה');
   const [timeLeft, setTimeLeft] = useState(0);
   const [phaseDur, setPhaseDur] = useState(0);
   const [curRound, setCurRound] = useState(1);
   const [curSet, setCurSet] = useState(1);
-  const [parallelCD, setParallelCD] = useState(0);
-  const [cd321, setCd321] = useState(3);
+  const [totalLeft, setTotalLeft] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [go321Val, setGo321Val] = useState(3);
   const [picker, setPicker] = useState(null);
 
-  // Refs — used INSIDE intervals, never stale
-  const intervalRef = useRef(null);
-  const parallelRef = useRef(null);
-  const cd321Ref = useRef(null);
-  const wakeLockRef = useRef(null);
-  const timeLeftRef = useRef(0);
-  const phaseRef = useRef('עבודה');
-  const roundRef = useRef(1);
-  const setNumRef = useRef(1);
-  const workRef = useRef(workTime);
-  const restRef = useRef(restTime);
-  const roundsRef = useRef(rounds);
-  const setsRef = useRef(sets);
-  const restBetRef = useRef(restBetween);
-  const parallelValRef = useRef(0);
+  const mainRef = useRef(null); const totalRef = useRef(null); const go321Ref = useRef(null); const wakeLock = useRef(null);
+  const tLeftRef = useRef(0); const phaseRef = useRef('עבודה'); const roundRef = useRef(1); const setNumRef = useRef(1);
+  const workR = useRef(workTime); const restR = useRef(restTime); const roundsR = useRef(rounds); const setsR = useRef(sets); const restBetR = useRef(restBetween); const totalR = useRef(0);
 
-  useEffect(() => { workRef.current = workTime; }, [workTime]);
-  useEffect(() => { restRef.current = restTime; }, [restTime]);
-  useEffect(() => { roundsRef.current = rounds; }, [rounds]);
-  useEffect(() => { setsRef.current = sets; }, [sets]);
-  useEffect(() => { restBetRef.current = restBetween; }, [restBetween]);
+  useEffect(() => { workR.current = workTime; }, [workTime]);
+  useEffect(() => { restR.current = restTime; }, [restTime]);
+  useEffect(() => { roundsR.current = rounds; }, [rounds]);
+  useEffect(() => { setsR.current = sets; }, [sets]);
+  useEffect(() => { restBetR.current = restBetween; }, [restBetween]);
 
-  // Wake lock
-  const requestWakeLock = async () => { try { if ('wakeLock' in navigator) wakeLockRef.current = await navigator.wakeLock.request('screen'); } catch(e) {} };
-  const releaseWakeLock = () => { wakeLockRef.current?.release().catch(() => {}); wakeLockRef.current = null; };
-  useEffect(() => {
-    const onVis = async () => { if (document.visibilityState === 'visible' && isRunning) await requestWakeLock(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, [isRunning]);
+  const reqWake = async () => { try { if ('wakeLock' in navigator) wakeLock.current = await navigator.wakeLock.request('screen'); } catch(e) {} };
+  const relWake = () => { wakeLock.current?.release().catch(() => {}); wakeLock.current = null; };
+  useEffect(() => { const fn = async () => { if (document.visibilityState === 'visible' && isRunning) await reqWake(); }; document.addEventListener('visibilitychange', fn); return () => document.removeEventListener('visibilitychange', fn); }, [isRunning]);
 
-  // ─── Core logic ───
-  const startPhase = (newPhase, duration) => {
-    timeLeftRef.current = duration; // FIRST
-    phaseRef.current = newPhase;
-    setPhase(newPhase);
-    setTimeLeft(duration);
-    setPhaseDur(duration);
-  };
+  const startPhase = (p, dur) => { tLeftRef.current = dur; phaseRef.current = p; setPhase(p); setTimeLeft(dur); setPhaseDur(dur); };
 
-  const startInterval = () => {
-    clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => {
-      timeLeftRef.current -= 1;
-      const t = timeLeftRef.current;
-      // SOUND from ref — NEVER stale — fires EVERY round
+  const startMainInterval = () => {
+    clearInterval(mainRef.current);
+    mainRef.current = setInterval(() => {
+      tLeftRef.current -= 1;
+      const t = tLeftRef.current;
       if (t === 3 || t === 2 || t === 1) SND_TICK();
-      if (t <= 0) { clearInterval(intervalRef.current); advancePhase(); }
+      if (t <= 0) { clearInterval(mainRef.current); doAdvance(); }
       else setTimeLeft(t);
     }, 1000);
   };
 
-  const advancePhase = () => {
+  const doAdvance = () => {
     const p = phaseRef.current, r = roundRef.current, s = setNumRef.current;
-    if (p === 'הכנה') {
-      roundRef.current = 1; setNumRef.current = 1; setCurRound(1); setCurSet(1);
-      SND_WORK(); startPhase('עבודה', workRef.current); startInterval();
-    } else if (p === 'עבודה') {
-      SND_BELL(); startPhase('מנוחה', restRef.current); startInterval();
-    } else if (p === 'מנוחה') {
-      if (r < roundsRef.current) {
-        roundRef.current = r + 1; setCurRound(r + 1);
-        SND_WORK(); startPhase('עבודה', workRef.current); startInterval();
-      } else if (s < setsRef.current) {
-        roundRef.current = 1; setNumRef.current = s + 1; setCurRound(1); setCurSet(s + 1);
-        SND_DOUBLE_BELL(); startPhase('מנוחה בין סטים', restBetRef.current); startInterval();
-      } else {
-        clearInterval(intervalRef.current); clearInterval(parallelRef.current);
-        setScreen('complete'); setIsRunning(false); setLiveTimer(null);
-        SND_TRIPLE_BELL(); releaseWakeLock();
-      }
-    } else if (p === 'מנוחה בין סטים') {
-      SND_WORK(); startPhase('עבודה', workRef.current); startInterval();
+    if (p === 'הכנה') { roundRef.current = 1; setNumRef.current = 1; setCurRound(1); setCurSet(1); SND_WORK(); startPhase('עבודה', workR.current); startMainInterval(); }
+    else if (p === 'עבודה') { SND_BELL(); startPhase('מנוחה', restR.current); startMainInterval(); }
+    else if (p === 'מנוחה') {
+      if (r < roundsR.current) { roundRef.current = r + 1; setCurRound(r + 1); SND_WORK(); startPhase('עבודה', workR.current); startMainInterval(); }
+      else if (s < setsR.current) { roundRef.current = 1; setNumRef.current = s + 1; setCurRound(1); setCurSet(s + 1); SND_DOUBLE_BELL(); startPhase('מנוחה בין סטים', restBetR.current); startMainInterval(); }
+      else { clearInterval(mainRef.current); clearInterval(totalRef.current); setScreen('complete'); setIsRunning(false); setLiveTimer(null); SND_TRIPLE_BELL(); relWake(); }
     }
+    else if (p === 'מנוחה בין סטים') { SND_WORK(); startPhase('עבודה', workR.current); startMainInterval(); }
   };
 
+  const calcTotal = () => (prepTime + (workTime + restTime) * rounds) * sets + restBetween * Math.max(0, sets - 1);
+
   const handleStart = () => {
-    unlockAudio(); setScreen('countdown321');
-    let c = 3; setCd321(3); SND_TICK();
-    cd321Ref.current = setInterval(() => {
+    unlockAudio(); setScreen('go321'); setGo321Val(3); SND_TICK();
+    let c = 3;
+    go321Ref.current = setInterval(() => {
       c -= 1;
-      if (c > 0) { setCd321(c); SND_TICK(); }
+      if (c > 0) { setGo321Val(c); SND_TICK(); }
       else {
-        clearInterval(cd321Ref.current); setCd321('GO'); SND_GO();
+        clearInterval(go321Ref.current); setGo321Val('GO'); SND_GO();
         setTimeout(() => {
-          const initPhase = prepTime > 0 ? 'הכנה' : 'עבודה';
-          const initDur = prepTime > 0 ? prepTime : workRef.current;
+          const total = calcTotal(); totalR.current = total; setTotalLeft(total);
           roundRef.current = 1; setNumRef.current = 1; setCurRound(1); setCurSet(1);
           setIsRunning(true); setScreen('running');
-          if (initPhase === 'עבודה') SND_WORK();
-          startPhase(initPhase, initDur); startInterval();
-          parallelValRef.current = cdTime; setParallelCD(cdTime);
-          clearInterval(parallelRef.current);
-          parallelRef.current = setInterval(() => {
-            parallelValRef.current -= 1; setParallelCD(parallelValRef.current);
-            if (parallelValRef.current <= 0) { clearInterval(parallelRef.current); SND_DOUBLE_BELL(); }
-          }, 1000);
-          requestWakeLock();
+          const initP = prepTime > 0 ? 'הכנה' : 'עבודה';
+          const initD = prepTime > 0 ? prepTime : workR.current;
+          if (initP === 'עבודה') SND_WORK();
+          startPhase(initP, initD); startMainInterval();
+          clearInterval(totalRef.current);
+          totalRef.current = setInterval(() => { totalR.current -= 1; setTotalLeft(totalR.current); if (totalR.current <= 0) { clearInterval(totalRef.current); SND_DOUBLE_BELL(); } }, 1000);
+          reqWake();
         }, 800);
       }
     }, 1000);
   };
 
-  const handlePause = () => {
-    if (isRunning) {
-      clearInterval(intervalRef.current); clearInterval(parallelRef.current); setIsRunning(false);
-    } else {
-      setIsRunning(true); startInterval();
-      parallelRef.current = setInterval(() => {
-        parallelValRef.current -= 1; setParallelCD(parallelValRef.current);
-        if (parallelValRef.current <= 0) clearInterval(parallelRef.current);
-      }, 1000);
-    }
+  const handlePauseResume = () => {
+    if (isRunning) { clearInterval(mainRef.current); clearInterval(totalRef.current); setIsRunning(false); }
+    else { setIsRunning(true); startMainInterval(); totalRef.current = setInterval(() => { totalR.current -= 1; setTotalLeft(totalR.current); if (totalR.current <= 0) clearInterval(totalRef.current); }, 1000); }
   };
 
-  const handleReset = () => {
-    clearInterval(intervalRef.current); clearInterval(parallelRef.current); clearInterval(cd321Ref.current);
-    setIsRunning(false); setScreen('settings'); setLiveTimer(null); releaseWakeLock();
-  };
+  const handleReset = () => { clearInterval(mainRef.current); clearInterval(totalRef.current); clearInterval(go321Ref.current); setIsRunning(false); setScreen('settings'); setLiveTimer(null); relWake(); };
 
-  // ─── Minimize ───
-  const handleMinimize = () => {
-    setLiveTimer({
-      type: 'tabata', display: String(timeLeft), phase,
-      info: `סיבוב ${curRound}/${rounds} • סט ${curSet}/${sets}`, color: '#FF6F20'
-    });
+  const doMinimize = useCallback(() => {
+    setLiveTimer({ type: 'tabata', display: String(tLeftRef.current), phase: phaseRef.current, info: `סיבוב ${roundRef.current}/${roundsR.current} • סט ${setNumRef.current}/${setsR.current}`, color: '#FF6F20' });
     onMinimize();
-  };
+  }, [onMinimize, setLiveTimer]);
 
-  // Update floating widget every tick
+  useEffect(() => { setLiveTimer(prev => { if (!prev) return null; return { ...prev, display: String(timeLeft), phase, info: `סיבוב ${curRound}/${rounds} • סט ${curSet}/${sets}` }; }); }, [timeLeft]);
+  useEffect(() => { setLiveTimer(null); return () => { clearInterval(mainRef.current); clearInterval(totalRef.current); clearInterval(go321Ref.current); relWake(); }; }, []);
+
   useEffect(() => {
-    setLiveTimer(prev => {
-      if (!prev) return null;
-      return { ...prev, display: String(timeLeft), phase,
-        info: `סיבוב ${curRound}/${rounds} • סט ${curSet}/${sets}` };
-    });
-  }, [timeLeft]);
-
-  // Clear on mount (entering clocks page)
-  useEffect(() => { setLiveTimer(null); }, []);
-
-  // Cleanup on unmount
-  useEffect(() => () => {
-    clearInterval(intervalRef.current); clearInterval(parallelRef.current); clearInterval(cd321Ref.current);
-    releaseWakeLock();
-  }, []);
-
-  // Back button = minimize when running
-  useEffect(() => {
+    if (!isRunning) return;
     window.history.pushState(null, '', window.location.href);
-    const onPop = () => {
-      if (isRunning) { window.history.pushState(null, '', window.location.href); handleMinimize(); }
-    };
+    const onPop = () => { window.history.pushState(null, '', window.location.href); doMinimize(); };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [isRunning, timeLeft, phase, curRound, curSet]);
+  }, [isRunning, doMinimize]);
 
-  // ─── Long press handlers ───
+  const MinimizeBtn = (
+    <button onClick={(e) => { e.stopPropagation(); doMinimize(); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+    </button>
+  );
+
   const incPrep = useLongPress(useCallback(() => setPrepTime(v => Math.min(60, v+1)), []));
   const decPrep = useLongPress(useCallback(() => setPrepTime(v => Math.max(0, v-1)), []));
   const incWork = useLongPress(useCallback(() => setWorkTime(v => Math.min(120, v+5)), []));
@@ -332,141 +275,102 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const decCD = useLongPress(useCallback(() => setCdTime(v => Math.max(0, v-30)), []));
 
   const ROWS = [
-    { icon: '⏱', label: 'הכנה', value: prepTime, set: setPrepTime, pk: 'prep', unit: 'שנ׳', inc: incPrep, dec: decPrep },
-    { icon: '💪', label: 'עבודה', value: workTime, set: setWorkTime, pk: 'work', unit: 'שנ׳', inc: incWork, dec: decWork },
-    { icon: '😮', label: 'מנוחה', value: restTime, set: setRestTime, pk: 'rest', unit: 'שנ׳', inc: incRest, dec: decRest },
-    { icon: '🔄', label: 'מחזורים', value: rounds, set: setRounds, pk: 'rounds', unit: '×', inc: incRounds, dec: decRounds },
-    { icon: '📋', label: 'סטים', value: sets, set: setSets, pk: 'sets', unit: '×', inc: incSets, dec: decSets },
-    { icon: '⏸', label: 'מנוחה בין סטים', value: restBetween, set: setRestBetween, pk: 'restBetween', unit: 'שנ׳', inc: incRB, dec: decRB, labelSize: 18 },
-    { icon: '🔔', label: 'ספירה לאחור', value: cdTime, set: setCdTime, pk: 'countdown', unit: 'שנ׳', inc: incCD, dec: decCD, labelSize: 18 },
+    { icon:'⏱', label:'הכנה', pk:'prep', unit:'שנ׳', value:prepTime, set:setPrepTime, inc:incPrep, dec:decPrep },
+    { icon:'💪', label:'עבודה', pk:'work', unit:'שנ׳', value:workTime, set:setWorkTime, inc:incWork, dec:decWork },
+    { icon:'😮', label:'מנוחה', pk:'rest', unit:'שנ׳', value:restTime, set:setRestTime, inc:incRest, dec:decRest },
+    { icon:'🔄', label:'מחזורים', pk:'rounds', unit:'×', value:rounds, set:setRounds, inc:incRounds, dec:decRounds },
+    { icon:'📋', label:'סטים', pk:'sets', unit:'×', value:sets, set:setSets, inc:incSets, dec:decSets },
+    { icon:'⏸', label:'מנוחה בין סטים', pk:'restBetween', unit:'שנ׳', value:restBetween, set:setRestBetween, inc:incRB, dec:decRB, small:true },
+    { icon:'🔔', label:'ספירה לאחור', pk:'countdown', unit:'שנ׳', value:cdTime, set:setCdTime, inc:incCD, dec:decCD, small:true },
   ];
 
-  const totalSecs = (prepTime + (workTime + restTime) * rounds) * sets + restBetween * (sets - 1);
+  const totalSecs = calcTotal();
 
-  const getNext = () => {
-    if (phase === 'הכנה') return { label: 'עבודה', dur: workTime };
-    if (phase === 'עבודה') return { label: 'מנוחה', dur: restTime };
-    if (phase === 'מנוחה') {
-      if (curRound < rounds) return { label: 'עבודה', dur: workTime };
-      if (curSet < sets) return { label: 'מנוחה בין סטים', dur: restBetween };
-      return { label: 'סיום', dur: 0 };
-    }
-    if (phase === 'מנוחה בין סטים') return { label: 'עבודה', dur: workTime };
-    return { label: '', dur: 0 };
-  };
+  // ── SCREENS ──
 
-  const MinimizeBtn = () => (
-    <button onClick={(e) => { e.stopPropagation(); handleMinimize(); }}
-      style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
-        <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
-      </svg>
-    </button>
-  );
-
-  // ═══ SCREENS ═══
-
-  if (screen === 'countdown321') return (
+  if (screen === 'go321') return (
     <div style={{ background: '#FF6F20', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: cd321 === 'GO' ? 110 : 200, fontWeight: 900, color: 'white', lineHeight: 1 }}>{cd321}</div>
+      <div style={{ fontSize: go321Val === 'GO' ? 100 : 180, fontWeight: 900, color: 'white', lineHeight: 1 }}>{go321Val}</div>
     </div>
   );
 
   if (screen === 'complete') return (
-    <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, direction: 'rtl', padding: 20 }}>
-      <div style={{ fontSize: 80, color: 'white', lineHeight: 1 }}>✓</div>
+    <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, direction: 'rtl', padding: 24 }}>
+      <div style={{ fontSize: 80, color: 'white' }}>✓</div>
       <div style={{ fontSize: 30, fontWeight: 900, color: 'white' }}>כל הכבוד! סיימת!</div>
-      <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)' }}>{sets} סטים • {rounds} מחזורים</div>
-      <button onClick={handleReset} style={{ marginTop: 20, width: '100%', height: 56, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 12, fontSize: 20, fontWeight: 900, cursor: 'pointer' }}>התחל מחדש</button>
+      <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)' }}>{sets} סטים • {rounds} מחזורים</div>
+      <button onClick={handleReset} style={{ marginTop: 16, width: '100%', height: 56, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 12, fontSize: 20, fontWeight: 900, cursor: 'pointer' }}>התחל מחדש</button>
     </div>
   );
 
   if (screen === 'running') {
-    const next = getNext();
+    const nextMap = { 'הכנה': { l: 'עבודה', d: workTime }, 'עבודה': { l: 'מנוחה', d: restTime }, 'מנוחה': curRound < rounds ? { l: 'עבודה', d: workTime } : curSet < sets ? { l: 'מנוחה בין סטים', d: restBetween } : null, 'מנוחה בין סטים': { l: 'עבודה', d: workTime } };
+    const nxt = nextMap[phase];
     return (
       <div style={{ background: '#FF6F20', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
-        {/* Header */}
-        <div style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          {isRunning && <MinimizeBtn />}
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'white' }}>TABATA</div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+        <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          {MinimizeBtn}
+          <div style={{ fontSize: 19, fontWeight: 900, color: 'white' }}>TABATA</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>נותר לסיום</div>
-            <div style={{ fontSize: 34, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatT(parallelCD)}</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{fmt(totalLeft)}</div>
           </div>
         </div>
-        {/* Phase */}
-        <div style={{ fontSize: 42, fontWeight: 900, color: 'white', textAlign: 'center', paddingTop: 8, flexShrink: 0 }}>{phase}</div>
-        {/* Ring */}
+        <div style={{ fontSize: 40, fontWeight: 900, color: 'white', textAlign: 'center', paddingTop: 8, flexShrink: 0 }}>{phase}</div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '2px 0' }}>
-          <div style={{ position: 'relative', width: 'min(60vw, 240px)', height: 'min(60vw, 240px)' }}>
-            <svg width="100%" height="100%" viewBox="0 0 240 240" style={{ position: 'absolute', inset: 0 }}>
-              <circle cx="120" cy="120" r="108" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
-              <circle cx="120" cy="120" r="108" fill="none" stroke="white" strokeWidth="10"
-                strokeDasharray="679" strokeDashoffset={phaseDur > 0 ? 679 * (timeLeft / phaseDur) : 0}
-                strokeLinecap="round" transform="rotate(-90 120 120)"
-                style={{ transition: 'stroke-dashoffset 0.95s linear' }} />
+          <div style={{ position: 'relative', width: 'min(62vw, 248px)', height: 'min(62vw, 248px)' }}>
+            <svg width="100%" height="100%" viewBox="0 0 248 248" style={{ position: 'absolute', inset: 0 }}>
+              <circle cx="124" cy="124" r="108" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10"/>
+              <circle cx="124" cy="124" r="108" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur > 0 ? C * (timeLeft / phaseDur) : 0} strokeLinecap="round" transform="rotate(-90 124 124)" style={{ transition: 'stroke-dashoffset 0.95s linear' }}/>
             </svg>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontSize: 'min(30vw, 114px)', fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -4 }}>{timeLeft}</div>
+              <div style={{ fontSize: 'min(29vw, 112px)', fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -4 }}>{timeLeft}</div>
             </div>
           </div>
         </div>
-        {/* Bottom */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 14px 12px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px' }}>
-            {[{ label: 'סיבוב', value: `${curRound} / ${rounds}` }, { label: 'סט', value: `${curSet} / ${sets}` }].map((item, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />}
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 3 }}>{item.label}</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums' }}>{item.value}</div>
-                </div>
-              </React.Fragment>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '0 12px 10px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-around', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 0' }}>
+            {[{ label: 'סיבוב', val: `${curRound} / ${rounds}` }, { label: 'סט', val: `${curSet} / ${sets}` }].map((item, i) => (
+              <div key={i} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 3 }}>{item.label}</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums' }}>{item.val}</div>
+              </div>
             ))}
           </div>
-          {next.label && next.label !== 'סיום' && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>הבא: {next.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: 'white' }}>{next.dur} שנ׳</div>
-            </div>
-          )}
+          {nxt && <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '9px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>הבא: {nxt.l}</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: 'white' }}>{nxt.d} שנ׳</div>
+          </div>}
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={handleReset} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>עצור</button>
-            <button onClick={handlePause} style={{ flex: 2, height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer' }}>
-              {isRunning ? 'השהה ‖' : 'המשך ▶'}
-            </button>
+            <button onClick={handlePauseResume} style={{ flex: 2, height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 19, fontWeight: 900, cursor: 'pointer' }}>{isRunning ? 'השהה ‖' : 'המשך ▶'}</button>
           </div>
         </div>
       </div>
     );
   }
 
-  // ═══ SETTINGS ═══
+  // SETTINGS
   return (
     <div style={{ background: '#FF6F20', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl' }}>
-      <div style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, color: 'white' }}>TABATA</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>{formatT(totalSecs)} • {rounds} סיבובים • {sets} סטים</div>
+      <div style={{ padding: '9px 14px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ fontSize: 18, fontWeight: 900, color: 'white' }}>TABATA</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>{fmt(totalSecs)} • {rounds}× • {sets} סטים</div>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', overflow: 'hidden' }}>
         {ROWS.map((row) => (
-          <div key={row.pk} style={{ display: 'flex', alignItems: 'center', padding: '0 14px', height: 62, borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 10, flexShrink: 0, fontSize: 15 }}>{row.icon}</div>
-            <div style={{ flex: 1, fontSize: row.labelSize || 20, fontWeight: 700, color: 'white' }}>{row.label}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div key={row.pk} style={{ display: 'flex', alignItems: 'center', padding: '0 12px', height: 60, borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 8, flexShrink: 0, fontSize: 14 }}>{row.icon}</div>
+            <div style={{ flex: 1, fontSize: row.small ? 17 : 19, fontWeight: 700, color: 'white' }}>{row.label}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button {...row.dec} style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', border: 'none', color: 'white', fontSize: 20, cursor: 'pointer', lineHeight: 1, flexShrink: 0, touchAction: 'none' }}>−</button>
-              <span onClick={() => {
-                const options = PICKER[row.pk];
-                if (!options) return;
-                setPicker({ value: row.value, options, unit: row.unit, onChange: row.set });
-              }} style={{ fontSize: 26, fontWeight: 900, color: 'white', minWidth: 40, textAlign: 'center', cursor: 'pointer', userSelect: 'none' }}>{row.value}</span>
+              <span onClick={() => setPicker({ value: row.value, options: PICKER_OPTS[row.pk], unit: row.unit, onChange: row.set })} style={{ fontSize: 24, fontWeight: 900, color: 'white', minWidth: 38, textAlign: 'center', cursor: 'pointer', userSelect: 'none' }}>{row.value}</span>
               <button {...row.inc} style={{ width: 34, height: 34, borderRadius: '50%', background: 'white', border: 'none', color: '#FF6F20', fontSize: 20, cursor: 'pointer', lineHeight: 1, flexShrink: 0, touchAction: 'none' }}>+</button>
             </div>
           </div>
         ))}
       </div>
-      <div style={{ padding: '8px 14px 12px', flexShrink: 0 }}>
+      <div style={{ padding: '8px 12px 10px', flexShrink: 0 }}>
         <button onClick={handleStart} style={{ width: '100%', height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer' }}>▶ התחל</button>
       </div>
       {picker && <ScrollPicker value={picker.value} options={picker.options} unit={picker.unit} onChange={(v) => { picker.onChange(v); setPicker(null); }} onClose={() => setPicker(null)} />}
