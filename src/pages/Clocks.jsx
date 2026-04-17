@@ -281,12 +281,12 @@ export default function Clocks() {
 
   // Minimize — NEVER stops intervals
   const minimizeTimer = useCallback(() => {
+    console.log('minimizeTimer called → navigate(-1)');
     if (clock?.isRunning && clock?.activeClock === 'timer') {
       setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null });
     } else if (clock?.isRunning && clock?.activeClock === 'stopwatch') {
       setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null });
     }
-    // TabataTimer handles its own liveTimer via onMinimize prop
     navigate(-1);
   }, [clock, setLiveTimer, navigate]);
 

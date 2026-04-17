@@ -89,18 +89,20 @@ export default function TabataTimer({ onMinimize }) {
 
   // Minimize — set liveTimer from context refs (always current)
   const doMinimize = useCallback(() => {
-    const { rounds: r, sets: s } = settingsRef.current;
-    console.log('🔽 doMinimize - setting liveTimer');
-    setLiveTimer({
+    const state = {
       type: 'tabata',
-      display: String(tabata?.timeLeft || 0),
-      phase: tabata?.phase || 'טבטה',
-      info: `סיבוב ${tabata?.currentRound || 1}/${r} • סט ${tabata?.currentSet || 1}/${s}`,
+      display: String(tabata?.timeLeft ?? 0),
+      phase: tabata?.phase ?? 'טבטה',
+      info: `סיבוב ${tabata?.currentRound ?? 1}/${tabata?.rounds ?? 8} • סט ${tabata?.currentSet ?? 1}/${tabata?.sets ?? 3}`,
       color: '#FF6F20'
-    });
-    console.log('🔽 doMinimize - calling onMinimize in 50ms');
-    setTimeout(() => onMinimize(), 50);
-  }, [tabata, settingsRef, setLiveTimer, onMinimize]);
+    };
+    console.log('MINIMIZE → setLiveTimer:', state);
+    setLiveTimer(state);
+    setTimeout(() => {
+      console.log('MINIMIZE → navigating');
+      onMinimize();
+    }, 100);
+  }, [tabata, setLiveTimer, onMinimize]);
 
   // Update liveTimer every tick
   useEffect(() => {
@@ -111,8 +113,9 @@ export default function TabataTimer({ onMinimize }) {
     });
   }, [timeLeft]);
 
-  // Clear liveTimer on mount ONLY if timer is not running
-  useEffect(() => { if (!tabata?.running) setLiveTimer(null); }, []);
+  useEffect(() => {
+    return () => {}; // do nothing on mount/unmount
+  }, []);
 
   // Back button = minimize
   useEffect(() => {
