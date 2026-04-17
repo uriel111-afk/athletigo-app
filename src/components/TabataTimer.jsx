@@ -382,7 +382,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             <svg width="100%" height="100%" viewBox="0 0 240 240" style={{ position: 'absolute', inset: 0 }}>
               <circle cx="120" cy="120" r="108" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
               <circle cx="120" cy="120" r="108" fill="none" stroke="white" strokeWidth="10"
-                strokeDasharray="678" strokeDashoffset={phaseDur > 0 ? 678 * (timeLeft / phaseDur) : 0}
+                strokeDasharray="679" strokeDashoffset={phaseDur > 0 ? 679 * (timeLeft / phaseDur) : 0}
                 strokeLinecap="round" transform="rotate(-90 120 120)"
                 style={{ transition: 'stroke-dashoffset 0.95s linear' }} />
             </svg>
