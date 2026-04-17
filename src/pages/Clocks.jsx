@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
+import TabataTimer from "@/components/TabataTimer";
 
 const MinimizeBtn = ({ onClick }) => (
   <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -600,9 +601,9 @@ const MODES = [
 export default function Clocks() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tabata');
-  const [tabataActive, setTabataActive] = useState(false);
   const clock = useClock();
   const { tabata, setLiveTimer, settingsRef: tabataSettingsRef, resetTabata } = useActiveTimer();
+  const tabataActive = tabata.running || tabata.screen === 'running' || tabata.screen === 'countdown';
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = tabataActive || timerOrStopwatchRunning;
   const lastBackPress = useRef(0);
@@ -731,7 +732,7 @@ export default function Clocks() {
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
         <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <TabataView onRunningChange={setTabataActive} onMinimize={minimizeTimer} />
+          <TabataTimer onMinimize={minimizeTimer} setLiveTimer={setLiveTimer} />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
