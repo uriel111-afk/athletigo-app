@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
-import TabataTimer from "@/components/TabataTimer";
 
 const MinimizeBtn = ({ onClick }) => (
   <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -273,10 +272,9 @@ export default function Clocks() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tabata');
   const clock = useClock();
-  const { tabata, setLiveTimer } = useActiveTimer();
-  const tabataActive = tabata?.running || tabata?.screen === 'running' || tabata?.screen === 'countdown';
+  const { setLiveTimer } = useActiveTimer();
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
-  const anyRunning = tabataActive || timerOrStopwatchRunning;
+  const anyRunning = timerOrStopwatchRunning;
   const lastBackPress = useRef(0);
 
   // Minimize — NEVER stops intervals
@@ -347,9 +345,6 @@ export default function Clocks() {
                 className="flex-1 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                 style={{ height: 42, borderRadius: 10, backgroundColor: on ? BRAND : BG2, color: on ? '#FFF' : C2, fontWeight: 700, fontSize: 16, fontFamily: FN, border: on ? 'none' : `0.5px solid ${BRD}`, position: 'relative' }}>
                 <Icon className="w-4 h-4" />{m.label}
-                {m.id === 'tabata' && tabataActive && !on && (
-                  <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: BRAND, animation: 'pulse 1s infinite' }} />
-                )}
               </button>
             );
           })}
@@ -357,7 +352,9 @@ export default function Clocks() {
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
         <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <TabataTimer onMinimize={minimizeTimer} />
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',background:'#FF6F20'}}>
+            <div style={{color:'white',fontSize:'24px',fontWeight:'900'}}>בקרוב</div>
+          </div>
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
