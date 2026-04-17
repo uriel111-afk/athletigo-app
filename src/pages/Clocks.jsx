@@ -301,7 +301,7 @@ export default function Clocks() {
   }, [clock?.display]);
 
   // When returning to clocks page — hide floating widget (only if nothing running)
-  useEffect(() => { if (!tabata?.running && !clock?.isRunning) setLiveTimer(null); }, []);
+  // Do NOT clear liveTimer on mount — it must persist after minimize
 
   // Back button: single = minimize, double (400ms) = dashboard
   useEffect(() => {

@@ -174,7 +174,7 @@ export function ActiveTimerProvider({ children }) {
     const { prepTime, workTime, countdownTime } = settingsRef.current;
 
     // 3-2-1-GO countdown — sounds called directly
-    update({ screen: 'countdown', countdown321: 3 });
+    update({ screen: 'countdown', countdown321: 3, running: true });
     _TICK();
 
     let count = 3;

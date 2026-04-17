@@ -113,9 +113,7 @@ export default function TabataTimer({ onMinimize }) {
     });
   }, [timeLeft]);
 
-  useEffect(() => {
-    return () => {}; // do nothing on mount/unmount
-  }, []);
+  // liveTimer is managed by doMinimize and context — never cleared on mount
 
   // Back button = minimize
   useEffect(() => {
