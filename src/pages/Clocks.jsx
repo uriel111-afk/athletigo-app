@@ -26,7 +26,6 @@ const BG2 = '#F5F5F5';
 function fmt(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; if (m === 0) return String(s); return `${m}:${String(s).padStart(2,'0')}`; }
 function fmtMMSS(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 function fmtStopwatch(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; const cs = Math.floor((ms % 1000) / 10); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`; }
-function fmtTotal(sec) { return `${String(Math.floor(sec / 60)).padStart(2,'0')}:${String(sec % 60).padStart(2,'0')}`; }
 
 function HoldButton({ onClick, children, className, style }) {
   const intRef = useRef(null), toRef = useRef(null);
@@ -35,25 +34,16 @@ function HoldButton({ onClick, children, className, style }) {
   return <button onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={(e) => { e.preventDefault(); start(); }} onTouchEnd={stop} onTouchCancel={stop} className={className} style={style}>{children}</button>;
 }
 
-function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, step = 1, unit = '', label = 'בחר ערך', options: propOptions }) {
+function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, step = 1, unit = '', options: propOptions }) {
   const listRef = useRef(null);
-
-  // Build options array fresh every render — no stale ref
   const options = propOptions || (() => { const a = []; for (let i = min; i <= max; i += step) a.push(i); return a; })();
-
   useEffect(() => {
     if (isOpen && listRef.current && options.length > 0) {
       const idx = options.findIndex(v => v === value);
-      if (idx >= 0) {
-        setTimeout(() => {
-          listRef.current?.children?.[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' });
-        }, 100);
-      }
+      if (idx >= 0) setTimeout(() => listRef.current?.children?.[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' }), 100);
     }
   }, [isOpen, value]);
-
   if (!isOpen || options.length === 0) return null;
-
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500, direction: 'rtl', paddingBottom: 20 }} onClick={e => e.stopPropagation()}>
@@ -76,32 +66,22 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
   );
 }
 
-// ═══ SOUND LIBRARY ═══════════════════════════════════════════════════
+// ═══ SOUNDS (Timer & Stopwatch only — Tabata has its own in TabataTimer.jsx) ═══
 const unlockAudio = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    ctx.resume();
-    const buf = ctx.createBuffer(1, 1, 22050);
-    const src = ctx.createBufferSource();
-    src.buffer = buf; src.connect(ctx.destination); src.start(0);
+  try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+    const b = ctx.createBuffer(1,1,22050); const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
   } catch(e) {}
 };
-
 const createCtx = () => {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  ctx.resume();
-  const master = ctx.createGain();
-  master.gain.value = 1.4;
-  master.connect(ctx.destination);
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+  const master = ctx.createGain(); master.gain.value = 1.4; master.connect(ctx.destination);
   return { ctx, master };
 };
-
 const tone = (freq, dur, type = 'sine', gainVal = 0.65, delay = 0) => {
   try {
     const { ctx, master } = createCtx();
     const osc = ctx.createOscillator(); const g = ctx.createGain();
-    osc.connect(g); g.connect(master);
-    osc.type = type; osc.frequency.value = freq;
+    osc.connect(g); g.connect(master); osc.type = type; osc.frequency.value = freq;
     g.gain.setValueAtTime(0, ctx.currentTime + delay);
     g.gain.linearRampToValueAtTime(gainVal, ctx.currentTime + delay + 0.005);
     g.gain.setValueAtTime(gainVal, ctx.currentTime + delay + dur * 0.7);
@@ -109,70 +89,27 @@ const tone = (freq, dur, type = 'sine', gainVal = 0.65, delay = 0) => {
     osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + dur);
   } catch(e) {}
 };
-
-// TICK — 3-2-1 countdown
-const SOUND_TICK = () => tone(880, 0.07, 'sine', 0.65);
-// GO — tabata start
-const SOUND_GO = () => { tone(1100, 0.10, 'sine', 0.65, 0); tone(1600, 0.15, 'sine', 0.65, 0.11); };
-// WHISTLE — work start
-const SOUND_WORK = () => {
-  try {
-    const { ctx, master } = createCtx();
-    const osc = ctx.createOscillator(); const g = ctx.createGain();
-    osc.connect(g); g.connect(master);
-    osc.type = 'sine'; osc.frequency.value = 1350;
-    g.gain.setValueAtTime(0, ctx.currentTime);
-    g.gain.linearRampToValueAtTime(0.65, ctx.currentTime + 0.01);
-    g.gain.setValueAtTime(0.65, ctx.currentTime + 0.28);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.38);
-    osc.start(); osc.stop(ctx.currentTime + 0.38);
-  } catch(e) {}
-};
-// BELL — rest / timer complete
+const SOUND_TICK = () => tone(880, 0.07);
 const SOUND_BELL = () => {
-  try {
-    const { ctx, master } = createCtx();
-    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
-    o1.connect(g1); g1.connect(master);
-    o1.type = 'sine'; o1.frequency.value = 520;
-    g1.gain.setValueAtTime(0.65, ctx.currentTime);
-    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
-    o1.start(); o1.stop(ctx.currentTime + 1.5);
-    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
-    o2.connect(g2); g2.connect(master);
-    o2.type = 'sine'; o2.frequency.value = 1040;
-    g2.gain.setValueAtTime(0.2, ctx.currentTime);
-    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9);
-    o2.start(); o2.stop(ctx.currentTime + 0.9);
+  try { const { ctx, master } = createCtx();
+    [[520, 0.65, 1.5], [1040, 0.2, 0.9]].forEach(([f, gv, d]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(gv, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d);
+      o.start(); o.stop(ctx.currentTime + d);
+    });
   } catch(e) {}
 };
-// DOUBLE BELL — rest between sets
-const SOUND_DOUBLE_BELL = () => { SOUND_BELL(); setTimeout(() => SOUND_BELL(), 600); };
-// TRIPLE BELL — complete / finish
-const SOUND_TRIPLE_BELL = () => { SOUND_BELL(); setTimeout(() => SOUND_BELL(), 500); setTimeout(() => SOUND_BELL(), 1000); };
-// START CLICK — stopwatch/timer start
+const SOUND_TRIPLE_BELL = () => { SOUND_BELL(); setTimeout(SOUND_BELL, 500); setTimeout(SOUND_BELL, 1000); };
 const SOUND_START = () => { tone(660, 0.06, 'sine', 0.65, 0); tone(880, 0.08, 'sine', 0.65, 0.07); };
-// PAUSE CLICK
 const SOUND_PAUSE = () => { tone(880, 0.06, 'sine', 0.65, 0); tone(660, 0.08, 'sine', 0.65, 0.07); };
-// RESET CLICK
 const SOUND_RESET = () => tone(440, 0.08, 'sine', 0.5);
-// ALERT — timer warning at 10s
 const SOUND_ALERT = () => { tone(1200, 0.06, 'sine', 0.65, 0); tone(1200, 0.06, 'sine', 0.65, 0.15); };
-
-// Aliases for tabata context sounds
-const playCountdownBeep = SOUND_TICK;
-const playGoSound = SOUND_GO;
-const playWorkSound = SOUND_WORK;
-const playRestSound = SOUND_BELL;
-const playRestBetweenSetsSound = SOUND_DOUBLE_BELL;
-const playCompleteSound = SOUND_TRIPLE_BELL;
-function playEndBeeps() { SOUND_TRIPLE_BELL(); }
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
   const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps } = useClock();
   const active = activeClock === 'stopwatch';
-
   if (active) {
     return (
       <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
@@ -181,9 +118,7 @@ function StopwatchView({ onMinimize }) {
           <MinimizeBtn onClick={onMinimize} />
           <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
         </div>
-        <div className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: '#FFF', letterSpacing: -2 }}>
-          {fmtStopwatch(display)}
-        </div>
+        <div className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: '#FFF', letterSpacing: -2 }}>{fmtStopwatch(display)}</div>
         {laps.length > 0 && (
           <div className="w-full rounded-xl p-3 max-h-28 overflow-y-auto" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
             {laps.map((l, i) => (
@@ -220,7 +155,6 @@ function StopwatchView({ onMinimize }) {
       </div>
     );
   }
-
   return (
     <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
       <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase', marginTop: 16 }}>STOPWATCH</div>
@@ -244,7 +178,7 @@ function TimerCol({ label, value, onChange, max, step, unit }) {
         <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{label}</div>
         <HoldButton onClick={() => onChange(Math.max(0, value - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
       </div>
-      <ScrollPicker isOpen={picking} value={value} onChange={onChange} onClose={() => setPicking(false)} min={0} max={max} step={step || 1} unit={unit || ''} label={label} />
+      <ScrollPicker isOpen={picking} value={value} onChange={onChange} onClose={() => setPicking(false)} min={0} max={max} step={step || 1} unit={unit || ''} />
     </>
   );
 }
@@ -259,22 +193,13 @@ function TimerView({ onMinimize }) {
   const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
   const lastBeepRef = useRef(-1);
 
-  // Timer countdown beeps at 10, 3, 2, 1 seconds + completion
   useEffect(() => {
     if (!active || !isRunning || phase === 'prepare') return;
     const secLeft = Math.ceil(display / 1000);
     if (secLeft === 10 && lastBeepRef.current !== 10) { lastBeepRef.current = 10; SOUND_ALERT(); }
-    if ((secLeft === 3 || secLeft === 2 || secLeft === 1) && secLeft !== lastBeepRef.current) {
-      lastBeepRef.current = secLeft;
-      SOUND_TICK();
-    }
-    if (display <= 50 && lastBeepRef.current !== 0) {
-      lastBeepRef.current = 0;
-      SOUND_TRIPLE_BELL();
-    }
+    if ((secLeft === 3 || secLeft === 2 || secLeft === 1) && secLeft !== lastBeepRef.current) { lastBeepRef.current = secLeft; SOUND_TICK(); }
+    if (display <= 50 && lastBeepRef.current !== 0) { lastBeepRef.current = 0; SOUND_TRIPLE_BELL(); }
   }, [display, active, isRunning, phase]);
-
-  // Reset beep tracker when timer resets
   useEffect(() => { if (!active) lastBeepRef.current = -1; }, [active]);
 
   if (showSetup) {
@@ -286,7 +211,6 @@ function TimerView({ onMinimize }) {
           <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>
           <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} step={5} unit="שנ׳" />
         </div>
-        {/* Prep time */}
         <div className="flex items-center gap-3 w-full justify-center" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
           <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>הכנה</span>
           <HoldButton onClick={() => setPrepSec(Math.max(0, prepSec - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FFF', color: C2, fontSize: 18, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
@@ -354,244 +278,7 @@ function TimerView({ onMinimize }) {
   );
 }
 
-/* ═══ TABATA ═══ */
-function TabataView({ onRunningChange, onMinimize }) {
-  const { tabata, startTabata, pauseTabata, resetTabata, settingsRef } = useActiveTimer();
-  const { screen: tabataScreen, running: tabataRunning, phase: tabataPhase, timeLeft: tabataTimeLeft,
-    phaseDuration: tabataPhaseDuration, currentRound: tabataCurrentRound, currentSet: tabataCurrentSet,
-    countdown: tabataCountdown, countdown321 } = tabata;
-
-  // Settings state — load from localStorage, fallback to context defaults
-  const loadSavedSettings = () => {
-    try { const s = localStorage.getItem('tabata_settings'); if (s) return JSON.parse(s); } catch(e) {}
-    return null;
-  };
-  const saved = useRef(loadSavedSettings()).current;
-
-  const [prepTime, setPrepTime] = useState(saved?.prepTime ?? settingsRef.current.prepTime);
-  const [workTime, setWorkTime] = useState(saved?.workTime ?? settingsRef.current.workTime);
-  const [restTime, setRestTime] = useState(saved?.restTime ?? settingsRef.current.restTime);
-  const [rounds, setRounds] = useState(saved?.rounds ?? settingsRef.current.rounds);
-  const [sets, setSets] = useState(saved?.sets ?? settingsRef.current.sets);
-  const [restBetweenSets, setRestBetweenSets] = useState(saved?.restBetweenSets ?? settingsRef.current.restBetweenSets);
-  const [countdownTime, setCountdownTime] = useState(saved?.countdownTime ?? settingsRef.current.countdownTime);
-
-  // Save settings to localStorage on every change
-  useEffect(() => {
-    localStorage.setItem('tabata_settings', JSON.stringify({ prepTime, workTime, restTime, rounds, sets, restBetweenSets, countdownTime }));
-  }, [prepTime, workTime, restTime, rounds, sets, restBetweenSets, countdownTime]);
-
-  const [picker, setPicker] = useState(null);
-
-  // === HELPERS ===
-  const formatTime = (secs) => {
-    if (secs === null || secs === undefined) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  };
-
-  const getNextPhaseInfo = (phase, round, set) => {
-    if (phase === 'הכנה') return { label: 'עבודה', duration: workTime };
-    if (phase === 'עבודה') return { label: 'מנוחה', duration: restTime };
-    if (phase === 'מנוחה') {
-      if (round < rounds) return { label: 'עבודה', duration: workTime };
-      if (set < sets) return { label: 'מנוחה בין סטים', duration: restBetweenSets };
-      return { label: 'סיום', duration: 0 };
-    }
-    if (phase === 'מנוחה בין סטים') return { label: 'עבודה', duration: workTime };
-    return { label: '', duration: 0 };
-  };
-
-  // Sounds are now played directly in ActiveTimerContext — no event chain needed
-
-  // === HANDLERS ===
-  const handleTabataStart = () => {
-    unlockAudio();
-    startTabata({ prepTime, workTime, restTime, rounds, sets, restBetweenSets, countdownTime });
-  };
-
-  // Notify parent of active state
-  useEffect(() => {
-    onRunningChange?.(tabataScreen === 'running' || tabataScreen === 'countdown');
-  }, [tabataScreen, onRunningChange]);
-
-  // === SCREENS ===
-
-  // 3-2-1-GO
-  if (tabataScreen === 'countdown') {
-    return (
-      <div style={{ background: '#FF6F20', height: '100%', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: countdown321 === 'GO' ? 120 : 200, fontWeight: 900, color: 'white', lineHeight: 1, fontFamily: FN }}>{countdown321}</div>
-      </div>
-    );
-  }
-
-  // Complete
-  if (tabataScreen === 'complete') {
-    return (
-      <div style={{ background: '#FF6F20', height: '100%', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, direction: 'rtl', padding: 20 }}>
-        <div style={{ fontSize: 80, color: 'white' }}>✓</div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: 'white', fontFamily: FL }}>כל הכבוד! סיימת!</div>
-        <div style={{ fontSize: 18, color: 'rgba(255,255,255,0.8)', fontFamily: FL }}>{sets} סטים • {rounds} מחזורים</div>
-        <button onClick={resetTabata} style={{ marginTop: 20, width: '100%', height: 56, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>התחל מחדש</button>
-      </div>
-    );
-  }
-
-  // Running
-  if (tabataScreen === 'running') {
-    return (
-      <div style={{ background: '#FF6F20', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        {/* Header */}
-        <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, minHeight: 56 }}>
-          <MinimizeBtn onClick={onMinimize} />
-          <div style={{ fontSize: 22, fontWeight: 900, color: 'white', letterSpacing: 1 }}>TABATA</div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>ספירה לאחור</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatTime(tabataCountdown)}</div>
-          </div>
-        </div>
-
-        {/* Phase label */}
-        <div style={{ fontSize: 44, fontWeight: 900, color: 'white', textAlign: 'center', paddingTop: 10, flexShrink: 0, fontFamily: FL }}>{tabataPhase}</div>
-
-        {/* Ring — fills available space */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '4px 0' }}>
-          <div style={{ position: 'relative', width: 'min(62vw, 250px)', height: 'min(62vw, 250px)' }}>
-            <svg width="100%" height="100%" viewBox="0 0 250 250" style={{ position: 'absolute', inset: 0 }}>
-              <circle cx="125" cy="125" r="112" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10" />
-              <circle cx="125" cy="125" r="112" fill="none" stroke="white" strokeWidth="10"
-                strokeDasharray="704"
-                strokeDashoffset={tabataPhaseDuration > 0 ? 704 * (tabataTimeLeft / tabataPhaseDuration) : 0}
-                strokeLinecap="round"
-                transform="rotate(-90 125 125)"
-                style={{ transition: 'stroke-dashoffset 0.9s linear' }}
-              />
-            </svg>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontSize: 'min(32vw, 124px)', fontWeight: 900, color: 'white', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, fontFamily: FN }}>{tabataTimeLeft}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom section */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 12px', flexShrink: 0 }}>
-          {/* Stats */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px' }}>
-            {[
-              { label: 'סיבוב', value: `${tabataCurrentRound} / ${rounds}` },
-              { label: 'סט', value: `${tabataCurrentSet} / ${sets}` },
-              { label: 'נותר', value: formatTime(tabataCountdown) },
-            ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center' }}>
-                {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,0.2)', height: 40, margin: '0 12px' }} />}
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 3, fontFamily: FL }}>{item.label}</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: 'white', fontVariantNumeric: 'tabular-nums', fontFamily: FN }}>{item.value}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Next phase */}
-          {(() => {
-            const next = getNextPhaseInfo(tabataPhase, tabataCurrentRound, tabataCurrentSet);
-            if (!next?.label || next.label === 'סיום') return null;
-            return (
-              <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.9)', fontFamily: FL }}>הבא: {next.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'white', fontFamily: FN }}>{next.duration} שנ׳</div>
-              </div>
-            );
-          })()}
-
-          {/* Controls */}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={resetTabata} style={{ flex: 1, height: 52, background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: FL }}>עצור</button>
-            <button onClick={pauseTabata} style={{ flex: 2, height: 52, background: 'white', color: '#FF6F20', border: 'none', borderRadius: 10, fontSize: 20, fontWeight: 900, cursor: 'pointer', fontFamily: FL }}>
-              {tabataRunning ? 'השהה ‖' : 'המשך ▶'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // === SETTINGS SCREEN ===
-  const rng = (min, max, step) => { const a = []; for (let i = min; i <= max; i += step) a.push(i); return a; };
-
-  const pickerConfigs = {
-    prep:     { options: rng(0, 60, 1),   unit: 'שנ׳' },
-    work:     { options: rng(1, 120, 1),  unit: 'שנ׳' },
-    rest:     { options: rng(0, 120, 1),  unit: 'שנ׳' },
-    rounds:   { options: rng(1, 30, 1),   unit: '×' },
-    sets:     { options: rng(1, 10, 1),   unit: '×' },
-    restBtw:  { options: rng(0, 180, 1),  unit: 'שנ׳' },
-    countdown:{ options: rng(0, 600, 1),  unit: 'שנ׳' },
-  };
-
-  const totalSecs = (prepTime + (workTime + restTime) * rounds) * sets + (sets > 1 ? restBetweenSets * (sets - 1) : 0);
-  const mm = String(Math.floor(totalSecs / 60)).padStart(2, '0');
-  const ss = String(totalSecs % 60).padStart(2, '0');
-
-  const params = [
-    { key: 'prep',     icon: '⏱', label: 'הכנה',            value: prepTime,        setter: setPrepTime,        step: 1, lbl: 20 },
-    { key: 'work',     icon: '💪', label: 'עבודה',           value: workTime,        setter: setWorkTime,        step: 1, lbl: 20 },
-    { key: 'rest',     icon: '😮', label: 'מנוחה',           value: restTime,        setter: setRestTime,        step: 1, lbl: 20 },
-    { key: 'rounds',   icon: '🔄', label: 'מחזורים',         value: rounds,          setter: setRounds,          step: 1, lbl: 20 },
-    { key: 'sets',     icon: '📋', label: 'סטים',            value: sets,            setter: setSets,            step: 1, lbl: 20 },
-    { key: 'restBtw',  icon: '⏸',  label: 'מנוחה בין סטים',  value: restBetweenSets, setter: setRestBetweenSets, step: 1, lbl: 18 },
-    { key: 'countdown',icon: '🔔', label: 'ספירה לאחור',     value: countdownTime,   setter: setCountdownTime,   step: 1, lbl: 18 },
-  ];
-
-  return (
-    <div style={{ background: '#FF6F20', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100%', overflow: 'hidden', direction: 'rtl', margin: 0, padding: 0, borderRadius: 0, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
-      {/* Header */}
-      <div style={{ padding: '8px 20px', background: 'rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <span style={{ fontSize: 20, fontWeight: 900, fontFamily: FN, color: '#FFF' }}>TABATA</span>
-        <span style={{ fontSize: 15, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{mm}:{ss} • {rounds} סיבובים • {sets} סטים</span>
-      </div>
-      {/* Rows */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', overflow: 'hidden' }}>
-        {params.map(p => {
-          const cfg = pickerConfigs[p.key];
-          return (
-            <div key={p.key} style={{ height: 58, padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{p.icon}</div>
-                <span style={{ fontSize: p.lbl, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>{p.label}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <HoldButton onClick={() => p.setter(Math.max(cfg.options[0], p.value - p.step))}
-                  className="flex items-center justify-center active:scale-90 transition-transform"
-                  style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', color: '#FFF', fontSize: 20, fontWeight: 700, border: 'none' }}>−</HoldButton>
-                <span onClick={() => setPicker({ value: p.value, options: cfg.options, unit: cfg.unit, onChange: p.setter })}
-                  style={{ fontSize: 26, fontWeight: 900, fontFamily: FN, color: '#FFF', minWidth: 40, textAlign: 'center', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{p.value}</span>
-                <HoldButton onClick={() => p.setter(Math.min(cfg.options[cfg.options.length - 1], p.value + p.step))}
-                  className="flex items-center justify-center active:scale-90 transition-transform"
-                  style={{ width: 34, height: 34, borderRadius: '50%', background: '#FFF', color: '#FF6F20', fontSize: 20, fontWeight: 700, border: 'none' }}>+</HoldButton>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {/* Start */}
-      <div style={{ padding: '6px 20px 10px', flexShrink: 0 }}>
-        <button onClick={handleTabataStart} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
-          style={{ height: 48, borderRadius: 12, background: '#FFF', fontSize: 20, fontWeight: 900, fontFamily: FL, color: '#FF6F20' }}>
-          ▶ התחל
-        </button>
-      </div>
-      {/* Scroll Picker */}
-      {picker && (
-        <ScrollPicker isOpen value={picker.value} onChange={picker.onChange} onClose={() => setPicker(null)}
-          options={picker.options} unit={picker.unit} />
-      )}
-    </div>
-  );
-}
-
+/* ═══ CLOCKS PAGE ═══ */
 const MODES = [
   { id: 'tabata', label: 'טבטה', icon: Zap },
   { id: 'timer', label: 'טיימר', icon: Timer },
@@ -602,41 +289,22 @@ export default function Clocks() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tabata');
   const clock = useClock();
-  const { tabata, setLiveTimer, settingsRef: tabataSettingsRef, resetTabata } = useActiveTimer();
-  const tabataActive = tabata.running || tabata.screen === 'running' || tabata.screen === 'countdown';
+  const { tabata, setLiveTimer } = useActiveTimer();
+  const tabataActive = tabata?.running || tabata?.screen === 'running' || tabata?.screen === 'countdown';
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = tabataActive || timerOrStopwatchRunning;
   const lastBackPress = useRef(0);
 
-  // Format helper
-  const fmtSec = (s) => { if (!s || s <= 0) return '0'; const m = Math.floor(s / 60); const sc = s % 60; return m === 0 ? String(sc) : `${m}:${String(sc).padStart(2, '0')}`; };
-
   // Minimize — NEVER stops intervals
   const minimizeTimer = useCallback(() => {
-    const { rounds, sets } = tabataSettingsRef?.current || {};
-    if (tabata.running || tabata.screen === 'running' || tabata.screen === 'countdown') {
-      setLiveTimer({
-        type: 'tabata', display: fmtSec(tabata.timeLeft), phase: tabata.phase,
-        info: `סיבוב ${tabata.currentRound}/${rounds || '?'} • סט ${tabata.currentSet}/${sets || '?'}`,
-      });
-    } else if (clock?.isRunning && clock?.activeClock === 'timer') {
+    if (clock?.isRunning && clock?.activeClock === 'timer') {
       setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null });
     } else if (clock?.isRunning && clock?.activeClock === 'stopwatch') {
       setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null });
     }
+    // TabataTimer handles its own liveTimer via onMinimize prop
     navigate(-1);
-  }, [tabata, clock, setLiveTimer, navigate, tabataSettingsRef]);
-
-  // Update floating widget every tick (tabata)
-  useEffect(() => {
-    setLiveTimer(prev => {
-      if (!prev || prev.type !== 'tabata') return prev;
-      if (!tabata.running && tabata.screen !== 'running') return null; // completed/reset
-      const { rounds, sets } = tabataSettingsRef?.current || {};
-      return { ...prev, display: fmtSec(tabata.timeLeft), phase: tabata.phase,
-        info: `סיבוב ${tabata.currentRound}/${rounds || '?'} • סט ${tabata.currentSet}/${sets || '?'}` };
-    });
-  }, [tabata.timeLeft]);
+  }, [clock, setLiveTimer, navigate]);
 
   // Update floating widget every tick (timer/stopwatch from ClockContext)
   useEffect(() => {
@@ -651,7 +319,7 @@ export default function Clocks() {
   // When returning to clocks page — hide floating widget
   useEffect(() => { setLiveTimer(null); }, []);
 
-  // Back button: single = minimize, double (400ms) = go to dashboard
+  // Back button: single = minimize, double (400ms) = dashboard
   useEffect(() => {
     window.history.pushState(null, '', window.location.href);
     const onPop = () => {
@@ -670,46 +338,19 @@ export default function Clocks() {
     return () => window.removeEventListener('popstate', onPop);
   }, [anyRunning, minimizeTimer]);
 
-  // FIX 3 — Unified wake lock for all timers
+  // Wake lock
   const globalWakeLockRef = useRef(null);
   useEffect(() => {
-    const acquireWakeLock = async () => {
-      try {
-        if ('wakeLock' in navigator && !globalWakeLockRef.current) {
-          globalWakeLockRef.current = await navigator.wakeLock.request('screen');
-        }
-      } catch (err) { console.warn('Wake lock:', err.message); }
-    };
-    if (anyRunning) {
-      acquireWakeLock();
-    } else if (globalWakeLockRef.current) {
-      globalWakeLockRef.current.release().catch(() => {});
-      globalWakeLockRef.current = null;
-    }
+    const acquire = async () => { try { if ('wakeLock' in navigator && !globalWakeLockRef.current) globalWakeLockRef.current = await navigator.wakeLock.request('screen'); } catch {} };
+    if (anyRunning) acquire();
+    else if (globalWakeLockRef.current) { globalWakeLockRef.current.release().catch(() => {}); globalWakeLockRef.current = null; }
   }, [anyRunning]);
-
-  // Re-acquire on visibility change
   useEffect(() => {
-    const onVisible = async () => {
-      if (document.visibilityState === 'visible' && anyRunning) {
-        try {
-          if ('wakeLock' in navigator) {
-            globalWakeLockRef.current = await navigator.wakeLock.request('screen');
-          }
-        } catch {}
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    const onVis = async () => { if (document.visibilityState === 'visible' && anyRunning) { try { if ('wakeLock' in navigator) globalWakeLockRef.current = await navigator.wakeLock.request('screen'); } catch {} } };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
   }, [anyRunning]);
-
-  // Release wake lock on unmount
-  useEffect(() => () => {
-    if (globalWakeLockRef.current) {
-      globalWakeLockRef.current.release().catch(() => {});
-      globalWakeLockRef.current = null;
-    }
-  }, []);
+  useEffect(() => () => { globalWakeLockRef.current?.release().catch(() => {}); globalWakeLockRef.current = null; }, []);
 
   return (
     <div dir="rtl" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', boxSizing: 'border-box', overflowX: 'hidden' }}>
