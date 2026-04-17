@@ -650,12 +650,12 @@ export default function Clocks() {
   // When returning to clocks page — hide floating widget
   useEffect(() => { setLiveTimer(null); }, []);
 
-  // Back button: single = minimize, double (300ms) = go to dashboard
+  // Back button: single = minimize, double (400ms) = go to dashboard
   useEffect(() => {
     window.history.pushState(null, '', window.location.href);
     const onPop = () => {
       const now = Date.now();
-      const isDouble = now - lastBackPress.current < 300;
+      const isDouble = now - lastBackPress.current < 400;
       if (anyRunning) {
         window.history.pushState(null, '', window.location.href);
         if (isDouble) { minimizeTimer(); navigate('/'); }
