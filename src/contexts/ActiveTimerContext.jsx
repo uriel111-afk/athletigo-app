@@ -86,6 +86,7 @@ export function ActiveTimerProvider({ children }) {
   const countdown321Ref = useRef(null);
   const parallelRef = useRef(null);
   const parallelVal = useRef(0);
+  const wakeLockRef = useRef(null);
   // Track phase changes for sound effects in UI — counter ensures uniqueness
   const phaseChangeCounter = useRef(0);
   const [phaseChange, setPhaseChange] = useState(null); // { phase, id }
@@ -125,6 +126,7 @@ export function ActiveTimerProvider({ children }) {
         update({ screen: 'complete', running: false, timeLeft: 0 });
         _TRIPLE_BELL();
         setLiveTimer(null);
+        wakeLockRef.current?.release().catch(() => {}); wakeLockRef.current = null;
         return;
       }
     } else if (phase === 'מנוחה בין סטים') {
@@ -153,6 +155,13 @@ export function ActiveTimerProvider({ children }) {
         advancePhase();
       } else {
         setTabata(prev => ({ ...prev, timeLeft: next }));
+        // Update floating widget live
+        setLiveTimer(prev => {
+          if (!prev) return null;
+          const { rounds, sets } = settingsRef.current;
+          return { ...prev, display: String(next), phase: sRef.current.phase,
+            info: `סיבוב ${sRef.current.currentRound}/${rounds} • סט ${sRef.current.currentSet}/${sets}` };
+        });
       }
     }, 1000);
   }, [advancePhase]);
@@ -199,6 +208,8 @@ export function ActiveTimerProvider({ children }) {
           }, 1000);
 
           startInterval();
+          // Wake lock
+          try { if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(l => { wakeLockRef.current = l; }).catch(() => {}); } catch(e) {}
         }, 800);
       }
     }, 1000);
@@ -237,6 +248,7 @@ export function ActiveTimerProvider({ children }) {
       countdown: 0, countdown321: null,
     });
     setLiveTimer(null);
+    wakeLockRef.current?.release().catch(() => {}); wakeLockRef.current = null;
   }, []);
 
   return (
