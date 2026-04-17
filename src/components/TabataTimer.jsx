@@ -90,6 +90,7 @@ export default function TabataTimer({ onMinimize }) {
   // Minimize — set liveTimer from context refs (always current)
   const doMinimize = useCallback(() => {
     const { rounds: r, sets: s } = settingsRef.current;
+    console.log('[MINIMIZE] running:', tabata.running, 'timeLeft:', tabata.timeLeft, 'phase:', tabata.phase);
     setLiveTimer({
       type: 'tabata', display: String(tabata.timeLeft), phase: tabata.phase,
       info: `סיבוב ${tabata.currentRound}/${r} • סט ${tabata.currentSet}/${s}`, color: '#FF6F20'

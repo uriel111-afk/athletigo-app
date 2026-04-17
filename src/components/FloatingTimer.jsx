@@ -9,6 +9,7 @@ const FloatingTimer = () => {
   const [pos, setPos] = useState({ x: 16, bottom: 90 });
   const drag = useRef({ active: false, startX: 0, startY: 0, initBottom: 90, moved: false });
 
+  console.log('[FloatingTimer] liveTimer:', liveTimer ? { display: liveTimer.display, phase: liveTimer.phase } : null, 'path:', location.pathname);
   // Show on ALL pages EXCEPT clocks page
   if (!liveTimer || location.pathname.toLowerCase().includes('clock')) return null;
 
