@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
+import { AuthContext } from "@/lib/AuthContext";
 
 const MinimizeBtn = ({ onClick }) => (
   <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -273,20 +274,22 @@ export default function Clocks() {
   const [activeTab, setActiveTab] = useState('tabata');
   const clock = useClock();
   const { setLiveTimer, setShowTabata } = useActiveTimer();
+  const { user } = React.useContext(AuthContext);
+  const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = timerOrStopwatchRunning;
   const lastBackPress = useRef(0);
 
-  // Minimize — NEVER stops intervals
+  // Minimize — NEVER stops intervals, navigates to role dashboard
   const minimizeTimer = useCallback(() => {
     if (clock?.isRunning && clock?.activeClock === 'timer') {
       setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null });
     } else if (clock?.isRunning && clock?.activeClock === 'stopwatch') {
       setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null });
     }
-    navigate(-1);
-  }, [clock, setLiveTimer, navigate]);
+    navigate(isCoach ? '/dashboard' : '/traineehome');
+  }, [clock, setLiveTimer, navigate, isCoach]);
 
   // Update floating widget every tick (timer/stopwatch from ClockContext)
   useEffect(() => {
@@ -309,10 +312,10 @@ export default function Clocks() {
       const isDouble = now - lastBackPress.current < 400;
       if (anyRunning) {
         window.history.pushState(null, '', window.location.href);
-        if (isDouble) { minimizeTimer(); navigate('/'); }
+        if (isDouble) { minimizeTimer(); navigate(isCoach ? '/dashboard' : '/traineehome'); }
         else { lastBackPress.current = now; minimizeTimer(); }
       } else {
-        if (isDouble) navigate('/');
+        if (isDouble) navigate(isCoach ? '/dashboard' : '/traineehome');
         else { lastBackPress.current = now; navigate(-1); }
       }
     };

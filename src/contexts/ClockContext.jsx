@@ -303,6 +303,15 @@ export function ClockProvider({ children }) {
 
   useEffect(() => () => clearTick(), [clearTick]);
 
+  // Listen for remote reset (from FloatingTimer X button)
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.type === activeClock || !e.detail?.type) stop();
+    };
+    window.addEventListener('clock-reset', handler);
+    return () => window.removeEventListener('clock-reset', handler);
+  }, [activeClock, stop]);
+
   return (
     <ClockContext.Provider value={{
       activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps, setProgress,

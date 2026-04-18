@@ -9,16 +9,10 @@ const FloatingTimer = () => {
   const [pos, setPos] = useState({ x: 16, bottom: 90 });
   const drag = useRef({ active: false, startX: 0, startY: 0, initBottom: 90, moved: false });
 
-  console.log('[FloatingTimer] liveTimer:', liveTimer, 'showTabata:', showTabata);
   if (!liveTimer || showTabata) return null;
 
   const onTouchStart = (e) => {
-    drag.current = {
-      active: true, moved: false,
-      startX: e.touches[0].clientX - pos.x,
-      startY: e.touches[0].clientY,
-      initBottom: pos.bottom,
-    };
+    drag.current = { active: true, moved: false, startX: e.touches[0].clientX - pos.x, startY: e.touches[0].clientY, initBottom: pos.bottom };
   };
   const onTouchMove = (e) => {
     if (!drag.current.active) return;
@@ -30,6 +24,7 @@ const FloatingTimer = () => {
     });
   };
   const onTouchEnd = () => { drag.current.active = false; };
+
   const handleTap = () => {
     if (drag.current.moved) return;
     if (liveTimer?.type === 'tabata') {
@@ -40,38 +35,61 @@ const FloatingTimer = () => {
     }
   };
 
+  const handleStop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLiveTimer(null);
+    if (liveTimer?.type === 'tabata') {
+      setShowTabata(false);
+      window.dispatchEvent(new CustomEvent('tabata-reset'));
+    } else {
+      window.dispatchEvent(new CustomEvent('clock-reset', { detail: { type: liveTimer?.type } }));
+    }
+  };
+
   return (
     <div
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      onClick={handleTap}
       style={{
         position: 'fixed', left: pos.x, bottom: pos.bottom,
         zIndex: 9998, background: '#FF6F20', borderRadius: 20,
-        padding: '10px 18px', minWidth: 155,
+        padding: '10px 14px', minWidth: 155,
         boxShadow: '0 6px 24px rgba(0,0,0,0.4)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
         cursor: 'pointer', direction: 'rtl', userSelect: 'none', touchAction: 'none',
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
-        {liveTimer.phase}
-      </div>
-      <div style={{
-        fontSize: 48, fontWeight: 900, color: 'white', lineHeight: 1,
-        fontVariantNumeric: 'tabular-nums', letterSpacing: -2,
-        fontFamily: "'Barlow Condensed', system-ui",
-      }}>
-        {liveTimer.display}
-      </div>
-      {liveTimer.info && (
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>
-          {liveTimer.info}
+      {/* X stop button */}
+      <button onPointerDown={handleStop} style={{
+        position: 'absolute', top: 6, left: 6,
+        width: 22, height: 22, background: 'rgba(0,0,0,0.3)',
+        border: 'none', borderRadius: '50%', color: 'white',
+        fontSize: 14, cursor: 'pointer', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+        touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+      }}>×</button>
+
+      <div onClick={handleTap}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)', textAlign: 'center' }}>
+          {liveTimer.phase}
         </div>
-      )}
-      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-        לחץ לחזרה לשעון
+        <div style={{
+          fontSize: 48, fontWeight: 900, color: 'white', lineHeight: 1,
+          fontVariantNumeric: 'tabular-nums', letterSpacing: -2, textAlign: 'center',
+          fontFamily: "'Barlow Condensed', system-ui",
+        }}>
+          {liveTimer.display}
+        </div>
+        {liveTimer.info && (
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 600, textAlign: 'center' }}>
+            {liveTimer.info}
+          </div>
+        )}
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 2, textAlign: 'center' }}>
+          לחץ לחזרה לשעון
+        </div>
       </div>
     </div>
   );

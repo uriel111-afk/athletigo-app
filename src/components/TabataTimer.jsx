@@ -423,6 +423,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     relWake();
   }, []);
 
+  // Listen for remote reset (from FloatingTimer X button)
+  useEffect(() => {
+    const handler = () => handleReset();
+    window.addEventListener('tabata-reset', handler);
+    return () => window.removeEventListener('tabata-reset', handler);
+  }, []);
+
   const incPrep   = useLongPress(useCallback(()=>setPrepTime(v=>Math.min(60,v+1)),[]));
   const decPrep   = useLongPress(useCallback(()=>setPrepTime(v=>Math.max(0,v-1)),[]));
   const incWork   = useLongPress(useCallback(()=>setWorkTime(v=>Math.min(120,v+1)),[]));
