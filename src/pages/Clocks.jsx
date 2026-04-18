@@ -274,11 +274,6 @@ export default function Clocks() {
   const clock = useClock();
   const { setLiveTimer, setShowTabata } = useActiveTimer();
 
-  // Auto-open tabata overlay when tab selected
-  useEffect(() => {
-    if (activeTab === 'tabata') setShowTabata(true);
-  }, [activeTab]);
-
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = timerOrStopwatchRunning;
   const lastBackPress = useRef(0);
@@ -356,7 +351,9 @@ export default function Clocks() {
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
-        <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, background: '#FF6F20' }}>
+        <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, background: '#FF6F20', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+          <div style={{ fontSize: '60px' }}>⏱</div>
+          <button onPointerDown={() => setShowTabata(true)} style={{ background: 'white', color: '#FF6F20', border: 'none', borderRadius: '12px', padding: '16px 40px', fontSize: '22px', fontWeight: '900', cursor: 'pointer', touchAction: 'manipulation' }}>▶ טבטה</button>
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
