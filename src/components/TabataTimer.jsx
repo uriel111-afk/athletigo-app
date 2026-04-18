@@ -250,8 +250,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       const t = tRef.current;
       // Sound FIRST — no conditions, no setState before this
       if (t === 3 || t === 2 || t === 1) SND_TICK();
-      if (t <= 0) { clearInterval(mainRef.current); advance(); }
-      else {
+      if (t <= 0) {
+        clearInterval(mainRef.current);
+        setTimeLeft(0); // ring animates to empty
+        setTimeout(() => advance(), 950); // advance after ring transition
+      } else {
         setTimeLeft(t);
         // liveTimer update AFTER sound and setState
         if (isMinimizedRef.current) {
@@ -488,10 +491,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         <div style={{position:'relative',width:'min(75vw,300px)',height:'min(75vw,300px)'}}>
           <svg width="100%" height="100%" viewBox="0 0 300 300" style={{position:'absolute',inset:0}}>
             <circle cx="150" cy="150" r="134" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10"/>
-            <circle cx="150" cy="150" r="134" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(1-timeLeft/phaseDur) : 0} strokeLinecap="round" transform="rotate(-90 150 150)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
+            <circle cx="150" cy="150" r="134" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(1-timeLeft/phaseDur) : C} strokeLinecap="round" transform="rotate(-90 150 150)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
           </svg>
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{fontSize:'min(40vw,156px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
+            <div style={{fontSize:'min(40vw,156px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft > 0 ? timeLeft : ''}</div>
           </div>
         </div>
       </div>
