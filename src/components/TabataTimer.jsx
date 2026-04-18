@@ -353,6 +353,23 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     isMinimizedRef.current = false; setIsRunning(false); setScreen('settings'); setLiveTimer(null); relWake();
   };
 
+  const goBack = () => {
+    const p = phRef.current, r = rRef.current, s = sRef.current;
+    clearInterval(mainRef.current);
+    if (p === 'מנוחה') {
+      SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
+    } else if (p === 'עבודה') {
+      if (r > 1) { rRef.current = r-1; setCurRound(r-1); SND_BELL(); startPhase('מנוחה', rsRef.current); startMain(); }
+      else if (s > 1) { sRef.current = s-1; rRef.current = rnRef.current; setCurSet(s-1); setCurRound(rnRef.current); SND_BELL(); startPhase('מנוחה', rsRef.current); startMain(); }
+    } else if (p === 'מנוחה בין סטים') {
+      rRef.current = rnRef.current; setCurRound(rnRef.current); SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
+    } else if (p === 'הכנה') {
+      // do nothing — already at start
+    }
+  };
+
+  const goNext = () => { clearInterval(mainRef.current); tRef.current = 0; advance(); };
+
   const doMinimize = useCallback(() => {
     isMinimizedRef.current = true;
     setLiveTimer({
@@ -467,6 +484,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               <div style={{fontSize:'24px',fontWeight:'900',color:'white',fontVariantNumeric:'tabular-nums'}}>{item.val}</div>
             </div>
           ))}
+        </div>
+        <div style={{display:'flex',gap:'8px',width:'100%'}}>
+          <button onPointerDown={(e)=>{e.preventDefault();goBack();}} style={{flex:1,height:'44px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.3)',borderRadius:'10px',fontSize:'14px',fontWeight:'700',cursor:'pointer',touchAction:'manipulation',display:'flex',alignItems:'center',justifyContent:'center',gap:'4px'}}>◀ קודם</button>
+          <button onPointerDown={(e)=>{e.preventDefault();goNext();}} style={{flex:1,height:'44px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.3)',borderRadius:'10px',fontSize:'14px',fontWeight:'700',cursor:'pointer',touchAction:'manipulation',display:'flex',alignItems:'center',justifyContent:'center',gap:'4px'}}>הבא ▶</button>
         </div>
         {(()=>{
           const nx = {'הכנה':{label:'עבודה',dur:workTime},'עבודה':{label:'מנוחה',dur:restTime},'מנוחה':curRound<rounds?{label:'עבודה',dur:workTime}:curSet<sets?{label:'מנוחה בין סטים',dur:restBetween}:null,'מנוחה בין סטים':{label:'עבודה',dur:workTime}}[phase];
