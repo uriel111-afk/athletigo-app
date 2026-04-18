@@ -229,6 +229,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const stRef     = useRef(sets);
   const rbRef     = useRef(restBetween);
   const totRef    = useRef(0);
+  const isMinimizedRef = useRef(false);
 
   useEffect(()=>{ wkRef.current=workTime; },[workTime]);
   useEffect(()=>{ rsRef.current=restTime; },[restTime]);
@@ -261,9 +262,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       const t = tRef.current;
       if (t === 3 || t === 2 || t === 1) SND_TICK();
       setLiveTimer(prev => {
-        if (!prev) return null;
-        return { ...prev, display: String(t), phase: phRef.current,
-          info: `סיבוב ${rRef.current}/${rnRef.current} • סט ${sRef.current}/${stRef.current}` };
+        if (!isMinimizedRef.current) return prev;
+        return {
+          type: 'tabata', display: String(t), phase: phRef.current,
+          info: `סיבוב ${rRef.current}/${rnRef.current} • סט ${sRef.current}/${stRef.current}`,
+          color: '#FF6F20'
+        };
       });
       if (t <= 0) { clearInterval(mainRef.current); advance(); }
       else setTimeLeft(t);
@@ -286,7 +290,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         SND_DOUBLE_BELL(); startPhase('מנוחה בין סטים', rbRef.current); startMain();
       } else {
         clearInterval(mainRef.current); clearInterval(totalRef.current);
-        setScreen('complete'); setIsRunning(false); setLiveTimer(null);
+        isMinimizedRef.current = false; setScreen('complete'); setIsRunning(false); setLiveTimer(null);
         SND_TRIPLE_BELL(); relWake();
       }
     } else if (p === 'מנוחה בין סטים') {
@@ -338,10 +342,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const handleReset = () => {
     clearInterval(mainRef.current); clearInterval(totalRef.current); clearInterval(goRef.current);
-    setIsRunning(false); setScreen('settings'); setLiveTimer(null); relWake();
+    isMinimizedRef.current = false; setIsRunning(false); setScreen('settings'); setLiveTimer(null); relWake();
   };
 
   const doMinimize = useCallback(() => {
+    isMinimizedRef.current = true;
     setLiveTimer({
       type:'tabata',
       display: String(tRef.current || 0),
