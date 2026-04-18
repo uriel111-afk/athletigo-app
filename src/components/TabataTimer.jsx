@@ -3,89 +3,77 @@ import { useNavigate } from 'react-router-dom';
 
 // ─── SOUNDS (outside component — stable references) ───
 
-const _a = () => {
-  const c = new (window.AudioContext || window.webkitAudioContext)();
-  c.resume();
-  const m = c.createGain();
-  m.gain.value = 2.0;
-  m.connect(c.destination);
-  return { c, m };
-};
-
 const SND_TICK = () => {
   try {
-    const { c, m } = _a();
-    const o = c.createOscillator(); const g = c.createGain();
-    o.connect(g); g.connect(m);
-    o.type = 'triangle'; o.frequency.value = 1100;
-    g.gain.setValueAtTime(0.9, c.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.07);
-    o.start(); o.stop(c.currentTime + 0.07);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+    const m = ctx.createGain(); m.gain.value = 2.0; m.connect(ctx.destination);
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(m); o1.type = 'square'; o1.frequency.value = 1200;
+    g1.gain.setValueAtTime(0.8, ctx.currentTime); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    o1.start(); o1.stop(ctx.currentTime + 0.05);
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(m); o2.type = 'sine'; o2.frequency.value = 150;
+    g2.gain.setValueAtTime(0.5, ctx.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    o2.start(); o2.stop(ctx.currentTime + 0.08);
   } catch(e) {}
 };
 
 const SND_GO = () => {
   try {
-    const { c, m } = _a();
-    [[523,0,0.15],[659,0.15,0.15],[784,0.30,0.22]].forEach(([f,d,dur]) => {
-      const o = c.createOscillator(); const g = c.createGain();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+    const m = ctx.createGain(); m.gain.value = 2.0; m.connect(ctx.destination);
+    [[523,0,0.12],[659,0.1,0.14],[784,0.22,0.2],[1047,0.36,0.28]].forEach(([f,d,dur])=>{
+      const o = ctx.createOscillator(); const g = ctx.createGain();
       o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.8, c.currentTime+d);
-      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+d+dur);
-      o.start(c.currentTime+d); o.stop(c.currentTime+d+dur);
+      g.gain.setValueAtTime(0.7, ctx.currentTime+d); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+d+dur);
+      o.start(ctx.currentTime+d); o.stop(ctx.currentTime+d+dur);
     });
   } catch(e) {}
 };
 
 const SND_WORK = () => {
   try {
-    const { c, m } = _a();
-    [[1400,0,0.15,0.22],[1700,0.22,0.15,0.28]].forEach(([f,d,attack,dur]) => {
-      const o = c.createOscillator(); const g = c.createGain();
-      o.connect(g); g.connect(m); o.type = 'sawtooth'; o.frequency.value = f;
-      g.gain.setValueAtTime(0, c.currentTime+d);
-      g.gain.linearRampToValueAtTime(0.7, c.currentTime+d+0.01);
-      g.gain.setValueAtTime(0.7, c.currentTime+d+dur*0.7);
-      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+d+dur);
-      o.start(c.currentTime+d); o.stop(c.currentTime+d+dur);
-    });
-    const o2 = c.createOscillator(); const g2 = c.createGain();
-    o2.connect(g2); g2.connect(m); o2.type = 'sine';
-    o2.frequency.setValueAtTime(180, c.currentTime);
-    o2.frequency.exponentialRampToValueAtTime(60, c.currentTime+0.12);
-    g2.gain.setValueAtTime(0.5, c.currentTime);
-    g2.gain.exponentialRampToValueAtTime(0.001, c.currentTime+0.12);
-    o2.start(); o2.stop(c.currentTime+0.12);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+    const m = ctx.createGain(); m.gain.value = 2.0; m.connect(ctx.destination);
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(m); o1.type = 'sawtooth'; o1.frequency.value = 1500;
+    g1.gain.setValueAtTime(0, ctx.currentTime); g1.gain.linearRampToValueAtTime(0.8, ctx.currentTime+0.01);
+    g1.gain.setValueAtTime(0.8, ctx.currentTime+0.14); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.22);
+    o1.start(); o1.stop(ctx.currentTime+0.22);
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(m); o2.type = 'sawtooth'; o2.frequency.value = 1900;
+    g2.gain.setValueAtTime(0, ctx.currentTime+0.24); g2.gain.linearRampToValueAtTime(0.9, ctx.currentTime+0.25);
+    g2.gain.setValueAtTime(0.9, ctx.currentTime+0.42); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.52);
+    o2.start(ctx.currentTime+0.24); o2.stop(ctx.currentTime+0.52);
+    const o3 = ctx.createOscillator(); const g3 = ctx.createGain();
+    o3.connect(g3); g3.connect(m); o3.type = 'sine';
+    o3.frequency.setValueAtTime(220, ctx.currentTime); o3.frequency.exponentialRampToValueAtTime(60, ctx.currentTime+0.18);
+    g3.gain.setValueAtTime(0.7, ctx.currentTime); g3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.18);
+    o3.start(); o3.stop(ctx.currentTime+0.18);
   } catch(e) {}
 };
 
 const SND_BELL = () => {
   try {
-    const { c, m } = _a();
-    [[440,0.8,2.0],[880,0.35,1.3],[1320,0.15,0.8]].forEach(([f,gain,dur]) => {
-      const o = c.createOscillator(); const g = c.createGain();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+    const m = ctx.createGain(); m.gain.value = 1.8; m.connect(ctx.destination);
+    [[440,1.0,2.2],[880,0.4,1.5],[1320,0.18,0.9],[220,0.3,0.6]].forEach(([f,gain,dur])=>{
+      const o = ctx.createOscillator(); const g = ctx.createGain();
       o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(gain, c.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+dur);
-      o.start(); o.stop(c.currentTime+dur);
+      g.gain.setValueAtTime(gain, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dur);
+      o.start(); o.stop(ctx.currentTime+dur);
     });
   } catch(e) {}
 };
 
-const SND_DOUBLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 650); };
-const SND_TRIPLE_BELL = () => {
-  SND_BELL();
-  setTimeout(SND_BELL, 550);
-  setTimeout(SND_BELL, 1100);
-};
+const SND_DOUBLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 700); };
+const SND_TRIPLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 600); setTimeout(SND_BELL, 1200); };
 
 const unlockAudio = () => {
   try {
-    const c = new (window.AudioContext || window.webkitAudioContext)();
-    c.resume();
-    const b = c.createBuffer(1,1,22050);
-    const s = c.createBufferSource();
-    s.buffer = b; s.connect(c.destination); s.start(0);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+    const b = ctx.createBuffer(1,1,22050); const s = ctx.createBufferSource();
+    s.buffer=b; s.connect(ctx.destination); s.start(0);
   } catch(e) {}
 };
 
@@ -177,7 +165,7 @@ const useLongPress = (cb) => {
 };
 
 const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-const C = 779; // 2*π*124
+const C = 842; // 2*π*134
 
 // ─── MAIN COMPONENT ───
 
@@ -279,13 +267,18 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       rRef.current=1; sRef.current=1; setCurRound(1); setCurSet(1);
       SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
     } else if (p === 'עבודה') {
-      const isLastRound = r >= rnRef.current;
+      const isLastRoundOfSet = r >= rnRef.current;
       const isLastSet = s >= stRef.current;
-      if (isLastRound && isLastSet) {
+      if (isLastRoundOfSet && isLastSet) {
+        // Last round of last set → COMPLETE
         clearInterval(mainRef.current); clearInterval(totalRef.current);
         isMinimizedRef.current = false; setScreen('complete'); setIsRunning(false); setLiveTimer(null);
         SND_TRIPLE_BELL(); relWake();
+      } else if (isLastRoundOfSet && !isLastSet) {
+        // Last round of set (not last set) → skip rest, go to restBetweenSets
+        SND_DOUBLE_BELL(); startPhase('מנוחה בין סטים', rbRef.current); startMain();
       } else {
+        // Normal round → go to rest
         SND_BELL(); startPhase('מנוחה', rsRef.current); startMain();
       }
     } else if (p === 'מנוחה') {
@@ -492,13 +485,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       </div>
       <div style={{fontSize:'40px',fontWeight:'900',color:'white',textAlign:'center',paddingTop:'8px',flexShrink:0}}>{phase}</div>
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:0,padding:'2px 0'}}>
-        <div style={{position:'relative',width:'min(70vw,280px)',height:'min(70vw,280px)'}}>
-          <svg width="100%" height="100%" viewBox="0 0 280 280" style={{position:'absolute',inset:0}}>
-            <circle cx="140" cy="140" r="124" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10"/>
-            <circle cx="140" cy="140" r="124" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(timeLeft/phaseDur) : 0} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
+        <div style={{position:'relative',width:'min(75vw,300px)',height:'min(75vw,300px)'}}>
+          <svg width="100%" height="100%" viewBox="0 0 300 300" style={{position:'absolute',inset:0}}>
+            <circle cx="150" cy="150" r="134" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10"/>
+            <circle cx="150" cy="150" r="134" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(1-timeLeft/phaseDur) : 0} strokeLinecap="round" transform="rotate(-90 150 150)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
           </svg>
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{fontSize:'min(38vw,148px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
+            <div style={{fontSize:'min(40vw,156px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
           </div>
         </div>
       </div>
