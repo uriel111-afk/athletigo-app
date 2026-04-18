@@ -5,7 +5,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import VisualEditAgent from '@/lib/VisualEditAgent'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
@@ -22,6 +22,7 @@ import TabataTimer from './components/TabataTimer';
 // Global TabataTimer — always mounted, never unmounts
 function GlobalTabata() {
   const { showTabata, setShowTabata, setLiveTimer } = useActiveTimer();
+  const navigate = useNavigate();
   return (
     <div style={{
       display: showTabata ? 'flex' : 'none',
@@ -31,8 +32,7 @@ function GlobalTabata() {
       <TabataTimer
         onMinimize={() => {
           setShowTabata(false);
-          // Navigate back so FloatingTimer can show (it hides on /clocks)
-          window.history.back();
+          navigate('/');
         }}
         setLiveTimer={setLiveTimer}
       />
