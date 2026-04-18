@@ -192,7 +192,7 @@ function TimerView({ onMinimize }) {
         <div className="flex items-center gap-3" dir="ltr">
           <TimerCol label="דקות" value={timerMin} onChange={setTimerMin} max={99} step={1} unit="דק׳" />
           <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>
-          <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} step={5} unit="שנ׳" />
+          <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} step={1} unit="שנ׳" />
         </div>
         <div className="flex items-center gap-3 w-full justify-center" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
           <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>הכנה</span>
