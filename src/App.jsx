@@ -1,3 +1,4 @@
+import { useCallback, useEffect } from 'react';
 import './App.css'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -27,6 +28,20 @@ function GlobalTabata() {
   try { const auth = useAuth(); user = auth?.user; } catch(e) {}
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
+  const handleMinimize = useCallback(() => {
+    setShowTabata(false);
+    navigate(isCoach ? '/' : '/traineehome', { replace: false });
+  }, [isCoach, navigate, setShowTabata]);
+
+  // Back button while overlay showing → minimize
+  useEffect(() => {
+    if (!showTabata) return;
+    window.history.pushState({ tabata: true }, '', window.location.href);
+    const onPop = () => handleMinimize();
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [showTabata, handleMinimize]);
+
   return (
     <div style={{
       display: showTabata ? 'flex' : 'none',
@@ -34,10 +49,7 @@ function GlobalTabata() {
       flexDirection: 'column', background: '#FF6F20'
     }}>
       <TabataTimer
-        onMinimize={() => {
-          setShowTabata(false);
-          navigate(isCoach ? '/' : '/traineehome');
-        }}
+        onMinimize={handleMinimize}
         setLiveTimer={setLiveTimer}
       />
     </div>

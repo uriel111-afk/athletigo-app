@@ -422,7 +422,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   );
 
   if (screen==='running') return (
-    <div style={{background:'#FF6F20',height:'100%',overflow:'hidden',display:'flex',flexDirection:'column',direction:'rtl'}}>
+    <div style={{background:'#FF6F20',height:'100%',overflow:'hidden',display:'flex',flexDirection:'column',direction:'rtl',touchAction:'none'}}>
       <div style={{padding:'10px 14px',background:'rgba(0,0,0,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         {MinBtn}
         <div style={{fontSize:'19px',fontWeight:'900',color:'white'}}>TABATA</div>
@@ -470,7 +470,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   // SETTINGS
   return (
-    <div style={{background:'#FF6F20',height:'100%',display:'flex',flexDirection:'column',overflow:'hidden',direction:'rtl'}}>
+    <div style={{background:'#FF6F20',height:'100%',display:'flex',flexDirection:'column',overflow:'hidden',direction:'rtl',touchAction:'pan-x'}}>
       <div style={{padding:'9px 14px',background:'rgba(0,0,0,0.15)',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
         <div style={{fontSize:'18px',fontWeight:'900',color:'white'}}>TABATA</div>
         <div style={{fontSize:'13px',fontWeight:'700',color:'white'}}>{fmt(calcTotal())} • {rounds}× • {sets} סטים</div>
