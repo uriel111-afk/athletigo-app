@@ -472,7 +472,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             <circle cx="140" cy="140" r="124" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(timeLeft/phaseDur) : 0} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
           </svg>
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{fontSize:'min(35vw,140px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
+            <div style={{fontSize:'min(38vw,148px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
           </div>
         </div>
       </div>
