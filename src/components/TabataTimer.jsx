@@ -341,16 +341,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     setIsRunning(false); setScreen('settings'); setLiveTimer(null); relWake();
   };
 
-  const doMinimize = () => {
-    console.log('[MINIMIZE] called, isRunning:', isRunning);
+  const doMinimize = useCallback(() => {
+    console.log('[doMinimize] tRef:', tRef.current, 'phRef:', phRef.current);
     setLiveTimer({
-      type:'tabata', display: String(tRef.current), phase: phRef.current,
-      info: `סיבוב ${rRef.current}/${rnRef.current} • סט ${sRef.current}/${stRef.current}`,
+      type:'tabata',
+      display: String(tRef.current || 0),
+      phase: phRef.current || 'טבטה',
+      info: `סיבוב ${rRef.current || 1}/${rnRef.current || 8} • סט ${sRef.current || 1}/${stRef.current || 3}`,
       color:'#FF6F20'
     });
-    console.log('[MINIMIZE] liveTimer set, calling onMinimize');
     onMinimize();
-  };
+  }, [setLiveTimer, onMinimize]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -390,14 +391,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     {icon:'🔔',label:'ספירה לאחור',  pk:'countdown',   unit:'שנ׳',value:cdTime,     set:setCdTime,     inc:incCD,    dec:decCD,   small:true},
   ];
 
-  const handleMinBtn = (e) => { e.preventDefault(); e.stopPropagation(); doMinimize(); };
   const MinBtn = (
-    <button onClick={handleMinBtn} onTouchEnd={handleMinBtn} style={{
+    <button onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); console.log('[MinBtn] pressed'); doMinimize(); }} style={{
       background:'rgba(255,255,255,0.2)',border:'none',borderRadius:'8px',
-      width:'38px',height:'38px',display:'flex',alignItems:'center',
-      justifyContent:'center',cursor:'pointer',flexShrink:0
+      width:'44px',height:'44px',display:'flex',alignItems:'center',
+      justifyContent:'center',cursor:'pointer',flexShrink:0,
+      touchAction:'manipulation',WebkitTapHighlightColor:'transparent'
     }}>
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none"
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
         stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="4 14 10 14 10 20"/>
         <polyline points="20 10 14 10 14 4"/>
