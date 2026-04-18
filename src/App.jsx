@@ -29,7 +29,11 @@ function GlobalTabata() {
       flexDirection: 'column', background: '#FF6F20'
     }}>
       <TabataTimer
-        onMinimize={() => setShowTabata(false)}
+        onMinimize={() => {
+          setShowTabata(false);
+          // Navigate back so FloatingTimer can show (it hides on /clocks)
+          window.history.back();
+        }}
         setLiveTimer={setLiveTimer}
       />
     </div>

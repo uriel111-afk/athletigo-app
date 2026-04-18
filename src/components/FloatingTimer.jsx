@@ -33,7 +33,8 @@ const FloatingTimer = () => {
   const onTouchEnd = () => { drag.current.active = false; };
   const handleTap = () => {
     if (drag.current.moved) return;
-    setShowTabata(true);
+    setLiveTimer(null); // hide widget
+    setShowTabata(true); // show tabata overlay
     navigate('/clocks');
   };
 
