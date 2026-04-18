@@ -29,9 +29,9 @@ function GlobalTabata() {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const handleMinimize = useCallback(() => {
-    console.log('[APP MINIMIZE] showTabata:', showTabata);
+    alert('handleMinimize in App called');
     setShowTabata(false);
-    console.log('[APP MINIMIZE] navigating, isCoach:', isCoach);
+    alert('navigating to: ' + (isCoach ? '/' : '/traineehome'));
     navigate(isCoach ? '/' : '/traineehome', { replace: false });
   }, [isCoach, navigate, setShowTabata]);
 
