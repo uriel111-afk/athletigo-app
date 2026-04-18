@@ -72,23 +72,23 @@ const unlockAudio = () => {
     const b = ctx.createBuffer(1,1,22050); const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
   } catch(e) {}
 };
-const clockTone = (freq, dur, delay = 0, vol = 1.8) => {
+const _t = (freq, dur, delay = 0, vol = 1.8) => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const master = ctx.createGain(); master.gain.value = vol; master.connect(ctx.destination);
+    const m = ctx.createGain(); m.gain.value = vol; m.connect(ctx.destination);
     const o = ctx.createOscillator(); const g = ctx.createGain();
-    o.connect(g); g.connect(master); o.type = 'sine'; o.frequency.value = freq;
+    o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = freq;
     g.gain.setValueAtTime(0.8, ctx.currentTime + delay);
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
     o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + dur);
   } catch(e) {}
 };
-const SOUND_START = () => { clockTone(660, 0.08, 0); clockTone(880, 0.09, 0.09); clockTone(1100, 0.12, 0.18); };
-const SOUND_PAUSE = () => { clockTone(1100, 0.08, 0); clockTone(880, 0.08, 0.09); clockTone(660, 0.10, 0.18); };
-const SOUND_RESET = () => { clockTone(1100, 0.08, 0); clockTone(880, 0.08, 0.09); clockTone(660, 0.10, 0.18); };
-const SOUND_TICK = () => { clockTone(1200, 0.06, 0); clockTone(600, 0.08, 0); };
-const SOUND_ALERT = () => { clockTone(1200, 0.06, 0); clockTone(1200, 0.06, 0.15); };
-const SOUND_TRIPLE_BELL = () => { [0, 0.5, 1.0].forEach(d => { clockTone(440, 1.5, d, 1.8); clockTone(880, 1.0, d, 0.6); }); };
+const SOUND_START = () => { _t(660, 0.08, 0); _t(880, 0.09, 0.10); _t(1100, 0.13, 0.21); };
+const SOUND_PAUSE = () => { _t(880, 0.08, 0); _t(660, 0.10, 0.10); };
+const SOUND_RESET = () => { _t(660, 0.08, 0); _t(440, 0.12, 0.09); };
+const SOUND_TICK = () => { _t(1200, 0.05, 0, 2.0); _t(600, 0.06, 0, 0.9); };
+const SOUND_ALERT = () => { _t(1200, 0.06, 0); _t(1200, 0.06, 0.15); };
+const SOUND_TRIPLE_BELL = () => { [0, 0.55, 1.10].forEach(d => { _t(440, 1.4, d, 1.6); _t(880, 0.8, d, 0.5); _t(1320, 0.5, d, 0.2); }); };
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
