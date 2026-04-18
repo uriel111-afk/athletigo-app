@@ -13,6 +13,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="AthletiGo">
     <meta name="theme-color" content="#FF6F20">
+    <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) { registration.unregister(); }
+      });
+      caches.keys().then(function(names) {
+        for (let name of names) caches.delete(name);
+      });
+    }
+    </script>
 
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
