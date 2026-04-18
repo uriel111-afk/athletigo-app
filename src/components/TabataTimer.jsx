@@ -260,17 +260,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     mainRef.current = setInterval(() => {
       tRef.current -= 1;
       const t = tRef.current;
+      // Sound FIRST — no conditions, no setState before this
       if (t === 3 || t === 2 || t === 1) SND_TICK();
-      setLiveTimer(prev => {
-        if (!isMinimizedRef.current) return prev;
-        return {
-          type: 'tabata', display: String(t), phase: phRef.current,
-          info: `סיבוב ${rRef.current}/${rnRef.current} • סט ${sRef.current}/${stRef.current}`,
-          color: '#FF6F20'
-        };
-      });
       if (t <= 0) { clearInterval(mainRef.current); advance(); }
-      else setTimeLeft(t);
+      else {
+        setTimeLeft(t);
+        // liveTimer update AFTER sound and setState
+        if (isMinimizedRef.current) {
+          setLiveTimer(prev => prev ? { ...prev, display: String(t), phase: phRef.current } : null);
+        }
+      }
     }, 1000);
   };
 
@@ -353,9 +352,30 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     isMinimizedRef.current = false; setIsRunning(false); setScreen('settings'); setLiveTimer(null); relWake();
   };
 
+  const calcRemainingTotal = () => {
+    const r = rRef.current, s = sRef.current, p = phRef.current;
+    let total = tRef.current;
+    const roundsLeft = rnRef.current - r;
+    const setsLeft = stRef.current - s;
+    if (p === 'עבודה') { total += rsRef.current; total += roundsLeft * (wkRef.current + rsRef.current); }
+    else if (p === 'מנוחה') { total += roundsLeft * (wkRef.current + rsRef.current); }
+    total += setsLeft * (rnRef.current * (wkRef.current + rsRef.current) + rbRef.current);
+    return Math.max(0, total);
+  };
+
+  const restartTotalInterval = () => {
+    const newTotal = calcRemainingTotal();
+    totRef.current = newTotal; setTotalLeft(newTotal);
+    clearInterval(totalRef.current);
+    totalRef.current = setInterval(() => {
+      totRef.current -= 1; setTotalLeft(totRef.current);
+      if (totRef.current <= 0) clearInterval(totalRef.current);
+    }, 1000);
+  };
+
   const goBack = () => {
     const p = phRef.current, r = rRef.current, s = sRef.current;
-    clearInterval(mainRef.current);
+    clearInterval(mainRef.current); clearInterval(totalRef.current);
     if (p === 'מנוחה') {
       SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
     } else if (p === 'עבודה') {
@@ -363,15 +383,20 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       else if (s > 1) { sRef.current = s-1; rRef.current = rnRef.current; setCurSet(s-1); setCurRound(rnRef.current); SND_BELL(); startPhase('מנוחה', rsRef.current); startMain(); }
     } else if (p === 'מנוחה בין סטים') {
       rRef.current = rnRef.current; setCurRound(rnRef.current); SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
-    } else if (p === 'הכנה') {
-      // do nothing — already at start
     }
+    setTimeout(restartTotalInterval, 100);
   };
 
-  const goNext = () => { clearInterval(mainRef.current); tRef.current = 0; advance(); };
+  const goNext = () => {
+    clearInterval(mainRef.current); clearInterval(totalRef.current);
+    tRef.current = 0; advance();
+    setTimeout(restartTotalInterval, 100);
+  };
 
   const doMinimize = useCallback(() => {
+    console.log('[doMinimize] isMinimizedRef before:', isMinimizedRef.current);
     isMinimizedRef.current = true;
+    console.log('[doMinimize] isMinimizedRef after:', isMinimizedRef.current);
     setLiveTimer({
       type:'tabata',
       display: String(tRef.current || 0),
@@ -379,6 +404,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       info: `סיבוב ${rRef.current || 1}/${rnRef.current || 8} • סט ${sRef.current || 1}/${stRef.current || 3}`,
       color:'#FF6F20'
     });
+    console.log('[doMinimize] setLiveTimer called');
     setTimeout(() => onMinimize(), 50);
   }, [setLiveTimer, onMinimize]);
 

@@ -9,7 +9,7 @@ const FloatingTimer = () => {
   const [pos, setPos] = useState({ x: 16, bottom: 90 });
   const drag = useRef({ active: false, startX: 0, startY: 0, initBottom: 90, moved: false });
 
-  // Only hide when no liveTimer or tabata overlay is open
+  console.log('[FloatingTimer] liveTimer:', liveTimer, 'showTabata:', showTabata);
   if (!liveTimer || showTabata) return null;
 
   const onTouchStart = (e) => {
