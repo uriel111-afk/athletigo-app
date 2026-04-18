@@ -322,8 +322,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           startPhase(initPhase, initDur); startMain();
           clearInterval(totalRef.current);
           totalRef.current = setInterval(() => {
-            totRef.current -= 1; setTotalLeft(totRef.current);
-            if (totRef.current <= 0) { clearInterval(totalRef.current); SND_DOUBLE_BELL(); }
+            totRef.current -= 1;
+            const tt = totRef.current;
+            if (tt === 3 || tt === 2 || tt === 1) SND_TICK();
+            setTotalLeft(tt);
+            if (tt <= 0) { clearInterval(totalRef.current); SND_DOUBLE_BELL(); }
           }, 1000);
           reqWake();
         }, 800);
@@ -337,8 +340,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     } else {
       setIsRunning(true); startMain();
       totalRef.current = setInterval(() => {
-        totRef.current -= 1; setTotalLeft(totRef.current);
-        if (totRef.current<=0) clearInterval(totalRef.current);
+        totRef.current -= 1;
+        const tt = totRef.current;
+        if (tt === 3 || tt === 2 || tt === 1) SND_TICK();
+        setTotalLeft(tt);
+        if (tt<=0) clearInterval(totalRef.current);
       }, 1000);
     }
   };
