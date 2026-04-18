@@ -34,7 +34,6 @@ import {
   Clock
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import FloatingClockBar from "@/components/FloatingClockBar";
 import FloatingTimer from "@/components/FloatingTimer";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
@@ -434,8 +433,7 @@ export default function Layout({ children, currentPageName }) {
             </ErrorBoundary>
           </div>
 
-          {/* Floating Clock Bar */}
-          <FloatingClockBar />
+          {/* Floating Timer Widget */}
           <FloatingTimer />
 
           {/* Mobile Bottom Navigation — fixed to bottom */}
