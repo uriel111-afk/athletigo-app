@@ -23,16 +23,20 @@ import TabataTimer from './components/TabataTimer';
 function GlobalTabata() {
   const { showTabata, setShowTabata, setLiveTimer } = useActiveTimer();
   const navigate = useNavigate();
+  let user = null;
+  try { const auth = useAuth(); user = auth?.user; } catch(e) {}
+  const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
+
   return (
     <div style={{
       display: showTabata ? 'flex' : 'none',
-      position: 'fixed', inset: 0, zIndex: 200,
+      position: 'fixed', inset: 0, zIndex: 10000,
       flexDirection: 'column', background: '#FF6F20'
     }}>
       <TabataTimer
         onMinimize={() => {
           setShowTabata(false);
-          navigate('/');
+          navigate(isCoach ? '/' : '/traineehome');
         }}
         setLiveTimer={setLiveTimer}
       />

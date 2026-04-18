@@ -9,7 +9,7 @@ const FloatingTimer = () => {
   const [pos, setPos] = useState({ x: 16, bottom: 90 });
   const drag = useRef({ active: false, startX: 0, startY: 0, initBottom: 90, moved: false });
 
-  // Hide when no liveTimer or when tabata overlay is showing
+  // Only hide when no liveTimer or tabata overlay is open
   if (!liveTimer || showTabata) return null;
 
   const onTouchStart = (e) => {
@@ -32,9 +32,8 @@ const FloatingTimer = () => {
   const onTouchEnd = () => { drag.current.active = false; };
   const handleTap = () => {
     if (drag.current.moved) return;
-    setLiveTimer(null); // hide widget
-    setShowTabata(true); // show tabata overlay
-    navigate('/clocks');
+    setLiveTimer(null);
+    setShowTabata(true);
   };
 
   return (
