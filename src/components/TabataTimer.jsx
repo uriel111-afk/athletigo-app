@@ -177,7 +177,7 @@ const useLongPress = (cb) => {
 };
 
 const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-const C = 679;
+const C = 779; // 2*π*124
 
 // ─── MAIN COMPONENT ───
 
@@ -280,7 +280,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       rRef.current=1; sRef.current=1; setCurRound(1); setCurSet(1);
       SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
     } else if (p === 'עבודה') {
-      SND_BELL(); startPhase('מנוחה', rsRef.current); startMain();
+      const isLastRound = r >= rnRef.current;
+      const isLastSet = s >= stRef.current;
+      if (isLastRound && isLastSet) {
+        clearInterval(mainRef.current); clearInterval(totalRef.current);
+        isMinimizedRef.current = false; setScreen('complete'); setIsRunning(false); setLiveTimer(null);
+        SND_TRIPLE_BELL(); relWake();
+      } else {
+        SND_BELL(); startPhase('מנוחה', rsRef.current); startMain();
+      }
     } else if (p === 'מנוחה') {
       if (r < rnRef.current) {
         rRef.current = r+1; setCurRound(r+1);
@@ -441,13 +449,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       </div>
       <div style={{fontSize:'40px',fontWeight:'900',color:'white',textAlign:'center',paddingTop:'8px',flexShrink:0}}>{phase}</div>
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:0,padding:'2px 0'}}>
-        <div style={{position:'relative',width:'min(62vw,248px)',height:'min(62vw,248px)'}}>
-          <svg width="100%" height="100%" viewBox="0 0 248 248" style={{position:'absolute',inset:0}}>
-            <circle cx="124" cy="124" r="108" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10"/>
-            <circle cx="124" cy="124" r="108" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(timeLeft/phaseDur) : 0} strokeLinecap="round" transform="rotate(-90 124 124)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
+        <div style={{position:'relative',width:'min(70vw,280px)',height:'min(70vw,280px)'}}>
+          <svg width="100%" height="100%" viewBox="0 0 280 280" style={{position:'absolute',inset:0}}>
+            <circle cx="140" cy="140" r="124" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10"/>
+            <circle cx="140" cy="140" r="124" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(timeLeft/phaseDur) : 0} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
           </svg>
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{fontSize:'min(29vw,112px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
+            <div style={{fontSize:'min(35vw,140px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
           </div>
         </div>
       </div>
