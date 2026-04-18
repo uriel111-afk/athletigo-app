@@ -25,8 +25,13 @@ const FloatingTimer = () => {
 
   const handleExpand = () => {
     if (drag.current.moved) return;
-    if (liveTimer.type === 'tabata') { setShowTabata(true); setLiveTimer(null); }
-    else navigate('/clocks');
+    if (liveTimer.type === 'tabata') {
+      setLiveTimer(null);
+      setShowTabata(true);
+    } else {
+      setLiveTimer(null);
+      navigate('/clocks');
+    }
   };
 
   const handleStop = (e) => {
