@@ -29,15 +29,20 @@ function GlobalTabata() {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const handleMinimize = useCallback(() => {
+    console.log('[APP MINIMIZE] showTabata:', showTabata);
     setShowTabata(false);
+    console.log('[APP MINIMIZE] navigating, isCoach:', isCoach);
     navigate(isCoach ? '/' : '/traineehome', { replace: false });
   }, [isCoach, navigate, setShowTabata]);
 
-  // Back button while overlay showing → minimize
+  // Back button while overlay showing → minimize (mobile-safe)
   useEffect(() => {
     if (!showTabata) return;
-    window.history.pushState({ tabata: true }, '', window.location.href);
-    const onPop = () => handleMinimize();
+    window.history.pushState(null, '', window.location.href);
+    const onPop = () => {
+      window.history.pushState(null, '', window.location.href);
+      handleMinimize();
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [showTabata, handleMinimize]);

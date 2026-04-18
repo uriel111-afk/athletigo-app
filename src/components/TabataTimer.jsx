@@ -342,11 +342,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   };
 
   const doMinimize = () => {
+    console.log('[MINIMIZE] called, isRunning:', isRunning);
     setLiveTimer({
       type:'tabata', display: String(tRef.current), phase: phRef.current,
       info: `סיבוב ${rRef.current}/${rnRef.current} • סט ${sRef.current}/${stRef.current}`,
       color:'#FF6F20'
     });
+    console.log('[MINIMIZE] liveTimer set, calling onMinimize');
     onMinimize();
   };
 
@@ -388,8 +390,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     {icon:'🔔',label:'ספירה לאחור',  pk:'countdown',   unit:'שנ׳',value:cdTime,     set:setCdTime,     inc:incCD,    dec:decCD,   small:true},
   ];
 
+  const handleMinBtn = (e) => { e.preventDefault(); e.stopPropagation(); doMinimize(); };
   const MinBtn = (
-    <button onClick={e=>{e.stopPropagation();doMinimize();}} style={{
+    <button onClick={handleMinBtn} onTouchEnd={handleMinBtn} style={{
       background:'rgba(255,255,255,0.2)',border:'none',borderRadius:'8px',
       width:'38px',height:'38px',display:'flex',alignItems:'center',
       justifyContent:'center',cursor:'pointer',flexShrink:0
