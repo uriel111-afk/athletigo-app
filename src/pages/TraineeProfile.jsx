@@ -1533,7 +1533,7 @@ export default function TraineeProfile() {
         </div>
 
         {/* ===== ZONE 3: TAB CONTENT (scrollable) ===== */}
-        <div className="flex-1 overflow-y-auto pb-20">
+        <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: '100px', minHeight: 0 }}>
           <div className="max-w-6xl mx-auto px-4 py-4 w-full">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
