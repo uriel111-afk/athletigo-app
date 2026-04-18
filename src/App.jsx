@@ -29,9 +29,7 @@ function GlobalTabata() {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const handleMinimize = useCallback(() => {
-    alert('handleMinimize in App called');
     setShowTabata(false);
-    alert('navigating to: ' + (isCoach ? '/' : '/traineehome'));
     navigate(isCoach ? '/' : '/traineehome', { replace: false });
   }, [isCoach, navigate, setShowTabata]);
 
@@ -48,31 +46,16 @@ function GlobalTabata() {
   }, [showTabata, handleMinimize]);
 
   return (
-    <>
-      <div style={{
-        display: showTabata ? 'flex' : 'none',
-        position: 'fixed', inset: 0, zIndex: 10000,
-        flexDirection: 'column', background: '#FF6F20'
-      }}>
-        <TabataTimer
-          onMinimize={handleMinimize}
-          setLiveTimer={setLiveTimer}
-        />
-      </div>
-      {!showTabata && (
-        <button
-          onPointerDown={() => alert('POINTER WORKS')}
-          style={{
-            position: 'fixed', bottom: 200, left: 20,
-            zIndex: 99999, background: 'red', color: 'white',
-            padding: '20px', fontSize: '18px', border: 'none',
-            borderRadius: '10px'
-          }}
-        >
-          TEST MOBILE TAP
-        </button>
-      )}
-    </>
+    <div style={{
+      display: showTabata ? 'flex' : 'none',
+      position: 'fixed', inset: 0, zIndex: 10000,
+      flexDirection: 'column', background: '#FF6F20'
+    }}>
+      <TabataTimer
+        onMinimize={handleMinimize}
+        setLiveTimer={setLiveTimer}
+      />
+    </div>
   );
 }
 

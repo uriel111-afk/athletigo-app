@@ -342,7 +342,6 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   };
 
   const doMinimize = useCallback(() => {
-    alert('doMinimize called - tRef: ' + tRef.current);
     setLiveTimer({
       type:'tabata',
       display: String(tRef.current || 0),
@@ -350,9 +349,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       info: `סיבוב ${rRef.current || 1}/${rnRef.current || 8} • סט ${sRef.current || 1}/${stRef.current || 3}`,
       color:'#FF6F20'
     });
-    alert('setLiveTimer done - calling onMinimize');
     onMinimize();
-    alert('onMinimize called');
   }, [setLiveTimer, onMinimize]);
 
   useEffect(() => {
@@ -394,7 +391,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   ];
 
   const MinBtn = (
-    <button onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); alert('btn pressed'); try { alert('tRef: ' + tRef?.current); alert('phRef: ' + phRef?.current); alert('setLiveTimer type: ' + typeof setLiveTimer); alert('onMinimize type: ' + typeof onMinimize); doMinimize(); } catch(err) { alert('ERROR: ' + err.message); } }} style={{
+    <button onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); doMinimize(); }} style={{
       background:'rgba(255,255,255,0.2)',border:'none',borderRadius:'8px',
       width:'44px',height:'44px',display:'flex',alignItems:'center',
       justifyContent:'center',cursor:'pointer',flexShrink:0,
