@@ -165,7 +165,8 @@ const useLongPress = (cb) => {
 };
 
 const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-const C = 842; // 2*π*134
+const RING_R = 124;
+const RING_C = 779; // 2*π*124
 
 // ─── MAIN COMPONENT ───
 
@@ -508,13 +509,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       </div>
       <div style={{fontSize:'40px',fontWeight:'900',color:'white',textAlign:'center',paddingTop:'8px',flexShrink:0}}>{phase}</div>
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:0,padding:'2px 0'}}>
-        <div style={{position:'relative',width:'min(75vw,300px)',height:'min(75vw,300px)'}}>
-          <svg width="100%" height="100%" viewBox="0 0 300 300" style={{position:'absolute',inset:0}}>
-            <circle cx="150" cy="150" r="134" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="10"/>
-            <circle cx="150" cy="150" r="134" fill="none" stroke="white" strokeWidth="10" strokeDasharray={C} strokeDashoffset={phaseDur>0 ? C*(1-timeLeft/phaseDur) : C} strokeLinecap="round" transform="rotate(-90 150 150)" style={{transition:'stroke-dashoffset 0.95s linear'}}/>
+        <div style={{position:'relative',width:'min(68vw,280px)',height:'min(68vw,280px)'}}>
+          <svg width="100%" height="100%" viewBox="0 0 280 280" style={{position:'absolute',inset:0}}>
+            <circle cx="140" cy="140" r={RING_R} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="10"/>
+            <circle cx="140" cy="140" r={RING_R} fill="none" stroke="white" strokeWidth="10" strokeDasharray={RING_C} strokeDashoffset={phaseDur>0 ? RING_C - RING_C*(timeLeft/phaseDur) : RING_C} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 1s linear'}}/>
           </svg>
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{fontSize:'min(40vw,156px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft > 0 ? timeLeft : ''}</div>
+            <div style={{fontSize:'min(38vw,148px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft > 0 ? timeLeft : ''}</div>
           </div>
         </div>
       </div>
