@@ -349,7 +349,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       info: `סיבוב ${rRef.current || 1}/${rnRef.current || 8} • סט ${sRef.current || 1}/${stRef.current || 3}`,
       color:'#FF6F20'
     });
-    onMinimize();
+    setTimeout(() => onMinimize(), 50);
   }, [setLiveTimer, onMinimize]);
 
   useEffect(() => {
