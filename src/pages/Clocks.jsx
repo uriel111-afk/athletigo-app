@@ -283,10 +283,10 @@ export default function Clocks() {
 
   // Minimize — NEVER stops intervals, navigates to role dashboard
   const minimizeTimer = useCallback(() => {
-    if (clock?.isRunning && clock?.activeClock === 'timer') {
-      setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null });
-    } else if (clock?.isRunning && clock?.activeClock === 'stopwatch') {
-      setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null });
+    if (clock?.activeClock === 'timer') {
+      setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null, paused: !clock.isRunning });
+    } else if (clock?.activeClock === 'stopwatch') {
+      setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null, paused: !clock.isRunning });
     }
     navigate(isCoach ? '/dashboard' : '/traineehome');
   }, [clock, setLiveTimer, navigate, isCoach]);

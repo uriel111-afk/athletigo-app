@@ -35,6 +35,8 @@ import {
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FloatingTimer from "@/components/FloatingTimer";
+import { useClock } from "@/contexts/ClockContext";
+import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
 const LOGO_ICON = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/64e812e61_Untitleddesign3.jpg";
@@ -47,7 +49,28 @@ export default function Layout({ children, currentPageName }) {
   const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
+  const clock = useClock();
+  const { liveTimer, setLiveTimer } = useActiveTimer();
   const isClocks = location.pathname.toLowerCase().includes('clock');
+
+  // Sync floating widget for timer/stopwatch every tick (Layout never unmounts)
+  useEffect(() => {
+    if (!liveTimer) return;
+    if (liveTimer.type === 'timer' && clock?.activeClock === 'timer') {
+      const ms = clock.display;
+      if (ms == null) return;
+      const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
+      const d = `${m}:${String(s).padStart(2, '0')}`;
+      setLiveTimer(prev => prev?.type === 'timer' ? { ...prev, display: d, paused: !clock.isRunning } : prev);
+    } else if (liveTimer.type === 'stopwatch' && clock?.activeClock === 'stopwatch') {
+      const ms = clock.display;
+      if (ms == null) return;
+      const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
+      const cs = Math.floor((ms % 1000) / 10);
+      const d = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+      setLiveTimer(prev => prev?.type === 'stopwatch' ? { ...prev, display: d, paused: !clock.isRunning } : prev);
+    }
+  }, [clock?.display, liveTimer?.type]);
 
   // Scroll to top on page change
   useEffect(() => {
