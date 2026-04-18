@@ -337,9 +337,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const handlePause = () => {
     if (isRunning) {
-      clearInterval(mainRef.current); clearInterval(totalRef.current); setIsRunning(false);
+      clearInterval(mainRef.current); clearInterval(totalRef.current);
+      // tRef.current already holds exact remaining seconds
+      setIsRunning(false);
     } else {
-      setIsRunning(true); startMain();
+      // Resume from exact saved tRef value
+      setIsRunning(true);
+      startMain(); // uses tRef.current which was preserved on pause
       totalRef.current = setInterval(() => {
         totRef.current -= 1;
         const tt = totRef.current;
