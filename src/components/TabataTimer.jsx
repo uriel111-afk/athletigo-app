@@ -246,18 +246,28 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const startMain = () => {
     clearInterval(mainRef.current);
+    // Immediate first tick — no 1s delay showing full duration
+    tRef.current -= 1;
+    const tFirst = tRef.current;
+    if (tFirst === 3 || tFirst === 2 || tFirst === 1) SND_TICK();
+    if (tFirst <= 0) {
+      setTimeLeft(0);
+      setTimeout(() => advance(), 950);
+      return;
+    }
+    setTimeLeft(tFirst);
+
+    // Continue every 1000ms
     mainRef.current = setInterval(() => {
       tRef.current -= 1;
       const t = tRef.current;
-      // Sound FIRST — no conditions, no setState before this
       if (t === 3 || t === 2 || t === 1) SND_TICK();
       if (t <= 0) {
         clearInterval(mainRef.current);
-        setTimeLeft(0); // ring animates to empty
-        setTimeout(() => advance(), 950); // advance after ring transition
+        setTimeLeft(0);
+        setTimeout(() => advance(), 950);
       } else {
         setTimeLeft(t);
-        // liveTimer update AFTER sound and setState
         if (isMinimizedRef.current) {
           setLiveTimer(prev => prev ? { ...prev, display: String(t), phase: phRef.current } : null);
         }
