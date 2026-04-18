@@ -32,8 +32,12 @@ const FloatingTimer = () => {
   const onTouchEnd = () => { drag.current.active = false; };
   const handleTap = () => {
     if (drag.current.moved) return;
-    setLiveTimer(null);
-    setShowTabata(true);
+    if (liveTimer?.type === 'tabata') {
+      setLiveTimer(null);
+      setShowTabata(true);
+    } else {
+      navigate('/clocks');
+    }
   };
 
   return (

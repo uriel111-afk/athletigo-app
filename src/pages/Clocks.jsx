@@ -285,7 +285,6 @@ export default function Clocks() {
 
   // Minimize — NEVER stops intervals
   const minimizeTimer = useCallback(() => {
-    console.log('minimizeTimer called → navigate(-1)');
     if (clock?.isRunning && clock?.activeClock === 'timer') {
       setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null });
     } else if (clock?.isRunning && clock?.activeClock === 'stopwatch') {
