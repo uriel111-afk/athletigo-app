@@ -30,7 +30,7 @@ function GlobalTabata() {
 
   const handleMinimize = useCallback(() => {
     setShowTabata(false);
-    navigate(isCoach ? '/' : '/traineehome', { replace: false });
+    navigate(isCoach ? '/dashboard' : '/traineehome', { replace: false });
   }, [isCoach, navigate, setShowTabata]);
 
   // Back button while overlay showing → minimize (mobile-safe)
