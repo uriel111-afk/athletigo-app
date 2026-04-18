@@ -394,7 +394,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   ];
 
   const MinBtn = (
-    <button onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); alert('MinimizeBtn pressed!'); doMinimize(); }} style={{
+    <button onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); alert('btn pressed'); try { alert('tRef: ' + tRef?.current); alert('phRef: ' + phRef?.current); alert('setLiveTimer type: ' + typeof setLiveTimer); alert('onMinimize type: ' + typeof onMinimize); doMinimize(); } catch(err) { alert('ERROR: ' + err.message); } }} style={{
       background:'rgba(255,255,255,0.2)',border:'none',borderRadius:'8px',
       width:'44px',height:'44px',display:'flex',alignItems:'center',
       justifyContent:'center',cursor:'pointer',flexShrink:0,
