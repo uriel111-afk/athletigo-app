@@ -48,16 +48,31 @@ function GlobalTabata() {
   }, [showTabata, handleMinimize]);
 
   return (
-    <div style={{
-      display: showTabata ? 'flex' : 'none',
-      position: 'fixed', inset: 0, zIndex: 10000,
-      flexDirection: 'column', background: '#FF6F20'
-    }}>
-      <TabataTimer
-        onMinimize={handleMinimize}
-        setLiveTimer={setLiveTimer}
-      />
-    </div>
+    <>
+      <div style={{
+        display: showTabata ? 'flex' : 'none',
+        position: 'fixed', inset: 0, zIndex: 10000,
+        flexDirection: 'column', background: '#FF6F20'
+      }}>
+        <TabataTimer
+          onMinimize={handleMinimize}
+          setLiveTimer={setLiveTimer}
+        />
+      </div>
+      {!showTabata && (
+        <button
+          onPointerDown={() => alert('POINTER WORKS')}
+          style={{
+            position: 'fixed', bottom: 200, left: 20,
+            zIndex: 99999, background: 'red', color: 'white',
+            padding: '20px', fontSize: '18px', border: 'none',
+            borderRadius: '10px'
+          }}
+        >
+          TEST MOBILE TAP
+        </button>
+      )}
+    </>
   );
 }
 
