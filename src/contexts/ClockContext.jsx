@@ -305,12 +305,21 @@ export function ClockProvider({ children }) {
 
   // Listen for remote reset (from FloatingTimer X button)
   useEffect(() => {
-    const handler = (e) => {
+    const handleReset = (e) => {
       if (e.detail?.type === activeClock || !e.detail?.type) stop();
     };
-    window.addEventListener('clock-reset', handler);
-    return () => window.removeEventListener('clock-reset', handler);
-  }, [activeClock, stop]);
+    const handlePauseResume = (e) => {
+      if (e.detail?.type !== activeClock) return;
+      if (isRunning) pause();
+      else resume();
+    };
+    window.addEventListener('clock-reset', handleReset);
+    window.addEventListener('clock-pause-resume', handlePauseResume);
+    return () => {
+      window.removeEventListener('clock-reset', handleReset);
+      window.removeEventListener('clock-pause-resume', handlePauseResume);
+    };
+  }, [activeClock, isRunning, stop, pause, resume]);
 
   return (
     <ClockContext.Provider value={{

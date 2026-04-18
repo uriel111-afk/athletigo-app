@@ -430,6 +430,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     return () => window.removeEventListener('tabata-reset', handler);
   }, []);
 
+  // Listen for remote pause/resume (from FloatingTimer ‖/▶ button)
+  useEffect(() => {
+    const handler = () => handlePause();
+    window.addEventListener('tabata-pause-resume', handler);
+    return () => window.removeEventListener('tabata-pause-resume', handler);
+  }, [isRunning]);
+
   const incPrep   = useLongPress(useCallback(()=>setPrepTime(v=>Math.min(60,v+1)),[]));
   const decPrep   = useLongPress(useCallback(()=>setPrepTime(v=>Math.max(0,v-1)),[]));
   const incWork   = useLongPress(useCallback(()=>setWorkTime(v=>Math.min(120,v+1)),[]));
