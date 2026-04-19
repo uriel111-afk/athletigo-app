@@ -483,7 +483,7 @@ export default function TraineeProfile() {
       return await base44.entities.ClientService.filter(filter, '-created_at').catch(() => []);
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5000,
   });
 
   const { data: attendanceLog = [], isLoading: attendanceLoading } = useQuery({
@@ -848,8 +848,8 @@ export default function TraineeProfile() {
         }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+      queryClient.refetchQueries({ queryKey: ['trainee-sessions'] });
+      queryClient.refetchQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
@@ -2795,8 +2795,8 @@ export default function TraineeProfile() {
                   try { await base44.entities.Session.update(deductDialog.session.id, { was_deducted: true }); } catch {}
                   await updateSessionStatusMutation.mutateAsync({ session: deductDialog.session, newStatus: st });
 
-                  // 3. Force re-fetch packages
-                  queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                  // 3. Force re-fetch packages immediately
+                  await queryClient.refetchQueries({ queryKey: ['trainee-services'] });
                   queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
                   invalidateDashboard(queryClient);
                   window.dispatchEvent(new CustomEvent('data-changed'));
