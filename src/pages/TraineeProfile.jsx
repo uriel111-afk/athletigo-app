@@ -1880,9 +1880,17 @@ export default function TraineeProfile() {
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-2">
+                                    {isCoach && (
+                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.max(0, used - 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); queryClient.invalidateQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
+                                        style={{ width:24, height:24, borderRadius:'50%', background:'#dcfce7', border:'none', color:'#16a34a', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
+                                    )}
                                     <span className="font-bold text-lg" style={{ color: typeColor }}>{used}</span>
-                                    <span className="text-gray-400 font-medium">/ {total} מפגשים</span>
-                                    {isCoach && <Button onClick={() => { setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
+                                    <span className="text-gray-400 font-medium">/ {total}</span>
+                                    {isCoach && (
+                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.min(total, used + 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); queryClient.invalidateQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
+                                        style={{ width:24, height:24, borderRadius:'50%', background:'#fee2e2', border:'none', color:'#dc2626', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>+</button>
+                                    )}
+                                    {isCoach && <Button onClick={(e) => { e.stopPropagation(); setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
                                   </div>
                                 )}
                               </div>
@@ -2126,7 +2134,7 @@ export default function TraineeProfile() {
                                 return (
                                   <div key={session.id} className="bg-gray-50 rounded-xl border border-gray-100 p-3" dir="rtl">
                                     <div className="flex justify-between items-start">
-                                      <div>
+                                      <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text }}>{session.session_type}</span>
                                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
@@ -2135,24 +2143,44 @@ export default function TraineeProfile() {
                                         <div className="text-xs text-gray-400">{session.time} • {session.location || 'לא צוין'}</div>
                                       </div>
                                       {isCoach && (
-                                        <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-300 hover:text-red-500 flex-shrink-0"
-                                          onClick={async () => {
-                                            if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
-                                            try {
-                                              if (participant?.attendance_status === 'הגיע' && session.service_id) {
-                                                try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); } catch {}
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                          <Select value={displayStatus} onValueChange={val => {
+                                            if (val === displayStatus) return;
+                                            if (val === 'הושלם' || val === 'בוטל') {
+                                              if (session.service_id && !session.was_deducted) {
+                                                const pkg = services.find(s => s.id === session.service_id);
+                                                if (pkg && ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) > 0) {
+                                                  setDeductDialog({ type: 'deduct', session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) }, targetStatus: val });
+                                                  return;
+                                                }
                                               }
-                                              await base44.entities.Session.delete(session.id);
-                                              queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-                                              queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-                                              queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-                                              queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                                              invalidateDashboard(queryClient);
-                                              toast.success("המפגש נמחק");
-                                            } catch (err) { toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב")); }
+                                              setDeductDialog({ type: 'no_package', session, targetStatus: val });
+                                              return;
+                                            }
+                                            updateSessionStatusMutation.mutate({ session, newStatus: val });
                                           }}>
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </Button>
+                                            <SelectTrigger className="h-7 text-[10px] w-auto min-w-[60px] border-gray-200"><SelectValue /></SelectTrigger>
+                                            <SelectContent><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
+                                          </Select>
+                                          <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-300 hover:text-red-500 flex-shrink-0"
+                                            onClick={async () => {
+                                              if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
+                                              try {
+                                                if (participant?.attendance_status === 'הגיע' && session.service_id) {
+                                                  try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); } catch {}
+                                                }
+                                                await base44.entities.Session.delete(session.id);
+                                                queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                                                queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                                                queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                                                queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                                invalidateDashboard(queryClient);
+                                                toast.success("המפגש נמחק");
+                                              } catch (err) { toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב")); }
+                                            }}>
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </div>
                                       )}
                                     </div>
                                   </div>
