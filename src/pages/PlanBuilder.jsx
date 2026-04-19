@@ -8,6 +8,7 @@ import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } 
 import { CSS } from "@dnd-kit/utilities";
 import { Stepper, TimePicker, RpeScale, TempoPattern, ChipsMulti, ListBuilder, EQUIPMENT_OPTIONS } from "@/components/ParamWidgets";
 import { SECTION_TYPES, getSectionType, normalizeSectionType } from "@/lib/sectionTypes";
+import CollapsibleSection from "@/components/CollapsibleSection";
 
 // First 4 are auto-created for new plans
 const DEFAULT_SECTION_IDS = ["warmup", "mobility", "strength", "flexibility"];
@@ -488,21 +489,12 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
   const type = getSectionType(section.category);
   const sectionColor = section.color || type.color;
   return (
-    <div style={{ background: "white", borderRadius: 14, border: "1px solid #eee", borderRight: `3px solid ${sectionColor}`, marginBottom: 12, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: section.exercises?.length > 0 ? "1px solid #f5f5f5" : "none", background: "#fafafa" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-          <div {...(dragHandleProps || {})} style={{ cursor: "grab", color: "#bbb", fontSize: 16, padding: "4px 2px", touchAction: "none" }}>⋮⋮</div>
-          <div style={{ width: 24, height: 24, borderRadius: 6, background: sectionColor, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{(sectionIndex ?? 0) + 1}</div>
-          <span style={{ fontSize: 22 }}>{section.icon || type.icon}</span>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 900 }}>{section.section_name || section.title}</div>
-            <div style={{ fontSize: 12, color: "#999" }}>{section.exercises?.length || 0} תרגילים</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={onAddExercise} style={{ background: "#FFF0E8", color: "#FF6F20", border: "1px solid #FFD0A0", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ תרגיל</button>
-          <button onClick={onDelete} style={{ background: "#fee2e2", border: "none", color: "#ef4444", fontSize: 13, width: 28, height: 28, borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
-        </div>
+    <CollapsibleSection section={section} mode="edit" defaultOpen={true}>
+      {/* Edit toolbar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, padding: "6px 12px 0", direction: "rtl" }}>
+        <div {...(dragHandleProps || {})} style={{ cursor: "grab", color: "#bbb", fontSize: 16, padding: "4px 2px", touchAction: "none", marginLeft: "auto" }}>⋮⋮</div>
+        <button onClick={onAddExercise} style={{ background: "#FFF0E8", color: "#FF6F20", border: "1px solid #FFD0A0", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ תרגיל</button>
+        <button onClick={onDelete} style={{ background: "#fee2e2", border: "none", color: "#ef4444", fontSize: 13, width: 28, height: 28, borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
       </div>
       {section.exercises?.map((ex, ei) => (
         <div key={ex.id || ei} style={{ padding: "10px 14px", borderBottom: ei < section.exercises.length - 1 ? "1px solid #f5f5f5" : "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -526,7 +518,7 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
       {section.exercises?.length === 0 && (
         <div style={{ padding: 14, textAlign: "center", fontSize: 13, color: "#bbb" }}>אין תרגילים בסקשן זה</div>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
