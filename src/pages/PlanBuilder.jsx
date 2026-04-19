@@ -7,22 +7,10 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Stepper, TimePicker, RpeScale, TempoPattern, ChipsMulti, ListBuilder, EQUIPMENT_OPTIONS } from "@/components/ParamWidgets";
+import { SECTION_TYPES, getSectionType, normalizeSectionType } from "@/lib/sectionTypes";
 
-const DEFAULT_SECTIONS = [
-  { id: "warmup",      label: "חימום",    icon: "🔥", color: "#FF6F20" },
-  { id: "stretching",  label: "מתיחות",   icon: "🧎", color: "#c084fc" },
-  { id: "strength",    label: "כוח",      icon: "💪", color: "#1a1a1a" },
-  { id: "flexibility", label: "גמישות",   icon: "🧘", color: "#16a34a" },
-];
-
-const EXTRA_SECTIONS = [
-  { id: "skills",  label: "מיומנויות", icon: "🎯", color: "#d97706" },
-  { id: "agility", label: "סקילס",     icon: "⚡", color: "#f59e0b" },
-  { id: "cardio",  label: "קרדיו",     icon: "🏃", color: "#2563eb" },
-  { id: "cooldown",label: "מותאם",     icon: "✨", color: "#9333ea" },
-];
-
-const SECTION_TYPES = [...DEFAULT_SECTIONS, ...EXTRA_SECTIONS];
+// First 4 are auto-created for new plans
+const DEFAULT_SECTION_IDS = ["warmup", "mobility", "strength", "flexibility"];
 
 const PARAM_SCHEMA = {
   "סטים":           { type: "stepper", min: 1, max: 20, placeholder: "3" },
@@ -146,7 +134,7 @@ export default function PlanBuilder() {
 
     // Auto-create 4 default sections on fresh plan
     if (!editPlanId && sections.length === 0 && pid) {
-      const defaults = await Promise.all(DEFAULT_SECTIONS.map(async (t, idx) => {
+      const defaults = await Promise.all(DEFAULT_SECTION_IDS.map(id => getSectionType(id)).map(async (t, idx) => {
         const { data } = await supabase.from("training_sections").insert({
           training_plan_id: pid,
           section_name: t.label,
@@ -162,7 +150,7 @@ export default function PlanBuilder() {
   };
 
   const addSection = async (type) => {
-    const t = SECTION_TYPES.find(s => s.id === type);
+    const t = getSectionType(type);
     const newSec = {
       training_plan_id: planId,
       section_name: t.label,
@@ -461,10 +449,13 @@ export default function PlanBuilder() {
             <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 4, textAlign: "center" }}>+ סקשן חדש</div>
             <div style={{ fontSize: 13, color: "#999", textAlign: "center", marginBottom: 16 }}>בחר סוג סקשן</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-              {EXTRA_SECTIONS.map(t => (
-                <button key={t.id} onClick={() => addSection(t.id)} style={{ padding: "16px 8px", borderRadius: 12, border: "1.5px solid #eee", background: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 28 }}>{t.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{t.label}</span>
+              {SECTION_TYPES.map(t => (
+                <button key={t.id} onClick={() => addSection(t.id)}
+                  style={{ padding: "16px 8px", borderRadius: 14, border: "2px solid #eee", background: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, transition: "all 0.15s" }}
+                  onMouseDown={e => { e.currentTarget.style.borderColor = t.color; e.currentTarget.style.background = t.bgColor; }}
+                  onMouseUp={e => { e.currentTarget.style.borderColor = "#eee"; e.currentTarget.style.background = "white"; }}>
+                  <span style={{ fontSize: 32 }}>{t.icon}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{t.label}</span>
                 </button>
               ))}
             </div>
@@ -494,14 +485,15 @@ function SortableSectionBlock(props) {
 }
 
 function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditExercise, onDeleteExercise, dragHandleProps }) {
-  const sectionColor = section.color || SECTION_TYPES.find(t => t.id === section.category)?.color || "#FF6F20";
+  const type = getSectionType(section.category);
+  const sectionColor = section.color || type.color;
   return (
     <div style={{ background: "white", borderRadius: 14, border: "1px solid #eee", borderRight: `3px solid ${sectionColor}`, marginBottom: 12, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: section.exercises?.length > 0 ? "1px solid #f5f5f5" : "none", background: "#fafafa" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
           <div {...(dragHandleProps || {})} style={{ cursor: "grab", color: "#bbb", fontSize: 16, padding: "4px 2px", touchAction: "none" }}>⋮⋮</div>
           <div style={{ width: 24, height: 24, borderRadius: 6, background: sectionColor, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{(sectionIndex ?? 0) + 1}</div>
-          <span style={{ fontSize: 22 }}>{section.icon || "📋"}</span>
+          <span style={{ fontSize: 22 }}>{section.icon || type.icon}</span>
           <div>
             <div style={{ fontSize: 15, fontWeight: 900 }}>{section.section_name || section.title}</div>
             <div style={{ fontSize: 12, color: "#999" }}>{section.exercises?.length || 0} תרגילים</div>

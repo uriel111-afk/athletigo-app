@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Plus, Edit2, Trash2, Dumbbell, Target, Clock, C
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import ExerciseCard from "./ExerciseCard";
+import { getSectionType } from "@/lib/sectionTypes";
 
 export default function SectionCard({
   section,
@@ -24,23 +25,18 @@ export default function SectionCard({
   const completedCount = exercises.filter(e => e && e.completed).length;
   const totalCount = exercises.length;
   
-  // Brand Palette Cycling (Light & Clean)
-  const getSectionStyle = () => {
-    const isEven = index % 2 === 0;
-    
-    return {
-      bg: '#FFFFFF',
-      text: '#111827',
-      subText: '#6B7280',
-      border: '#E5E7EB',
-      iconBg: '#FFF7ED',
-      chevron: '#9CA3AF',
-      accent: '#FF6F20'
-    };
-  };
-
   if (!section) return null;
-  const style = getSectionStyle();
+
+  const sType = getSectionType(section.category);
+  const style = {
+    bg: '#FFFFFF',
+    text: '#111827',
+    subText: '#6B7280',
+    border: '#E5E7EB',
+    iconBg: sType.bgColor,
+    chevron: '#9CA3AF',
+    accent: sType.color,
+  };
 
   return (
     <div

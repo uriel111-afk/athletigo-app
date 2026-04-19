@@ -8,6 +8,7 @@ import { createPageUrl } from "@/utils";
 import UnifiedPlanBuilder from "../components/training/UnifiedPlanBuilder";
 import PlanFormDialog from "../components/training/PlanFormDialog";
 import { toast } from "sonner";
+import { FOCUS_LABELS } from "@/lib/sectionTypes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
@@ -43,7 +44,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, onSelect, onDuplic
             <div className="flex flex-wrap gap-1 mb-1">
               {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
                 <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#FFF9F0', color:'#FF6F20', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
-                  {({'strength':'כוח','flexibility':'גמישות','endurance':'סבולת','technique':'טכניקה','כוח':'כוח','גמישות':'גמישות','סבולת':'סבולת','טכניקה':'טכניקה','שיקום':'שיקום','כושר':'כושר','מיומנות':'מיומנות','שיא':'שיא'})[k] || k}
+                  {FOCUS_LABELS[k] || k}
                 </span>
               ))}
             </div>

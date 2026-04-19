@@ -30,6 +30,7 @@ import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
 import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, notifyPlanCreated } from "@/functions/notificationTriggers";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
+import { FOCUS_LABELS } from "@/lib/sectionTypes";
 
 const PAYMENT_METHODS = [
   { value: 'cash',        label: 'מזומן',          icon: '💵' },
@@ -2281,7 +2282,7 @@ export default function TraineeProfile() {
                                 <div className="flex flex-wrap gap-1 mb-2">
                                   {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
                                     <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#FFF9F0', color:'#FF6F20', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
-                                      {({'strength':'כוח','flexibility':'גמישות','endurance':'סבולת','technique':'טכניקה','כוח':'כוח','גמישות':'גמישות','סבולת':'סבולת','טכניקה':'טכניקה','שיקום':'שיקום','כושר':'כושר','מיומנות':'מיומנות','שיא':'שיא'})[k] || k}
+                                      {FOCUS_LABELS[k] || k}
                                     </span>
                                   ))}
                                 </div>
@@ -2308,7 +2309,7 @@ export default function TraineeProfile() {
                                 <div className="flex flex-wrap gap-1 mb-2">
                                   {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
                                     <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#f5f5f5', color:'#666', border:'1px solid #ddd', fontSize:11, fontWeight:600 }}>
-                                      {({'strength':'כוח','flexibility':'גמישות','endurance':'סבולת','technique':'טכניקה','כוח':'כוח','גמישות':'גמישות','סבולת':'סבולת','טכניקה':'טכניקה','שיקום':'שיקום','כושר':'כושר','מיומנות':'מיומנות','שיא':'שיא'})[k] || k}
+                                      {FOCUS_LABELS[k] || k}
                                     </span>
                                   ))}
                                 </div>
