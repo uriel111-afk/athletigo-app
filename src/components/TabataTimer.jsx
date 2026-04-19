@@ -246,33 +246,36 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const startMain = () => {
     clearInterval(mainRef.current);
-    // Immediate first tick — no 1s delay showing full duration
-    tRef.current -= 1;
-    const tFirst = tRef.current;
-    if (tFirst === 3 || tFirst === 2 || tFirst === 1) SND_TICK();
-    if (tFirst <= 0) {
-      setTimeLeft(0);
-      setTimeout(() => advance(), 950);
-      return;
-    }
-    setTimeLeft(tFirst);
+    const phaseStart = Date.now();
+    const startVal = tRef.current;
+    let lastT = startVal;
 
-    // Continue every 1000ms
+    // Immediate first display (dur-1)
+    const tFirst = startVal - 1;
+    if (tFirst >= 0) {
+      tRef.current = tFirst;
+      lastT = tFirst;
+      if (tFirst === 3 || tFirst === 2 || tFirst === 1) SND_TICK();
+      if (tFirst <= 0) { advance(); return; }
+      setTimeLeft(tFirst);
+    }
+
     mainRef.current = setInterval(() => {
-      tRef.current -= 1;
-      const t = tRef.current;
-      if (t === 3 || t === 2 || t === 1) SND_TICK();
-      if (t <= 0) {
-        clearInterval(mainRef.current);
-        setTimeLeft(0);
-        setTimeout(() => advance(), 950);
-      } else {
+      const elapsed = Math.floor((Date.now() - phaseStart) / 1000);
+      const t = startVal - elapsed - 1; // -1 because we already showed startVal-1
+      if (t < lastT && t >= 0) {
+        lastT = t;
+        tRef.current = t;
+        if (t === 3 || t === 2 || t === 1) SND_TICK();
+        if (t <= 0) { clearInterval(mainRef.current); advance(); return; }
         setTimeLeft(t);
         if (isMinimizedRef.current) {
           setLiveTimer(prev => prev ? { ...prev, display: String(t), phase: phRef.current } : null);
         }
+      } else if (t < 0) {
+        clearInterval(mainRef.current); advance();
       }
-    }, 1000);
+    }, 200);
   };
 
   const advance = () => {
