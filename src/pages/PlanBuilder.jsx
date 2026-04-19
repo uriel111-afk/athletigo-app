@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -291,6 +292,7 @@ export default function PlanBuilder() {
   };
 
   return (
+    <ErrorBoundary>
     <div style={{ direction: "rtl", minHeight: "100%", background: "#f5f5f5" }}>
 
       {/* STEP 1 */}
@@ -453,6 +455,7 @@ export default function PlanBuilder() {
           onClose={() => setEditingExercise(null)} />
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 
