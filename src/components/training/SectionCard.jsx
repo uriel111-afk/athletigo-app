@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import ExerciseCard from "./ExerciseCard";
 
-export default function SectionCard({ 
-  section, 
-  exercises, 
+export default function SectionCard({
+  section,
+  exercises = [],
   index = 0,
   onToggleComplete, 
   onEditExercise, 
