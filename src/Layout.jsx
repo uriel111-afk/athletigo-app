@@ -371,7 +371,7 @@ export default function Layout({ children, currentPageName }) {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
           <header className="md:hidden p-4 safe-area-top" style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
             display: isClocks ? 'none' : undefined,
@@ -446,6 +446,7 @@ export default function Layout({ children, currentPageName }) {
             paddingBottom: isClocks ? 0 : '80px',
             overflowY: isClocks ? 'hidden' : 'auto',
             height: isClocks ? '100dvh' : undefined,
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
             WebkitOverflowScrolling: 'touch',
