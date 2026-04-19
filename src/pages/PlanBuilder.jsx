@@ -6,6 +6,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Stepper, TimePicker, RpeScale, TempoPattern, ChipsMulti, ListBuilder, EQUIPMENT_OPTIONS } from "@/components/ParamWidgets";
 
 const DEFAULT_SECTIONS = [
   { id: "warmup",      label: "חימום",    icon: "🔥", color: "#FF6F20" },
@@ -23,9 +24,28 @@ const EXTRA_SECTIONS = [
 
 const SECTION_TYPES = [...DEFAULT_SECTIONS, ...EXTRA_SECTIONS];
 
-const PARAM_TYPES = [
-  "סטים","חזרות","זמן עבודה","זמן מנוחה","משקל (ק״ג)","RPE (קושי)","טמפו","מנ׳ בין סטים","מנ׳ בין תרגילים","מנח גוף","ציוד נדרש","החזקה סטטית","דגשים","צד","טווח תנועה","אחיזה","וידאו"
-];
+const PARAM_SCHEMA = {
+  "סטים":           { type: "stepper", min: 1, max: 20, placeholder: "3" },
+  "חזרות":          { type: "stepper", min: 1, max: 100, placeholder: "10" },
+  "סבבים":          { type: "stepper", min: 1, max: 30, placeholder: "3" },
+  "משקל (ק״ג)":     { type: "stepper", min: 0, max: 500, placeholder: "20", unit: 'ק"ג' },
+  "החזקה סטטית":    { type: "stepper", min: 0, max: 300, placeholder: "20", unit: "שנ'" },
+  "מנ׳ בין סטים":   { type: "stepper", min: 0, max: 600, placeholder: "90", unit: "שנ'" },
+  "מנ׳ בין תרגילים": { type: "stepper", min: 0, max: 600, placeholder: "120", unit: "שנ'" },
+  "זמן עבודה":      { type: "time" },
+  "זמן מנוחה":      { type: "time" },
+  "RPE (קושי)":     { type: "rpe" },
+  "טמפו":           { type: "tempo" },
+  "ציוד נדרש":      { type: "chips" },
+  "רשימת תרגילים":   { type: "list", placeholder: "שם התרגיל" },
+  "מנח גוף":        { type: "text", placeholder: "למשל: עמידה, שכיבה..." },
+  "דגשים":          { type: "textarea", placeholder: "דגשים לביצוע" },
+  "צד":             { type: "select", options: ["ימין", "שמאל", "שני הצדדים", "לסירוגין"] },
+  "טווח תנועה":      { type: "select", options: ["מלא", "חלקי", "חצי"] },
+  "אחיזה":          { type: "select", options: ["רגילה", "רחבה", "צרה", "הפוכה", "נייטרלית"] },
+  "וידאו":          { type: "url", placeholder: "https://..." },
+};
+const PARAM_TYPES = Object.keys(PARAM_SCHEMA);
 
 const FOCUS_AREAS = [
   { id: "strength",    label: "כוח",      icon: "💪" },
@@ -554,15 +574,53 @@ function ExerciseEditor({ data, onSave, onClose }) {
             ))}
           </div>
           {selectedParams.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {selectedParams.map(p => (
-                <div key={p}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#666", marginBottom: 3 }}>{p}</div>
-                  <input value={params[p] || ""} onChange={e => setParams(prev => ({ ...prev, [p]: e.target.value }))}
-                    placeholder={p === "סטים" ? "3" : p === "חזרות" ? "10-12" : "..."}
-                    style={{ width: "100%", padding: "8px 10px", fontSize: 14, fontWeight: 700, border: "1.5px solid", borderColor: params[p] ? "#FF6F20" : "#ddd", borderRadius: 8, boxSizing: "border-box", direction: "rtl", outline: "none", background: params[p] ? "#FFF0E8" : "white", color: params[p] ? "#FF6F20" : "#333" }} />
-                </div>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
+              {selectedParams.map(p => {
+                const schema = PARAM_SCHEMA[p] || { type: "text" };
+                const val = params[p] || "";
+                const set = (v) => setParams(prev => ({ ...prev, [p]: v }));
+                return (
+                  <div key={p}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 8 }}>{p}</div>
+                    {schema.type === "stepper" && (
+                      <Stepper value={val} onChange={set} min={schema.min} max={schema.max} unit={schema.unit} />
+                    )}
+                    {schema.type === "time" && (
+                      <TimePicker value={val} onChange={set} />
+                    )}
+                    {schema.type === "rpe" && (
+                      <RpeScale value={val} onChange={set} />
+                    )}
+                    {schema.type === "tempo" && (
+                      <TempoPattern value={val} onChange={set} />
+                    )}
+                    {schema.type === "chips" && (
+                      <ChipsMulti value={val} options={EQUIPMENT_OPTIONS} onChange={set} />
+                    )}
+                    {schema.type === "list" && (
+                      <ListBuilder value={val} onChange={set} placeholder={schema.placeholder} />
+                    )}
+                    {schema.type === "select" && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {schema.options.map(opt => (
+                          <button key={opt} onClick={() => set(val === opt ? "" : opt)}
+                            style={{ padding: "8px 14px", borderRadius: 9999, border: `1.5px solid ${val === opt ? "#FF6F20" : "#eee"}`, background: val === opt ? "#FF6F20" : "white", color: val === opt ? "white" : "#555", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {schema.type === "textarea" && (
+                      <textarea value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder} rows={3}
+                        style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 12, boxSizing: "border-box", resize: "none", fontFamily: "inherit", direction: "rtl", outline: "none" }} />
+                    )}
+                    {(schema.type === "text" || schema.type === "url") && (
+                      <input type={schema.type === "url" ? "url" : "text"} value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder || "..."}
+                        style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid", borderColor: val ? "#FF6F20" : "#ddd", borderRadius: 12, boxSizing: "border-box", direction: "rtl", outline: "none", background: val ? "#FFF0E8" : "white" }} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
