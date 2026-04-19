@@ -134,7 +134,7 @@ export default function MyPlan() {
 
   useEffect(() => {
     if (isCoach) {
-      window.location.href = createPageUrl("TrainingPlans");
+      window.location.href = createPageUrl("PlanBuilder");
     }
   }, [isCoach]);
 

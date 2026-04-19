@@ -460,7 +460,7 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['my-plans'] });
       setShowAddPlan(false);
       toast.success("✅ תוכנית נוצרה");
-      window.location.href = createPageUrl("TrainingPlans") + "?planId=" + createdPlan.id;
+      window.location.href = createPageUrl("PlanBuilder") + "?planId=" + createdPlan.id;
     },
     onError: (error) => {
       toast.error("❌ שגיאה ביצירת תוכנית: " + (error.message || "נסה שוב"));
