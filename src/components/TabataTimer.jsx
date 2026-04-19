@@ -1,81 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { unlock as unlockAudio, playBeep as SND_TICK, playWhistle as SND_GO, playBell as SND_BELL, playVictory as SND_TRIPLE_BELL, cancelScheduled } from '@/lib/tabataSounds';
 
-// ─── SOUNDS (outside component — stable references) ───
-
-const SND_TICK = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const m = ctx.createGain(); m.gain.value = 2.0; m.connect(ctx.destination);
-    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
-    o1.connect(g1); g1.connect(m); o1.type = 'square'; o1.frequency.value = 1200;
-    g1.gain.setValueAtTime(0.8, ctx.currentTime); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-    o1.start(); o1.stop(ctx.currentTime + 0.05);
-    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
-    o2.connect(g2); g2.connect(m); o2.type = 'sine'; o2.frequency.value = 150;
-    g2.gain.setValueAtTime(0.5, ctx.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-    o2.start(); o2.stop(ctx.currentTime + 0.08);
-  } catch(e) {}
-};
-
-const SND_GO = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const m = ctx.createGain(); m.gain.value = 2.0; m.connect(ctx.destination);
-    [[523,0,0.12],[659,0.1,0.14],[784,0.22,0.2],[1047,0.36,0.28]].forEach(([f,d,dur])=>{
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.7, ctx.currentTime+d); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+d+dur);
-      o.start(ctx.currentTime+d); o.stop(ctx.currentTime+d+dur);
-    });
-  } catch(e) {}
-};
-
-const SND_WORK = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const m = ctx.createGain(); m.gain.value = 2.0; m.connect(ctx.destination);
-    const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
-    o1.connect(g1); g1.connect(m); o1.type = 'sawtooth'; o1.frequency.value = 1500;
-    g1.gain.setValueAtTime(0, ctx.currentTime); g1.gain.linearRampToValueAtTime(0.8, ctx.currentTime+0.01);
-    g1.gain.setValueAtTime(0.8, ctx.currentTime+0.14); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.22);
-    o1.start(); o1.stop(ctx.currentTime+0.22);
-    const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
-    o2.connect(g2); g2.connect(m); o2.type = 'sawtooth'; o2.frequency.value = 1900;
-    g2.gain.setValueAtTime(0, ctx.currentTime+0.24); g2.gain.linearRampToValueAtTime(0.9, ctx.currentTime+0.25);
-    g2.gain.setValueAtTime(0.9, ctx.currentTime+0.42); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.52);
-    o2.start(ctx.currentTime+0.24); o2.stop(ctx.currentTime+0.52);
-    const o3 = ctx.createOscillator(); const g3 = ctx.createGain();
-    o3.connect(g3); g3.connect(m); o3.type = 'sine';
-    o3.frequency.setValueAtTime(220, ctx.currentTime); o3.frequency.exponentialRampToValueAtTime(60, ctx.currentTime+0.18);
-    g3.gain.setValueAtTime(0.7, ctx.currentTime); g3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.18);
-    o3.start(); o3.stop(ctx.currentTime+0.18);
-  } catch(e) {}
-};
-
-const SND_BELL = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const m = ctx.createGain(); m.gain.value = 1.8; m.connect(ctx.destination);
-    [[440,1.0,2.2],[880,0.4,1.5],[1320,0.18,0.9],[220,0.3,0.6]].forEach(([f,gain,dur])=>{
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(gain, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dur);
-      o.start(); o.stop(ctx.currentTime+dur);
-    });
-  } catch(e) {}
-};
-
+// Legacy aliases — map old names to new shared audio layer
+const SND_WORK = SND_GO;
 const SND_DOUBLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 700); };
-const SND_TRIPLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 600); setTimeout(SND_BELL, 1200); };
-
-const unlockAudio = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const b = ctx.createBuffer(1,1,22050); const s = ctx.createBufferSource();
-    s.buffer=b; s.connect(ctx.destination); s.start(0);
-  } catch(e) {}
-};
 
 // ─── PICKER OPTIONS (outside component) ───
 

@@ -66,29 +66,14 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
   );
 }
 
-// ═══ SOUNDS (Timer & Stopwatch) ═══
-const unlockAudio = () => {
-  try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const b = ctx.createBuffer(1,1,22050); const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
-  } catch(e) {}
-};
-const _t = (freq, dur, delay = 0, vol = 1.8) => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-    const m = ctx.createGain(); m.gain.value = vol; m.connect(ctx.destination);
-    const o = ctx.createOscillator(); const g = ctx.createGain();
-    o.connect(g); g.connect(m); o.type = 'sine'; o.frequency.value = freq;
-    g.gain.setValueAtTime(0.8, ctx.currentTime + delay);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
-    o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + dur);
-  } catch(e) {}
-};
-const SOUND_START = () => { _t(660, 0.08, 0); _t(880, 0.09, 0.10); _t(1100, 0.13, 0.21); };
-const SOUND_PAUSE = () => { _t(880, 0.08, 0); _t(660, 0.10, 0.10); };
-const SOUND_RESET = () => { _t(660, 0.08, 0); _t(440, 0.12, 0.09); };
-const SOUND_TICK = () => { _t(1200, 0.05, 0, 2.0); _t(600, 0.06, 0, 0.9); };
-const SOUND_ALERT = () => { _t(1200, 0.06, 0); _t(1200, 0.06, 0.15); };
-const SOUND_TRIPLE_BELL = () => { [0, 0.55, 1.10].forEach(d => { _t(440, 1.4, d, 1.6); _t(880, 0.8, d, 0.5); _t(1320, 0.5, d, 0.2); }); };
+// ═══ SOUNDS (Timer & Stopwatch) — shared AudioContext ═══
+import { unlock as unlockAudio, playBeep, playWhistle, playBell, playVictory } from '@/lib/tabataSounds';
+const SOUND_START = playWhistle;
+const SOUND_PAUSE = playBeep;
+const SOUND_RESET = playBeep;
+const SOUND_TICK = playBeep;
+const SOUND_ALERT = () => { playBeep(); setTimeout(playBeep, 150); };
+const SOUND_TRIPLE_BELL = playVictory;
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
