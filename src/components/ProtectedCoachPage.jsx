@@ -14,6 +14,7 @@ export default function ProtectedCoachPage({ children }) {
   }
 
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
+  console.log('[ProtectedCoachPage] isCoach:', isCoach, 'role:', user?.role, 'is_coach:', user?.is_coach);
   const AUTHORIZED_EMAILS = ['uriel111@gmail.com', 'athletigo@gmail.com'];
   const isAuthorized = user?.email && AUTHORIZED_EMAILS.includes(user.email.toLowerCase());
 

@@ -33,6 +33,8 @@ export default function TrainingPlanView() {
     retry: 1,
   });
 
+  console.log('[TPV] planId:', planId, 'plan:', plan, 'loading:', isLoading, 'error:', isError);
+
   // ── No planId in URL ───────────────────────────────────────────────────
   if (!planId) {
     return (
