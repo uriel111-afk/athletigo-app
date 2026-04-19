@@ -110,7 +110,7 @@ const AuthenticatedApp = () => {
 
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
   const isTrainee = user?.role === 'trainee' || user?.role === 'user';
-  const traineeOnlyPages = new Set(['TraineeHome', 'MyPlan', 'MyWorkoutLog', 'Progress', 'MyAttendance', 'Forms']);
+  const traineeOnlyPages = new Set(['TraineeHome', 'TraineeSessions', 'MyPlan', 'MyWorkoutLog', 'Progress', 'MyAttendance', 'Forms']);
   const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks']);
 
   const PageRouteGuard = ({ pageKey, children }) => {

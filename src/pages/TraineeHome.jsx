@@ -345,7 +345,7 @@ export default function TraineeHome() {
         {/* 3-Column Quick Access Grid */}
         <div style={{ padding:'8px 14px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
           {[
-            { icon:'📅', label:'מפגשים', to: createPageUrl("TraineeProfile") + "?tab=attendance" },
+            { icon:'📅', label:'מפגשים', to: createPageUrl("TraineeSessions") },
             { icon:'📋', label:'תוכנית', to: createPageUrl("MyWorkoutLog") },
             { icon:'📈', label:'התקדמות', to: createPageUrl("Progress") },
             { icon:'🎯', label:'יעדים', to: createPageUrl("TraineeProfile") + "?tab=goals" },

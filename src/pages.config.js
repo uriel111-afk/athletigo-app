@@ -68,6 +68,7 @@ import Reports from './pages/Reports';
 import SectionTemplates from './pages/SectionTemplates';
 import Sessions from './pages/Sessions';
 import TraineeHome from './pages/TraineeHome';
+import TraineeSessions from './pages/TraineeSessions';
 import TraineeProfile from './pages/TraineeProfile';
 import TrainingPlans from './pages/TrainingPlans';
 import TrainingPlanView from './pages/TrainingPlanView';
@@ -97,6 +98,7 @@ export const PAGES = {
     "SectionTemplates": SectionTemplates,
     "Sessions": Sessions,
     "TraineeHome": TraineeHome,
+    "TraineeSessions": TraineeSessions,
     "TraineeProfile": TraineeProfile,
     "TrainingPlans": TrainingPlans,
     "TrainingPlanView": TrainingPlanView,
