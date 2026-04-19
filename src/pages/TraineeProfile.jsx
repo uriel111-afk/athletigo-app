@@ -2110,14 +2110,23 @@ export default function TraineeProfile() {
                                 <Select value={displayStatus} onValueChange={val => {
                                   if (val === displayStatus) return;
                                   if (val === 'הושלם' || val === 'בוטל') {
+                                    // Try linked package first, then any active package
+                                    let pkg = null;
                                     if (session.service_id && !session.was_deducted) {
-                                      const pkg = services.find(s => s.id === session.service_id);
-                                      if (pkg && ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) > 0) {
-                                        setDeductDialog({ type: 'deduct', session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) }, targetStatus: val });
-                                        return;
-                                      }
+                                      pkg = services.find(s => s.id === session.service_id);
                                     }
-                                    setDeductDialog({ type: 'no_package', session, targetStatus: val });
+                                    if (!pkg || ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) <= 0) {
+                                      // Find any active package with remaining sessions
+                                      pkg = services.find(svc => {
+                                        const rem = (svc.total_sessions || svc.sessions_count || 0) - (svc.used_sessions || 0);
+                                        return rem > 0 && svc.status !== 'completed' && svc.status !== 'cancelled';
+                                      });
+                                    }
+                                    if (pkg && ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) > 0) {
+                                      setDeductDialog({ type: 'deduct', session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) }, targetStatus: val });
+                                    } else {
+                                      setDeductDialog({ type: 'no_package', session, targetStatus: val });
+                                    }
                                     return;
                                   }
                                   updateSessionStatusMutation.mutate({ session, newStatus: val });
@@ -2192,14 +2201,21 @@ export default function TraineeProfile() {
                                           <Select value={displayStatus} onValueChange={val => {
                                             if (val === displayStatus) return;
                                             if (val === 'הושלם' || val === 'בוטל') {
+                                              let pkg = null;
                                               if (session.service_id && !session.was_deducted) {
-                                                const pkg = services.find(s => s.id === session.service_id);
-                                                if (pkg && ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) > 0) {
-                                                  setDeductDialog({ type: 'deduct', session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) }, targetStatus: val });
-                                                  return;
-                                                }
+                                                pkg = services.find(s => s.id === session.service_id);
                                               }
-                                              setDeductDialog({ type: 'no_package', session, targetStatus: val });
+                                              if (!pkg || ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) <= 0) {
+                                                pkg = services.find(svc => {
+                                                  const rem = (svc.total_sessions || svc.sessions_count || 0) - (svc.used_sessions || 0);
+                                                  return rem > 0 && svc.status !== 'completed' && svc.status !== 'cancelled';
+                                                });
+                                              }
+                                              if (pkg && ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) > 0) {
+                                                setDeductDialog({ type: 'deduct', session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) }, targetStatus: val });
+                                              } else {
+                                                setDeductDialog({ type: 'no_package', session, targetStatus: val });
+                                              }
                                               return;
                                             }
                                             updateSessionStatusMutation.mutate({ session, newStatus: val });
