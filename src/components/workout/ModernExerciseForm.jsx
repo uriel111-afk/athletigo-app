@@ -295,11 +295,12 @@ function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom 
 function SubExerciseEditor({ subEx, index, onChange, onRemove, getOptions, onAddCustom }) {
   const [editingParam, setEditingParam] = useState(null);
   const [confirmed, setConfirmed] = useState(() => {
+    if (!subEx) return new Set();
     const s = new Set();
     SUB_PARAMS.forEach((p) => { if (hasVal(subEx[getDbField(p.id)])) s.add(p.id); });
     return s;
   });
-  const [expanded, setExpanded] = useState(!subEx.exercise_name);
+  const [expanded, setExpanded] = useState(!subEx?.exercise_name);
 
   const update = (field, val) => onChange(index, { ...subEx, [field]: val });
 
