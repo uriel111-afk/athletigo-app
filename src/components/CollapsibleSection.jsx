@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getSectionType } from "@/lib/sectionTypes";
 import { formatParams, exerciseToParams } from "@/lib/paramFormatters";
+import SectionRatingModal from "./SectionRatingModal";
 
 export default function CollapsibleSection({
   section,
@@ -8,16 +9,30 @@ export default function CollapsibleSection({
   defaultOpen = true,
   onExerciseCheck,
   completedIds = new Set(),
+  existingRating,
+  onSectionRatingSubmit,
+  onSectionCompleted,
   children,
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [ratingModalOpen, setRatingModalOpen] = useState(false);
+  const [ratingSaved, setRatingSaved] = useState(!!existingRating);
+
+  const exercises = section?.exercises || [];
+  const total = exercises.length;
+  const completedCount = exercises.filter(e => completedIds.has(e?.id)).length;
+  const allDone = total > 0 && completedCount === total;
+  const isPlay = mode === "play";
+
+  useEffect(() => {
+    if (isPlay && allDone && !ratingSaved && !ratingModalOpen) {
+      setRatingModalOpen(true);
+    }
+  }, [isPlay, allDone, ratingSaved, ratingModalOpen]);
+
   if (!section) return null;
 
   const type = getSectionType(section.category);
-  const exercises = section.exercises || [];
-  const completedCount = exercises.filter(e => completedIds.has(e?.id)).length;
-  const total = exercises.length;
-  const isPlay = mode === "play";
 
   return (
     <div style={{
@@ -59,6 +74,9 @@ export default function CollapsibleSection({
             }}>
               {completedCount}/{total}
             </span>
+          )}
+          {isPlay && ratingSaved && (
+            <span style={{ background: "#16a34a", color: "white", padding: "2px 6px", borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>✓</span>
           )}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
@@ -125,6 +143,23 @@ export default function CollapsibleSection({
             children
           )}
         </div>
+      )}
+
+      {/* Section rating modal — mandatory when all exercises checked */}
+      {isPlay && (
+        <SectionRatingModal
+          open={ratingModalOpen}
+          section={section}
+          onSubmit={async (rating) => {
+            if (onSectionRatingSubmit) {
+              await onSectionRatingSubmit(section.id, rating);
+            }
+            setRatingSaved(true);
+            setRatingModalOpen(false);
+            setOpen(false);
+            onSectionCompleted?.(section.id);
+          }}
+        />
       )}
     </div>
   );
