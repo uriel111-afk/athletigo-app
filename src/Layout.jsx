@@ -72,9 +72,10 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [clock?.display, liveTimer?.type]);
 
-  // Scroll to top on page change
+  // Scroll to top + close mobile menu on page change
   useEffect(() => {
     window.scrollTo(0, 0);
+    setMobileMenuOpen(false);
   }, [location.pathname]);
 
   // ── Live toast notifications via Supabase Realtime ──────────────
