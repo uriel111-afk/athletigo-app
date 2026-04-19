@@ -281,6 +281,7 @@ export default function TraineeProfile() {
   const [showEditSession, setShowEditSession] = useState(false);
   const [editingUsage, setEditingUsage] = useState(null); // service ID being edited
   const [usageValue, setUsageValue] = useState("");
+  const [deductDialog, setDeductDialog] = useState(null);
   const [selectedPackageHistory, setSelectedPackageHistory] = useState(null);
   const [packageSessions, setPackageSessions] = useState([]);
   const [packageSessionsLoading, setPackageSessionsLoading] = useState(false);
@@ -712,8 +713,9 @@ export default function TraineeProfile() {
         
         // Update main session status if it's personal training
         if (session.session_type === 'אישי') {
-             sessionUpdateData.status = (newStatus === 'הגיע') ? 'התקיים' : 
-                                       (newStatus === 'ביטל' || newStatus === 'בוטל') ? 'בוטל על ידי מאמן' : 
+             sessionUpdateData.status = (newStatus === 'הגיע') ? 'התקיים' :
+                                       (newStatus === 'הושלם') ? 'הושלם' :
+                                       (newStatus === 'ביטל' || newStatus === 'בוטל') ? 'בוטל על ידי מאמן' :
                                        (newStatus === 'נעדר' || newStatus === 'לא הגיע') ? 'לא הגיע' : 'ממתין לאישור';
         }
 
@@ -2032,6 +2034,7 @@ export default function TraineeProfile() {
                       const tc = typeColors[session.session_type] || typeColors['אישי'];
                       const statusColors = {
                         'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800',
+                        'הושלם': 'bg-emerald-100 text-emerald-800',
                         'בוטל': 'bg-red-100 text-red-800', 'בוטל על ידי מאמן': 'bg-red-100 text-red-800',
                         'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800',
                         'ממתין לאישור': 'bg-yellow-100 text-yellow-800',
@@ -2049,9 +2052,19 @@ export default function TraineeProfile() {
                             </div>
                             {isCoach && (
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                <Select value={displayStatus} onValueChange={val => { if (val !== displayStatus) updateSessionStatusMutation.mutate({ session, newStatus: val }); }}>
+                                <Select value={displayStatus} onValueChange={val => {
+                                  if (val === displayStatus) return;
+                                  if (val === 'הושלם' && session.service_id && !session.was_deducted) {
+                                    const pkg = services.find(s => s.id === session.service_id);
+                                    if (pkg && ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) > 0) {
+                                      setDeductDialog({ session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) } });
+                                      return;
+                                    }
+                                  }
+                                  updateSessionStatusMutation.mutate({ session, newStatus: val });
+                                }}>
                                   <SelectTrigger className="h-8 text-xs w-auto min-w-[70px] border-gray-200"><SelectValue /></SelectTrigger>
-                                  <SelectContent><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="ממתין">ממתין</SelectItem></SelectContent>
+                                  <SelectContent><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
                                 </Select>
                                 <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20]"
                                   onClick={() => { setEditingSession(session); setShowEditSession(true); }}>
@@ -2642,6 +2655,38 @@ export default function TraineeProfile() {
             })()}
           </DialogContent>
         </Dialog>
+
+        {/* Deduction Dialog */}
+        {deductDialog && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', direction:'rtl' }}>
+            <div style={{ background:'white', borderRadius:'16px', padding:'24px', width:'100%', maxWidth:'340px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+              <div style={{fontSize:'20px',fontWeight:'900',marginBottom:'8px'}}>השלמת מפגש</div>
+              <div style={{fontSize:'15px',color:'#555',marginBottom:'16px',lineHeight:1.6}}>
+                יש חבילה פעילה עם{' '}<strong style={{color:'#FF6F20'}}>{deductDialog.pkg.remaining_sessions} מפגשים</strong>{' '}נותרים. האם לקזז מפגש מהחבילה?
+              </div>
+              <div style={{background:'#FFF0E8',borderRadius:'10px',padding:'10px 14px',marginBottom:'20px',fontSize:'14px',color:'#FF6F20',fontWeight:'700'}}>
+                לאחר קיזוז: {Math.max(0, deductDialog.pkg.remaining_sessions - 1)} מפגשים
+              </div>
+              <div style={{display:'flex',gap:'10px'}}>
+                <button onClick={() => { updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: 'הושלם' }); setDeductDialog(null); }}
+                  style={{flex:1,height:'46px',background:'#f5f5f5',color:'#555',border:'none',borderRadius:'10px',fontSize:'15px',fontWeight:'700',cursor:'pointer'}}>ללא קיזוז</button>
+                <button onClick={async () => {
+                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: 'הושלם' });
+                  if (deductDialog.pkg?.id) {
+                    const newUsed = (deductDialog.session.service_id ? services.find(s => s.id === deductDialog.session.service_id)?.used_sessions || 0 : 0) + 1;
+                    try { await base44.entities.ClientService.update(deductDialog.session.service_id, { used_sessions: newUsed }); } catch {}
+                    try { await base44.entities.Session.update(deductDialog.session.id, { was_deducted: true }); } catch {}
+                    queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                  }
+                  setDeductDialog(null);
+                  toast.success(`✓ הושלם | יתרה: ${Math.max(0, deductDialog.pkg.remaining_sessions - 1)} מפגשים`);
+                }}
+                  style={{flex:2,height:'46px',background:'#FF6F20',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>קזז מהחבילה ✓</button>
+              </div>
+              <button onClick={() => setDeductDialog(null)} style={{width:'100%',marginTop:'10px',background:'none',border:'none',color:'#999',fontSize:'14px',cursor:'pointer',padding:'8px'}}>ביטול</button>
+            </div>
+          </div>
+        )}
 
       </div>
     </ErrorBoundary>
