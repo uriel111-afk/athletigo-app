@@ -83,7 +83,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const createSectionMutation = useMutation({
     mutationFn: (data) => base44.entities.TrainingSection.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['training-sections'] });
+      queryClient.invalidateQueries({ queryKey: ['training-sections', plan.id] });
       setShowSectionDialog(false);
       toast.success("✅ סקשן נוסף");
     },
@@ -93,7 +93,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const updateSectionMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.TrainingSection.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['training-sections'] });
+      queryClient.invalidateQueries({ queryKey: ['training-sections', plan.id] });
       setShowSectionDialog(false);
       setEditingSection(null);
       toast.success("✅ עודכן");
@@ -110,8 +110,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       await base44.entities.TrainingSection.delete(sectionId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['training-sections'] });
-      queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      queryClient.invalidateQueries({ queryKey: ['training-sections', plan.id] });
+      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
       toast.success("✅ נמחק");
     },
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
@@ -130,7 +130,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const createExerciseMutation = useMutation({
     mutationFn: (data) => base44.entities.Exercise.create(prepareExerciseData(data)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
       setShowExerciseDialog(false);
       toast.success("✅ תרגיל נוסף");
     },
@@ -140,7 +140,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const updateExerciseMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Exercise.update(id, prepareExerciseData(data)),
     onSuccess: async (data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      await queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
       // Only show toast for explicit form saves, not toggle
       if (showExerciseDialog) {
         setShowExerciseDialog(false);
@@ -264,7 +264,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const deleteExerciseMutation = useMutation({
     mutationFn: (id) => base44.entities.Exercise.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
       toast.success("✅ נמחק");
     },
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),

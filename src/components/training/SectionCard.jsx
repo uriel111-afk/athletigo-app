@@ -19,7 +19,7 @@ export default function SectionCard({
   isCoach = false, 
   plan 
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!showEditButtons);
 
   const completedCount = exercises.filter(e => e && e.completed).length;
   const totalCount = exercises.length;
