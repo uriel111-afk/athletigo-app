@@ -715,6 +715,7 @@ export default function TraineeProfile() {
         if (session.session_type === 'אישי') {
              sessionUpdateData.status = (newStatus === 'הגיע') ? 'התקיים' :
                                        (newStatus === 'הושלם') ? 'הושלם' :
+                                       (newStatus === 'מאושר') ? 'מאושר' :
                                        (newStatus === 'ביטל' || newStatus === 'בוטל') ? 'בוטל על ידי מאמן' :
                                        (newStatus === 'נעדר' || newStatus === 'לא הגיע') ? 'לא הגיע' : 'ממתין לאישור';
         }
@@ -2035,6 +2036,7 @@ export default function TraineeProfile() {
                       const statusColors = {
                         'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800',
                         'הושלם': 'bg-emerald-100 text-emerald-800',
+                        'מאושר': 'bg-blue-100 text-blue-800',
                         'בוטל': 'bg-red-100 text-red-800', 'בוטל על ידי מאמן': 'bg-red-100 text-red-800',
                         'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800',
                         'ממתין לאישור': 'bg-yellow-100 text-yellow-800',
@@ -2068,7 +2070,7 @@ export default function TraineeProfile() {
                                   updateSessionStatusMutation.mutate({ session, newStatus: val });
                                 }}>
                                   <SelectTrigger className="h-8 text-xs w-auto min-w-[70px] border-gray-200"><SelectValue /></SelectTrigger>
-                                  <SelectContent><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
+                                  <SelectContent><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
                                 </Select>
                                 <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20]"
                                   onClick={() => { setEditingSession(session); setShowEditSession(true); }}>
@@ -2120,7 +2122,7 @@ export default function TraineeProfile() {
                                 const displayStatus = participant?.attendance_status || session.status || 'ממתין';
                                 const typeColors = { 'אישי': { bg: '#F3E8FF', border: '#D8B4FE', text: '#7C3AED' }, 'קבוצתי': { bg: '#DBEAFE', border: '#93C5FD', text: '#2563EB' }, 'אונליין': { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' } };
                                 const tc = typeColors[session.session_type] || typeColors['אישי'];
-                                const statusColors = { 'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800', 'בוטל': 'bg-red-100 text-red-800', 'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800' };
+                                const statusColors = { 'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800', 'הושלם': 'bg-emerald-100 text-emerald-800', 'מאושר': 'bg-blue-100 text-blue-800', 'בוטל': 'bg-red-100 text-red-800', 'בוטל על ידי מאמן': 'bg-red-100 text-red-800', 'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800', 'ממתין לאישור': 'bg-yellow-100 text-yellow-800' };
                                 return (
                                   <div key={session.id} className="bg-gray-50 rounded-xl border border-gray-100 p-3" dir="rtl">
                                     <div className="flex justify-between items-start">
