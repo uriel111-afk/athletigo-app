@@ -531,6 +531,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         <div className="space-y-3 md:space-y-6 mb-20 md:mb-24 w-full">
           {sections.filter(Boolean).map((section, index) => {
             const sectionExercises = getExercisesBySection(section.id);
+            console.log('[UPB] rendering section:', section.id, 'exercises:', sectionExercises?.length);
             return (
               <SectionCard
                 key={section.id}

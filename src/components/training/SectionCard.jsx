@@ -54,7 +54,10 @@ export default function SectionCard({
       {/* Section Header (Clickable) */}
       <div 
         className="w-full p-4 cursor-pointer transition-colors hover:bg-gray-50"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => {
+          console.log('[SectionCard] clicked, expanded:', expanded, 'exercises:', exercises?.length);
+          setExpanded(!expanded);
+        }}
       >
         <div className="flex items-center justify-between">
           
