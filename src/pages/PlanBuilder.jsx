@@ -203,7 +203,8 @@ export default function PlanBuilder() {
       "order": sec.exercises.length,
       completed: false,
     };
-    const { data } = await supabase.from("exercises").insert(payload).select().single();
+    const { data, error } = await supabase.from("exercises").insert(payload).select().single();
+    if (error) { console.error('[PlanBuilder] addExercise error:', error); alert('שגיאה בשמירת תרגיל: ' + error.message); return; }
     setSections(prev => prev.map((s, i) =>
       i === sectionIndex ? { ...s, exercises: [...s.exercises, data] } : s
     ));
@@ -233,7 +234,8 @@ export default function PlanBuilder() {
       grip: exerciseData.params["אחיזה"] || null,
       video_url: exerciseData.params["וידאו"] || null,
     };
-    await supabase.from("exercises").update(payload).eq("id", ex.id);
+    const { error } = await supabase.from("exercises").update(payload).eq("id", ex.id);
+    if (error) { console.error('[PlanBuilder] updateExercise error:', error); alert('שגיאה בעדכון: ' + error.message); return; }
     setSections(prev => prev.map((s, si) =>
       si === sectionIndex ? {
         ...s,
@@ -490,7 +492,7 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
       {section.exercises?.map((ex, ei) => (
         <div key={ex.id || ei} style={{ padding: "10px 14px", borderBottom: ei < section.exercises.length - 1 ? "1px solid #f5f5f5" : "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{ex.exercise_name || ex.name}</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{ex.exercise_name || ex.name || "תרגיל"}</div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
               {ex.sets && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>סטים: {ex.sets}</span>}
               {ex.reps && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>חזרות: {ex.reps}</span>}
