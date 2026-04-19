@@ -417,11 +417,13 @@ export default function Layout({ children, currentPageName }) {
                 onClick={() => setMobileMenuOpen(false)}
                 style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 98 }}
               />
-              <div className="md:hidden p-4 space-y-2 max-h-[60vh] overflow-y-auto safe-area-inset flex-shrink-0 z-[99]" style={{
-                position: 'relative',
+              <div className="md:hidden p-4 space-y-2 overflow-y-auto" style={{
+                position: 'fixed', top: '64px', right: 0, bottom: 0, width: '280px',
+                zIndex: 99,
                 backgroundColor: '#FFFFFF',
-                borderBottom: `1px solid #E0E0E0`,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                borderLeft: '1px solid #E0E0E0',
+                boxShadow: '-4px 0 12px rgba(0,0,0,0.1)',
+                WebkitOverflowScrolling: 'touch',
               }}>
                 {(() => {
                   const sectionLabels = { daily: "ניהול יומיומי", content: "תוכן ואימון", business: "עסקי", settings: "הגדרות", coach: null, trainee: null };
