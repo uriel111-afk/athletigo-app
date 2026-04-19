@@ -529,10 +529,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         <div style={{position:'relative',width:'min(68vw,280px)',height:'min(68vw,280px)'}}>
           <svg width="100%" height="100%" viewBox="0 0 280 280" style={{position:'absolute',inset:0}}>
             <circle cx="140" cy="140" r={RING_R} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="10"/>
-            <circle cx="140" cy="140" r={RING_R} fill="none" stroke="white" strokeWidth="10" strokeDasharray={RING_C} strokeDashoffset={phaseDur>0 ? RING_C - RING_C*(timeLeft/phaseDur) : RING_C} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 1s linear'}}/>
+            <circle cx="140" cy="140" r={RING_R} fill="none" stroke="white" strokeWidth="10" strokeDasharray={RING_C} strokeDashoffset={phaseDur>0 ? RING_C*(1-timeLeft/phaseDur) : RING_C} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 1.05s linear'}}/>
           </svg>
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{fontSize:'min(38vw,148px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft > 0 ? timeLeft : ''}</div>
+            <div style={{fontSize:'min(38vw,148px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
           </div>
         </div>
       </div>
