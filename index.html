@@ -37,18 +37,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-    setInterval(function() {
-      document.querySelectorAll('*').forEach(function(el) {
-        var s = window.getComputedStyle(el);
-        if (s.backdropFilter && s.backdropFilter !== 'none') {
-          console.log('BLUR:', el.tagName, el.className.substring(0,80), s.backdropFilter);
-        }
-        if (s.filter && s.filter !== 'none') {
-          console.log('FILTER:', el.tagName, el.className.substring(0,80), s.filter);
-        }
-      });
-    }, 5000);
-    </script>
   </body>
 </html>
