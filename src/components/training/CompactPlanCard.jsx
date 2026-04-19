@@ -71,7 +71,7 @@ export default function CompactPlanCard({ plan, exercises = [], onSelect, onEdit
 
                  return (
                   <div key={ex.id} className="text-xs text-gray-700 break-words leading-tight">
-                    <span className="font-bold ml-1">• {ex.exercise_name}</span>
+                    <span className="font-bold ml-1">• {ex.exercise_name || ex.name || "תרגיל"}</span>
                     {displayVal && <span className="text-gray-500">– {displayVal}</span>}
                     {ex.weight && <span className="text-gray-500 mx-1">({ex.weight} ק"ג)</span>}
                   </div>

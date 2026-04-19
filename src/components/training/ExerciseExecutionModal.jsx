@@ -143,7 +143,7 @@ export default function ExerciseExecutionModal({ isOpen, onClose, exercise, onSa
         <div className="p-5 pb-4 border-b border-gray-100 bg-white sticky top-0 z-10">
           <div className="flex justify-between items-start gap-4">
             <div>
-              <h2 className="text-xl font-black text-gray-900 leading-tight">{exercise.exercise_name || exercise.name}</h2>
+              <h2 className="text-xl font-black text-gray-900 leading-tight">{exercise.exercise_name || exercise.name || "תרגיל"}</h2>
               {containerMode && (
                 <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FF6F20] text-white">
                   {exercise.mode === "טבטה" ? "טבטה" : "רשימה"} ({subCount})

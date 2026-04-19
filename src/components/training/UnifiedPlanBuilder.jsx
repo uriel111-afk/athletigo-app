@@ -284,7 +284,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       // Generate preview text
       const topExercises = exercises
         .slice(0, 5)
-        .map(e => `• ${e.exercise_name}`)
+        .map(e => `• ${e.exercise_name || e.name || 'תרגיל'}`)
         .join('\n');
       
       const previewText = total > 5 ? `${topExercises}\n+ עוד ${total - 5}` : topExercises;
