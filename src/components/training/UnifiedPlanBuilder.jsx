@@ -524,7 +524,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
         {canEdit &&
         <div className="mb-4 md:mb-6 w-full flex gap-2">
-            <Button onClick={() => {
+            <Button onClick={(e) => {
+            e.stopPropagation();
             setEditingSection(null);
             setShowSectionDialog(true);
           }}
