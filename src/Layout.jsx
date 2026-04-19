@@ -52,6 +52,7 @@ export default function Layout({ children, currentPageName }) {
   const clock = useClock();
   const { liveTimer, setLiveTimer } = useActiveTimer();
   const isClocks = location.pathname.toLowerCase().includes('clock');
+  const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview');
 
   // Sync floating widget for timer/stopwatch every tick (Layout never unmounts)
   useEffect(() => {
@@ -276,7 +277,7 @@ export default function Layout({ children, currentPageName }) {
         touchAction: 'pan-x pan-y',
         overflowX: 'hidden',
       }}>
-        <aside className="hidden md:flex flex-col w-64 p-6" style={{
+        <aside className={`${isFullScreen ? 'hidden' : 'hidden md:flex'} flex-col w-64 p-6`} style={{
           backgroundColor: '#FFFFFF',
           borderLeft: `1px solid #E0E0E0`
         }}>
