@@ -32,6 +32,11 @@ export default function TraineeSessions() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('upcoming');
   const [showBooking, setShowBooking] = useState(false);
+  const [rescheduleSession, setRescheduleSession] = useState(null);
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
+  const [rescheduleNote, setRescheduleNote] = useState('');
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -96,8 +101,7 @@ export default function TraineeSessions() {
 
   const canReschedule = (s) => {
     const dt = new Date(`${s.date}T${s.time || '00:00'}`);
-    const hoursAway = (dt - new Date()) / (1000 * 60 * 60);
-    return hoursAway > 0 && hoursAway <= 24 &&
+    return (dt - new Date()) > 24 * 60 * 60 * 1000 &&
       !['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'בוטל', 'התקיים', 'הושלם', 'הגיע', 'לא הגיע'].includes(s.status);
   };
 
@@ -141,20 +145,40 @@ export default function TraineeSessions() {
     }
   };
 
-  const handleReschedule = async (session) => {
-    if (!coach?.id) return;
+  const handleRescheduleRequest = async () => {
+    if (!newDate || !newTime) return;
+    setRescheduleLoading(true);
     try {
-      await base44.entities.Notification.create({
-        user_id: coach.id,
-        type: 'reschedule_request',
-        title: 'בקשה לשינוי מועד',
-        message: `${user.full_name} מבקש לשנות את תאריך המפגש ב-${new Date(session.date).toLocaleDateString('he-IL')} ${session.time}`,
-        is_read: false,
-        data: { session_id: session.id, trainee_id: user.id },
+      const oldDate = new Date(rescheduleSession.date).toLocaleDateString('he-IL');
+      await base44.entities.Session.update(rescheduleSession.id, {
+        date: newDate,
+        time: newTime,
+        status: 'ממתין לאישור',
+        coach_notes: rescheduleNote
+          ? `בקשת שינוי מועד מ${user.full_name}: ${rescheduleNote}`
+          : `בקשת שינוי מועד מ${user.full_name}`,
       });
-      toast.success("בקשת שינוי תאריך נשלחה למאמן");
+      if (coach?.id) {
+        try {
+          await base44.entities.Notification.create({
+            user_id: coach.id,
+            type: 'reschedule_request',
+            title: 'בקשת שינוי מועד',
+            message: `${user.full_name} שינה את המפגש מ-${oldDate} ${rescheduleSession.time} ל-${new Date(newDate).toLocaleDateString('he-IL')} ${newTime}`,
+            is_read: false,
+            data: { session_id: rescheduleSession.id, trainee_id: user.id },
+          });
+        } catch {}
+      }
+      setRescheduleSession(null);
+      setNewDate(''); setNewTime(''); setRescheduleNote('');
+      toast.success('בקשת שינוי המועד נשלחה למאמן');
+      window.dispatchEvent(new CustomEvent('data-changed'));
+      loadData();
     } catch (err) {
-      toast.error("שגיאה בשליחת הבקשה");
+      toast.error('שגיאה: ' + (err?.message || 'נסה שוב'));
+    } finally {
+      setRescheduleLoading(false);
     }
   };
 
@@ -325,43 +349,44 @@ export default function TraineeSessions() {
               </div>
 
               {/* Action buttons */}
-              {canCancel(s) && (
+              {(canCancel(s) || canReschedule(s)) && (
                 <div style={{
                   display: 'flex', gap: '8px', marginTop: '10px',
                   paddingTop: '10px', borderTop: '1px solid #f0f0f0'
                 }}>
-                  <button
-                    onClick={() => handleCancel(s)}
-                    style={{
-                      flex: 1, background: '#fef2f2', border: 'none',
-                      borderRadius: '8px', padding: '8px',
-                      fontSize: '12px', fontWeight: '700',
-                      color: '#ef4444', cursor: 'pointer'
-                    }}
-                  >
-                    ביטול מפגש
-                  </button>
-                </div>
-              )}
-              {canReschedule(s) && (
-                <div style={{
-                  display: 'flex', gap: '8px', marginTop: '10px',
-                  paddingTop: '10px', borderTop: '1px solid #f0f0f0'
-                }}>
-                  <button
-                    onClick={() => handleReschedule(s)}
-                    style={{
-                      flex: 1, background: '#fff7ed', border: 'none',
-                      borderRadius: '8px', padding: '8px',
-                      fontSize: '12px', fontWeight: '700',
-                      color: '#FF6F20', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', gap: '4px'
-                    }}
-                  >
-                    <ClockIcon style={{ width: '12px', height: '12px' }} />
-                    בקש שינוי תאריך
-                  </button>
+                  {canReschedule(s) && (
+                    <button
+                      onClick={() => {
+                        setRescheduleSession(s);
+                        setNewDate(s.date);
+                        setNewTime(s.time || '');
+                      }}
+                      style={{
+                        flex: 1, background: '#fff7ed', border: 'none',
+                        borderRadius: '8px', padding: '8px',
+                        fontSize: '12px', fontWeight: '700',
+                        color: '#FF6F20', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', gap: '4px'
+                      }}
+                    >
+                      <ClockIcon style={{ width: '12px', height: '12px' }} />
+                      שנה מועד
+                    </button>
+                  )}
+                  {canCancel(s) && (
+                    <button
+                      onClick={() => handleCancel(s)}
+                      style={{
+                        flex: 1, background: '#fef2f2', border: 'none',
+                        borderRadius: '8px', padding: '8px',
+                        fontSize: '12px', fontWeight: '700',
+                        color: '#ef4444', cursor: 'pointer'
+                      }}
+                    >
+                      ביטול מפגש
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -377,6 +402,78 @@ export default function TraineeSessions() {
           onClose={() => setShowBooking(false)}
           onSuccess={() => loadData()}
         />
+      )}
+
+      {/* Reschedule modal */}
+      {rescheduleSession && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setRescheduleSession(null); }}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.55)', zIndex: 1000,
+            display: 'flex', alignItems: 'flex-end',
+            justifyContent: 'center', direction: 'rtl',
+          }}
+        >
+          <div style={{
+            background: 'white', borderRadius: '20px 20px 0 0',
+            width: '100%', maxWidth: '480px', padding: '24px',
+            paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <div style={{ fontSize: '20px', fontWeight: '900' }}>בקשת שינוי מועד</div>
+              <button onClick={() => setRescheduleSession(null)} style={{ background: 'none', border: 'none', fontSize: '26px', cursor: 'pointer', color: '#999' }}>×</button>
+            </div>
+
+            <div style={{ background: '#f5f5f5', borderRadius: '10px', padding: '10px 14px', marginBottom: '18px', fontSize: '13px', color: '#666' }}>
+              מועד נוכחי: {formatDate(rescheduleSession.date)} בשעה {rescheduleSession.time}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '8px' }}>תאריך חדש</div>
+                <input type="date" value={newDate} min={new Date().toISOString().split('T')[0]}
+                  onChange={e => setNewDate(e.target.value)}
+                  style={{ width: '100%', padding: '14px', fontSize: '16px', border: '1.5px solid', borderColor: newDate ? '#FF6F20' : '#ddd', borderRadius: '12px', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '8px' }}>שעה חדשה</div>
+                <input type="time" value={newTime}
+                  onChange={e => setNewTime(e.target.value)}
+                  style={{ width: '100%', padding: '14px', fontSize: '16px', border: '1.5px solid', borderColor: newTime ? '#FF6F20' : '#ddd', borderRadius: '12px', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '8px' }}>
+                  סיבת השינוי
+                  <span style={{ fontWeight: '400', color: '#999', fontSize: '12px', marginRight: '6px' }}>(אופציונלי)</span>
+                </div>
+                <textarea value={rescheduleNote}
+                  onChange={e => setRescheduleNote(e.target.value)}
+                  placeholder="למשל: יש לי עבודה, מעדיף שעה אחרת..."
+                  rows={2}
+                  style={{ width: '100%', padding: '12px 14px', fontSize: '15px', border: '1.5px solid #ddd', borderRadius: '12px', boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit', direction: 'rtl', outline: 'none' }}
+                />
+              </div>
+              <div style={{ background: '#FFF0E8', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#CC4A00', fontWeight: '600' }}>
+                הבקשה תישלח למאמן לאישור
+              </div>
+              <button
+                onClick={handleRescheduleRequest}
+                disabled={!newDate || !newTime || rescheduleLoading}
+                style={{
+                  width: '100%', height: '54px',
+                  background: (!newDate || !newTime) ? '#ccc' : '#FF6F20',
+                  color: 'white', border: 'none', borderRadius: '12px',
+                  fontSize: '18px', fontWeight: '900', cursor: 'pointer',
+                }}
+              >
+                {rescheduleLoading ? 'שולח...' : 'שלח בקשת שינוי ✓'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
