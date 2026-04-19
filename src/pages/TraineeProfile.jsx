@@ -2054,15 +2054,15 @@ export default function TraineeProfile() {
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <Select value={displayStatus} onValueChange={val => {
                                   if (val === displayStatus) return;
-                                  if (val === 'הושלם') {
+                                  if (val === 'הושלם' || val === 'בוטל') {
                                     if (session.service_id && !session.was_deducted) {
                                       const pkg = services.find(s => s.id === session.service_id);
                                       if (pkg && ((pkg.total_sessions || 0) - (pkg.used_sessions || 0)) > 0) {
-                                        setDeductDialog({ type: 'deduct', session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) } });
+                                        setDeductDialog({ type: 'deduct', session, pkg: { ...pkg, remaining_sessions: (pkg.total_sessions || 0) - (pkg.used_sessions || 0) }, targetStatus: val });
                                         return;
                                       }
                                     }
-                                    setDeductDialog({ type: 'no_package', session });
+                                    setDeductDialog({ type: 'no_package', session, targetStatus: val });
                                     return;
                                   }
                                   updateSessionStatusMutation.mutate({ session, newStatus: val });
@@ -2664,7 +2664,9 @@ export default function TraineeProfile() {
         {deductDialog?.type === 'deduct' && (
           <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', direction:'rtl' }}>
             <div style={{ background:'white', borderRadius:'16px', padding:'24px', width:'100%', maxWidth:'340px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
-              <div style={{fontSize:'20px',fontWeight:'900',marginBottom:'8px'}}>השלמת מפגש</div>
+              <div style={{fontSize:'20px',fontWeight:'900',marginBottom:'8px'}}>
+                {deductDialog.targetStatus === 'בוטל' ? 'ביטול מפגש' : 'השלמת מפגש'}
+              </div>
               <div style={{fontSize:'15px',color:'#555',marginBottom:'16px',lineHeight:1.6}}>
                 יש חבילה פעילה עם{' '}<strong style={{color:'#FF6F20'}}>{deductDialog.pkg.remaining_sessions} מפגשים</strong>{' '}נותרים.
                 <br/>האם לקזז מפגש מהחבילה?
@@ -2673,10 +2675,16 @@ export default function TraineeProfile() {
                 לאחר קיזוז: {Math.max(0, deductDialog.pkg.remaining_sessions - 1)} מפגשים
               </div>
               <div style={{display:'flex',gap:'10px'}}>
-                <button onClick={() => { updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: 'הושלם' }); setDeductDialog(null); toast.success('✓ מפגש הושלם'); }}
+                <button onClick={() => {
+                  const st = deductDialog.targetStatus || 'הושלם';
+                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: st });
+                  setDeductDialog(null);
+                  toast.success(st === 'בוטל' ? '✓ מפגש בוטל' : '✓ מפגש הושלם');
+                }}
                   style={{flex:1,height:'46px',background:'#f5f5f5',color:'#555',border:'none',borderRadius:'10px',fontSize:'15px',fontWeight:'700',cursor:'pointer'}}>ללא קיזוז</button>
                 <button onClick={async () => {
-                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: 'הושלם' });
+                  const st = deductDialog.targetStatus || 'הושלם';
+                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: st });
                   const svcId = deductDialog.session.service_id || deductDialog.pkg.id;
                   const svc = services.find(s => s.id === svcId);
                   if (svc) {
@@ -2687,7 +2695,8 @@ export default function TraineeProfile() {
                   }
                   const rem = Math.max(0, deductDialog.pkg.remaining_sessions - 1);
                   setDeductDialog(null);
-                  toast.success(rem === 0 ? '✓ הושלם | החבילה הסתיימה' : rem === 1 ? '✓ הושלם | נותר מפגש אחד' : `✓ הושלם | יתרה: ${rem} מפגשים`);
+                  const label = st === 'בוטל' ? 'בוטל' : 'הושלם';
+                  toast.success(rem === 0 ? `✓ ${label} | החבילה הסתיימה` : rem === 1 ? `✓ ${label} | נותר מפגש אחד` : `✓ ${label} | יתרה: ${rem} מפגשים`);
                 }}
                   style={{flex:2,height:'46px',background:'#FF6F20',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>קזז מהחבילה ✓</button>
               </div>
@@ -2700,15 +2709,25 @@ export default function TraineeProfile() {
         {deductDialog?.type === 'no_package' && (
           <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', direction:'rtl' }}>
             <div style={{ background:'white', borderRadius:'16px', padding:'24px', width:'100%', maxWidth:'340px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
-              <div style={{fontSize:'20px',fontWeight:'900',marginBottom:'8px'}}>אין חבילה פעילה</div>
+              <div style={{fontSize:'20px',fontWeight:'900',marginBottom:'8px'}}>
+                {deductDialog.targetStatus === 'בוטל' ? 'ביטול מפגש' : 'אין חבילה פעילה'}
+              </div>
               <div style={{fontSize:'15px',color:'#555',marginBottom:'20px',lineHeight:1.6}}>
-                למתאמן אין חבילה פעילה עם יתרת מפגשים.<br/>האם להשלים את המפגש ללא קיזוז?
+                למתאמן אין חבילה פעילה עם יתרת מפגשים.
+                <br/>{deductDialog.targetStatus === 'בוטל' ? 'האם לבטל את המפגש?' : 'האם להשלים את המפגש ללא קיזוז?'}
               </div>
               <div style={{display:'flex',gap:'10px'}}>
                 <button onClick={() => setDeductDialog(null)}
                   style={{flex:1,height:'46px',background:'#f5f5f5',color:'#555',border:'none',borderRadius:'10px',fontSize:'15px',fontWeight:'700',cursor:'pointer'}}>ביטול</button>
-                <button onClick={() => { updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: 'הושלם' }); setDeductDialog(null); toast.success('✓ מפגש הושלם'); }}
-                  style={{flex:2,height:'46px',background:'#FF6F20',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>השלם ללא קיזוז ✓</button>
+                <button onClick={() => {
+                  const st = deductDialog.targetStatus || 'הושלם';
+                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: st });
+                  setDeductDialog(null);
+                  toast.success(st === 'בוטל' ? '✓ מפגש בוטל' : '✓ מפגש הושלם');
+                }}
+                  style={{flex:2,height:'46px',background:'#FF6F20',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>
+                  {deductDialog.targetStatus === 'בוטל' ? 'בטל מפגש ✓' : 'השלם ללא קיזוז ✓'}
+                </button>
               </div>
             </div>
           </div>

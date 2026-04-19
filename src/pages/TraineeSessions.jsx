@@ -28,6 +28,7 @@ export default function TraineeSessions() {
   const [user, setUser] = useState(null);
   const [coach, setCoach] = useState(null);
   const [sessions, setSessions] = useState([]);
+  const [activePackages, setActivePackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('upcoming');
   const [showBooking, setShowBooking] = useState(false);
@@ -45,12 +46,20 @@ export default function TraineeSessions() {
       setUser(currentUser);
       if (!currentUser) return;
 
-      // Get coach
+      // Get coach + packages
       const services = await base44.entities.ClientService.filter({ trainee_id: currentUser.id });
       if (services.length > 0 && services[0].created_by) {
         const coaches = await base44.entities.User.filter({ id: services[0].created_by });
         if (coaches.length > 0) setCoach(coaches[0]);
       }
+      const active = services.filter(s =>
+        (s.status === 'פעיל' || s.status === 'active') &&
+        s.total_sessions > 0
+      ).map(s => ({
+        ...s,
+        remaining: (s.total_sessions || 0) - (s.used_sessions || 0),
+      }));
+      setActivePackages(active);
 
       // Get all sessions for this trainee
       const allSessions = await base44.entities.Session.filter({}, '-date', 500);
@@ -217,6 +226,30 @@ export default function TraineeSessions() {
         padding: '12px 14px 80px',
         WebkitOverflowScrolling: 'touch'
       }}>
+        {/* Active package balance */}
+        {activePackages.length > 0 && activePackages[0].remaining > 0 && (
+          <div style={{
+            background: '#FFF0E8', borderRadius: '14px',
+            padding: '14px 16px', marginBottom: '12px',
+            border: '1px solid #FFD0A0',
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ fontSize: '13px', color: '#CC4A00', fontWeight: '700', marginBottom: '2px' }}>
+                יתרת חבילה פעילה
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '900', color: '#FF6F20' }}>
+                {activePackages[0].remaining} מפגשים
+              </div>
+              {activePackages[0].package_name && (
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>{activePackages[0].package_name}</div>
+              )}
+            </div>
+            <div style={{ fontSize: '32px' }}>📦</div>
+          </div>
+        )}
+
         {filtered.length === 0 && (
           <div style={{
             textAlign: 'center', padding: '40px 20px',
