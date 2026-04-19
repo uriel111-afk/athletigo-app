@@ -1423,12 +1423,12 @@ export default function TraineeProfile() {
 
   return (
     <ErrorBoundary>
-      <div className="h-screen w-full flex flex-col overflow-hidden bg-[#F2F2F7]" dir="rtl" style={{ fontSize: 16 }}>
+      <div className="w-full bg-[#F2F2F7]" dir="rtl" style={{ fontSize: 16, height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
         {/* ===== ZONE 1: HEADER ===== */}
         {isCoach ? (
           /* Coach viewing trainee profile — full header */
-          <div className="flex-shrink-0" style={{ backgroundColor: '#FF6F20' }}>
+          <div style={{ backgroundColor: '#FF6F20' }}>
             <div className="px-4 pt-3 pb-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black overflow-hidden flex-shrink-0">
@@ -1453,7 +1453,7 @@ export default function TraineeProfile() {
           </div>
         ) : (
           /* Trainee's own view — branded greeting header */
-          <div className="flex-shrink-0 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F4C 50%, #FFA96B 100%)' }}>
+          <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F4C 50%, #FFA96B 100%)' }}>
             {/* Decorative circles */}
             <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full opacity-10 bg-white" />
             <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-10 bg-white" />
@@ -1508,7 +1508,7 @@ export default function TraineeProfile() {
         )}
 
         {/* ===== ZONE 2: TAB GRID ===== */}
-        <div className="flex-shrink-0 px-3 py-2 bg-[#F2F2F7]">
+        <div className="px-3 py-2 bg-[#F2F2F7]">
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
             {TAB_ITEMS.map(tab => {
               const isActive = activeTab === tab.id;
@@ -1535,7 +1535,7 @@ export default function TraineeProfile() {
         </div>
 
         {/* ===== ZONE 3: TAB CONTENT (scrollable) ===== */}
-        <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: '100px', minHeight: 0 }}>
+        <div style={{ paddingBottom: '100px' }}>
           <div className="max-w-6xl mx-auto px-4 py-4 w-full">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
