@@ -255,14 +255,52 @@ export default function TraineeHome() {
         </DialogContent>
       </Dialog>
 
-      <div className="min-h-screen px-4 md:p-8 pb-24 bg-white" dir="rtl" style={{ fontSize: 16 }}>
+      <div className="min-h-screen pb-24 bg-[#F8F8F8]" dir="rtl" style={{ fontSize: 16 }}>
         <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-black text-gray-900 mb-2">
-            היי, {user?.full_name?.split(' ')[0] || 'מתאמן'} 👋
-          </h1>
-          <p className="text-xl text-gray-500">מוכן לאימון הבא שלך?</p>
+
+        {/* Orange Header with greeting + quote */}
+        <div style={{ background:'#FF6F20', borderRadius:'0 0 24px 24px', padding:'20px 18px 22px' }}>
+          <div style={{fontSize:'13px',color:'rgba(255,255,255,0.8)',fontWeight:'600',marginBottom:'4px'}}>
+            {new Date().getHours() < 12 ? 'בוקר טוב' : new Date().getHours() < 17 ? 'צהריים טובים' : new Date().getHours() < 21 ? 'ערב טוב' : 'לילה טוב'} 👋
+          </div>
+          <div style={{fontSize:'28px',fontWeight:'900',color:'white',marginBottom:'14px',lineHeight:1.2}}>
+            {user?.full_name?.split(' ')[0] || 'מתאמן'}
+          </div>
+          <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'12px', padding:'12px 14px', borderRight:'3px solid rgba(255,255,255,0.5)' }}>
+            <div style={{fontSize:'13px',color:'white',fontWeight:'600',lineHeight:1.5,fontStyle:'italic'}}>
+              "{['כל אימון הוא השקעה בעצמך','הגוף משיג מה שהמוח מאמין','אתמול קשה, היום חזק, מחר מנצח','אל תעצור כשזה כואב, עצור כשסיימת','ההתקדמות מתחילה מחוץ לאזור הנוחות','כל צעד קטן מקרב אותך למטרה','הגבול היחיד הוא זה שאתה מציב לעצמך','כוח לא בא מניצחון — בא ממאמץ','גוף חזק מתחיל בדעת חזקה','אתה חזק ממה שאתה חושב','קום, תתאמן, תמשיך','התמדה מנצחת כישרון','עשה את זה היום — הגוף שלך יודה לך מחר','רק קדימה','תאמין בתהליך','כל שינוי מתחיל בהחלטה אחת','הזמן הכי טוב לאימון — עכשיו','חזק ממה שהיית אתמול','הכאב זמני, הגאווה לנצח','רק אתה מול עצמך'][Math.floor((Date.now() - new Date(new Date().getFullYear(),0,0)) / 86400000) % 20]}"
+            </div>
+          </div>
         </div>
+
+        {/* Book Session Button */}
+        <div style={{padding:'14px 14px 6px'}}>
+          <button onClick={() => setShowBookingDialog(true)}
+            style={{ width:'100%', height:'52px', background:'#FF6F20', color:'white', border:'none', borderRadius:'14px', fontSize:'17px', fontWeight:'900', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(255,111,32,0.3)' }}>
+            <span>📅</span> קבע אימון חדש
+          </button>
+        </div>
+
+        {/* 3-Column Quick Access Grid */}
+        <div style={{ padding:'8px 14px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
+          {[
+            { icon:'📅', label:'מפגשים', to: createPageUrl("TraineeProfile") + "?tab=attendance" },
+            { icon:'📋', label:'תוכנית', to: createPageUrl("MyWorkoutLog") },
+            { icon:'📈', label:'התקדמות', to: createPageUrl("Progress") },
+            { icon:'🎯', label:'יעדים', to: createPageUrl("TraineeProfile") + "?tab=goals" },
+            { icon:'⏱', label:'שעונים', to: createPageUrl("Clocks") },
+            { icon:'👤', label:'פרופיל', to: createPageUrl("TraineeProfile") },
+          ].map((tab, i) => (
+            <Link key={i} to={tab.to} className="no-underline">
+              <div style={{ background:'white', border:'1px solid #eee', borderRadius:'14px', padding:'14px 8px', display:'flex', flexDirection:'column', alignItems:'center', gap:'8px', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
+                <div style={{ width:'40px', height:'40px', borderRadius:'50%', background:'#FFF0E8', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px' }}>{tab.icon}</div>
+                <span style={{fontSize:'12px',fontWeight:'700',color:'#1a1a1a'}}>{tab.label}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <div style={{padding:'0 14px'}}>
 
         {/* Upcoming Sessions — only shown when there are future approved/pending sessions */}
         {(() => {
@@ -319,33 +357,6 @@ export default function TraineeHome() {
           );
         })()}
 
-        {/* Quick Access Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {[
-            { label: 'מפגשים', icon: Calendar, to: createPageUrl("TraineeProfile") + "?tab=attendance", color: '#7C3AED' },
-            { label: 'התוכנית שלי', icon: ClipboardList, to: createPageUrl("MyWorkoutLog"), color: '#F97316' },
-            { label: 'התקדמות', icon: TrendingUp, to: createPageUrl("Progress"), color: '#10B981' },
-            { label: 'שעונים', icon: ClockIcon, to: createPageUrl("Clocks"), color: '#FF6F20' },
-            { label: 'פרופיל', icon: User, to: createPageUrl("TraineeProfile"), color: '#3B82F6' },
-          ].map(item => (
-            <Link key={item.label} to={item.to} className="no-underline">
-              <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center gap-2 hover:shadow-md transition-all active:scale-[0.97]">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: item.color + '15' }}>
-                  <item.icon className="w-6 h-6" style={{ color: item.color }} />
-                </div>
-                <span className="text-sm font-bold text-gray-800">{item.label}</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {/* Book Session Button */}
-        <div className="mb-6">
-          <button onClick={() => setShowBookingDialog(true)}
-            className="w-full p-4 rounded-xl bg-[#FF6F20] text-white hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-md active:scale-[0.98]">
-            <Calendar className="w-5 h-5" />
-            <span className="font-bold text-base">קבע אימון חדש</span>
-          </button>
         </div>
 
         <TraineeSessionBooking 
