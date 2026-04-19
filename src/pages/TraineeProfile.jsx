@@ -483,7 +483,7 @@ export default function TraineeProfile() {
       return await base44.entities.ClientService.filter(filter, '-created_at').catch(() => []);
     },
     enabled: !!user?.id,
-    staleTime: 5000,
+    staleTime: 0,
   });
 
   const { data: attendanceLog = [], isLoading: attendanceLoading } = useQuery({
@@ -1926,13 +1926,13 @@ export default function TraineeProfile() {
                                 ) : (
                                   <div className="flex items-center gap-2">
                                     {isCoach && (
-                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.max(0, used - 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); queryClient.invalidateQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
+                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.max(0, used - 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); await queryClient.refetchQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
                                         style={{ width:24, height:24, borderRadius:'50%', background:'#dcfce7', border:'none', color:'#16a34a', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
                                     )}
                                     <span className="font-bold text-lg" style={{ color: typeColor }}>{used}</span>
                                     <span className="text-gray-400 font-medium">/ {total}</span>
                                     {isCoach && (
-                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.min(total, used + 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); queryClient.invalidateQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
+                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.min(total, used + 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); await queryClient.refetchQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
                                         style={{ width:24, height:24, borderRadius:'50%', background:'#fee2e2', border:'none', color:'#dc2626', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>+</button>
                                     )}
                                     {isCoach && <Button onClick={(e) => { e.stopPropagation(); setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
