@@ -2123,7 +2123,7 @@ export default function TraineeProfile() {
                                   updateSessionStatusMutation.mutate({ session, newStatus: val });
                                 }}>
                                   <SelectTrigger className="h-8 text-xs w-auto min-w-[70px] border-gray-200"><SelectValue /></SelectTrigger>
-                                  <SelectContent><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
+                                  <SelectContent position="popper" side="top" sideOffset={4}><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
                                 </Select>
                                 <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20]"
                                   onClick={() => { setEditingSession(session); setShowEditSession(true); }}>
@@ -2205,7 +2205,7 @@ export default function TraineeProfile() {
                                             updateSessionStatusMutation.mutate({ session, newStatus: val });
                                           }}>
                                             <SelectTrigger className="h-7 text-[10px] w-auto min-w-[60px] border-gray-200"><SelectValue /></SelectTrigger>
-                                            <SelectContent><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
+                                            <SelectContent position="popper" side="top" sideOffset={4}><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
                                           </Select>
                                           <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-300 hover:text-red-500 flex-shrink-0"
                                             onClick={async () => {
