@@ -2766,26 +2766,42 @@ export default function TraineeProfile() {
                 לאחר קיזוז: {Math.max(0, deductDialog.pkg.remaining_sessions - 1)} מפגשים
               </div>
               <div style={{display:'flex',gap:'10px'}}>
-                <button onClick={() => {
+                <button onClick={async () => {
                   const st = deductDialog.targetStatus || 'הושלם';
-                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: st });
                   setDeductDialog(null);
+                  await updateSessionStatusMutation.mutateAsync({ session: deductDialog.session, newStatus: st });
                   toast.success(st === 'בוטל' ? '✓ מפגש בוטל' : '✓ מפגש הושלם');
                 }}
                   style={{flex:1,height:'46px',background:'#f5f5f5',color:'#555',border:'none',borderRadius:'10px',fontSize:'15px',fontWeight:'700',cursor:'pointer'}}>ללא קיזוז</button>
                 <button onClick={async () => {
                   const st = deductDialog.targetStatus || 'הושלם';
-                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: st });
                   const svcId = deductDialog.session.service_id || deductDialog.pkg.id;
                   const svc = services.find(s => s.id === svcId);
+                  setDeductDialog(null);
+
+                  // 1. Deduct from package first
                   if (svc) {
                     const newUsed = (svc.used_sessions || 0) + 1;
-                    try { await base44.entities.ClientService.update(svc.id, { used_sessions: newUsed }); } catch {}
-                    try { await base44.entities.Session.update(deductDialog.session.id, { was_deducted: true }); } catch {}
-                    queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                    const total = svc.total_sessions || svc.sessions_count || 0;
+                    try {
+                      await base44.entities.ClientService.update(svc.id, {
+                        used_sessions: newUsed,
+                        status: (total - newUsed) <= 0 ? 'completed' : svc.status,
+                      });
+                    } catch (e) { console.error('Deduction failed:', e); }
                   }
+
+                  // 2. Mark session as deducted + update status
+                  try { await base44.entities.Session.update(deductDialog.session.id, { was_deducted: true }); } catch {}
+                  await updateSessionStatusMutation.mutateAsync({ session: deductDialog.session, newStatus: st });
+
+                  // 3. Force re-fetch packages
+                  queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+                  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
+                  invalidateDashboard(queryClient);
+                  window.dispatchEvent(new CustomEvent('data-changed'));
+
                   const rem = Math.max(0, deductDialog.pkg.remaining_sessions - 1);
-                  setDeductDialog(null);
                   const label = st === 'בוטל' ? 'בוטל' : 'הושלם';
                   toast.success(rem === 0 ? `✓ ${label} | החבילה הסתיימה` : rem === 1 ? `✓ ${label} | נותר מפגש אחד` : `✓ ${label} | יתרה: ${rem} מפגשים`);
                 }}
@@ -2810,10 +2826,11 @@ export default function TraineeProfile() {
               <div style={{display:'flex',gap:'10px'}}>
                 <button onClick={() => setDeductDialog(null)}
                   style={{flex:1,height:'46px',background:'#f5f5f5',color:'#555',border:'none',borderRadius:'10px',fontSize:'15px',fontWeight:'700',cursor:'pointer'}}>ביטול</button>
-                <button onClick={() => {
+                <button onClick={async () => {
                   const st = deductDialog.targetStatus || 'הושלם';
-                  updateSessionStatusMutation.mutate({ session: deductDialog.session, newStatus: st });
                   setDeductDialog(null);
+                  await updateSessionStatusMutation.mutateAsync({ session: deductDialog.session, newStatus: st });
+                  window.dispatchEvent(new CustomEvent('data-changed'));
                   toast.success(st === 'בוטל' ? '✓ מפגש בוטל' : '✓ מפגש הושלם');
                 }}
                   style={{flex:2,height:'46px',background:'#FF6F20',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>
