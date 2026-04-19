@@ -26,14 +26,21 @@ export default function TrainingPlanView() {
     data: plan,
     isLoading,
     isError,
+    error,
   } = useQuery({
     queryKey: ["training-plan-single", planId],
-    queryFn: () => base44.entities.TrainingPlan.get(planId),
+    queryFn: async () => {
+      const result = await base44.entities.TrainingPlan.get(planId);
+      if (!result) throw new Error('Plan not found');
+      return result;
+    },
     enabled: !!planId,
     retry: 1,
   });
 
-  console.log('[TPV] planId:', planId, 'plan:', plan, 'loading:', isLoading, 'error:', isError);
+  if (isError) {
+    console.error('[TrainingPlanView] Failed to load plan:', planId, error?.message);
+  }
 
   // ── No planId in URL ───────────────────────────────────────────────────
   if (!planId) {
