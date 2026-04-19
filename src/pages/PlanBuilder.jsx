@@ -272,6 +272,7 @@ export default function PlanBuilder() {
 
   // Helper to build params object from exercise DB fields
   const exerciseToParams = (ex) => {
+    if (!ex) return {};
     const p = {};
     if (ex.sets) p["סטים"] = ex.sets;
     if (ex.reps) p["חזרות"] = ex.reps;
