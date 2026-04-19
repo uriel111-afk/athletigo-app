@@ -126,7 +126,7 @@ export default function ExerciseCard({
         if (currentUser?.id) {
           await notifyExerciseCompleted({
             coachId: plan.created_by, traineeName: currentUser.full_name,
-            traineeId: currentUser.id, exerciseName: exercise.exercise_name,
+            traineeId: currentUser.id, exerciseName: exercise.exercise_name || exercise.name || "תרגיל",
           });
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
         }
@@ -252,7 +252,7 @@ export default function ExerciseCard({
               </span>
             )}
             <h3 className="text-[15px] font-black text-gray-900 leading-snug truncate" style={{ fontFamily: "Barlow, sans-serif" }}>
-              {exercise.exercise_name || exercise.name}
+              {exercise.exercise_name || exercise.name || "תרגיל"}
             </h3>
           </div>
           {exercise.rpe && (
