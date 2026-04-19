@@ -31,6 +31,25 @@ import BaselineDetailView from "@/components/BaselineDetailView";
 import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, notifyPlanCreated } from "@/functions/notificationTriggers";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
 
+const PAYMENT_METHODS = [
+  { value: 'cash',        label: 'מזומן',          icon: '💵' },
+  { value: 'bank',        label: 'העברה בנקאית',   icon: '🏦' },
+  { value: 'transfer',    label: 'העברה',           icon: '🏦' },
+  { value: 'credit',      label: 'כרטיס אשראי',    icon: '💳' },
+  { value: 'standing_order', label: 'הוראת קבע',   icon: '🔄' },
+  { value: 'bit',         label: 'ביט',             icon: '📱' },
+  { value: 'paybox',      label: 'פייבוקס',         icon: '📲' },
+  { value: 'apple_pay',   label: 'Apple Pay',       icon: '🍎' },
+  { value: 'google_pay',  label: 'Google Pay',      icon: '🔵' },
+  { value: 'paypal',      label: 'PayPal',          icon: '🅿️' },
+  { value: 'other',       label: 'אחר',             icon: '💬' },
+];
+
+const getPaymentLabel = (val) => {
+  const pm = PAYMENT_METHODS.find(p => p.value === val);
+  return pm ? `${pm.icon} ${pm.label}` : val || '';
+};
+
 const MOTIVATION = [
   'כל חזרה היא הצעד הבא לשליטה',
   'הגוף שלך הוא הכלי, התנועה היא השפה',
@@ -311,6 +330,7 @@ export default function TraineeProfile() {
     next_billing_date: "",
     total_sessions: "",
     payment_status: "שולם",
+    payment_note: "",
     notes_internal: "",
     status: "active"
   });
@@ -646,7 +666,7 @@ export default function TraineeProfile() {
         discount_type: "none", discount_value: 0, final_price: "",
         payment_method: "credit", start_date: new Date().toISOString().split('T')[0],
         end_date: "", next_billing_date: "", total_sessions: "",
-        payment_status: "ממתין לתשלום", notes_internal: "", status: "active"
+        payment_status: "ממתין לתשלום", payment_note: "", notes_internal: "", status: "active"
       });
       toast.success("✅ חבילה נוספה בהצלחה");
     },
@@ -673,7 +693,7 @@ export default function TraineeProfile() {
         discount_type: "none", discount_value: 0, final_price: "",
         payment_method: "credit", start_date: new Date().toISOString().split('T')[0],
         end_date: "", next_billing_date: "", total_sessions: "",
-        payment_status: "ממתין לתשלום", notes_internal: "", status: "active"
+        payment_status: "ממתין לתשלום", payment_note: "", notes_internal: "", status: "active"
       });
       toast.success("✅ חבילה עודכנה");
     },
@@ -1036,6 +1056,7 @@ export default function TraineeProfile() {
         // Keep 'price' for backward compatibility or dashboard logic that uses it
         price: serviceForm.final_price ? parseFloat(serviceForm.final_price) : 0, 
         payment_method: serviceForm.payment_method,
+        payment_note: serviceForm.payment_note || null,
         start_date: new Date(serviceForm.start_date).toISOString(),
         end_date: serviceForm.end_date ? new Date(serviceForm.end_date).toISOString() : null,
         next_billing_date: serviceForm.next_billing_date ? new Date(serviceForm.next_billing_date).toISOString() : null,
@@ -1084,6 +1105,7 @@ export default function TraineeProfile() {
       discount_value: service.discount_value || 0,
       final_price: service.final_price || service.price || "",
       payment_method: service.payment_method || "credit",
+      payment_note: service.payment_note || "",
       start_date: service.start_date ? service.start_date.split('T')[0] : "",
       end_date: service.end_date ? service.end_date.split('T')[0] : "",
       next_billing_date: service.next_billing_date ? service.next_billing_date.split('T')[0] : "",
@@ -1876,6 +1898,12 @@ export default function TraineeProfile() {
                               <span>{service.start_date ? format(new Date(service.start_date), 'dd/MM/yy') : '—'}</span>
                               {endDate && <><span className="text-gray-300">→</span><span>{format(new Date(endDate), 'dd/MM/yy')}</span></>}
                             </div>
+                            {service.payment_method && (
+                              <div className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
+                                <span>{getPaymentLabel(service.payment_method)}</span>
+                                {service.payment_note && <span>— {service.payment_note}</span>}
+                              </div>
+                            )}
                           </div>
                           <div className="text-left flex-shrink-0 mr-3">
                             <div className="text-xl font-black" style={{ color: typeColor }}>₪{priceDisplay}</div>
@@ -2475,11 +2503,27 @@ export default function TraineeProfile() {
               </div>
               <div><Label className="text-xs mb-1 block">תאריך התחלה</Label><Input type="date" value={serviceForm.start_date} onChange={e => setServiceForm({ ...serviceForm, start_date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
               {serviceForm.billing_model === 'subscription' && <div><Label className="text-xs mb-1 block">תאריך חיוב הבא</Label><Input type="date" value={serviceForm.next_billing_date} onChange={e => setServiceForm({ ...serviceForm, next_billing_date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>}
-              <div><Label className="text-xs mb-1 block">אמצעי תשלום</Label>
-                <Select value={serviceForm.payment_method} onValueChange={v => setServiceForm({ ...serviceForm, payment_method: v })}>
-                  <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="credit">💳 אשראי</SelectItem><SelectItem value="standing_order">🔄 הוראת קבע</SelectItem><SelectItem value="bit">📱 ביט</SelectItem><SelectItem value="cash">💵 מזומן</SelectItem><SelectItem value="transfer">🏦 העברה</SelectItem></SelectContent>
-                </Select>
+              <div>
+                <Label className="text-xs mb-2 block">אמצעי תשלום</Label>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'6px' }}>
+                  {PAYMENT_METHODS.filter(pm => pm.value !== 'transfer').map(pm => (
+                    <button key={pm.value} type="button"
+                      onClick={() => setServiceForm({ ...serviceForm, payment_method: pm.value })}
+                      style={{
+                        padding:'8px 4px', borderRadius:'10px', cursor:'pointer',
+                        border: serviceForm.payment_method === pm.value ? '2px solid #FF6F20' : '1.5px solid #eee',
+                        background: serviceForm.payment_method === pm.value ? '#FFF0E8' : 'white',
+                        display:'flex', flexDirection:'column', alignItems:'center', gap:'3px',
+                      }}>
+                      <span style={{ fontSize:'18px' }}>{pm.icon}</span>
+                      <span style={{ fontSize:'10px', fontWeight: serviceForm.payment_method === pm.value ? '700' : '500', color: serviceForm.payment_method === pm.value ? '#FF6F20' : '#555' }}>{pm.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">הערת תשלום <span className="text-gray-400 font-normal">(אופציונלי)</span></Label>
+                <Input value={serviceForm.payment_note} onChange={e => setServiceForm({ ...serviceForm, payment_note: e.target.value })} placeholder="למשל: שולם חצי, שאר בסוף החודש..." className="rounded-xl" style={{ fontSize: 15 }} />
               </div>
               <div><Label className="text-xs mb-1 block">סטטוס</Label>
                 <Select value={serviceForm.status} onValueChange={v => setServiceForm({ ...serviceForm, status: v })}>
