@@ -410,33 +410,42 @@ export default function Layout({ children, currentPageName }) {
           </header>
 
           {mobileMenuOpen && (
-            <div className="md:hidden p-4 space-y-2 max-h-[60vh] overflow-y-auto safe-area-inset flex-shrink-0 z-[99]" style={{
-              backgroundColor: '#FFFFFF',
-              borderBottom: `1px solid #E0E0E0`,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-            }}>
-              {(() => {
-                const sectionLabels = { daily: "ניהול יומיומי", content: "תוכן ואימון", business: "עסקי", settings: "הגדרות", coach: null, trainee: null };
-                let lastSection = null;
-                return navigationItems.map((item) => {
-                  const isActive = location.pathname === item.url;
-                  const showHeader = item.section !== lastSection && sectionLabels[item.section];
-                  lastSection = item.section;
-                  return (
-                    <div key={item.title}>
-                      {showHeader && <div className="px-2 pt-2 pb-0.5"><span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{sectionLabels[item.section]}</span></div>}
-                      <Link to={item.url} onClick={() => setMobileMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative"
-                        style={{ backgroundColor: isActive ? primaryColorLight : '#FFFFFF', color: isActive ? primaryColor : '#000000', border: isActive ? `2px solid ${primaryColor}` : `1px solid #E0E0E0` }}>
-                        <item.icon className="w-5 h-5" />
-                        <span className="font-medium">{item.title}</span>
-                        {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
-                      </Link>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
+            <>
+              {/* Backdrop — close menu on tap outside */}
+              <div
+                className="md:hidden"
+                onClick={() => setMobileMenuOpen(false)}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 98 }}
+              />
+              <div className="md:hidden p-4 space-y-2 max-h-[60vh] overflow-y-auto safe-area-inset flex-shrink-0 z-[99]" style={{
+                position: 'relative',
+                backgroundColor: '#FFFFFF',
+                borderBottom: `1px solid #E0E0E0`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}>
+                {(() => {
+                  const sectionLabels = { daily: "ניהול יומיומי", content: "תוכן ואימון", business: "עסקי", settings: "הגדרות", coach: null, trainee: null };
+                  let lastSection = null;
+                  return navigationItems.map((item) => {
+                    const isActive = location.pathname === item.url;
+                    const showHeader = item.section !== lastSection && sectionLabels[item.section];
+                    lastSection = item.section;
+                    return (
+                      <div key={item.title}>
+                        {showHeader && <div className="px-2 pt-2 pb-0.5"><span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{sectionLabels[item.section]}</span></div>}
+                        <Link to={item.url} onClick={() => setMobileMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative"
+                          style={{ backgroundColor: isActive ? primaryColorLight : '#FFFFFF', color: isActive ? primaryColor : '#000000', border: isActive ? `2px solid ${primaryColor}` : `1px solid #E0E0E0` }}>
+                          <item.icon className="w-5 h-5" />
+                          <span className="font-medium">{item.title}</span>
+                          {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
+                        </Link>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </>
           )}
 
           <div className="flex-1 page-container" style={{
