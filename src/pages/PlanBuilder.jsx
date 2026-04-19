@@ -257,14 +257,16 @@ export default function PlanBuilder() {
 
   const finishPlan = async () => {
     for (const tid of selectedTrainees) {
-      await supabase.from("notifications").insert({
-        user_id: tid,
-        type: "plan_created",
-        title: "תוכנית אימון חדשה 🎯",
-        message: `המאמן ${user.full_name} הקצה לך תוכנית: ${planName}`,
-        created_at: new Date().toISOString(),
-        is_read: false,
-      }).catch(() => {});
+      try {
+        await supabase.from("notifications").insert({
+          user_id: tid,
+          type: "plan_created",
+          title: "תוכנית אימון חדשה 🎯",
+          message: `המאמן ${user.full_name} הקצה לך תוכנית: ${planName}`,
+          created_at: new Date().toISOString(),
+          is_read: false,
+        });
+      } catch (e) { console.warn("Notification insert failed:", e); }
     }
     window.dispatchEvent(new CustomEvent('data-changed'));
     setStep(3);
