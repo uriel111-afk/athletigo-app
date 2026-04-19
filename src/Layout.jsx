@@ -52,7 +52,7 @@ export default function Layout({ children, currentPageName }) {
   const clock = useClock();
   const { liveTimer, setLiveTimer } = useActiveTimer();
   const isClocks = location.pathname.toLowerCase().includes('clock');
-  const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview');
+  const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');
 
   // Sync floating widget for timer/stopwatch every tick (Layout never unmounts)
   useEffect(() => {
@@ -151,12 +151,12 @@ export default function Layout({ children, currentPageName }) {
     // ── ניהול יומיומי ──
     { title: "דשבורד", url: createPageUrl("Dashboard"), icon: LayoutDashboard, section: "daily" },
     { title: "מתאמנים", url: createPageUrl("AllUsers"), icon: Users, section: "daily" },
-    { title: "תוכניות פעילות", url: createPageUrl("ActivePlans"), icon: Dumbbell, section: "daily" },
+    { title: "תוכניות פעילות", url: createPageUrl("PlanBuilder"), icon: Dumbbell, section: "daily" },
     { title: "מפגשים", url: createPageUrl("Sessions"), icon: Calendar, section: "daily" },
     { title: "לידים", url: createPageUrl("Leads"), icon: UserPlus, section: "daily" },
     { title: "התראות", url: createPageUrl("Notifications"), icon: Bell, section: "daily", showBadge: true },
     // ── ניהול תוכן ──
-    { title: "כל התוכניות", url: createPageUrl("TrainingPlans"), icon: ClipboardList, section: "content" },
+    { title: "כל התוכניות", url: createPageUrl("PlanBuilder"), icon: ClipboardList, section: "content" },
     { title: "תבניות סקשנים", url: createPageUrl("SectionTemplates"), icon: FileText, section: "content" },
     { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
     // ── ניהול עסקי ──
@@ -504,11 +504,11 @@ export default function Layout({ children, currentPageName }) {
                   </Link>
 
                   <Link
-                    to={createPageUrl("ActivePlans")}
+                    to={createPageUrl("PlanBuilder")}
                     className="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
                     style={{
-                      backgroundColor: location.pathname === createPageUrl("ActivePlans") ? primaryColorLight : 'transparent',
-                      color: location.pathname === createPageUrl("ActivePlans") ? primaryColor : '#7D7D7D'
+                      backgroundColor: location.pathname === createPageUrl("PlanBuilder") ? primaryColorLight : 'transparent',
+                      color: location.pathname === createPageUrl("PlanBuilder") ? primaryColor : '#7D7D7D'
                     }}
                   >
                     <ClipboardList className="w-6 h-6" />

@@ -239,9 +239,9 @@ export default function Dashboard() {
         }
       }
       if (results?.length === 1 && results[0]?.id) {
-        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
+        navigate(createPageUrl("PlanBuilder") + `?planId=${results[0].id}`);
       } else {
-        navigate(createPageUrl("ActivePlans"));
+        navigate(createPageUrl("PlanBuilder"));
       }
     },
     onError: (e) => {
@@ -297,7 +297,7 @@ export default function Dashboard() {
               { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#4CAF50", to: createPageUrl("AllUsers") + "?filter=active" },
               { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#9C27B0", to: createPageUrl("Sessions") + "?status=upcoming" },
               { label: "לידים חדשים",    value: newLeadsCount,         color: "#FFC107", to: createPageUrl("Leads") + "?filter=new" },
-              { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", to: createPageUrl("ActivePlans") },
+              { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", to: createPageUrl("PlanBuilder") },
             ].map((m) => (
               <button key={m.label} onClick={() => navigate(m.to)}
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.97]">
