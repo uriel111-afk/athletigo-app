@@ -112,7 +112,7 @@ export default function TrainingPlans() {
       try {
         const user = await base44.auth.me();
         // Redirect trainee to MyPlan
-        if (user && !user.isCoach && user.role !== 'admin') {
+        if (user && !user.is_coach && user.role !== 'coach' && user.role !== 'admin') {
             window.location.href = createPageUrl("MyPlan");
             return null;
         }
@@ -130,7 +130,7 @@ export default function TrainingPlans() {
       try { 
         // Fetch all potential trainees (users and trainees roles)
         const users = await base44.entities.User.list('-created_at', 1000);
-        return users.filter(u => (u.role === 'user' || u.role === 'trainee') && !u.isCoach && u.role !== 'admin');
+        return users.filter(u => (u.role === 'user' || u.role === 'trainee') && !u.is_coach && u.role !== 'admin');
       } catch { 
         return []; 
       } 
