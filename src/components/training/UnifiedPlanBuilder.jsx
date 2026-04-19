@@ -950,24 +950,25 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </DialogContent>
       </Dialog>
       
-      {/* Finish Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black p-4 z-50">
-        <Button 
-          className="w-full h-12 font-bold text-lg"
-          style={{ backgroundColor: 'black', color: '#FF6F20', border: '2px solid #FF6F20' }}
-          onClick={() => {
-            // Handle finish workout logic
-            const completedExercises = exercises.filter(e => e.completed);
-            if (completedExercises.length > 0) {
-              showWorkoutSummary(exercises);
-            } else {
-              toast.error("יש להשלים לפחות תרגיל אחד לפני סיום האימון");
-            }
-          }}
-        >
-          סיים אימון
-        </Button>
-      </div>
+      {/* Finish Button — only for trainees doing workout, not coaches editing */}
+      {!canEdit && (
+        <div className="fixed bottom-0 left-0 right-0 bg-black p-4 z-50" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}>
+          <Button
+            className="w-full h-12 font-bold text-lg"
+            style={{ backgroundColor: 'black', color: '#FF6F20', border: '2px solid #FF6F20' }}
+            onClick={() => {
+              const completedExercises = exercises.filter(e => e.completed);
+              if (completedExercises.length > 0) {
+                showWorkoutSummary(exercises);
+              } else {
+                toast.error("יש להשלים לפחות תרגיל אחד לפני סיום האימון");
+              }
+            }}
+          >
+            סיים אימון
+          </Button>
+        </div>
+      )}
     </div>);
 
 }
