@@ -2,15 +2,25 @@ import { useState, useEffect, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
-const SECTION_TYPES = [
-  { id: "warmup",      label: "חימום",      icon: "🔥", color: "#FF6F20" },
-  { id: "strength",    label: "כוח",         icon: "💪", color: "#1a1a1a" },
-  { id: "cardio",      label: "קרדיו",       icon: "🏃", color: "#2563eb" },
-  { id: "flexibility", label: "גמישות",      icon: "🧘", color: "#16a34a" },
-  { id: "cooldown",    label: "מותאם",       icon: "✨", color: "#9333ea" },
-  { id: "skills",      label: "סקילס",       icon: "⚡", color: "#d97706" },
+const DEFAULT_SECTIONS = [
+  { id: "warmup",      label: "חימום",    icon: "🔥", color: "#FF6F20" },
+  { id: "stretching",  label: "מתיחות",   icon: "🧎", color: "#c084fc" },
+  { id: "strength",    label: "כוח",      icon: "💪", color: "#1a1a1a" },
+  { id: "flexibility", label: "גמישות",   icon: "🧘", color: "#16a34a" },
 ];
+
+const EXTRA_SECTIONS = [
+  { id: "skills",  label: "מיומנויות", icon: "🎯", color: "#d97706" },
+  { id: "agility", label: "סקילס",     icon: "⚡", color: "#f59e0b" },
+  { id: "cardio",  label: "קרדיו",     icon: "🏃", color: "#2563eb" },
+  { id: "cooldown",label: "מותאם",     icon: "✨", color: "#9333ea" },
+];
+
+const SECTION_TYPES = [...DEFAULT_SECTIONS, ...EXTRA_SECTIONS];
 
 const PARAM_TYPES = [
   "סטים","חזרות","זמן עבודה","זמן מנוחה","משקל (ק״ג)","RPE (קושי)","טמפו","מנ׳ בין סטים","מנ׳ בין תרגילים","מנח גוף","ציוד נדרש","החזקה סטטית","דגשים","צד","טווח תנועה","אחיזה","וידאו"
@@ -112,6 +122,21 @@ export default function PlanBuilder() {
     }
 
     setSaving(false);
+
+    // Auto-create 4 default sections on fresh plan
+    if (!editPlanId && sections.length === 0 && pid) {
+      const defaults = await Promise.all(DEFAULT_SECTIONS.map(async (t, idx) => {
+        const { data } = await supabase.from("training_sections").insert({
+          training_plan_id: pid,
+          section_name: t.label,
+          category: t.id,
+          icon: t.icon,
+          "order": idx,
+        }).select().single();
+        return { ...data, exercises: [] };
+      }));
+      setSections(defaults);
+    }
     setStep(2);
   };
 
@@ -135,6 +160,19 @@ export default function PlanBuilder() {
     await supabase.from("exercises").delete().eq("training_section_id", sec.id);
     await supabase.from("training_sections").delete().eq("id", sec.id);
     setSections(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = sections.findIndex(s => s.id === active.id);
+    const newIdx = sections.findIndex(s => s.id === over.id);
+    const newOrder = arrayMove(sections, oldIdx, newIdx);
+    setSections(newOrder);
+    Promise.all(newOrder.map((sec, idx) =>
+      supabase.from("training_sections").update({ "order": idx }).eq("id", sec.id)
+    ));
   };
 
   const addExercise = async (sectionIndex, exerciseData) => {
@@ -342,13 +380,17 @@ export default function PlanBuilder() {
               + הוסף סקשן חדש
             </button>
 
-            {sections.map((sec, si) => (
-              <SectionBlock key={sec.id || si} section={sec} sectionIndex={si}
-                onDelete={() => deleteSection(si)}
-                onAddExercise={() => setEditingExercise({ sectionIndex: si, isNew: true, name: "", params: {} })}
-                onEditExercise={(ei) => setEditingExercise({ sectionIndex: si, exerciseIndex: ei, name: sec.exercises[ei]?.exercise_name || sec.exercises[ei]?.name || "", params: exerciseToParams(sec.exercises[ei]) })}
-                onDeleteExercise={(ei) => deleteExercise(si, ei)} />
-            ))}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                {sections.map((sec, si) => (
+                  <SortableSectionBlock key={sec.id} section={sec} sectionIndex={si}
+                    onDelete={() => deleteSection(si)}
+                    onAddExercise={() => setEditingExercise({ sectionIndex: si, isNew: true, name: "", params: {} })}
+                    onEditExercise={(ei) => setEditingExercise({ sectionIndex: si, exerciseIndex: ei, name: sec.exercises[ei]?.exercise_name || sec.exercises[ei]?.name || "", params: exerciseToParams(sec.exercises[ei]) })}
+                    onDeleteExercise={(ei) => deleteExercise(si, ei)} />
+                ))}
+              </SortableContext>
+            </DndContext>
 
             {sections.length === 0 && (
               <div style={{ textAlign: "center", padding: "32px 20px", background: "white", borderRadius: 14, border: "1px dashed #ddd" }}>
@@ -392,7 +434,7 @@ export default function PlanBuilder() {
             <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 4, textAlign: "center" }}>+ סקשן חדש</div>
             <div style={{ fontSize: 13, color: "#999", textAlign: "center", marginBottom: 16 }}>בחר סוג סקשן</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-              {SECTION_TYPES.map(t => (
+              {EXTRA_SECTIONS.map(t => (
                 <button key={t.id} onClick={() => addSection(t.id)} style={{ padding: "16px 8px", borderRadius: 12, border: "1.5px solid #eee", background: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 28 }}>{t.icon}</span>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>{t.label}</span>
@@ -414,11 +456,23 @@ export default function PlanBuilder() {
   );
 }
 
-function SectionBlock({ section, onDelete, onAddExercise, onEditExercise, onDeleteExercise }) {
+function SortableSectionBlock(props) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.section.id });
   return (
-    <div style={{ background: "white", borderRadius: 14, border: "1px solid #eee", marginBottom: 12, overflow: "hidden" }}>
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 999 : 'auto' }}>
+      <SectionBlock {...props} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  );
+}
+
+function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditExercise, onDeleteExercise, dragHandleProps }) {
+  const sectionColor = section.color || SECTION_TYPES.find(t => t.id === section.category)?.color || "#FF6F20";
+  return (
+    <div style={{ background: "white", borderRadius: 14, border: "1px solid #eee", borderRight: `3px solid ${sectionColor}`, marginBottom: 12, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: section.exercises?.length > 0 ? "1px solid #f5f5f5" : "none", background: "#fafafa" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+          <div {...(dragHandleProps || {})} style={{ cursor: "grab", color: "#bbb", fontSize: 16, padding: "4px 2px", touchAction: "none" }}>⋮⋮</div>
+          <div style={{ width: 24, height: 24, borderRadius: 6, background: sectionColor, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{(sectionIndex ?? 0) + 1}</div>
           <span style={{ fontSize: 22 }}>{section.icon || "📋"}</span>
           <div>
             <div style={{ fontSize: 15, fontWeight: 900 }}>{section.section_name || section.title}</div>
@@ -427,7 +481,7 @@ function SectionBlock({ section, onDelete, onAddExercise, onEditExercise, onDele
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button onClick={onAddExercise} style={{ background: "#FFF0E8", color: "#FF6F20", border: "1px solid #FFD0A0", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ תרגיל</button>
-          <button onClick={onDelete} style={{ background: "none", border: "none", color: "#ddd", fontSize: 18, cursor: "pointer" }}>🗑</button>
+          <button onClick={onDelete} style={{ background: "#fee2e2", border: "none", color: "#ef4444", fontSize: 13, width: 28, height: 28, borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
         </div>
       </div>
       {section.exercises?.map((ex, ei) => (
