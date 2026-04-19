@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList, Clock as ClockIcon } from "lucide-react";
+import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList, Clock as ClockIcon, Flame, Trophy, Star } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import TraineeSessionBooking from "../components/TraineeSessionBooking";
@@ -23,6 +23,8 @@ export default function TraineeHome() {
   const [unreadNotifs, setUnreadNotifs] = useState([]);
   const [showUnreadModal, setShowUnreadModal] = useState(false);
   const [acknowledgingId, setAcknowledgingId] = useState(null);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [firstSessionDate, setFirstSessionDate] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -47,6 +49,20 @@ export default function TraineeHome() {
               setShowUnreadModal(true);
             }
           } catch (e) { console.error("Error fetching notifications", e); }
+
+          // Fetch completed sessions count for streak card
+          try {
+            const allUserSessions = await base44.entities.Session.filter({}, '-date', 500);
+            const mineCompleted = allUserSessions.filter(s =>
+              s.participants?.some(p => p.trainee_id === currentUser.id) &&
+              (s.status === 'הושלם' || s.status === 'התקיים' || s.status === 'הגיע')
+            );
+            setCompletedCount(mineCompleted.length);
+            if (mineCompleted.length > 0) {
+              const dates = mineCompleted.map(s => new Date(s.date)).sort((a, b) => a - b);
+              setFirstSessionDate(dates[0]);
+            }
+          } catch (e) { console.error("Error fetching completed sessions", e); }
 
           // Fetch sessions
           try {
@@ -218,6 +234,51 @@ export default function TraineeHome() {
     } catch {}
   };
 
+  const getDailyMessage = () => {
+    const DAILY_MESSAGES = [
+      "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
+      "כל אימון הוא הוכחה שאפשר — וכבר עושים את זה",
+      "הדרך כבר התחילה — וכל צעד עליה סופר",
+      "הגוף משיג בדיוק מה שהמוח מאמין בו",
+      "כל יום שמתאמנים בונה גרסה חזקה יותר",
+      "ההשקעה הכי משתלמת שיש — ומרגישים אותה כל יום",
+      "כשמגיעים כשקשה — זה האימון שמשנה הכי הרבה",
+      "תוצאות נבנות אימון אחד בכל פעם — בדיוק כמו שעושים כאן",
+      "הכוח כבר בפנים — האימון רק מוציא אותו החוצה",
+      "כל צעד קטן הוא התקדמות אמיתית שנשארת",
+      "הגוף מתחזק, הראש מתחזק — הכל גדל יחד",
+      "מתאמנים כדי להרגיש טוב — וזה מורגש",
+      "כל אימון פותח אפשרויות שלא ידעת שיש לך",
+      "המסע הזה שייך לך — וכבר בדרך",
+      "היום הוא הזדמנות — ואתה כבר כאן",
+    ];
+    const today = new Date();
+    const seed = today.getFullYear() * 10000 +
+                 (today.getMonth() + 1) * 100 +
+                 today.getDate();
+    const hash = (seed * 2654435761) >>> 0;
+    const index = hash % DAILY_MESSAGES.length;
+    return DAILY_MESSAGES[index];
+  };
+
+  const weeksActive = useMemo(() => {
+    if (!firstSessionDate) return 0;
+    return Math.max(1, Math.ceil((Date.now() - firstSessionDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
+  }, [firstSessionDate]);
+
+  // Package balance: find lowest-remaining active package
+  const packageReminder = useMemo(() => {
+    if (!activeServices.length) return null;
+    const withBalance = activeServices
+      .filter(s => s.total_sessions && s.total_sessions > 0)
+      .map(s => ({ ...s, remaining: (s.total_sessions || 0) - (s.used_sessions || 0) }))
+      .sort((a, b) => a.remaining - b.remaining);
+    if (!withBalance.length) return null;
+    const lowest = withBalance[0];
+    if (lowest.remaining > 3) return null; // only show when ≤3 left
+    return lowest;
+  }, [activeServices]);
+
   return (
     <ErrorBoundary>
       {/* Unread notifications modal */}
@@ -268,7 +329,7 @@ export default function TraineeHome() {
           </div>
           <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'12px', padding:'12px 14px', borderRight:'3px solid rgba(255,255,255,0.5)' }}>
             <div style={{fontSize:'13px',color:'white',fontWeight:'600',lineHeight:1.5,fontStyle:'italic'}}>
-              "{['כל אימון הוא השקעה בעצמך','הגוף משיג מה שהמוח מאמין','אתמול קשה, היום חזק, מחר מנצח','אל תעצור כשזה כואב, עצור כשסיימת','ההתקדמות מתחילה מחוץ לאזור הנוחות','כל צעד קטן מקרב אותך למטרה','הגבול היחיד הוא זה שאתה מציב לעצמך','כוח לא בא מניצחון — בא ממאמץ','גוף חזק מתחיל בדעת חזקה','אתה חזק ממה שאתה חושב','קום, תתאמן, תמשיך','התמדה מנצחת כישרון','עשה את זה היום — הגוף שלך יודה לך מחר','רק קדימה','תאמין בתהליך','כל שינוי מתחיל בהחלטה אחת','הזמן הכי טוב לאימון — עכשיו','חזק ממה שהיית אתמול','הכאב זמני, הגאווה לנצח','רק אתה מול עצמך'][Math.floor((Date.now() - new Date(new Date().getFullYear(),0,0)) / 86400000) % 20]}"
+              "{getDailyMessage()}"
             </div>
           </div>
         </div>
@@ -301,6 +362,45 @@ export default function TraineeHome() {
         </div>
 
         <div style={{padding:'0 14px'}}>
+
+        {/* Streak / Progress Card */}
+        {completedCount > 0 && (
+          <div style={{ background:'linear-gradient(135deg, #FF6F20, #FF9A56)', borderRadius:'16px', padding:'16px 18px', marginBottom:'12px', color:'white', boxShadow:'0 4px 14px rgba(255,111,32,0.25)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+              <Flame className="w-5 h-5" />
+              <span style={{ fontSize:'15px', fontWeight:'800' }}>ההתקדמות שלך</span>
+            </div>
+            <div style={{ display:'flex', gap:'12px' }}>
+              <div style={{ flex:1, background:'rgba(255,255,255,0.2)', borderRadius:'12px', padding:'12px', textAlign:'center' }}>
+                <div style={{ fontSize:'28px', fontWeight:'900', lineHeight:1 }}>{completedCount}</div>
+                <div style={{ fontSize:'11px', fontWeight:'600', marginTop:'4px', opacity:0.9 }}>אימונים הושלמו</div>
+              </div>
+              <div style={{ flex:1, background:'rgba(255,255,255,0.2)', borderRadius:'12px', padding:'12px', textAlign:'center' }}>
+                <div style={{ fontSize:'28px', fontWeight:'900', lineHeight:1 }}>{weeksActive}</div>
+                <div style={{ fontSize:'11px', fontWeight:'600', marginTop:'4px', opacity:0.9 }}>שבועות פעילים</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Package Balance Reminder */}
+        {packageReminder && (
+          <div style={{ background: packageReminder.remaining <= 1 ? '#FEF2F2' : '#FFFBEB', border: `1px solid ${packageReminder.remaining <= 1 ? '#FECACA' : '#FDE68A'}`, borderRadius:'14px', padding:'14px 16px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <Package className="w-5 h-5" style={{ color: packageReminder.remaining <= 1 ? '#EF4444' : '#F59E0B' }} />
+              <div>
+                <div style={{ fontSize:'13px', fontWeight:'800', color:'#333' }}>
+                  {packageReminder.remaining <= 0 ? 'החבילה נגמרה!' : `נותרו ${packageReminder.remaining} אימונים`}
+                </div>
+                <div style={{ fontSize:'11px', color:'#888', marginTop:'2px' }}>{packageReminder.service_name || 'חבילה פעילה'}</div>
+              </div>
+            </div>
+            <button onClick={() => setShowBookingDialog(true)}
+              style={{ background:'#FF6F20', color:'white', border:'none', borderRadius:'10px', padding:'8px 14px', fontSize:'12px', fontWeight:'800', cursor:'pointer', whiteSpace:'nowrap' }}>
+              קבע עכשיו
+            </button>
+          </div>
+        )}
 
         {/* Upcoming Sessions — only shown when there are future approved/pending sessions */}
         {(() => {
