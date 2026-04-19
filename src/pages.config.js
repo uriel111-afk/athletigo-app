@@ -70,6 +70,7 @@ import Sessions from './pages/Sessions';
 import TraineeHome from './pages/TraineeHome';
 import TraineeSessions from './pages/TraineeSessions';
 import TraineeProfile from './pages/TraineeProfile';
+import PlanBuilder from './pages/PlanBuilder';
 import TrainingPlans from './pages/TrainingPlans';
 import TrainingPlanView from './pages/TrainingPlanView';
 import Clocks from './pages/Clocks';
@@ -100,6 +101,7 @@ export const PAGES = {
     "TraineeHome": TraineeHome,
     "TraineeSessions": TraineeSessions,
     "TraineeProfile": TraineeProfile,
+    "PlanBuilder": PlanBuilder,
     "TrainingPlans": TrainingPlans,
     "TrainingPlanView": TrainingPlanView,
     "Clocks": Clocks,
