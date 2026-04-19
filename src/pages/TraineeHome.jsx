@@ -10,6 +10,34 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+const DAILY_MESSAGES = [
+  "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
+  "כל אימון הוא הוכחה שאפשר — וכבר עושים את זה",
+  "הדרך כבר התחילה — וכל צעד עליה סופר",
+  "הגוף משיג בדיוק מה שהמוח מאמין בו",
+  "כל יום שמתאמנים בונה גרסה חזקה יותר",
+  "ההשקעה הכי משתלמת שיש — ומרגישים אותה כל יום",
+  "כשמגיעים כשקשה — זה האימון שמשנה הכי הרבה",
+  "תוצאות נבנות אימון אחד בכל פעם — בדיוק כמו שעושים כאן",
+  "הכוח כבר בפנים — האימון רק מוציא אותו החוצה",
+  "כל צעד קטן הוא התקדמות אמיתית שנשארת",
+  "הגוף מתחזק, הראש מתחזק — הכל גדל יחד",
+  "מתאמנים כדי להרגיש טוב — וזה מורגש",
+  "כל אימון פותח אפשרויות שלא ידעת שיש לך",
+  "המסע הזה שייך לך — וכבר בדרך",
+  "היום הוא הזדמנות — ואתה כבר כאן",
+];
+
+const getDailyMessage = () => {
+  const today = new Date();
+  const seed = today.getFullYear() * 10000 +
+               (today.getMonth() + 1) * 100 +
+               today.getDate();
+  const hash = (seed * 2654435761) >>> 0;
+  const index = hash % DAILY_MESSAGES.length;
+  return DAILY_MESSAGES[index];
+};
+
 export default function TraineeHome() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -92,6 +120,23 @@ export default function TraineeHome() {
     };
     loadData();
   }, []);
+
+  const weeksActive = useMemo(() => {
+    if (!firstSessionDate) return 0;
+    return Math.max(1, Math.ceil((Date.now() - firstSessionDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
+  }, [firstSessionDate]);
+
+  const packageReminder = useMemo(() => {
+    if (!activeServices.length) return null;
+    const withBalance = activeServices
+      .filter(s => s.total_sessions && s.total_sessions > 0)
+      .map(s => ({ ...s, remaining: (s.total_sessions || 0) - (s.used_sessions || 0) }))
+      .sort((a, b) => a.remaining - b.remaining);
+    if (!withBalance.length) return null;
+    const lowest = withBalance[0];
+    if (lowest.remaining > 3) return null;
+    return lowest;
+  }, [activeServices]);
 
   const handleCancelSession = async (session) => {
     const sessionStart = new Date(`${session.date}T${session.time}`);
@@ -233,51 +278,6 @@ export default function TraineeHome() {
       setUnreadNotifs(prev => prev.filter(n => n.id !== notifId));
     } catch {}
   };
-
-  const getDailyMessage = () => {
-    const DAILY_MESSAGES = [
-      "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
-      "כל אימון הוא הוכחה שאפשר — וכבר עושים את זה",
-      "הדרך כבר התחילה — וכל צעד עליה סופר",
-      "הגוף משיג בדיוק מה שהמוח מאמין בו",
-      "כל יום שמתאמנים בונה גרסה חזקה יותר",
-      "ההשקעה הכי משתלמת שיש — ומרגישים אותה כל יום",
-      "כשמגיעים כשקשה — זה האימון שמשנה הכי הרבה",
-      "תוצאות נבנות אימון אחד בכל פעם — בדיוק כמו שעושים כאן",
-      "הכוח כבר בפנים — האימון רק מוציא אותו החוצה",
-      "כל צעד קטן הוא התקדמות אמיתית שנשארת",
-      "הגוף מתחזק, הראש מתחזק — הכל גדל יחד",
-      "מתאמנים כדי להרגיש טוב — וזה מורגש",
-      "כל אימון פותח אפשרויות שלא ידעת שיש לך",
-      "המסע הזה שייך לך — וכבר בדרך",
-      "היום הוא הזדמנות — ואתה כבר כאן",
-    ];
-    const today = new Date();
-    const seed = today.getFullYear() * 10000 +
-                 (today.getMonth() + 1) * 100 +
-                 today.getDate();
-    const hash = (seed * 2654435761) >>> 0;
-    const index = hash % DAILY_MESSAGES.length;
-    return DAILY_MESSAGES[index];
-  };
-
-  const weeksActive = useMemo(() => {
-    if (!firstSessionDate) return 0;
-    return Math.max(1, Math.ceil((Date.now() - firstSessionDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
-  }, [firstSessionDate]);
-
-  // Package balance: find lowest-remaining active package
-  const packageReminder = useMemo(() => {
-    if (!activeServices.length) return null;
-    const withBalance = activeServices
-      .filter(s => s.total_sessions && s.total_sessions > 0)
-      .map(s => ({ ...s, remaining: (s.total_sessions || 0) - (s.used_sessions || 0) }))
-      .sort((a, b) => a.remaining - b.remaining);
-    if (!withBalance.length) return null;
-    const lowest = withBalance[0];
-    if (lowest.remaining > 3) return null; // only show when ≤3 left
-    return lowest;
-  }, [activeServices]);
 
   return (
     <ErrorBoundary>
