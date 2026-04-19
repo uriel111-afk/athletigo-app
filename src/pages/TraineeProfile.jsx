@@ -704,14 +704,13 @@ export default function TraineeProfile() {
 
   const updateSessionStatusMutation = useMutation({
     mutationFn: async ({ session, newStatus }) => {
-        // 1. Update Session
-        const updatedParticipants = session.participants.map(p => 
+        // 1. Update Session participants + status
+        const updatedParticipants = session.participants.map(p =>
             p.trainee_id === user.id ? { ...p, attendance_status: newStatus } : p
         );
-        
+
         let sessionUpdateData = { participants: updatedParticipants };
-        
-        // Update main session status if it's personal training
+
         if (session.session_type === 'אישי') {
              sessionUpdateData.status = (newStatus === 'הגיע') ? 'התקיים' :
                                        (newStatus === 'הושלם') ? 'הושלם' :
@@ -720,9 +719,32 @@ export default function TraineeProfile() {
                                        (newStatus === 'נעדר' || newStatus === 'לא הגיע') ? 'לא הגיע' : 'ממתין לאישור';
         }
 
+        // Check for status reversal — refund package if was deducted
+        const oldStatus = session.participants?.find(p => p.trainee_id === user.id)?.attendance_status || session.status || 'ממתין';
+        const wasDeducted = session.was_deducted === true;
+        const wasCompleteOrAttended = ['הגיע', 'הושלם', 'התקיים'].includes(oldStatus);
+        const isNowCompleteOrAttended = ['הגיע', 'הושלם'].includes(newStatus);
+
+        // Reversal: was attended/completed + was deducted → now something else → refund
+        if (wasCompleteOrAttended && wasDeducted && !isNowCompleteOrAttended && session.service_id) {
+          try {
+            const svc = services.find(s => s.id === session.service_id);
+            if (svc && svc.used_sessions > 0) {
+              const newUsed = Math.max(0, svc.used_sessions - 1);
+              await base44.entities.ClientService.update(svc.id, {
+                used_sessions: newUsed,
+                status: svc.status === 'completed' ? 'פעיל' : svc.status,
+              });
+              sessionUpdateData.was_deducted = false;
+              const total = svc.total_sessions || svc.sessions_count || 0;
+              toast.success(`יתרה הוחזרה: ${total - newUsed} מפגשים`);
+            }
+          } catch {}
+        }
+
         await base44.entities.Session.update(session.id, sessionUpdateData);
 
-        // 2a. Send notification to trainee about status change (coach only)
+        // 2. Send notification to trainee about status change (coach only)
         if (isCoach && user?.id) {
           try {
             const sessionDate = session.date ? new Date(session.date).toLocaleDateString('he-IL') : '';
@@ -736,14 +758,12 @@ export default function TraineeProfile() {
           } catch {}
         }
 
-        // 2. Update Package (Sync Logic) — matches session type to package type
+        // 3. Auto package sync for "הגיע" status (non-deduction-dialog path)
         {
-            const oldStatus = session.participants?.find(p => p.trainee_id === user.id)?.attendance_status || 'ממתין';
             const isNowAttended = newStatus === 'הגיע';
             const wasAttended = oldStatus === 'הגיע';
 
             if (isNowAttended !== wasAttended) {
-                // Map session type to package type for matching
                 const sessionTypeMap = {
                   'אישי': ['personal', 'אימונים אישיים', 'אישי'],
                   'קבוצתי': ['group', 'פעילות קבוצתית', 'קבוצתי'],
@@ -751,7 +771,6 @@ export default function TraineeProfile() {
                 };
                 const matchTypes = sessionTypeMap[session.session_type] || sessionTypeMap['אישי'];
 
-                // Find active packages matching the session type — pick earliest end_date first
                 const matchingPackages = services
                   .filter(s =>
                     (s.status === 'פעיל' || s.status === 'active') &&
@@ -773,14 +792,12 @@ export default function TraineeProfile() {
                     const remaining = total - newUsedCount;
 
                     const updatePayload = { used_sessions: newUsedCount };
-                    // Auto-set status to 'used' when depleted
                     if (remaining <= 0 && isNowAttended) {
                       updatePayload.status = 'completed';
                     }
 
                     await base44.entities.ClientService.update(activePackage.id, updatePayload);
 
-                    // Low balance alert — notify coach when 1 session remains
                     if (remaining === 1 && isNowAttended) {
                       try {
                         await base44.entities.Notification.create({
@@ -795,7 +812,6 @@ export default function TraineeProfile() {
                         });
                       } catch {}
                     }
-                    // Package depleted notification
                     if (remaining <= 0 && isNowAttended) {
                       try {
                         await base44.entities.Notification.create({
@@ -818,6 +834,7 @@ export default function TraineeProfile() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       invalidateDashboard(queryClient);
+      window.dispatchEvent(new CustomEvent('data-changed'));
       toast.success("✅ סטטוס עודכן וסונכרן");
     },
     onError: (error) => {
