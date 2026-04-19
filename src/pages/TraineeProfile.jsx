@@ -2273,12 +2273,19 @@ export default function TraineeProfile() {
                           {trainingPlans.filter(p => p.created_by !== user?.id).map(plan => {
                             const progress = getPlanProgress(plan);
                             return (
-                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer">
+                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer" dir="rtl">
                                 <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-bold text-base">{plan.plan_name}</h4>
-                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs">פתח</Button>}
+                                  <h4 className="font-bold text-base text-right">{plan.plan_name}</h4>
+                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs flex-shrink-0">פתח</Button>}
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
+                                    <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#FFF9F0', color:'#FF6F20', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
+                                      {({'strength':'כוח','flexibility':'גמישות','endurance':'סבולת','technique':'טכניקה','כוח':'כוח','גמישות':'גמישות','סבולת':'סבולת','טכניקה':'טכניקה','שיקום':'שיקום','כושר':'כושר','מיומנות':'מיומנות','שיא':'שיא'})[k] || k}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{progress.completed}/{progress.total} תרגילים</span><span>{progress.percent}%</span></div>
                                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${progress.percent}%` }} /></div>
                               </div>
                             );
@@ -2293,12 +2300,19 @@ export default function TraineeProfile() {
                           {trainingPlans.filter(p => p.created_by === user?.id).map(plan => {
                             const progress = getPlanProgress(plan);
                             return (
-                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer">
+                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer" dir="rtl">
                                 <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-bold text-base">{plan.plan_name}</h4>
-                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs">פתח</Button>}
+                                  <h4 className="font-bold text-base text-right">{plan.plan_name}</h4>
+                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs flex-shrink-0">פתח</Button>}
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</span><span>{progress.completed}/{progress.total} תרגילים</span></div>
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
+                                    <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#f5f5f5', color:'#666', border:'1px solid #ddd', fontSize:11, fontWeight:600 }}>
+                                      {({'strength':'כוח','flexibility':'גמישות','endurance':'סבולת','technique':'טכניקה','כוח':'כוח','גמישות':'גמישות','סבולת':'סבולת','טכניקה':'טכניקה','שיקום':'שיקום','כושר':'כושר','מיומנות':'מיומנות','שיא':'שיא'})[k] || k}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{progress.completed}/{progress.total} תרגילים</span><span>{progress.percent}%</span></div>
                                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-gray-500" style={{ width: `${progress.percent}%` }} /></div>
                               </div>
                             );

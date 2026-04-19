@@ -40,7 +40,13 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, onSelect, onDuplic
               <h3 className="text-xl font-black truncate text-black">{plan.plan_name}</h3>
               {plan.status === 'פעילה' && <span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#4CAF50] text-xs font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> פעילה</span>}
             </div>
-            <p className="text-sm text-[#7D7D7D] mb-1">🎯 {Array.isArray(plan.goal_focus) ? plan.goal_focus.join(', ') : plan.goal_focus}</p>
+            <div className="flex flex-wrap gap-1 mb-1">
+              {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
+                <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#FFF9F0', color:'#FF6F20', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
+                  {({'strength':'כוח','flexibility':'גמישות','endurance':'סבולת','technique':'טכניקה','כוח':'כוח','גמישות':'גמישות','סבולת':'סבולת','טכניקה':'טכניקה','שיקום':'שיקום','כושר':'כושר','מיומנות':'מיומנות','שיא':'שיא'})[k] || k}
+                </span>
+              ))}
+            </div>
             
             {/* Improvement Indicator */}
             {improvement && (
