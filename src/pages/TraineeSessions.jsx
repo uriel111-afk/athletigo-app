@@ -37,6 +37,7 @@ export default function TraineeSessions() {
   const [newTime, setNewTime] = useState('');
   const [rescheduleNote, setRescheduleNote] = useState('');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -93,16 +94,40 @@ export default function TraineeSessions() {
     return true;
   });
 
-  const canCancel = (s) => {
+  const canCancel = (s) => isOver24h(s) && isActive(s);
+
+  const DONE_STATUSES = ['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'בוטל', 'התקיים', 'הושלם', 'הגיע', 'לא הגיע'];
+
+  const isOver24h = (s) => {
     const dt = new Date(`${s.date}T${s.time || '00:00'}`);
-    return (dt - new Date()) > 24 * 60 * 60 * 1000 &&
-      !['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'בוטל', 'התקיים', 'הושלם', 'הגיע', 'לא הגיע'].includes(s.status);
+    return (dt - new Date()) > 24 * 60 * 60 * 1000;
   };
 
-  const canReschedule = (s) => {
+  const isActive = (s) => !DONE_STATUSES.includes(s.status);
+
+  const canReschedule = (s) => isOver24h(s) && isActive(s);
+
+  const canDelete = (s) => isOver24h(s) && s.status === 'ממתין לאישור';
+
+  const isWithin24h = (s) => {
     const dt = new Date(`${s.date}T${s.time || '00:00'}`);
-    return (dt - new Date()) > 24 * 60 * 60 * 1000 &&
-      !['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'בוטל', 'התקיים', 'הושלם', 'הגיע', 'לא הגיע'].includes(s.status);
+    const diff = dt - new Date();
+    return diff > 0 && diff <= 24 * 60 * 60 * 1000 && isActive(s);
+  };
+
+  const handleDelete = async (session) => {
+    if (!window.confirm('האם למחוק את הבקשה למפגש?')) return;
+    setActionLoading(session.id);
+    try {
+      await base44.entities.Session.delete(session.id);
+      setSessions(prev => prev.filter(s => s.id !== session.id));
+      toast.success('הבקשה נמחקה');
+      window.dispatchEvent(new CustomEvent('data-changed'));
+    } catch (err) {
+      toast.error('שגיאה במחיקה: ' + (err?.message || 'נסה שוב'));
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleCancel = async (session) => {
@@ -349,7 +374,7 @@ export default function TraineeSessions() {
               </div>
 
               {/* Action buttons */}
-              {(canCancel(s) || canReschedule(s)) && (
+              {(canReschedule(s) || canCancel(s) || canDelete(s)) && (
                 <div style={{
                   display: 'flex', gap: '8px', marginTop: '10px',
                   paddingTop: '10px', borderTop: '1px solid #f0f0f0'
@@ -362,10 +387,10 @@ export default function TraineeSessions() {
                         setNewTime(s.time || '');
                       }}
                       style={{
-                        flex: 1, background: '#fff7ed', border: 'none',
-                        borderRadius: '8px', padding: '8px',
-                        fontSize: '12px', fontWeight: '700',
-                        color: '#FF6F20', cursor: 'pointer',
+                        flex: 1, height: '36px',
+                        background: '#FFF0E8', color: '#FF6F20',
+                        border: '1px solid #FFD0A0', borderRadius: '8px',
+                        fontSize: '13px', fontWeight: '700', cursor: 'pointer',
                         display: 'flex', alignItems: 'center',
                         justifyContent: 'center', gap: '4px'
                       }}
@@ -376,17 +401,38 @@ export default function TraineeSessions() {
                   )}
                   {canCancel(s) && (
                     <button
+                      disabled={actionLoading === s.id}
                       onClick={() => handleCancel(s)}
                       style={{
-                        flex: 1, background: '#fef2f2', border: 'none',
-                        borderRadius: '8px', padding: '8px',
-                        fontSize: '12px', fontWeight: '700',
-                        color: '#ef4444', cursor: 'pointer'
+                        flex: 1, height: '36px',
+                        background: '#fff', color: '#ef4444',
+                        border: '1px solid #fca5a5', borderRadius: '8px',
+                        fontSize: '13px', fontWeight: '700', cursor: 'pointer'
                       }}
                     >
-                      ביטול מפגש
+                      ביטול
                     </button>
                   )}
+                  {canDelete(s) && (
+                    <button
+                      disabled={actionLoading === s.id}
+                      onClick={() => handleDelete(s)}
+                      style={{
+                        height: '36px', width: '36px', flexShrink: 0,
+                        background: '#fff', color: '#dc2626',
+                        border: '1px solid #fca5a5', borderRadius: '8px',
+                        fontSize: '16px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                    >
+                      🗑
+                    </button>
+                  )}
+                </div>
+              )}
+              {isWithin24h(s) && (
+                <div style={{ marginTop: '8px', fontSize: '11px', color: '#f59e0b', fontWeight: '600' }}>
+                  ⚠️ פחות מ-24 שעות — לא ניתן לשנות או לבטל
                 </div>
               )}
             </div>
