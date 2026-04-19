@@ -42,8 +42,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     queryFn: async () => {
       try {
         return await base44.entities.TrainingSection.filter({ training_plan_id: plan.id }, 'order');
-      } catch {
-        return [];
+      } catch (e) {
+        console.warn('[UPB] sections query with order failed, retrying without sort:', e?.message);
+        try {
+          const data = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id });
+          return data.sort((a, b) => (a.order || 0) - (b.order || 0));
+        } catch { return []; }
       }
     },
     initialData: [],
@@ -55,8 +59,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     queryFn: async () => {
       try {
         return await base44.entities.Exercise.filter({ training_plan_id: plan.id }, 'order');
-      } catch {
-        return [];
+      } catch (e) {
+        console.warn('[UPB] exercises query with order failed, retrying without sort:', e?.message);
+        try {
+          const data = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
+          return data.sort((a, b) => (a.order || 0) - (b.order || 0));
+        } catch { return []; }
       }
     },
     initialData: [],
