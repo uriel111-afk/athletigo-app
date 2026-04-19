@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Loader2, Calendar, Clock as ClockIcon } from "lucide-react";
 import { toast } from "sonner";
-import TraineeSessionBooking from "../components/TraineeSessionBooking";
+import BookingModal from "../components/BookingModal";
 
 const STATUS_MAP = {
   'ממתין לאישור': { text: 'ממתין לאישור', bg: '#fef9c3', color: '#a16207' },
@@ -336,13 +336,15 @@ export default function TraineeSessions() {
         })}
       </div>
 
-      {/* Booking dialog — reuses existing component */}
-      <TraineeSessionBooking
-        open={showBooking}
-        onClose={() => { setShowBooking(false); loadData(); }}
-        user={user}
-        coach={coach}
-      />
+      {/* Booking modal */}
+      {showBooking && (
+        <BookingModal
+          user={user}
+          coach={coach}
+          onClose={() => setShowBooking(false)}
+          onSuccess={() => loadData()}
+        />
+      )}
     </div>
   );
 }

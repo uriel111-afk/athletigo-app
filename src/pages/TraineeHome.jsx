@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList, Clock as ClockIcon, Flame, Trophy, Star } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import TraineeSessionBooking from "../components/TraineeSessionBooking";
+import BookingModal from "../components/BookingModal";
 import TraineeNotificationCard from "../components/TraineeNotificationCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -459,12 +459,13 @@ export default function TraineeHome() {
 
         </div>
 
-        <TraineeSessionBooking 
-          open={showBookingDialog} 
-          onClose={() => setShowBookingDialog(false)} 
-          user={user} 
-          coach={coach} 
-        />
+        {showBookingDialog && (
+          <BookingModal
+            user={user}
+            coach={coach}
+            onClose={() => setShowBookingDialog(false)}
+          />
+        )}
       </div>
     </div>
     </ErrorBoundary>
