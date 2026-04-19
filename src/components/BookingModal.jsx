@@ -1,14 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { notifySessionRequest } from '@/functions/notificationTriggers';
 import { toast } from 'sonner';
 
-export default function BookingModal({ user, coach, onClose, onSuccess }) {
+async function resolveCoachId(user) {
+  // Try 1: ClientService.created_by (main path)
+  try {
+    const services = await base44.entities.ClientService.filter({ trainee_id: user.id });
+    if (services.length > 0 && services[0].created_by) {
+      const coaches = await base44.entities.User.filter({ id: services[0].created_by });
+      if (coaches.length > 0) return coaches[0];
+    }
+  } catch {}
+
+  // Try 2: find any coach/admin user in the system
+  try {
+    const allUsers = await base44.entities.User.list('-created_at', 50);
+    const coachUser = allUsers.find(u =>
+      u.role === 'coach' || u.role === 'admin' || u.is_coach === true || u.user_role === 'coach'
+    );
+    if (coachUser) return coachUser;
+  } catch {}
+
+  return null;
+}
+
+export default function BookingModal({ user, coach: coachProp, onClose, onSuccess }) {
   const [bookDate, setBookDate] = useState('');
   const [bookTime, setBookTime] = useState('');
   const [bookNote, setBookNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [coach, setCoach] = useState(coachProp || null);
+  const [resolving, setResolving] = useState(!coachProp);
+
+  useEffect(() => {
+    if (coach?.id) { setResolving(false); return; }
+    if (!user?.id) return;
+    setResolving(true);
+    resolveCoachId(user).then(resolved => {
+      if (resolved) setCoach(resolved);
+      setResolving(false);
+    });
+  }, [user?.id, coach?.id]);
 
   const handleSubmit = async () => {
     setError('');
@@ -49,7 +83,6 @@ export default function BookingModal({ user, coach, onClose, onSuccess }) {
 
       const newSession = await base44.entities.Session.create(sessionData);
 
-      // Notify coach
       try {
         await notifySessionRequest({
           coachId: coach.id,
@@ -74,6 +107,23 @@ export default function BookingModal({ user, coach, onClose, onSuccess }) {
   };
 
   const today = new Date().toISOString().split('T')[0];
+
+  if (resolving) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{
+          background: 'white', borderRadius: '16px',
+          padding: '32px', textAlign: 'center', fontSize: '16px',
+          fontWeight: '700', color: '#555',
+        }}>
+          מחפש מאמן...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
