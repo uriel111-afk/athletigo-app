@@ -157,7 +157,6 @@ export default function Layout({ children, currentPageName }) {
     { title: "התראות", url: createPageUrl("Notifications"), icon: Bell, section: "daily", showBadge: true },
     // ── ניהול תוכן ──
     { title: "כל התוכניות", url: createPageUrl("PlanBuilder"), icon: ClipboardList, section: "content" },
-    { title: "תבניות סקשנים", url: createPageUrl("SectionTemplates"), icon: FileText, section: "content" },
     { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
     // ── ניהול עסקי ──
     { title: "סיכום כספי", url: createPageUrl("FinancialOverview"), icon: DollarSign, section: "business" },
