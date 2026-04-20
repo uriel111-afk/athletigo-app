@@ -179,6 +179,12 @@ export default function AddTraineeDialog({ open, onClose }) {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {draftExists && (
+            <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 8, padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', direction: 'rtl' }}>
+              <span style={{ color: '#92400E', fontWeight: 500, fontSize: 14 }}>מצאתי טיוטה. להמשיך?</span>
+              <button onClick={clearDraft} style={{ padding: '6px 14px', background: 'transparent', color: '#92400E', border: '1px solid #F59E0B', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>התחל מחדש</button>
+            </div>
+          )}
           {/* Type picker */}
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={() => handleChange('clientType', 'regular')}

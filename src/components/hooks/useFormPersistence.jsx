@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
+const MAX_DRAFT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 export function useFormPersistence(key, defaultValues) {
   const isInitialized = useRef(false);
 
@@ -9,7 +11,14 @@ export function useFormPersistence(key, defaultValues) {
       if (typeof window !== "undefined") {
         const saved = localStorage.getItem(key);
         if (saved) {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          // Check for expiry (if saved with timestamp wrapper)
+          if (parsed?._savedAt) {
+            const age = Date.now() - new Date(parsed._savedAt).getTime();
+            if (age > MAX_DRAFT_AGE) { localStorage.removeItem(key); return defaultValues; }
+            return parsed._data || defaultValues;
+          }
+          return parsed;
         }
       }
     } catch (e) {
@@ -28,7 +37,8 @@ export function useFormPersistence(key, defaultValues) {
     try {
       const saved = localStorage.getItem(key);
       if (saved) {
-        setValues(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setValues(parsed?._data || parsed);
       } else {
         setValues(defaultValues);
       }
@@ -37,10 +47,12 @@ export function useFormPersistence(key, defaultValues) {
     }
   }, [key]); // We intentionally ignore defaultValues changes to avoid overrides
 
-  // Save to localStorage on every change
+  // Save to localStorage on every change (with timestamp for expiry)
   useEffect(() => {
     if (key && typeof window !== "undefined") {
-      localStorage.setItem(key, JSON.stringify(values));
+      try {
+        localStorage.setItem(key, JSON.stringify({ _data: values, _savedAt: new Date().toISOString() }));
+      } catch {}
     }
   }, [key, values]);
 
@@ -59,11 +71,10 @@ export function useFormPersistence(key, defaultValues) {
         const saved = localStorage.getItem(key);
         if (saved) {
           const parsed = JSON.parse(saved);
-          return JSON.stringify(parsed) !== JSON.stringify(defaultValues);
+          const data = parsed?._data || parsed;
+          return JSON.stringify(data) !== JSON.stringify(defaultValues);
         }
-      } catch (e) {
-        // Ignore errors
-      }
+      } catch {}
     }
     return false;
   })();
