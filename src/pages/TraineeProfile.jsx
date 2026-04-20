@@ -30,6 +30,7 @@ import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
 import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, notifyPlanCreated } from "@/functions/notificationTriggers";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
+import ProgressTab from "@/components/profile/ProgressTab";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
 
 const PAYMENT_METHODS = [
@@ -1783,32 +1784,13 @@ export default function TraineeProfile() {
 
               {/* Achievements Tab */}
               <TabsContent value="achievements" className="space-y-4 w-full">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><Award className="w-5 h-5 text-yellow-500" />הישגים</h2>
-                  <div className="flex gap-2">
-                    <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                      <Zap className="w-3 h-3 ml-1" />בייסליין
-                    </Button>
-                    <Button onClick={() => { setEditingResult(null); setShowAddResult(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FFD700', color: '#000' }}>
-                      <Plus className="w-3 h-3 ml-1" />הוסף שיא
-                    </Button>
-                  </div>
+                <div className="flex justify-between items-center mb-3">
+                  <div />
+                  <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                    <Zap className="w-3 h-3 ml-1" />בייסליין חדש
+                  </Button>
                 </div>
-                {results.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg"><Award className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין הישגים עדיין</p></div>
-                ) : (
-                  <div className="space-y-4 pb-4">
-                    {Object.entries(groupedResults).map(([type, typeResults]) => (
-                      <AchievementGroup key={type} type={type} results={typeResults} goals={goals}
-                        onEdit={(r) => {
-                          if (r.baseline_id) { setShowBaselineDetail(r.baseline_id); }
-                          else { setEditingResult(r); setShowAddResult(true); }
-                        }}
-                        onDelete={(id) => { if (window.confirm('למחוק?')) deleteResultMutation.mutate(id); }}
-                      />
-                    ))}
-                  </div>
-                )}
+                <ProgressTab traineeId={user?.id} />
               </TabsContent>
 
               {/* Baselines Tab */}
