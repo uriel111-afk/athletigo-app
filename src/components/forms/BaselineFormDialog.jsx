@@ -69,35 +69,51 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
   const [technique, setTechnique] = useState('basic');
   const [workTime, setWorkTime] = useState(30);
   const [restTime, setRestTime] = useState(30);
-  const [roundsCount, setRoundsCount] = useState(3);
-  const [rounds, setRounds] = useState(Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })));
   const [notes, setNotes] = useState('');
   const [baselineDate, setBaselineDate] = useState(new Date().toISOString().split('T')[0]);
   const [saving, setSaving] = useState(false);
 
-  const hasChanges = rounds.some(r => r.jumps !== '' || r.misses !== '') || notes !== '';
+  // Per-technique state — each technique has its own rounds + roundsCount
+  const [perTechnique, setPerTechnique] = useState({
+    basic: { roundsCount: 3, rounds: Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })) },
+    foot_switch: { roundsCount: 3, rounds: Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })) },
+    high_knees: { roundsCount: 3, rounds: Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })) },
+  });
+
+  // Current technique's data
+  const roundsCount = perTechnique[technique].roundsCount;
+  const rounds = perTechnique[technique].rounds;
+
+  const hasChanges = Object.values(perTechnique).some(t => t.rounds.some(r => r.jumps !== '' || r.misses !== '')) || notes !== '';
   const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, onClose);
 
-  // Keep rounds array in sync with roundsCount
   const handleRoundsCountChange = (n) => {
-    setRoundsCount(n);
-    setRounds(prev => {
-      if (n > prev.length) return [...prev, ...Array.from({ length: n - prev.length }, () => ({ jumps: '', misses: '' }))];
-      return prev.slice(0, n);
+    setPerTechnique(prev => {
+      const t = prev[technique];
+      const newRounds = n > t.rounds.length
+        ? [...t.rounds, ...Array.from({ length: n - t.rounds.length }, () => ({ jumps: '', misses: '' }))]
+        : t.rounds.slice(0, n);
+      return { ...prev, [technique]: { roundsCount: n, rounds: newRounds } };
     });
   };
 
   const setRoundField = (i, field, val) => {
-    setRounds(prev => { const n = [...prev]; n[i] = { ...n[i], [field]: val }; return n; });
+    setPerTechnique(prev => {
+      const t = prev[technique];
+      const newRounds = [...t.rounds];
+      newRounds[i] = { ...newRounds[i], [field]: val };
+      return { ...prev, [technique]: { ...t, rounds: newRounds } };
+    });
   };
 
-  // Real-time calculation
+  // Real-time calculation — for CURRENT technique only
   const calc = useMemo(() => {
     const filledRounds = rounds.filter(r => r.jumps !== '' && parseInt(r.jumps) >= 0);
     const totalJumps = filledRounds.reduce((s, r) => s + (parseInt(r.jumps) || 0), 0);
     const avg = filledRounds.length > 0 ? totalJumps / filledRounds.length : 0;
+    const maxJumps = filledRounds.length > 0 ? Math.max(...filledRounds.map(r => parseInt(r.jumps) || 0)) : 0;
     const score = workTime > 0 && filledRounds.length > 0 ? avg / workTime : 0;
-    return { totalJumps, avg: Math.round(avg * 100) / 100, score: Math.round(score * 100) / 100, filledCount: filledRounds.length };
+    return { totalJumps, avg: Math.round(avg * 100) / 100, maxJumps, score: Math.round(score * 100) / 100, filledCount: filledRounds.length };
   }, [rounds, workTime]);
 
   const canSave = technique && calc.filledCount > 0 && workTime > 0;
@@ -242,7 +258,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
           </div>
 
           {/* Real-time Score — compact */}
-          <div className="grid grid-cols-3 bg-gray-900 rounded-lg p-2">
+          <div className="grid grid-cols-4 bg-gray-900 rounded-lg p-2">
             <div className="text-center">
               <div className="text-[9px] text-gray-400 font-bold">סה"כ</div>
               <div className="text-sm font-black text-white">{calc.totalJumps}</div>
@@ -250,6 +266,10 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
             <div className="text-center border-x border-gray-700">
               <div className="text-[9px] text-gray-400 font-bold">ממוצע</div>
               <div className="text-sm font-black text-white">{calc.avg}</div>
+            </div>
+            <div className="text-center border-l border-gray-700">
+              <div className="text-[9px] text-green-400 font-bold">שיא</div>
+              <div className="text-sm font-black text-green-400">{calc.maxJumps}</div>
             </div>
             <div className="text-center">
               <div className="text-[9px] text-[#FF6F20] font-bold">SCORE</div>
