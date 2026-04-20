@@ -349,95 +349,68 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const nextP = phase.type !== 'done' && phase.type !== 'idle' ? nextPhase(phase, cfg) : null;
 
-  // Phase colors for timeline dots
-  const phaseColor = { prep: '#888', work: '#fff', rest: '#16a34a', set_rest: '#3b82f6' };
-
-  // ─── Active Timer ───
+  // ─── Active Timer — FULL SCREEN, NO SCROLL, MASSIVE TEXT ───
   const dashOffset = progress * CIRC;
   return (
-    <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 16px 20px', direction: 'rtl', color: W, overflowY: 'auto' }}>
+    <div style={{ background: O, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: W, overflow: 'hidden' }}>
 
-      {/* Top bar */}
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <div style={{ fontSize: 26, fontWeight: 900 }}>{PHASE_LABEL[phase.type]}</div>
-        <button onClick={doMinimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, padding: '7px 12px', color: W, fontSize: 12, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>
+      {/* ROW 1: Phase name + minimize */}
+      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ fontSize: 'min(10vw, 40px)', fontWeight: 900 }}>{PHASE_LABEL[phase.type]}</div>
+        <button onClick={doMinimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12, padding: '9px 16px', color: W, fontSize: 15, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>
           מזער ↗
         </button>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+      {/* ROW 2: Stats — round + set + total time */}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexShrink: 0 }}>
         {phase.type !== 'prep' && (
-          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700 }}>
-            🔄 סבב {phase.round}/{cfg.rounds}
+          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900 }}>
+            סבב {phase.round}/{cfg.rounds}
           </div>
         )}
         {cfg.sets > 1 && phase.type !== 'prep' && (
-          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700 }}>
-            📦 סט {phase.set}/{cfg.sets}
+          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900 }}>
+            סט {phase.set}/{cfg.sets}
           </div>
         )}
-        <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
           ⏱ {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
         </div>
       </div>
 
-      {/* Ring + giant number */}
-      <div style={{ position: 'relative', width: SIZE, height: SIZE }}>
-        <svg width={SIZE} height={SIZE}>
-          <circle cx={CX} cy={CY} r={R} stroke={WD} strokeWidth={S} fill="none" />
-          <circle cx={CX} cy={CY} r={R} stroke={W} strokeWidth={S} strokeLinecap="round" fill="none"
-            strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} />
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 'min(42vw, 140px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, lineHeight: 1 }}>{display}</span>
+      {/* CENTER: Ring + MASSIVE number — fills all available space */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, width: '100%' }}>
+        <div style={{ position: 'relative', width: 'min(80vw, 320px)', height: 'min(80vw, 320px)' }}>
+          <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
+            <circle cx={CX} cy={CY} r={R} stroke={WD} strokeWidth={S} fill="none" />
+            <circle cx={CX} cy={CY} r={R} stroke={W} strokeWidth={S} strokeLinecap="round" fill="none"
+              strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 'min(55vw, 200px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -8, lineHeight: 1 }}>{display}</span>
+          </div>
         </div>
       </div>
 
-      {/* Phase navigation: prev | next */}
-      <div style={{ display: 'flex', gap: 10, marginTop: 8, width: '100%', maxWidth: 340 }}>
-        <button onClick={skipToPrev} style={{ flex: 1, height: 38, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
-        <button onClick={skipToNext} style={{ flex: 1, height: 38, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
-      </div>
-
-      {/* Next phase preview */}
-      {nextP && nextP.type !== 'done' && (
-        <div style={{ marginTop: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 16px', fontSize: 13, fontWeight: 600 }}>
-          הבא: {PHASE_LABEL[nextP.type]} · {nextP.dur} שנ׳
+      {/* BOTTOM: Next + Nav + Controls */}
+      <div style={{ width: '100%', maxWidth: 420, flexShrink: 0 }}>
+        {nextP && nextP.type !== 'done' && (
+          <div style={{ textAlign: 'center', marginBottom: 8, fontSize: 'min(5vw, 20px)', fontWeight: 800, opacity: 0.8 }}>
+            הבא: {PHASE_LABEL[nextP.type]} · {nextP.dur} שנ׳
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
+          <button onClick={skipToNext} style={{ flex: 1, height: 48, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
         </div>
-      )}
-
-      {/* Scrollable phase timeline */}
-      <div style={{ width: '100%', maxWidth: 360, marginTop: 12, overflowX: 'auto', WebkitOverflowScrolling: 'touch', direction: 'ltr' }}>
-        <div style={{ display: 'flex', gap: 4, minWidth: 'max-content', padding: '4px 0' }}>
-          {timeline.map((t, i) => {
-            const isCurrent = i === currentIdx;
-            const isPast = i < currentIdx;
-            return (
-              <div key={i} style={{
-                minWidth: 44, padding: '6px 4px', borderRadius: 8, textAlign: 'center',
-                background: isCurrent ? 'rgba(255,255,255,0.3)' : isPast ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.08)',
-                border: isCurrent ? '2px solid white' : '2px solid transparent',
-                opacity: isPast ? 0.5 : 1,
-              }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: phaseColor[t.type] || '#fff', margin: '0 auto 3px', border: '1px solid rgba(255,255,255,0.3)' }} />
-                <div style={{ fontSize: 9, fontWeight: 700, color: W, lineHeight: 1.2 }}>
-                  {PHASE_LABEL[t.type]?.slice(0, 4)}
-                </div>
-                <div style={{ fontSize: 10, fontWeight: 800, color: W }}>{t.dur}״</div>
-              </div>
-            );
-          })}
+        <div style={{ display: 'flex', gap: 10 }}>
+          {paused
+            ? <button onClick={handleResume} style={{ ...cBtn, flex: 2, height: 56, fontSize: 22 }}>המשך ▶</button>
+            : <button onClick={handlePause} style={{ ...cBtn, flex: 2, height: 56, fontSize: 22 }}>השהה ‖</button>
+          }
+          <button onClick={handleStop} style={{ ...cBtn, flex: 1, height: 56, fontSize: 18, background: 'rgba(255,255,255,0.2)', color: W }}>עצור</button>
         </div>
-      </div>
-
-      {/* Controls */}
-      <div style={{ marginTop: 14, display: 'flex', gap: 10, width: '100%', maxWidth: 340 }}>
-        {paused
-          ? <button onClick={handleResume} style={{ ...cBtn, flex: 2 }}>המשך ▶</button>
-          : <button onClick={handlePause} style={{ ...cBtn, flex: 2 }}>השהה ‖</button>
-        }
-        <button onClick={handleStop} style={{ ...cBtn, flex: 1, background: 'rgba(255,255,255,0.2)', color: W }}>עצור</button>
       </div>
     </div>
   );
