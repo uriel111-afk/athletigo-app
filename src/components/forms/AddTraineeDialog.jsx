@@ -30,7 +30,8 @@ export default function AddTraineeDialog({ open, onClose }) {
     joinDate: new Date().toISOString().split('T')[0],
     address: "",
     coachNotes: "",
-    clientStatus: "לקוח פעיל"
+    clientStatus: "לקוח פעיל",
+    clientType: "regular",
   };
 
   const [formData, setFormData, clearDraft, draftExists] = useFormPersistence("trainee_form_new", defaultFormData);
@@ -115,6 +116,7 @@ export default function AddTraineeDialog({ open, onClose }) {
         address: formData.address || null,
         coach_notes: formData.coachNotes || null,
         client_status: formData.clientStatus || 'לקוח פעיל',
+        client_type: formData.clientType === 'casual' ? 'מתאמן מזדמן' : 'לקוח פעיל',
         coach_id: coach?.id || null,
         role: 'trainee',
         onboarding_completed: false,
@@ -177,6 +179,22 @@ export default function AddTraineeDialog({ open, onClose }) {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Type picker */}
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => handleChange('clientType', 'regular')}
+              style={{ padding: '14px', borderRadius: 12, border: formData.clientType === 'regular' ? '2px solid #FF6F20' : '2px solid #eee', background: formData.clientType === 'regular' ? '#FFF0E8' : 'white', cursor: 'pointer', textAlign: 'center' }}>
+              <div style={{ fontSize: 24, marginBottom: 4 }}>👤</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: formData.clientType === 'regular' ? '#FF6F20' : '#333' }}>מתאמן רגיל</div>
+              <div style={{ fontSize: 11, color: '#999' }}>גישה לאפליקציה</div>
+            </button>
+            <button type="button" onClick={() => handleChange('clientType', 'casual')}
+              style={{ padding: '14px', borderRadius: 12, border: formData.clientType === 'casual' ? '2px solid #EAB308' : '2px solid #eee', background: formData.clientType === 'casual' ? '#FEF9C3' : 'white', cursor: 'pointer', textAlign: 'center' }}>
+              <div style={{ fontSize: 24, marginBottom: 4 }}>🏃</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: formData.clientType === 'casual' ? '#92400E' : '#333' }}>מזדמן</div>
+              <div style={{ fontSize: 11, color: '#999' }}>בלי גישה — לתיעוד</div>
+            </button>
+          </div>
+
           {/* Basic Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
