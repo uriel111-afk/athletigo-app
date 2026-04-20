@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import RenameUserDialog from "../components/forms/RenameUserDialog";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
@@ -46,6 +47,21 @@ export default function AllUsers() {
 
   // 1. Fetch Users & Services (Shared Hook)
   const { allTrainees, allServices, activeClientsCount, traineesLoading } = useClientStats();
+
+  // Realtime sync — refetch when users/services change
+  useEffect(() => {
+    const refresh = () => {
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+    };
+    const ch = supabase
+      .channel('allusers-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services' }, refresh)
+      .subscribe();
+    window.addEventListener('data-changed', refresh);
+    return () => { supabase.removeChannel(ch); window.removeEventListener('data-changed', refresh); };
+  }, [queryClient]);
 
   // 2. Fetch Sessions (Shared Hook)
   const { sessions: allSessions } = useSessionStats();

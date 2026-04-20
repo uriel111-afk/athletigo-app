@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Loader2, Calendar, Clock as ClockIcon } from "lucide-react";
 import { toast } from "sonner";
 import BookingModal from "../components/BookingModal";
@@ -45,6 +46,17 @@ export default function TraineeSessions() {
     window.addEventListener('data-changed', onChange);
     return () => window.removeEventListener('data-changed', onChange);
   }, []);
+
+  // Realtime — when coach changes session status, trainee sees it instantly
+  useEffect(() => {
+    if (!user?.id) return;
+    const ch = supabase
+      .channel(`trainee-sessions-rt-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services' }, () => loadData())
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [user?.id]);
 
   const loadData = async () => {
     try {

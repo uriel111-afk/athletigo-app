@@ -1,5 +1,6 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useSessionStats } from "../components/hooks/useSessionStats";
@@ -71,8 +72,7 @@ export default function Sessions() {
       }
     },
     initialData: [],
-    refetchInterval: 10000,
-    refetchIntervalInBackground: true,
+    staleTime: 30000,
     retry: 2
   });
 
@@ -97,7 +97,7 @@ export default function Sessions() {
       catch { return []; }
     },
     enabled: !!user?.id,
-    refetchInterval: 15000
+    staleTime: 30000
   });
 
   const { data: groupMembers = [], refetch: refetchGroupMembers } = useQuery({
@@ -107,8 +107,26 @@ export default function Sessions() {
       catch { return []; }
     },
     enabled: !!user?.id,
-    refetchInterval: 15000
+    staleTime: 30000
   });
+
+  // Realtime sync — replace polling with instant updates
+  useEffect(() => {
+    if (!user?.id) return;
+    const refresh = () => {
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['training-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['group-members'] });
+    };
+    const ch = supabase
+      .channel(`coach-sessions-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'training_groups' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'training_group_members' }, refresh)
+      .subscribe();
+    window.addEventListener('data-changed', refresh);
+    return () => { supabase.removeChannel(ch); window.removeEventListener('data-changed', refresh); };
+  }, [user?.id, queryClient]);
 
   const createGroupMutation = useMutation({
     mutationFn: (data) => base44.entities.TrainingGroup.create(data),
