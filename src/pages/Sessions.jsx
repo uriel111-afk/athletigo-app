@@ -1468,9 +1468,12 @@ export default function Sessions() {
                       ✅ כולם הגיעו
                     </Button>
                     <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'לא הגיע' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-xl min-h-[44px] border-red-200 text-red-500">
-                      ❌ אף אחד לא הגיע
+                      ❌ לא הגיעו
                     </Button>
                   </div>
+                  <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'ממתין' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-xl min-h-[44px] w-full text-gray-500 border-gray-200">
+                    ↩ אפס נוכחות
+                  </Button>
                 </div>
               )}
             </DialogContent>

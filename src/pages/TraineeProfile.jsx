@@ -455,6 +455,19 @@ export default function TraineeProfile() {
     }
   }, [effectiveUserId, showEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Realtime — package balance updates instantly when deduction happens
+  useEffect(() => {
+    if (!user?.id) return;
+    const ch = supabase
+      .channel(`profile-packages-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services', filter: `trainee_id=eq.${user.id}` },
+        () => { queryClient.refetchQueries({ queryKey: ['trainee-services'] }); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' },
+        () => { queryClient.refetchQueries({ queryKey: ['trainee-sessions'] }); })
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [user?.id, queryClient]);
+
   const { data: goals = [], isLoading: goalsLoading } = useQuery({
     queryKey: ['trainee-goals', user?.id],
     queryFn: () => base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at').catch(() => []),
