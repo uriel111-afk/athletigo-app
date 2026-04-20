@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { unlock as unlockAudio, playBeep as SND_TICK, playWhistle as SND_GO, playBell as SND_BELL, playVictory as SND_TRIPLE_BELL, cancelScheduled } from '@/lib/tabataSounds';
+import { unlock as unlockAudio, playBeep as SND_TICK, playWhistle as SND_WHISTLE, playBell as SND_BELL, playDoubleBell as SND_DOUBLE_BELL, playLongBeep as SND_LONG_BEEP, playVictory as SND_VICTORY, cancelScheduled } from '@/lib/tabataSounds';
 
-// Legacy aliases — map old names to new shared audio layer
-const SND_WORK = SND_GO;
-const SND_DOUBLE_BELL = () => { SND_BELL(); setTimeout(SND_BELL, 700); };
+// Transition sound map:
+// prep    → work    : WHISTLE
+// work    → rest    : BELL
+// rest    → work    : WHISTLE (same set, next round)
+// work    → set_rest: LONG BEEP (set is over)
+// set_rest→ work    : DOUBLE BELL (new set starting)
+// work    → done    : VICTORY arpeggio
 
 // ─── PICKER OPTIONS (outside component) ───
 
@@ -95,7 +99,14 @@ const useLongPress = (cb) => {
 
 const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 const RING_R = 124;
-const RING_C = 779; // 2*π*124
+const RING_C = 2 * Math.PI * RING_R; // ~779.16
+
+const PHASE_COLORS = {
+  'הכנה': '#888888',
+  'עבודה': '#FF6F20',
+  'מנוחה': '#16a34a',
+  'מנוחה בין סטים': '#2563EB',
+};
 
 // ─── MAIN COMPONENT ───
 
@@ -210,37 +221,32 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const advance = () => {
     const p = phRef.current, r = rRef.current, s = sRef.current;
     if (p === 'הכנה') {
+      // prep → work (round 1, set 1)
       rRef.current=1; sRef.current=1; setCurRound(1); setCurSet(1);
-      SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
+      SND_WHISTLE(); startPhase('עבודה', wkRef.current); startMain();
     } else if (p === 'עבודה') {
-      const isLastRoundOfSet = r >= rnRef.current;
+      const isLastRound = r >= rnRef.current;
       const isLastSet = s >= stRef.current;
-      if (isLastRoundOfSet && isLastSet) {
-        // Last round of last set → COMPLETE
+      if (isLastRound && isLastSet) {
+        // work → DONE (last round of last set)
         clearInterval(mainRef.current); clearInterval(totalRef.current);
         isMinimizedRef.current = false; setScreen('complete'); setIsRunning(false); setLiveTimer(null);
-        SND_TRIPLE_BELL(); relWake();
-      } else if (isLastRoundOfSet && !isLastSet) {
-        // Last round of set (not last set) → skip rest, go to restBetweenSets
-        SND_DOUBLE_BELL(); startPhase('מנוחה בין סטים', rbRef.current); startMain();
+        SND_VICTORY(); relWake();
+      } else if (isLastRound && !isLastSet) {
+        // work → set_rest (last round, more sets remain)
+        SND_LONG_BEEP(); startPhase('מנוחה בין סטים', rbRef.current); startMain();
       } else {
-        // Normal round → go to rest
+        // work → rest (normal round end)
         SND_BELL(); startPhase('מנוחה', rsRef.current); startMain();
       }
     } else if (p === 'מנוחה') {
-      if (r < rnRef.current) {
-        rRef.current = r+1; setCurRound(r+1);
-        SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
-      } else if (s < stRef.current) {
-        rRef.current=1; sRef.current=s+1; setCurRound(1); setCurSet(s+1);
-        SND_DOUBLE_BELL(); startPhase('מנוחה בין סטים', rbRef.current); startMain();
-      } else {
-        clearInterval(mainRef.current); clearInterval(totalRef.current);
-        isMinimizedRef.current = false; setScreen('complete'); setIsRunning(false); setLiveTimer(null);
-        SND_TRIPLE_BELL(); relWake();
-      }
+      // rest → work (next round, same set)
+      rRef.current = r+1; setCurRound(r+1);
+      SND_WHISTLE(); startPhase('עבודה', wkRef.current); startMain();
     } else if (p === 'מנוחה בין סטים') {
-      SND_WORK(); startPhase('עבודה', wkRef.current); startMain();
+      // set_rest → work (round 1, next set)
+      rRef.current=1; sRef.current=s+1; setCurRound(1); setCurSet(s+1);
+      SND_DOUBLE_BELL(); startPhase('עבודה', wkRef.current); startMain();
     }
   };
 
@@ -457,8 +463,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:0,padding:'2px 0'}}>
         <div style={{position:'relative',width:'min(68vw,280px)',height:'min(68vw,280px)'}}>
           <svg width="100%" height="100%" viewBox="0 0 280 280" style={{position:'absolute',inset:0}}>
-            <circle cx="140" cy="140" r={RING_R} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="10"/>
-            <circle cx="140" cy="140" r={RING_R} fill="none" stroke="white" strokeWidth="10" strokeDasharray={RING_C} strokeDashoffset={phaseDur>0 ? RING_C*(1-timeLeft/phaseDur) : RING_C} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 1.05s linear'}}/>
+            <circle cx="140" cy="140" r={RING_R} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="10"/>
+            <circle cx="140" cy="140" r={RING_R} fill="none" stroke={PHASE_COLORS[phase] || 'white'} strokeWidth="10" strokeDasharray={RING_C} strokeDashoffset={phaseDur>0 ? RING_C*(1-timeLeft/phaseDur) : RING_C} strokeLinecap="round" transform="rotate(-90 140 140)" style={{transition:'stroke-dashoffset 0.25s linear'}}/>
           </svg>
           <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
             <div style={{fontSize:'min(38vw,148px)',fontWeight:'900',color:'white',lineHeight:1,fontVariantNumeric:'tabular-nums',letterSpacing:'-4px'}}>{timeLeft}</div>
@@ -479,7 +485,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           <button onPointerDown={(e)=>{e.preventDefault();goNext();}} style={{flex:1,height:'44px',background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.3)',borderRadius:'10px',fontSize:'14px',fontWeight:'700',cursor:'pointer',touchAction:'manipulation',display:'flex',alignItems:'center',justifyContent:'center',gap:'4px'}}>הבא ▶</button>
         </div>
         {(()=>{
-          const nx = {'הכנה':{label:'עבודה',dur:workTime},'עבודה':{label:'מנוחה',dur:restTime},'מנוחה':curRound<rounds?{label:'עבודה',dur:workTime}:curSet<sets?{label:'מנוחה בין סטים',dur:restBetween}:null,'מנוחה בין סטים':{label:'עבודה',dur:workTime}}[phase];
+          const nx = phase === 'הכנה' ? {label:'עבודה',dur:workTime}
+            : phase === 'עבודה' ? (curRound >= rounds ? (curSet < sets ? {label:'מנוחה בין סטים',dur:restBetween} : null) : {label:'מנוחה',dur:restTime})
+            : phase === 'מנוחה' ? {label:'עבודה',dur:workTime}
+            : phase === 'מנוחה בין סטים' ? {label:'עבודה',dur:workTime}
+            : null;
           if (!nx) return null;
           return (<div style={{background:'rgba(0,0,0,0.2)',borderRadius:'12px',padding:'9px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div style={{fontSize:'15px',fontWeight:'700',color:'rgba(255,255,255,0.9)'}}>הבא: {nx.label}</div>

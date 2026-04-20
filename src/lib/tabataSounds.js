@@ -94,9 +94,32 @@ function victory(when) {
   });
 }
 
+function doubleBell(when) {
+  bell(when);
+  bell(when + 0.25);
+}
+
+function longBeep(when) {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = "square";
+  osc.frequency.value = 600;
+  g.gain.setValueAtTime(0, when);
+  g.gain.linearRampToValueAtTime(0.8, when + 0.01);
+  g.gain.linearRampToValueAtTime(0.8, when + 0.45);
+  g.gain.linearRampToValueAtTime(0, when + 0.5);
+  osc.connect(g);
+  g.connect(masterGain);
+  osc.start(when);
+  osc.stop(when + 0.52);
+}
+
 export function playBeep() { beep(getCtx().currentTime); }
 export function playWhistle() { whistle(getCtx().currentTime); }
 export function playBell() { bell(getCtx().currentTime); }
+export function playDoubleBell() { doubleBell(getCtx().currentTime); }
+export function playLongBeep() { longBeep(getCtx().currentTime); }
 export function playVictory() { victory(getCtx().currentTime); }
 
 export function schedulePhase(phaseType, durationSec, startDelay = 0) {
