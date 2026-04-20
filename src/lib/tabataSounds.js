@@ -1,6 +1,6 @@
 let ctx = null;
 let masterGain = null;
-let unlocked = false;
+const scheduledNodes = [];
 
 function getCtx() {
   if (!ctx) {
@@ -21,28 +21,35 @@ export async function unlock() {
   src.buffer = buf;
   src.connect(c.destination);
   src.start(0);
-  unlocked = true;
 }
-
-export function isUnlocked() { return unlocked; }
 
 export function now() { return getCtx().currentTime; }
 
-function beep(when, freq = 880, durMs = 100) {
+function tone(type, freq, when, durMs, envelope) {
   const c = getCtx();
   const osc = c.createOscillator();
   const g = c.createGain();
-  osc.type = "square";
+  osc.type = type;
   osc.frequency.value = freq;
   osc.connect(g);
   g.connect(masterGain);
   const d = durMs / 1000;
   g.gain.setValueAtTime(0, when);
-  g.gain.linearRampToValueAtTime(0.8, when + 0.005);
-  g.gain.linearRampToValueAtTime(0, when + d);
+  if (envelope === "decay") {
+    g.gain.linearRampToValueAtTime(0.9, when + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, when + d);
+  } else {
+    g.gain.linearRampToValueAtTime(0.8, when + 0.005);
+    g.gain.linearRampToValueAtTime(0, when + d);
+  }
   osc.start(when);
   osc.stop(when + d + 0.02);
+  scheduledNodes.push(osc);
 }
+
+function beep(when) { tone("square", 880, when, 100); }
+function bell(when) { tone("sine", 660, when, 800, "decay"); }
+function longBeep(when) { tone("square", 600, when, 500); }
 
 function whistle(when) {
   const c = getCtx();
@@ -53,27 +60,17 @@ function whistle(when) {
   osc.frequency.linearRampToValueAtTime(1200, when + 0.4);
   g.gain.setValueAtTime(0, when);
   g.gain.linearRampToValueAtTime(0.9, when + 0.05);
-  g.gain.linearRampToValueAtTime(0.7, when + 0.35);
   g.gain.linearRampToValueAtTime(0, when + 0.42);
   osc.connect(g);
   g.connect(masterGain);
   osc.start(when);
   osc.stop(when + 0.45);
+  scheduledNodes.push(osc);
 }
 
-function bell(when) {
-  const c = getCtx();
-  const osc = c.createOscillator();
-  const g = c.createGain();
-  osc.type = "sine";
-  osc.frequency.value = 660;
-  g.gain.setValueAtTime(0, when);
-  g.gain.linearRampToValueAtTime(1.0, when + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.001, when + 0.8);
-  osc.connect(g);
-  g.connect(masterGain);
-  osc.start(when);
-  osc.stop(when + 0.82);
+function doubleBell(when) {
+  bell(when);
+  bell(when + 0.25);
 }
 
 function victory(when) {
@@ -91,30 +88,11 @@ function victory(when) {
     g.connect(masterGain);
     osc.start(start);
     osc.stop(start + 0.62);
+    scheduledNodes.push(osc);
   });
 }
 
-function doubleBell(when) {
-  bell(when);
-  bell(when + 0.25);
-}
-
-function longBeep(when) {
-  const c = getCtx();
-  const osc = c.createOscillator();
-  const g = c.createGain();
-  osc.type = "square";
-  osc.frequency.value = 600;
-  g.gain.setValueAtTime(0, when);
-  g.gain.linearRampToValueAtTime(0.8, when + 0.01);
-  g.gain.linearRampToValueAtTime(0.8, when + 0.45);
-  g.gain.linearRampToValueAtTime(0, when + 0.5);
-  osc.connect(g);
-  g.connect(masterGain);
-  osc.start(when);
-  osc.stop(when + 0.52);
-}
-
+// Public API — immediate play
 export function playBeep() { beep(getCtx().currentTime); }
 export function playWhistle() { whistle(getCtx().currentTime); }
 export function playBell() { bell(getCtx().currentTime); }
@@ -122,23 +100,8 @@ export function playDoubleBell() { doubleBell(getCtx().currentTime); }
 export function playLongBeep() { longBeep(getCtx().currentTime); }
 export function playVictory() { victory(getCtx().currentTime); }
 
-export function schedulePhase(phaseType, durationSec, startDelay = 0) {
-  const c = getCtx();
-  const t0 = c.currentTime + startDelay;
-
-  if (durationSec >= 3) beep(t0 + durationSec - 3);
-  if (durationSec >= 2) beep(t0 + durationSec - 2);
-  if (durationSec >= 1) beep(t0 + durationSec - 1);
-
-  const endTime = t0 + durationSec;
-  if (phaseType === "prep" || phaseType === "rest") {
-    whistle(endTime);
-  } else if (phaseType === "work") {
-    bell(endTime);
-  }
-}
-
+// Cancel all scheduled oscillators
 export function cancelScheduled() {
-  if (!ctx) return;
-  ctx.suspend().then(() => ctx.resume());
+  scheduledNodes.forEach(n => { try { n.stop(0); } catch (e) {} });
+  scheduledNodes.length = 0;
 }

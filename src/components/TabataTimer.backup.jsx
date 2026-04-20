@@ -2,16 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { unlock as unlockAudio, playBeep as SND_TICK, playWhistle as SND_WHISTLE, playBell as SND_BELL, playDoubleBell as SND_DOUBLE_BELL, playLongBeep as SND_LONG_BEEP, playVictory as SND_VICTORY, cancelScheduled } from '@/lib/tabataSounds';
 
-// Aliases for sounds used inline — map to shared audio layer
-const SND_GO = SND_WHISTLE;    // prep→work transition
-const SND_WORK = SND_WHISTLE;  // rest→work transition
-
 // Transition sound map:
-// prep    → work    : WHISTLE (SND_GO)
+// prep    → work    : WHISTLE
 // work    → rest    : BELL
-// rest    → work    : WHISTLE (SND_WORK)
-// work    → set_rest: LONG BEEP
-// set_rest→ work    : DOUBLE BELL
+// rest    → work    : WHISTLE (same set, next round)
+// work    → set_rest: LONG BEEP (set is over)
+// set_rest→ work    : DOUBLE BELL (new set starting)
 // work    → done    : VICTORY arpeggio
 
 // ─── PICKER OPTIONS (outside component) ───
