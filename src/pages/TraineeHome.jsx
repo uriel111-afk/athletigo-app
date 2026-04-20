@@ -281,16 +281,21 @@ export default function TraineeHome() {
 
   return (
     <ErrorBoundary>
-      {/* Unread notifications modal */}
+      {/* Unread notifications modal — large, clear, professional */}
       <Dialog open={showUnreadModal} onOpenChange={setShowUnreadModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black flex items-center gap-2">
-              <Bell className="w-5 h-5 text-[#FF6F20]" />
-              {unreadNotifs.length} התראות חדשות
-            </DialogTitle>
+            <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, #FF6F20, #FF8F50)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', boxShadow: '0 4px 12px rgba(255,111,32,0.3)' }}>
+                <Bell style={{ width: 28, height: 28, color: 'white' }} />
+              </div>
+              <DialogTitle className="text-2xl font-black" style={{ color: '#1a1a1a' }}>
+                {unreadNotifs.length} התראות חדשות
+              </DialogTitle>
+              <p style={{ fontSize: 13, color: '#888', marginTop: 4 }}>לחץ על כל התראה כדי לסמן כנקראה</p>
+            </div>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3" style={{ maxHeight: '50vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
             {unreadNotifs.map(n => (
               <TraineeNotificationCard key={n.id} notification={n}
                 onUpdate={async () => {
@@ -303,13 +308,16 @@ export default function TraineeHome() {
                 }} />
             ))}
             {unreadNotifs.length === 0 && (
-              <p className="text-center text-gray-400 py-4 text-sm">כל ההתראות טופלו</p>
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>כל ההתראות טופלו</p>
+              </div>
             )}
           </div>
           <Button
             onClick={() => setShowUnreadModal(false)}
-            variant="outline"
-            className="w-full rounded-xl mt-2 min-h-[44px]"
+            className="w-full rounded-xl mt-3 min-h-[48px] text-base font-bold"
+            style={{ backgroundColor: '#FF6F20', color: 'white' }}
           >
             סגור
           </Button>
