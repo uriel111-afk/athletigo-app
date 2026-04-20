@@ -54,6 +54,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const phaseRef = useRef(phase);
   const cfgRef = useRef(cfg);
+  const screenRef = useRef(screen);
   const rafRef = useRef(null);
   const startAtRef = useRef(0);
   const elapsedRef = useRef(0);
@@ -61,6 +62,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { cfgRef.current = cfg; localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }, [cfg]);
+  useEffect(() => { screenRef.current = screen; }, [screen]);
 
   // Cleanup on unmount
   useEffect(() => () => { cancelAnimationFrame(rafRef.current); cancelScheduled(); }, []);
@@ -112,13 +114,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     setDisplay(secs);
     setProgress(elapsed / p.dur);
 
-    // Update floating timer
-    if (setLiveTimer) {
-      setLiveTimer(prev => prev ? {
-        ...prev, display: String(secs),
+    // Update floating timer — always keep it alive while running
+    if (setLiveTimer && screenRef.current === 'running') {
+      setLiveTimer({
+        type: 'tabata',
+        display: String(secs),
         phase: PHASE_LABEL[p.type] || '',
+        info: `סבב ${p.round}/${cfgRef.current.rounds} · סט ${p.set}/${cfgRef.current.sets}`,
         paused: false,
-      } : null);
+      });
     }
 
     rafRef.current = requestAnimationFrame(tick);
