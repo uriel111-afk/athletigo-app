@@ -1,4 +1,4 @@
-export default function ScrollableModal({ open, onClose, title, footer, children }) {
+export default function ScrollableModal({ open, onClose, title, footer, children, maxHeight }) {
   if (!open) return null;
 
   return (
@@ -16,7 +16,7 @@ export default function ScrollableModal({ open, onClose, title, footer, children
         borderRadius: "16px 16px 0 0",
         width: "100%",
         maxWidth: 480,
-        maxHeight: "90vh",
+        maxHeight: maxHeight || "var(--modal-max-height, 85vh)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

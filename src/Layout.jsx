@@ -454,8 +454,8 @@ export default function Layout({ children, currentPageName }) {
           <div className="flex-1 page-container" style={{
             paddingLeft: isClocks ? 0 : '16px',
             paddingRight: isClocks ? 0 : '16px',
-            paddingTop: isClocks ? 0 : '64px',
-            paddingBottom: isClocks ? 0 : '80px',
+            paddingTop: isClocks ? 0 : 'var(--content-top)',
+            paddingBottom: isClocks ? 0 : 'var(--content-bottom)',
             overflowY: isClocks ? 'hidden' : 'auto',
             height: isClocks ? '100dvh' : undefined,
             minHeight: 0,

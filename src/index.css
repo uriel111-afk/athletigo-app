@@ -9,6 +9,9 @@
   --app-footer-height: 68px;
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --content-top: calc(var(--app-header-height) + var(--safe-area-top));
+  --content-bottom: calc(var(--app-footer-height) + var(--safe-area-bottom));
+  --modal-max-height: calc(100dvh - var(--content-top) - var(--content-bottom) - 32px);
 }
 
 
