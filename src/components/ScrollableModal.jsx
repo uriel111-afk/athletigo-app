@@ -38,6 +38,7 @@ export default function ScrollableModal({ open, onClose, title, footer, children
           flex: 1,
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
           padding: 16,
           minHeight: 0,
         }}>

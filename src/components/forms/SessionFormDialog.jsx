@@ -488,7 +488,7 @@ export default function SessionFormDialog({
                 </div>
               </div>
             )}
-            <div className="p-4 rounded-xl max-h-96 overflow-y-auto" style={{ backgroundColor: '#FAFAFA', border: '2px solid #E0E0E0' }}>
+            <div className="p-4 rounded-xl overflow-y-auto" style={{ backgroundColor: '#FAFAFA', border: '2px solid #E0E0E0', maxHeight: '40vh', minHeight: 120 }}>
               {trainees.length === 0 ? (
                 <p className="text-sm text-center py-4" style={{ color: '#7D7D7D' }}>
                   אין מתאמנים זמינים

@@ -319,7 +319,7 @@ export default function PlanBuilder() {
 
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>בחירת מתאמנים</div>
-            <div style={{ maxHeight: 280, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div style={{ maxHeight: "40vh", minHeight: 120, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
             {trainees.map(t => (
               <div key={t.id} onClick={() => setSelectedTrainees(prev => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id])}
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: selectedTrainees.includes(t.id) ? "#FFF0E8" : "white", borderRadius: 10, border: selectedTrainees.includes(t.id) ? "2px solid #FF6F20" : "1px solid #eee", marginBottom: 8, cursor: "pointer" }}>

@@ -38,8 +38,10 @@ export default function SectionRatingModal({ open, section, onSubmit }) {
     }}>
       <div style={{
         background: "#fff", borderRadius: 16, width: "100%",
-        maxWidth: 380, padding: 20, direction: "rtl",
+        maxWidth: 380, maxHeight: "90vh", display: "flex",
+        flexDirection: "column", overflow: "hidden", direction: "rtl",
       }}>
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: 20, minHeight: 0 }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 16 }}>
           <div style={{
@@ -121,22 +123,24 @@ export default function SectionRatingModal({ open, section, onSubmit }) {
             }} />
         </div>
 
-        {/* Error */}
-        {error && (
-          <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>
-            {error}
-          </div>
-        )}
+      </div>
 
-        {/* Submit */}
-        <button onClick={handleSubmit} disabled={!canSubmit} style={{
-          width: "100%", padding: 14, borderRadius: 10, border: "none",
-          background: canSubmit ? O : "#e5e5e5",
-          color: canSubmit ? "white" : "#999",
-          fontSize: 15, fontWeight: 500, cursor: canSubmit ? "pointer" : "not-allowed",
-        }}>
-          {loading ? "שומר..." : "שמור והמשך"}
-        </button>
+        {/* Fixed footer */}
+        <div style={{ flexShrink: 0, padding: "12px 20px", borderTop: "0.5px solid #f0f0f0", paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
+          {error && (
+            <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>
+              {error}
+            </div>
+          )}
+          <button onClick={handleSubmit} disabled={!canSubmit} style={{
+            width: "100%", padding: 14, borderRadius: 10, border: "none",
+            background: canSubmit ? O : "#e5e5e5",
+            color: canSubmit ? "white" : "#999",
+            fontSize: 15, fontWeight: 500, cursor: canSubmit ? "pointer" : "not-allowed",
+          }}>
+            {loading ? "שומר..." : "שמור והמשך"}
+          </button>
+        </div>
       </div>
     </div>
   );
