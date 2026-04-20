@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-export default function NotificationCenter({ userId }) {
+import { Edit2, Trash2 } from "lucide-react";
+
+export default function NotificationCenter({ userId, isCoach, onEdit, onDelete }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -188,6 +190,18 @@ export default function NotificationCenter({ userId }) {
                     )}
                     {notification.actionUrl && !needsAck && (
                       <ExternalLink className="w-4 h-4" style={{ color: '#2196F3' }} />
+                    )}
+                    {isCoach && onEdit && (
+                      <button onClick={(e) => { e.stopPropagation(); onEdit(notification); }}
+                        style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: 2 }}>
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isCoach && onDelete && (
+                      <button onClick={(e) => { e.stopPropagation(); onDelete(notification.id); }}
+                        style={{ background: 'none', border: 'none', color: '#ddd', cursor: 'pointer', padding: 2 }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                 </div>

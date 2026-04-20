@@ -40,10 +40,15 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
       <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#FF6F20' : '#7D7D7D' }} />
       {unreadCount > 0 && (
         <span
-          className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-          style={{ backgroundColor: '#FF3B30', color: 'white', boxShadow: '0 2px 4px rgba(255, 59, 48, 0.3)' }}
+          className="absolute -top-2 -right-2 rounded-full flex items-center justify-center font-bold"
+          style={{
+            backgroundColor: '#FF3B30', color: 'white',
+            boxShadow: '0 2px 6px rgba(255, 59, 48, 0.4)',
+            minWidth: 20, height: 20, padding: '0 5px',
+            fontSize: 11, lineHeight: '20px',
+          }}
         >
-          {unreadCount > 9 ? '9+' : unreadCount}
+          {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}
     </button>
