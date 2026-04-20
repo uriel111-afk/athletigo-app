@@ -197,32 +197,61 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     };
   }, [paused]);
 
+  // ─── Compute total workout time from config ───
+  function calcTotalFromConfig(c) {
+    return (c.prep + (c.work + c.rest) * c.rounds) * c.sets + c.rb * Math.max(0, c.sets - 1) - c.rest * c.sets;
+  }
+  const totalWorkoutTime = calcTotalFromConfig(cfg);
+  const twMin = Math.floor(totalWorkoutTime / 60);
+  const twSec = totalWorkoutTime % 60;
+
   // ─── Settings Screen ───
   if (screen === 'settings') {
     const fields = [
-      { k: 'prep',   l: 'זמן הכנה',        u: 'שנ׳', mn: 0,  mx: 60  },
-      { k: 'work',   l: 'זמן עבודה',       u: 'שנ׳', mn: 1,  mx: 600 },
-      { k: 'rest',   l: 'זמן מנוחה',       u: 'שנ׳', mn: 0,  mx: 600 },
-      { k: 'rb',     l: 'מנוחה בין סטים',   u: 'שנ׳', mn: 0,  mx: 900 },
-      { k: 'rounds', l: 'סבבים',            u: '',    mn: 1,  mx: 20  },
-      { k: 'sets',   l: 'סטים',              u: '',    mn: 1,  mx: 10  },
+      { k: 'prep',   l: 'הכנה',            icon: '⏳', u: 'שנ׳', mn: 0,  mx: 60  },
+      { k: 'work',   l: 'עבודה',           icon: '🔥', u: 'שנ׳', mn: 1,  mx: 600 },
+      { k: 'rest',   l: 'מנוחה',           icon: '💚', u: 'שנ׳', mn: 0,  mx: 600 },
+      { k: 'rounds', l: 'סבבים',            icon: '🔄', u: '',    mn: 1,  mx: 20  },
+      { k: 'sets',   l: 'סטים',              icon: '📦', u: '',    mn: 1,  mx: 10  },
+      { k: 'rb',     l: 'מנוחה בין סטים',   icon: '⏸', u: 'שנ׳', mn: 0,  mx: 900 },
     ];
     return (
-      <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl' }}>
-        <div style={{ fontSize: 28, fontWeight: 900, color: W, marginBottom: 24 }}>טבטה</div>
-        {fields.map(f => (
-          <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 340, marginBottom: 10 }}>
-            <span style={{ fontSize: 15, color: W, fontWeight: 600 }}>{f.l}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={sBtn}>−</button>
-              <span style={{ fontSize: 20, fontWeight: 800, color: W, minWidth: 36, textAlign: 'center' }}>{cfg[f.k]}</span>
-              <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={sBtn}>+</button>
-              {f.u && <span style={{ fontSize: 11, color: WD, width: 24 }}>{f.u}</span>}
+      <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', direction: 'rtl', overflowY: 'auto' }}>
+        <div style={{ fontSize: 32, fontWeight: 900, color: W, marginBottom: 6 }}>⏱ טבטה</div>
+        <div style={{ fontSize: 13, color: WD, marginBottom: 20 }}>הגדר את פרמטרי האימון</div>
+
+        <div style={{ width: '100%', maxWidth: 360 }}>
+          {fields.map(f => (
+            <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: 'rgba(255,255,255,0.1)', borderRadius: 12, marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>{f.icon}</span>
+                <div>
+                  <div style={{ fontSize: 15, color: W, fontWeight: 700 }}>{f.l}</div>
+                  {f.u && <div style={{ fontSize: 11, color: WD }}>{f.u}</div>}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={sBtn}>−</button>
+                <span style={{ fontSize: 22, fontWeight: 900, color: W, minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{cfg[f.k]}</span>
+                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={sBtn}>+</button>
+              </div>
             </div>
+          ))}
+        </div>
+
+        {/* Workout summary */}
+        <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 14, padding: '14px 20px', marginTop: 16, width: '100%', maxWidth: 360 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
+            <div><div style={{ fontSize: 20, fontWeight: 900 }}>{cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, opacity: 0.7 }}>סבבים</div></div>
+            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
+            <div><div style={{ fontSize: 20, fontWeight: 900 }}>{twMin}:{String(twSec).padStart(2,'0')}</div><div style={{ fontSize: 10, opacity: 0.7 }}>זמן כולל</div></div>
+            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
+            <div><div style={{ fontSize: 20, fontWeight: 900 }}>{cfg.work * cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, opacity: 0.7 }}>שנ׳ עבודה</div></div>
           </div>
-        ))}
-        <button onClick={handleStart} style={{ marginTop: 28, padding: '14px 48px', fontSize: 22, fontWeight: 900, background: W, color: O, border: 'none', borderRadius: 12, cursor: 'pointer' }}>
-          התחל
+        </div>
+
+        <button onClick={handleStart} style={{ marginTop: 24, width: '100%', maxWidth: 360, padding: '16px', fontSize: 22, fontWeight: 900, background: W, color: O, border: 'none', borderRadius: 14, cursor: 'pointer' }}>
+          ▶ התחל אימון
         </button>
       </div>
     );
@@ -281,66 +310,129 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     }
   }
 
-  // Next phase preview
+  // Navigation: skip to next/prev phase
+  function skipToNext() {
+    cancelScheduled();
+    const nxt = nextPhase(phaseRef.current, cfgRef.current);
+    transitionSound(phaseRef.current.type, nxt.type);
+    if (nxt.type === 'done') { setPhase(nxt); phaseRef.current = nxt; setDisplay(0); setProgress(1); setScreen('done'); return; }
+    beginPhase(nxt);
+    if (!paused) rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function skipToPrev() {
+    cancelScheduled();
+    // Restart current phase from beginning
+    beginPhase({ ...phaseRef.current });
+    if (!paused) rafRef.current = requestAnimationFrame(tick);
+  }
+
+  // Build phase timeline for scrollable overview
+  function buildTimeline() {
+    const phases = [];
+    let cur = cfg.prep > 0
+      ? { type: 'prep', round: 0, set: 0, dur: cfg.prep }
+      : { type: 'work', round: 1, set: 1, dur: cfg.work };
+    let idx = 0;
+    while (cur.type !== 'done') {
+      phases.push({ ...cur, idx: idx++ });
+      cur = nextPhase(cur, cfg);
+    }
+    return phases;
+  }
+  const timeline = buildTimeline();
+
+  // Current phase index in timeline
+  const currentIdx = timeline.findIndex(t =>
+    t.type === phase.type && t.round === phase.round && t.set === phase.set
+  );
+
   const nextP = phase.type !== 'done' && phase.type !== 'idle' ? nextPhase(phase, cfg) : null;
+
+  // Phase colors for timeline dots
+  const phaseColor = { prep: '#888', work: '#fff', rest: '#16a34a', set_rest: '#3b82f6' };
 
   // ─── Active Timer ───
   const dashOffset = progress * CIRC;
   return (
-    <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 16px', direction: 'rtl', color: W }}>
+    <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 16px 20px', direction: 'rtl', color: W, overflowY: 'auto' }}>
 
-      {/* Top bar: phase label + minimize button */}
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 28, fontWeight: 900 }}>{PHASE_LABEL[phase.type]}</div>
-        <button onClick={doMinimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, padding: '8px 14px', color: W, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+      {/* Top bar */}
+      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div style={{ fontSize: 26, fontWeight: 900 }}>{PHASE_LABEL[phase.type]}</div>
+        <button onClick={doMinimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, padding: '7px 12px', color: W, fontSize: 12, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>
           מזער ↗
         </button>
       </div>
 
-      {/* Round/Set info chips */}
-      {phase.type !== 'prep' && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 14px', fontSize: 14, fontWeight: 700 }}>
-            סבב {phase.round} / {cfg.rounds}
+      {/* Stats row */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {phase.type !== 'prep' && (
+          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700 }}>
+            🔄 סבב {phase.round}/{cfg.rounds}
           </div>
-          {cfg.sets > 1 && (
-            <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 14px', fontSize: 14, fontWeight: 700 }}>
-              סט {phase.set} / {cfg.sets}
-            </div>
-          )}
+        )}
+        {cfg.sets > 1 && phase.type !== 'prep' && (
+          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700 }}>
+            📦 סט {phase.set}/{cfg.sets}
+          </div>
+        )}
+        <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          ⏱ {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
         </div>
-      )}
+      </div>
 
       {/* Ring + giant number */}
-      <div style={{ position: 'relative', width: SIZE, height: SIZE, margin: '4px 0' }}>
+      <div style={{ position: 'relative', width: SIZE, height: SIZE }}>
         <svg width={SIZE} height={SIZE}>
           <circle cx={CX} cy={CY} r={R} stroke={WD} strokeWidth={S} fill="none" />
           <circle cx={CX} cy={CY} r={R} stroke={W} strokeWidth={S} strokeLinecap="round" fill="none"
             strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} />
         </svg>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 'min(40vw, 130px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, lineHeight: 1 }}>{display}</span>
-          <span style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>שניות</span>
+          <span style={{ fontSize: 'min(42vw, 140px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, lineHeight: 1 }}>{display}</span>
         </div>
       </div>
 
-      {/* Total time remaining */}
-      <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '8px 20px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13, opacity: 0.7 }}>סה״כ נותר:</span>
-        <span style={{ fontSize: 22, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
-          {String(totalMin).padStart(2, '0')}:{String(totalSec).padStart(2, '0')}
-        </span>
+      {/* Phase navigation: prev | next */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 8, width: '100%', maxWidth: 340 }}>
+        <button onClick={skipToPrev} style={{ flex: 1, height: 38, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
+        <button onClick={skipToNext} style={{ flex: 1, height: 38, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
       </div>
 
       {/* Next phase preview */}
       {nextP && nextP.type !== 'done' && (
-        <div style={{ marginTop: 8, fontSize: 13, opacity: 0.6 }}>
-          הבא: {PHASE_LABEL[nextP.type]} ({nextP.dur} שנ׳)
+        <div style={{ marginTop: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 16px', fontSize: 13, fontWeight: 600 }}>
+          הבא: {PHASE_LABEL[nextP.type]} · {nextP.dur} שנ׳
         </div>
       )}
 
+      {/* Scrollable phase timeline */}
+      <div style={{ width: '100%', maxWidth: 360, marginTop: 12, overflowX: 'auto', WebkitOverflowScrolling: 'touch', direction: 'ltr' }}>
+        <div style={{ display: 'flex', gap: 4, minWidth: 'max-content', padding: '4px 0' }}>
+          {timeline.map((t, i) => {
+            const isCurrent = i === currentIdx;
+            const isPast = i < currentIdx;
+            return (
+              <div key={i} style={{
+                minWidth: 44, padding: '6px 4px', borderRadius: 8, textAlign: 'center',
+                background: isCurrent ? 'rgba(255,255,255,0.3)' : isPast ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.08)',
+                border: isCurrent ? '2px solid white' : '2px solid transparent',
+                opacity: isPast ? 0.5 : 1,
+              }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: phaseColor[t.type] || '#fff', margin: '0 auto 3px', border: '1px solid rgba(255,255,255,0.3)' }} />
+                <div style={{ fontSize: 9, fontWeight: 700, color: W, lineHeight: 1.2 }}>
+                  {PHASE_LABEL[t.type]?.slice(0, 4)}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: W }}>{t.dur}״</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Controls */}
-      <div style={{ marginTop: 20, display: 'flex', gap: 12, width: '100%', maxWidth: 340, justifyContent: 'center' }}>
+      <div style={{ marginTop: 14, display: 'flex', gap: 10, width: '100%', maxWidth: 340 }}>
         {paused
           ? <button onClick={handleResume} style={{ ...cBtn, flex: 2 }}>המשך ▶</button>
           : <button onClick={handlePause} style={{ ...cBtn, flex: 2 }}>השהה ‖</button>
