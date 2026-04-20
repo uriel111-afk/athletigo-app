@@ -157,7 +157,7 @@ export default function TraineeSessions() {
           if (svc && svc.used_sessions > 0) {
             await base44.entities.ClientService.update(svc.id, {
               used_sessions: Math.max(0, svc.used_sessions - 1),
-              status: svc.status === 'completed' ? 'פעיל' : svc.status,
+              status: svc.status === 'completed' ? 'active' : svc.status,
             });
           }
         } catch {}

@@ -754,7 +754,7 @@ export default function TraineeProfile() {
               const newUsed = Math.max(0, svc.used_sessions - 1);
               await base44.entities.ClientService.update(svc.id, {
                 used_sessions: newUsed,
-                status: svc.status === 'completed' ? 'פעיל' : svc.status,
+                status: svc.status === 'completed' ? 'active' : svc.status,
               });
               sessionUpdateData.was_deducted = false;
               const total = svc.total_sessions || svc.sessions_count || 0;
@@ -1084,7 +1084,7 @@ export default function TraineeProfile() {
             created_by: currentUser?.id || null,
             used_sessions: 0,
             sessions_remaining: data.total_sessions || null,
-            status: data.status === 'active' ? 'פעיל' : (data.status || 'פעיל'),
+            status: data.status || 'active',
         });
       }
     } catch (error) {
@@ -2559,7 +2559,7 @@ export default function TraineeProfile() {
               <div><Label className="text-xs mb-1 block">סטטוס</Label>
                 <Select value={serviceForm.status} onValueChange={v => setServiceForm({ ...serviceForm, status: v })}>
                   <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="active">פעיל</SelectItem><SelectItem value="frozen">מושהה</SelectItem><SelectItem value="ended">הסתיים</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="active">פעיל</SelectItem><SelectItem value="frozen">מושהה</SelectItem><SelectItem value="completed">הסתיים</SelectItem><SelectItem value="cancelled">בוטל</SelectItem></SelectContent>
                 </Select>
               </div>
               <Button onClick={handleAddOrUpdateService} disabled={createServiceMutation.isPending || updateServiceMutation.isPending} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
