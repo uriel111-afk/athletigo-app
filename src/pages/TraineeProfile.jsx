@@ -224,10 +224,30 @@ const BaselineCard = ({ result, onEdit, onDelete }) => {
   );
 };
 
+const MiniSparkline = ({ data, color = '#FF6F20' }) => {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const w = 80, h = 32;
+  const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
+  return (
+    <svg width={w} height={h} style={{ flexShrink: 0 }}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
 const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const count = results.length;
   const isBaseline = type === 'בייסליין';
+
+  // Build sparkline data from record values
+  const sparkData = results
+    .filter(r => r.record_value || r.baseline_score)
+    .map(r => parseFloat(r.record_value || r.baseline_score) || 0)
+    .reverse(); // oldest first for left→right trend
 
   return (
     <div className="mb-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -245,8 +265,11 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
                <p className="text-xs text-gray-500">{count} {isBaseline ? 'מדידות' : 'הישגים'}</p>
             </div>
          </div>
-         <div className="text-gray-400 group-hover:text-gray-600">
-            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+         <div className="flex items-center gap-3">
+            <MiniSparkline data={sparkData} />
+            <div className="text-gray-400 group-hover:text-gray-600">
+              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
          </div>
        </button>
 
