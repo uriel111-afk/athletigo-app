@@ -322,8 +322,24 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   function skipToPrev() {
     cancelScheduled();
-    // Restart current phase from beginning
-    beginPhase({ ...phaseRef.current });
+    // Build full timeline and find current position
+    const tl = [];
+    let cur = cfgRef.current.prep > 0
+      ? { type: 'prep', round: 0, set: 0, dur: cfgRef.current.prep }
+      : { type: 'work', round: 1, set: 1, dur: cfgRef.current.work };
+    while (cur.type !== 'done') {
+      tl.push(cur);
+      cur = nextPhase(cur, cfgRef.current);
+    }
+    const p = phaseRef.current;
+    const idx = tl.findIndex(t => t.type === p.type && t.round === p.round && t.set === p.set);
+    if (idx > 0) {
+      // Go to previous phase
+      beginPhase(tl[idx - 1]);
+    } else {
+      // Already at first phase — restart it
+      beginPhase({ ...phaseRef.current });
+    }
     if (!paused) rafRef.current = requestAnimationFrame(tick);
   }
 
