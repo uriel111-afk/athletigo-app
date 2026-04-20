@@ -242,36 +242,110 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     );
   }
 
+  // ─── Compute total remaining time ───
+  function calcTotalRemaining() {
+    const c = cfgRef.current;
+    const p = phaseRef.current;
+    if (p.type === 'idle' || p.type === 'done') return 0;
+
+    // Current phase remaining
+    const elapsed = (performance.now() - startAtRef.current) / 1000;
+    let total = Math.max(0, p.dur - elapsed);
+
+    // Remaining phases
+    let cur = { ...p };
+    while (true) {
+      const nxt = nextPhase(cur, c);
+      if (nxt.type === 'done') break;
+      total += nxt.dur;
+      cur = nxt;
+    }
+    return Math.ceil(total);
+  }
+
+  const totalLeft = calcTotalRemaining();
+  const totalMin = Math.floor(totalLeft / 60);
+  const totalSec = totalLeft % 60;
+
+  // Minimize handler
+  function doMinimize() {
+    if (onMinimize && setLiveTimer) {
+      setLiveTimer({
+        type: 'tabata',
+        display: String(display),
+        phase: PHASE_LABEL[phaseRef.current.type] || '',
+        info: `סבב ${phase.round}/${cfg.rounds} · סט ${phase.set}/${cfg.sets}`,
+        paused,
+      });
+      onMinimize();
+    }
+  }
+
+  // Next phase preview
+  const nextP = phase.type !== 'done' && phase.type !== 'idle' ? nextPhase(phase, cfg) : null;
+
   // ─── Active Timer ───
   const dashOffset = progress * CIRC;
   return (
-    <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, direction: 'rtl', color: W }}>
-      <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 12 }}>{PHASE_LABEL[phase.type]}</div>
+    <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 16px', direction: 'rtl', color: W }}>
 
-      <div style={{ position: 'relative', width: SIZE, height: SIZE }}>
+      {/* Top bar: phase label + minimize button */}
+      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 28, fontWeight: 900 }}>{PHASE_LABEL[phase.type]}</div>
+        <button onClick={doMinimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10, padding: '8px 14px', color: W, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+          מזער ↗
+        </button>
+      </div>
+
+      {/* Round/Set info chips */}
+      {phase.type !== 'prep' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 14px', fontSize: 14, fontWeight: 700 }}>
+            סבב {phase.round} / {cfg.rounds}
+          </div>
+          {cfg.sets > 1 && (
+            <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 14px', fontSize: 14, fontWeight: 700 }}>
+              סט {phase.set} / {cfg.sets}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ring + giant number */}
+      <div style={{ position: 'relative', width: SIZE, height: SIZE, margin: '4px 0' }}>
         <svg width={SIZE} height={SIZE}>
           <circle cx={CX} cy={CY} r={R} stroke={WD} strokeWidth={S} fill="none" />
           <circle cx={CX} cy={CY} r={R} stroke={W} strokeWidth={S} strokeLinecap="round" fill="none"
             strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} />
         </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 80, fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -3 }}>{display}</span>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 'min(40vw, 130px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -4, lineHeight: 1 }}>{display}</span>
+          <span style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>שניות</span>
         </div>
       </div>
 
-      {phase.type !== 'prep' && (
-        <div style={{ marginTop: 14, fontSize: 18, fontWeight: 700, textAlign: 'center', lineHeight: 1.6 }}>
-          <div>סבב {phase.round} / {cfg.rounds}</div>
-          {cfg.sets > 1 && <div>סט {phase.set} / {cfg.sets}</div>}
+      {/* Total time remaining */}
+      <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '8px 20px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13, opacity: 0.7 }}>סה״כ נותר:</span>
+        <span style={{ fontSize: 22, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
+          {String(totalMin).padStart(2, '0')}:{String(totalSec).padStart(2, '0')}
+        </span>
+      </div>
+
+      {/* Next phase preview */}
+      {nextP && nextP.type !== 'done' && (
+        <div style={{ marginTop: 8, fontSize: 13, opacity: 0.6 }}>
+          הבא: {PHASE_LABEL[nextP.type]} ({nextP.dur} שנ׳)
         </div>
       )}
 
-      <div style={{ marginTop: 28, display: 'flex', gap: 12 }}>
+      {/* Controls */}
+      <div style={{ marginTop: 20, display: 'flex', gap: 12, width: '100%', maxWidth: 340, justifyContent: 'center' }}>
         {paused
-          ? <button onClick={handleResume} style={cBtn}>המשך ▶</button>
-          : <button onClick={handlePause} style={cBtn}>השהה ‖</button>
+          ? <button onClick={handleResume} style={{ ...cBtn, flex: 2 }}>המשך ▶</button>
+          : <button onClick={handlePause} style={{ ...cBtn, flex: 2 }}>השהה ‖</button>
         }
-        <button onClick={handleStop} style={{ ...cBtn, background: 'rgba(255,255,255,0.2)', color: W }}>עצור</button>
+        <button onClick={handleStop} style={{ ...cBtn, flex: 1, background: 'rgba(255,255,255,0.2)', color: W }}>עצור</button>
       </div>
     </div>
   );
