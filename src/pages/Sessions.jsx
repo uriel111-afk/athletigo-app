@@ -1462,38 +1462,46 @@ export default function Sessions() {
               {markingGroupAttendance && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-500">{markingGroupAttendance.group_name} • {markingGroupAttendance.date} • {markingGroupAttendance.time}</p>
-                  <p className="text-xs text-gray-400">{markingGroupAttendance.participants?.filter(p => p.attendance_status === 'הגיע').length || 0} / {markingGroupAttendance.participants?.length || 0} סומנו</p>
+                  <p className="text-xs text-gray-400">{markingGroupAttendance.participants?.filter(p => p.attendance_status && p.attendance_status !== 'ממתין').length || 0} / {markingGroupAttendance.participants?.length || 0} סומנו</p>
 
-                  {/* Per-member attendance */}
+                  {/* Per-member attendance — 4 statuses */}
                   <div style={{ maxHeight: '40vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     {(markingGroupAttendance.participants || []).map((p, idx) => {
-                      const statuses = ['הגיע', 'לא הגיע'];
+                      const statusConfig = [
+                        { key: 'הגיע', color: '#16a34a', bg: '#dcfce7' },
+                        { key: 'איחר', color: '#eab308', bg: '#fef9c3' },
+                        { key: 'לא הגיע', color: '#dc2626', bg: '#fee2e2' },
+                        { key: 'ביטל', color: '#6b7280', bg: '#f3f4f6' },
+                      ];
                       return (
-                        <div key={p.trainee_id || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f5f5f5', direction: 'rtl' }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{p.trainee_name}</div>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            {statuses.map(st => (
-                              <button key={st} onClick={async () => {
-                                const newStatus = p.attendance_status === st ? 'ממתין' : st;
-                                const updated = markingGroupAttendance.participants.map(pp =>
-                                  pp.trainee_id === p.trainee_id ? { ...pp, attendance_status: newStatus } : pp
-                                );
-                                try {
-                                  await base44.entities.Session.update(markingGroupAttendance.id, { participants: updated });
-                                  setMarkingGroupAttendance(prev => prev ? { ...prev, participants: updated } : null);
-                                  queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-                                } catch {}
-                              }}
-                                style={{
-                                  padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-                                  border: `1.5px solid ${p.attendance_status === st ? (st === 'הגיע' ? '#16a34a' : '#ef4444') : '#eee'}`,
-                                  background: p.attendance_status === st ? (st === 'הגיע' ? '#dcfce7' : '#fee2e2') : 'white',
-                                  color: p.attendance_status === st ? (st === 'הגיע' ? '#16a34a' : '#ef4444') : '#999',
-                                  cursor: 'pointer',
-                                }}>
-                                {st}
-                              </button>
-                            ))}
+                        <div key={p.trainee_id || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5', direction: 'rtl', gap: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.trainee_name}</div>
+                          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', flexShrink: 0 }}>
+                            {statusConfig.map(st => {
+                              const active = p.attendance_status === st.key;
+                              return (
+                                <button key={st.key} onClick={async () => {
+                                  const newStatus = active ? 'ממתין' : st.key;
+                                  const updated = markingGroupAttendance.participants.map(pp =>
+                                    pp.trainee_id === p.trainee_id ? { ...pp, attendance_status: newStatus } : pp
+                                  );
+                                  try {
+                                    await base44.entities.Session.update(markingGroupAttendance.id, { participants: updated });
+                                    setMarkingGroupAttendance(prev => prev ? { ...prev, participants: updated } : null);
+                                    queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                                  } catch {}
+                                }}
+                                  style={{
+                                    padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                                    border: `1.5px solid ${active ? st.color : '#eee'}`,
+                                    background: active ? st.bg : 'white',
+                                    color: active ? st.color : '#bbb',
+                                    cursor: 'pointer', touchAction: 'manipulation',
+                                  }}>
+                                  {st.key}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -1501,17 +1509,20 @@ export default function Sessions() {
                   </div>
 
                   {/* Bulk actions */}
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
-                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'הגיע' })} disabled={markGroupAttendanceMutation.isPending} className="font-bold text-white rounded-xl min-h-[40px] text-xs" style={{ backgroundColor: '#4CAF50' }}>
-                      ✅ כולם
+                  <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-gray-100">
+                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'הגיע' })} disabled={markGroupAttendanceMutation.isPending} className="font-bold text-white rounded-lg min-h-[36px] text-[10px] px-1" style={{ backgroundColor: '#16a34a' }}>
+                      כולם הגיעו
                     </Button>
-                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'לא הגיע' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-xl min-h-[40px] text-xs border-red-200 text-red-500">
-                      ❌ אף אחד
+                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'לא הגיע' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-lg min-h-[36px] text-[10px] px-1 border-red-200 text-red-500">
+                      לא הגיעו
                     </Button>
-                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'ממתין' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-xl min-h-[40px] text-xs text-gray-400 border-gray-200">
-                      ↩ אפס
+                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'ביטל' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-lg min-h-[36px] text-[10px] px-1 text-gray-500 border-gray-200">
+                      ביטל
                     </Button>
                   </div>
+                  <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'ממתין' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-lg min-h-[32px] text-[10px] w-full text-gray-400 border-gray-100 mt-1">
+                    ↩ אפס הכל
+                  </Button>
                 </div>
               )}
             </DialogContent>
