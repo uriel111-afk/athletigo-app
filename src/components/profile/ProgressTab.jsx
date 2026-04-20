@@ -42,9 +42,13 @@ export default function ProgressTab({ traineeId }) {
   const { data: records = [] } = useQuery({
     queryKey: ['personal-records', traineeId],
     queryFn: async () => {
-      const { data } = await supabase.from('personal_records')
-        .select('*').eq('trainee_id', traineeId).order('date', { ascending: true });
-      return data || [];
+      if (!traineeId) return [];
+      try {
+        const { data, error } = await supabase.from('personal_records')
+          .select('*').eq('trainee_id', traineeId).order('date', { ascending: true });
+        if (error) { console.warn('personal_records query failed:', error.message); return []; }
+        return data || [];
+      } catch (e) { console.warn('personal_records table may not exist:', e.message); return []; }
     },
     enabled: !!traineeId,
   });
@@ -69,6 +73,7 @@ export default function ProgressTab({ traineeId }) {
 
   const handleSaveRecord = async () => {
     if (!recForm.name || !recForm.value) { toast.error('יש למלא שם וערך'); return; }
+    try {
     const { error } = await supabase.from('personal_records').insert({
       trainee_id: traineeId,
       coach_id: isCoach ? currentUser.id : null,
@@ -86,14 +91,19 @@ export default function ProgressTab({ traineeId }) {
     queryClient.invalidateQueries({ queryKey: ['personal-records'] });
     setShowAddRecord(false);
     setRecForm({ record_type: '', name: '', unit: '', value: '', date: new Date().toISOString().split('T')[0], notes: '' });
+    } catch (e) { toast.error('שגיאה בשמירה: ' + (e?.message || 'נסה שוב')); }
   };
 
   const deleteRecord = async (id) => {
     if (!window.confirm('למחוק שיא זה?')) return;
-    await supabase.from('personal_records').delete().eq('id', id);
-    queryClient.invalidateQueries({ queryKey: ['personal-records'] });
-    toast.success('נמחק');
+    try {
+      await supabase.from('personal_records').delete().eq('id', id);
+      queryClient.invalidateQueries({ queryKey: ['personal-records'] });
+      toast.success('נמחק');
+    } catch (e) { toast.error('שגיאה במחיקה'); }
   };
+
+  if (!traineeId) return null;
 
   return (
     <div className="space-y-6" dir="rtl">
