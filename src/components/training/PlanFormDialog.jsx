@@ -167,7 +167,7 @@ export default function PlanFormDialog({
                 </Button>
               </div>
               
-              <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+              <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                 {trainees.map(trainee => (
                   <div key={trainee.id} 
                        className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer border ${selectedTrainees.includes(trainee.id) ? 'bg-orange-50 border-[#FF6F20]' : 'bg-white border-gray-200 hover:border-gray-300'}`}

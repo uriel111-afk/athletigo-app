@@ -319,6 +319,7 @@ export default function PlanBuilder() {
 
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>בחירת מתאמנים</div>
+            <div style={{ maxHeight: 280, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
             {trainees.map(t => (
               <div key={t.id} onClick={() => setSelectedTrainees(prev => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id])}
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: selectedTrainees.includes(t.id) ? "#FFF0E8" : "white", borderRadius: 10, border: selectedTrainees.includes(t.id) ? "2px solid #FF6F20" : "1px solid #eee", marginBottom: 8, cursor: "pointer" }}>
@@ -333,6 +334,7 @@ export default function PlanBuilder() {
                 </div>
               </div>
             ))}
+            </div>
           </div>
 
           <div style={{ marginBottom: 20 }}>
@@ -538,8 +540,11 @@ function ExerciseEditor({ data, onSave, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, padding: 24, maxHeight: "90vh", overflowY: "auto", paddingBottom: "max(env(safe-area-inset-bottom),24px)" }}>
-        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 16, textAlign: "center" }}>{data.isNew ? "תרגיל חדש" : "ערוך תרגיל"}</div>
+      <div style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flexShrink: 0, padding: "16px 24px 8px", borderBottom: "0.5px solid #f0f0f0" }}>
+          <div style={{ fontSize: 20, fontWeight: 900, textAlign: "center" }}>{data.isNew ? "תרגיל חדש" : "ערוך תרגיל"}</div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 24px", minHeight: 0 }}>
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>שם התרגיל</div>
@@ -608,12 +613,15 @@ function ExerciseEditor({ data, onSave, onClose }) {
             </div>
           )}
         </div>
+        </div>
 
-        <button onClick={() => { if (!name.trim()) return; onSave({ name, params }); }} disabled={!name.trim()}
-          style={{ width: "100%", height: 52, background: !name.trim() ? "#ccc" : "#FF6F20", color: "white", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 900, cursor: "pointer", marginBottom: 10 }}>
-          {data.isNew ? "הוסף תרגיל ✓" : "עדכן תרגיל ✓"}
-        </button>
-        <button onClick={onClose} style={{ width: "100%", padding: 10, background: "none", border: "none", color: "#999", fontSize: 14, cursor: "pointer" }}>ביטול</button>
+        <div style={{ flexShrink: 0, padding: "12px 24px", borderTop: "0.5px solid #f0f0f0", background: "#fff", paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
+          <button onClick={() => { if (!name.trim()) return; onSave({ name, params }); }} disabled={!name.trim()}
+            style={{ width: "100%", height: 52, background: !name.trim() ? "#ccc" : "#FF6F20", color: "white", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 900, cursor: "pointer", marginBottom: 8 }}>
+            {data.isNew ? "הוסף תרגיל ✓" : "עדכן תרגיל ✓"}
+          </button>
+          <button onClick={onClose} style={{ width: "100%", padding: 8, background: "none", border: "none", color: "#999", fontSize: 14, cursor: "pointer" }}>ביטול</button>
+        </div>
       </div>
     </div>
   );
