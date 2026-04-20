@@ -257,21 +257,23 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const calcTotal = () =>
     (prepTime+(workTime+restTime)*rounds)*sets + restBetween*Math.max(0,sets-1);
 
-  const handleStart = () => {
-    unlockAudio(); setScreen('go321'); setGo321(3); SND_TICK();
+  const handleStart = async () => {
+    await unlockAudio(); setScreen('go321'); setGo321(3); SND_TICK();
     let c = 3;
     goRef.current = setInterval(() => {
       c -= 1;
       if (c > 0) { setGo321(c); SND_TICK(); }
       else {
-        clearInterval(goRef.current); setGo321('GO'); SND_GO();
+        clearInterval(goRef.current); setGo321('GO');
+        try { SND_GO(); } catch(e) { console.error('[Tabata] SND_GO failed:', e); }
         setTimeout(() => {
+          try {
           const total = calcTotal(); totRef.current = total; setTotalLeft(total);
           rRef.current=1; sRef.current=1; setCurRound(1); setCurSet(1);
           setIsRunning(true); setScreen('running');
           const initPhase = prepTime>0 ? 'הכנה' : 'עבודה';
           const initDur   = prepTime>0 ? prepTime : wkRef.current;
-          if (initPhase==='עבודה') SND_WORK();
+          if (initPhase==='עבודה') { try { SND_WORK(); } catch(e) {} }
           startPhase(initPhase, initDur); startMain();
           clearInterval(totalRef.current);
           totalRef.current = setInterval(() => {
@@ -282,6 +284,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             if (tt <= 0) { clearInterval(totalRef.current); SND_DOUBLE_BELL(); }
           }, 1000);
           reqWake();
+          } catch(e) { console.error('[Tabata] GO→running transition failed:', e); setScreen('running'); }
         }, 800);
       }
     }, 1000);
