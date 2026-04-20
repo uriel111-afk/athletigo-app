@@ -1779,7 +1779,9 @@ export default function TraineeProfile() {
               {/* Metrics Tab */}
               <TabsContent value="metrics" className="space-y-4 w-full">
                 <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#FF6F20]" />מדדים פיזיים</h2>
-                <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} currentUser={currentUser} goals={goals} />
+                <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המדדים נכשלה. נסה לרענן את הדף.</div>}>
+                  <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} currentUser={currentUser} goals={goals} />
+                </ErrorBoundary>
               </TabsContent>
 
               {/* Achievements Tab */}
@@ -1790,7 +1792,9 @@ export default function TraineeProfile() {
                     <Zap className="w-3 h-3 ml-1" />בייסליין חדש
                   </Button>
                 </div>
-                <ProgressTab traineeId={user?.id} />
+                <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב השיאים נכשלה. נסה לרענן את הדף.</div>}>
+                  <ProgressTab traineeId={user?.id} />
+                </ErrorBoundary>
               </TabsContent>
 
               {/* Baselines Tab */}
@@ -2411,7 +2415,9 @@ export default function TraineeProfile() {
                 <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5 text-purple-600" />שיחה עם המאמן</h2>
                 {user && coach ? (
                   <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-                    <MessageCenter currentUserId={user.id} currentUserName={user.full_name} otherUserId={coach.id} otherUserName={coach.full_name} relatedUserId={user.id} />
+                    <ErrorBoundary fallback={<div className="text-center py-8 text-sm text-gray-500">טעינת ההודעות נכשלה. נסה לרענן את הדף.</div>}>
+                      <MessageCenter currentUserId={user.id} currentUserName={user.full_name} otherUserId={coach.id} otherUserName={coach.full_name} relatedUserId={user.id} />
+                    </ErrorBoundary>
                   </div>
                 ) : (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><MessageSquare className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">לא נמצא מאמן</p></div>
@@ -2420,15 +2426,17 @@ export default function TraineeProfile() {
 
               {/* Documents Tab */}
               <TabsContent value="documents" className="w-full">
-                <DocumentSigningTab
-                  effectiveUser={effectiveUser || user}
-                  isCoach={isCoach}
-                  onUserUpdate={() => {
-                    queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
-                    queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });
-                    refetch();
-                  }}
-                />
+                <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המסמכים נכשלה. נסה לרענן את הדף.</div>}>
+                  <DocumentSigningTab
+                    effectiveUser={effectiveUser || user}
+                    isCoach={isCoach}
+                    onUserUpdate={() => {
+                      queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+                      queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });
+                      refetch();
+                    }}
+                  />
+                </ErrorBoundary>
               </TabsContent>
             </Tabs>
           </div>

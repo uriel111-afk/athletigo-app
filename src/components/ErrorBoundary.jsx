@@ -43,8 +43,13 @@ export default class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      // When a caller provides a fallback (per-tab / per-section usage),
+      // render it inline instead of taking over the whole page.
+      if (this.props.fallback !== undefined) {
+        return this.props.fallback;
+      }
       return (
-        <div 
+        <div
           style={{
             minHeight: '100vh',
             display: 'flex',
