@@ -67,10 +67,10 @@ function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, ste
 }
 
 // ═══ SOUNDS (Timer & Stopwatch) — shared AudioContext ═══
-import { unlock as unlockAudio, playBeep, playWhistle, playBell, playVictory } from '@/lib/tabataSounds';
-const SOUND_START = playWhistle;
-const SOUND_PAUSE = playBeep;
-const SOUND_RESET = playBeep;
+import { unlock as unlockAudio, playBeep, playClick, playWhistle, playBell, playVictory } from '@/lib/tabataSounds';
+const SOUND_START = playClick;
+const SOUND_PAUSE = playClick;
+const SOUND_RESET = playClick;
 const SOUND_TICK = playBeep;
 const SOUND_ALERT = () => { playBeep(); setTimeout(playBeep, 150); };
 const SOUND_TRIPLE_BELL = playVictory;

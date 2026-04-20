@@ -92,7 +92,25 @@ function victory(when) {
   });
 }
 
+function click(when) {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(1500, when);
+  osc.frequency.exponentialRampToValueAtTime(400, when + 0.03);
+  g.gain.setValueAtTime(0, when);
+  g.gain.linearRampToValueAtTime(0.6, when + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.001, when + 0.04);
+  osc.connect(g);
+  g.connect(masterGain);
+  osc.start(when);
+  osc.stop(when + 0.05);
+  scheduledNodes.push(osc);
+}
+
 // Public API — immediate play
+export function playClick() { click(getCtx().currentTime); }
 export function playBeep() { beep(getCtx().currentTime); }
 export function playWhistle() { whistle(getCtx().currentTime); }
 export function playBell() { bell(getCtx().currentTime); }
