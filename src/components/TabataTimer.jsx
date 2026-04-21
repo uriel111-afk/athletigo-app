@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  unlock as unlockAudio, now, playBeep, playWhistle, playBell,
+  unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
   playLongBeep, playDoubleBell, playVictory, cancelScheduled,
 } from '@/lib/tabataSounds';
 
@@ -131,6 +131,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Handlers ───
   const handleStart = useCallback(async () => {
     await unlockAudio();
+    playClick();
     setPaused(false);
     setScreen('running');
     const first = cfg.prep > 0
@@ -141,6 +142,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }, [cfg]);
 
   function handlePause() {
+    playClick();
     cancelAnimationFrame(rafRef.current);
     cancelScheduled();
     elapsedRef.current = (performance.now() - startAtRef.current) / 1000;
@@ -149,6 +151,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   function handleResume() {
+    playClick();
     startAtRef.current = performance.now() - elapsedRef.current * 1000;
     lastBeepRef.current = -1;
     setPaused(false);
