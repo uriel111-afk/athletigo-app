@@ -137,6 +137,9 @@ export default function AgreementFlowDialog({
 
   useKeepScreenAwake(open);
 
+  // Two steps only: 'fields' (coach inputs) → 'sign' (single unified sign screen).
+  // The old 'preview' step was merged into 'sign' — the contract text, photo
+  // consent, read checkbox, signature and both submit buttons all live there now.
   const [step, setStep] = useState('fields');
   // Default to 'deferred' — consent is now optional at signing time.
   const [photoConsent, setPhotoConsent] = useState('deferred');
@@ -237,15 +240,8 @@ export default function AgreementFlowDialog({
       <DialogContent className="max-w-2xl" onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle style={{ color: COLORS.text, fontWeight: 700, fontSize: 16 }}>
-            {step === 'fields' && `פרטי ההתקשרות — ${template.title}`}
-            {step === 'preview' && 'בדיקה אחרונה — לפני חתימה'}
-            {step === 'sign' && 'חתימה על ההסכם'}
+            {step === 'fields' ? `פרטי ההתקשרות — ${template.title}` : 'חתימה על ההסכם'}
           </DialogTitle>
-          {step === 'preview' && (
-            <p style={{ color: COLORS.textMuted, fontSize: 13, margin: '4px 0 0' }}>
-              המתאמן יראה את הטקסט הזה. הוא יסמן את אישור הצילום ויוסיף תאריך וחתימה בשלב הבא.
-            </p>
-          )}
         </DialogHeader>
 
         <div dir="rtl" style={{ ...containerStyle, padding: 4, maxHeight: '70vh', overflowY: 'auto' }}>
@@ -268,10 +264,6 @@ export default function AgreementFlowDialog({
                 </div>
               ))}
             </div>
-          )}
-
-          {step === 'preview' && (
-            <div style={bodyTextBoxStyle}>{previewBody}</div>
           )}
 
           {step === 'sign' && (
@@ -352,35 +344,28 @@ export default function AgreementFlowDialog({
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', direction: 'rtl' }}>
           {step === 'fields' && (
             <>
-              <button onClick={() => onClose()} disabled={saving} style={{ ...secondaryBtnStyle, flex: 1 }}>
+              <button onClick={() => onClose()} disabled={saving}
+                style={{ ...secondaryBtnStyle, flex: '1 1 100px' }}>
                 ביטול
               </button>
-              <button onClick={() => setStep('preview')} disabled={!allRequiredFilled || saving}
-                style={{ ...primaryBtnStyle, flex: 1, background: allRequiredFilled ? COLORS.accent : '#D1D5DB' }}>
-                המשך
-              </button>
-            </>
-          )}
-          {step === 'preview' && (
-            <>
-              <button onClick={() => setStep('fields')} disabled={saving} style={{ ...secondaryBtnStyle, flex: 1 }}>
-                ← חזור לעריכה
-              </button>
-              <button onClick={handleSendForSignature} disabled={saving} style={{ ...secondaryBtnStyle, flex: 1 }}>
-                {saving ? 'שומר...' : 'שלח לחתימה מרחוק'}
-              </button>
-              <button onClick={() => setStep('sign')} disabled={saving} style={{ ...primaryBtnStyle, flex: 1 }}>
-                חתום עכשיו
+              <button onClick={() => setStep('sign')} disabled={!allRequiredFilled || saving}
+                style={{ ...primaryBtnStyle, flex: '1 1 140px', background: allRequiredFilled ? COLORS.accent : '#D1D5DB' }}>
+                המשך →
               </button>
             </>
           )}
           {step === 'sign' && (
             <>
-              <button onClick={() => setStep('preview')} disabled={saving} style={{ ...secondaryBtnStyle, flex: 1 }}>
+              <button onClick={() => setStep('fields')} disabled={saving}
+                style={{ ...secondaryBtnStyle, flex: '1 1 100px' }}>
                 ← חזור
               </button>
+              <button onClick={handleSendForSignature} disabled={saving}
+                style={{ ...secondaryBtnStyle, flex: '1 1 140px' }}>
+                {saving ? 'שומר...' : 'שלח לחתימה מרחוק'}
+              </button>
               <button onClick={handleSignNow} disabled={saving || !canSign}
-                style={{ ...primaryBtnStyle, flex: 1, background: (saving || !canSign) ? '#D1D5DB' : COLORS.accent }}>
+                style={{ ...primaryBtnStyle, flex: '1 1 140px', background: (saving || !canSign) ? '#D1D5DB' : COLORS.accent }}>
                 {saving ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : 'אשר וחתום'}
               </button>
             </>
