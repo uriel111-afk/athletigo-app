@@ -21,6 +21,73 @@ const PAR_Q_QUESTIONS = [
   "האם עברת ניתוח בחצי השנה האחרונה?",
 ];
 
+// ── New HealthDeclaration spec (10 sections) ──────────────────────────
+const HEALTH_QUESTIONS = [
+  ['heart_condition',     'מחלת לב / בעיה לבבית'],
+  ['chest_pain',          'כאבים בחזה בזמן מאמץ'],
+  ['uncontrolled_bp',     'לחץ דם גבוה שאינו מאוזן'],
+  ['breathing_issues',    'קשיי נשימה / אסתמה'],
+  ['existing_injury',     'פציעה קיימת (גב, ברכיים, כתפיים וכו׳)'],
+  ['movement_pain',       'כאבים בזמן תנועה או מאמץ'],
+  ['chronic_disease',     'מחלה כרונית / סוכרת'],
+  ['regular_medication',  'נטילת תרופות באופן קבוע'],
+  ['neurological_issue',  'בעיה נוירולוגית / תחושת נימול / נוירופתיה'],
+  ['recent_surgery',      'ניתוח בשנה האחרונה'],
+  // pregnancy is rendered separately (3 options)
+];
+
+const EXPERIENCE_LEVELS = [
+  { key: 'none',         label: 'אין ניסיון' },
+  { key: 'beginner',     label: 'מתחיל' },
+  { key: 'intermediate', label: 'בינוני' },
+  { key: 'advanced',     label: 'מתקדם' },
+];
+
+const UNDERSTANDING_CHECKS = [
+  ['understands_physical_work',   'אני מבין/ה כי האימונים כוללים עבודה פיזית (כוח, תנועה, עומס)'],
+  ['understands_gradual_program', 'ידוע לי כי התוכנית נבנית בצורה מדורגת, מבוקרת וזהירה'],
+  ['understands_risks',           'אני מודע/ת לכך שלמרות זאת קיימים סיכונים בפעילות גופנית'],
+];
+
+const BODY_AWARENESS_CHECKS = [
+  ['understands_pain_vs_effort', 'הוסבר לי ההבדל בין מאמץ שרירי תקין לבין כאב חריג'],
+  ['commits_to_stop_on_pain',    'אני מתחייב/ת להפסיק פעילות במקרה של כאב חד / כאב במפרקים / אי נוחות חריגה'],
+  ['commits_to_report_pain',     'אני מתחייב/ת לדווח למאמן באופן מיידי על כל כאב או בעיה'],
+];
+
+const REPORTING_CHECKS = [
+  ['commits_to_update_health_changes', 'אני מתחייב/ת לעדכן על כל שינוי במצבי הבריאותי'],
+  ['commits_to_report_injuries',       'אני מתחייב/ת לדווח על פציעות או מגבלות לפני ובמהלך האימונים'],
+];
+
+const RISK_CHECKS = [
+  ['voluntary_participation', 'אני מצהיר/ה כי השתתפותי בפעילות הינה מרצוני החופשי ובאחריותי האישית'],
+  ['aware_of_risks',          'אני מודע/ת לסיכונים האפשריים בפעילות גופנית'],
+];
+
+const FINAL_CHECKS = [
+  ['read_and_understood', 'קראתי והבנתי את כל האמור במסמך זה'],
+  ['info_accurate',       'כל הפרטים שמסרתי נכונים ומלאים'],
+];
+
+const HEALTH_INITIAL = (() => {
+  const o = {
+    full_name: '', id_number: '', phone: '', age: '',
+    pregnancy: null, doctor_restriction: null,
+    additional_details: '',
+    experience_level: '',
+  };
+  HEALTH_QUESTIONS.forEach(([k]) => { o[k] = null; });
+  [...UNDERSTANDING_CHECKS, ...BODY_AWARENESS_CHECKS, ...REPORTING_CHECKS, ...RISK_CHECKS, ...FINAL_CHECKS]
+    .forEach(([k]) => { o[k] = false; });
+  return o;
+})();
+
+const HEALTH_YES_KEYS = [
+  ...HEALTH_QUESTIONS.map(([k]) => k),
+  'pregnancy', 'doctor_restriction',
+];
+
 async function generatePdfFromRef(ref, fileName) {
   const canvas = await html2canvas(ref, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' });
   const imgData = canvas.toDataURL('image/jpeg', 0.85);
@@ -55,108 +122,257 @@ async function generatePdfFromRef(ref, fileName) {
   return new File([pdf.output('blob')], fileName, { type: 'application/pdf' });
 }
 
+// Reusable yes/no chip pair
+function YesNo({ value, onChange }) {
+  return (
+    <div className="flex gap-2 justify-end" dir="rtl">
+      <button type="button" onClick={() => onChange('no')}
+        className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${value === 'no' ? 'bg-green-100 border-green-400 text-green-800' : 'bg-white border-gray-200 text-gray-500'}`}>לא</button>
+      <button type="button" onClick={() => onChange('yes')}
+        className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${value === 'yes' ? 'bg-red-100 border-red-400 text-red-800' : 'bg-white border-gray-200 text-gray-500'}`}>כן</button>
+    </div>
+  );
+}
+
+function CheckRow({ checked, onChange, label }) {
+  return (
+    <label className="flex items-start gap-2 cursor-pointer py-1.5">
+      <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)}
+        style={{ accentColor: '#FF6F20', width: 18, height: 18, marginTop: 2, flexShrink: 0 }} />
+      <span style={{ color: '#1a1a1a', fontSize: 13.5, lineHeight: 1.5 }}>{label}</span>
+    </label>
+  );
+}
+
 function HealthDeclarationForm({ user, onSign, isSigning }) {
-  const [answers, setAnswers] = useState(PAR_Q_QUESTIONS.map(() => null));
-  const [healthNotes, setHealthNotes] = useState("");
+  const [data, setData] = useState({ ...HEALTH_INITIAL, full_name: user?.full_name ?? '', phone: user?.phone ?? '' });
   const sigRef = useRef(null);
   const formRef = useRef(null);
-  const hasYes = answers.some(a => a === true);
-  const allAnswered = answers.every(a => a !== null);
+
+  const set = (k, v) => setData(p => ({ ...p, [k]: v }));
+
+  const hasAnyYes = HEALTH_YES_KEYS.some(k => data[k] === 'yes');
+
+  const allHealthAnswered = HEALTH_QUESTIONS.every(([k]) => data[k] === 'yes' || data[k] === 'no')
+    && (data.pregnancy === 'yes' || data.pregnancy === 'no' || data.pregnancy === 'not_applicable')
+    && (data.doctor_restriction === 'yes' || data.doctor_restriction === 'no');
+
+  const allChecksRequired = [...UNDERSTANDING_CHECKS, ...BODY_AWARENESS_CHECKS, ...REPORTING_CHECKS, ...RISK_CHECKS, ...FINAL_CHECKS]
+    .every(([k]) => data[k] === true);
+
+  const detailsValid = !hasAnyYes || (data.additional_details ?? '').trim().length > 0;
+  const personalValid = data.full_name.trim().length > 0 && data.id_number.trim().length === 9;
+
+  const canSubmit = personalValid && allHealthAnswered && data.experience_level && allChecksRequired && detailsValid;
 
   const handleSign = async () => {
-    if (!allAnswered) { toast.error("יש לענות על כל השאלות"); return; }
-    if (!sigRef.current?.hasSignature()) { toast.error("יש לחתום לפני השליחה"); return; }
+    if (!sigRef.current?.hasSignature()) { toast.error('יש לחתום לפני השליחה'); return; }
+    if (!canSubmit) { toast.error('יש למלא את כל השדות הנדרשים'); return; }
     const sig = sigRef.current.getSignature();
-    const pdfFile = await generatePdfFromRef(formRef.current, `הצהרת_בריאות_${user.full_name}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-    // Build full_text with questions + answers inline
-    const fullText = `הצהרת בריאות לפעילות גופנית\n\nשם: ${user.full_name}\nתאריך: ${format(new Date(), 'dd/MM/yyyy')}\n\nשאלון PAR-Q:\n` +
-      PAR_Q_QUESTIONS.map((q, i) => `${i+1}. ${q} — ${answers[i] ? 'כן' : 'לא'}`).join('\n') +
-      (healthNotes ? `\n\nהערות: ${healthNotes}` : '') +
-      `\n\nהצהרה:\nאני החתום/ה מטה מצהיר/ה כי כל המידע שמסרתי לעיל הוא נכון ומדויק.\nאני מודע/ת שפעילות גופנית כרוכה בסיכונים מסוימים ואני נוטל/ת על עצמי את האחריות לבריאותי.`;
+    const pdfFile = await generatePdfFromRef(formRef.current,
+      `הצהרת_בריאות_${data.full_name || user.full_name}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
 
-    await onSign('health_declaration', sig, pdfFile, {
-      full_text: fullText,
-      questions: PAR_Q_QUESTIONS,
-      answers,
-      healthNotes,
-      hasYes,
-      declaration_text: 'אני מצהיר/ת כי כל המידע שמסרתי הוא נכון ומדויק',
+    // Build human-readable full_text for legacy PDF/viewer fallback path.
+    const lines = [];
+    lines.push('הצהרת בריאות — AthletiGo');
+    lines.push('');
+    lines.push(`שם: ${data.full_name}    ת״ז: ${data.id_number}`);
+    lines.push(`טלפון: ${data.phone}    גיל: ${data.age}`);
+    lines.push(`תאריך: ${format(new Date(), 'dd/MM/yyyy')}`);
+    lines.push('');
+    lines.push('שאלון בריאות:');
+    HEALTH_QUESTIONS.forEach(([k, label]) => lines.push(`• ${label} — ${data[k] === 'yes' ? 'כן' : 'לא'}`));
+    const pregLabel = data.pregnancy === 'yes' ? 'כן' : data.pregnancy === 'no' ? 'לא' : 'לא רלוונטי';
+    lines.push(`• הריון — ${pregLabel}`);
+    lines.push(`• המלצת רופא להגביל פעילות — ${data.doctor_restriction === 'yes' ? 'כן' : 'לא'}`);
+    if (data.additional_details) { lines.push(''); lines.push(`פירוט נוסף: ${data.additional_details}`); }
+    const expLabel = EXPERIENCE_LEVELS.find(e => e.key === data.experience_level)?.label || '';
+    lines.push(''); lines.push(`רמת ניסיון: ${expLabel}`);
+
+    const content = {
+      version: 2,
+      personal: { full_name: data.full_name, id_number: data.id_number, phone: data.phone, age: data.age },
+      health: Object.fromEntries(HEALTH_QUESTIONS.map(([k]) => [k, data[k]])),
+      pregnancy: data.pregnancy,
+      critical: { doctor_restriction: data.doctor_restriction },
+      additional_details: data.additional_details,
+      experience_level: data.experience_level,
+      understanding:        Object.fromEntries(UNDERSTANDING_CHECKS.map(([k]) => [k, !!data[k]])),
+      body_awareness:       Object.fromEntries(BODY_AWARENESS_CHECKS.map(([k]) => [k, !!data[k]])),
+      reporting:            Object.fromEntries(REPORTING_CHECKS.map(([k]) => [k, !!data[k]])),
+      risk_acknowledgment:  Object.fromEntries(RISK_CHECKS.map(([k]) => [k, !!data[k]])),
+      final:                Object.fromEntries(FINAL_CHECKS.map(([k]) => [k, !!data[k]])),
+      hasYes: hasAnyYes,
+      full_text: lines.join('\n'),
       declaration_confirmed: true,
-      signed_name: user.full_name,
-    });
+      declaration_text: 'אני מצהיר/ה כי כל המידע שמסרתי הוא נכון ומדויק',
+      signed_name: data.full_name || user.full_name,
+    };
+
+    await onSign('health_declaration', sig, pdfFile, content);
+  };
+
+  const sectionHeader = (text) => (
+    <h4 style={{ color: '#FF6F20', fontWeight: 700, fontSize: 15, marginBottom: 10, marginTop: 4 }}>{text}</h4>
+  );
+  const inputStyle = {
+    width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #FFE5D0',
+    background: '#FFFFFF', color: '#1a1a1a', fontSize: 14, boxSizing: 'border-box',
+  };
+  const cardStyle = {
+    background: '#FFF9F0', border: '1px solid #FFE5D0', borderRadius: 10,
+    padding: 14, marginBottom: 12,
   };
 
   return (
     <div>
-      <div ref={formRef} className="bg-white p-5 space-y-5" dir="rtl">
-        <div className="text-center border-b pb-4">
-          <h3 className="text-lg font-black text-gray-900">הצהרת בריאות לפעילות גופנית</h3>
-          <p className="text-xs text-gray-400 mt-1">AthletiGo — שאלון PAR-Q</p>
+      <div ref={formRef} style={{ background: '#FFFFFF', padding: 18 }} dir="rtl">
+        <div style={{ textAlign: 'center', borderBottom: '1px solid #FFE5D0', paddingBottom: 12, marginBottom: 14 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>הצהרת בריאות לפעילות גופנית</h3>
+          <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>AthletiGo</p>
         </div>
 
-        <div className="space-y-1 text-sm">
-          <div className="text-right py-1"><span className="text-gray-500 font-medium">שם מלא: </span><span className="text-gray-900">{user.full_name}</span></div>
-          <div className="text-right py-1"><span className="text-gray-500 font-medium">תאריך: </span><span className="text-gray-900">{format(new Date(), 'dd/MM/yyyy')}</span></div>
-          {user.phone && <div className="text-right py-1"><span className="text-gray-500 font-medium">טלפון: </span><span className="text-gray-900">{user.phone}</span></div>}
+        {/* Section 1 — Personal details */}
+        <div style={cardStyle}>
+          {sectionHeader('1. פרטים אישיים')}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input style={inputStyle} placeholder="שם מלא *" value={data.full_name} onChange={e => set('full_name', e.target.value)} />
+            <input style={inputStyle} placeholder="תעודת זהות (9 ספרות)" inputMode="numeric" maxLength={9}
+              value={data.id_number} onChange={e => set('id_number', e.target.value.replace(/\D/g, '').slice(0, 9))} />
+            <input style={inputStyle} placeholder="טלפון" value={data.phone} onChange={e => set('phone', e.target.value)} />
+            <input style={inputStyle} placeholder="גיל" type="number" value={data.age} onChange={e => set('age', e.target.value)} />
+          </div>
         </div>
 
-        <div className="space-y-3">
-          <h4 className="font-bold text-sm text-gray-800 border-b pb-1">שאלון בריאות</h4>
-          {PAR_Q_QUESTIONS.map((q, i) => (
-            <div key={i} className="bg-gray-50 rounded-lg p-3">
-              <p className="text-sm text-gray-800 mb-2 text-right">{i + 1}. {q}</p>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => { const n = [...answers]; n[i] = false; setAnswers(n); }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${answers[i] === false ? 'bg-green-100 border-green-400 text-green-800' : 'bg-white border-gray-200 text-gray-500'}`}>
-                  לא
-                </button>
-                <button type="button" onClick={() => { const n = [...answers]; n[i] = true; setAnswers(n); }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${answers[i] === true ? 'bg-red-100 border-red-400 text-red-800' : 'bg-white border-gray-200 text-gray-500'}`}>
-                  כן
-                </button>
-              </div>
+        {/* Section 2 — Health questionnaire */}
+        <div style={cardStyle}>
+          {sectionHeader('2. שאלון בריאות')}
+          {HEALTH_QUESTIONS.map(([k, label]) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #FFE5D0' }}>
+              <span style={{ color: '#1a1a1a', fontSize: 14, flex: 1 }}>{label}</span>
+              <YesNo value={data[k]} onChange={v => set(k, v)} />
             </div>
           ))}
+          {/* Pregnancy — 3 options */}
+          <div style={{ paddingTop: 10 }}>
+            <span style={{ color: '#1a1a1a', fontSize: 14, display: 'block', marginBottom: 6 }}>הריון (לנשים)</span>
+            <div className="flex gap-2 justify-end">
+              {[['yes', 'כן'], ['no', 'לא'], ['not_applicable', 'לא רלוונטי']].map(([v, label]) => (
+                <button key={v} type="button" onClick={() => set('pregnancy', v)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${data.pregnancy === v ? 'border-orange-400' : 'border-gray-200 text-gray-500 bg-white'}`}
+                  style={data.pregnancy === v ? { background: '#FFF9F0', color: '#FF6F20', borderColor: '#FF6F20' } : {}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {hasYes && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="text-right">
-              <p className="text-sm font-bold text-amber-800">חשוב: עליך להציג אישור רפואי לפני תחילת האימונים.</p>
-              <p className="text-xs text-amber-600 mt-1">עניתם "כן" על אחת השאלות. יש להתייעץ עם רופא ולהציג אישור בכתב למאמן.</p>
+        {/* Section 3 — Critical question (highlighted) */}
+        <div style={{ background: '#FFF9F0', border: '1px solid #FF6F20', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+          <h4 style={{ color: '#FF6F20', fontWeight: 700, fontSize: 15, marginBottom: 10 }}>3. שאלה חשובה</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: '#1a1a1a', fontSize: 14, flex: 1 }}>
+              האם רופא המליץ לך להימנע מפעילות גופנית או להגביל אותה?
+            </span>
+            <YesNo value={data.doctor_restriction} onChange={v => set('doctor_restriction', v)} />
+          </div>
+        </div>
+
+        {/* Section 4 — Conditional free text */}
+        {hasAnyYes && (
+          <div style={{ background: '#FFF9F0', border: '1px solid #FF6F20', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+            <div style={{ color: '#FF6F20', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>פירוט נוסף — חובה</div>
+            <div style={{ color: '#1a1a1a', fontSize: 13, marginBottom: 10 }}>
+              סימנת "כן" באחת או יותר מהשאלות. אנא פרט/י: באיזו בעיה מדובר, מתי התחילה, טיפול נוכחי, ומגבלות שהרופא הגדיר.
             </div>
+            <textarea
+              value={data.additional_details}
+              onChange={e => set('additional_details', e.target.value)}
+              rows={4}
+              placeholder="לדוגמה: כאב בברך ימין מאז ניתוח לפני חצי שנה..."
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
+            />
           </div>
         )}
 
-        <div>
-          <label className="text-sm font-medium text-gray-600 block mb-1 text-right">הערות בריאותיות נוספות (אופציונלי)</label>
-          <textarea value={healthNotes} onChange={e => setHealthNotes(e.target.value)} rows={2}
-            className="w-full rounded-lg border border-gray-200 p-2 text-sm text-right resize-none" placeholder="תרופות, אלרגיות, פציעות קודמות..." />
+        {/* Section 5 — Experience level */}
+        <div style={cardStyle}>
+          {sectionHeader('5. רמת ניסיון')}
+          <div className="flex flex-wrap gap-2">
+            {EXPERIENCE_LEVELS.map(({ key, label }) => (
+              <button key={key} type="button" onClick={() => set('experience_level', key)}
+                className="px-4 py-2 rounded-lg text-sm font-bold border transition-all"
+                style={data.experience_level === key
+                  ? { background: '#FFF9F0', color: '#FF6F20', borderColor: '#FF6F20' }
+                  : { background: '#FFFFFF', color: '#6B7280', borderColor: '#FFE5D0' }}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="bg-gray-50 rounded-xl p-4 text-right">
-          <h4 className="font-bold text-sm text-gray-800 mb-2">הצהרת המתאמן/ת</h4>
-          <p className="text-xs text-gray-600 leading-relaxed">
-            אני החתום/ה מטה מצהיר/ה כי כל המידע שמסרתי לעיל הוא נכון ומדויק.
-            אני מודע/ת שפעילות גופנית כרוכה בסיכונים מסוימים ואני נוטל/ת על עצמי את האחריות לבריאותי.
-            אני מתחייב/ת לעדכן את המאמן על כל שינוי במצבי הבריאותי.
-            {hasYes && " אני מתחייב/ת להציג אישור רפואי בכתב לפני תחילת האימונים."}
-          </p>
+        {/* Section 6 — Understanding */}
+        <div style={cardStyle}>
+          {sectionHeader('6. הבנת אופי הפעילות')}
+          {UNDERSTANDING_CHECKS.map(([k, label]) => (
+            <CheckRow key={k} checked={data[k]} onChange={v => set(k, v)} label={label} />
+          ))}
         </div>
 
-        <div>
-          <label className="text-sm font-bold text-gray-700 block mb-2 text-right">חתימה דיגיטלית</label>
-          <SignatureCanvas ref={sigRef} />
+        {/* Section 7 — Body awareness */}
+        <div style={cardStyle}>
+          {sectionHeader('7. מודעות לגוף')}
+          {BODY_AWARENESS_CHECKS.map(([k, label]) => (
+            <CheckRow key={k} checked={data[k]} onChange={v => set(k, v)} label={label} />
+          ))}
+        </div>
+
+        {/* Section 8 — Reporting */}
+        <div style={cardStyle}>
+          {sectionHeader('8. חובת דיווח')}
+          {REPORTING_CHECKS.map(([k, label]) => (
+            <CheckRow key={k} checked={data[k]} onChange={v => set(k, v)} label={label} />
+          ))}
+        </div>
+
+        {/* Section 9 — Risk acknowledgment */}
+        <div style={cardStyle}>
+          {sectionHeader('9. הסכמה ומודעות לסיכונים')}
+          {RISK_CHECKS.map(([k, label]) => (
+            <CheckRow key={k} checked={data[k]} onChange={v => set(k, v)} label={label} />
+          ))}
+        </div>
+
+        {/* Section 10 — Final confirmation */}
+        <div style={cardStyle}>
+          {sectionHeader('10. אישור סופי')}
+          {FINAL_CHECKS.map(([k, label]) => (
+            <CheckRow key={k} checked={data[k]} onChange={v => set(k, v)} label={label} />
+          ))}
+          <div style={{ marginTop: 12 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>
+              חתימה דיגיטלית
+            </label>
+            <SignatureCanvas ref={sigRef} />
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>
+              תאריך: {format(new Date(), 'dd/MM/yyyy')}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="px-5 pb-5 bg-white">
-        <Button onClick={handleSign} disabled={isSigning || !allAnswered}
+        <Button onClick={handleSign} disabled={isSigning || !canSubmit}
           className="w-full rounded-xl py-3 font-bold text-white min-h-[48px] text-base"
-          style={{ backgroundColor: '#FF6F20' }}>
+          style={{ backgroundColor: canSubmit ? '#FF6F20' : '#D1D5DB' }}>
           {isSigning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />שומר...</> : 'אני מאשר/ת וחותם/ת'}
         </Button>
+        {!canSubmit && (
+          <div style={{ fontSize: 11, color: '#6B7280', textAlign: 'center', marginTop: 6 }}>
+            יש למלא את כל הפרטים הנדרשים, לסמן את כל ההצהרות ולחתום
+          </div>
+        )}
       </div>
     </div>
   );
@@ -446,7 +662,11 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       {docs.map(doc => {
         const isSigned = !!doc.signedAt;
         const isExpanded = expandedDoc === doc.key;
-        const canSign = !isCoach && !isSigned;
+        // Coach can also expand the form: when viewing the trainee profile,
+        // the coach hands the phone to the trainee, who fills & signs.
+        // Submission is keyed by trainee_id (effectiveUser.id) regardless of
+        // who actually clicked, so the document lives under the trainee.
+        const canSign = !isSigned;
 
         return (
           <div key={doc.key} className="bg-white rounded-xl border-2 shadow-sm overflow-hidden"
@@ -518,22 +738,19 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
               </div>
             )}
 
-            {/* Expanded: signing form */}
+            {/* Expanded: signing form (trainee fills directly, or coach hands the phone over) */}
             {!isSigned && isExpanded && canSign && (
               <div className="border-t border-gray-100">
+                {isCoach && (
+                  <div style={{ background: '#FFF9F0', borderBottom: '1px solid #FFE5D0', padding: '10px 16px', fontSize: 12, color: '#1a1a1a', textAlign: 'right' }}>
+                    מילוי בנוכחות מאמן — מסור את המכשיר למתאמן/ת לחתימה. החתימה והנתונים נשמרים תחת חשבון המתאמן/ת.
+                  </div>
+                )}
                 {(doc.key.startsWith('health_declaration') || doc.docType === 'health_declaration') ? (
                   <HealthDeclarationForm user={user} onSign={handleSign} isSigning={signingType === doc.key} />
                 ) : (
                   <CooperationAgreementForm user={user} onSign={handleSign} isSigning={signingType === doc.key} />
                 )}
-              </div>
-            )}
-
-            {/* Coach viewing unsigned doc */}
-            {!isSigned && isExpanded && isCoach && (
-              <div className="p-4 border-t border-gray-100 text-center">
-                <p className="text-sm text-gray-500">המתאמן/ת טרם חתם/ה על טופס זה.</p>
-                <p className="text-xs text-gray-400 mt-1">החתימה מתבצעת בצד של המתאמן/ת.</p>
               </div>
             )}
           </div>

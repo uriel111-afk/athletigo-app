@@ -144,8 +144,71 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
           {fullTemplate}
         </div>
 
-        {/* Health declaration — answers */}
-        {isHealth && data.answers && Array.isArray(data.answers) && (
+        {/* Health declaration — NEW format (v2): structured personal + health + checks */}
+        {isHealth && data.health && data.personal && (
+          <div style={{ marginBottom: 20 }}>
+            {/* Personal */}
+            <div style={{ background: '#FFF9F0', border: '1px solid #FFE5D0', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#FF6F20', marginBottom: 6 }}>פרטים אישיים</div>
+              <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.7 }}>
+                <div>שם: <strong>{data.personal.full_name}</strong></div>
+                {data.personal.id_number && <div>ת״ז: {data.personal.id_number}</div>}
+                {data.personal.phone && <div>טלפון: {data.personal.phone}</div>}
+                {data.personal.age && <div>גיל: {data.personal.age}</div>}
+              </div>
+            </div>
+
+            {/* Health questionnaire */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#FF6F20', marginBottom: 6 }}>שאלון בריאות</div>
+              {Object.entries(data.health).map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 }}>
+                  <span style={{ color: '#1a1a1a' }}>{k}</span>
+                  <span style={{
+                    fontWeight: 700, padding: '1px 10px', borderRadius: 20,
+                    background: v === 'yes' ? '#FEE2E2' : '#DCFCE7',
+                    color: v === 'yes' ? '#B91C1C' : '#166534',
+                  }}>{v === 'yes' ? 'כן' : 'לא'}</span>
+                </div>
+              ))}
+              {data.pregnancy && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 }}>
+                  <span style={{ color: '#1a1a1a' }}>הריון</span>
+                  <span style={{ fontWeight: 700, color: '#1a1a1a' }}>
+                    {data.pregnancy === 'yes' ? 'כן' : data.pregnancy === 'no' ? 'לא' : 'לא רלוונטי'}
+                  </span>
+                </div>
+              )}
+              {data.critical?.doctor_restriction && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, marginTop: 4, borderTop: '1px solid #FFE5D0', paddingTop: 8 }}>
+                  <span style={{ color: '#FF6F20', fontWeight: 700 }}>המלצת רופא להגביל פעילות</span>
+                  <span style={{
+                    fontWeight: 700, padding: '1px 10px', borderRadius: 20,
+                    background: data.critical.doctor_restriction === 'yes' ? '#FEE2E2' : '#DCFCE7',
+                    color: data.critical.doctor_restriction === 'yes' ? '#B91C1C' : '#166534',
+                  }}>{data.critical.doctor_restriction === 'yes' ? 'כן' : 'לא'}</span>
+                </div>
+              )}
+            </div>
+
+            {data.additional_details && (
+              <div style={{ marginBottom: 12, padding: 10, background: '#FFF9F0', border: '1px solid #FF6F20', borderRadius: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#FF6F20', marginBottom: 4 }}>פירוט נוסף</div>
+                <div style={{ fontSize: 13, color: '#1a1a1a' }}>{data.additional_details}</div>
+              </div>
+            )}
+
+            {data.experience_level && (
+              <div style={{ marginBottom: 12, fontSize: 13 }}>
+                <span style={{ color: '#6B7280' }}>רמת ניסיון: </span>
+                <strong style={{ color: '#1a1a1a' }}>{data.experience_level}</strong>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Health declaration — LEGACY format (v1): array of PAR-Q answers */}
+        {isHealth && !data.health && data.answers && Array.isArray(data.answers) && (
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 12 }}>תשובות המתאמן:</div>
             {data.answers.map((ans, i) => {
