@@ -55,7 +55,10 @@ const NumPicker = ({ value, onChange, min = 1, max = 99, label }) => {
   );
 };
 
-export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeName, editingPackage = null }) {
+export default function PackageFormDialog({
+  isOpen, onClose, traineeId, traineeName,
+  editingPackage = null, isCoachView = true,
+}) {
   const queryClient = useQueryClient();
   const { user: coach } = useContext(AuthContext);
 
@@ -334,11 +337,13 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
               </div>
             </div>
 
-            {/* Notes */}
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">הערות פנימיות</Label>
-              <Textarea value={form.notes_internal} onChange={e => set("notes_internal", e.target.value)} placeholder="הערות למאמן..." className="rounded-lg resize-none min-h-[50px]" />
-            </div>
+            {/* Notes — coach-only (stored in client_services.notes_internal; RLS masks from trainee) */}
+            {isCoachView && (
+              <div>
+                <Label className="text-xs text-gray-500 mb-1 block">הערות פרטיות (מאמן בלבד)</Label>
+                <Textarea value={form.notes_internal} onChange={e => set("notes_internal", e.target.value)} placeholder="לא מוצג למתאמן..." className="rounded-lg resize-none min-h-[50px]" />
+              </div>
+            )}
 
             {/* Save */}
             <Button onClick={handleSave} disabled={saving || !form.package_name}

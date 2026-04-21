@@ -2134,15 +2134,17 @@ export default function TraineeProfile() {
                           </div>
                         )}
 
-                        {/* Linked sessions accordion (inline) */}
-                        <PackageLinkedSessions
-                          pkg={service}
-                          allSessions={sessions}
-                          isCoach={isCoach}
-                          typeColor={typeColor}
-                          onUseSession={() => adjustPackageBalance(service, 'use')}
-                          onRefundSession={() => adjustPackageBalance(service, 'refund')}
-                        />
+                        {/* Linked sessions accordion (coach-only per spec) */}
+                        {isCoach && (
+                          <PackageLinkedSessions
+                            pkg={service}
+                            allSessions={sessions}
+                            isCoach={isCoach}
+                            typeColor={typeColor}
+                            onUseSession={() => adjustPackageBalance(service, 'use')}
+                            onRefundSession={() => adjustPackageBalance(service, 'refund')}
+                          />
+                        )}
 
                         {/* Coach-only actions */}
                         {isCoach && (

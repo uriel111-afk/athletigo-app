@@ -182,6 +182,36 @@ export default function TraineeSessions() {
     }
   };
 
+  const handleConfirmSession = async (session) => {
+    setActionLoading(session.id);
+    try {
+      await base44.entities.Session.update(session.id, {
+        status: 'מאושר',
+        status_updated_at: new Date().toISOString(),
+        status_updated_by: user.id,
+      });
+      if (coach?.id) {
+        try {
+          await base44.entities.Notification.create({
+            user_id: coach.id,
+            type: 'session_confirmed',
+            title: 'אישור הגעה למפגש',
+            message: `${user.full_name} אישר/ה הגעה למפגש ב-${new Date(session.date).toLocaleDateString('he-IL')} ${session.time || ''}`,
+            is_read: false,
+            data: { session_id: session.id, trainee_id: user.id },
+          });
+        } catch {}
+      }
+      setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: 'מאושר' } : s));
+      toast.success('ההגעה אושרה. המאמן קיבל הודעה.');
+      window.dispatchEvent(new CustomEvent('data-changed'));
+    } catch (err) {
+      toast.error('שגיאה באישור: ' + (err?.message || 'נסה שוב'));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleRescheduleRequest = async () => {
     if (!newDate || !newTime) return;
     setRescheduleLoading(true);
@@ -385,12 +415,37 @@ export default function TraineeSessions() {
                 </div>
               </div>
 
+              {/* Pending-approval banner — shown once per pending session at the top of its actions */}
+              {s.status === 'ממתין לאישור' && isActive(s) && (
+                <div style={{
+                  marginTop: '10px', padding: '8px 12px',
+                  background: '#FFF9F0', border: '1px solid #FF6F20',
+                  borderRadius: 8, color: '#1a1a1a', fontSize: 13, fontWeight: 600,
+                }}>
+                  מפגש ממתין לאישור — בחר/י אחת מהאפשרויות למטה
+                </div>
+              )}
+
               {/* Action buttons */}
-              {(canReschedule(s) || canCancel(s) || canDelete(s)) && (
+              {(s.status === 'ממתין לאישור' || canReschedule(s) || canCancel(s) || canDelete(s)) && (
                 <div style={{
                   display: 'flex', gap: '8px', marginTop: '10px',
-                  paddingTop: '10px', borderTop: '1px solid #f0f0f0'
+                  paddingTop: '10px', borderTop: '1px solid #f0f0f0', flexWrap: 'wrap',
                 }}>
+                  {s.status === 'ממתין לאישור' && isActive(s) && (
+                    <button
+                      disabled={actionLoading === s.id}
+                      onClick={() => handleConfirmSession(s)}
+                      style={{
+                        flex: 1, minWidth: 110, height: '36px',
+                        background: '#FF6F20', color: '#FFFFFF',
+                        border: 'none', borderRadius: '8px',
+                        fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+                      }}
+                    >
+                      אשר הגעה
+                    </button>
+                  )}
                   {canReschedule(s) && (
                     <button
                       onClick={() => {
@@ -408,7 +463,7 @@ export default function TraineeSessions() {
                       }}
                     >
                       <ClockIcon style={{ width: '12px', height: '12px' }} />
-                      שנה מועד
+                      {s.status === 'ממתין לאישור' ? 'הצע שינוי' : 'שנה מועד'}
                     </button>
                   )}
                   {canCancel(s) && (
@@ -416,13 +471,13 @@ export default function TraineeSessions() {
                       disabled={actionLoading === s.id}
                       onClick={() => handleCancel(s)}
                       style={{
-                        flex: 1, height: '36px',
+                        flex: 1, minWidth: 100, height: '36px',
                         background: '#fff', color: '#ef4444',
                         border: '1px solid #fca5a5', borderRadius: '8px',
                         fontSize: '13px', fontWeight: '700', cursor: 'pointer'
                       }}
                     >
-                      ביטול
+                      {s.status === 'ממתין לאישור' ? 'דחה' : 'ביטול'}
                     </button>
                   )}
                   {canDelete(s) && (
