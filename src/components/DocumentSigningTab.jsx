@@ -611,22 +611,9 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
   const signedCount = docs.filter(d => d.signedAt).length;
   const totalDocs = docs.length;
 
-  // Coach adds a new health declaration
-  const handleAddHealthDeclaration = async () => {
-    try {
-      await supabase.from('signed_documents').insert({
-        trainee_id: user.id,
-        coach_id: user.coach_id || null,
-        document_type: 'health_declaration',
-        status: 'pending',
-        is_locked: false,
-      });
-      toast.success("הצהרת בריאות חדשה נוספה למתאמן");
-      await fetchDocs();
-    } catch (e) {
-      toast.error("שגיאה: " + (e?.message || "נסה שוב"));
-    }
-  };
+  // (handleAddHealthDeclaration removed — same pending-row insert now
+  // happens via DocumentPickerDialog's 'הצהרת בריאות' card in the
+  // top-level "+ הוסף מסמך לחתימה" menu on TraineeProfile.)
 
   const handleDeleteDocument = async (docId, isSigned) => {
     if (isSigned) {
@@ -715,11 +702,6 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
           <FileText className="w-5 h-5 text-[#FF6F20]" />טפסים ומסמכים
         </h2>
         <div className="flex items-center gap-2">
-          {isCoach && (
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" style={{ borderColor: '#FF6F20', color: '#FF6F20' }} onClick={handleAddHealthDeclaration}>
-              + הצהרת בריאות
-            </Button>
-          )}
           <span className={`text-xs font-bold px-3 py-1 rounded-full ${signedCount === totalDocs ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
             {signedCount}/{totalDocs} נחתמו
           </span>
