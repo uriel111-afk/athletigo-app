@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Package, User, Users, Monitor, ChevronLeft, Plus, Minus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { useFormDraft } from "@/hooks/useFormDraft";
@@ -102,7 +102,12 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
   };
 
   const handleSave = async () => {
-    if (!form.package_name) { toast.error("נא למלא שם חבילה"); return; }
+    console.log('[PackageForm] save clicked', { editingId: editingPackage?.id, form });
+
+    if (!form.package_name) {
+      toast.error("נא למלא שם חבילה");
+      return;
+    }
 
     const isPersonal = form.package_type === "personal";
     const isGroup = form.package_type === "group";
@@ -141,22 +146,44 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
 
     setSaving(true);
     try {
+      // Direct supabase call (not the base44 wrapper) so we can inspect the
+      // raw error object — RLS rejections and CHECK-constraint violations
+      // both surface here as { error }, not as throws.
+      let result, error;
       if (editingPackage) {
-        await base44.entities.ClientService.update(editingPackage.id, data);
-        toast.success("חבילה עודכנה");
+        ({ data: result, error } = await supabase
+          .from('client_services')
+          .update(data)
+          .eq('id', editingPackage.id)
+          .select()
+          .single());
       } else {
-        await base44.entities.ClientService.create(data);
-        toast.success("חבילה נוצרה בהצלחה");
+        ({ data: result, error } = await supabase
+          .from('client_services')
+          .insert(data)
+          .select()
+          .single());
       }
+
+      if (error) {
+        console.error('[PackageForm] supabase error:', error);
+        const detail = error.message || error.details || error.hint || JSON.stringify(error);
+        toast.error('השמירה נכשלה: ' + detail);
+        return;
+      }
+
+      console.log('[PackageForm] saved row:', result);
+      toast.success(editingPackage ? "חבילה עודכנה" : "חבילה נוצרה בהצלחה");
+
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ["trainee-services"] });
       queryClient.invalidateQueries({ queryKey: ["all-trainees"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       clearDraft();
       onClose();
-    } catch (error) {
-      console.error("[PackageForm] Error:", error);
-      toast.error("שגיאה בשמירת חבילה: " + (error?.message || "נסה שוב"));
+    } catch (e) {
+      console.error('[PackageForm] exception:', e);
+      toast.error('שגיאה בלתי צפויה: ' + (e?.message || 'נסה שוב'));
     } finally {
       setSaving(false);
     }
