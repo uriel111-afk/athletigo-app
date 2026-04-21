@@ -299,6 +299,98 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
   );
 };
 
+function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSession, onRefundSession }) {
+  const [expanded, setExpanded] = useState(false);
+  const linked = useMemo(() => {
+    if (!pkg?.id || !Array.isArray(allSessions)) return [];
+    return allSessions
+      .filter(s => s.service_id === pkg.id && s.was_deducted === true)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  }, [pkg?.id, allSessions]);
+
+  const sessionTypeLabel = (t) => {
+    if (!t) return '';
+    if (t.includes('אישי') || t === 'personal') return 'אישי';
+    if (t.includes('קבוצ') || t === 'group') return 'קבוצתי';
+    if (t.includes('אונליין') || t === 'online') return 'אונליין';
+    return t;
+  };
+
+  return (
+    <div className="px-4 pb-3" onClick={(e) => e.stopPropagation()}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          marginTop: 8, padding: '8px 12px', background: '#FFFFFF',
+          border: '1px solid #FFE5D0', borderRadius: 8, cursor: 'pointer',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}
+      >
+        <span style={{ color: '#1a1a1a', fontWeight: 600, fontSize: 13 }}>
+          מפגשים מקושרים ({linked.length})
+        </span>
+        <span style={{ color: '#FF6F20', fontSize: 14 }}>{expanded ? '▼' : '▸'}</span>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 8 }}>
+          {linked.length === 0 ? (
+            <div style={{ padding: 12, textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+              אין מפגשים מקושרים עדיין
+            </div>
+          ) : (
+            linked.map((s) => {
+              const dateStr = s.date ? format(new Date(s.date), 'dd/MM/yy') : '—';
+              const timeStr = (s.time || s.start_time || '').slice(0, 5);
+              return (
+                <div
+                  key={s.id}
+                  style={{
+                    padding: '8px 12px', background: '#FFF9F0', borderRight: `3px solid ${typeColor || '#FF6F20'}`,
+                    borderRadius: 6, marginTop: 6, display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', fontSize: 13, color: '#1a1a1a', flexWrap: 'wrap', gap: 6,
+                  }}
+                >
+                  <div>
+                    <strong>{dateStr}</strong>
+                    {timeStr && <> · {timeStr}</>}
+                    {s.session_type && <> · {sessionTypeLabel(s.session_type)}</>}
+                  </div>
+                  <span style={{
+                    background: '#16a34a', color: '#FFFFFF', padding: '2px 8px',
+                    borderRadius: 4, fontSize: 11, fontWeight: 600,
+                  }}>
+                    ✓ הושלם
+                  </span>
+                </div>
+              );
+            })
+          )}
+
+          {isCoach && (
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid #FFE5D0' }}>
+              <button
+                onClick={onUseSession}
+                style={{
+                  flex: 1, padding: '8px 12px', background: '#FFFFFF', color: '#FF6F20',
+                  border: '1px solid #FF6F20', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >− הורד יתרה</button>
+              <button
+                onClick={onRefundSession}
+                style={{
+                  flex: 1, padding: '8px 12px', background: '#FFFFFF', color: '#FF6F20',
+                  border: '1px solid #FF6F20', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >+ החזר יתרה</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TraineeProfile() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
@@ -1376,6 +1468,57 @@ export default function TraineeProfile() {
   const activeGoals = goals.filter(g => g.status === 'בתהליך');
   const completedGoals = goals.filter(g => g.status === 'הושג');
 
+  // ── Manual balance handlers (auto-reactivate when refunding from a completed pkg) ──
+  const adjustPackageBalance = async (pkg, direction) => {
+    const total = pkg.total_sessions || pkg.sessions_count || 0;
+    const currentUsed = pkg.used_sessions || 0;
+    const update = {};
+    let toastMsg = '';
+
+    if (direction === 'use') {
+      if (total > 0 && currentUsed >= total) {
+        toast.warning('לא ניתן לחרוג מסך המפגשים');
+        return;
+      }
+      const newUsed = currentUsed + 1;
+      update.used_sessions = newUsed;
+      if (total > 0) update.sessions_remaining = total - newUsed;
+      // Auto-complete when reaching total
+      if (total > 0 && newUsed >= total) {
+        update.status = 'completed';
+        toastMsg = 'יתרה הורדה — החבילה הושלמה';
+      } else {
+        toastMsg = `יתרה: ${total > 0 ? total - newUsed : '∞'} מפגשים`;
+      }
+    } else { // refund
+      if (currentUsed <= 0) {
+        toast.warning('אין יתרה להחזיר');
+        return;
+      }
+      const newUsed = currentUsed - 1;
+      update.used_sessions = newUsed;
+      if (total > 0) update.sessions_remaining = total - newUsed;
+      // Auto-reactivate completed packages
+      const wasCompleted = pkg.status === 'completed' || pkg.status === 'הסתיים';
+      if (wasCompleted) {
+        update.status = 'פעיל';
+        toastMsg = 'היתרה הוחזרה, החבילה חזרה למצב פעיל';
+      } else {
+        toastMsg = `יתרה: ${total > 0 ? total - newUsed : '∞'} מפגשים`;
+      }
+    }
+
+    try {
+      await base44.entities.ClientService.update(pkg.id, update);
+      await queryClient.refetchQueries({ queryKey: ['trainee-services'] });
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+      invalidateDashboard(queryClient);
+      toast.success(toastMsg);
+    } catch (e) {
+      toast.error('שגיאה בעדכון יתרה: ' + (e?.message || 'נסה שוב'));
+    }
+  };
+
   // Derive active vs history packages from real data, not just status string
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1970,13 +2113,13 @@ export default function TraineeProfile() {
                                 ) : (
                                   <div className="flex items-center gap-2">
                                     {isCoach && (
-                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.max(0, used - 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); await queryClient.refetchQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
+                                      <button onClick={(e) => { e.stopPropagation(); adjustPackageBalance(service, 'refund'); }}
                                         style={{ width:24, height:24, borderRadius:'50%', background:'#dcfce7', border:'none', color:'#16a34a', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
                                     )}
                                     <span className="font-bold text-lg" style={{ color: typeColor }}>{used}</span>
                                     <span className="text-gray-400 font-medium">/ {total}</span>
                                     {isCoach && (
-                                      <button onClick={async (e) => { e.stopPropagation(); const nv = Math.min(total, used + 1); try { await base44.entities.ClientService.update(service.id, { used_sessions: nv }); await queryClient.refetchQueries({ queryKey: ['trainee-services'] }); invalidateDashboard(queryClient); toast.success(`יתרה: ${total - nv} מפגשים`); } catch {} }}
+                                      <button onClick={(e) => { e.stopPropagation(); adjustPackageBalance(service, 'use'); }}
                                         style={{ width:24, height:24, borderRadius:'50%', background:'#fee2e2', border:'none', color:'#dc2626', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>+</button>
                                     )}
                                     {isCoach && <Button onClick={(e) => { e.stopPropagation(); setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
@@ -1988,10 +2131,15 @@ export default function TraineeProfile() {
                           </div>
                         )}
 
-                        {/* Tap hint */}
-                        <div className="px-4 pb-2 text-center">
-                          <span className="text-[10px] text-gray-400 font-medium">לחץ לפרטי מפגשים</span>
-                        </div>
+                        {/* Linked sessions accordion (inline) */}
+                        <PackageLinkedSessions
+                          pkg={service}
+                          allSessions={sessions}
+                          isCoach={isCoach}
+                          typeColor={typeColor}
+                          onUseSession={() => adjustPackageBalance(service, 'use')}
+                          onRefundSession={() => adjustPackageBalance(service, 'refund')}
+                        />
 
                         {/* Coach-only actions */}
                         {isCoach && (
