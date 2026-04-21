@@ -31,9 +31,9 @@ import { Input } from "@/components/ui/input";
 
 // ── Design ────────────────────────────────────────────────────────────
 const SectionHeader = ({ title }) => (
-  <div className="flex items-center gap-3 my-3">
+  <div className="flex items-center gap-2 my-1">
     <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "#FF6F20" }} />
-    <span className="text-[11px] font-black text-gray-700 whitespace-nowrap">{title}</span>
+    <span className="text-[10px] font-black text-gray-700 whitespace-nowrap">{title}</span>
     <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "#FF6F20" }} />
   </div>
 );
@@ -273,26 +273,26 @@ export default function Dashboard() {
   return (
     <ProtectedCoachPage>
       <div className="flex flex-col flex-1 min-h-full" dir="rtl" style={BG}>
-        <div className="max-w-md mx-auto w-full pt-4 pb-4">
+        <div className="max-w-md mx-auto w-full pt-1 pb-1">
 
           {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════ */}
           <SectionHeader title="פעולות ליבה" />
-          <div style={{ position: 'relative', width: '100%', maxWidth: 340, height: 380, margin: '12px auto 20px' }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 260, height: 232, margin: '4px auto 4px' }}>
             {[
-              { label: "הוסף מתאמן",  icon: Plus,     onClick: () => setIsAddTraineeOpen(true),    pos: { top: 0,    left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
-              { label: "הוסף ליד",    icon: UserPlus, onClick: () => setIsLeadDialogOpen(true),     pos: { top: 114,  right: 0, transform: 'rotate(45deg)' } },
-              { label: "בנה תוכנית",  icon: Dumbbell, onClick: () => setIsPlanDialogOpen(true),     pos: { top: 114,  left: 0, transform: 'rotate(45deg)' } },
-              { label: "קבע מפגש",    icon: Calendar, onClick: () => setIsSessionDialogOpen(true), pos: { top: 228,  left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
+              { label: "הוסף מתאמן",  icon: Plus,     onClick: () => setIsAddTraineeOpen(true),    pos: { top: 0,   left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
+              { label: "הוסף ליד",    icon: UserPlus, onClick: () => setIsLeadDialogOpen(true),     pos: { top: 60,  right: 0,    transform: 'rotate(45deg)' } },
+              { label: "בנה תוכנית",  icon: Dumbbell, onClick: () => setIsPlanDialogOpen(true),     pos: { top: 60,  left: 0,     transform: 'rotate(45deg)' } },
+              { label: "קבע מפגש",    icon: Calendar, onClick: () => setIsSessionDialogOpen(true), pos: { top: 120, left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
             ].map((btn) => (
               <button
                 key={btn.label}
                 onClick={btn.onClick}
                 style={{
                   position: 'absolute',
-                  width: 112, height: 112,
+                  width: 78, height: 78,
                   background: 'white',
-                  borderRadius: 20,
-                  boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                  borderRadius: 14,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                   border: 'none',
                   cursor: 'pointer',
                   padding: 0,
@@ -304,13 +304,13 @@ export default function Dashboard() {
                   width: '100%', height: '100%',
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center',
-                  gap: 8,
+                  gap: 4,
                   transform: 'rotate(-45deg)',
                 }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.2, padding: '0 8px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.15, padding: '0 4px' }}>
                     {btn.label}
                   </span>
-                  <btn.icon className="w-5 h-5" style={{ color: '#FF6F20' }} />
+                  <btn.icon className="w-4 h-4" style={{ color: '#FF6F20' }} />
                 </div>
               </button>
             ))}
@@ -318,7 +318,7 @@ export default function Dashboard() {
 
           {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />
-          <div className="grid grid-cols-4 gap-2 mb-3 px-3">
+          <div className="grid grid-cols-4 gap-1.5 px-2">
             {[
               { label: "לידים חדשים",    value: newLeadsCount,         color: "#FFC107", to: createPageUrl("Leads") + "?filter=new" },
               { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#9C27B0", to: createPageUrl("Sessions") + "?status=upcoming" },
@@ -326,19 +326,20 @@ export default function Dashboard() {
               { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", to: createPageUrl("PlanBuilder") },
             ].map((m) => (
               <button key={m.label} onClick={() => navigate(m.to)}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm py-3 px-1 flex flex-col items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.97]">
+                className="bg-white rounded-xl border border-gray-100 shadow-sm py-1.5 px-1 flex flex-col items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.97]">
                 {statsLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-300" />
                 ) : (
-                  <span className="text-2xl font-black leading-none" style={{ color: m.color }}>{m.value}</span>
+                  <span className="text-lg font-black leading-none" style={{ color: m.color }}>{m.value}</span>
                 )}
-                <span className="text-[10px] font-bold text-gray-500 mt-1 text-center leading-tight">{m.label}</span>
+                <span className="text-[9px] font-bold text-gray-500 mt-0.5 text-center leading-tight">{m.label}</span>
               </button>
             ))}
           </div>
 
-          {/* ═══ SECTION 3 — מתאמנים ═══════════════════════════ */}
-          {trainees.length > 0 && (
+          {/* ═══ SECTION 3 — מתאמנים (hidden — keeps the home screen
+                no-scroll. The full trainees list lives in /AllUsers.) */}
+          {false && trainees.length > 0 && (
             <>
               <SectionHeader title="מתאמנים" />
               <div style={{
@@ -456,23 +457,23 @@ export default function Dashboard() {
             ];
             const renderItem = (q) => (
               <button key={q.label} onClick={q.action}
-                className="flex flex-col items-center gap-2 bg-transparent border-none cursor-pointer active:scale-[0.95] transition-transform"
+                className="flex flex-col items-center gap-1 bg-transparent border-none cursor-pointer active:scale-[0.95] transition-transform"
                 style={{ background: 'transparent' }}>
                 <div style={{
-                  width: 56, height: 56,
+                  width: 44, height: 44,
                   borderRadius: '50%',
                   background: 'white',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
+                  boxShadow: '0 3px 8px rgba(0,0,0,0.06)',
                   border: '1px solid rgba(0,0,0,0.04)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <q.icon className="w-5 h-5" style={{ color: '#FF6F20' }} />
+                  <q.icon className="w-4 h-4" style={{ color: '#FF6F20' }} />
                 </div>
-                <span className="text-[12px] font-bold text-gray-700">{q.label}</span>
+                <span className="text-[10px] font-bold text-gray-700">{q.label}</span>
               </button>
             );
             return (
-              <div className="space-y-4 px-2 pb-2">
+              <div className="space-y-2 px-2 pb-1">
                 <div className="flex justify-around items-start">
                   {quickItems.slice(0, 4).map(renderItem)}
                 </div>
