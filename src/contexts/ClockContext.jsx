@@ -3,6 +3,8 @@ import React, { createContext, useContext, useState, useRef, useCallback, useEff
 const ClockContext = createContext(null);
 export const useClock = () => useContext(ClockContext);
 
+const STORAGE_KEY = 'athletigo_clock_state';
+
 function createAudioCtx() {
   return new (window.AudioContext || window.webkitAudioContext)();
 }
@@ -302,6 +304,136 @@ export function ClockProvider({ children }) {
   }, [clearTick]);
 
   useEffect(() => () => clearTick(), [clearTick]);
+
+  // ── Persistence ──────────────────────────────────────────────────
+  // Save snapshot to localStorage on every meaningful transition so a
+  // page refresh can reconstruct the timer's current position.
+  useEffect(() => {
+    if (!activeClock) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      return;
+    }
+    const snapshot = {
+      activeClock,
+      phases: phasesRef.current,
+      phaseIdx: phaseIdxRef.current,
+      startTime: startTimeRef.current,
+      elapsedBeforePause: elapsedRef.current,
+      isRunning,
+      laps,
+      phase,
+      phaseLabel,
+      roundInfo,
+      totalDuration,
+      setProgress,
+      savedAt: Date.now(),
+    };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot)); } catch {}
+  }, [activeClock, isRunning, laps, phase, phaseLabel, roundInfo, totalDuration, setProgress]);
+
+  // Hydrate once on mount — if a timer was running when the tab was
+  // closed/refreshed, reconstruct its state and continue from where it
+  // would be "now" based on wall-clock time.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    let snap;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      snap = JSON.parse(raw);
+    } catch { return; }
+    if (!snap?.activeClock) return;
+
+    phasesRef.current = Array.isArray(snap.phases) ? snap.phases : [];
+    phaseIdxRef.current = snap.phaseIdx || 0;
+    elapsedRef.current = snap.elapsedBeforePause || 0;
+    startTimeRef.current = snap.startTime || Date.now();
+    setLaps(Array.isArray(snap.laps) ? snap.laps : []);
+    setActiveClock(snap.activeClock);
+
+    // ─── Stopwatch ───
+    if (snap.activeClock === 'stopwatch') {
+      setPhase('running');
+      if (snap.isRunning) {
+        // elapsedBeforePause represents cumulative elapsed before any pause;
+        // startTime is when the most recent run segment began
+        setIsRunning(true);
+        const saved = snap.elapsedBeforePause || 0;
+        setDisplay(Date.now() - startTimeRef.current + saved);
+        intervalRef.current = setInterval(() => {
+          setDisplay(Date.now() - startTimeRef.current + saved);
+        }, 50);
+      } else {
+        setIsRunning(false);
+        setDisplay(snap.elapsedBeforePause || 0);
+      }
+      return;
+    }
+
+    // ─── Timer / Tabata ───
+    const phases = phasesRef.current;
+    let idx = phaseIdxRef.current;
+
+    if (snap.isRunning) {
+      // Advance through any phases that would have completed while offline
+      let elapsed = Date.now() - snap.startTime;
+      while (idx < phases.length && elapsed >= phases[idx].duration) {
+        elapsed -= phases[idx].duration;
+        idx++;
+      }
+      if (idx >= phases.length) {
+        phaseIdxRef.current = phases.length;
+        setPhase('done');
+        setIsRunning(false);
+        setPhaseLabel('סיום!');
+        setDisplay(0);
+        return;
+      }
+      phaseIdxRef.current = idx;
+      const p = phases[idx];
+      setPhase(p.type);
+      setPhaseLabel(p.label);
+      setRoundInfo(p.round || '');
+      setTotalDuration(p.duration);
+      if (p.setIdx !== undefined) setSetProgress({ current: p.setIdx, total: p.totalSets });
+      setIsRunning(true);
+      // Re-anchor so the remaining time lines up with wall-clock
+      startTimeRef.current = Date.now() - elapsed;
+      elapsedRef.current = 0;
+      lastBeepRef.current = -1;
+      const phaseStart = startTimeRef.current;
+      intervalRef.current = setInterval(() => {
+        const e = Date.now() - phaseStart;
+        const remaining = p.duration - e;
+        if (remaining <= 0) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          runPhase(idx + 1, phases);
+          return;
+        }
+        setDisplay(remaining);
+        const secRemaining = Math.ceil(remaining / 1000);
+        if (secRemaining <= 3 && secRemaining !== lastBeepRef.current && secRemaining > 0) {
+          lastBeepRef.current = secRemaining;
+          beep('countdown');
+        }
+      }, 100);
+    } else {
+      // Paused — restore view; resume() will continue when user taps play
+      const p = phases[idx];
+      if (p) {
+        setPhase(p.type);
+        setPhaseLabel(p.label);
+        setRoundInfo(p.round || '');
+        setTotalDuration(p.duration);
+        if (p.setIdx !== undefined) setSetProgress({ current: p.setIdx, total: p.totalSets });
+        setDisplay(Math.max(0, p.duration - (snap.elapsedBeforePause || 0)));
+        setIsRunning(false);
+      }
+    }
+  }, [runPhase, beep]);
 
   // Listen for remote reset (from FloatingTimer X button)
   useEffect(() => {

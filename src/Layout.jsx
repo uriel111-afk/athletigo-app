@@ -55,6 +55,20 @@ export default function Layout({ children, currentPageName }) {
   const isDashboard = location.pathname.toLowerCase().includes('dashboard');
   const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');
 
+  // After a page refresh, ClockContext hydrates from localStorage — recreate
+  // the floating bubble entry so it reappears without user action.
+  useEffect(() => {
+    if (liveTimer) return;
+    if (!clock?.activeClock) return;
+    if (clock.activeClock === 'stopwatch') {
+      setLiveTimer({ type: 'stopwatch', phase: 'ריצה', display: '00:00.00', paused: !clock.isRunning });
+    } else if (clock.activeClock === 'timer') {
+      setLiveTimer({ type: 'timer', phase: clock.phaseLabel || 'טיימר', display: '0:00', paused: !clock.isRunning });
+    } else if (clock.activeClock === 'tabata') {
+      setLiveTimer({ type: 'tabata', phase: clock.phaseLabel || 'טבטה', display: '0:00', info: clock.roundInfo || '', paused: !clock.isRunning });
+    }
+  }, [clock?.activeClock, liveTimer, setLiveTimer, clock?.isRunning, clock?.phaseLabel, clock?.roundInfo]);
+
   // Sync floating widget for timer/stopwatch every tick (Layout never unmounts)
   useEffect(() => {
     if (!liveTimer) return;
