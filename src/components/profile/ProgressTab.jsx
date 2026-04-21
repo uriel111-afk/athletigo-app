@@ -10,6 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 import { RECORD_TYPES, getTypeByKey } from '@/lib/personalRecordTypes';
 import BaselineFormDialog from '@/components/forms/BaselineFormDialog';
+import { groupRecordsByName } from '@/lib/recordGrouping';
+import { RecordFolderCard } from './RecordFolderCard';
+import { RecordFlatCard } from './RecordFlatCard';
+import { BaselinesFolderCard } from './BaselinesFolderCard';
+import { PersonalRecordViewer } from './PersonalRecordViewer';
 
 const TECHNIQUE_LABELS = { basic: 'קפיצה בסיס', foot_switch: 'החלפת רגליים', high_knees: 'הרמת ברכיים' };
 const O = '#FF6F20';
@@ -22,59 +27,16 @@ function formatHebrewDate(isoString) {
   return `${HEB_DAYS[d.getDay()]}, ${d.toLocaleDateString('he-IL')}`;
 }
 
-function BaselineSessionCard({ session, onViewClick }) {
-  const formattedDate = formatHebrewDate(session.sessionDate);
-  const d = new Date(session.sessionDate);
-  const time = isNaN(d.getTime()) ? '' : d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-
-  return (
-    <div onClick={onViewClick}
-      style={{
-        background: '#FFF9F0',
-        border: '1px solid #FFE5D0',
-        borderRight: '3px solid #FF6F20',
-        borderRadius: 12,
-        padding: 14,
-        marginBottom: 10,
-        cursor: 'pointer',
-      }}>
-      <div style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
-        📅 {formattedDate}{time ? ` · ${time}` : ''}
-      </div>
-
-      {session.techniques.map((t) => {
-        const roundsArr = Array.isArray(t.rounds_data) ? t.rounds_data : [];
-        const peak = roundsArr.length > 0
-          ? Math.max(...roundsArr.map(r => Number(r.jumps ?? 0)))
-          : 0;
-        return (
-          <div key={t.id}
-            style={{
-              display: 'flex', justifyContent: 'space-between',
-              padding: '6px 0', fontSize: 14, color: '#1a1a1a',
-            }}>
-            <span style={{ color: '#FF6F20', fontWeight: 600 }}>
-              {TECHNIQUE_LABELS[t.technique] ?? t.technique}
-            </span>
-            <span>
-              ממוצע: <strong>{t.average_jumps ?? 0}</strong>
-              {' · '}
-              שיא: <strong>{peak}</strong>
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// (BaselineSessionCard removed — replaced by BaselinesFolderCard which
+// wraps all sessions in a single folder per spec)
 
 export default function ProgressTab({ traineeId }) {
   const { user: currentUser } = useContext(AuthContext);
   const isCoach = currentUser?.is_coach || currentUser?.role === 'coach' || currentUser?.role === 'admin';
   const queryClient = useQueryClient();
-  const [expandedRecord, setExpandedRecord] = useState(null);
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [viewingSessionRows, setViewingSessionRows] = useState(null);
+  const [viewingRecord, setViewingRecord] = useState(null);
 
   // ── Baselines ──
   const { data: baselines = [] } = useQuery({
@@ -113,10 +75,7 @@ export default function ProgressTab({ traineeId }) {
     return sessions;
   }, [baselines]);
 
-  const handleViewSession = (session) => {
-    // session.techniques is already the full list of rows for this session
-    setViewingSessionRows(session.techniques);
-  };
+  // (handleViewSession inlined into BaselinesFolderCard's onSessionClick prop)
 
   // ── Personal Records ──
   const { data: records = [] } = useQuery({
@@ -133,15 +92,9 @@ export default function ProgressTab({ traineeId }) {
     enabled: !!traineeId,
   });
 
-  const recordsByType = useMemo(() => {
-    const grouped = {};
-    records.forEach(r => {
-      const key = r.record_type || 'other';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(r);
-    });
-    return grouped;
-  }, [records]);
+  // Folder-based grouping by normalized name (spec: single record = flat,
+  // 2+ = folder). Baselines get their own dedicated folder rendered above.
+  const recordGroups = useMemo(() => groupRecordsByName(records), [records]);
 
   // ── Add Record ──
   const [recForm, setRecForm] = useState({ record_type: '', name: '', unit: '', value: '', date: new Date().toISOString().split('T')[0], notes: '' });
@@ -188,23 +141,15 @@ export default function ProgressTab({ traineeId }) {
   return (
     <div className="space-y-6" dir="rtl">
 
-      {/* ── SECTION 1: Baseline sessions ── */}
+      {/* Baselines — single dedicated folder, always first if any sessions exist */}
       {baselineSessions.length > 0 && (
-        <div>
-          <h3 className="text-base font-bold flex items-center gap-2 mb-3">
-            <Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין קפיצה
-          </h3>
-          {baselineSessions.map((session) => (
-            <BaselineSessionCard
-              key={session.sessionKey}
-              session={session}
-              onViewClick={() => handleViewSession(session)}
-            />
-          ))}
-        </div>
+        <BaselinesFolderCard
+          sessions={baselineSessions}
+          onSessionClick={(s) => setViewingSessionRows(s.techniques)}
+        />
       )}
 
-      {/* View-only baseline dialog (opened by tapping a card) */}
+      {/* View-only baseline dialog (opened by tapping a session inside the folder) */}
       {viewingSessionRows && (
         <BaselineFormDialog
           isOpen={true}
@@ -215,74 +160,47 @@ export default function ProgressTab({ traineeId }) {
         />
       )}
 
-      {/* ── SECTION 2: Personal Records ── */}
-      <div>
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-base font-bold flex items-center gap-2"><Award className="w-5 h-5 text-yellow-500" />שיאים אישיים</h3>
-          <Button onClick={() => setShowAddRecord(true)} size="sm" className="rounded-xl font-bold text-white text-xs h-9" style={{ backgroundColor: O }}>
-            <Plus className="w-3 h-3 ml-1" />הוסף שיא
-          </Button>
-        </div>
-
-        {Object.keys(recordsByType).length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <Award className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500 text-sm">עדיין אין שיאים. לחץ "הוסף שיא" כדי להתחיל.</p>
-          </div>
-        ) : (
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-            {Object.entries(recordsByType).map(([typeKey, entries]) => {
-              const type = getTypeByKey(typeKey);
-              const best = Math.max(...entries.map(e => e.value));
-              const latest = entries[entries.length - 1];
-              const isOpen = expandedRecord === typeKey;
-              const chartData = entries.map(e => ({
-                date: new Date(e.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }),
-                value: e.value,
-              }));
-              return (
-                <div key={typeKey} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                  <div onClick={() => setExpandedRecord(isOpen ? null : typeKey)} className="p-4 cursor-pointer hover:bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-bold text-base">{latest.name || type.name}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          שיא: <strong className="text-[#FF6F20]">{best}</strong> {latest.unit}
-                          {entries.length > 1 && <span> · אחרון: {latest.value} {latest.unit}</span>}
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-1">{entries.length} רשומות · {new Date(latest.date).toLocaleDateString('he-IL')}</div>
-                      </div>
-                      {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                    </div>
-                  </div>
-                  {isOpen && (
-                    <div className="px-2 pb-3">
-                      {chartData.length > 1 && (
-                        <ResponsiveContainer width="100%" height={160}>
-                          <LineChart data={chartData}>
-                            <XAxis dataKey="date" fontSize={10} />
-                            <YAxis fontSize={10} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="value" stroke={O} strokeWidth={2} dot={{ r: 4 }} name={latest.unit} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      )}
-                      <div className="mt-2 space-y-1">
-                        {entries.slice(-5).reverse().map(e => (
-                          <div key={e.id} className="flex items-center justify-between text-xs px-2 py-1 bg-gray-50 rounded">
-                            <span>{new Date(e.date).toLocaleDateString('he-IL')} — <strong>{e.value}</strong> {e.unit}</span>
-                            {isCoach && <button onClick={() => deleteRecord(e.id)} className="text-gray-300 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+      {/* Add-record button row (header) */}
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-base font-bold flex items-center gap-2">
+          <Award className="w-5 h-5 text-yellow-500" />שיאים ובייסליינים
+        </h3>
+        <Button onClick={() => setShowAddRecord(true)} size="sm" className="rounded-xl font-bold text-white text-xs h-9" style={{ backgroundColor: O }}>
+          <Plus className="w-3 h-3 ml-1" />הוסף שיא
+        </Button>
       </div>
+
+      {/* Personal records — folders (2+) and flat cards (1) by normalized name */}
+      {recordGroups.map((g) => (
+        g.isFolder ? (
+          <RecordFolderCard
+            key={g.key}
+            group={g}
+            onRecordClick={setViewingRecord}
+          />
+        ) : (
+          <RecordFlatCard
+            key={g.key}
+            record={g.latestRecord}
+            onClick={setViewingRecord}
+          />
+        )
+      ))}
+
+      {/* Empty state — only when there's nothing at all */}
+      {baselineSessions.length === 0 && recordGroups.length === 0 && (
+        <div style={{ padding: 24, textAlign: 'center', color: '#6b7280', background: '#FFF9F0', borderRadius: 12 }}>
+          אין שיאים או בייסליינים עדיין
+        </div>
+      )}
+
+      {/* View-only record viewer */}
+      {viewingRecord && (
+        <PersonalRecordViewer
+          record={viewingRecord}
+          onClose={() => setViewingRecord(null)}
+        />
+      )}
 
       {/* ── Add Record Dialog ── */}
       <Dialog open={showAddRecord} onOpenChange={setShowAddRecord}>
