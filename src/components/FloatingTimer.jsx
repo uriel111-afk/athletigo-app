@@ -51,7 +51,7 @@ const FloatingTimer = () => {
 
   return (
     <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={() => { drag.current.active = false; }}
-      style={{ position: 'fixed', left: pos.x, bottom: pos.bottom, zIndex: 1000,
+      style={{ position: 'fixed', left: pos.x, bottom: pos.bottom, zIndex: 9999,
         background: liveTimer.paused ? '#CC5500' : '#FF6F20', borderRadius: 18,
         minWidth: 155, boxShadow: '0 6px 24px rgba(0,0,0,0.4)',
         direction: 'rtl', userSelect: 'none', touchAction: 'none', overflow: 'hidden' }}>
