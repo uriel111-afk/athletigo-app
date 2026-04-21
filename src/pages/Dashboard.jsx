@@ -40,7 +40,6 @@ const SectionHeader = ({ title }) => (
 
 const BG = {
   backgroundColor: "#FDF8F3",
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cpath d='M20 60 Q60 20 100 60 T180 60' fill='none' stroke='%23e8ddd0' stroke-width='0.8'/%3E%3Cpath d='M10 100 Q50 60 90 100 T170 100' fill='none' stroke='%23e8ddd0' stroke-width='0.6'/%3E%3C/svg%3E")`,
 };
 
 export default function Dashboard() {
@@ -273,8 +272,8 @@ export default function Dashboard() {
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
     <ProtectedCoachPage>
-      <div className="flex flex-col" dir="rtl" style={BG}>
-        <div className="max-w-md mx-auto w-full px-4 pt-4 pb-4">
+      <div className="flex flex-col flex-1 min-h-full" dir="rtl" style={BG}>
+        <div className="max-w-md mx-auto w-full pt-4 pb-4">
 
           {/* ── Header ──────────────────────────────────────────── */}
           <div className="text-center mb-1">

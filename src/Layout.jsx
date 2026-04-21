@@ -52,6 +52,7 @@ export default function Layout({ children, currentPageName }) {
   const clock = useClock();
   const { liveTimer, setLiveTimer } = useActiveTimer();
   const isClocks = location.pathname.toLowerCase().includes('clock');
+  const isDashboard = location.pathname.toLowerCase().includes('dashboard');
   const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');
 
   // Sync floating widget for timer/stopwatch every tick (Layout never unmounts)
@@ -452,8 +453,8 @@ export default function Layout({ children, currentPageName }) {
           )}
 
           <div className="flex-1 page-container" style={{
-            paddingLeft: isClocks ? 0 : '16px',
-            paddingRight: isClocks ? 0 : '16px',
+            paddingLeft: (isClocks || isDashboard) ? 0 : '16px',
+            paddingRight: (isClocks || isDashboard) ? 0 : '16px',
             paddingTop: isClocks ? 0 : 'var(--content-top)',
             paddingBottom: isClocks ? 0 : 'var(--content-bottom)',
             overflowY: isClocks ? 'hidden' : 'auto',
