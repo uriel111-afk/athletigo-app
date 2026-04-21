@@ -74,22 +74,57 @@ function NumPicker({ value, onChange, min = 1, max = 10, label }) {
   );
 }
 
-export default function BaselineFormDialog({ isOpen, onClose, traineeId, traineeName }) {
+export default function BaselineFormDialog({
+  isOpen, onClose, traineeId, traineeName,
+  editMode = false, existingRows = null,
+}) {
   const queryClient = useQueryClient();
   const { user: authUser } = useContext(AuthContext);
   const isCoach = authUser?.is_coach === true || authUser?.role === 'coach' || authUser?.role === 'admin';
   // For coach: coach_id = authUser.id. For trainee: coach_id = null
   const coachId = isCoach ? authUser?.id : null;
 
-  const initialData = useMemo(
-    () => ({ ...INITIAL_DATA, baselineDate: new Date().toISOString().split('T')[0] }),
-    []
-  );
+  // In edit mode: derive initialData from existingRows. Otherwise: empty defaults.
+  const initialData = useMemo(() => {
+    if (editMode && existingRows && existingRows.length > 0) {
+      const first = existingRows[0];
+      const perTech = JSON.parse(JSON.stringify(INITIAL_DATA.perTechnique));
+      for (const row of existingRows) {
+        const t = row.technique;
+        if (!perTech[t]) continue;
+        const rounds = (row.rounds_data ?? []).map(r => ({
+          jumps: String(r.jumps ?? ''),
+          misses: String(r.misses ?? ''),
+        }));
+        perTech[t] = {
+          roundsCount: rounds.length || 1,
+          rounds: rounds.length ? rounds : [{ jumps: '', misses: '' }],
+        };
+      }
+      // Pick technique to display first: one of the existing rows
+      const firstTech = existingRows.find(r => INITIAL_DATA.perTechnique[r.technique])?.technique || 'basic';
+      return {
+        ...INITIAL_DATA,
+        technique: firstTech,
+        workTime: first.work_time_seconds ?? 30,
+        restTime: first.rest_time_seconds ?? 30,
+        notes: first.notes ?? '',
+        baselineDate: first.date || new Date().toISOString().split('T')[0],
+        perTechnique: perTech,
+      };
+    }
+    return { ...INITIAL_DATA, baselineDate: new Date().toISOString().split('T')[0] };
+  }, [editMode, existingRows]);
+
+  // Scope key differentiates edit vs new drafts (so editing one session doesn't overwrite a new-session draft)
+  const draftScope = editMode && existingRows?.[0]?.id
+    ? `edit_${existingRows[0].id}`
+    : `${traineeId ?? 'new'}`;
 
   const {
     data: formData, setData: setFormData,
     hasDraft, keepDraft, discardDraft, clearDraft,
-  } = useFormDraft('BaselineForm', traineeId, isOpen, initialData);
+  } = useFormDraft('BaselineForm', draftScope, isOpen, initialData);
 
   useKeepScreenAwake(isOpen);
 
@@ -137,7 +172,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
     });
   };
 
-  // Real-time calculation — for CURRENT technique only
+  // Real-time calculation — for CURRENT technique tab only (display in score strip)
   const calc = useMemo(() => {
     const filledRounds = rounds.filter(r => r.jumps !== '' && parseInt(r.jumps) >= 0);
     const totalJumps = filledRounds.reduce((s, r) => s + (parseInt(r.jumps) || 0), 0);
@@ -147,12 +182,18 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
     return { totalJumps, avg: Math.round(avg * 100) / 100, maxJumps, score: Math.round(score * 100) / 100, filledCount: filledRounds.length };
   }, [rounds, workTime]);
 
-  const canSave = technique && calc.filledCount > 0 && workTime > 0;
+  // Count techniques that have at least one filled round
+  const filledTechCount = useMemo(() => {
+    return Object.values(perTechnique).filter(t =>
+      t.rounds.some(r => r.jumps !== '' && parseInt(r.jumps) >= 0)
+    ).length;
+  }, [perTechnique]);
+
+  const canSave = filledTechCount > 0 && workTime > 0;
 
   const handleSave = async () => {
     if (!canSave) {
-      if (!technique) toast.error("יש לבחור טכניקה");
-      else if (calc.filledCount === 0) toast.error("יש למלא לפחות סיבוב אחד");
+      if (filledTechCount === 0) toast.error("יש למלא לפחות סיבוב אחד באחת מהטכניקות");
       else if (workTime === 0) toast.error("זמן עבודה לא יכול להיות 0");
       return;
     }
@@ -161,65 +202,97 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
     try {
       const dateStr = baselineDate || new Date().toISOString().split('T')[0];
       const timeStr = new Date().toTimeString().slice(0, 5);
-      const roundsData = rounds.map((r, i) => ({ round: i + 1, jumps: parseInt(r.jumps) || 0, misses: parseInt(r.misses) || 0 }));
-      const techLabel = TECHNIQUES.find(t => t.id === technique)?.label || technique;
+      // In edit mode: reuse the original session's created_at so the session key (minute slice) is preserved
+      const sharedCreatedAt = (editMode && existingRows?.[0]?.created_at)
+        ? existingRows[0].created_at
+        : new Date().toISOString();
 
+      // Build one row per technique that has filled rounds
+      const techIds = Object.keys(perTechnique); // ['basic','foot_switch','high_knees']
+      const rowsToInsert = [];
+      const perTechCalc = {}; // for results_log entries
+      for (const techId of techIds) {
+        const techData = perTechnique[techId];
+        const filled = techData.rounds.filter(r => r.jumps !== '' && parseInt(r.jumps) >= 0);
+        if (filled.length === 0) continue;
 
-      // 1. INSERT to baselines
-      const { data: baselineData, error: baselineErr } = await supabase
-        .from('baselines')
-        .insert({
+        const totalJumps = filled.reduce((s, r) => s + (parseInt(r.jumps) || 0), 0);
+        const avg = Math.round((totalJumps / filled.length) * 100) / 100;
+        const score = workTime > 0 ? Math.round((avg / workTime) * 100) / 100 : 0;
+        const roundsData = filled.map((r, i) => ({
+          round: i + 1,
+          jumps: parseInt(r.jumps) || 0,
+          misses: parseInt(r.misses) || 0,
+        }));
+
+        rowsToInsert.push({
           trainee_id: traineeId,
           coach_id: coachId,
           date: dateStr,
           time: timeStr,
-          technique,
+          technique: techId,
           work_time_seconds: workTime,
           rest_time_seconds: restTime,
-          rounds_count: roundsCount,
+          rounds_count: filled.length,
           rounds_data: roundsData,
-          total_jumps: calc.totalJumps,
-          average_jumps: calc.avg,
-          baseline_score: calc.score,
+          total_jumps: totalJumps,
+          average_jumps: avg,
+          baseline_score: score,
           notes: notes || null,
-        })
-        .select()
-        .single();
+          created_at: sharedCreatedAt,
+        });
 
-      if (baselineErr) throw baselineErr;
+        perTechCalc[techId] = { totalJumps, avg, score, roundsCount: filled.length };
+      }
 
-      // 2. INSERT to results_log (for achievements tab)
-      const { error: resultErr } = await supabase
-        .from('results_log')
-        .insert({
+      // Edit mode: delete the original session's rows + their linked results_log entries
+      if (editMode && existingRows && existingRows.length > 0) {
+        const idsToDelete = existingRows.map(r => r.id);
+        // Best-effort: delete results_log entries linked to these baselines first (FK ON DELETE not guaranteed)
+        await supabase.from('results_log').delete().in('baseline_id', idsToDelete);
+        const { error: delErr } = await supabase.from('baselines').delete().in('id', idsToDelete);
+        if (delErr) throw delErr;
+      }
+
+      // Insert all new rows in one batch
+      const { data: inserted, error: insErr } = await supabase
+        .from('baselines')
+        .insert(rowsToInsert)
+        .select();
+      if (insErr) throw insErr;
+
+      // Mirror to results_log (one entry per technique, for the achievements tab)
+      const resultRows = (inserted || []).map(b => {
+        const c = perTechCalc[b.technique];
+        const techLabel = TECHNIQUES.find(t => t.id === b.technique)?.label || b.technique;
+        return {
           trainee_id: traineeId,
           created_by: coachId || authUser?.id || null,
           title: `Baseline - ${techLabel}`,
-          record_value: String(calc.score),
+          record_value: String(c.score),
           record_unit: 'JPS',
           category: 'baseline',
-          baseline_id: baselineData.id,
+          baseline_id: b.id,
           date: dateStr,
-          description: `${calc.totalJumps} קפיצות, ממוצע ${calc.avg}, ${roundsCount} סיבובים × ${workTime} שניות`,
-        });
-
-      if (resultErr) {
-        console.error("[BaselineForm] results_log insert failed:", resultErr);
-        // Don't throw — baseline was saved, just log the issue
-      } else {
+          description: `${c.totalJumps} קפיצות, ממוצע ${c.avg}, ${c.roundsCount} סיבובים × ${workTime} שניות`,
+        };
+      });
+      if (resultRows.length > 0) {
+        const { error: resultErr } = await supabase.from('results_log').insert(resultRows);
+        if (resultErr) console.error("[BaselineForm] results_log insert failed:", resultErr);
       }
 
-      // 3. Invalidate caches
+      // Invalidate caches
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['baselines'] });
-      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['baselines-progress'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
 
-      toast.success(`בייסליין נשמר בהצלחה — ${calc.score} JPS`);
+      toast.success(editMode ? 'הבייסליין עודכן' : `בייסליין נשמר — ${rowsToInsert.length} טכניקות`);
       clearDraft();
       onClose();
     } catch (error) {
@@ -235,8 +308,13 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
       <DialogContent className="max-w-md p-0"
         onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         <DialogHeader className="px-3 pt-3 pb-1">
-          <DialogTitle className="text-base font-black text-gray-900">מדידת בייסליין</DialogTitle>
+          <DialogTitle className="text-base font-black text-gray-900">
+            {editMode ? 'עריכת בייסליין' : 'בייסליין חדש'}
+          </DialogTitle>
           {traineeName && <p className="text-xs text-gray-400">{traineeName}</p>}
+          {filledTechCount > 0 && (
+            <p className="text-[10px] text-gray-500 mt-0.5">{filledTechCount} טכניקות עם נתונים</p>
+          )}
         </DialogHeader>
 
         <div className="px-3 pb-3 space-y-2">

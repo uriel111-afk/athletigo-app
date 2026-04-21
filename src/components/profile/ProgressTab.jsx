@@ -9,17 +9,125 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { RECORD_TYPES, getTypeByKey } from '@/lib/personalRecordTypes';
+import BaselineFormDialog from '@/components/forms/BaselineFormDialog';
 
 const TECHNIQUE_LABELS = { basic: 'קפיצה בסיס', foot_switch: 'החלפת רגליים', high_knees: 'הרמת ברכיים' };
 const O = '#FF6F20';
+const HEB_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+function formatHebrewDate(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  return `${HEB_DAYS[d.getDay()]}, ${d.toLocaleDateString('he-IL')}`;
+}
+
+function ExpandedTechniqueList({ techniques, onEditTechnique }) {
+  return (
+    <>
+      {techniques.map((t) => {
+        const roundsArr = Array.isArray(t.rounds_data) ? t.rounds_data : [];
+        const totalJumps = roundsArr.reduce((sum, r) => sum + Number(r.jumps ?? 0), 0);
+        const peak = roundsArr.length > 0
+          ? Math.max(...roundsArr.map(r => Number(r.jumps ?? 0)))
+          : 0;
+        return (
+          <div key={t.id}
+            style={{
+              marginBottom: 12, padding: 14, background: '#FFFFFF',
+              borderRadius: 8, borderRight: '3px solid #FF6F20',
+            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ color: '#FF6F20', fontWeight: 700, fontSize: 15 }}>
+                {TECHNIQUE_LABELS[t.technique] ?? t.technique}
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onEditTechnique(t); }}
+                style={{
+                  background: '#FFFFFF', color: '#FF6F20', border: '1px solid #FF6F20',
+                  borderRadius: 6, padding: '4px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >ערוך</button>
+            </div>
+            <div style={{ display: 'flex', gap: 16, fontSize: 14, color: '#1a1a1a', marginBottom: 10, flexWrap: 'wrap' }}>
+              <div><span style={{ color: '#6b7280' }}>סה&quot;כ קפיצות: </span><strong>{totalJumps}</strong></div>
+              <div><span style={{ color: '#6b7280' }}>ממוצע: </span><strong>{t.average_jumps ?? 0}</strong></div>
+              <div><span style={{ color: '#6b7280' }}>שיא: </span><strong>{peak}</strong></div>
+            </div>
+            {roundsArr.length > 0 && (
+              <div>
+                <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 6 }}>סיבובים:</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {roundsArr.map((r, idx) => (
+                    <span key={idx}
+                      style={{
+                        background: '#FFF9F0', border: '1px solid #FFE5D0', borderRadius: 6,
+                        padding: '4px 10px', fontSize: 13, color: '#1a1a1a', fontWeight: 500,
+                      }}>
+                      {r.jumps}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function BaselineSessionCard({ session, isExpanded, onToggle, onEditTechnique }) {
+  const formattedDate = formatHebrewDate(session.sessionDate);
+  const techniqueCount = session.techniques.length;
+  const totalRounds = session.techniques.reduce((sum, t) => sum + (t.rounds_count ?? 0), 0);
+  const overallBaseline = techniqueCount > 0
+    ? Math.round(session.techniques.reduce((sum, t) => sum + Number(t.average_jumps ?? 0), 0) / techniqueCount)
+    : 0;
+
+  return (
+    <div onClick={onToggle}
+      style={{
+        background: '#FFF9F0', border: '1px solid #FFE5D0', borderRadius: 12,
+        padding: 16, marginBottom: 12, cursor: 'pointer',
+      }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: isExpanded ? 16 : 8,
+      }}>
+        <span style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 16 }}>
+          📅 {formattedDate}
+        </span>
+        <span style={{ color: '#FF6F20', fontSize: 14 }}>{isExpanded ? '▼' : '▸'}</span>
+      </div>
+
+      {!isExpanded && (
+        <div style={{ display: 'flex', gap: 16, fontSize: 14, color: '#1a1a1a', flexWrap: 'wrap' }}>
+          <div><span style={{ color: '#6b7280' }}>טכניקות: </span><strong>{techniqueCount}</strong></div>
+          <div><span style={{ color: '#6b7280' }}>סה&quot;כ סיבובים: </span><strong>{totalRounds}</strong></div>
+          <div><span style={{ color: '#FF6F20' }}>בייסליין כללי: </span><strong style={{ color: '#FF6F20' }}>{overallBaseline}</strong></div>
+        </div>
+      )}
+
+      {isExpanded && (
+        <ExpandedTechniqueList
+          techniques={session.techniques}
+          onEditTechnique={onEditTechnique}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function ProgressTab({ traineeId }) {
   const { user: currentUser } = useContext(AuthContext);
   const isCoach = currentUser?.is_coach || currentUser?.role === 'coach' || currentUser?.role === 'admin';
   const queryClient = useQueryClient();
-  const [expandedBaseline, setExpandedBaseline] = useState(null);
+  const [expandedSession, setExpandedSession] = useState(null);
   const [expandedRecord, setExpandedRecord] = useState(null);
   const [showAddRecord, setShowAddRecord] = useState(false);
+  const [editingSessionRows, setEditingSessionRows] = useState(null);
+  const [baselineFormOpen, setBaselineFormOpen] = useState(false);
 
   // ── Baselines ──
   const { data: baselines = [] } = useQuery({
@@ -28,15 +136,29 @@ export default function ProgressTab({ traineeId }) {
     enabled: !!traineeId,
   });
 
-  const baselinesByTech = useMemo(() => {
-    const grouped = {};
-    baselines.forEach(b => {
-      const tech = b.technique || 'basic';
-      if (!grouped[tech]) grouped[tech] = [];
-      grouped[tech].push(b);
-    });
-    return grouped;
+  // Group rows into sessions by created_at-to-the-minute. Rows from the same
+  // BaselineFormDialog submission share an identical created_at (set in code).
+  const baselineSessions = useMemo(() => {
+    const map = new Map();
+    for (const row of baselines) {
+      if (!row?.created_at) continue;
+      const key = String(row.created_at).slice(0, 16); // YYYY-MM-DDTHH:MM
+      if (!map.has(key)) map.set(key, { sessionKey: key, sessionDate: row.created_at, techniques: [] });
+      map.get(key).techniques.push(row);
+    }
+    // newest first
+    return Array.from(map.values()).sort((a, b) =>
+      String(b.sessionDate).localeCompare(String(a.sessionDate))
+    );
   }, [baselines]);
+
+  const handleEditTechnique = (row) => {
+    if (!row?.created_at) return;
+    const sessionKey = String(row.created_at).slice(0, 16);
+    const sessionRows = baselines.filter(r => String(r.created_at).slice(0, 16) === sessionKey);
+    setEditingSessionRows(sessionRows);
+    setBaselineFormOpen(true);
+  };
 
   // ── Personal Records ──
   const { data: records = [] } = useQuery({
@@ -108,64 +230,37 @@ export default function ProgressTab({ traineeId }) {
   return (
     <div className="space-y-6" dir="rtl">
 
-      {/* ── SECTION 1: Baselines ── */}
-      {Object.keys(baselinesByTech).length > 0 && (
+      {/* ── SECTION 1: Baseline sessions ── */}
+      {baselineSessions.length > 0 && (
         <div>
-          <h3 className="text-base font-bold flex items-center gap-2 mb-3"><Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין קפיצה</h3>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-            {Object.entries(baselinesByTech).map(([tech, entries]) => {
-              const latest = entries[entries.length - 1];
-              const prev = entries.length > 1 ? entries[entries.length - 2] : null;
-              const trend = prev ? (latest.average_jumps || 0) - (prev.average_jumps || 0) : 0;
-              const isOpen = expandedBaseline === tech;
-              const chartData = entries.map(e => ({
-                date: new Date(e.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }),
-                avg: e.average_jumps || 0,
-                max: Math.max(...(e.rounds_data || []).map(r => r.jumps || 0), 0),
-              }));
-              return (
-                <div key={tech} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                  <div onClick={() => setExpandedBaseline(isOpen ? null : tech)} className="p-4 cursor-pointer hover:bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-bold text-base">{TECHNIQUE_LABELS[tech] || tech}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          ממוצע: <strong>{latest.average_jumps}</strong> · שיא: <strong>{latest.baseline_score}</strong> JPS
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-1">
-                          {latest.rounds_count} סיבובים · {new Date(latest.created_at).toLocaleDateString('he-IL')}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {trend !== 0 && (
-                          <span className={`text-xs font-bold ${trend > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {trend > 0 ? '▲' : '▼'} {Math.abs(Math.round(trend))}
-                          </span>
-                        )}
-                        {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                      </div>
-                    </div>
-                  </div>
-                  {isOpen && chartData.length > 1 && (
-                    <div className="px-2 pb-3">
-                      <ResponsiveContainer width="100%" height={180}>
-                        <LineChart data={chartData}>
-                          <XAxis dataKey="date" fontSize={10} />
-                          <YAxis fontSize={10} />
-                          <Tooltip />
-                          <Legend wrapperStyle={{ fontSize: 11 }} />
-                          <Line type="monotone" dataKey="avg" stroke={O} strokeWidth={2} dot={{ r: 4 }} name="ממוצע" />
-                          <Line type="monotone" dataKey="max" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} name="שיא" strokeDasharray="5 5" />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <h3 className="text-base font-bold flex items-center gap-2 mb-3">
+            <Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין קפיצה
+          </h3>
+          {baselineSessions.map((session) => (
+            <BaselineSessionCard
+              key={session.sessionKey}
+              session={session}
+              isExpanded={expandedSession === session.sessionKey}
+              onToggle={() =>
+                setExpandedSession(expandedSession === session.sessionKey ? null : session.sessionKey)
+              }
+              onEditTechnique={handleEditTechnique}
+            />
+          ))}
         </div>
       )}
+
+      {/* Edit-mode Baseline dialog (also handles new submissions made from inside ProgressTab — none today) */}
+      <BaselineFormDialog
+        isOpen={baselineFormOpen}
+        onClose={() => {
+          setBaselineFormOpen(false);
+          setEditingSessionRows(null);
+        }}
+        traineeId={traineeId}
+        editMode={editingSessionRows != null}
+        existingRows={editingSessionRows}
+      />
 
       {/* ── SECTION 2: Personal Records ── */}
       <div>
