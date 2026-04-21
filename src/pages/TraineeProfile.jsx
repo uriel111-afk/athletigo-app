@@ -2189,10 +2189,10 @@ export default function TraineeProfile() {
                   <h3 className="text-base font-bold text-gray-800 border-b pb-2">היסטוריית רכישות</h3>
                   <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200" dir="rtl">
                     <table className="w-full text-sm text-right">
-                      <thead className="bg-gray-100 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">שירות</th><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">מחיר</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th></tr></thead>
+                      <thead className="bg-gray-100 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">שירות</th><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">מחיר</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th>{isCoach && <th className="px-3 py-2 text-right font-bold text-gray-600 w-16">פעולות</th>}</tr></thead>
                       <tbody className="divide-y divide-gray-200">
                         {historyServices.length === 0 ? (
-                          <tr><td colSpan="4" className="px-4 py-4 text-center text-gray-500 italic">אין היסטוריה</td></tr>
+                          <tr><td colSpan={isCoach ? 5 : 4} className="px-4 py-4 text-center text-gray-500 italic">אין היסטוריה</td></tr>
                         ) : (
                           historyServices.map(s => {
                             const derivedStatus = (() => {
@@ -2213,6 +2213,13 @@ export default function TraineeProfile() {
                                 <td className="px-3 py-2 text-right text-gray-600">{s.start_date ? format(new Date(s.start_date), 'dd/MM/yy') : '—'}</td>
                                 <td className="px-3 py-2 text-right font-medium">₪{s.final_price || s.price || 0}</td>
                                 <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{derivedStatus}</span></td>
+                                {isCoach && (
+                                  <td className="px-3 py-2 text-right">
+                                    <Button onClick={() => openEditService(s)} variant="ghost" size="sm" className="h-7 px-2 text-xs text-[#FF6F20] hover:bg-orange-50">
+                                      <Edit2 className="w-3 h-3 ml-1" />ערוך
+                                    </Button>
+                                  </td>
+                                )}
                               </tr>
                             );
                           })

@@ -134,7 +134,9 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
       auto_deduct_enabled: !isGroup,
       unit_type: isGroup ? "months" : "sessions",
       notes_internal: form.notes_internal || null,
-      status: "פעיל",
+      // Preserve existing status when editing (so coach editing a completed/expired
+      // package doesn't silently reactivate it). Default new packages to active.
+      status: editingPackage?.status ?? "פעיל",
     };
 
     setSaving(true);
