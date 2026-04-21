@@ -68,6 +68,13 @@ export function useDashboardStats() {
     // Accept both Hebrew ('פעיל') and English ('active') status — legacy records use English
     const activeServices = coachServices.filter(s => s.status === 'פעיל' || s.status === 'active');
 
+    console.log('[DashboardCount] coachId:', coachId);
+    console.log('[DashboardCount] allServices total:', allServices.length);
+    console.log('[DashboardCount] coachServices (after coach filter):', coachServices.length,
+      coachServices.map(s => ({ id: s.id, trainee_id: s.trainee_id, status: s.status, total: s.total_sessions, used: s.used_sessions })));
+    console.log('[DashboardCount] activeServices (פעיל || active):', activeServices.length,
+      activeServices.map(s => ({ id: s.id, trainee_id: s.trainee_id, status: s.status })));
+
     // Filter sessions by coach
     const coachSessions = allSessions.filter(s => s.coach_id === coachId);
 
@@ -83,11 +90,20 @@ export function useDashboardStats() {
 
     // Active clients = has active service OR user status is 'active'
     const activeClientIds = new Set(activeServices.map(s => s.trainee_id));
+    const fromServices = [...activeClientIds];
     allUsers.forEach(t => {
       if (t.coach_id === coachId && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
         activeClientIds.add(t.id);
       }
     });
+    const addedByUserStatus = [...activeClientIds].filter(id => !fromServices.includes(id));
+    const usersAddedDetails = addedByUserStatus.map(id => {
+      const u = allUsers.find(x => x.id === id);
+      return u ? { id: u.id, full_name: u.full_name, status: u.status, client_status: u.client_status, coach_id: u.coach_id } : { id, note: 'user not found in allUsers' };
+    });
+    console.log('[DashboardCount] IDs from active services:', fromServices.length, fromServices);
+    console.log('[DashboardCount] IDs added by user.status/client_status:', addedByUserStatus.length, usersAddedDetails);
+    console.log('[DashboardCount] FINAL activeClientsCount:', activeClientIds.size, [...activeClientIds]);
 
     // ── Revenue ─────────────────────────────────────────────────────
     const paidThisMonth = coachServices.filter(s =>
