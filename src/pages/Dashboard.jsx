@@ -275,46 +275,64 @@ export default function Dashboard() {
       <div className="flex flex-col flex-1 min-h-full" dir="rtl" style={BG}>
         <div className="max-w-md mx-auto w-full pt-4 pb-4">
 
-          {/* ── Header ──────────────────────────────────────────── */}
-          <div className="text-center mb-1">
-            <h2 className="text-[11px] font-black tracking-[0.18em] text-[#FF6F20]" style={{ fontFamily: "Barlow, sans-serif" }}>ATHLETIGO</h2>
-            <h1 className="text-xl font-black text-gray-900 mt-0.5">דשבורד מאמן</h1>
-          </div>
-
-          {/* ═══ SECTION 1 — פעולות ליבה ═══════════════════════ */}
+          {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════ */}
           <SectionHeader title="פעולות ליבה" />
-          <div className="grid grid-cols-2 gap-2 mb-1">
+          <div style={{ position: 'relative', width: '100%', maxWidth: 340, height: 380, margin: '12px auto 20px' }}>
             {[
-              { label: "הוסף ליד",    icon: UserPlus, onClick: () => setIsLeadDialogOpen(true) },
-              { label: "הוסף מתאמן",  icon: Plus,     onClick: () => setIsAddTraineeOpen(true) },
-              { label: "קבע מפגש",    icon: Calendar, onClick: () => setIsSessionDialogOpen(true) },
-              { label: "בנה תוכנית",  icon: Dumbbell, onClick: () => setIsPlanDialogOpen(true) },
+              { label: "הוסף מתאמן",  icon: Plus,     onClick: () => setIsAddTraineeOpen(true),    pos: { top: 0,    left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
+              { label: "הוסף ליד",    icon: UserPlus, onClick: () => setIsLeadDialogOpen(true),     pos: { top: 114,  right: 0, transform: 'rotate(45deg)' } },
+              { label: "בנה תוכנית",  icon: Dumbbell, onClick: () => setIsPlanDialogOpen(true),     pos: { top: 114,  left: 0, transform: 'rotate(45deg)' } },
+              { label: "קבע מפגש",    icon: Calendar, onClick: () => setIsSessionDialogOpen(true), pos: { top: 228,  left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
             ].map((btn) => (
-              <button key={btn.label} onClick={btn.onClick}
-                className="h-11 bg-white rounded-full border border-gray-200 shadow-sm flex items-center justify-center gap-2 hover:border-[#FF6F20] hover:shadow-md transition-all active:scale-[0.97]">
-                <btn.icon className="w-4 h-4 text-[#FF6F20]" />
-                <span className="text-[13px] font-bold text-gray-800">{btn.label}</span>
+              <button
+                key={btn.label}
+                onClick={btn.onClick}
+                style={{
+                  position: 'absolute',
+                  width: 112, height: 112,
+                  background: 'white',
+                  borderRadius: 20,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  ...btn.pos,
+                }}
+                className="hover:shadow-lg active:scale-[0.97] transition-all"
+              >
+                <div style={{
+                  width: '100%', height: '100%',
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  gap: 8,
+                  transform: 'rotate(-45deg)',
+                }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.2, padding: '0 8px' }}>
+                    {btn.label}
+                  </span>
+                  <btn.icon className="w-5 h-5" style={{ color: '#FF6F20' }} />
+                </div>
               </button>
             ))}
           </div>
 
-          {/* ═══ SECTION 2 — מטריקות מרכזיות ═══════════════════ */}
+          {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />
-          <div className="grid grid-cols-3 gap-2 mb-1">
+          <div className="grid grid-cols-4 gap-2 mb-3 px-3">
             {[
-              { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#4CAF50", to: createPageUrl("AllUsers") + "?filter=active" },
-              { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#9C27B0", to: createPageUrl("Sessions") + "?status=upcoming" },
               { label: "לידים חדשים",    value: newLeadsCount,         color: "#FFC107", to: createPageUrl("Leads") + "?filter=new" },
+              { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#9C27B0", to: createPageUrl("Sessions") + "?status=upcoming" },
+              { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#4CAF50", to: createPageUrl("AllUsers") + "?filter=active" },
               { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", to: createPageUrl("PlanBuilder") },
             ].map((m) => (
               <button key={m.label} onClick={() => navigate(m.to)}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm py-3 flex flex-col items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.97]">
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm py-3 px-1 flex flex-col items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.97]">
                 {statsLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
                 ) : (
                   <span className="text-2xl font-black leading-none" style={{ color: m.color }}>{m.value}</span>
                 )}
-                <span className="text-[10px] font-bold text-gray-500 mt-1">{m.label}</span>
+                <span className="text-[10px] font-bold text-gray-500 mt-1 text-center leading-tight">{m.label}</span>
               </button>
             ))}
           </div>
@@ -424,27 +442,46 @@ export default function Dashboard() {
             </>
           )}
 
-          {/* ═══ SECTION 4 — גישה מהירה ═══════════════════════ */}
+          {/* ═══ SECTION 4 — גישה מהירה (circular icons) ═══════ */}
           <SectionHeader title="גישה מהירה" />
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: "שיא",       icon: Award,      action: () => handleActionClick("result") },
-              { label: "יעד",       icon: Target,     action: () => handleActionClick("goal") },
+          {(() => {
+            const quickItems = [
               { label: "בייסליין",  icon: Zap,        action: () => handleActionClick("baseline") },
-              { label: "מדידה",     icon: Ruler,      action: () => handleActionClick("measurement") },
-              { label: "חבילה",     icon: Package,    action: () => handleActionClick("package") },
+              { label: "יעד",       icon: Target,     action: () => handleActionClick("goal") },
+              { label: "שיא",       icon: Award,      action: () => handleActionClick("result") },
               { label: "שעונים",    icon: Clock,      action: () => navigate(createPageUrl("Clocks")) },
+              { label: "חבילה",     icon: Package,    action: () => handleActionClick("package") },
+              { label: "מדידה",     icon: Ruler,      action: () => handleActionClick("measurement") },
               { label: "התראות",    icon: Bell,       action: () => navigate(createPageUrl("Notifications")) },
-            ].map((q) => (
+            ];
+            const renderItem = (q) => (
               <button key={q.label} onClick={q.action}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm py-3 flex flex-col items-center gap-1.5 cursor-pointer hover:border-[#FF6F20]/30 hover:shadow-md transition-all active:scale-[0.97]">
-                <div className="w-9 h-9 rounded-full bg-[#FFF3E0] flex items-center justify-center">
-                  <q.icon className="w-4 h-4 text-[#FF6F20]" />
+                className="flex flex-col items-center gap-2 bg-transparent border-none cursor-pointer active:scale-[0.95] transition-transform"
+                style={{ background: 'transparent' }}>
+                <div style={{
+                  width: 56, height: 56,
+                  borderRadius: '50%',
+                  background: 'white',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
+                  border: '1px solid rgba(0,0,0,0.04)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <q.icon className="w-5 h-5" style={{ color: '#FF6F20' }} />
                 </div>
-                <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{q.label}</span>
+                <span className="text-[12px] font-bold text-gray-700">{q.label}</span>
               </button>
-            ))}
-          </div>
+            );
+            return (
+              <div className="space-y-4 px-2 pb-2">
+                <div className="flex justify-around items-start">
+                  {quickItems.slice(0, 4).map(renderItem)}
+                </div>
+                <div className="flex justify-around items-start px-[12%]">
+                  {quickItems.slice(4).map(renderItem)}
+                </div>
+              </div>
+            );
+          })()}
 
         </div>
       </div>
