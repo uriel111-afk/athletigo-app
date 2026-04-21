@@ -172,34 +172,109 @@ export function ChipsMulti({ value, options, onChange }) {
 }
 
 // ── ListBuilder ────────────────────────────────────────────────────────
+// Accepts either:
+//   - legacy: array of strings ['squat','lunge']
+//   - new:    array of { name, param_type, value } — each child exercise
+//             has its own sub-parameter (reps / time / etc.)
+// The output is ALWAYS the new object shape, so saves normalize over time.
+// Legacy strings are auto-upgraded on read.
+const CHILD_PARAM_TYPES = [
+  { key: "",     label: "—" },
+  { key: "reps", label: "חזרות" },
+  { key: "time", label: "זמן (שנ')" },
+  { key: "sets", label: "סטים" },
+  { key: "kg",   label: "משקל (ק״ג)" },
+];
 export function ListBuilder({ value, onChange, placeholder = "שם הפריט" }) {
-  const arr = Array.isArray(value) ? value : (value ? value.split("\n").filter(Boolean) : []);
+  // Normalize input into object shape
+  const raw = Array.isArray(value)
+    ? value
+    : (value ? String(value).split("\n").filter(Boolean) : []);
+  const arr = raw.map((item) => {
+    if (item && typeof item === "object") {
+      return { name: item.name || "", param_type: item.param_type || "", value: item.value ?? "" };
+    }
+    return { name: String(item ?? ""), param_type: "", value: "" };
+  });
 
-  const update = (idx, val) => {
-    const n = [...arr];
-    n[idx] = val;
+  const update = (idx, patch) => {
+    const n = arr.slice();
+    n[idx] = { ...n[idx], ...patch };
     onChange(n);
   };
   const remove = (idx) => onChange(arr.filter((_, i) => i !== idx));
-  const add = () => onChange([...arr, ""]);
+  const add = () => onChange([...arr, { name: "", param_type: "", value: "" }]);
 
   return (
     <div>
       {arr.map((item, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <div style={{ width: 28, fontSize: 14, fontWeight: 700, color: O, textAlign: "center", flexShrink: 0 }}>{i + 1}.</div>
-          <input value={item} onChange={(e) => update(i, e.target.value)} placeholder={placeholder}
-            style={{ flex: 1, padding: "10px 12px", fontSize: 16, border: `1.5px solid ${BD}`, borderRadius: 12, outline: "none", direction: "rtl", boxSizing: "border-box" }} />
-          <button onClick={() => remove(i)}
-            style={{ width: 32, height: 32, border: "none", background: "none", color: MU, fontSize: 18, cursor: "pointer", flexShrink: 0 }}>
-            🗑
-          </button>
+        <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8, padding: 8, border: `1px solid ${BD}`, borderRadius: 10, background: "#FFF9F0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 24, fontSize: 14, fontWeight: 700, color: O, textAlign: "center", flexShrink: 0 }}>{i + 1}.</div>
+            <input value={item.name} onChange={(e) => update(i, { name: e.target.value })} placeholder={placeholder}
+              style={{ flex: 1, padding: "8px 10px", fontSize: 15, border: `1.5px solid ${BD}`, borderRadius: 8, outline: "none", direction: "rtl", boxSizing: "border-box", background: "white" }} />
+            <button onClick={() => remove(i)}
+              style={{ width: 32, height: 32, border: "none", background: "none", color: MU, fontSize: 18, cursor: "pointer", flexShrink: 0 }}>
+              🗑
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginRight: 32 }}>
+            <select value={item.param_type} onChange={(e) => update(i, { param_type: e.target.value })}
+              style={{ flex: 1, padding: "6px 8px", fontSize: 12, border: `1px solid ${BD}`, borderRadius: 6, background: "white", color: "#333" }}>
+              {CHILD_PARAM_TYPES.map((opt) => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
+            </select>
+            {item.param_type && (
+              <input value={item.value} onChange={(e) => update(i, { value: e.target.value })}
+                placeholder="ערך" inputMode="numeric"
+                style={{ flex: 1, padding: "6px 8px", fontSize: 12, border: `1px solid ${BD}`, borderRadius: 6, outline: "none", direction: "rtl", boxSizing: "border-box", background: "white" }} />
+            )}
+          </div>
         </div>
       ))}
       <button onClick={add}
         style={{ width: "100%", padding: 12, border: `2px dashed ${O}`, borderRadius: 12, background: "white", color: O, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
         + הוסף פריט
       </button>
+    </div>
+  );
+}
+
+// ── Tabata widget (work / rest / rounds / sets) ────────────────────────
+// Stored as an object: { work_sec, rest_sec, rounds, sets }
+// Defaults 20/10/8/1 — classic tabata.
+export const TABATA_DEFAULTS = { work_sec: 20, rest_sec: 10, rounds: 8, sets: 1 };
+export function Tabata({ value, onChange }) {
+  const v = (value && typeof value === "object") ? value : TABATA_DEFAULTS;
+  const patch = (p) => onChange({ ...TABATA_DEFAULTS, ...v, ...p });
+  return (
+    <div style={{ background: "#FFF9F0", border: `1px solid ${BD}`, borderRight: `3px solid ${O}`, borderRadius: 10, padding: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>עבודה (שנ')</div>
+          <Stepper value={String(v.work_sec ?? TABATA_DEFAULTS.work_sec)}
+            onChange={(x) => patch({ work_sec: parseInt(x) || 0 })} min={1} max={600} />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>מנוחה (שנ')</div>
+          <Stepper value={String(v.rest_sec ?? TABATA_DEFAULTS.rest_sec)}
+            onChange={(x) => patch({ rest_sec: parseInt(x) || 0 })} min={0} max={600} />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>סיבובים</div>
+          <Stepper value={String(v.rounds ?? TABATA_DEFAULTS.rounds)}
+            onChange={(x) => patch({ rounds: parseInt(x) || 1 })} min={1} max={30} />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>סטים</div>
+          <Stepper value={String(v.sets ?? TABATA_DEFAULTS.sets)}
+            onChange={(x) => patch({ sets: parseInt(x) || 1 })} min={1} max={10} />
+        </div>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: MU, textAlign: "center" }}>
+        סיכום: {v.work_sec ?? TABATA_DEFAULTS.work_sec}/{v.rest_sec ?? TABATA_DEFAULTS.rest_sec} × {v.rounds ?? TABATA_DEFAULTS.rounds} × {v.sets ?? TABATA_DEFAULTS.sets} סט
+      </div>
     </div>
   );
 }

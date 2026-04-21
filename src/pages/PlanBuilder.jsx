@@ -6,7 +6,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Stepper, TimePicker, RpeScale, TempoPattern, ChipsMulti, ListBuilder, EQUIPMENT_OPTIONS } from "@/components/ParamWidgets";
+import { Stepper, TimePicker, RpeScale, TempoPattern, ChipsMulti, ListBuilder, Tabata, TABATA_DEFAULTS, EQUIPMENT_OPTIONS } from "@/components/ParamWidgets";
 import { SECTION_TYPES, getSectionType, normalizeSectionType } from "@/lib/sectionTypes";
 import CollapsibleSection from "@/components/CollapsibleSection";
 
@@ -26,6 +26,7 @@ const PARAM_SCHEMA = {
   "RPE (קושי)":     { type: "rpe" },
   "טמפו":           { type: "tempo" },
   "ציוד נדרש":      { type: "chips" },
+  "טבטה":           { type: "tabata" },
   "רשימת תרגילים":   { type: "list", placeholder: "שם התרגיל" },
   "מנח גוף":        { type: "text", placeholder: "למשל: עמידה, שכיבה..." },
   "דגשים":          { type: "textarea", placeholder: "דגשים לביצוע" },
@@ -226,6 +227,8 @@ export default function PlanBuilder() {
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
       video_url: exerciseData.params["וידאו"] || null,
+      tabata_config: exerciseData.params["טבטה"] || null,
+      children: exerciseData.params["רשימת תרגילים"] || null,
       "order": sec.exercises.length,
       completed: false,
     };
@@ -259,6 +262,8 @@ export default function PlanBuilder() {
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
       video_url: exerciseData.params["וידאו"] || null,
+      tabata_config: exerciseData.params["טבטה"] || null,
+      children: exerciseData.params["רשימת תרגילים"] || null,
     };
     const { error } = await supabase.from("exercises").update(payload).eq("id", ex.id);
     if (error) { console.error('[PlanBuilder] updateExercise error:', error); alert('שגיאה בעדכון: ' + error.message); return; }
@@ -319,6 +324,8 @@ export default function PlanBuilder() {
     if (ex.range_of_motion) p["טווח תנועה"] = ex.range_of_motion;
     if (ex.grip) p["אחיזה"] = ex.grip;
     if (ex.video_url) p["וידאו"] = ex.video_url;
+    if (ex.tabata_config) p["טבטה"] = ex.tabata_config;
+    if (ex.children) p["רשימת תרגילים"] = ex.children;
     return p;
   };
 
@@ -530,6 +537,11 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
               {ex.reps && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>חזרות: {ex.reps}</span>}
               {ex.work_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>עבודה: {formatWorkTime(ex.work_time)}</span>}
               {ex.rest_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>מנוחה: {formatWorkTime(ex.rest_time)}</span>}
+              {ex.tabata_config && (() => {
+                const t = ex.tabata_config;
+                return <span style={{ background: "#FFF0E8", color: "#FF6F20", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 700, border: "1px solid #FFD0A0" }}>טבטה: {t.work_sec ?? 20}/{t.rest_sec ?? 10} × {t.rounds ?? 8} × {t.sets ?? 1} סט</span>;
+              })()}
+              {Array.isArray(ex.children) && ex.children.length > 0 && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>{ex.children.length} תרגילים מקושרים</span>}
               {ex.weight && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>משקל: {ex.weight}</span>}
               {ex.rpe && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>RPE: {ex.rpe}</span>}
             </div>
@@ -611,6 +623,9 @@ function ExerciseEditor({ data, onSave, onClose }) {
                     )}
                     {schema.type === "list" && (
                       <ListBuilder value={val} onChange={set} placeholder={schema.placeholder} />
+                    )}
+                    {schema.type === "tabata" && (
+                      <Tabata value={val || TABATA_DEFAULTS} onChange={set} />
                     )}
                     {schema.type === "select" && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
