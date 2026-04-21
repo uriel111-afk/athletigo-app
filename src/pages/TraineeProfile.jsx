@@ -28,6 +28,7 @@ import VisionFormDialog from "../components/forms/VisionFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
+import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
@@ -2603,6 +2604,11 @@ export default function TraineeProfile() {
                       queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });
                       refetch();
                     }}
+                  />
+                  <TraineeDocumentUpload
+                    traineeId={user?.id}
+                    coachId={coach?.id}
+                    currentUser={currentUser}
                   />
                 </ErrorBoundary>
               </TabsContent>
