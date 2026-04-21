@@ -30,6 +30,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
+import TraineeNotificationsTab from "@/components/profile/TraineeNotificationsTab";
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
@@ -700,12 +701,8 @@ export default function TraineeProfile() {
     staleTime: 60000,
   });
 
-  const { data: traineeNotifs = [] } = useQuery({
-    queryKey: ['trainee-notifications', user?.id],
-    queryFn: () => base44.entities.Notification.filter({ user_id: user?.id }, '-created_at').catch(() => []),
-    enabled: !!user?.id,
-    staleTime: 10000,
-  });
+  // (traineeNotifs query moved into TraineeNotificationsTab — same query key
+  // 'trainee-notifications' is used there, so existing invalidations keep working.)
 
   const updateUserMutation = useMutation({
     mutationFn: (data) => {
@@ -2543,44 +2540,9 @@ export default function TraineeProfile() {
 
               {/* Notifications Tab */}
               <TabsContent value="notifications" className="space-y-4 w-full">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><Bell className="w-5 h-5 text-[#FF6F20]" />התראות</h2>
-                </div>
-                {traineeNotifs.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <Bell className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                    <p className="text-gray-500">אין התראות</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {traineeNotifs.map(n => (
-                      <div key={n.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm" dir="rtl">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-bold text-sm text-gray-900">{n.title}</h4>
-                              {!n.is_read && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FF6F20] text-white">חדש</span>}
-                            </div>
-                            <p className="text-xs text-gray-600 whitespace-pre-line">{n.message}</p>
-                            <p className="text-[10px] text-gray-400 mt-2">{n.created_at ? new Date(n.created_at).toLocaleDateString('he-IL') : ''}</p>
-                          </div>
-                          {isCoach && (
-                            <div className="flex gap-1 flex-shrink-0 mr-2">
-                              <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-400 hover:text-red-500"
-                                onClick={async () => {
-                                  if (!window.confirm('למחוק התראה זו?')) return;
-                                  await base44.entities.Notification.delete(n.id);
-                                  queryClient.invalidateQueries({ queryKey: ['trainee-notifications'] });
-                                }}>
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                )}
+                <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב ההתראות נכשלה. נסה לרענן את הדף.</div>}>
+                  <TraineeNotificationsTab traineeId={user?.id} isCoachView={isCoach} />
+                </ErrorBoundary>
               </TabsContent>
 
               {/* Messages Tab */}
