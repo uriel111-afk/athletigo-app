@@ -889,6 +889,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
           open={!!signingPendingDoc}
           onClose={() => setSigningPendingDoc(null)}
           doc={signingPendingDoc}
+          isCoachView={isCoach}
         />
       )}
     </div>

@@ -51,16 +51,9 @@ export const DOCUMENT_TEMPLATES = {
       { key: 'valid_until',   label: 'תוקף החבילה עד',        type: 'date',     required: true },
       { key: 'location',      label: 'מיקום האימונים',        type: 'text',     required: true },
       { key: 'notes',         label: 'הערות נוספות',          type: 'textarea', required: false },
-      {
-        key: 'photo_consent',
-        label: 'אישור צילום לצרכי שיווק',
-        type: 'radio',
-        options: [
-          { value: 'allowed', label: 'מאשר/ת' },
-          { value: 'denied',  label: 'לא מאשר/ת' },
-        ],
-        required: true,
-      },
+      // Note: photo_consent is intentionally NOT a coach field — the trainee
+      // marks it themselves at sign time. The {{photo_consent_label}}
+      // placeholder in bodyTemplate gets filled then.
       { key: 'early_exit_price', label: 'מחיר מפגש במקרה סיום מוקדם (₪)', type: 'number', required: true, default: 350 },
     ],
 
@@ -219,6 +212,15 @@ export function renderTemplateBody(key, fieldValues, vars = {}) {
       resolveFieldLabel(field, raw),
     );
   }
+
+  // photo_consent is filled by the trainee at sign time, not a coach field.
+  // Resolve {{photo_consent}} and {{photo_consent_label}} from fieldValues
+  // so the same body template works at preview (empty), sign-now (chosen),
+  // and SignPendingAgreementDialog (chosen by trainee).
+  const pc = fieldValues?.photo_consent ?? '';
+  body = body.replace(/\{\{photo_consent\}\}/g, String(pc));
+  const pcLabel = pc === 'allowed' ? 'מאשר/ת' : pc === 'denied' ? 'לא מאשר/ת' : '';
+  body = body.replace(/\{\{photo_consent_label\}\}/g, pcLabel);
 
   return body;
 }
