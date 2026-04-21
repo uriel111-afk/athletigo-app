@@ -29,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
+import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import BaselineDetailView from "@/components/BaselineDetailView";
@@ -425,7 +426,8 @@ export default function TraineeProfile() {
   const [selectedPackageHistory, setSelectedPackageHistory] = useState(null);
   const [packageSessions, setPackageSessions] = useState([]);
   const [packageSessionsLoading, setPackageSessionsLoading] = useState(false);
-  const [showPlanDialog, setShowPlanDialog] = useState(false); 
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [showDocPicker, setShowDocPicker] = useState(false);
 
   const [manualAttendanceForm, setManualAttendanceForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -2596,6 +2598,26 @@ export default function TraineeProfile() {
               {/* Documents Tab */}
               <TabsContent value="documents" className="w-full">
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המסמכים נכשלה. נסה לרענן את הדף.</div>}>
+                  {isCoach && (
+                    <button
+                      onClick={() => setShowDocPicker(true)}
+                      style={{
+                        width: '100%', padding: 14, background: '#FF6F20', color: '#FFFFFF',
+                        border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15,
+                        marginBottom: 16, cursor: 'pointer',
+                      }}>
+                      + הוסף מסמך לחתימה
+                    </button>
+                  )}
+                  {showDocPicker && (
+                    <DocumentPickerDialog
+                      open={showDocPicker}
+                      onClose={() => setShowDocPicker(false)}
+                      traineeId={user?.id}
+                      traineeName={user?.full_name}
+                      coachId={currentUser?.id}
+                    />
+                  )}
                   <DocumentSigningTab
                     effectiveUser={effectiveUser || user}
                     isCoach={isCoach}

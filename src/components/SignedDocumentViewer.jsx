@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { X, Download, CheckCircle } from "lucide-react";
+import { DOCUMENT_TEMPLATES } from "@/lib/documentTemplates";
 
 const LABELS = {
   health_declaration: 'הצהרת בריאות',
@@ -98,10 +99,72 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
 
   if (!isOpen || !doc) return null;
 
-  const title = LABELS[doc.document_type] || "מסמך";
+  const isAgreementTemplate = typeof doc.document_type === 'string' && doc.document_type.startsWith('agreement_');
+  const title = DOCUMENT_TEMPLATES[doc.document_type]?.title || LABELS[doc.document_type] || "מסמך";
   const data = doc.document_data || {};
   const signedDate = doc.signed_at ? new Date(doc.signed_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
   const isHealth = doc.document_type === 'health_declaration';
+
+  // Agreement template (agreement_personal / agreement_group / agreement_online)
+  // The body is fully rendered at signing time and stored in document_data.body_rendered.
+  if (isAgreementTemplate) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 9999, display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #FFE5D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>{title}</span>
+              {doc.signature_data && (
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', backgroundColor: '#16a34a', padding: '2px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <CheckCircle style={{ width: 12, height: 12 }} />חתום
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 14, color: '#6B7280', marginTop: 2 }}>
+              {doc.signed_at ? `נחתם ב: ${signedDate}` : 'ממתין לחתימה'}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: '#f5f5f5', cursor: 'pointer' }}>
+            <X style={{ width: 20, height: 20, color: '#6B7280' }} />
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20, WebkitOverflowScrolling: 'touch' }}>
+          <div style={{
+            whiteSpace: 'pre-wrap', background: '#FFF9F0',
+            border: '1px solid #FFE5D0', borderRadius: 8, padding: 16,
+            color: '#1a1a1a', lineHeight: 1.7, fontSize: 14, marginBottom: 20,
+          }}>
+            {data.body_rendered || '(תוכן ההסכם לא נמצא)'}
+          </div>
+
+          {doc.signature_data && (
+            <div style={{ borderTop: '1px solid #FFE5D0', paddingTop: 20, marginTop: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>חתימה דיגיטלית</div>
+              <img src={doc.signature_data} alt="חתימה"
+                style={{ maxWidth: 300, border: '1px solid #FFE5D0', borderRadius: 8, background: '#FFFFFF', padding: 8, display: 'block' }} />
+              <div style={{ fontSize: 13, color: '#6B7280', marginTop: 8 }}>
+                שם: {data.trainee_name || traineeName || ''}
+              </div>
+              <div style={{ fontSize: 13, color: '#6B7280' }}>
+                תאריך חתימה: {signedDate}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '16px 20px', borderTop: '1px solid #FFE5D0', display: 'flex', gap: 8, flexShrink: 0, background: 'white' }}>
+          <button onClick={onClose} style={{ flex: 1, height: 52, borderRadius: 12, border: '1px solid #FFE5D0', background: '#fff', fontSize: 16, fontWeight: 700, color: '#6B7280', cursor: 'pointer' }}>סגור</button>
+          {doc.file_url && (
+            <button onClick={() => window.open(doc.file_url, '_blank')}
+              style={{ flex: 1, height: 52, borderRadius: 12, border: 'none', background: '#FF6F20', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Download style={{ width: 18, height: 18 }} />הורד PDF
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Get full template — from saved data or hardcoded fallback
   const fullTemplate = data.full_text || data.full_template || (isHealth ? HEALTH_TEMPLATE : COOP_TEMPLATE);

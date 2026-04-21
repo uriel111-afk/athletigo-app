@@ -10,6 +10,8 @@ import SignatureCanvas from "./SignatureCanvas";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import SignedDocumentViewer from "./SignedDocumentViewer";
+import SignPendingAgreementDialog from "./forms/SignPendingAgreementDialog";
+import { DOCUMENT_TEMPLATES } from "@/lib/documentTemplates";
 
 const PAR_Q_QUESTIONS = [
   "האם רופא אמר לך אי פעם שיש לך בעיה בלב ושעליך לבצע פעילות גופנית רק בהמלצת רופא?",
@@ -522,12 +524,28 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
   React.useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
+  // Refetch when AgreementFlowDialog / DocumentPickerDialog / SignPending
+  // dispatches the cross-component refresh signal (the docs list isn't
+  // wired through TanStack Query, so invalidateQueries doesn't reach it).
+  React.useEffect(() => {
+    const onChange = (e) => {
+      if (!user?.id) return;
+      if (e?.detail?.traineeId && e.detail.traineeId !== user.id) return;
+      fetchDocs();
+    };
+    window.addEventListener('signed-documents-changed', onChange);
+    return () => window.removeEventListener('signed-documents-changed', onChange);
+  }, [user?.id, fetchDocs]);
+
+  // Local UI state for the agreement-sign flow (trainee opens a pending agreement)
+  const [signingPendingDoc, setSigningPendingDoc] = useState(null);
+
   if (!user) return null;
 
-  // Build docs list: ALL cooperation_agreement records + ALL health_declarations
-  // (newest first within each group). Each row is its own list entry — the
-  // unique constraint on (trainee_id, document_type) was dropped so multiple
-  // signed rows can coexist as full history.
+  // Build docs list: every row in signed_documents becomes its own list entry.
+  // Group by document_type for the latest/old badge calculation. The unique
+  // constraint on (trainee_id, document_type) was dropped so multiple signed
+  // rows of the same type accumulate as history.
   const formatDocDate = (iso) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -535,48 +553,59 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     return d.toLocaleDateString('he-IL');
   };
 
-  const coopRecords = signedDocs
-    .filter(d => d.document_type === 'cooperation_agreement')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const healthRecords = signedDocs
-    .filter(d => d.document_type === 'health_declaration')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const titleForType = (type) => {
+    if (DOCUMENT_TEMPLATES[type]?.title) return DOCUMENT_TEMPLATES[type].title;
+    if (type === 'cooperation_agreement') return 'הסכם שיתוף פעולה';
+    if (type === 'health_declaration')    return 'הצהרת בריאות';
+    return type;
+  };
 
-  const docs = [
-    ...coopRecords.map((r) => ({
-      key: `cooperation_agreement_${r.id}`,
-      docType: 'cooperation_agreement',
-      label: coopRecords.length > 1
-        ? `הסכם שיתוף פעולה — ${formatDocDate(r.signed_at || r.created_at)}`
-        : 'הסכם שיתוף פעולה',
-      signedAt: r.signed_at || null,
-      sigData: r.signature_data || null,
-      pdfUrl: r.file_url || null,
-      metadata: r.document_data || null,
-      record: r,
-      recordId: r.id,
-    })),
-    ...healthRecords.map((r) => ({
-      key: `health_declaration_${r.id}`,
-      docType: 'health_declaration',
-      label: healthRecords.length > 1
-        ? `הצהרת בריאות — ${formatDocDate(r.signed_at || r.created_at)}`
-        : 'הצהרת בריאות',
-      signedAt: r.signed_at || null,
-      sigData: r.signature_data || null,
-      pdfUrl: r.file_url || null,
-      metadata: r.document_data || null,
-      record: r,
-      recordId: r.id,
-    })),
-  ];
-
-  // Pending placeholders only when nothing of that type exists yet
-  if (coopRecords.length === 0) {
-    docs.unshift({ key: 'cooperation_agreement_new', docType: 'cooperation_agreement', label: 'הסכם שיתוף פעולה', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null });
+  // Group docs by type, sort newest-first within each group
+  const grouped = new Map();
+  for (const r of signedDocs) {
+    const t = r.document_type;
+    if (!grouped.has(t)) grouped.set(t, []);
+    grouped.get(t).push(r);
   }
-  if (healthRecords.length === 0) {
-    docs.push({ key: 'health_declaration_new', docType: 'health_declaration', label: 'הצהרת בריאות', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null });
+  for (const arr of grouped.values()) {
+    arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
+
+  // Map each row to a docs[] entry, computing latest/old badge per type.
+  const docs = [];
+  for (const [type, arr] of grouped.entries()) {
+    const baseTitle = titleForType(type);
+    const signedRowsInGroup = arr.filter(r => r.status === 'signed');
+    const latestSignedId = signedRowsInGroup[0]?.id; // newest signed = current
+    arr.forEach((r) => {
+      let badge = null;
+      if (r.status === 'pending') badge = 'pending';
+      else if (r.status === 'signed' && r.id === latestSignedId) badge = 'current';
+      else if (r.status === 'signed') badge = 'old';
+      docs.push({
+        key: `${type}_${r.id}`,
+        docType: type,
+        label: arr.length > 1
+          ? `${baseTitle} — ${formatDocDate(r.signed_at || r.created_at)}`
+          : baseTitle,
+        signedAt: r.signed_at || null,
+        sigData: r.signature_data || null,
+        pdfUrl: r.file_url || null,
+        metadata: r.document_data || null,
+        record: r,
+        recordId: r.id,
+        badge,
+      });
+    });
+  }
+
+  // Pending placeholders for the two built-in types when no row of that type
+  // exists yet (lets the trainee see them as call-to-action items).
+  if (!grouped.has('cooperation_agreement')) {
+    docs.unshift({ key: 'cooperation_agreement_new', docType: 'cooperation_agreement', label: 'הסכם שיתוף פעולה', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null, badge: null });
+  }
+  if (!grouped.has('health_declaration')) {
+    docs.push({ key: 'health_declaration_new', docType: 'health_declaration', label: 'הצהרת בריאות', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null, badge: null });
   }
 
   const signedCount = docs.filter(d => d.signedAt).length;
@@ -700,11 +729,47 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       {docs.map(doc => {
         const isSigned = !!doc.signedAt;
         const isExpanded = expandedDoc === doc.key;
-        // Coach can also expand the form: when viewing the trainee profile,
-        // the coach hands the phone to the trainee, who fills & signs.
-        // Submission is keyed by trainee_id (effectiveUser.id) regardless of
-        // who actually clicked, so the document lives under the trainee.
         const canSign = !isSigned;
+        const isAgreementType = typeof doc.docType === 'string' && doc.docType.startsWith('agreement_');
+        const isPendingAgreement = isAgreementType && doc.record && doc.record.status === 'pending';
+
+        // Pending agreement rows get a prominent CTA layout — body is already
+        // rendered into doc.metadata.body_rendered, so the dedicated dialog
+        // just has to capture a signature against the existing row id.
+        if (isPendingAgreement) {
+          const sentAt = doc.record.document_data?.sent_at || doc.record.created_at;
+          return (
+            <div key={doc.key}
+              style={{
+                background: '#FFF9F0', border: '2px solid #FF6F20', borderRadius: 10,
+                padding: 14, marginBottom: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                flexWrap: 'wrap',
+              }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 14 }}>{doc.label}</div>
+                <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
+                  נשלח: {format(new Date(sentAt), 'dd/MM/yyyy HH:mm', { locale: he })}
+                </div>
+              </div>
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: '#FF6F20',
+                background: '#FFFFFF', border: '1px solid #FF6F20',
+                padding: '2px 8px', borderRadius: 12,
+              }}>ממתין לחתימה</span>
+              <Button onClick={() => setSigningPendingDoc(doc.record)} size="sm"
+                style={{ background: '#FF6F20', color: '#FFFFFF' }}>
+                חתום על ההסכם
+              </Button>
+              {isCoach && (
+                <button onClick={() => handleDeleteDocument(doc.record.id, false)}
+                  className="p-1 rounded-full hover:bg-red-50 transition-colors" title="מחק מסמך">
+                  <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
+                </button>
+              )}
+            </div>
+          );
+        }
 
         return (
           <div key={doc.key} className="bg-white rounded-xl border-2 shadow-sm overflow-hidden"
@@ -724,11 +789,26 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                     <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
                   </button>
                 )}
-                {isSigned ? (
-                  <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                    <CheckCircle className="w-3 h-3" /> נחתם
+                {/* Status / lifecycle badge */}
+                {doc.badge === 'current' && (
+                  <span className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full"
+                    style={{ background: '#DCFCE7', color: '#16a34a' }}>
+                    <CheckCircle className="w-3 h-3" /> נוכחי
                   </span>
-                ) : (
+                )}
+                {doc.badge === 'old' && (
+                  <span className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full"
+                    style={{ background: '#F3F4F6', color: '#6b7280' }}>
+                    ישן
+                  </span>
+                )}
+                {doc.badge === 'pending' && (
+                  <span className="text-xs font-bold px-2 py-1 rounded-full"
+                    style={{ background: '#FFF9F0', color: '#FF6F20', border: '1px solid #FF6F20' }}>
+                    ממתין לחתימה
+                  </span>
+                )}
+                {!doc.badge && !isSigned && (
                   <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">ממתין לחתימה</span>
                 )}
                 {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -802,6 +882,15 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         doc={viewingDoc}
         traineeName={user?.full_name}
       />
+
+      {/* Sign-pending-agreement modal (opened from the prominent pending row) */}
+      {signingPendingDoc && (
+        <SignPendingAgreementDialog
+          open={!!signingPendingDoc}
+          onClose={() => setSigningPendingDoc(null)}
+          doc={signingPendingDoc}
+        />
+      )}
     </div>
   );
 }
