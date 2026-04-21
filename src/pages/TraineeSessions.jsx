@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, Calendar, Clock as ClockIcon } from "lucide-react";
 import { toast } from "sonner";
+import { syncPackageStatus } from "@/lib/packageStatus";
 import BookingModal from "../components/BookingModal";
 
 const STATUS_MAP = {
@@ -159,6 +160,7 @@ export default function TraineeSessions() {
               used_sessions: Math.max(0, svc.used_sessions - 1),
               status: svc.status === 'completed' ? 'active' : svc.status,
             });
+            await syncPackageStatus(svc.id);
           }
         } catch {}
       }

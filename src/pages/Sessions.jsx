@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useSessionStats } from "../components/hooks/useSessionStats";
 import { deductSessionFromService, restoreSessionToService } from "../components/hooks/useServiceDeduction";
+import { syncPackageStatus } from "@/lib/packageStatus";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -339,6 +340,7 @@ export default function Sessions() {
               await base44.entities.ClientService.update(personalService.id, {
                 used_sessions: (personalService.used_sessions || 0) + 1
               });
+              await syncPackageStatus(personalService.id);
             }
           } catch (error) {
             console.error("Error deducting session for mass update", error);
@@ -385,6 +387,7 @@ export default function Sessions() {
                 await base44.entities.ClientService.update(personalService.id, {
                   used_sessions: Math.max(0, (personalService.used_sessions || 0) - 1)
                 });
+                await syncPackageStatus(personalService.id);
               }
             } catch (error) {
               console.error("Error restoring session for mass update", error);
@@ -505,6 +508,7 @@ export default function Sessions() {
             await base44.entities.ClientService.update(personalService.id, {
               used_sessions: newUsedCount
             });
+            await syncPackageStatus(personalService.id);
 
             if (isNowAttended) toast.success("✅ אימון ירד מהחבילה");else
             toast.success("✅ אימון הוחזר לחבילה");

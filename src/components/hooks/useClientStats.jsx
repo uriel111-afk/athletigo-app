@@ -33,17 +33,13 @@ export function useClientStats() {
   );
 
   const { activeClientsCount, totalClientsCount } = useMemo(() => {
+    // Single source of truth: distinct trainee_ids from active packages.
+    // Matches useDashboardStats so both counters agree. No users.status
+    // fallback — it could be stale after a package deletion.
     const activeServiceRecords = allServices.filter(s =>
-      s.status === 'פעיל' ||
-      (s.total_sessions > 0 && (s.used_sessions || 0) < s.total_sessions)
+      s.status === 'פעיל' || s.status === 'active'
     );
     const activeClientIds = new Set(activeServiceRecords.map(s => s.trainee_id));
-
-    allTrainees.forEach(t => {
-      if (t.coach_id === user?.id && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
-        activeClientIds.add(t.id);
-      }
-    });
 
     const serviceIds = new Set(allServices.map(s => s.trainee_id));
     const coachTrainees = allTrainees.filter(t => serviceIds.has(t.id) || t.coach_id === user?.id);

@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { createPageUrl } from "@/utils";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
+import { syncPackageStatus } from "@/lib/packageStatus";
 import PhysicalMetricsManager from "../components/PhysicalMetricsManager";
 import MessageCenter from "../components/MessageCenter";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
@@ -859,6 +860,7 @@ export default function TraineeProfile() {
           await base44.entities.ClientService.update(editingUsage, {
               used_sessions: parseInt(usageValue)
           });
+          await syncPackageStatus(editingUsage);
       },
       onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
@@ -905,6 +907,7 @@ export default function TraineeProfile() {
                 used_sessions: newUsed,
                 status: svc.status === 'completed' ? 'active' : svc.status,
               });
+              await syncPackageStatus(svc.id);
               sessionUpdateData.was_deducted = false;
               const total = svc.total_sessions || svc.sessions_count || 0;
               toast.success(`יתרה הוחזרה: ${total - newUsed} מפגשים`);
@@ -967,6 +970,7 @@ export default function TraineeProfile() {
                     }
 
                     await base44.entities.ClientService.update(activePackage.id, updatePayload);
+                    await syncPackageStatus(activePackage.id);
 
                     if (remaining === 1 && isNowAttended) {
                       try {
@@ -1323,7 +1327,8 @@ export default function TraineeProfile() {
                 await base44.entities.ClientService.update(activePackage.id, {
                     used_sessions: newUsedCount
                 });
-                
+                await syncPackageStatus(activePackage.id);
+
                 // Invalidate all relevant queries
                 queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
                 queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
@@ -1510,8 +1515,10 @@ export default function TraineeProfile() {
 
     try {
       await base44.entities.ClientService.update(pkg.id, update);
+      await syncPackageStatus(pkg.id);
       await queryClient.refetchQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       invalidateDashboard(queryClient);
       toast.success(toastMsg);
     } catch (e) {
@@ -2350,6 +2357,7 @@ export default function TraineeProfile() {
                                           const svc = services.find(s => s.id === session.service_id);
                                           if (svc && svc.used_sessions > 0) {
                                             await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 });
+                                            await syncPackageStatus(svc.id);
                                           }
                                         } catch {}
                                       }
@@ -2429,7 +2437,7 @@ export default function TraineeProfile() {
                                               if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
                                               try {
                                                 if (participant?.attendance_status === 'הגיע' && session.service_id) {
-                                                  try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); } catch {}
+                                                  try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) { await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); await syncPackageStatus(svc.id); } } catch {}
                                                 }
                                                 await base44.entities.Session.delete(session.id);
                                                 queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
@@ -3059,6 +3067,7 @@ export default function TraineeProfile() {
                         used_sessions: newUsed,
                         status: (total - newUsed) <= 0 ? 'completed' : svc.status,
                       });
+                      await syncPackageStatus(svc.id);
                     } catch (e) { console.error('Deduction failed:', e); }
                   }
 

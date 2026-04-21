@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { X, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { syncPackageStatus } from "@/lib/packageStatus";
 
 export default function SessionEditModal({ session, isOpen, onClose }) {
   const [formData, setFormData] = useState({
@@ -119,6 +120,7 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
                 .from("client_services")
                 .update(updateData)
                 .eq("id", selectedPackageId);
+              await syncPackageStatus(selectedPackageId);
 
               await supabase
                 .from("sessions")
@@ -202,6 +204,7 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
             .from("client_services")
             .update(updateData)
             .eq("id", session.service_id);
+          await syncPackageStatus(session.service_id);
         }
       }
 

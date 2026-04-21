@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
+import { syncPackageStatus } from "@/lib/packageStatus";
 
 /**
  * Smart deduction based on package type:
@@ -46,6 +47,7 @@ export async function deductSessionFromService(session, coachId) {
       sessions_remaining: newRemaining,
       status: finalStatus !== service.status ? finalStatus : service.status,
     });
+    await syncPackageStatus(service.id);
 
     // Mark session as deducted
     await base44.entities.Session.update(session.id, { was_deducted: true });
@@ -112,6 +114,7 @@ export async function restoreSessionToService(session, coachId) {
       sessions_remaining: newRemaining,
       status: service.status === "completed" ? "פעיל" : service.status,
     });
+    await syncPackageStatus(service.id);
 
     await base44.entities.Session.update(session.id, { was_deducted: false });
 

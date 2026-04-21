@@ -88,21 +88,11 @@ export function useDashboardStats() {
     const serviceTraineeIds = new Set(coachServices.map(s => s.trainee_id));
     const trainees = allUsers.filter(t => serviceTraineeIds.has(t.id) || t.coach_id === coachId);
 
-    // Active clients = has active service OR user status is 'active'
+    // Single source of truth: distinct trainee_ids from active packages.
+    // We intentionally do NOT fall back to users.status/client_status —
+    // users.status could be stale after a package was deleted, which was
+    // the bug that kept the dashboard counter ahead of reality.
     const activeClientIds = new Set(activeServices.map(s => s.trainee_id));
-    const fromServices = [...activeClientIds];
-    allUsers.forEach(t => {
-      if (t.coach_id === coachId && (t.status === 'active' || t.client_status === 'לקוח פעיל')) {
-        activeClientIds.add(t.id);
-      }
-    });
-    const addedByUserStatus = [...activeClientIds].filter(id => !fromServices.includes(id));
-    const usersAddedDetails = addedByUserStatus.map(id => {
-      const u = allUsers.find(x => x.id === id);
-      return u ? { id: u.id, full_name: u.full_name, status: u.status, client_status: u.client_status, coach_id: u.coach_id } : { id, note: 'user not found in allUsers' };
-    });
-    console.log('[DashboardCount] IDs from active services:', fromServices.length, fromServices);
-    console.log('[DashboardCount] IDs added by user.status/client_status:', addedByUserStatus.length, usersAddedDetails);
     console.log('[DashboardCount] FINAL activeClientsCount:', activeClientIds.size, [...activeClientIds]);
 
     // ── Revenue ─────────────────────────────────────────────────────

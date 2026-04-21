@@ -9,6 +9,7 @@ import TraineeNotificationCard from "../components/TraineeNotificationCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { syncPackageStatus } from "@/lib/packageStatus";
 
 const DAILY_MESSAGES = [
   "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
@@ -167,6 +168,7 @@ export default function TraineeHome() {
                 used_sessions: Math.max(0, svc.used_sessions - 1),
                 status: svc.status === 'completed' ? 'active' : svc.status,
               });
+              await syncPackageStatus(svc.id);
             }
           } catch {}
         }
