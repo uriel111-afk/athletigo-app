@@ -525,7 +525,7 @@ export default function TraineeSessions() {
           onClick={(e) => { if (e.target === e.currentTarget) setRescheduleSession(null); }}
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.55)', zIndex: 1000,
+            background: 'rgba(0,0,0,0.55)', zIndex: 2000,
             display: 'flex', alignItems: 'flex-end',
             justifyContent: 'center', direction: 'rtl',
           }}
