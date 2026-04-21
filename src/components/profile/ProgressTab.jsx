@@ -22,99 +22,48 @@ function formatHebrewDate(isoString) {
   return `${HEB_DAYS[d.getDay()]}, ${d.toLocaleDateString('he-IL')}`;
 }
 
-function ExpandedTechniqueList({ techniques, onEditTechnique }) {
+function BaselineSessionCard({ session, onViewClick }) {
+  const formattedDate = formatHebrewDate(session.sessionDate);
+  const d = new Date(session.sessionDate);
+  const time = isNaN(d.getTime()) ? '' : d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+
   return (
-    <>
-      {techniques.map((t) => {
+    <div onClick={onViewClick}
+      style={{
+        background: '#FFF9F0',
+        border: '1px solid #FFE5D0',
+        borderRight: '3px solid #FF6F20',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 10,
+        cursor: 'pointer',
+      }}>
+      <div style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
+        📅 {formattedDate}{time ? ` · ${time}` : ''}
+      </div>
+
+      {session.techniques.map((t) => {
         const roundsArr = Array.isArray(t.rounds_data) ? t.rounds_data : [];
-        const totalJumps = roundsArr.reduce((sum, r) => sum + Number(r.jumps ?? 0), 0);
         const peak = roundsArr.length > 0
           ? Math.max(...roundsArr.map(r => Number(r.jumps ?? 0)))
           : 0;
         return (
           <div key={t.id}
             style={{
-              marginBottom: 12, padding: 14, background: '#FFFFFF',
-              borderRadius: 8, borderRight: '3px solid #FF6F20',
+              display: 'flex', justifyContent: 'space-between',
+              padding: '6px 0', fontSize: 14, color: '#1a1a1a',
             }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ color: '#FF6F20', fontWeight: 700, fontSize: 15 }}>
-                {TECHNIQUE_LABELS[t.technique] ?? t.technique}
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); onEditTechnique(t); }}
-                style={{
-                  background: '#FFFFFF', color: '#FF6F20', border: '1px solid #FF6F20',
-                  borderRadius: 6, padding: '4px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                }}
-              >ערוך</button>
-            </div>
-            <div style={{ display: 'flex', gap: 16, fontSize: 14, color: '#1a1a1a', marginBottom: 10, flexWrap: 'wrap' }}>
-              <div><span style={{ color: '#6b7280' }}>סה&quot;כ קפיצות: </span><strong>{totalJumps}</strong></div>
-              <div><span style={{ color: '#6b7280' }}>ממוצע: </span><strong>{t.average_jumps ?? 0}</strong></div>
-              <div><span style={{ color: '#6b7280' }}>שיא: </span><strong>{peak}</strong></div>
-            </div>
-            {roundsArr.length > 0 && (
-              <div>
-                <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 6 }}>סיבובים:</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {roundsArr.map((r, idx) => (
-                    <span key={idx}
-                      style={{
-                        background: '#FFF9F0', border: '1px solid #FFE5D0', borderRadius: 6,
-                        padding: '4px 10px', fontSize: 13, color: '#1a1a1a', fontWeight: 500,
-                      }}>
-                      {r.jumps}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            <span style={{ color: '#FF6F20', fontWeight: 600 }}>
+              {TECHNIQUE_LABELS[t.technique] ?? t.technique}
+            </span>
+            <span>
+              ממוצע: <strong>{t.average_jumps ?? 0}</strong>
+              {' · '}
+              שיא: <strong>{peak}</strong>
+            </span>
           </div>
         );
       })}
-    </>
-  );
-}
-
-function BaselineSessionCard({ session, isExpanded, onToggle, onEditTechnique }) {
-  const formattedDate = formatHebrewDate(session.sessionDate);
-  const techniqueCount = session.techniques.length;
-  const totalRounds = session.techniques.reduce((sum, t) => sum + (t.rounds_count ?? 0), 0);
-  const overallBaseline = techniqueCount > 0
-    ? Math.round(session.techniques.reduce((sum, t) => sum + Number(t.average_jumps ?? 0), 0) / techniqueCount)
-    : 0;
-
-  return (
-    <div onClick={onToggle}
-      style={{
-        background: '#FFF9F0', border: '1px solid #FFE5D0', borderRadius: 12,
-        padding: 16, marginBottom: 12, cursor: 'pointer',
-      }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: isExpanded ? 16 : 8,
-      }}>
-        <span style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 16 }}>
-          📅 {formattedDate}
-        </span>
-        <span style={{ color: '#FF6F20', fontSize: 14 }}>{isExpanded ? '▼' : '▸'}</span>
-      </div>
-
-      {!isExpanded && (
-        <div style={{ display: 'flex', gap: 16, fontSize: 14, color: '#1a1a1a', flexWrap: 'wrap' }}>
-          <div><span style={{ color: '#6b7280' }}>טכניקות: </span><strong>{techniqueCount}</strong></div>
-          <div><span style={{ color: '#6b7280' }}>סה&quot;כ סיבובים: </span><strong>{totalRounds}</strong></div>
-          <div><span style={{ color: '#FF6F20' }}>בייסליין כללי: </span><strong style={{ color: '#FF6F20' }}>{overallBaseline}</strong></div>
-        </div>
-      )}
-
-      {isExpanded && (
-        <ExpandedTechniqueList
-          techniques={session.techniques}
-          onEditTechnique={onEditTechnique}
-        />
-      )}
     </div>
   );
 }
@@ -123,11 +72,9 @@ export default function ProgressTab({ traineeId }) {
   const { user: currentUser } = useContext(AuthContext);
   const isCoach = currentUser?.is_coach || currentUser?.role === 'coach' || currentUser?.role === 'admin';
   const queryClient = useQueryClient();
-  const [expandedSession, setExpandedSession] = useState(null);
   const [expandedRecord, setExpandedRecord] = useState(null);
   const [showAddRecord, setShowAddRecord] = useState(false);
-  const [editingSessionRows, setEditingSessionRows] = useState(null);
-  const [baselineFormOpen, setBaselineFormOpen] = useState(false);
+  const [viewingSessionRows, setViewingSessionRows] = useState(null);
 
   // ── Baselines ──
   const { data: baselines = [] } = useQuery({
@@ -166,12 +113,9 @@ export default function ProgressTab({ traineeId }) {
     return sessions;
   }, [baselines]);
 
-  const handleEditTechnique = (row) => {
-    if (!row?.created_at) return;
-    const sessionKey = String(row.created_at).slice(0, 16);
-    const sessionRows = baselines.filter(r => String(r.created_at).slice(0, 16) === sessionKey);
-    setEditingSessionRows(sessionRows);
-    setBaselineFormOpen(true);
+  const handleViewSession = (session) => {
+    // session.techniques is already the full list of rows for this session
+    setViewingSessionRows(session.techniques);
   };
 
   // ── Personal Records ──
@@ -254,27 +198,22 @@ export default function ProgressTab({ traineeId }) {
             <BaselineSessionCard
               key={session.sessionKey}
               session={session}
-              isExpanded={expandedSession === session.sessionKey}
-              onToggle={() =>
-                setExpandedSession(expandedSession === session.sessionKey ? null : session.sessionKey)
-              }
-              onEditTechnique={handleEditTechnique}
+              onViewClick={() => handleViewSession(session)}
             />
           ))}
         </div>
       )}
 
-      {/* Edit-mode Baseline dialog (also handles new submissions made from inside ProgressTab — none today) */}
-      <BaselineFormDialog
-        isOpen={baselineFormOpen}
-        onClose={() => {
-          setBaselineFormOpen(false);
-          setEditingSessionRows(null);
-        }}
-        traineeId={traineeId}
-        editMode={editingSessionRows != null}
-        existingRows={editingSessionRows}
-      />
+      {/* View-only baseline dialog (opened by tapping a card) */}
+      {viewingSessionRows && (
+        <BaselineFormDialog
+          isOpen={true}
+          onClose={() => setViewingSessionRows(null)}
+          traineeId={traineeId}
+          viewOnly={true}
+          existingRows={viewingSessionRows}
+        />
+      )}
 
       {/* ── SECTION 2: Personal Records ── */}
       <div>

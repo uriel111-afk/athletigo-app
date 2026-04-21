@@ -77,6 +77,7 @@ function NumPicker({ value, onChange, min = 1, max = 10, label }) {
 export default function BaselineFormDialog({
   isOpen, onClose, traineeId, traineeName,
   editMode = false, existingRows = null,
+  viewOnly = false,
 }) {
   const queryClient = useQueryClient();
   const { user: authUser } = useContext(AuthContext);
@@ -84,9 +85,9 @@ export default function BaselineFormDialog({
   // For coach: coach_id = authUser.id. For trainee: coach_id = null
   const coachId = isCoach ? authUser?.id : null;
 
-  // In edit mode: derive initialData from existingRows. Otherwise: empty defaults.
+  // In edit mode OR view-only: derive initialData from existingRows.
   const initialData = useMemo(() => {
-    if (editMode && existingRows && existingRows.length > 0) {
+    if ((editMode || viewOnly) && existingRows && existingRows.length > 0) {
       const first = existingRows[0];
       const perTech = JSON.parse(JSON.stringify(INITIAL_DATA.perTechnique));
       for (const row of existingRows) {
@@ -114,11 +115,11 @@ export default function BaselineFormDialog({
       };
     }
     return { ...INITIAL_DATA, baselineDate: new Date().toISOString().split('T')[0] };
-  }, [editMode, existingRows]);
+  }, [editMode, viewOnly, existingRows]);
 
-  // Scope key differentiates edit vs new drafts (so editing one session doesn't overwrite a new-session draft)
-  const draftScope = editMode && existingRows?.[0]?.id
-    ? `edit_${existingRows[0].id}`
+  // Scope key isolates edit / view / new drafts so they can't leak into each other.
+  const draftScope = (editMode || viewOnly) && existingRows?.[0]?.id
+    ? `${viewOnly ? 'view' : 'edit'}_${existingRows[0].id}`
     : `${traineeId ?? 'new'}`;
 
   const {
@@ -322,28 +323,35 @@ export default function BaselineFormDialog({
         onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         <DialogHeader className="px-3 pt-3 pb-1">
           <DialogTitle className="text-base font-black text-gray-900">
-            {editMode ? 'עריכת בייסליין' : 'בייסליין חדש'}
+            {viewOnly
+              ? `בייסליין — ${existingRows?.[0]?.date
+                  ? new Date(existingRows[0].date).toLocaleDateString('he-IL')
+                  : ''}`
+              : editMode ? 'עריכת בייסליין' : 'בייסליין חדש'}
           </DialogTitle>
           {traineeName && <p className="text-xs text-gray-400">{traineeName}</p>}
-          {filledTechCount > 0 && (
+          {!viewOnly && filledTechCount > 0 && (
             <p className="text-[10px] text-gray-500 mt-0.5">{filledTechCount} טכניקות עם נתונים</p>
           )}
         </DialogHeader>
 
         <div className="px-3 pb-3 space-y-2">
-          {hasDraft && (
+          {!viewOnly && hasDraft && (
             <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
           )}
-          {/* Date — editable for coach, shown for trainee */}
+          {/* Date — editable in new/edit; read-only in view */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-gray-400">תאריך:</span>
-            <input type="date" value={baselineDate} onChange={e => setBaselineDate(e.target.value)}
+            <input type="date" value={baselineDate}
+              onChange={viewOnly ? undefined : (e => setBaselineDate(e.target.value))}
+              readOnly={viewOnly}
+              disabled={viewOnly}
               max={new Date().toISOString().split('T')[0]}
               className="text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1"
               style={{ fontSize: 16 }} />
           </div>
 
-          {/* Technique Selection — compact horizontal */}
+          {/* Technique Selection — compact horizontal (tabs remain switchable in view mode) */}
           <div className="grid grid-cols-3 gap-1.5">
             {TECHNIQUES.map(t => {
               const Icon = t.icon;
@@ -360,12 +368,21 @@ export default function BaselineFormDialog({
             })}
           </div>
 
-          {/* Parameters — single row */}
-          <div className="flex justify-around items-start bg-gray-50 rounded-lg p-2 border border-gray-100">
-            <TimePicker label="עבודה" value={workTime} onChange={setWorkTime} />
-            <NumPicker label="סיבובים" value={roundsCount} onChange={handleRoundsCountChange} min={1} max={10} />
-            <TimePicker label="מנוחה" value={restTime} onChange={setRestTime} />
-          </div>
+          {/* Parameters — hidden in view-only (the underlying values are still passed through to the rows display) */}
+          {!viewOnly && (
+            <div className="flex justify-around items-start bg-gray-50 rounded-lg p-2 border border-gray-100">
+              <TimePicker label="עבודה" value={workTime} onChange={setWorkTime} />
+              <NumPicker label="סיבובים" value={roundsCount} onChange={handleRoundsCountChange} min={1} max={10} />
+              <TimePicker label="מנוחה" value={restTime} onChange={setRestTime} />
+            </div>
+          )}
+          {viewOnly && (
+            <div className="flex justify-around items-center bg-gray-50 rounded-lg p-2 border border-gray-100 text-xs text-gray-500">
+              <span>עבודה: <strong>{workTime}s</strong></span>
+              <span>סיבובים: <strong>{roundsCount}</strong></span>
+              <span>מנוחה: <strong>{restTime}s</strong></span>
+            </div>
+          )}
 
           {/* Round Inputs — RTL horizontal */}
           <div style={{ display: 'flex', flexDirection: 'row', direction: 'rtl', gap: 6, width: '100%' }}>
@@ -373,16 +390,20 @@ export default function BaselineFormDialog({
               <div key={i} style={{ flex: 1 }} className="bg-white rounded-lg border border-gray-200 p-1.5">
                 <div className="text-[9px] font-bold text-gray-400 text-center mb-0.5">סיבוב {i + 1}</div>
                 <Input type="number" min={0} placeholder="קפיצות" value={r.jumps}
-                  onChange={e => setRoundField(i, 'jumps', e.target.value)}
+                  onChange={viewOnly ? undefined : (e => setRoundField(i, 'jumps', e.target.value))}
+                  readOnly={viewOnly}
+                  disabled={viewOnly}
                   className="text-center font-black text-base h-8 border-[#FF6F20] focus-visible:ring-[#FF6F20] focus-visible:ring-1 mb-0.5" />
                 <Input type="number" min={0} placeholder="פספוס" value={r.misses}
-                  onChange={e => setRoundField(i, 'misses', e.target.value)}
+                  onChange={viewOnly ? undefined : (e => setRoundField(i, 'misses', e.target.value))}
+                  readOnly={viewOnly}
+                  disabled={viewOnly}
                   className="text-center text-[10px] h-6 bg-gray-50 border-transparent placeholder:text-gray-300" />
               </div>
             ))}
           </div>
 
-          {/* Real-time Score — compact */}
+          {/* Real-time Score — same display in view mode */}
           <div className="grid grid-cols-4 bg-gray-900 rounded-lg p-2">
             <div className="text-center">
               <div className="text-[9px] text-gray-400 font-bold">סה"כ</div>
@@ -402,16 +423,27 @@ export default function BaselineFormDialog({
             </div>
           </div>
 
-          {/* Notes — single line */}
-          <Input value={notes} onChange={e => setNotes(e.target.value)}
+          {/* Notes — single line (read-only in view) */}
+          <Input value={notes}
+            onChange={viewOnly ? undefined : (e => setNotes(e.target.value))}
+            readOnly={viewOnly}
+            disabled={viewOnly}
             placeholder="הערות (אופציונלי)" className="text-right text-xs h-8 rounded-lg" />
 
-          {/* Save Button */}
-          <Button onClick={handleSave} disabled={saving || !canSave}
-            className="w-full rounded-lg py-2 font-bold text-white min-h-[40px] text-sm"
-            style={{ backgroundColor: canSave ? '#FF6F20' : '#ccc' }}>
-            {saving ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />שומר...</> : 'שמור תוצאות'}
-          </Button>
+          {/* Submit / Close button */}
+          {viewOnly ? (
+            <Button onClick={onClose}
+              className="w-full rounded-lg py-2 font-bold text-white min-h-[40px] text-sm"
+              style={{ backgroundColor: '#FF6F20' }}>
+              סגור
+            </Button>
+          ) : (
+            <Button onClick={handleSave} disabled={saving || !canSave}
+              className="w-full rounded-lg py-2 font-bold text-white min-h-[40px] text-sm"
+              style={{ backgroundColor: canSave ? '#FF6F20' : '#ccc' }}>
+              {saving ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />שומר...</> : 'שמור תוצאות'}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
