@@ -174,12 +174,106 @@ export const DOCUMENT_TEMPLATES = {
     title: 'הסכם שירות אונליין',
     icon: '💻',
     fields: [
-      { key: 'placeholder_note', label: 'שדה זמני', type: 'text', required: false },
+      {
+        key: 'service_track',
+        label: 'מסלול',
+        type: 'radio',
+        options: [
+          { value: 'personal', label: 'תוכנית אישית' },
+          { value: 'group',    label: 'תוכנית קבוצתית' },
+        ],
+        required: true,
+      },
+      {
+        key: 'update_frequency',
+        label: 'תדירות עדכון תוכנית',
+        type: 'radio',
+        options: [
+          { value: 'weekly',   label: 'שבועית' },
+          { value: 'biweekly', label: 'דו-שבועית' },
+          { value: 'monthly',  label: 'חודשית' },
+          { value: 'other',    label: 'אחר' },
+        ],
+        required: true,
+      },
+      {
+        key: 'update_frequency_other',
+        label: 'פירוט תדירות (אם בחרת "אחר")',
+        type: 'text',
+        required: false,
+        placeholder: 'למשל: כל 10 ימים',
+      },
+      { key: 'monthly_price', label: 'מחיר (₪)', type: 'number', required: true },
+      {
+        key: 'payment_mode',
+        label: 'אופן תשלום',
+        type: 'radio',
+        options: [
+          { value: 'standing_order', label: 'הוראת קבע' },
+          { value: 'upfront',        label: 'תשלום מראש' },
+        ],
+        required: true,
+      },
+      { key: 'notes', label: 'הערות נוספות', type: 'textarea', required: false },
     ],
-    bodyTemplate: `[[ נוסח הסכם אונליין — להחלפה על ידי המשתמש ]]
 
+    bodyTemplate: `הסכם שירות אונליין — AthletiGo
+
+🔹 מטרת השירות
+ברוך/ה הבא/ה ל-AthletiGo.
+שירות זה נועד לספק ליווי מקצועי מרחוק לפיתוח יכולות פיזיות, כוח, שליטה בתנועה ויכולת גופנית כללית באמצעות תוכנית אימונים מותאמת אישית והנחיה מקצועית.
+העבודה מתבצעת באופן עצמאי על ידי המתאמן/ת בהתאם להנחיות ולתוכנית הניתנת במסגרת השירות.
+
+✓ אני מבין/ה כי מדובר בשירות אונליין ללא פיקוח פיזי בזמן אמת.
+
+──────────────────────────────
+פרטי השירות
+──────────────────────────────
 שם המתאמן: {{trainee_name}}
-תאריך חתימה: {{signed_date}}`,
+מסלול: {{service_track_label}}
+תדירות עדכון תוכנית: {{update_frequency_label}}{{update_frequency_extra}}
+מחיר: {{monthly_price}} ₪
+אופן תשלום: {{payment_mode_label}}
+הערות: {{notes}}
+
+🔹 מה כולל השירות
+תוכנית אימונים מותאמת אישית או קבוצתית (לפי המסלול), הנחיות מקצועיות לביצוע תרגילים, וליווי מרחוק בהתאם למסלול השירות.
+
+🔹 אחריות המתאמן/ת
+✓ אני מתחייב/ת לבצע את האימונים באופן עצמאי ובאחריות מלאה.
+✓ אני מתחייב/ת להקשיב לגוף ולהימנע מביצוע תרגילים מעבר ליכולת שלי.
+✓ אני מתחייב/ת לדווח על כאב, פציעה או מגבלה.
+✓ אני מבין/ה כי אי דיווח או ביצוע לא נכון של התוכנית הינם באחריותי בלבד.
+
+🔹 בטיחות ובריאות
+✓ אני מצהיר/ה כי מצבי הבריאותי מאפשר השתתפות בפעילות גופנית.
+
+אני מבין/ה כי:
+- מאמץ ועומס הם חלק מהאימון
+- כאב חד או חריג מחייב הפסקת פעילות
+- השירות אינו כולל פיקוח פיזי בזמן אמת
+
+🔹 תשלום והתנהלות
+✓ השירות ניתן במסגרת מנוי חודשי או חבילה לפי ההסכם האישי.
+✓ אי שימוש בשירות אינו מזכה בהחזר כספי.
+✓ התשלום מתבצע בהוראת קבע או תשלום מראש בהתאם למסלול שנקבע.
+
+🔹 הפסקת שירות
+✓ ביטול השירות יתבצע בהודעה מראש.
+✓ הביטול ייכנס לתוקף בסוף תקופת החיוב הנוכחית.
+
+──────────────────────────────
+שימוש בצילומים (שיווק)
+──────────────────────────────
+סטטוס אישור צילום: {{photo_consent_label}}
+
+🔹 אישור והסכמה
+✓ קראתי והבנתי את כל האמור בהסכם זה.
+✓ אני מסכים/ה לתנאי השירות.
+
+שם מלא: {{trainee_name}}
+תאריך חתימה: {{signed_date}}
+`,
   },
 };
 
@@ -259,6 +353,25 @@ export function renderTemplateBody(key, fieldValues, vars = {}) {
   const pc = fieldValues?.photo_consent;
   body = body.replace(/\{\{photo_consent\}\}/g, pc ? String(getPhotoConsentStatus(pc)) : '');
   body = body.replace(/\{\{photo_consent_label\}\}/g, pc ? resolvePhotoConsentLabel(pc) : '');
+
+  // Template-specific compound placeholder: agreement_online uses
+  // {{update_frequency_extra}} to render ' — ...' ONLY when the coach
+  // picked 'other' AND filled the free-text detail. Resolved here so the
+  // body reads "תדירות: אחר — כל 10 ימים" instead of "תדירות: אחר — "
+  // on the missing path.
+  if (tpl.key === 'agreement_online') {
+    const freq = fieldValues?.update_frequency;
+    const freqOther = (fieldValues?.update_frequency_other || '').toString().trim();
+    const extra = freq === 'other' && freqOther ? ` — ${freqOther}` : '';
+    body = body.replace(/\{\{update_frequency_extra\}\}/g, extra);
+  }
+
+  // Final sweep: any unresolved {{placeholder}} (e.g. an unfilled optional
+  // field, or a template that didn't define a key) becomes empty text so
+  // the document reads cleanly instead of exposing template syntax to
+  // the trainee. Only matches ascii-key placeholders — it won't touch
+  // user content that happens to contain braces.
+  body = body.replace(/\{\{[a-z_]+\}\}/gi, '');
 
   return body;
 }
