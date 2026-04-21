@@ -49,6 +49,23 @@ const FOCUS_AREAS = [
 
 const DAYS = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
 
+// Format a work_time / rest_time value (stored as a string of total seconds,
+// e.g. "180", "45", "90") back into the unit the coach most likely meant:
+//   120  → "2 דקות"    (exact minute multiples display as minutes)
+//   150  → "2:30 דקות" (mixed displays as M:SS)
+//    45  → "45 שניות"  (under a minute stays in seconds)
+// Anything we can't parse falls through to the raw string.
+function formatWorkTime(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const total = parseInt(value, 10);
+  if (!Number.isFinite(total)) return String(value);
+  if (total < 60) return `${total} שניות`;
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  if (secs === 0) return `${mins} דקות`;
+  return `${mins}:${String(secs).padStart(2, "0")} דקות`;
+}
+
 export default function PlanBuilder() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -438,6 +455,12 @@ export default function PlanBuilder() {
             style={{ width: "100%", height: 50, background: "#FF6F20", color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>
             + צור תוכנית נוספת
           </button>
+          {planId && (
+            <button onClick={() => navigate("/activeplans?planId=" + planId)}
+              style={{ width: "100%", height: 50, background: "white", color: "#FF6F20", border: "1px solid #FF6F20", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>
+              צפה בתוכנית
+            </button>
+          )}
           <button onClick={() => navigate("/activeplans")}
             style={{ width: "100%", height: 50, background: "white", color: "#1a1a1a", border: "1px solid #eee", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
             צפה בכל התוכניות
@@ -505,8 +528,8 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
               {ex.sets && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>סטים: {ex.sets}</span>}
               {ex.reps && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>חזרות: {ex.reps}</span>}
-              {ex.work_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>עבודה: {ex.work_time}</span>}
-              {ex.rest_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>מנוחה: {ex.rest_time}</span>}
+              {ex.work_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>עבודה: {formatWorkTime(ex.work_time)}</span>}
+              {ex.rest_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>מנוחה: {formatWorkTime(ex.rest_time)}</span>}
               {ex.weight && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>משקל: {ex.weight}</span>}
               {ex.rpe && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>RPE: {ex.rpe}</span>}
             </div>

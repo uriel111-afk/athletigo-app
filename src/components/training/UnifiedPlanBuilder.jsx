@@ -30,6 +30,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [completedSections, setCompletedSections] = useState(new Set());
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const celebrationFiredRef = useRef(false);
   
   // Execution Modal State
   const [showExecutionModal, setShowExecutionModal] = useState(false);
@@ -302,6 +304,25 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       }
     }
   }, [exercises, plan]);
+
+  // Trainee-only: celebrate the transition to 100%. Ref flag ensures the
+  // modal fires only once per mount, so re-ticking after 100% (or loading
+  // an already-complete plan) doesn't retrigger.
+  useEffect(() => {
+    if (canEdit) return;                 // coach side: no celebration
+    if (!exercises || exercises.length === 0) return;
+    const allDone = exercises.every(e => e.completed);
+    if (allDone && !celebrationFiredRef.current) {
+      celebrationFiredRef.current = true;
+      setShowCelebration(true);
+    }
+    if (!allDone) celebrationFiredRef.current = false;
+  }, [exercises, canEdit]);
+
+  // Progress for the bottom bar (trainee view only)
+  const exercisesTotal = exercises?.length ?? 0;
+  const exercisesDone = exercises?.filter(e => e.completed).length ?? 0;
+  const progressPct = exercisesTotal > 0 ? Math.round((exercisesDone / exercisesTotal) * 100) : 0;
 
   const handleToggleComplete = async (exercise) => {
     // 1. Optimistic / Immediate Logic
@@ -962,6 +983,23 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       {/* Finish Button — only for trainees doing workout, not coaches editing */}
       {!canEdit && (
         <div className="fixed bottom-0 left-0 right-0 bg-black p-4 z-50" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}>
+          {/* Thin progress bar: fill #FF6F20 on #FFE5D0 track */}
+          {exercisesTotal > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{
+                height: 6, width: '100%', background: '#FFE5D0',
+                borderRadius: 999, overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%', width: `${progressPct}%`,
+                  background: '#FF6F20', transition: 'width 0.25s ease',
+                }} />
+              </div>
+              <div style={{ color: '#FFE5D0', fontSize: 11, fontWeight: 600, marginTop: 4, textAlign: 'center' }}>
+                {exercisesDone} / {exercisesTotal} · {progressPct}%
+              </div>
+            </div>
+          )}
           <Button
             className="w-full h-12 font-bold text-lg"
             style={{ backgroundColor: 'black', color: '#FF6F20', border: '2px solid #FF6F20' }}
@@ -978,6 +1016,30 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </Button>
         </div>
       )}
+
+      {/* "כל הכבוד" — fires once when the trainee ticks the last exercise */}
+      <Dialog open={showCelebration} onOpenChange={(o) => { if (!o) setShowCelebration(false); }}>
+        <DialogContent
+          className="max-w-sm"
+          style={{ background: '#FFF9F0', border: '2px solid #FF6F20', borderRadius: 16 }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: '#FF6F20', fontWeight: 800, fontSize: 20, textAlign: 'center' }}>
+              כל הכבוד! סיימת את התוכנית 💪
+            </DialogTitle>
+          </DialogHeader>
+          <div dir="rtl" style={{ textAlign: 'center', padding: '8px 0 16px', color: '#1a1a1a', fontSize: 14 }}>
+            סימנת את כל התרגילים. המשך כך באימון הבא.
+          </div>
+          <button
+            onClick={() => setShowCelebration(false)}
+            style={{
+              width: '100%', padding: 12, background: '#FF6F20', color: '#FFFFFF',
+              border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer',
+            }}>
+            סגור
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>);
 
 }
