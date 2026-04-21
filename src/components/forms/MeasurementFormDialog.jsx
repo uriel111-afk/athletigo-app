@@ -9,24 +9,25 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { base44 } from "@/api/base44Client";
-import { useFormPersistence } from "../hooks/useFormPersistence";
-import { useCloseConfirm } from "../hooks/useCloseConfirm";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { DraftBanner } from "@/components/DraftBanner";
+
+const INITIAL_DATA = {
+  date: "",
+  weight_kg: "",
+  body_fat_percent: "",
+  height_cm: "",
+  chest_circumference: "",
+  waist_circumference: "",
+  hips_circumference: "",
+  notes: "",
+};
 
 export default function MeasurementFormDialog({ isOpen, onClose, traineeId, traineeName, editingMeasurement = null }) {
   const queryClient = useQueryClient();
-  
-  const defaultFormData = {
-    date: new Date().toISOString().split('T')[0],
-    weight_kg: "",
-    body_fat_percent: "",
-    height_cm: "",
-    chest_circumference: "",
-    waist_circumference: "",
-    hips_circumference: "",
-    notes: ""
-  };
 
-  const currentDefaults = editingMeasurement ? {
+  const initialData = editingMeasurement ? {
     date: editingMeasurement.date,
     weight_kg: (editingMeasurement.weight ?? editingMeasurement.weight_kg ?? "").toString(),
     body_fat_percent: (editingMeasurement.body_fat ?? editingMeasurement.body_fat_percent ?? "").toString(),
@@ -34,12 +35,16 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
     chest_circumference: (editingMeasurement.chest ?? editingMeasurement.chest_circumference ?? "").toString(),
     waist_circumference: (editingMeasurement.waist ?? editingMeasurement.waist_circumference ?? "").toString(),
     hips_circumference: (editingMeasurement.hips ?? editingMeasurement.hips_circumference ?? "").toString(),
-    notes: editingMeasurement.notes || ""
-  } : defaultFormData;
+    notes: editingMeasurement.notes || "",
+  } : { ...INITIAL_DATA, date: new Date().toISOString().split('T')[0] };
 
-  const formKey = `measurement_form_${editingMeasurement ? editingMeasurement.id : 'new'}_${traineeId}`;
-  const [formData, setFormData, clearDraft, draftExists, hasChanges] = useFormPersistence(formKey, currentDefaults);
-  const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, () => { clearDraft(); onClose(); });
+  const scopeKey = `${traineeId ?? 'no-trainee'}_${editingMeasurement?.id ?? 'new'}`;
+  const {
+    data: formData, setData: setFormData,
+    hasDraft, keepDraft, discardDraft, clearDraft,
+  } = useFormDraft('MeasurementsAdd', scopeKey, isOpen, initialData);
+
+  useKeepScreenAwake(isOpen);
 
   const createMeasurementMutation = useMutation({
     mutationFn: (data) => base44.entities.Measurement.create(data),
@@ -103,26 +108,23 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
   };
 
   const handleCancel = () => {
-    clearDraft();
+    // keep draft — user may come back
     onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-3xl">
-        {ConfirmDialog}
         <DialogHeader>
           <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
             {editingMeasurement ? '✏️ ערוך מדידה' : '➕ הוסף מדידה חדשה'}
           </DialogTitle>
-          {draftExists && (
-            <div className="text-sm text-gray-500 mt-1">
-              טיוטה שמורה
-            </div>
-          )}
         </DialogHeader>
 
         <div className="space-y-6">
+          {hasDraft && (
+            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
+          )}
           <div>
             <Label className="text-base font-bold mb-3 block" style={{ color: '#000000' }}>תאריך המדידה</Label>
             <Input

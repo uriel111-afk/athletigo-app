@@ -7,38 +7,38 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, UserPlus, Edit2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
-import { useFormPersistence } from "../hooks/useFormPersistence";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { DraftBanner } from "@/components/DraftBanner";
 
-export default function LeadFormDialog({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
+const INITIAL_DATA = {
+  full_name: "",
+  phone: "",
+  age: "",
+  city: "",
+  service_interest: "",
+  specific_interest: "",
+  sport_background: "",
+  fitness_level: "",
+  training_goals: "",
+  medical_history: "",
+  email: "",
+  birth_date: "",
+  notes: "",
+  coach_notes: "",
+  source: "אחר",
+  status: "חדש",
+  preferred_time: "",
+};
+
+export default function LeadFormDialog({
+  isOpen,
+  onClose,
+  onSubmit,
   editingLead = null,
-  isLoading = false 
+  isLoading = false
 }) {
-  const defaultFormState = {
-    full_name: "",
-    phone: "",
-    age: "",
-    city: "",
-    service_interest: "",
-    specific_interest: "",
-    sport_background: "",
-    fitness_level: "",
-    training_goals: "",
-    medical_history: "",
-    email: "",
-    birth_date: "",
-    notes: "",
-    coach_notes: "",
-    source: "אחר",
-    status: "חדש",
-    preferred_time: ""
-  };
-
-  const formKey = `lead_form_${editingLead ? editingLead.id : 'new'}`;
-  
-  const currentDefaults = editingLead ? {
+  const initialData = editingLead ? {
     full_name: editingLead.full_name || "",
     phone: editingLead.phone || "",
     age: editingLead.age || "",
@@ -55,20 +55,18 @@ export default function LeadFormDialog({
     coach_notes: editingLead.coach_notes || "",
     source: editingLead.source || "אחר",
     status: editingLead.status || "חדש",
-    preferred_time: editingLead.preferred_time || ""
-  } : defaultFormState;
+    preferred_time: editingLead.preferred_time || "",
+  } : INITIAL_DATA;
 
-  const [leadForm, setLeadForm, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
+  const {
+    data: leadForm, setData: setLeadForm,
+    hasDraft, keepDraft, discardDraft, clearDraft,
+  } = useFormDraft('AddLead', editingLead?.id ?? 'new', isOpen, initialData);
 
-  // When opening a NEW lead form (not editing), always start fresh
-  React.useEffect(() => {
-    if (isOpen && !editingLead) {
-      clearDraft();
-    }
-  }, [isOpen, editingLead]); // eslint-disable-line react-hooks/exhaustive-deps
+  useKeepScreenAwake(isOpen);
 
   const handleCancel = () => {
-    clearDraft();
+    // keep draft — user may come back
     onClose();
   };
 
@@ -148,14 +146,12 @@ export default function LeadFormDialog({
           <DialogTitle className="text-2xl md:text-3xl font-black text-[#222]">
             {editingLead ? '✏️ ערוך ליד' : '➕ הוסף ליד חדש'}
           </DialogTitle>
-          {draftExists && (
-            <div className="text-sm text-gray-500 mt-1">
-              טיוטה שמורה
-            </div>
-          )}
         </DialogHeader>
 
         <div className="space-y-6 py-2">
+          {hasDraft && (
+            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
+          )}
           {/* 1-4: Basic Info */}
           <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
             <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2">

@@ -11,12 +11,29 @@ import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { DraftBanner } from "@/components/DraftBanner";
 
 const TYPES = [
   { id: "personal", label: "אישי", desc: "מפגשי 1-על-1", icon: User, color: "#FF6F20" },
   { id: "group", label: "קבוצתי", desc: "מנוי חודשי", icon: Users, color: "#4CAF50" },
   { id: "online", label: "אונליין", desc: "היברידי — מפגשים + זמן", icon: Monitor, color: "#2196F3" },
 ];
+
+const INITIAL_DATA = {
+  package_type: "",
+  package_name: "",
+  sessions_count: 10,
+  frequency_per_week: 2,
+  duration_months: 1,
+  price: "",
+  start_date: "",
+  expires_at: "",
+  payment_status: "ממתין לתשלום",
+  payment_method: "credit",
+  notes_internal: "",
+};
 
 const NumPicker = ({ value, onChange, min = 1, max = 99, label }) => {
   const v = parseInt(value) || min;
@@ -44,7 +61,8 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
 
   const [step, setStep] = useState(editingPackage ? 2 : 1);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(() => editingPackage ? {
+
+  const initialData = editingPackage ? {
     package_type: editingPackage.package_type || "personal",
     package_name: editingPackage.package_name || "",
     sessions_count: editingPackage.sessions_count || editingPackage.total_sessions || 10,
@@ -56,12 +74,15 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
     payment_status: editingPackage.payment_status || "ממתין לתשלום",
     payment_method: editingPackage.payment_method || "credit",
     notes_internal: editingPackage.notes_internal || "",
-  } : {
-    package_type: "", package_name: "", sessions_count: 10,
-    frequency_per_week: 2, duration_months: 1, price: "",
-    start_date: new Date().toISOString().split("T")[0], expires_at: "",
-    payment_status: "ממתין לתשלום", payment_method: "credit", notes_internal: "",
-  });
+  } : { ...INITIAL_DATA, start_date: new Date().toISOString().split("T")[0] };
+
+  const scopeKey = `${traineeId ?? 'no-trainee'}_${editingPackage?.id ?? 'new'}`;
+  const {
+    data: form, setData: setForm,
+    hasDraft, keepDraft, discardDraft, clearDraft,
+  } = useFormDraft('PackageEdit', scopeKey, isOpen, initialData);
+
+  useKeepScreenAwake(isOpen);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -129,6 +150,7 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
       queryClient.invalidateQueries({ queryKey: ["trainee-services"] });
       queryClient.invalidateQueries({ queryKey: ["all-trainees"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      clearDraft();
       onClose();
     } catch (error) {
       console.error("[PackageForm] Error:", error);
@@ -150,6 +172,10 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
             {traineeName && <span className="text-sm font-normal text-gray-500">— {traineeName}</span>}
           </DialogTitle>
         </DialogHeader>
+
+        {hasDraft && (
+          <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
+        )}
 
         {/* ── Step 1: Choose type ─────────────────────────── */}
         {step === 1 && (

@@ -9,13 +9,28 @@ import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
 import { toast } from "sonner";
-import { useCloseConfirm } from "../hooks/useCloseConfirm";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { DraftBanner } from "@/components/DraftBanner";
 
 const TECHNIQUES = [
   { id: 'basic', label: 'Basic', labelHe: 'בסיס', icon: Zap, color: '#FF6F20' },
   { id: 'foot_switch', label: 'Foot Switch', labelHe: 'החלפת רגליים', icon: Activity, color: '#2196F3' },
   { id: 'high_knees', label: 'High Knees', labelHe: 'הרמת ברכיים', icon: TrendingUp, color: '#4CAF50' },
 ];
+
+const INITIAL_DATA = {
+  technique: 'basic',
+  workTime: 30,
+  restTime: 30,
+  notes: '',
+  baselineDate: '',
+  perTechnique: {
+    basic:       { roundsCount: 3, rounds: [{ jumps: '', misses: '' }, { jumps: '', misses: '' }, { jumps: '', misses: '' }] },
+    foot_switch: { roundsCount: 3, rounds: [{ jumps: '', misses: '' }, { jumps: '', misses: '' }, { jumps: '', misses: '' }] },
+    high_knees:  { roundsCount: 3, rounds: [{ jumps: '', misses: '' }, { jumps: '', misses: '' }, { jumps: '', misses: '' }] },
+  },
+};
 
 function TimeScrollPicker({ value, onChange, max = 59 }) {
   return (
@@ -66,43 +81,59 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
   // For coach: coach_id = authUser.id. For trainee: coach_id = null
   const coachId = isCoach ? authUser?.id : null;
 
-  const [technique, setTechnique] = useState('basic');
-  const [workTime, setWorkTime] = useState(30);
-  const [restTime, setRestTime] = useState(30);
-  const [notes, setNotes] = useState('');
-  const [baselineDate, setBaselineDate] = useState(new Date().toISOString().split('T')[0]);
+  const initialData = useMemo(
+    () => ({ ...INITIAL_DATA, baselineDate: new Date().toISOString().split('T')[0] }),
+    []
+  );
+
+  const {
+    data: formData, setData: setFormData,
+    hasDraft, keepDraft, discardDraft, clearDraft,
+  } = useFormDraft('BaselineForm', traineeId, isOpen, initialData);
+
+  useKeepScreenAwake(isOpen);
+
   const [saving, setSaving] = useState(false);
 
-  // Per-technique state — each technique has its own rounds + roundsCount
-  const [perTechnique, setPerTechnique] = useState({
-    basic: { roundsCount: 3, rounds: Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })) },
-    foot_switch: { roundsCount: 3, rounds: Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })) },
-    high_knees: { roundsCount: 3, rounds: Array.from({ length: 3 }, () => ({ jumps: '', misses: '' })) },
-  });
+  // Convenience accessors / setters bound to the drafted formData
+  const technique = formData.technique;
+  const setTechnique = (v) => setFormData(prev => ({ ...prev, technique: v }));
+  const workTime = formData.workTime;
+  const setWorkTime = (v) => setFormData(prev => ({ ...prev, workTime: v }));
+  const restTime = formData.restTime;
+  const setRestTime = (v) => setFormData(prev => ({ ...prev, restTime: v }));
+  const notes = formData.notes;
+  const setNotes = (v) => setFormData(prev => ({ ...prev, notes: v }));
+  const baselineDate = formData.baselineDate;
+  const setBaselineDate = (v) => setFormData(prev => ({ ...prev, baselineDate: v }));
+  const perTechnique = formData.perTechnique;
 
   // Current technique's data
   const roundsCount = perTechnique[technique].roundsCount;
   const rounds = perTechnique[technique].rounds;
 
-  const hasChanges = Object.values(perTechnique).some(t => t.rounds.some(r => r.jumps !== '' || r.misses !== '')) || notes !== '';
-  const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, onClose);
-
   const handleRoundsCountChange = (n) => {
-    setPerTechnique(prev => {
-      const t = prev[technique];
+    setFormData(prev => {
+      const t = prev.perTechnique[prev.technique];
       const newRounds = n > t.rounds.length
         ? [...t.rounds, ...Array.from({ length: n - t.rounds.length }, () => ({ jumps: '', misses: '' }))]
         : t.rounds.slice(0, n);
-      return { ...prev, [technique]: { roundsCount: n, rounds: newRounds } };
+      return {
+        ...prev,
+        perTechnique: { ...prev.perTechnique, [prev.technique]: { roundsCount: n, rounds: newRounds } },
+      };
     });
   };
 
   const setRoundField = (i, field, val) => {
-    setPerTechnique(prev => {
-      const t = prev[technique];
+    setFormData(prev => {
+      const t = prev.perTechnique[prev.technique];
       const newRounds = [...t.rounds];
       newRounds[i] = { ...newRounds[i], [field]: val };
-      return { ...prev, [technique]: { ...t, rounds: newRounds } };
+      return {
+        ...prev,
+        perTechnique: { ...prev.perTechnique, [prev.technique]: { ...t, rounds: newRounds } },
+      };
     });
   };
 
@@ -189,6 +220,7 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
       queryClient.invalidateQueries({ queryKey: ['leads'] });
 
       toast.success(`בייסליין נשמר בהצלחה — ${calc.score} JPS`);
+      clearDraft();
       onClose();
     } catch (error) {
       console.error("[BaselineForm] Error:", error);
@@ -199,16 +231,18 @@ export default function BaselineFormDialog({ isOpen, onClose, traineeId, trainee
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) confirmClose(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent className="max-w-md p-0"
         onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
-        {ConfirmDialog}
         <DialogHeader className="px-3 pt-3 pb-1">
           <DialogTitle className="text-base font-black text-gray-900">מדידת בייסליין</DialogTitle>
           {traineeName && <p className="text-xs text-gray-400">{traineeName}</p>}
         </DialogHeader>
 
         <div className="px-3 pb-3 space-y-2">
+          {hasDraft && (
+            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
+          )}
           {/* Date — editable for coach, shown for trainee */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-gray-400">תאריך:</span>

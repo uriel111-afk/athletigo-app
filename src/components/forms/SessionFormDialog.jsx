@@ -11,30 +11,32 @@ import { Loader2, Calendar, Check, UserPlus, User } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
-import { useFormPersistence } from "../hooks/useFormPersistence";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { DraftBanner } from "@/components/DraftBanner";
 
-export default function SessionFormDialog({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
+const INITIAL_DATA = {
+  date: "",
+  time: "10:00",
+  session_type: "אישי",
+  location: "",
+  duration: 60,
+  coach_notes: "",
+  participants: [],
+  service_id: null,
+};
+
+export default function SessionFormDialog({
+  isOpen,
+  onClose,
+  onSubmit,
   trainees = [],
   editingSession = null,
   isLoading = false
 }) {
   const { user: currentCoach } = useContext(AuthContext);
 
-  const defaultSessionForm = {
-    date: new Date().toISOString().split('T')[0],
-    time: "10:00",
-    session_type: "אישי",
-    location: "",
-    duration: 60,
-    coach_notes: "",
-    participants: [],
-    service_id: null,
-  };
-
-  const currentDefaults = editingSession ? {
+  const initialData = editingSession ? {
     date: editingSession.date || "",
     time: editingSession.time || "",
     session_type: editingSession.session_type || "אישי",
@@ -43,10 +45,15 @@ export default function SessionFormDialog({
     coach_notes: editingSession.coach_notes || "",
     participants: editingSession.participants || [],
     service_id: editingSession.service_id || null,
-  } : defaultSessionForm;
+  } : { ...INITIAL_DATA, date: new Date().toISOString().split('T')[0] };
 
-  const formKey = `session_form_${editingSession ? editingSession.id : 'new'}`;
-  const [sessionForm, setSessionForm, clearDraft, draftExists] = useFormPersistence(formKey, currentDefaults);
+  const scopeKey = `${currentCoach?.id ?? 'no-coach'}_${editingSession?.id ?? 'new'}`;
+  const {
+    data: sessionForm, setData: setSessionForm,
+    hasDraft, keepDraft, discardDraft, clearDraft,
+  } = useFormDraft('SessionForm', scopeKey, isOpen, initialData);
+
+  useKeepScreenAwake(isOpen);
 
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [availableServices, setAvailableServices] = useState([]);
@@ -236,14 +243,12 @@ export default function SessionFormDialog({
           <DialogTitle className="text-xl md:text-2xl font-black mb-2" style={{ color: '#000000' }}>
             {editingSession ? '✏️ ערוך מפגש' : '➕ צור מפגש חדש'}
           </DialogTitle>
-          {draftExists && (
-            <div className="text-sm text-gray-500 mt-1">
-              טיוטה שמורה
-            </div>
-          )}
         </DialogHeader>
 
         <div className="space-y-5">
+          {hasDraft && (
+            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
+          )}
           {/* Date Selection — Calendar picker */}
           <div>
             <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>

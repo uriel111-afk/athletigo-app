@@ -2,7 +2,9 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useFormPersistence } from "../hooks/useFormPersistence";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { DraftBanner } from "@/components/DraftBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +16,19 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
+const INITIAL_DATA = {
+  fullName: "",
+  phone: "",
+  email: "",
+  password: "",
+  birthDate: "",
+  joinDate: "",
+  address: "",
+  coachNotes: "",
+  clientStatus: "לקוח פעיל",
+  clientType: "regular",
+};
+
 export default function AddTraineeDialog({ open, onClose }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -21,20 +36,12 @@ export default function AddTraineeDialog({ open, onClose }) {
   const [showPassword, setShowPassword] = useState(true);
   const [coach, setCoach] = useState(null);
 
-  const defaultFormData = {
-    fullName: "",
-    phone: "",
-    email: "",
-    password: "",
-    birthDate: "",
-    joinDate: new Date().toISOString().split('T')[0],
-    address: "",
-    coachNotes: "",
-    clientStatus: "לקוח פעיל",
-    clientType: "regular",
-  };
+  const {
+    data: formData, setData: setFormData,
+    hasDraft, keepDraft, discardDraft, clearDraft,
+  } = useFormDraft('AddTrainee', coach?.id, open, INITIAL_DATA);
 
-  const [formData, setFormData, clearDraft, draftExists] = useFormPersistence("trainee_form_new", defaultFormData);
+  useKeepScreenAwake(open);
 
   useEffect(() => {
     // Load current coach for notifications
@@ -171,19 +178,11 @@ export default function AddTraineeDialog({ open, onClose }) {
           <DialogTitle className="text-2xl font-black text-[#222]">
             יצירת מתאמן חדש
           </DialogTitle>
-          {draftExists && (
-            <div className="text-sm text-gray-500 mt-1">
-              טיוטה שמורה
-            </div>
-          )}
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {draftExists && (
-            <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 8, padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', direction: 'rtl' }}>
-              <span style={{ color: '#92400E', fontWeight: 500, fontSize: 14 }}>מצאתי טיוטה. להמשיך?</span>
-              <button onClick={clearDraft} style={{ padding: '6px 14px', background: 'transparent', color: '#92400E', border: '1px solid #F59E0B', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>התחל מחדש</button>
-            </div>
+          {hasDraft && (
+            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
           )}
           {/* Type picker */}
           <div className="grid grid-cols-2 gap-3">
@@ -316,12 +315,9 @@ export default function AddTraineeDialog({ open, onClose }) {
           </div>
 
           <div className="flex gap-4 mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                clearDraft();
-                onClose();
-              }}
+            <Button
+              variant="outline"
+              onClick={() => onClose()}
               className="flex-1 h-12 rounded-xl border-gray-200"
               disabled={loading}
             >

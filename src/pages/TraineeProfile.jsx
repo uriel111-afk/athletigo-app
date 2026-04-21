@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { DraftBanner } from "@/components/DraftBanner";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -370,11 +373,7 @@ export default function TraineeProfile() {
     status: "",
   });
 
-  const [healthForm, setHealthForm] = useState({
-    has_limitations: false,
-    health_issues: "",
-    approved: false
-  });
+  // healthForm is provided by useFormDraft below (after effectiveUser is defined)
 
   const [goalForm, setGoalForm] = useState({
     goal_name: "",
@@ -469,15 +468,28 @@ export default function TraineeProfile() {
         status: effectiveUser.status || "",
       });
 
-      // Init health form
-      const hasLimits = effectiveUser.health_issues && effectiveUser.health_issues.length > 0 && effectiveUser.health_issues !== "אין";
-      setHealthForm({
-        has_limitations: hasLimits,
-        health_issues: effectiveUser.health_issues || "",
-        approved: effectiveUser.health_declaration_accepted || false
-      });
+      // Health form is initialized via useFormDraft below — handled on dialog open
     }
   }, [effectiveUserId, showEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Health declaration form — drafted + auto-saved while dialog is open
+  const healthInitial = useMemo(() => {
+    const eu = effectiveUser;
+    const hasLimits = !!(eu?.health_issues && eu.health_issues.length > 0 && eu.health_issues !== "אין");
+    return {
+      has_limitations: hasLimits,
+      health_issues: eu?.health_issues || "",
+      approved: eu?.health_declaration_accepted || false,
+    };
+  }, [effectiveUser?.id, effectiveUser?.health_issues, effectiveUser?.health_declaration_accepted]);
+
+  const {
+    data: healthForm, setData: setHealthForm,
+    hasDraft: hasHealthDraft, keepDraft: keepHealthDraft,
+    discardDraft: discardHealthDraft, clearDraft: clearHealthDraft,
+  } = useFormDraft('HealthDeclaration', effectiveUser?.id, showHealthUpdate, healthInitial);
+
+  useKeepScreenAwake(showHealthUpdate);
 
   // Realtime — package balance updates instantly when deduction happens
   useEffect(() => {
@@ -632,6 +644,7 @@ export default function TraineeProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
       queryClient.invalidateQueries({ queryKey: ['target-user-profile'] });
+      clearHealthDraft();
       setShowHealthUpdate(false);
       toast.success("✅ הצהרת בריאות עודכנה");
     },
@@ -2521,6 +2534,9 @@ export default function TraineeProfile() {
           <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>עדכון הצהרת בריאות</DialogTitle></DialogHeader>
             <div className="space-y-4">
+              {hasHealthDraft && (
+                <DraftBanner onContinue={keepHealthDraft} onDiscard={discardHealthDraft} />
+              )}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border">
                 <input type="checkbox" id="hasLimits" checked={healthForm.has_limitations} onChange={e => setHealthForm({ ...healthForm, has_limitations: e.target.checked })} className="w-5 h-5" />
                 <Label htmlFor="hasLimits" className="cursor-pointer">יש מגבלות בריאותיות / פציעות</Label>
