@@ -524,24 +524,44 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
   if (!user) return null;
 
-  // Build docs list: one cooperation_agreement + all health_declarations (newest first)
-  const coopRecord = signedDocs.find(d => d.document_type === 'cooperation_agreement');
-  const healthRecords = signedDocs.filter(d => d.document_type === 'health_declaration').sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  // Build docs list: ALL cooperation_agreement records + ALL health_declarations
+  // (newest first within each group). Each row is its own list entry — the
+  // unique constraint on (trainee_id, document_type) was dropped so multiple
+  // signed rows can coexist as full history.
+  const formatDocDate = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('he-IL');
+  };
+
+  const coopRecords = signedDocs
+    .filter(d => d.document_type === 'cooperation_agreement')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const healthRecords = signedDocs
+    .filter(d => d.document_type === 'health_declaration')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const docs = [
-    {
-      key: 'cooperation_agreement',
-      label: 'הסכם שיתוף פעולה',
-      signedAt: coopRecord?.signed_at || null,
-      sigData: coopRecord?.signature_data || null,
-      pdfUrl: coopRecord?.file_url || null,
-      metadata: coopRecord?.document_data || null,
-      record: coopRecord || null,
-    },
-    ...healthRecords.map((r, idx) => ({
+    ...coopRecords.map((r) => ({
+      key: `cooperation_agreement_${r.id}`,
+      docType: 'cooperation_agreement',
+      label: coopRecords.length > 1
+        ? `הסכם שיתוף פעולה — ${formatDocDate(r.signed_at || r.created_at)}`
+        : 'הסכם שיתוף פעולה',
+      signedAt: r.signed_at || null,
+      sigData: r.signature_data || null,
+      pdfUrl: r.file_url || null,
+      metadata: r.document_data || null,
+      record: r,
+      recordId: r.id,
+    })),
+    ...healthRecords.map((r) => ({
       key: `health_declaration_${r.id}`,
       docType: 'health_declaration',
-      label: `הצהרת בריאות${healthRecords.length > 1 ? ` ${new Date(r.created_at).getFullYear()}` : ''}`,
+      label: healthRecords.length > 1
+        ? `הצהרת בריאות — ${formatDocDate(r.signed_at || r.created_at)}`
+        : 'הצהרת בריאות',
       signedAt: r.signed_at || null,
       sigData: r.signature_data || null,
       pdfUrl: r.file_url || null,
@@ -551,7 +571,10 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     })),
   ];
 
-  // If no health declaration exists at all, show a pending placeholder
+  // Pending placeholders only when nothing of that type exists yet
+  if (coopRecords.length === 0) {
+    docs.unshift({ key: 'cooperation_agreement_new', docType: 'cooperation_agreement', label: 'הסכם שיתוף פעולה', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null });
+  }
   if (healthRecords.length === 0) {
     docs.push({ key: 'health_declaration_new', docType: 'health_declaration', label: 'הצהרת בריאות', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null });
   }
@@ -612,10 +635,12 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         } catch {}
       }
 
-      // 2. Save to signed_documents table
+      // 2. Save to signed_documents table — plain INSERT (the unique
+      // constraint on (trainee_id, document_type) was removed in Supabase),
+      // so every signing creates a new row and full history is preserved.
       const { error } = await supabase
         .from('signed_documents')
-        .upsert({
+        .insert({
           trainee_id: user.id,
           coach_id: user.coach_id || null,
           document_type: docType,
@@ -625,9 +650,22 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
           status: 'signed',
           is_locked: true,
           file_url: pdfUrl || null,
-        }, { onConflict: 'trainee_id,document_type' });
+        });
 
       if (error) throw error;
+
+      // Clean up any pending placeholder rows for this trainee+docType so the
+      // list doesn't show "ממתין לחתימה" alongside the freshly signed entry.
+      try {
+        await supabase
+          .from('signed_documents')
+          .delete()
+          .eq('trainee_id', user.id)
+          .eq('document_type', docType)
+          .eq('status', 'pending');
+      } catch (cleanupErr) {
+        console.warn('[DocumentSigning] pending cleanup failed:', cleanupErr);
+      }
 
       toast.success("המסמך נחתם ונשמר בהצלחה");
       setExpandedDoc(null);
