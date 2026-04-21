@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import UserCard from "../components/UserCard";
+import { normalizeStatus, isActivePackage, CLIENT_STATUS_KEYS, CLIENT_STATUS } from "@/lib/enums";
 
 export default function AllUsers() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -89,21 +90,33 @@ export default function AllUsers() {
     
     if (!matchesSearch) return false;
 
-    // Type filter
+    // Type filter — uses canonical enums (normalizeStatus handles legacy Hebrew rows)
     if (filterType === 'active') {
-        // Active = has active service OR user status is 'active' and belongs to this coach
-        const hasActiveService = allServices.some(s => s.trainee_id === trainee.id && s.status === 'פעיל');
-        const isActiveUser = trainee.status === 'active' || trainee.client_status === 'לקוח פעיל';
+        // Active = has at least one package whose normalized status is 'active'
+        const hasActiveService = allServices.some(s =>
+          s.trainee_id === trainee.id && isActivePackage(normalizeStatus(s.status))
+        );
+        const isActiveUser = normalizeStatus(trainee.status) === 'active'
+          || normalizeStatus(trainee.client_status) === 'active';
         if (!hasActiveService && !isActiveUser) return false;
+    } else if (filterType === 'inactive') {
+        // Inactive = no active package AND not a casual trainee
+        const hasActiveService = allServices.some(s =>
+          s.trainee_id === trainee.id && isActivePackage(normalizeStatus(s.status))
+        );
+        const isCasual = normalizeStatus(trainee.client_type) === 'casual';
+        if (hasActiveService || isCasual) return false;
     } else if (filterType === 'paying') {
         // Check if user has paid services
         const hasPaidService = allServices.some(s => s.trainee_id === trainee.id && s.payment_status === 'שולם');
         if (!hasPaidService) return false;
     } else if (filterType === 'group') {
-        const hasGroupService = allServices.some(s => s.trainee_id === trainee.id && s.status === 'פעיל' && (s.service_type || '').includes('קבוצ'));
+        const hasGroupService = allServices.some(s =>
+          s.trainee_id === trainee.id && isActivePackage(normalizeStatus(s.status)) && (s.service_type || '').includes('קבוצ')
+        );
         if (!hasGroupService) return false;
     } else if (filterType === 'casual') {
-        if (trainee.client_type !== 'מתאמן מזדמן') return false;
+        if (normalizeStatus(trainee.client_type) !== 'casual') return false;
     }
 
     return true;

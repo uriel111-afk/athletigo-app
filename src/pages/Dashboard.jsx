@@ -13,7 +13,7 @@ import { AuthContext } from "@/lib/AuthContext";
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
 import { usePackageExpiry } from "../components/hooks/usePackageExpiry";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { QUERY_KEYS } from "@/components/utils/queryKeys";
+import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
 import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -80,20 +80,29 @@ export default function Dashboard() {
 
     if (!coach?.id) return;
 
+    // Refresh both the local trainees list AND every TanStack Query that
+    // feeds the dashboard counters (active trainees, active packages,
+    // sessions, etc.). Without invalidateDashboard() the counters stayed
+    // stale until window-focus refetch — that was the realtime bug.
+    const onChange = () => {
+      fetchTrainees();
+      invalidateDashboard(queryClient);
+    };
+
     const traineeChannel = supabase
-      .channel('dashboard-trainees')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchTrainees())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services' }, () => fetchTrainees())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => fetchTrainees())
+      .channel(`dashboard-${coach.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services' }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, onChange)
       .subscribe();
 
-    window.addEventListener('data-changed', fetchTrainees);
+    window.addEventListener('data-changed', onChange);
 
     return () => {
       supabase.removeChannel(traineeChannel);
-      window.removeEventListener('data-changed', fetchTrainees);
+      window.removeEventListener('data-changed', onChange);
     };
-  }, [coach?.id, fetchTrainees]);
+  }, [coach?.id, fetchTrainees, queryClient]);
 
   // Dialog states
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
