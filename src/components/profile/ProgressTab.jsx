@@ -147,9 +147,23 @@ export default function ProgressTab({ traineeId }) {
       map.get(key).techniques.push(row);
     }
     // newest first
-    return Array.from(map.values()).sort((a, b) =>
+    const sessions = Array.from(map.values()).sort((a, b) =>
       String(b.sessionDate).localeCompare(String(a.sessionDate))
     );
+    // Diagnostic: lets us see in DevTools whether the grouping found multiple
+    // techniques per session. If a session shows 1 technique here but the user
+    // saved 3, the bug is upstream (DB, RLS, or save handler).
+    if (baselines.length > 0) {
+      console.log('[ProgressTab] baseline grouping', {
+        rowCount: baselines.length,
+        sessionCount: sessions.length,
+        perSession: sessions.map(s => ({
+          key: s.sessionKey,
+          techniques: s.techniques.map(t => t.technique),
+        })),
+      });
+    }
+    return sessions;
   }, [baselines]);
 
   const handleEditTechnique = (row) => {

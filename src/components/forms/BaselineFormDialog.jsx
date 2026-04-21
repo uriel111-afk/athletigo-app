@@ -254,12 +254,25 @@ export default function BaselineFormDialog({
         if (delErr) throw delErr;
       }
 
+      console.log('[BaselineForm] saving session', {
+        sharedCreatedAt,
+        techniquesWithData: rowsToInsert.map(r => r.technique),
+        rowCount: rowsToInsert.length,
+      });
+
       // Insert all new rows in one batch
       const { data: inserted, error: insErr } = await supabase
         .from('baselines')
         .insert(rowsToInsert)
         .select();
       if (insErr) throw insErr;
+
+      console.log('[BaselineForm] inserted rows', {
+        returned: inserted?.length ?? 0,
+        ids: (inserted ?? []).map(r => r.id),
+        createdAtValues: (inserted ?? []).map(r => r.created_at),
+        sessionKeys: (inserted ?? []).map(r => String(r.created_at).slice(0, 16)),
+      });
 
       // Mirror to results_log (one entry per technique, for the achievements tab)
       const resultRows = (inserted || []).map(b => {
