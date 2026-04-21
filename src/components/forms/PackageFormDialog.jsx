@@ -149,21 +149,30 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
       // Direct supabase call (not the base44 wrapper) so we can inspect the
       // raw error object — RLS rejections and CHECK-constraint violations
       // both surface here as { error }, not as throws.
+      // Use .select() (not .single()) so a 0-row result is data=[] instead
+      // of PGRST116 — lets us distinguish RLS-filtered writes from real errors.
       let result, error;
       if (editingPackage) {
+        // Strip identity / ownership fields on UPDATE. They shouldn't change,
+        // and including them re-asserts coach_id which can trip an RLS
+        // WITH CHECK clause if coach?.id is briefly undefined or differs
+        // (e.g. admin editing another coach's package).
+        const { trainee_id, coach_id, created_by, ...updatable } = data;
+        console.log('[PackageForm] UPDATE payload (id stripped):', updatable);
         ({ data: result, error } = await supabase
           .from('client_services')
-          .update(data)
+          .update(updatable)
           .eq('id', editingPackage.id)
-          .select()
-          .single());
+          .select());
       } else {
+        console.log('[PackageForm] INSERT payload:', data);
         ({ data: result, error } = await supabase
           .from('client_services')
           .insert(data)
-          .select()
-          .single());
+          .select());
       }
+
+      console.log('[PackageForm] DB response:', { result, error });
 
       if (error) {
         console.error('[PackageForm] supabase error:', error);
@@ -172,7 +181,16 @@ export default function PackageFormDialog({ isOpen, onClose, traineeId, traineeN
         return;
       }
 
-      console.log('[PackageForm] saved row:', result);
+      if (!result || result.length === 0) {
+        // Update returned 0 rows: either the id doesn't exist, or RLS filtered
+        // the write/select. Without this branch the caller would see a
+        // success-shaped response and a closed dialog with no DB change.
+        console.warn('[PackageForm] update returned 0 rows — RLS or wrong id');
+        toast.error('לא עודכן — ייתכן שאין הרשאה (בדוק RLS)');
+        return;
+      }
+
+      console.log('[PackageForm] saved row:', result[0]);
       toast.success(editingPackage ? "חבילה עודכנה" : "חבילה נוצרה בהצלחה");
 
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
