@@ -191,6 +191,43 @@ function resolveFieldLabel(fieldDef, value) {
   return opt?.label ?? (value ?? '');
 }
 
+// ── Photo consent helpers (object-shape with backwards compat) ──────────
+const PHOTO_CONSENT_LABELS = {
+  allowed:  'מאשר/ת שימוש בצילומים ותכנים לצרכי שיווק',
+  denied:   'לא מאשר/ת',
+  deferred: 'טרם הוחלט',
+};
+
+function fmtHebDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('he-IL');
+}
+
+export function getPhotoConsentStatus(value) {
+  if (!value) return 'deferred';
+  if (typeof value === 'string') {
+    if (value === 'allowed' || value === 'denied' || value === 'deferred') return value;
+    return 'deferred';
+  }
+  return value.status || 'deferred';
+}
+
+export function resolvePhotoConsentLabel(value) {
+  // Legacy string shape (pre-upgrade-feature signed docs)
+  if (!value || typeof value === 'string') {
+    if (value === 'allowed') return PHOTO_CONSENT_LABELS.allowed;
+    if (value === 'denied')  return PHOTO_CONSENT_LABELS.denied;
+    return PHOTO_CONSENT_LABELS.deferred;
+  }
+  // Object shape: { status, decided_at, upgraded_at }
+  const base = PHOTO_CONSENT_LABELS[value.status] ?? PHOTO_CONSENT_LABELS.deferred;
+  const decided  = value.decided_at  ? ` (החלטה: ${fmtHebDate(value.decided_at)})`  : '';
+  const upgraded = value.upgraded_at ? ` · עודכן: ${fmtHebDate(value.upgraded_at)}` : '';
+  return `${base}${decided}${upgraded}`;
+}
+
 export function renderTemplateBody(key, fieldValues, vars = {}) {
   const tpl = DOCUMENT_TEMPLATES[key];
   if (!tpl || tpl.useCustomForm) return '';
@@ -214,13 +251,14 @@ export function renderTemplateBody(key, fieldValues, vars = {}) {
   }
 
   // photo_consent is filled by the trainee at sign time, not a coach field.
-  // Resolve {{photo_consent}} and {{photo_consent_label}} from fieldValues
-  // so the same body template works at preview (empty), sign-now (chosen),
-  // and SignPendingAgreementDialog (chosen by trainee).
-  const pc = fieldValues?.photo_consent ?? '';
-  body = body.replace(/\{\{photo_consent\}\}/g, String(pc));
-  const pcLabel = pc === 'allowed' ? 'מאשר/ת' : pc === 'denied' ? 'לא מאשר/ת' : '';
-  body = body.replace(/\{\{photo_consent_label\}\}/g, pcLabel);
+  // The value can be:
+  //   - undefined / null  → coach preview (placeholder shown empty)
+  //   - 'allowed' | 'denied' | 'deferred'  → legacy string shape
+  //   - { status, decided_at, upgraded_at }  → new object shape
+  // resolvePhotoConsentLabel() handles all three.
+  const pc = fieldValues?.photo_consent;
+  body = body.replace(/\{\{photo_consent\}\}/g, pc ? String(getPhotoConsentStatus(pc)) : '');
+  body = body.replace(/\{\{photo_consent_label\}\}/g, pc ? resolvePhotoConsentLabel(pc) : '');
 
   return body;
 }

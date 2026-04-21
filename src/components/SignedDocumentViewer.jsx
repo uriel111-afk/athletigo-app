@@ -1,6 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { X, Download, CheckCircle } from "lucide-react";
-import { DOCUMENT_TEMPLATES } from "@/lib/documentTemplates";
+import { DOCUMENT_TEMPLATES, resolvePhotoConsentLabel, getPhotoConsentStatus } from "@/lib/documentTemplates";
+import PhotoConsentUpgradeDialog from "./forms/PhotoConsentUpgradeDialog";
 
 const LABELS = {
   health_declaration: 'הצהרת בריאות',
@@ -91,7 +92,8 @@ async function generateAndDownloadPDF(doc, traineeName) {
   pdf.save(`${title}_חתום.pdf`);
 }
 
-export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName }) {
+export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName, currentUserId }) {
+  const [showUpgrade, setShowUpgrade] = useState(false);
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
@@ -108,6 +110,16 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
   // Agreement template (agreement_personal / agreement_group / agreement_online)
   // The body is fully rendered at signing time and stored in document_data.body_rendered.
   if (isAgreementTemplate) {
+    const consent = data.field_values?.photo_consent;
+    const consentStatus = consent ? getPhotoConsentStatus(consent) : null;
+    const isTrainee = !!currentUserId && currentUserId === doc.trainee_id;
+    // Upgrade only available to the trainee, only for object-shape consent
+    // (legacy string consents have no decided_at to preserve), only when
+    // the doc is signed and the current status is denied or deferred.
+    const isUpgradable = isTrainee
+      && doc.status === 'signed'
+      && consent && typeof consent === 'object'
+      && consentStatus !== 'allowed';
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 9999, display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #FFE5D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
@@ -151,6 +163,35 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
               </div>
             </div>
           )}
+
+          {/* Photo consent status — visible to both coach and trainee.
+              Trainee with denied/deferred status sees the upgrade CTA. */}
+          {consent && (
+            <div style={{
+              marginTop: 20, padding: 14,
+              background: '#FFF9F0',
+              border: isUpgradable ? '2px solid #FF6F20' : '1px solid #FFE5D0',
+              borderRadius: 10,
+            }}>
+              <div style={{ color: '#FF6F20', fontWeight: 700, marginBottom: 6 }}>
+                🔹 שימוש בצילומים לצרכי שיווק
+              </div>
+              <div style={{ color: '#1a1a1a', fontSize: 14, marginBottom: isUpgradable ? 12 : 0 }}>
+                סטטוס נוכחי: {resolvePhotoConsentLabel(consent)}
+              </div>
+              {isUpgradable && (
+                <button
+                  onClick={() => setShowUpgrade(true)}
+                  style={{
+                    background: '#FF6F20', color: '#FFFFFF', border: 'none',
+                    borderRadius: 10, padding: 12, fontWeight: 700, fontSize: 14,
+                    cursor: 'pointer', width: '100%',
+                  }}>
+                  שדרג ל&quot;מאשר/ת שימוש בצילומים&quot;
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div style={{ padding: '16px 20px', borderTop: '1px solid #FFE5D0', display: 'flex', gap: 8, flexShrink: 0, background: 'white' }}>
@@ -162,6 +203,14 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
             </button>
           )}
         </div>
+
+        {showUpgrade && (
+          <PhotoConsentUpgradeDialog
+            open={showUpgrade}
+            onClose={() => setShowUpgrade(false)}
+            doc={doc}
+          />
+        )}
       </div>
     );
   }

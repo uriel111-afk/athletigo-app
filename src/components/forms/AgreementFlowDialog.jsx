@@ -138,9 +138,9 @@ export default function AgreementFlowDialog({
   useKeepScreenAwake(open);
 
   const [step, setStep] = useState('fields');
-  const [photoConsent, setPhotoConsent] = useState(null); // 'allowed' | 'denied' | null
+  // Default to 'deferred' — consent is now optional at signing time.
+  const [photoConsent, setPhotoConsent] = useState('deferred');
   const [readAndUnderstood, setReadAndUnderstood] = useState(false);
-  const [highlightConsent, setHighlightConsent] = useState(false);
   const [saving, setSaving] = useState(false);
   const sigRef = useRef(null);
   const today = new Date().toLocaleDateString('he-IL');
@@ -149,29 +149,35 @@ export default function AgreementFlowDialog({
   React.useEffect(() => {
     if (open) {
       setStep('fields');
-      setPhotoConsent(null);
+      setPhotoConsent('deferred');
       setReadAndUnderstood(false);
-      setHighlightConsent(false);
     }
   }, [open]);
 
   if (!template) return null;
 
-  // Coach-side preview body (photo_consent intentionally empty here)
+  // Coach-side preview body (photo_consent placeholder stays empty)
   const previewBody = renderTemplateBody(templateKey, fieldValues, {
     trainee_name: traineeName || '',
     signed_date: today,
   });
 
-  // At sign time, photo_consent is merged in
-  const mergedValues = { ...fieldValues, photo_consent: photoConsent };
+  // At sign time, build the object-shape consent so the body shows the
+  // chosen status with the decided_at date inline.
+  const photoConsentObj = {
+    status: photoConsent,
+    decided_at: new Date().toISOString(),
+    upgraded_at: null,
+  };
+  const mergedValues = { ...fieldValues, photo_consent: photoConsentObj };
   const signBody = renderTemplateBody(templateKey, mergedValues, {
     trainee_name: traineeName || '',
     signed_date: today,
   });
 
   const allRequiredFilled = (template.fields || []).every(f => isFieldFilled(f, fieldValues[f.key]));
-  const canSign = !!photoConsent && readAndUnderstood; // signature checked at click
+  // Consent no longer gates submit — only the read-confirm + signature do.
+  const canSign = readAndUnderstood;
 
   async function saveAgreement({ asSigned, signatureDataUrl }) {
     setSaving(true);
@@ -219,7 +225,6 @@ export default function AgreementFlowDialog({
   }
 
   async function handleSignNow() {
-    if (!photoConsent) { setHighlightConsent(true); toast.error('יש לבחור אישור צילום'); return; }
     if (!readAndUnderstood) { toast.error('יש לאשר שקראת והבנת'); return; }
     if (!sigRef.current?.hasSignature()) { toast.error('יש לחתום לפני שליחה'); return; }
     const sig = sigRef.current.getSignature();
@@ -283,26 +288,32 @@ export default function AgreementFlowDialog({
               {sectionHeader('נוסח ההסכם')}
               <div style={bodyTextBoxStyle}>{signBody}</div>
 
-              {/* Section 2 — Photo consent (highlighted, required) */}
-              {sectionHeader('שימוש בצילומים ותוכן שיווקי')}
-              <div style={{
-                ...highlightedCardStyle,
-                ...(highlightConsent && !photoConsent ? { borderColor: '#dc2626', boxShadow: '0 0 0 2px rgba(220,38,38,0.15)' } : null),
-              }}>
-                <div style={{ color: COLORS.text, fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-                  אישור שימוש בצילומים ותוכן לצרכי שיווק — האם את/ה מאשר/ת?
+              {/* Section 2 — Photo consent (optional, 3 choices, default deferred) */}
+              <div style={highlightedCardStyle}>
+                <div style={{ color: COLORS.accent, fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
+                  🔹 שימוש בצילומים לצרכי שיווק (לא חובה)
+                </div>
+                <div style={{ color: COLORS.text, fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
+                  ניתן לאשר כעת, לסרב, או להחליט בהמשך.
+                  ניתן לשדרג מ"לא מאשר/ת" ל"מאשר/ת" בכל שלב מאוחר יותר.
                 </div>
                 <label style={radioRowStyle(photoConsent === 'allowed')}>
                   <input type="radio" name="photo_consent" checked={photoConsent === 'allowed'}
-                    onChange={() => { setPhotoConsent('allowed'); setHighlightConsent(false); }}
+                    onChange={() => setPhotoConsent('allowed')}
                     style={{ accentColor: COLORS.accent, transform: 'scale(1.2)' }} />
-                  <span style={{ color: COLORS.text, fontSize: 14 }}>מאשר/ת שימוש בצילומים ותוכן לצרכי שיווק</span>
+                  <span style={{ color: COLORS.text, fontSize: 14 }}>מאשר/ת שימוש בצילומים ותכנים לצרכי שיווק</span>
                 </label>
                 <label style={radioRowStyle(photoConsent === 'denied')}>
                   <input type="radio" name="photo_consent" checked={photoConsent === 'denied'}
-                    onChange={() => { setPhotoConsent('denied'); setHighlightConsent(false); }}
+                    onChange={() => setPhotoConsent('denied')}
                     style={{ accentColor: COLORS.accent, transform: 'scale(1.2)' }} />
-                  <span style={{ color: COLORS.text, fontSize: 14 }}>לא מאשר/ת</span>
+                  <span style={{ color: COLORS.text, fontSize: 14 }}>לא מאשר/ת כעת</span>
+                </label>
+                <label style={radioRowStyle(photoConsent === 'deferred')}>
+                  <input type="radio" name="photo_consent" checked={photoConsent === 'deferred'}
+                    onChange={() => setPhotoConsent('deferred')}
+                    style={{ accentColor: COLORS.accent, transform: 'scale(1.2)' }} />
+                  <span style={{ color: COLORS.text, fontSize: 14 }}>אחליט בהמשך</span>
                 </label>
               </div>
 

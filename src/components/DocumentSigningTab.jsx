@@ -495,7 +495,7 @@ function CooperationAgreementForm({ user, onSign, isSigning }) {
   );
 }
 
-export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdate }) {
+export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdate, currentUserId }) {
   const [signingType, setSigning] = useState(null);
   const [expandedDoc, setExpandedDoc] = useState(null);
   const [signedDocs, setSignedDocs] = useState([]);
@@ -881,6 +881,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         onClose={() => setViewingDoc(null)}
         doc={viewingDoc}
         traineeName={user?.full_name}
+        currentUserId={currentUserId}
       />
 
       {/* Sign-pending-agreement modal (opened from the prominent pending row) */}

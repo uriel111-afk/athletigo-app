@@ -2621,6 +2621,7 @@ export default function TraineeProfile() {
                   <DocumentSigningTab
                     effectiveUser={effectiveUser || user}
                     isCoach={isCoach}
+                    currentUserId={currentUser?.id}
                     onUserUpdate={() => {
                       queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
                       queryClient.invalidateQueries({ queryKey: ['target-user-profile', userIdParam] });
