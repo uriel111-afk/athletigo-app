@@ -594,7 +594,7 @@ export default function TraineeProfile() {
       .channel(`profile-packages-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services', filter: `trainee_id=eq.${user.id}` },
         () => { queryClient.refetchQueries({ queryKey: ['trainee-services'] }); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions', filter: `trainee_id=eq.${user.id}` },
         () => { queryClient.refetchQueries({ queryKey: ['trainee-sessions'] }); })
       .subscribe();
     return () => supabase.removeChannel(ch);

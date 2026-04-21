@@ -537,6 +537,20 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     return () => window.removeEventListener('signed-documents-changed', onChange);
   }, [user?.id, fetchDocs]);
 
+  // Realtime — cross-device sync. Coach signs on laptop → trainee phone
+  // refreshes the list without a manual reload.
+  React.useEffect(() => {
+    if (!user?.id) return;
+    const ch = supabase
+      .channel(`signed-docs-${user.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'signed_documents',
+        filter: `trainee_id=eq.${user.id}`
+      }, () => fetchDocs())
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [user?.id, fetchDocs]);
+
   // Local UI state for the agreement-sign flow (trainee opens a pending agreement)
   const [signingPendingDoc, setSigningPendingDoc] = useState(null);
 

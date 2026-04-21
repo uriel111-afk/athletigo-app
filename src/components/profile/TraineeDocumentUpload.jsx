@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 import { FileText, Trash2, Download } from 'lucide-react';
@@ -38,6 +38,19 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
     },
     enabled: !!traineeId,
   });
+
+  // Realtime — coach uploads a file on laptop → trainee phone refreshes live.
+  useEffect(() => {
+    if (!traineeId) return;
+    const ch = supabase
+      .channel(`trainee-docs-${traineeId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'trainee_documents',
+        filter: `trainee_id=eq.${traineeId}`
+      }, () => queryClient.invalidateQueries({ queryKey: ['trainee-documents', traineeId] }))
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [traineeId, queryClient]);
 
   async function handleFilePick(e) {
     const file = e.target.files?.[0];

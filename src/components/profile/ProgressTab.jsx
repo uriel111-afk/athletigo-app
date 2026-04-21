@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext } from 'react';
+import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { supabase } from '@/lib/supabaseClient';
@@ -95,6 +95,19 @@ export default function ProgressTab({ traineeId }) {
   // Folder-based grouping by normalized name (spec: single record = flat,
   // 2+ = folder). Baselines get their own dedicated folder rendered above.
   const recordGroups = useMemo(() => groupRecordsByName(records), [records]);
+
+  // Realtime — coach adds a record on laptop → trainee phone refreshes live.
+  useEffect(() => {
+    if (!traineeId) return;
+    const ch = supabase
+      .channel(`personal-records-${traineeId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'personal_records',
+        filter: `trainee_id=eq.${traineeId}`
+      }, () => queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] }))
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [traineeId, queryClient]);
 
   // ── Add Record ──
   const [recForm, setRecForm] = useState({ record_type: '', name: '', unit: '', value: '', date: new Date().toISOString().split('T')[0], notes: '' });
