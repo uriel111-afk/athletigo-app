@@ -23,6 +23,31 @@ const FloatingTimer = () => {
     });
   };
 
+  // Mouse drag — mirrors the touch behavior. Move/up listeners live on
+  // window so the drag keeps tracking even if the cursor leaves the bubble.
+  const onMouseDown = (e) => {
+    // Ignore drags initiated on interactive children (X / pause buttons)
+    if (e.target.closest('button')) return;
+    e.preventDefault();
+    drag.current = { active: true, moved: false, startX: e.clientX - pos.x, startY: e.clientY, initBottom: pos.bottom };
+    const onMove = (ev) => {
+      if (!drag.current.active) return;
+      ev.preventDefault();
+      drag.current.moved = true;
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 175, ev.clientX - drag.current.startX)),
+        bottom: Math.max(70, Math.min(window.innerHeight - 180, drag.current.initBottom + (drag.current.startY - ev.clientY)))
+      });
+    };
+    const onUp = () => {
+      drag.current.active = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   const handleExpand = () => {
     if (drag.current.moved) return;
     if (liveTimer.type === 'tabata') {
@@ -51,7 +76,8 @@ const FloatingTimer = () => {
 
   return (
     <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={() => { drag.current.active = false; }}
-      style={{ position: 'fixed', left: pos.x, bottom: pos.bottom, zIndex: 9999,
+      onMouseDown={onMouseDown}
+      style={{ position: 'fixed', left: pos.x, bottom: pos.bottom, zIndex: 9999, cursor: 'grab',
         background: liveTimer.paused ? '#CC5500' : '#FF6F20', borderRadius: 18,
         minWidth: 155, boxShadow: '0 6px 24px rgba(0,0,0,0.4)',
         direction: 'rtl', userSelect: 'none', touchAction: 'none', overflow: 'hidden' }}>
