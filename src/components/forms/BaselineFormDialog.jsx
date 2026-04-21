@@ -130,6 +130,8 @@ export default function BaselineFormDialog({
   useKeepScreenAwake(isOpen);
 
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Convenience accessors / setters bound to the drafted formData
   const technique = formData.technique;
@@ -317,6 +319,36 @@ export default function BaselineFormDialog({
     }
   };
 
+  async function handleDelete() {
+    if (!existingRows || existingRows.length === 0) {
+      setShowDeleteConfirm(false);
+      return;
+    }
+    setDeleting(true);
+    try {
+      const ids = existingRows.map(r => r.id).filter(Boolean);
+      // Clean up linked results_log rows first (same pattern as the edit-mode save).
+      try { await supabase.from('results_log').delete().in('baseline_id', ids); } catch {}
+      const { error } = await supabase.from('baselines').delete().in('id', ids);
+      if (error) {
+        console.error('[BaselineForm] delete failed:', error);
+        toast.error('המחיקה נכשלה: ' + (error.message || ''));
+        return;
+      }
+      toast.success('הבייסליין נמחק');
+      queryClient.invalidateQueries({ queryKey: ['baselines', traineeId] });
+      queryClient.invalidateQueries({ queryKey: ['baselines-progress', traineeId] });
+      queryClient.invalidateQueries({ queryKey: ['my-results'] });
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (e) {
+      console.error('[BaselineForm] delete exception:', e);
+      toast.error('שגיאה בלתי צפויה במחיקה');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent className="max-w-md p-0"
@@ -430,13 +462,34 @@ export default function BaselineFormDialog({
             disabled={viewOnly}
             placeholder="הערות (אופציונלי)" className="text-right text-xs h-8 rounded-lg" />
 
-          {/* Submit / Close button */}
+          {/* Submit / Close button(s) */}
           {viewOnly ? (
-            <Button onClick={onClose}
-              className="w-full rounded-lg py-2 font-bold text-white min-h-[40px] text-sm"
-              style={{ backgroundColor: '#FF6F20' }}>
-              סגור
-            </Button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button onClick={onClose}
+                className="rounded-lg py-2 font-bold text-white min-h-[40px] text-sm"
+                style={{ backgroundColor: '#FF6F20', flex: isCoach ? 1 : undefined, width: isCoach ? undefined : '100%' }}>
+                סגור
+              </Button>
+              {isCoach && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  style={{
+                    flex: 1,
+                    background: '#FFFFFF',
+                    color: '#dc2626',
+                    border: '1px solid #dc2626',
+                    borderRadius: 8,
+                    padding: 8,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    minHeight: 40,
+                  }}>
+                  🗑️ מחק בייסליין
+                </button>
+              )}
+            </div>
           ) : (
             <Button onClick={handleSave} disabled={saving || !canSave}
               className="w-full rounded-lg py-2 font-bold text-white min-h-[40px] text-sm"
@@ -446,6 +499,51 @@ export default function BaselineFormDialog({
           )}
         </div>
       </DialogContent>
+
+      {/* Confirmation modal — destructive delete, coach-only */}
+      <Dialog open={showDeleteConfirm} onOpenChange={(o) => { if (!o && !deleting) setShowDeleteConfirm(false); }}>
+        <DialogContent className="max-w-sm"
+          style={{ background: '#FFFFFF', border: '2px solid #dc2626', borderRadius: 14 }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: '#dc2626', fontWeight: 800, fontSize: 18 }}>
+              מחיקת בייסליין
+            </DialogTitle>
+          </DialogHeader>
+          <div dir="rtl" style={{ color: '#1a1a1a', fontSize: 14, lineHeight: 1.7, padding: '4px 0 12px' }}>
+            האם אתה בטוח שברצונך למחוק את הבייסליין הזה?
+            <br />
+            הפעולה תמחק את כל {existingRows?.length || 0} הטכניקות מהסשן
+            {existingRows?.[0]?.date && ` (${new Date(existingRows[0].date).toLocaleDateString('he-IL')})`}.
+            <br />
+            לא ניתן לשחזר לאחר מחיקה.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+              style={{
+                flex: 1, background: '#FFFFFF', color: '#6b7280',
+                border: '1px solid #e5e7eb', borderRadius: 8,
+                padding: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer',
+              }}>
+              ביטול
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              style={{
+                flex: 1, background: '#dc2626', color: '#FFFFFF',
+                border: 'none', borderRadius: 8,
+                padding: 10, fontWeight: 700, fontSize: 14, cursor: deleting ? 'wait' : 'pointer',
+                opacity: deleting ? 0.7 : 1,
+              }}>
+              {deleting ? 'מוחק...' : 'מחק לצמיתות'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
