@@ -246,7 +246,7 @@ export default function Clocks() {
     return 'tabata';
   });
   const clock = useClock();
-  const { setLiveTimer, setShowTabata, setIsMinimized } = useActiveTimer();
+  const { setLiveTimer, setShowTabata, setIsMinimized, activeTimers } = useActiveTimer();
   const { user } = React.useContext(AuthContext);
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
@@ -283,11 +283,13 @@ export default function Clocks() {
   }, [clock, setLiveTimer, setIsMinimized, navigate, isCoach]);
 
   // Entering the Clocks page = bar should disappear. If the user leaves
-  // while a timer is still active, re-minimize so the bar reappears.
+  // while ANY timer is still active (clock engine OR tabata engine),
+  // re-minimize so the bar reappears on the next page.
   React.useEffect(() => {
     setIsMinimized(false);
     return () => {
-      if (clock?.activeClock) setIsMinimized(true);
+      const hasAny = !!clock?.activeClock || (activeTimers?.length || 0) > 0;
+      if (hasAny) setIsMinimized(true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
