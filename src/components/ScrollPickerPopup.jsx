@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 export const SECONDS_OPTIONS = Array.from({ length: 300 }, (_, i) => i + 1);
 export const MINUTES_OPTIONS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60];
-export const ROUNDS_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
+export const ROUNDS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30];
 export const PREP_OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60];
 
 export default function ScrollPickerPopup({ isOpen, value, options, onSelect, onClose, title }) {

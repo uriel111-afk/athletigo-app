@@ -50,7 +50,8 @@ export default function Layout({ children, currentPageName }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
   const clock = useClock();
-  const { liveTimer, setLiveTimer } = useActiveTimer();
+  const { liveTimer, setLiveTimer, activeTimers } = useActiveTimer();
+  const timerBarsHeight = (activeTimers?.length || 0) * 62;
   const isClocks = location.pathname.toLowerCase().includes('clock');
   const isDashboard = location.pathname.toLowerCase().includes('dashboard');
   const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');
@@ -470,7 +471,7 @@ export default function Layout({ children, currentPageName }) {
             paddingLeft: (isClocks || isDashboard) ? 0 : '16px',
             paddingRight: (isClocks || isDashboard) ? 0 : '16px',
             paddingTop: isClocks ? 0 : 'var(--content-top)',
-            paddingBottom: isClocks ? 0 : (liveTimer ? 132 : 70),
+            paddingBottom: isClocks ? 0 : (70 + timerBarsHeight),
             overflowY: isClocks ? 'hidden' : 'auto',
             height: isClocks ? '100dvh' : undefined,
             minHeight: 0,
@@ -491,9 +492,9 @@ export default function Layout({ children, currentPageName }) {
           {/* Sticky timer footer bar — replaces the old draggable bubble */}
           <TimerFooterBar />
 
-          {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 62px when timer bar is visible) */}
+          {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 62px per active timer bar) */}
           <div className="md:hidden safe-area-bottom"
-               style={{ position: 'fixed', bottom: liveTimer ? 62 : 0, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : undefined, padding: '8px 8px 12px' }}>
+               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : undefined, padding: '8px 8px 12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start' }}>
               {(() => {
                 const navItems = isCoach ? [
