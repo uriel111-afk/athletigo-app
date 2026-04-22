@@ -19,6 +19,7 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [description, setDescription] = useState('');
+  const [showUpload, setShowUpload] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: docs } = useQuery({
@@ -102,6 +103,7 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
 
       toast.success('הקובץ הועלה בהצלחה');
       setDescription('');
+      setShowUpload(false);
       queryClient.invalidateQueries({ queryKey: ['trainee-documents', traineeId] });
     } catch (err) {
       console.error('[TraineeDocs] unexpected:', err);
@@ -163,49 +165,78 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
         מסמכים נוספים
       </h3>
 
-      {/* Upload panel */}
-      <div style={{
-        background: '#FFF9F0', border: '1px solid #FFE5D0', borderRadius: 12,
-        padding: 16, marginBottom: 16,
-      }}>
-        <input
-          type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="תיאור (לדוגמה: אישור רופא)"
-          style={{
-            width: '100%', padding: 10, borderRadius: 8, border: '1px solid #FFE5D0',
-            marginBottom: 10, background: '#FFFFFF', color: '#1a1a1a', fontSize: 14,
-            boxSizing: 'border-box',
-          }}
-        />
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          onChange={handleFilePick}
-          style={{ display: 'none' }}
-          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
-        />
-
+      {/* Upload — hidden behind a button until user wants to upload */}
+      {!showUpload ? (
         <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || !traineeId}
+          type="button"
+          onClick={() => setShowUpload(true)}
           style={{
-            width: '100%', padding: 12, background: '#FF6F20', color: '#FFFFFF',
-            border: 'none', borderRadius: 8, fontWeight: 600,
-            cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1,
+            width: '100%', padding: 14,
+            background: '#FFF0E4', color: '#FF6F20',
+            border: '1.5px dashed #FF6F20', borderRadius: 14,
+            fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 8, marginBottom: 16,
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
-          {uploading ? 'מעלה...' : 'בחר קובץ להעלאה'}
+          📎 העלה מסמך חדש
         </button>
-
+      ) : (
         <div style={{
-          marginTop: 8, fontSize: 12, color: '#6b7280', textAlign: 'center',
+          marginBottom: 16, padding: 16,
+          background: '#FFFFFF', borderRadius: 14,
+          border: '0.5px solid #F0E4D0',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}>
-          עד {MAX_SIZE_MB} מגה · תמונה, PDF, Word, Excel
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>📎 העלאת מסמך</div>
+            <button
+              type="button"
+              onClick={() => setShowUpload(false)}
+              style={{ background: 'none', border: 'none', color: '#888', fontSize: 18, cursor: 'pointer' }}
+              aria-label="סגור"
+            >✕</button>
+          </div>
+
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="תיאור (לדוגמה: אישור רופא)"
+            style={{
+              width: '100%', padding: 10, borderRadius: 8, border: '1px solid #FFE5D0',
+              marginBottom: 10, background: '#FFFFFF', color: '#1a1a1a', fontSize: 14,
+              boxSizing: 'border-box',
+            }}
+          />
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFilePick}
+            style={{ display: 'none' }}
+            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !traineeId}
+            style={{
+              width: '100%', padding: 12, background: '#FF6F20', color: '#FFFFFF',
+              border: 'none', borderRadius: 8, fontWeight: 600,
+              cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1,
+            }}
+          >
+            {uploading ? 'מעלה...' : 'בחר קובץ להעלאה'}
+          </button>
+
+          <div style={{ marginTop: 8, fontSize: 12, color: '#6b7280', textAlign: 'center' }}>
+            עד {MAX_SIZE_MB} מגה · תמונה, PDF, Word, Excel
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Documents list */}
       {(!docs || docs.length === 0) ? (

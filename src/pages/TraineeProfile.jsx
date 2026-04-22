@@ -1817,26 +1817,10 @@ export default function TraineeProfile() {
                   </div>
                 </div>
 
-                {/* Health Card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
-                    <h2 className="text-lg font-bold flex items-center gap-2"><Heart className="w-5 h-5 text-[#FF6F20]" />בריאות</h2>
-                    <Button onClick={() => setShowHealthUpdate(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                      <Edit2 className="w-3 h-3 ml-1" />עדכן
-                    </Button>
-                  </div>
-                  <div className="p-4 space-y-2.5">
-                    {[
-                      { label: 'בעיות בריאות', value: user.health_issues },
-                      { label: 'היסטוריה רפואית', value: user.medical_history },
-                    ].map((item, i) => (
-                      <div key={i} className="text-right text-sm py-1">
-                        <span className="text-gray-500 font-medium">{item.label}: </span>
-                        <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                {/* Health Card removed — duplicates the Health Declaration form
+                    in the Documents tab. The health_issues/medical_history fields
+                    remain in the DB and the edit dialog (showHealthUpdate) is still
+                    available from the Documents tab's health declaration flow. */}
 
                 {/* Emergency Contact Card */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
