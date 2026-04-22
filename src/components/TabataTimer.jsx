@@ -263,24 +263,24 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       { k: 'rb',     l: 'מנוחה בין סטים',   icon: '⏸', u: 'שנ׳', mn: 0,  mx: 900, options: SECONDS_OPTIONS },
     ];
     return (
-      <div style={{ background: '#FFF9F0', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', direction: 'rtl', overflowY: 'auto' }}>
-        <div style={{ fontSize: 32, fontWeight: 900, color: '#FF6F20', marginBottom: 6 }}>⏱ טבטה</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 20, opacity: 1 }}>הגדר את האימון שלך</div>
+      <div style={{ background: '#FFF9F0', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 12, direction: 'rtl', overflow: 'hidden' }}>
+        <div style={{ fontSize: 24, fontWeight: 900, color: '#FF6F20', marginBottom: 4 }}>⏱ טבטה</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>הגדר את האימון שלך</div>
 
-        <div style={{ width: '100%', maxWidth: 360 }}>
+        <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {fields.map(f => (
-            <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#FFFFFF', borderRadius: 12, marginBottom: 8, border: '1px solid rgba(255,111,32,0.12)', boxShadow: '0 2px 8px rgba(255,111,32,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 22 }}>{f.icon}</span>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>{f.l}</div>
+            <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 10, background: '#FFFFFF', borderRadius: 12, marginBottom: 0, border: '1px solid rgba(255,111,32,0.12)', boxShadow: '0 2px 6px rgba(255,111,32,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>{f.icon}</span>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{f.l}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={cBtnMinus}>−</button>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 50 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 46 }}>
                   <span
                     onClick={() => setPickingField(f.k)}
                     style={{
-                      fontSize: 36,
+                      fontSize: 32,
                       fontWeight: 700,
                       color: '#FF6F20',
                       fontFamily: "'Barlow Condensed', sans-serif",
@@ -290,7 +290,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
                     }}
                   >{cfg[f.k]}</span>
                   {f.u && (
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#888', marginTop: 2 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#888', marginTop: 1 }}>
                       {f.u}
                     </span>
                   )}
@@ -313,18 +313,21 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           title={fields.find(f => f.k === pickingField)?.l}
         />
 
-        {/* Workout summary */}
-        <div style={{ background: '#FFFFFF', borderRadius: 14, padding: '14px 20px', marginTop: 16, width: '100%', maxWidth: 360, border: '1px solid rgba(255,111,32,0.12)', boxShadow: '0 2px 8px rgba(255,111,32,0.06)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', color: '#1a1a1a' }}>
-            <div><div style={{ fontSize: 20, fontWeight: 900, color: '#FF6F20' }}>{cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>סבבים</div></div>
-            <div style={{ width: 1, background: 'rgba(255,111,32,0.15)' }} />
-            <div><div style={{ fontSize: 20, fontWeight: 900, color: '#FF6F20' }}>{twMin}:{String(twSec).padStart(2,'0')}</div><div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>זמן כולל</div></div>
-            <div style={{ width: 1, background: 'rgba(255,111,32,0.15)' }} />
-            <div><div style={{ fontSize: 20, fontWeight: 900, color: '#FF6F20' }}>{cfg.work * cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>שנ׳ עבודה</div></div>
+        {/* Total time only — replaces multi-stat row */}
+        <div style={{
+          textAlign: 'center', padding: 12,
+          background: 'white', borderRadius: 14,
+          marginTop: 8, marginBottom: 0,
+          width: '100%', maxWidth: 360,
+          border: '0.5px solid #F0E4D0',
+        }}>
+          <div style={{ fontSize: 12, color: '#888', fontWeight: 500, marginBottom: 4 }}>זמן כולל</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6F20', fontFamily: "'Barlow Condensed', sans-serif" }}>
+            {twMin}:{String(twSec).padStart(2,'0')}
           </div>
         </div>
 
-        <button onClick={handleStart} style={{ marginTop: 24, width: '100%', maxWidth: 360, padding: '16px', fontSize: 22, fontWeight: 900, background: '#FF6F20', color: '#FFFFFF', border: 'none', borderRadius: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,111,32,0.3)' }}>
+        <button onClick={handleStart} style={{ marginTop: 10, width: '100%', maxWidth: 360, padding: 14, fontSize: 20, fontWeight: 900, background: '#FF6F20', color: '#FFFFFF', border: 'none', borderRadius: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,111,32,0.3)' }}>
           ▶ התחל אימון
         </button>
       </div>
@@ -477,12 +480,23 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   return (
     <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease' }}>
 
-      {/* ROW 1: Phase name + minimize */}
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ fontSize: 'min(10vw, 40px)', fontWeight: 900, color: textPrimary }}>{PHASE_LABEL[phase.type]}</div>
-        <button onClick={doMinimize} style={{ background: chipBg, border: 'none', borderRadius: 12, padding: '9px 16px', color: textPrimary, fontSize: 15, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>
+      {/* ROW 1: Centered full-width phase title with minimize as small floating button */}
+      <div style={{ width: '100%', position: 'relative', flexShrink: 0 }}>
+        <button onClick={doMinimize} style={{ position: 'absolute', top: 8, left: 0, background: chipBg, border: 'none', borderRadius: 12, padding: '6px 12px', color: textPrimary, fontSize: 13, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation', zIndex: 2 }}>
           מזער ↗
         </button>
+        <div style={{
+          textAlign: 'center', width: '100%',
+          padding: '16px 0 8px',
+          fontSize: 24, fontWeight: 700,
+          color: isWork ? '#FFFFFF' : '#FF6F20',
+          letterSpacing: 1,
+        }}>
+          {phase.type === 'work'     && '🔥 עבודה'}
+          {phase.type === 'rest'     && '💤 מנוחה'}
+          {phase.type === 'set_rest' && '💤 מנוחה בין סטים'}
+          {phase.type === 'prep'     && '⏳ הכנה'}
+        </div>
       </div>
 
       {/* ROW 2: Stats — round + set + total time */}
