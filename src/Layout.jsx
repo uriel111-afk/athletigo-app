@@ -407,24 +407,29 @@ export default function Layout({ children, currentPageName }) {
                 ) : null}
               </div>
 
-              {/* Center: ATHLETIGO wordmark + triangle, role/name underneath */}
+              {/* Center: ATHLETIGO wordmark image + triangle, role/name underneath. */}
+              {/* The brand row is shifted ~15px left so the text portion (which sits
+                  on the visual right of the row in RTL) lines up directly above the
+                  user-name center, rather than the brand row's geometric center. */}
               <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <span style={{
-                    fontFamily: "'Barlow Condensed', sans-serif",
-                    fontSize: 22,
-                    fontWeight: 700,
-                    letterSpacing: 3,
-                    color: '#1a1a1a',
-                    lineHeight: 1,
-                  }}>ATHLETIGO</span>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transform: 'translateX(-15px)',
+                }}>
+                  <img
+                    src="/athletigo-text.png"
+                    alt="ATHLETIGO"
+                    style={{ height: 18, objectFit: 'contain', display: 'block' }}
+                  />
                   <img
                     src={LOGO_ICON}
                     alt=""
-                    style={{ width: 28, height: 28, objectFit: 'contain' }}
+                    style={{ width: 24, height: 24, objectFit: 'contain', display: 'block' }}
                   />
                 </div>
-                <div style={{ fontSize: 11, color: primaryColor, fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>
+                <div style={{ fontSize: 11, color: primaryColor, fontWeight: 600, marginTop: 1, lineHeight: 1.2 }}>
                   {userRoleLabel}
                 </div>
               </div>
