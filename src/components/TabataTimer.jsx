@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
-  playLongBeep, playDoubleBell, playVictory, cancelScheduled,
+  playLongBeep, playDoubleBell, playVictory, cancelScheduled, playPhaseSound,
 } from '@/lib/tabataSounds';
 import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
 import RoundJumpPicker from '@/components/RoundJumpPicker';
@@ -37,12 +37,15 @@ function nextPhase(cur, cfg) {
 }
 
 function transitionSound(from, to) {
-  if (from === 'prep'     && to === 'work')     playWhistle();
-  if (from === 'work'     && to === 'rest')     playBell();
-  if (from === 'rest'     && to === 'work')     playWhistle();
-  if (from === 'work'     && to === 'set_rest') playLongBeep();
-  if (from === 'set_rest' && to === 'work')     playDoubleBell();
-  if (from === 'work'     && to === 'done')     playVictory();
+  // Distinct phase sounds via the unified playPhaseSound() API.
+  // 'work'  → 3-beep race-horn (energetic urgent)
+  // 'rest'  → soft low sine (calm)
+  // 'finish' → rising C-E-G-C victory melody
+  if (to === 'work')             playPhaseSound('work');
+  else if (to === 'rest')        playPhaseSound('rest');
+  else if (to === 'set_rest')    playPhaseSound('rest');
+  else if (to === 'done')        playPhaseSound('finish');
+  else if (to === 'prep')        playPhaseSound('prepare');
 }
 
 // ─── Component ───
@@ -120,7 +123,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     // Countdown beeps at 3, 2, 1
     if (secs <= 3 && secs >= 1 && secs !== lastBeepRef.current) {
       lastBeepRef.current = secs;
-      playBeep();
+      playPhaseSound('countdown_tick');
     }
 
     if (remaining <= 0) {
