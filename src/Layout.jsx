@@ -39,7 +39,7 @@ import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
-const LOGO_ICON = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/64e812e61_Untitleddesign3.jpg";
+const LOGO_ICON = "/logo-transparent.png";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
@@ -395,36 +395,49 @@ export default function Layout({ children, currentPageName }) {
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
             display: isClocks ? 'none' : undefined,
             backgroundColor: '#FFFFFF',
-            borderBottom: `1px solid #E0E0E0`,
-            boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+            borderBottom: '0.5px solid #F0E4D0',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+            direction: 'rtl',
           }}>
             <div className="flex items-center justify-between">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-xl"
-                style={{ backgroundColor: '#FFFFFF', border: `1px solid #E0E0E0` }}
-              >
-                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
-              <div className="flex items-center gap-2">
-                <img
-                  src={LOGO_ICON}
-                  alt="AthletiGo"
-                  style={{ width: '32px', height: '32px', objectFit: 'contain' }}
-                />
-                <div>
-                  <h1 className="font-bold text-lg" style={{ color: '#000000' }}>ATHLETIGO</h1>
-                  <p className="text-xs font-bold" style={{ color: primaryColor }}>
-                    {userRoleLabel}
-                  </p>
+              {/* Right (RTL start): notification bell */}
+              <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {user ? (
+                  <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
+                ) : null}
+              </div>
+
+              {/* Center: ATHLETIGO wordmark + triangle, role/name underneath */}
+              <div style={{ textAlign: 'center', flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontSize: 22,
+                    fontWeight: 700,
+                    letterSpacing: 3,
+                    color: '#1a1a1a',
+                    lineHeight: 1,
+                  }}>ATHLETIGO</span>
+                  <img
+                    src={LOGO_ICON}
+                    alt=""
+                    style={{ width: 28, height: 28, objectFit: 'contain' }}
+                  />
+                </div>
+                <div style={{ fontSize: 11, color: primaryColor, fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>
+                  {userRoleLabel}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {user && (
-                  <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
-                )}
-                {!user && <div className="w-10" />}
-              </div>
+
+              {/* Left (RTL end): hamburger menu */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="rounded-xl"
+                style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', border: '0.5px solid #F0E4D0' }}
+                aria-label="תפריט"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
             </div>
           </header>
 

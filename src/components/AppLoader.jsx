@@ -12,13 +12,14 @@ export default function AppLoader({ progress = 0, label = "טוען נתונים
       `}</style>
       <div className="text-center w-64">
         <img
-          src="/logo-transparent.png"
+          src="/logo-with-name.png"
           alt="AthletiGo"
           style={{
-            width: 150,
-            height: 150,
+            width: 200,
+            height: 'auto',
             objectFit: 'contain',
             margin: '0 auto 24px',
+            display: 'block',
             animation: 'athletigo-loader-pulse 1.5s ease-in-out infinite',
           }}
         />
