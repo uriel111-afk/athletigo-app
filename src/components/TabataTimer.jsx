@@ -576,12 +576,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease' }}>
 
       {/* ROW 1: Centered full-width phase title with minimize as small floating button */}
-      {/* Minimize button is rendered for EVERY phase (prep, work, rest, set_rest)
-          with a solid contrasting background so it's always tappable. */}
+      {/* Minimize button is rendered for EVERY phase (prep, work, rest, set_rest).
+          IDENTICAL handler shape to Countdown/Stopwatch in Clocks.jsx — bare
+          onClick, no onPointerDown. (onPointerDown stopPropagation was
+          intercepting the click event on touch devices.) */}
       <div style={{ width: '100%', position: 'relative', flexShrink: 0 }}>
         <button
+          type="button"
           onClick={doMinimize}
-          onPointerDown={(e) => e.stopPropagation()}
           style={{
             position: 'absolute', top: 8, left: 0,
             background: isWork ? 'rgba(255,255,255,0.95)' : '#FF6F20',
