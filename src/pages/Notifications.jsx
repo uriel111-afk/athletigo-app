@@ -217,6 +217,38 @@ export default function Notifications() {
   });
   React.useEffect(() => { try { localStorage.setItem('notifications_group', groupBy); } catch {} }, [groupBy]);
 
+  const [selectedTrainee, setSelectedTrainee] = useState(() => {
+    try { return localStorage.getItem('notifications_trainee_filter') || 'all'; } catch { return 'all'; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('notifications_trainee_filter', selectedTrainee); } catch {} }, [selectedTrainee]);
+
+  const [timeFilter, setTimeFilter] = useState(() => {
+    try { return localStorage.getItem('notifications_time_filter') || 'all'; } catch { return 'all'; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('notifications_time_filter', timeFilter); } catch {} }, [timeFilter]);
+
+  // Trainees roster for the chip filter (coach side only)
+  const { data: coachTrainees = [] } = useQuery({
+    queryKey: ['notif-coach-trainees', user?.id],
+    queryFn: async () => {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('id, full_name')
+          .eq('coach_id', user.id)
+          .order('full_name');
+        return data || [];
+      } catch { return []; }
+    },
+    enabled: !!user?.id && isCoach,
+    initialData: [],
+  });
+  const traineeNameById = React.useMemo(() => {
+    const m = new Map();
+    for (const t of coachTrainees) m.set(t.id, t.full_name);
+    return m;
+  }, [coachTrainees]);
+
   const [expandedIds, setExpandedIds] = useState({});
 
   // Mutations
@@ -271,12 +303,33 @@ export default function Notifications() {
     return c;
   }, [notifications]);
 
-  // Apply filter
+  // Apply filters: type + trainee + time
   const filtered = useMemo(() => {
-    if (filter === 'all') return notifications;
-    if (filter === 'unread') return notifications.filter(n => !n.is_read);
-    return notifications.filter(n => getFilterCategory(n.type) === filter);
-  }, [notifications, filter]);
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    return notifications.filter(n => {
+      // Type
+      if (filter === 'unread' && n.is_read) return false;
+      if (filter !== 'all' && filter !== 'unread' && getFilterCategory(n.type) !== filter) return false;
+      // Trainee
+      if (selectedTrainee !== 'all') {
+        const tid = n.trainee_id || n.data?.trainee_id;
+        if (tid !== selectedTrainee) return false;
+      }
+      // Time
+      if (timeFilter !== 'all') {
+        const d = new Date(n.created_at);
+        if (timeFilter === 'today' && d < startOfDay) return false;
+        if (timeFilter === 'week'  && d < startOfWeek) return false;
+        if (timeFilter === 'month' && d < startOfMonth) return false;
+      }
+      return true;
+    });
+  }, [notifications, filter, selectedTrainee, timeFilter]);
 
   // Group
   const groups = useMemo(() => {
@@ -382,24 +435,36 @@ export default function Notifications() {
               fontWeight: notif.is_read ? 500 : 600,
               color: notif.is_read ? '#6b7280' : '#1a1a1a',
             }}>{notif.title || getTypeTitle(notif.type)}</div>
+            {/* Trainee name */}
+            {(() => {
+              const tName = notif.data?.trainee_name || notif.trainee_name || traineeNameById.get(notif.trainee_id || notif.data?.trainee_id);
+              return tName ? (
+                <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>{tName}</div>
+              ) : null;
+            })()}
             <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{timeAgo(notif.created_at)}</div>
           </div>
           {!notif.is_read && (
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6F20', flexShrink: 0 }} />
           )}
-          {/* Trainee response status — coach sees their reply */}
+          {/* 3-state status badge: responded → read → waiting */}
           {notif.trainee_response ? (
             <div style={{
-              fontSize: 11, padding: '3px 8px', borderRadius: 12,
+              fontSize: 11, padding: '3px 10px', borderRadius: 12,
               background: getResponseBadgeBg(notif.trainee_response),
               color: getResponseBadgeColor(notif.trainee_response),
               fontWeight: 600, flexShrink: 0,
             }}>{getResponseLabel(notif.trainee_response)}</div>
+          ) : notif.is_read ? (
+            <div style={{
+              fontSize: 11, padding: '3px 10px', borderRadius: 12,
+              background: '#E3F2FD', color: '#1976D2', fontWeight: 600, flexShrink: 0,
+            }}>👀 נקרא</div>
           ) : (
             <div style={{
-              fontSize: 11, padding: '3px 8px', borderRadius: 12,
-              background: '#F0F0F0', color: '#888', fontWeight: 500, flexShrink: 0,
-            }}>ממתין</div>
+              fontSize: 11, padding: '3px 10px', borderRadius: 12,
+              background: '#F0F0F0', color: '#888', fontWeight: 600, flexShrink: 0,
+            }}>⏳ ממתין</div>
           )}
           <div style={{
             fontSize: 14, color: '#888',
@@ -525,6 +590,61 @@ export default function Notifications() {
               {f.icon && <span style={{ marginLeft: 4 }}>{f.icon}</span>}
               {f.label} {count !== undefined && count > 0 && `(${count})`}
             </button>
+          );
+        })}
+      </div>
+
+      {/* Trainee chips — coach side only */}
+      {isCoach && coachTrainees.length > 0 && (
+        <div className="notif-trainee-row" style={{
+          display: 'flex', gap: 6, padding: '0 14px 8px',
+          overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+        }}>
+          <style>{`.notif-trainee-row::-webkit-scrollbar { display: none; }`}</style>
+          {[{ id: 'all', label: 'כל המתאמנים' }, ...coachTrainees.map(t => ({ id: t.id, label: t.full_name }))].map(t => {
+            const active = selectedTrainee === t.id;
+            return (
+              <div
+                key={t.id}
+                onClick={() => setSelectedTrainee(t.id)}
+                style={{
+                  padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
+                  background: active ? '#FF6F20' : 'white',
+                  color: active ? 'white' : '#1a1a1a',
+                  border: active ? 'none' : '0.5px solid #F0E4D0',
+                }}>
+                {t.label}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Time period filter */}
+      <div style={{
+        display: 'flex', gap: 4, padding: '0 14px 10px', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 12, color: '#888', marginLeft: 6 }}>תקופה:</span>
+        {[
+          { id: 'all',   label: 'הכל' },
+          { id: 'today', label: 'היום' },
+          { id: 'week',  label: 'השבוע' },
+          { id: 'month', label: 'החודש' },
+        ].map(tf => {
+          const active = timeFilter === tf.id;
+          return (
+            <div
+              key={tf.id}
+              onClick={() => setTimeFilter(tf.id)}
+              style={{
+                padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                background: active ? '#FF6F20' : '#F0F0F0',
+                color: active ? 'white' : '#888',
+                cursor: 'pointer',
+              }}>
+              {tf.label}
+            </div>
           );
         })}
       </div>
