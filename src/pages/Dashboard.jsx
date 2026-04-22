@@ -286,10 +286,11 @@ export default function Dashboard() {
             overflow: 'visible',
           }}>
             {[
-              { label: "הוסף מתאמן",  icon: Plus,     onClick: () => setIsAddTraineeOpen(true),    pos: { top: 0,   left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
-              { label: "הוסף ליד",    icon: UserPlus, onClick: () => setIsLeadDialogOpen(true),     pos: { top: 63,  right: 0,    transform: 'rotate(45deg)' } },
-              { label: "בנה תוכנית",  icon: Dumbbell, onClick: () => setIsPlanDialogOpen(true),     pos: { top: 63,  left: 0,     transform: 'rotate(45deg)' } },
-              { label: "קבע מפגש",    icon: Calendar, onClick: () => setIsSessionDialogOpen(true), pos: { top: 126, left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
+              // The + is a text character (not an emoji) so it stays orange.
+              { label: "הוסף מתאמן",  emoji: "+",  orange: true,  onClick: () => setIsAddTraineeOpen(true),    pos: { top: 0,   left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
+              { label: "הוסף ליד",    emoji: "👥",                onClick: () => setIsLeadDialogOpen(true),     pos: { top: 63,  right: 0,    transform: 'rotate(45deg)' } },
+              { label: "בנה תוכנית",  emoji: "📋",                onClick: () => setIsPlanDialogOpen(true),     pos: { top: 63,  left: 0,     transform: 'rotate(45deg)' } },
+              { label: "קבע מפגש",    emoji: "📅",                onClick: () => setIsSessionDialogOpen(true), pos: { top: 126, left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
             ].map((btn) => (
               <button
                 key={btn.label}
@@ -318,7 +319,14 @@ export default function Dashboard() {
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.15, padding: '0 4px' }}>
                     {btn.label}
                   </span>
-                  <btn.icon style={{ color: '#FF6F20', width: 22, height: 22 }} />
+                  <span style={{
+                    fontSize: 22,
+                    lineHeight: 1,
+                    color: btn.orange ? '#FF6F20' : undefined,
+                    fontWeight: btn.orange ? 700 : undefined,
+                  }}>
+                    {btn.emoji}
+                  </span>
                 </div>
               </button>
             ))}
@@ -461,13 +469,13 @@ export default function Dashboard() {
           <SectionHeader title="גישה מהירה" />
           {(() => {
             const quickItems = [
-              { label: "בייסליין",  icon: Zap,        action: () => handleActionClick("baseline") },
-              { label: "יעד",       icon: Target,     action: () => handleActionClick("goal") },
-              { label: "שיא",       icon: Award,      action: () => handleActionClick("result") },
-              { label: "שעונים",    icon: Clock,      action: () => navigate(createPageUrl("Clocks")) },
-              { label: "חבילה",     icon: Package,    action: () => handleActionClick("package") },
-              { label: "מדידה",     icon: Ruler,      action: () => handleActionClick("measurement") },
-              { label: "התראות",    icon: Bell,       action: () => navigate(createPageUrl("Notifications")) },
+              { label: "בייסליין",  emoji: "⚡",   action: () => handleActionClick("baseline") },
+              { label: "יעד",       emoji: "🎯",   action: () => handleActionClick("goal") },
+              { label: "שיא",       emoji: "🏆",   action: () => handleActionClick("result") },
+              { label: "שעונים",    emoji: "⏱️",   action: () => navigate(createPageUrl("Clocks")) },
+              { label: "חבילה",     emoji: "💰",   action: () => handleActionClick("package") },
+              { label: "מדידה",     emoji: "📐",   action: () => handleActionClick("measurement") },
+              { label: "התראות",    emoji: "🔔",   action: () => navigate(createPageUrl("Notifications")) },
             ];
             const renderItem = (q) => (
               <button key={q.label} onClick={q.action}
@@ -480,8 +488,10 @@ export default function Dashboard() {
                   boxShadow: '0 3px 10px rgba(255,111,32,0.14)',
                   border: '1px solid rgba(0,0,0,0.04)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 24,
+                  lineHeight: 1,
                 }}>
-                  <q.icon style={{ color: '#FF6F20', width: 24, height: 24 }} />
+                  {q.emoji}
                 </div>
                 <span style={{ color: '#1a1a1a', fontSize: 12, fontWeight: 600 }}>{q.label}</span>
               </button>

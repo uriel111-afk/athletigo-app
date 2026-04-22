@@ -498,35 +498,39 @@ export default function Layout({ children, currentPageName }) {
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start' }}>
               {(() => {
                 const navItems = isCoach ? [
-                  { to: createPageUrl("Dashboard"),    icon: Home,          label: 'בית' },
-                  { to: createPageUrl("AllUsers"),     icon: Users,         label: 'מתאמנים' },
-                  { to: createPageUrl("PlanBuilder"),  icon: ClipboardList, label: 'תוכניות' },
-                  { to: createPageUrl("Sessions"),     icon: Calendar,      label: 'מפגשים' },
-                  { to: createPageUrl("CoachProfile"), icon: User,          label: 'פרופיל' },
+                  { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
+                  { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
+                  { to: createPageUrl("PlanBuilder"),  emoji: '📋', label: 'תוכניות' },
+                  { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
+                  { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
                 ] : [
-                  { to: createPageUrl("TraineeHome"),     icon: Home,          label: 'בית' },
-                  { to: createPageUrl("MyWorkoutLog"),    icon: ClipboardList, label: 'תוכניות' },
-                  { to: createPageUrl("TraineeSessions"), icon: Calendar,      label: 'מפגשים' },
-                  { to: createPageUrl("Progress"),        icon: TrendingUp,    label: 'שיאים' },
-                  { to: createPageUrl("TraineeProfile"),  icon: User,          label: 'פרופיל' },
+                  { to: createPageUrl("TraineeHome"),     emoji: '🏠', label: 'בית' },
+                  { to: createPageUrl("MyWorkoutLog"),    emoji: '📋', label: 'תוכניות' },
+                  { to: createPageUrl("TraineeSessions"), emoji: '📅', label: 'מפגשים' },
+                  { to: createPageUrl("Progress"),        emoji: '🏆', label: 'שיאים' },
+                  { to: createPageUrl("TraineeProfile"),  emoji: '👤', label: 'פרופיל' },
                 ];
                 return navItems.map(item => {
                   const active = location.pathname === item.to;
-                  const Icon = item.icon;
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
                       className="flex flex-col items-center transition-all"
                       style={{
-                        color: active ? '#FF6F20' : '#888',
-                        fontWeight: active ? 500 : 400,
                         textAlign: 'center',
                         flex: 1,
+                        textDecoration: 'none',
                       }}
                     >
-                      <Icon style={{ width: 18, height: 18 }} />
-                      <span style={{ fontSize: 10, marginTop: 2 }}>{item.label}</span>
+                      {/* Emoji renders in its native multi-color — no color override. */}
+                      <span style={{ fontSize: 18, lineHeight: 1 }}>{item.emoji}</span>
+                      <span style={{
+                        fontSize: 10,
+                        marginTop: 2,
+                        color: active ? '#FF6F20' : '#888',
+                        fontWeight: active ? 500 : 400,
+                      }}>{item.label}</span>
                     </Link>
                   );
                 });
