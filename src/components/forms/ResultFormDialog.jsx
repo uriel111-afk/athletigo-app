@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Award } from "lucide-react";
 import { useCloseConfirm } from "../hooks/useCloseConfirm";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -50,7 +51,18 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
   const { user: authUser } = useContext(AuthContext);
   const isTraineeAdding = authUser && !authUser.is_coach && authUser.role !== 'coach' && authUser.role !== 'admin';
 
-  const [formData, setFormData] = useState({
+  const initialFormData = useMemo(() => editingResult ? {
+    title: editingResult.title || "",
+    record_type: editingResult.record_type || "",
+    skill_or_exercise: editingResult.skill_or_exercise || "",
+    record_value: editingResult.record_value || "",
+    record_unit: editingResult.record_unit || "",
+    date: editingResult.date ? new Date(editingResult.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    context: editingResult.context || "",
+    assistance: editingResult.assistance || "",
+    effort_level: editingResult.effort_level?.toString() || "",
+    description: editingResult.description || ""
+  } : {
     title: "",
     record_type: "",
     skill_or_exercise: "",
@@ -61,39 +73,12 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
     assistance: "",
     effort_level: "",
     description: ""
-  });
+  }, [editingResult]);
 
-  useEffect(() => {
-    if (isOpen) {
-      if (editingResult) {
-        setFormData({
-          title: editingResult.title || "",
-          record_type: editingResult.record_type || "",
-          skill_or_exercise: editingResult.skill_or_exercise || "",
-          record_value: editingResult.record_value || "",
-          record_unit: editingResult.record_unit || "",
-          date: editingResult.date ? new Date(editingResult.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          context: editingResult.context || "",
-          assistance: editingResult.assistance || "",
-          effort_level: editingResult.effort_level?.toString() || "",
-          description: editingResult.description || ""
-        });
-      } else {
-        setFormData({
-          title: "",
-          record_type: "",
-          skill_or_exercise: "",
-          record_value: "",
-          record_unit: "",
-          date: new Date().toISOString().split('T')[0],
-          context: "",
-          assistance: "",
-          effort_level: "",
-          description: ""
-        });
-      }
-    }
-  }, [isOpen, editingResult]);
+  // Draft persistence — survives refresh / accidental close. Editing existing
+  // records doesn't share a draft slot with the "new record" flow.
+  const draftScope = editingResult ? `edit_${editingResult.id}` : `new_${traineeId || 'me'}`;
+  const { data: formData, setData: setFormData, clearDraft } = useFormDraft('record_form', draftScope, isOpen, initialFormData);
 
   const hasChanges = !!(formData.title || formData.record_value || formData.description);
   const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, onClose);
@@ -116,6 +101,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
           }
         } catch {}
       }
+      clearDraft();
       onClose();
     },
     onError: (error) => {
@@ -131,6 +117,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
       invalidateDashboard(queryClient);
       if (onSuccess) onSuccess();
       toast.success("השיא עודכן בהצלחה");
+      clearDraft();
       onClose();
     },
     onError: (error) => {

@@ -1,12 +1,30 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useNavigate } from 'react-router-dom';
+
+const POSITION_KEY = 'timer_bubble_position';
+
+const loadPosition = () => {
+  try {
+    const raw = localStorage.getItem(POSITION_KEY);
+    if (!raw) return { x: 16, bottom: 90 };
+    const p = JSON.parse(raw);
+    return {
+      x: typeof p.x === 'number' ? p.x : 16,
+      bottom: typeof p.bottom === 'number' ? p.bottom : 90,
+    };
+  } catch { return { x: 16, bottom: 90 }; }
+};
 
 const FloatingTimer = () => {
   const { liveTimer, setLiveTimer, showTabata, setShowTabata } = useActiveTimer();
   const navigate = useNavigate();
-  const [pos, setPos] = useState({ x: 16, bottom: 90 });
-  const drag = useRef({ active: false, moved: false, startX: 0, startY: 0, initBottom: 90 });
+  const [pos, setPos] = useState(loadPosition);
+  const drag = useRef({ active: false, moved: false, startX: 0, startY: 0, initBottom: pos.bottom });
+
+  useEffect(() => {
+    try { localStorage.setItem(POSITION_KEY, JSON.stringify(pos)); } catch {}
+  }, [pos]);
 
   if (!liveTimer) return null;
   if (showTabata) return null;

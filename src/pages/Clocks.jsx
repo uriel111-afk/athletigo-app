@@ -4,7 +4,7 @@ import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
-import SecondsScrollPicker from "@/components/SecondsScrollPicker";
+import ScrollPickerPopup, { SECONDS_OPTIONS, MINUTES_OPTIONS, PREP_OPTIONS } from "@/components/ScrollPickerPopup";
 
 const MinimizeBtn = ({ onClick }) => (
   <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -35,37 +35,9 @@ function HoldButton({ onClick, children, className, style }) {
   return <button onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={(e) => { e.preventDefault(); start(); }} onTouchEnd={stop} onTouchCancel={stop} className={className} style={style}>{children}</button>;
 }
 
-function ScrollPicker({ isOpen, value, onChange, onClose, min = 0, max = 59, step = 1, unit = '', options: propOptions }) {
-  const listRef = useRef(null);
-  const options = propOptions || (() => { const a = []; for (let i = min; i <= max; i += step) a.push(i); return a; })();
-  useEffect(() => {
-    if (isOpen && listRef.current && options.length > 0) {
-      const idx = options.findIndex(v => v === value);
-      if (idx >= 0) setTimeout(() => listRef.current?.children?.[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' }), 100);
-    }
-  }, [isOpen, value]);
-  if (!isOpen || options.length === 0) return null;
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500, direction: 'rtl', paddingBottom: 20 }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #eee' }}>
-          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: FL, color: C1 }}>{unit ? `בחר (${unit})` : 'בחר ערך'}</span>
-          <button onClick={onClose} style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 28px', fontSize: 17, fontWeight: 700, fontFamily: FL, cursor: 'pointer' }}>סגור</button>
-        </div>
-        <div ref={listRef} style={{ overflowY: 'auto', maxHeight: 320, padding: '8px 20px', WebkitOverflowScrolling: 'touch' }}>
-          {options.map((v, i) => (
-            <div key={`${v}-${i}`} onClick={() => { onChange(v); onClose(); }} style={{
-              padding: '12px 16px', marginBottom: 4, borderRadius: 10, fontSize: 22, fontWeight: v === value ? 900 : 500, fontFamily: FN,
-              color: v === value ? BRAND : C1, background: v === value ? '#FFF0E8' : 'transparent',
-              border: v === value ? `2px solid ${BRAND}` : '2px solid transparent', cursor: 'pointer', textAlign: 'center',
-              minHeight: 48, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{v} {unit || ''}</div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+// Preset options for TimerView columns
+const MIN_COL_OPTIONS = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 75, 90, 99];
+const SEC_COL_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 59];
 
 // ═══ SOUNDS (Timer & Stopwatch) — shared AudioContext ═══
 import { unlock as unlockAudio, playBeep, playClick, playWhistle, playBell, playVictory } from '@/lib/tabataSounds';
@@ -138,7 +110,7 @@ function StopwatchView({ onMinimize }) {
 }
 
 /* ═══ TIMER ═══ */
-function TimerCol({ label, value, onChange, max, step, unit }) {
+function TimerCol({ label, value, onChange, max, options, title }) {
   const [picking, setPicking] = useState(false);
   return (
     <>
@@ -148,7 +120,7 @@ function TimerCol({ label, value, onChange, max, step, unit }) {
         <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{label}</div>
         <HoldButton onClick={() => onChange(Math.max(0, value - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
       </div>
-      <ScrollPicker isOpen={picking} value={value} onChange={onChange} onClose={() => setPicking(false)} min={0} max={max} step={step || 1} unit={unit || ''} />
+      <ScrollPickerPopup isOpen={picking} value={value} options={options} onSelect={onChange} onClose={() => setPicking(false)} title={title || label} />
     </>
   );
 }
@@ -158,6 +130,7 @@ function TimerView({ onMinimize }) {
   const [prepSec, setPrepSec] = useState(0);
   const [timerMin, setTimerMin] = useState(0);
   const [timerSec, setTimerSec] = useState(30);
+  const [prepPicking, setPrepPicking] = useState(false);
   const active = activeClock === 'timer';
   const showSetup = !active || phase === 'idle' || phase === 'done';
   const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
@@ -177,23 +150,22 @@ function TimerView({ onMinimize }) {
       <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
         <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
         <div className="flex items-center gap-3" dir="ltr">
-          <TimerCol label="דקות" value={timerMin} onChange={setTimerMin} max={99} step={1} unit="דק׳" />
+          <TimerCol label="דקות" value={timerMin} onChange={setTimerMin} max={99} options={MIN_COL_OPTIONS} title="בחר דקות" />
           <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>
-          <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} step={1} unit="שנ׳" />
-        </div>
-        <div style={{ width: '100%' }}>
-          <SecondsScrollPicker value={timerSec} onChange={setTimerSec} />
+          <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} options={SEC_COL_OPTIONS} title="בחר שניות" />
         </div>
         <div className="flex items-center gap-3 w-full justify-center" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
           <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>הכנה</span>
           <HoldButton onClick={() => setPrepSec(Math.max(0, prepSec - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FFF', color: C2, fontSize: 18, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
-          <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 700, fontFamily: FN, color: C1, minWidth: 32, textAlign: 'center' }}>{prepSec}</span>
+          <span
+            onClick={() => setPrepPicking(true)}
+            className="tabular-nums"
+            style={{ fontSize: 24, fontWeight: 700, fontFamily: FN, color: C1, minWidth: 32, textAlign: 'center', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3, textDecorationColor: '#D1D5DB' }}
+          >{prepSec}</span>
           <HoldButton onClick={() => setPrepSec(Math.min(60, prepSec + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 18, fontWeight: 700, border: 'none' }}>+</HoldButton>
           <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FL, color: C3 }}>שניות</span>
         </div>
-        <div style={{ width: '100%' }}>
-          <SecondsScrollPicker value={prepSec} onChange={setPrepSec} options={[0, 5, 10, 15, 20, 30, 45, 60]} />
-        </div>
+        <ScrollPickerPopup isOpen={prepPicking} value={prepSec} options={PREP_OPTIONS} onSelect={setPrepSec} onClose={() => setPrepPicking(false)} title="זמן הכנה (שניות)" />
         <button onClick={() => { unlockAudio(); SOUND_START(); startTimer(totalTimerMs, prepSec * 1000); }} disabled={totalTimerMs === 0}
           className="w-full flex items-center justify-center disabled:opacity-40 active:scale-[0.98] transition-transform"
           style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>

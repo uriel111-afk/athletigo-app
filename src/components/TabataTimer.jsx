@@ -3,7 +3,7 @@ import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
   playLongBeep, playDoubleBell, playVictory, cancelScheduled,
 } from '@/lib/tabataSounds';
-import SecondsScrollPicker from '@/components/SecondsScrollPicker';
+import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
 
 // ─── Constants ───
 const O = '#FF6F20';
@@ -52,6 +52,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const [display, setDisplay] = useState(0);
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [pickingField, setPickingField] = useState(null);
 
   const phaseRef = useRef(phase);
   const cfgRef = useRef(cfg);
@@ -216,12 +217,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Settings Screen ───
   if (screen === 'settings') {
     const fields = [
-      { k: 'prep',   l: 'הכנה',            icon: '⏳', u: 'שנ׳', mn: 0,  mx: 60  },
-      { k: 'work',   l: 'עבודה',           icon: '🔥', u: 'שנ׳', mn: 1,  mx: 600 },
-      { k: 'rest',   l: 'מנוחה',           icon: '💚', u: 'שנ׳', mn: 0,  mx: 600 },
-      { k: 'rounds', l: 'סבבים',            icon: '🔄', u: '',    mn: 1,  mx: 20  },
-      { k: 'sets',   l: 'סטים',              icon: '📦', u: '',    mn: 1,  mx: 10  },
-      { k: 'rb',     l: 'מנוחה בין סטים',   icon: '⏸', u: 'שנ׳', mn: 0,  mx: 900 },
+      { k: 'prep',   l: 'הכנה',            icon: '⏳', u: 'שנ׳', mn: 0,  mx: 60,  options: PREP_OPTIONS },
+      { k: 'work',   l: 'עבודה',           icon: '🔥', u: 'שנ׳', mn: 1,  mx: 600, options: SECONDS_OPTIONS },
+      { k: 'rest',   l: 'מנוחה',           icon: '💚', u: 'שנ׳', mn: 0,  mx: 600, options: SECONDS_OPTIONS },
+      { k: 'rounds', l: 'סבבים',            icon: '🔄', u: '',    mn: 1,  mx: 20,  options: ROUNDS_OPTIONS },
+      { k: 'sets',   l: 'סטים',              icon: '📦', u: '',    mn: 1,  mx: 10,  options: [1, 2, 3, 4, 5, 6, 8, 10] },
+      { k: 'rb',     l: 'מנוחה בין סטים',   icon: '⏸', u: 'שנ׳', mn: 0,  mx: 900, options: SECONDS_OPTIONS },
     ];
     return (
       <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', direction: 'rtl', overflowY: 'auto' }}>
@@ -230,31 +231,37 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
         <div style={{ width: '100%', maxWidth: 360 }}>
           {fields.map(f => (
-            <div key={f.k} style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 12, marginBottom: 8, padding: '4px 8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 18 }}>{f.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 15, color: W, fontWeight: 700 }}>{f.l}</div>
-                    {f.u && <div style={{ fontSize: 11, color: WD }}>{f.u}</div>}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={sBtn}>−</button>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: W, minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{cfg[f.k]}</span>
-                  <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={sBtn}>+</button>
+            <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: 'rgba(255,255,255,0.1)', borderRadius: 12, marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>{f.icon}</span>
+                <div>
+                  <div style={{ fontSize: 15, color: W, fontWeight: 700 }}>{f.l}</div>
+                  {f.u && <div style={{ fontSize: 11, color: WD }}>{f.u}</div>}
                 </div>
               </div>
-              {f.u === 'שנ׳' && (
-                <SecondsScrollPicker
-                  value={cfg[f.k]}
-                  onChange={(sec) => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, Math.min(f.mx, sec)) }))}
-                  options={f.k === 'prep' ? [0, 5, 10, 15, 20, 30, 45, 60] : undefined}
-                />
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={sBtn}>−</button>
+                <span
+                  onClick={() => setPickingField(f.k)}
+                  style={{ fontSize: 22, fontWeight: 900, color: W, minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4, textDecorationColor: 'rgba(255,255,255,0.4)' }}
+                >{cfg[f.k]}</span>
+                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={sBtn}>+</button>
+              </div>
             </div>
           ))}
         </div>
+        <ScrollPickerPopup
+          isOpen={!!pickingField}
+          value={cfg[pickingField]}
+          options={fields.find(f => f.k === pickingField)?.options || SECONDS_OPTIONS}
+          onSelect={(v) => {
+            const f = fields.find(x => x.k === pickingField);
+            if (!f) return;
+            setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, Math.min(f.mx, v)) }));
+          }}
+          onClose={() => setPickingField(null)}
+          title={fields.find(f => f.k === pickingField)?.l}
+        />
 
         {/* Workout summary */}
         <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 14, padding: '14px 20px', marginTop: 16, width: '100%', maxWidth: 360 }}>
