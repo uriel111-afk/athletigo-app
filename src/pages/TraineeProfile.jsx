@@ -2539,7 +2539,7 @@ export default function TraineeProfile() {
 
               {/* Messages Tab */}
               <TabsContent value="messages" className="space-y-4 w-full">
-                <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5 text-purple-600" />שיחה עם המאמן</h2>
+                <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5 text-[#FF6F20]" />שיחה עם המאמן</h2>
                 {user && coach ? (
                   <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
                     <ErrorBoundary fallback={<div className="text-center py-8 text-sm text-gray-500">טעינת ההודעות נכשלה. נסה לרענן את הדף.</div>}>

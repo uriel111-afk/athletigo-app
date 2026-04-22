@@ -21,9 +21,11 @@ const TYPE_LABEL = {
 };
 const TYPES_WITH_ROUNDS = new Set(['tabata', 'emom']);
 
+const BAR_HEIGHT = 86;
+
 // Wrap each button handler so the click can never bubble to a parent
 // (e.g. a Radix Dialog's "click-outside" backdrop that would close the
-// form behind the bar). Only the expand button is allowed to navigate.
+// form behind the bar).
 function stop(handler) {
   return (e) => {
     e.preventDefault();
@@ -48,22 +50,55 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
   const isPrepPhase = PREP_PHASE_TOKENS.some(t => phaseLabel?.includes(t));
 
   const hasRounds = TYPES_WITH_ROUNDS.has(type);
-  // "Work" = orange bar (active/intense visual); anything else (rest/prep/
-  // stopwatch/countdown with no phase) uses the cream card style.
-  const barBg = isWorkPhase ? '#FF6F20' : '#FFF9F0';
-  const borderTop = isWorkPhase ? '2px solid rgba(255,255,255,0.3)' : '2px solid #FF6F20';
-  const primaryText = isWorkPhase ? '#FFFFFF' : '#FF6F20';
-  const secondaryText = isWorkPhase ? 'rgba(255,255,255,0.8)' : '#888';
-  const timeColor = isWorkPhase ? '#FFFFFF' : '#1a1a1a';
-  const softBg = isWorkPhase ? 'rgba(255,255,255,0.2)' : 'rgba(255,111,32,0.1)';
-  const closeBg = isWorkPhase ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)';
-  const closeColor = isWorkPhase ? '#FFFFFF' : '#888';
+  // Extract just "3/8" from info like "סבב 3/8 · סט 1/1".
+  const roundMatch = info?.match?.(/(\d+\/\d+)/);
+  const roundText = roundMatch ? roundMatch[1] : '';
 
-  let phaseEmoji = '';
-  let phaseText = '';
-  if (isWorkPhase) { phaseEmoji = '🔥'; phaseText = 'עבודה'; }
-  else if (isRestPhase) { phaseEmoji = '💤'; phaseText = 'מנוחה'; }
-  else if (isPrepPhase) { phaseEmoji = '⏳'; phaseText = 'הכנה'; }
+  // Phase-aware palette
+  let barBg, barBorder, primaryColor, timeColor, btnSoftBg, btnIconColor,
+      playBg, playIconColor, expandBg, closeBg, closeIconColor, labelColor;
+
+  if (isWorkPhase) {
+    barBg = '#FF6F20';
+    barBorder = 'none';
+    primaryColor = '#FFFFFF';
+    timeColor = '#FFFFFF';
+    btnSoftBg = 'rgba(255,255,255,0.2)';
+    btnIconColor = '#FFFFFF';
+    playBg = '#FFFFFF';
+    playIconColor = '#FF6F20';
+    expandBg = 'rgba(255,255,255,0.2)';
+    closeBg = 'rgba(255,255,255,0.08)';
+    closeIconColor = 'rgba(255,255,255,0.4)';
+    labelColor = 'rgba(255,255,255,0.5)';
+  } else if (isPrepPhase) {
+    barBg = '#FFF9F0';
+    barBorder = '2px solid #3B82F6';
+    primaryColor = '#1a1a1a';
+    timeColor = '#1a1a1a';
+    btnSoftBg = 'rgba(59,130,246,0.1)';
+    btnIconColor = '#3B82F6';
+    playBg = '#3B82F6';
+    playIconColor = '#FFFFFF';
+    expandBg = 'rgba(59,130,246,0.1)';
+    closeBg = 'rgba(0,0,0,0.03)';
+    closeIconColor = '#ccc';
+    labelColor = '#aaa';
+  } else {
+    // Rest phase OR clock timer (no phase)
+    barBg = '#FFF9F0';
+    barBorder = '2px solid #FF6F20';
+    primaryColor = '#1a1a1a';
+    timeColor = '#1a1a1a';
+    btnSoftBg = 'rgba(255,111,32,0.1)';
+    btnIconColor = '#FF6F20';
+    playBg = '#FF6F20';
+    playIconColor = '#FFFFFF';
+    expandBg = 'rgba(255,111,32,0.1)';
+    closeBg = 'rgba(0,0,0,0.03)';
+    closeIconColor = '#ccc';
+    labelColor = '#aaa';
+  }
 
   const btnBase = {
     border: 'none', cursor: 'pointer',
@@ -71,6 +106,17 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
     flexShrink: 0,
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
+    padding: 0,
+  };
+  const labelStyle = {
+    fontSize: 7, fontWeight: 600, color: labelColor,
+    marginTop: 2, textAlign: 'center', lineHeight: 1,
+  };
+  const colWrap = { display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 };
+
+  const onRoundTap = () => {
+    if (type === 'tabata') window.dispatchEvent(new CustomEvent('tabata-open-round-picker'));
+    else if (type === 'emom') window.dispatchEvent(new CustomEvent('emom-open-round-picker'));
   };
 
   return (
@@ -79,13 +125,14 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         position: 'fixed',
         bottom: bottomOffset,
         left: 0, right: 0,
-        height: 80,
+        height: BAR_HEIGHT,
         background: barBg,
-        borderTop,
+        border: barBorder,
+        borderRadius: 18,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         padding: '0 12px',
+        gap: 6,
         // Above Radix Dialog overlay (z 2000) + ScrollPickerPopup overlay
         // (z 3000) + ProtectedCoachPage loading (z 10000). Picker popups
         // are bumped to z 6000 to stay above this bar.
@@ -95,97 +142,124 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         cursor: 'default',
       }}
     >
-      {/* CLOSE */}
-      <button
-        type="button"
-        onClick={stop(onClose)}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{ ...btnBase, width: 30, height: 30, borderRadius: '50%', background: closeBg }}
-        aria-label="סגור טיימר"
-      >
-        <span style={{ pointerEvents: 'none', color: closeColor, fontSize: 16, fontWeight: 700 }}>✕</span>
-      </button>
-
-      {/* ROUND CONTROLS — tabata/emom only */}
-      {hasRounds ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={stop(onPrevRound)}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{ ...btnBase, width: 40, height: 40, borderRadius: '50%', background: softBg }}
-            aria-label="סבב קודם"
-          >
-            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 18 }}>⏮</span>
-          </button>
-          <button
-            type="button"
-            onClick={stop(onNextRound)}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{ ...btnBase, width: 40, height: 40, borderRadius: '50%', background: softBg }}
-            aria-label="סבב הבא"
-          >
-            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 18 }}>⏭</span>
-          </button>
-        </div>
-      ) : <div style={{ width: 0 }} />}
-
-      {/* PHASE + ROUND/TYPE INFO — round counter is tappable for jump picker */}
-      <div style={{ textAlign: 'center', flex: 1, minWidth: 0, padding: '0 6px' }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: primaryText }}>
-          {phaseEmoji ? `${phaseEmoji} ${phaseText}` : (TYPE_LABEL[type] || type)}
-        </div>
-        {hasRounds && info ? (
-          <button
-            type="button"
-            onClick={stop(() => {
-              if (type === 'tabata') window.dispatchEvent(new CustomEvent('tabata-open-round-picker'));
-              else if (type === 'emom') window.dispatchEvent(new CustomEvent('emom-open-round-picker'));
-            })}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{ fontSize: 14, fontWeight: 600, color: secondaryText, marginTop: 2, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2, background: 'transparent', border: 'none', padding: '2px 4px', WebkitTapHighlightColor: 'transparent' }}
-          >
-            <span style={{ pointerEvents: 'none' }}>{info}</span>
-          </button>
-        ) : (
-          <div style={{ fontSize: 14, fontWeight: 600, color: secondaryText, marginTop: 2 }}>
-            {phaseEmoji ? (TYPE_LABEL[type] || type) : ''}
-          </div>
-        )}
-      </div>
-
-      {/* TIME — large */}
-      <div style={{
-        fontFamily: "'Barlow Condensed', sans-serif",
-        fontSize: 38, fontWeight: 700,
-        color: timeColor, minWidth: 100, textAlign: 'center',
-      }}>
-        {display}
-      </div>
-
-      {/* PLAY / PAUSE */}
-      <button
-        type="button"
-        onClick={stop(onToggle)}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{ ...btnBase, width: 48, height: 48, borderRadius: '50%', background: isWorkPhase ? '#FFFFFF' : '#FF6F20' }}
-        aria-label={isRunning ? 'השהה' : 'נגן'}
-      >
-        <span style={{ pointerEvents: 'none', color: isWorkPhase ? '#FF6F20' : '#FFFFFF', fontSize: 22 }}>
-          {isRunning ? '⏸' : '▶'}
-        </span>
-      </button>
-
-      {/* EXPAND — the only button allowed to navigate */}
+      {/* RIGHT EDGE — Expand */}
       <button
         type="button"
         onClick={stop(onExpand)}
         onPointerDown={(e) => e.stopPropagation()}
-        style={{ ...btnBase, width: 40, height: 40, borderRadius: 12, background: softBg }}
+        style={{ ...btnBase, width: 42, height: 42, borderRadius: 14, background: expandBg, marginLeft: 10 }}
         aria-label="הרחב"
       >
-        <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 20 }}>⤢</span>
+        <span style={{ pointerEvents: 'none', color: btnIconColor, fontSize: 22, fontWeight: 700 }}>⤢</span>
       </button>
+
+      {/* RIGHT-OF-CENTER — Round number (or prep label) */}
+      {hasRounds && (
+        isPrepPhase ? (
+          <div style={{ marginLeft: 6, fontSize: 18, fontWeight: 700, color: primaryColor, flexShrink: 0 }}>
+            ⏳ הכנה
+          </div>
+        ) : roundText ? (
+          <button
+            type="button"
+            onClick={stop(onRoundTap)}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              ...btnBase, marginLeft: 6, padding: '0 4px',
+              background: 'transparent',
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 34, fontWeight: 700,
+              color: primaryColor,
+              lineHeight: 1,
+            }}
+            aria-label="בחר סבב"
+          >
+            <span style={{ pointerEvents: 'none' }}>{roundText}</span>
+          </button>
+        ) : null
+      )}
+
+      {/* CENTER — Time */}
+      <div style={{
+        flex: 1, minWidth: 0,
+        fontFamily: "'Barlow Condensed', sans-serif",
+        fontSize: 52, fontWeight: 700,
+        letterSpacing: 3,
+        color: timeColor,
+        textAlign: 'center',
+        lineHeight: 1,
+      }}>
+        {display}
+      </div>
+
+      {/* LEFT THIRD — Forward / Play-Pause / Backward */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {hasRounds && (
+          <div style={colWrap}>
+            <button
+              type="button"
+              onClick={stop(onNextRound)}
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{ ...btnBase, width: 38, height: 38, borderRadius: '50%', background: btnSoftBg }}
+              aria-label="קדימה"
+            >
+              <span style={{ pointerEvents: 'none', color: btnIconColor, fontSize: 16 }}>⏭</span>
+            </button>
+            <span style={labelStyle}>קדימה</span>
+          </div>
+        )}
+
+        <div style={colWrap}>
+          <button
+            type="button"
+            onClick={stop(onToggle)}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              ...btnBase, width: 54, height: 54, borderRadius: '50%',
+              background: playBg,
+              boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+            }}
+            aria-label={isRunning ? 'השהה' : 'המשך'}
+          >
+            <span style={{ pointerEvents: 'none', color: playIconColor, fontSize: 24, fontWeight: 700 }}>
+              {paused ? '▶' : '⏸'}
+            </span>
+          </button>
+          <span style={labelStyle}>{paused ? 'המשך' : 'השהה'}</span>
+        </div>
+
+        {hasRounds && (
+          <div style={colWrap}>
+            <button
+              type="button"
+              onClick={stop(onPrevRound)}
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{ ...btnBase, width: 38, height: 38, borderRadius: '50%', background: btnSoftBg }}
+              aria-label="אחורה"
+            >
+              <span style={{ pointerEvents: 'none', color: btnIconColor, fontSize: 16 }}>⏮</span>
+            </button>
+            <span style={labelStyle}>אחורה</span>
+          </div>
+        )}
+      </div>
+
+      {/* SPACER */}
+      <div style={{ width: 24, flexShrink: 0 }} />
+
+      {/* FAR LEFT — Close */}
+      <div style={colWrap}>
+        <button
+          type="button"
+          onClick={stop(onClose)}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{ ...btnBase, width: 26, height: 26, borderRadius: '50%', background: closeBg }}
+          aria-label="סגור טיימר"
+        >
+          <span style={{ pointerEvents: 'none', color: closeIconColor, fontSize: 13, fontWeight: 700 }}>✕</span>
+        </button>
+        <span style={{ ...labelStyle, opacity: 0.7 }}>סגור</span>
+      </div>
     </div>
   );
 }
@@ -214,10 +288,14 @@ export default function TimerFooterBar() {
   // Only render when the user explicitly minimized an active timer.
   if (!isMinimized || !activeTimers.length) return null;
 
+  // Bar play/pause: dispatch event ONLY for tabata — TabataTimer's
+  // handlePause/handleResume own the state, the sound (playSoftBreath
+  // on resume, silent on pause), and update liveTimerTabata via
+  // setLiveTimer. The previous optimistic update here double-toggled
+  // the paused flag and broke the icon.
   const handleToggle = (timer) => {
     if (timer.type === 'tabata') {
       window.dispatchEvent(new CustomEvent('tabata-pause-resume'));
-      setLiveTimerTabata(prev => prev ? { ...prev, paused: !prev.paused } : null);
     } else {
       if (clock?.isRunning) clock.pause?.();
       else clock.resume?.();
@@ -245,7 +323,6 @@ export default function TimerFooterBar() {
       clock.stop?.();
       setLiveTimerClock(null);
     }
-    // Hide the bar immediately; the other timer (if any) stays visible.
   };
 
   const handlePrevRound = (timer) => {
@@ -269,7 +346,7 @@ export default function TimerFooterBar() {
         <SingleBar
           key={t.type}
           timer={t}
-          bottomOffset={i * 72}
+          bottomOffset={i * BAR_HEIGHT}
           onToggle={() => handleToggle(t)}
           onExpand={() => handleExpand(t)}
           onClose={() => handleClose(t)}
