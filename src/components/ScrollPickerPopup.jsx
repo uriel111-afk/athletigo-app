@@ -9,7 +9,7 @@ export default function ScrollPickerPopup({ isOpen, value, options, onSelect, on
   const listRef = useRef(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !listRef.current) return;
     const t = setTimeout(() => {
       const selected = listRef.current?.querySelector('[data-picker-selected="true"]');
       if (selected) selected.scrollIntoView({ block: 'center', behavior: 'instant' });
@@ -22,10 +22,9 @@ export default function ScrollPickerPopup({ isOpen, value, options, onSelect, on
   return (
     <div
       onClick={onClose}
-      className="scroll-picker-popup-root"
       style={{
         position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.6)',
+        background: 'rgba(0,0,0,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 3000,
       }}
@@ -33,17 +32,21 @@ export default function ScrollPickerPopup({ isOpen, value, options, onSelect, on
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: '#1a1a1a',
-          borderRadius: '20px',
-          padding: '20px',
-          width: '260px',
-          maxHeight: '70vh',
+          background: 'rgba(255,249,240,0.97)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderRadius: 20,
+          padding: 16,
+          width: 280,
+          maxHeight: '65vh',
           display: 'flex', flexDirection: 'column',
-          border: '2px solid #FF6F20',
+          border: '1.5px solid rgba(255,111,32,0.2)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+          direction: 'rtl',
         }}
       >
         {title && (
-          <div style={{ color: '#FF6F20', fontSize: '16px', fontWeight: 700, textAlign: 'center', marginBottom: '12px' }}>
+          <div style={{ color: '#FF6F20', fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
             {title}
           </div>
         )}
@@ -62,14 +65,14 @@ export default function ScrollPickerPopup({ isOpen, value, options, onSelect, on
                 onClick={() => { onSelect(opt); onClose(); }}
                 style={{
                   width: '100%',
-                  height: '56px',
+                  height: 56,
                   background: active ? '#FF6F20' : 'transparent',
-                  color: '#FFFFFF',
+                  color: active ? '#FFFFFF' : '#1a1a1a',
                   border: 'none',
-                  borderBottom: '1px solid #333',
-                  fontSize: '28px',
+                  borderBottom: '1px solid rgba(255,111,32,0.08)',
+                  fontSize: 28,
                   fontFamily: "'Barlow Condensed', sans-serif",
-                  fontWeight: 700,
+                  fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >

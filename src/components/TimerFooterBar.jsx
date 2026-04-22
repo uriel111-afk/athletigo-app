@@ -128,14 +128,27 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         </div>
       ) : <div style={{ width: 0 }} />}
 
-      {/* PHASE + ROUND/TYPE INFO */}
+      {/* PHASE + ROUND/TYPE INFO — round counter is tappable for jump picker */}
       <div style={{ textAlign: 'center', flex: 1, minWidth: 0, padding: '0 6px' }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: primaryText }}>
           {phaseEmoji ? `${phaseEmoji} ${phaseText}` : (TYPE_LABEL[type] || type)}
         </div>
-        <div style={{ fontSize: 12, color: secondaryText, marginTop: 2 }}>
-          {hasRounds && info ? info : (phaseEmoji ? (TYPE_LABEL[type] || type) : '')}
-        </div>
+        {hasRounds && info ? (
+          <div
+            onClick={stop(() => {
+              if (type === 'tabata') window.dispatchEvent(new CustomEvent('tabata-open-round-picker'));
+              else if (type === 'emom') window.dispatchEvent(new CustomEvent('emom-open-round-picker'));
+            })}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ fontSize: 12, color: secondaryText, marginTop: 2, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}
+          >
+            {info}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: secondaryText, marginTop: 2 }}>
+            {phaseEmoji ? (TYPE_LABEL[type] || type) : ''}
+          </div>
+        )}
       </div>
 
       {/* TIME — large */}

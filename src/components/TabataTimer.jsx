@@ -4,6 +4,7 @@ import {
   playLongBeep, playDoubleBell, playVictory, cancelScheduled,
 } from '@/lib/tabataSounds';
 import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
+import RoundJumpPicker from '@/components/RoundJumpPicker';
 
 // ─── Constants ───
 const O = '#FF6F20';
@@ -53,6 +54,34 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const [pickingField, setPickingField] = useState(null);
+  const [roundPickerOpen, setRoundPickerOpen] = useState(false);
+
+  // Jump to any round/phase. Resets startAtRef so the running loop
+  // (which uses performance.now() - startAtRef) recomputes correctly.
+  const jumpToPhase = (round, phaseType) => {
+    const c = cfgRef.current;
+    let next;
+    if (phaseType === 'prepare') {
+      next = { type: 'prep', round: 1, set: phase.set || 1, dur: c.prep };
+    } else {
+      const dur = phaseType === 'work' ? c.work : c.rest;
+      next = { type: phaseType, round, set: phase.set || 1, dur };
+    }
+    phaseRef.current = next;
+    setPhase(next);
+    setDisplay(next.dur);
+    setProgress(0);
+    startAtRef.current = performance.now();
+    elapsedRef.current = 0;
+  };
+
+  // Round-counter tap from the minimized footer bar dispatches an event;
+  // we listen here and open the same picker.
+  useEffect(() => {
+    const onOpen = () => setRoundPickerOpen(true);
+    window.addEventListener('tabata-open-round-picker', onOpen);
+    return () => window.removeEventListener('tabata-open-round-picker', onOpen);
+  }, []);
 
   const phaseRef = useRef(phase);
   const cfgRef = useRef(cfg);
@@ -225,27 +254,39 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       { k: 'rb',     l: 'מנוחה בין סטים',   icon: '⏸', u: 'שנ׳', mn: 0,  mx: 900, options: SECONDS_OPTIONS },
     ];
     return (
-      <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', direction: 'rtl', overflowY: 'auto' }}>
-        <div style={{ fontSize: 32, fontWeight: 900, color: W, marginBottom: 6 }}>⏱ טבטה</div>
-        <div style={{ fontSize: 13, color: WD, marginBottom: 20 }}>הגדר את פרמטרי האימון</div>
+      <div style={{ background: '#FFF9F0', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', direction: 'rtl', overflowY: 'auto' }}>
+        <div style={{ fontSize: 32, fontWeight: 900, color: '#FF6F20', marginBottom: 6 }}>⏱ טבטה</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 20, opacity: 1 }}>הגדר את האימון שלך</div>
 
         <div style={{ width: '100%', maxWidth: 360 }}>
           {fields.map(f => (
-            <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: 'rgba(255,255,255,0.1)', borderRadius: 12, marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{f.icon}</span>
-                <div>
-                  <div style={{ fontSize: 15, color: W, fontWeight: 700 }}>{f.l}</div>
-                  {f.u && <div style={{ fontSize: 11, color: WD }}>{f.u}</div>}
-                </div>
+            <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#FFFFFF', borderRadius: 12, marginBottom: 8, border: '1px solid rgba(255,111,32,0.12)', boxShadow: '0 2px 8px rgba(255,111,32,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22 }}>{f.icon}</span>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>{f.l}</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={sBtn}>−</button>
-                <span
-                  onClick={() => setPickingField(f.k)}
-                  style={{ fontSize: 22, fontWeight: 900, color: W, minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4, textDecorationColor: 'rgba(255,255,255,0.4)' }}
-                >{cfg[f.k]}</span>
-                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={sBtn}>+</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={cBtnMinus}>−</button>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 50 }}>
+                  <span
+                    onClick={() => setPickingField(f.k)}
+                    style={{
+                      fontSize: 36,
+                      fontWeight: 700,
+                      color: '#FF6F20',
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      cursor: 'pointer',
+                      lineHeight: 1,
+                      textAlign: 'center',
+                    }}
+                  >{cfg[f.k]}</span>
+                  {f.u && (
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#888', marginTop: 2 }}>
+                      {f.u}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={cBtnPlus}>+</button>
               </div>
             </div>
           ))}
@@ -264,17 +305,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         />
 
         {/* Workout summary */}
-        <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 14, padding: '14px 20px', marginTop: 16, width: '100%', maxWidth: 360 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
-            <div><div style={{ fontSize: 20, fontWeight: 900 }}>{cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, opacity: 0.7 }}>סבבים</div></div>
-            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
-            <div><div style={{ fontSize: 20, fontWeight: 900 }}>{twMin}:{String(twSec).padStart(2,'0')}</div><div style={{ fontSize: 10, opacity: 0.7 }}>זמן כולל</div></div>
-            <div style={{ width: 1, background: 'rgba(255,255,255,0.2)' }} />
-            <div><div style={{ fontSize: 20, fontWeight: 900 }}>{cfg.work * cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, opacity: 0.7 }}>שנ׳ עבודה</div></div>
+        <div style={{ background: '#FFFFFF', borderRadius: 14, padding: '14px 20px', marginTop: 16, width: '100%', maxWidth: 360, border: '1px solid rgba(255,111,32,0.12)', boxShadow: '0 2px 8px rgba(255,111,32,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', color: '#1a1a1a' }}>
+            <div><div style={{ fontSize: 20, fontWeight: 900, color: '#FF6F20' }}>{cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>סבבים</div></div>
+            <div style={{ width: 1, background: 'rgba(255,111,32,0.15)' }} />
+            <div><div style={{ fontSize: 20, fontWeight: 900, color: '#FF6F20' }}>{twMin}:{String(twSec).padStart(2,'0')}</div><div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>זמן כולל</div></div>
+            <div style={{ width: 1, background: 'rgba(255,111,32,0.15)' }} />
+            <div><div style={{ fontSize: 20, fontWeight: 900, color: '#FF6F20' }}>{cfg.work * cfg.rounds * cfg.sets}</div><div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>שנ׳ עבודה</div></div>
           </div>
         </div>
 
-        <button onClick={handleStart} style={{ marginTop: 24, width: '100%', maxWidth: 360, padding: '16px', fontSize: 22, fontWeight: 900, background: W, color: O, border: 'none', borderRadius: 14, cursor: 'pointer' }}>
+        <button onClick={handleStart} style={{ marginTop: 24, width: '100%', maxWidth: 360, padding: '16px', fontSize: 22, fontWeight: 900, background: '#FF6F20', color: '#FFFFFF', border: 'none', borderRadius: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,111,32,0.3)' }}>
           ▶ התחל אימון
         </button>
       </div>
@@ -405,7 +446,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       {/* ROW 2: Stats — round + set + total time */}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexShrink: 0 }}>
         {phase.type !== 'prep' && (
-          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900 }}>
+          <div
+            onClick={() => setRoundPickerOpen(true)}
+            style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, cursor: 'pointer' }}
+          >
             סבב {phase.round}/{cfg.rounds}
           </div>
         )}
@@ -452,9 +496,22 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           <button onClick={handleStop} style={{ ...cBtn, flex: 1, height: 56, fontSize: 18, background: 'rgba(255,255,255,0.2)', color: W }}>עצור</button>
         </div>
       </div>
+      <RoundJumpPicker
+        isOpen={roundPickerOpen}
+        currentRound={phase.round}
+        currentPhase={phase.type === 'prep' ? 'prepare' : phase.type}
+        totalRounds={cfg.rounds}
+        hasPrepare={cfg.prep > 0}
+        hasRest={cfg.rest > 0}
+        onSelect={jumpToPhase}
+        onClose={() => setRoundPickerOpen(false)}
+      />
     </div>
   );
 }
 
 const sBtn = { width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', fontSize: 20, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' };
+// Config-screen stepper buttons — light theme
+const cBtnMinus = { width: 36, height: 36, borderRadius: 8, background: '#FFFFFF', color: '#FF6F20', border: '1px solid rgba(255,111,32,0.3)', fontSize: 20, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' };
+const cBtnPlus  = { width: 36, height: 36, borderRadius: 8, background: '#FF6F20', color: '#FFFFFF', border: 'none', fontSize: 20, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' };
 const cBtn = { padding: '12px 28px', fontSize: 18, fontWeight: 800, background: '#fff', color: '#FF6F20', border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' };
