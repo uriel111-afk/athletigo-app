@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
-  playLongBeep, playDoubleBell, playVictory, cancelScheduled,
+  playLongBeep, playDoubleBell, playVictory, playGong, cancelScheduled,
 } from '@/lib/tabataSounds';
 import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
 import RoundJumpPicker from '@/components/RoundJumpPicker';
@@ -38,7 +38,7 @@ function nextPhase(cur, cfg) {
 
 function transitionSound(from, to) {
   if (from === 'prep'     && to === 'work')     playWhistle();
-  if (from === 'work'     && to === 'rest')     playBell();
+  if (from === 'work'     && to === 'rest')     playGong();
   if (from === 'rest'     && to === 'work')     playWhistle();
   if (from === 'work'     && to === 'set_rest') playLongBeep();
   if (from === 'set_rest' && to === 'work')     playDoubleBell();

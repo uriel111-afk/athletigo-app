@@ -109,6 +109,30 @@ function click(when) {
   scheduledNodes.push(osc);
 }
 
+// Deep gong — used for the work→rest transition. Three layered sines:
+// low fundamental + overtone + metallic shimmer.
+function gong(when) {
+  const c = getCtx();
+  const layers = [
+    { freq: 200, gain: 0.3,  decay: 1.5 },
+    { freq: 340, gain: 0.15, decay: 1.0 },
+    { freq: 520, gain: 0.08, decay: 0.6 },
+  ];
+  for (const layer of layers) {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = layer.freq;
+    g.gain.setValueAtTime(layer.gain, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + layer.decay);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(when);
+    osc.stop(when + layer.decay + 0.05);
+    scheduledNodes.push(osc);
+  }
+}
+
 // Public API — immediate play
 export function playClick() { click(getCtx().currentTime); }
 export function playBeep() { beep(getCtx().currentTime); }
@@ -117,6 +141,7 @@ export function playBell() { bell(getCtx().currentTime); }
 export function playDoubleBell() { doubleBell(getCtx().currentTime); }
 export function playLongBeep() { longBeep(getCtx().currentTime); }
 export function playVictory() { victory(getCtx().currentTime); }
+export function playGong() { gong(getCtx().currentTime); }
 
 // Cancel all scheduled oscillators
 export function cancelScheduled() {
