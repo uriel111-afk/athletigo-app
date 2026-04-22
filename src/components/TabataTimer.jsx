@@ -105,10 +105,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const startAtRef = useRef(0);
   const elapsedRef = useRef(0);
   const lastBeepRef = useRef(-1);
+  // Mirror of `paused` state — used by tick() and the window listener so
+  // they read fresh state without depending on render-time closures.
+  const pausedRef = useRef(false);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { cfgRef.current = cfg; localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }, [cfg]);
   useEffect(() => { screenRef.current = screen; }, [screen]);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   // Cleanup on unmount
   useEffect(() => () => { cancelAnimationFrame(rafRef.current); cancelScheduled(); }, []);
@@ -215,6 +219,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   function tick() {
+    // Defensive early-exit: if paused was flipped after this frame was
+    // scheduled but before it ran, abort without re-scheduling. This
+    // belt-and-suspenders the existing cancelAnimationFrame in
+    // handlePause and prevents a stray frame from overwriting paused
+    // back to false on the live timer.
+    if (pausedRef.current) { rafRef.current = null; return; }
+
     const p = phaseRef.current;
     if (p.type === 'idle' || p.type === 'done') return;
 
@@ -250,14 +261,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     setDisplay(secs);
     setProgress(elapsed / p.dur);
 
-    // Update floating timer — always keep it alive while running
+    // Update floating timer — always keep it alive while running.
+    // Read paused from the ref so the bar's icon doesn't flicker
+    // back to ⏸ from a final in-flight tick after the user paused.
     if (setLiveTimer && screenRef.current === 'running') {
       setLiveTimer({
         type: 'tabata',
         display: String(secs),
         phase: PHASE_LABEL[p.type] || '',
         info: `סבב ${p.round}/${cfgRef.current.rounds} · סט ${p.set}/${cfgRef.current.sets}`,
-        paused: false,
+        paused: pausedRef.current,
       });
     }
 
@@ -269,6 +282,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     await unlockAudio();
     // נשימה רכה — soft breath on play tap. Same sound used by Countdown.
     playSoftBreath();
+    // Sync ref before scheduling the first frame so tick's early-exit
+    // doesn't trigger from a leftover paused=true value.
+    pausedRef.current = false;
     setPaused(false);
     setScreen('running');
     const first = cfg.prep > 0
@@ -279,19 +295,31 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }, [cfg]);
 
   function handlePause() {
-    // Pause is silent by spec.
+    // Already paused — guard against double-tap or duplicate events.
+    if (pausedRef.current) return;
+    // Sync ref FIRST so any in-flight tick that fires before React
+    // commits will see paused=true and bail out via the early-exit.
+    pausedRef.current = true;
     cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
     cancelScheduled();
     elapsedRef.current = (performance.now() - startAtRef.current) / 1000;
     setPaused(true);
+    // Pause is silent by spec.
     if (setLiveTimer) setLiveTimer(prev => prev ? { ...prev, paused: true } : null);
   }
 
   function handleResume() {
-    playSoftBreath();
+    // Already running — guard against double-tap or duplicate events.
+    if (!pausedRef.current) return;
+    // Cancel any stray rAF that might still be queued, so we never
+    // run two ticks in parallel after resume.
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    pausedRef.current = false;
     startAtRef.current = performance.now() - elapsedRef.current * 1000;
     lastBeepRef.current = -1;
     setPaused(false);
+    playSoftBreath();
     if (setLiveTimer) setLiveTimer(prev => prev ? { ...prev, paused: false } : null);
     rafRef.current = requestAnimationFrame(tick);
   }
@@ -331,10 +359,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     return () => window.removeEventListener('popstate', onPop);
   }, [screen, display, paused, onMinimize, setLiveTimer]);
 
-  // Event listeners for floating timer controls
+  // Event listeners for floating timer controls. Read paused state
+  // from pausedRef (not the closure-captured state) so the listener
+  // never branches incorrectly when the user taps twice in rapid
+  // succession before React commits the previous toggle.
   useEffect(() => {
     const onReset = () => handleStop();
-    const onPauseResume = () => { if (paused) handleResume(); else handlePause(); };
+    const onPauseResume = () => { if (pausedRef.current) handleResume(); else handlePause(); };
     const onPrevRound = () => skipToPrev();
     const onNextRound = () => skipToNext();
     window.addEventListener('tabata-reset', onReset);
@@ -347,7 +378,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       window.removeEventListener('tabata-prev-round', onPrevRound);
       window.removeEventListener('tabata-next-round', onNextRound);
     };
-  }, [paused]);
+  }, []);
 
   // ─── Compute total workout time from config ───
   function calcTotalFromConfig(c) {
