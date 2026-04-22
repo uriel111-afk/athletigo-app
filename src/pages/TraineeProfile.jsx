@@ -1784,12 +1784,12 @@ export default function TraineeProfile() {
         </div>
 
         {/* ===== ZONE 3: TAB CONTENT (scrollable) ===== */}
-        <div style={{ paddingBottom: '100px' }}>
-          <div className="max-w-6xl mx-auto px-4 py-4 w-full">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div style={{ paddingBottom: '100px', direction: 'rtl', textAlign: 'right' }} dir="rtl">
+          <div className="max-w-6xl mx-auto px-4 py-4 w-full" dir="rtl" style={{ textAlign: 'right' }}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir="rtl">
 
               {/* Personal Details Tab */}
-              <TabsContent value="personal" className="space-y-4 w-full">
+              <TabsContent value="personal" className="space-y-4 w-full" dir="rtl">
                 {/* Info Card */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
@@ -1860,7 +1860,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Goals Tab */}
-              <TabsContent value="goals" className="space-y-4 w-full">
+              <TabsContent value="goals" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Target className="w-5 h-5 text-[#FF6F20]" />יעדים</h2>
                   <Button onClick={() => { setEditingGoal(null); setShowAddGoal(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
@@ -1924,7 +1924,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Metrics Tab */}
-              <TabsContent value="metrics" className="space-y-4 w-full">
+              <TabsContent value="metrics" className="space-y-4 w-full" dir="rtl">
                 <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#FF6F20]" />מדדים פיזיים</h2>
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המדדים נכשלה. נסה לרענן את הדף.</div>}>
                   <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} currentUser={currentUser} goals={goals} />
@@ -1932,7 +1932,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Achievements Tab */}
-              <TabsContent value="achievements" className="space-y-4 w-full">
+              <TabsContent value="achievements" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center mb-3">
                   <div />
                   <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
@@ -1945,7 +1945,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Baselines Tab */}
-              <TabsContent value="baselines" className="space-y-4 w-full">
+              <TabsContent value="baselines" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין</h2>
                   <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
@@ -2038,7 +2038,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Services Tab */}
-              <TabsContent value="services" className="space-y-6 w-full">
+              <TabsContent value="services" className="space-y-6 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Package className="w-5 h-5 text-[#FF6F20]" />שירותים וחבילות</h2>
                   {isCoach && (
@@ -2224,7 +2224,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Attendance Tab */}
-              <TabsContent value="attendance" className="space-y-4 w-full">
+              <TabsContent value="attendance" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-[#FF6F20]" />מפגשים</h2>
                   {isCoach && (
@@ -2450,7 +2450,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Plans Tab */}
-              <TabsContent value="plans" className="space-y-4 w-full">
+              <TabsContent value="plans" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-[#FF6F20]" />תוכניות אימון</h2>
                   {isCoach && <Button onClick={() => setShowPlanDialog(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}><Plus className="w-3 h-3 ml-1" />צור תוכנית</Button>}
@@ -2531,14 +2531,14 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Notifications Tab */}
-              <TabsContent value="notifications" className="space-y-4 w-full">
+              <TabsContent value="notifications" className="space-y-4 w-full" dir="rtl">
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב ההתראות נכשלה. נסה לרענן את הדף.</div>}>
                   <TraineeNotificationsTab traineeId={user?.id} isCoachView={isCoach} />
                 </ErrorBoundary>
               </TabsContent>
 
               {/* Messages Tab */}
-              <TabsContent value="messages" className="space-y-4 w-full">
+              <TabsContent value="messages" className="space-y-4 w-full" dir="rtl">
                 <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5 text-[#FF6F20]" />שיחה עם המאמן</h2>
                 {user && coach ? (
                   <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
@@ -2552,7 +2552,7 @@ export default function TraineeProfile() {
               </TabsContent>
 
               {/* Documents Tab */}
-              <TabsContent value="documents" className="w-full">
+              <TabsContent value="documents" className="w-full" dir="rtl">
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המסמכים נכשלה. נסה לרענן את הדף.</div>}>
                   {isCoach && (
                     <button

@@ -137,7 +137,7 @@ export default function PhysicalMetricsManager({ trainee, measurements, coach, c
   const latestMeasurement = measurements[0];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl" style={{ textAlign: 'right' }}>
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl" style={{ backgroundColor: '#FAFAFA', border: '1px solid #E0E0E0' }}>

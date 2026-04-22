@@ -227,7 +227,7 @@ function HealthDeclarationForm({ user, onSign, isSigning }) {
   };
 
   return (
-    <div>
+    <div dir="rtl" style={{ textAlign: 'right' }}>
       <div ref={formRef} style={{ background: '#FFFFFF', padding: 18 }} dir="rtl">
         <div style={{ textAlign: 'center', borderBottom: '1px solid #FFE5D0', paddingBottom: 12, marginBottom: 14 }}>
           <h3 style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>הצהרת בריאות לפעילות גופנית</h3>
