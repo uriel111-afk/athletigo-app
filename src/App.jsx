@@ -29,9 +29,12 @@ function GlobalTabata() {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const handleMinimize = useCallback(() => {
+    // Same flow as Timer/Stopwatch minimize — fire state updates
+    // synchronously and navigate to the role-appropriate home so the
+    // timer bar appears above the dashboard immediately.
     setShowTabata(false);
     setIsMinimized(true);
-    navigate(isCoach ? '/dashboard' : '/traineehome', { replace: false });
+    navigate(isCoach ? '/dashboard' : '/traineehome', { replace: true });
   }, [isCoach, navigate, setShowTabata, setIsMinimized]);
 
   // Back button while overlay showing → minimize (mobile-safe)

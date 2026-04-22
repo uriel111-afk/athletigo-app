@@ -78,9 +78,12 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 10px',
-        zIndex: 1100,
+        // Above Radix Dialog overlay (z 2000) + app modals (z 1000-9000).
+        // This ensures bar buttons receive taps even when a form is open.
+        zIndex: 2500,
         direction: 'rtl',
-        transition: 'background 0.3s ease, bottom 0.2s ease',
+        // No transition — bar must appear/disappear instantly on minimize.
+        transition: 'none',
         cursor: 'default',
       }}
     >
