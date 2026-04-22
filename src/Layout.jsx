@@ -494,10 +494,10 @@ export default function Layout({ children, currentPageName }) {
           {/* Sticky timer footer bar — replaces the old draggable bubble */}
           <TimerFooterBar />
 
-          {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 62px per active timer bar) */}
-          <div className="md:hidden safe-area-bottom"
-               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : undefined, padding: '8px 8px 12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start' }}>
+          {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 72px per active timer bar) */}
+          <div className="md:hidden"
+               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 8px 16px', direction: 'rtl', overflow: 'visible' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', width: '100%' }}>
               {(() => {
                 const navItems = isCoach ? [
                   { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
@@ -518,20 +518,33 @@ export default function Layout({ children, currentPageName }) {
                     <Link
                       key={item.to}
                       to={item.to}
-                      className="flex flex-col items-center transition-all"
+                      className="transition-all"
                       style={{
-                        textAlign: 'center',
-                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        minWidth: 56,
+                        cursor: 'pointer',
                         textDecoration: 'none',
+                        overflow: 'visible',
                       }}
                     >
                       {/* Emoji renders in its native multi-color — no color override. */}
-                      <span style={{ fontSize: 18, lineHeight: 1 }}>{item.emoji}</span>
                       <span style={{
-                        fontSize: 10,
-                        marginTop: 2,
+                        fontSize: 22,
+                        lineHeight: 1,
+                        height: 28,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>{item.emoji}</span>
+                      <span style={{
+                        fontSize: 11,
+                        lineHeight: 1,
                         color: active ? '#FF6F20' : '#888',
-                        fontWeight: active ? 500 : 400,
+                        fontWeight: active ? 600 : 400,
                       }}>{item.label}</span>
                     </Link>
                   );
