@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
+import { getResponseLabel, getResponseBadgeBg, getResponseBadgeColor, formatDate } from "@/utils/notificationHelpers";
 
 // ── Type helpers ─────────────────────────────────────────────────────
 const getTypeIcon = (type) => {
@@ -178,6 +180,17 @@ export default function Notifications() {
     };
     loadUser();
   }, []);
+
+  // Realtime — pick up trainee responses instantly
+  React.useEffect(() => {
+    if (!user?.id) return;
+    const ch = supabase
+      .channel(`coach-notif-responses-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' },
+        () => queryClient.invalidateQueries({ queryKey: ['notifications', user.id] }))
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [user?.id, queryClient]);
 
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications', user?.id],
@@ -374,6 +387,20 @@ export default function Notifications() {
           {!notif.is_read && (
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6F20', flexShrink: 0 }} />
           )}
+          {/* Trainee response status — coach sees their reply */}
+          {notif.trainee_response ? (
+            <div style={{
+              fontSize: 11, padding: '3px 8px', borderRadius: 12,
+              background: getResponseBadgeBg(notif.trainee_response),
+              color: getResponseBadgeColor(notif.trainee_response),
+              fontWeight: 600, flexShrink: 0,
+            }}>{getResponseLabel(notif.trainee_response)}</div>
+          ) : (
+            <div style={{
+              fontSize: 11, padding: '3px 8px', borderRadius: 12,
+              background: '#F0F0F0', color: '#888', fontWeight: 500, flexShrink: 0,
+            }}>ממתין</div>
+          )}
           <div style={{
             fontSize: 14, color: '#888',
             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
@@ -388,6 +415,24 @@ export default function Notifications() {
             {(notif.data?.trainee_name || notif.trainee_name) && (
               <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>
                 מתאמן: {notif.data?.trainee_name || notif.trainee_name}
+              </div>
+            )}
+            {notif.trainee_response && (
+              <div style={{
+                marginBottom: 10, padding: 10, borderRadius: 10,
+                background: getResponseBadgeBg(notif.trainee_response),
+              }}>
+                <div style={{ fontSize: 12, color: '#888' }}>תגובת מתאמן:</div>
+                <div style={{
+                  fontSize: 14, fontWeight: 600,
+                  color: getResponseBadgeColor(notif.trainee_response),
+                  marginTop: 4,
+                }}>{getResponseLabel(notif.trainee_response)}</div>
+                {notif.responded_at && (
+                  <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
+                    {formatDate(notif.responded_at)}
+                  </div>
+                )}
               </div>
             )}
             <button

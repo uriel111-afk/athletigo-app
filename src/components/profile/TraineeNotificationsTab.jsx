@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
+import NotificationResponsePopup from '@/components/NotificationResponsePopup';
+import { getResponseLabel, getResponseBadgeBg, getResponseBadgeColor } from '@/utils/notificationHelpers';
 
 // ── Brand tokens ─────────────────────────────────────────────────
 const COLORS = {
@@ -74,7 +76,7 @@ function SectionBlock({ icon, title, count, color, defaultOpen = true, children 
 }
 
 // ── NotificationCard — compact collapsed / inline-expanded ───────
-function NotificationCard({ notification, variant, onMarkRead, onDelete }) {
+function NotificationCard({ notification, variant, onMarkRead, onDelete, onOpenPopup }) {
   const [expanded, setExpanded] = useState(false);
   const [hasMarked, setHasMarked] = useState(false);
   const unread = variant === 'unread';
@@ -83,8 +85,13 @@ function NotificationCard({ notification, variant, onMarkRead, onDelete }) {
   const readByTrainee = !isUnread(notification);
 
   const handleToggle = () => {
+    // Trainee view: tap → open response popup (when handler provided)
+    if (onOpenPopup && !isCoachView) {
+      if (unread && !hasMarked) { setHasMarked(true); onMarkRead?.(notification); }
+      onOpenPopup(notification);
+      return;
+    }
     setExpanded(v => !v);
-    // Mark read only on first expansion; don't re-mark on re-expand.
     if (!expanded && unread && !hasMarked) {
       setHasMarked(true);
       onMarkRead?.(notification);
@@ -127,11 +134,19 @@ function NotificationCard({ notification, variant, onMarkRead, onDelete }) {
         }}>
           {notification.title}
         </div>
+        {notification.trainee_response && (
+          <span style={{
+            fontSize: 10, padding: '2px 8px', borderRadius: 12,
+            background: getResponseBadgeBg(notification.trainee_response),
+            color: getResponseBadgeColor(notification.trainee_response),
+            fontWeight: 600, flexShrink: 0,
+          }}>{getResponseLabel(notification.trainee_response)}</span>
+        )}
         <span style={{ fontSize: 11, color: COLORS.textMuted, flexShrink: 0 }}>
           {formatShortTime(notification.created_at)}
         </span>
         <span style={{ color: COLORS.accent, fontSize: 12, flexShrink: 0 }}>
-          {expanded ? '▲' : '▼'}
+          {onOpenPopup && !isCoachView ? '›' : (expanded ? '▲' : '▼')}
         </span>
       </div>
 
@@ -183,6 +198,31 @@ function NotificationCard({ notification, variant, onMarkRead, onDelete }) {
 // Coach view (isCoachView=true):    today / thisWeek / history, no unread section
 export default function TraineeNotificationsTab({ traineeId, isCoachView = false }) {
   const queryClient = useQueryClient();
+  const [selectedNotif, setSelectedNotif] = useState(null);
+
+  // Trainee-only: open response popup. Coach view keeps the legacy
+  // inline-expand accordion.
+  const openPopup = isCoachView ? null : (n) => setSelectedNotif(n);
+
+  async function handleRespond(notifId, response) {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          trainee_response: response,
+          responded_at: new Date().toISOString(),
+          read_at: new Date().toISOString(),
+          is_read: true,
+        })
+        .eq('id', notifId);
+      if (error) { toast.error('שגיאה בשליחת תגובה: ' + error.message); return; }
+      queryClient.invalidateQueries({ queryKey: ['trainee-notifications', traineeId] });
+      setSelectedNotif(null);
+      toast.success('התגובה נשלחה');
+    } catch (e) {
+      toast.error('שגיאה: ' + (e?.message || 'נסה שוב'));
+    }
+  }
 
   const { data: notifications = [] } = useQuery({
     queryKey: ['trainee-notifications', traineeId],
@@ -293,7 +333,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           color={COLORS.accent} defaultOpen={true}>
           {groups.unread.map(n => (
             <NotificationCard key={n.id} notification={n} variant="unread"
-              onMarkRead={markRead} onDelete={handleDelete} />
+              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}
@@ -305,7 +345,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           {groups.today.map(n => (
             <NotificationCard key={n.id} notification={n}
               variant={isCoachView ? 'coach' : 'read'}
-              onMarkRead={markRead} onDelete={handleDelete} />
+              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}
@@ -316,7 +356,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           color={COLORS.text} defaultOpen={true}>
           {groups.thisWeek.map(n => (
             <NotificationCard key={n.id} notification={n} variant="coach"
-              onMarkRead={markRead} onDelete={handleDelete} />
+              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}
@@ -328,7 +368,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           {groups.older.map(n => (
             <NotificationCard key={n.id} notification={n}
               variant={isCoachView ? 'coach' : 'read'}
-              onMarkRead={markRead} onDelete={handleDelete} />
+              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}
@@ -348,6 +388,13 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           </div>
         </div>
       )}
+
+      {/* Trainee response popup */}
+      <NotificationResponsePopup
+        notif={selectedNotif}
+        onClose={() => setSelectedNotif(null)}
+        onRespond={handleRespond}
+      />
     </div>
   );
 }
