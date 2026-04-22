@@ -2803,21 +2803,174 @@ export default function TraineeProfile() {
 
         {/* Manual Attendance Dialog */}
         <Dialog open={showManualAttendance} onOpenChange={setShowManualAttendance}>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>הוסף נוכחות ידנית</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>תאריך</Label><Input type="date" value={manualAttendanceForm.date} onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
-                <div><Label>שעה</Label><Input type="time" value={manualAttendanceForm.time} onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, time: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
+          <DialogContent
+            dir="rtl"
+            className="max-w-sm border-0 p-0 overflow-hidden"
+            style={{ background: '#FFF9F0', borderRadius: 24, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}
+          >
+            <DialogHeader>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: 16, background: '#FFF0E4',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 28, margin: '0 auto 12px',
+                }}>📅</div>
+                <DialogTitle style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', textAlign: 'center' }}>
+                  תיעוד מפגש חדש
+                </DialogTitle>
+                <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+                  עם {user.full_name}
+                </div>
               </div>
-              <div><Label>סוג אימון</Label>
-                <Select value={manualAttendanceForm.session_type} onValueChange={v => setManualAttendanceForm({ ...manualAttendanceForm, session_type: v })}>
-                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="אישי">אישי</SelectItem><SelectItem value="קבוצתי">קבוצתי</SelectItem><SelectItem value="אונליין">אונליין</SelectItem></SelectContent>
-                </Select>
+            </DialogHeader>
+
+            {/* Package warnings — show only for personal sessions where decrement happens */}
+            {manualAttendanceForm.session_type === 'אישי' && (() => {
+              const personalPkg = activeServices.find(s =>
+                (s.service_type || '').includes('אישי') ||
+                (s.package_type || '').toLowerCase() === 'personal'
+              );
+              if (!personalPkg) {
+                return (
+                  <div style={{
+                    background: '#FFEBEE', borderRadius: 14, padding: '12px 14px',
+                    marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <div style={{ fontSize: 20 }}>⚠️</div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#dc2626' }}>אין חבילה פעילה</div>
+                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>ניתן לתעד מפגש ללא חבילה</div>
+                    </div>
+                  </div>
+                );
+              }
+              const remaining = (personalPkg.total_sessions || personalPkg.sessions_count || 0) - (personalPkg.used_sessions || 0);
+              if (remaining === 1) {
+                return (
+                  <div style={{
+                    background: '#FEF9C3', borderRadius: 14, padding: '12px 14px',
+                    marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <div style={{ fontSize: 20 }}>⚡</div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#CA8A04' }}>מפגש אחרון בחבילה</div>
+                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>לאחר מפגש זה החבילה תסתיים</div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            <div>
+              {/* Date */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>תאריך</label>
+                <input
+                  type="date"
+                  value={manualAttendanceForm.date}
+                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, date: e.target.value })}
+                  style={{
+                    width: '100%', padding: '12px 14px', borderRadius: 14,
+                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
+                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
               </div>
-              <div><Label>הערות</Label><Input value={manualAttendanceForm.notes} onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, notes: e.target.value })} placeholder="הערות" className="rounded-xl" style={{ fontSize: 16 }} /></div>
-              <Button onClick={handleManualAttendanceSubmit} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>שמור נוכחות</Button>
+
+              {/* Time */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>שעה</label>
+                <input
+                  type="time"
+                  value={manualAttendanceForm.time}
+                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, time: e.target.value })}
+                  style={{
+                    width: '100%', padding: '12px 14px', borderRadius: 14,
+                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
+                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Session type */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>סוג מפגש</label>
+                <select
+                  value={manualAttendanceForm.session_type}
+                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, session_type: e.target.value })}
+                  style={{
+                    width: '100%', padding: '12px 14px', borderRadius: 14,
+                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
+                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
+                    appearance: 'none',
+                  }}
+                >
+                  <option value="אישי">אישי</option>
+                  <option value="קבוצתי">קבוצתי</option>
+                  <option value="אונליין">אונליין</option>
+                </select>
+              </div>
+
+              {/* Location */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>מיקום</label>
+                <input
+                  type="text"
+                  value={manualAttendanceForm.location || ''}
+                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, location: e.target.value })}
+                  placeholder={manualAttendanceForm.session_type === 'אונליין' ? 'לינק לזום / וואטסאפ' : 'סטודיו / פארק / כתובת'}
+                  style={{
+                    width: '100%', padding: '12px 14px', borderRadius: 14,
+                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
+                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Notes */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>הערות</label>
+                <textarea
+                  value={manualAttendanceForm.notes}
+                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, notes: e.target.value })}
+                  placeholder="הערות נוספות..."
+                  style={{
+                    width: '100%', padding: '12px 14px', borderRadius: 14,
+                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
+                    background: 'white', direction: 'rtl', outline: 'none',
+                    minHeight: 80, resize: 'vertical', boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                <button
+                  type="button"
+                  onClick={handleManualAttendanceSubmit}
+                  disabled={!manualAttendanceForm.date}
+                  style={{
+                    flex: 1, padding: 14, borderRadius: 14, border: 'none',
+                    background: manualAttendanceForm.date ? '#FF6F20' : '#ccc',
+                    color: 'white', fontSize: 16, fontWeight: 600,
+                    cursor: manualAttendanceForm.date ? 'pointer' : 'default',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  📅 שמור מפגש
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowManualAttendance(false)}
+                  style={{
+                    padding: '14px 20px', borderRadius: 14,
+                    border: '0.5px solid #F0E4D0', background: 'white',
+                    color: '#888', fontSize: 14, cursor: 'pointer',
+                  }}
+                >ביטול</button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
