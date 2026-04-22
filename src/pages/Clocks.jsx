@@ -279,7 +279,7 @@ export default function Clocks() {
       setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null, paused: !clock.isRunning });
     }
     setIsMinimized(true);
-    navigate(isCoach ? '/dashboard' : '/traineehome');
+    navigate(isCoach ? '/dashboard' : '/trainee-home', { replace: true });
   }, [clock, setLiveTimer, setIsMinimized, navigate, isCoach]);
 
   // Entering the Clocks page = bar should disappear. If the user leaves

@@ -29,21 +29,20 @@ function GlobalTabata() {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const handleMinimize = useCallback(() => {
-    // Single responsibility: navigate. State (showTabata, isMinimized,
-    // liveTimerTabata) is set by TabataTimer.doMinimize BEFORE calling us.
-    // This mirrors how Clocks.jsx minimizeTimer works for Countdown/
-    // Stopwatch — one function does state + navigate, no split/duplication.
-    navigate(isCoach ? '/dashboard' : '/traineehome');
+    // Use replace:true so we don't push a duplicate history entry on top
+    // of /clocks. Without replace, the phone back-button from /dashboard
+    // would pop back to /clocks → Clocks.jsx's popstate handler kicks in
+    // and stops the timer.
+    navigate(isCoach ? '/dashboard' : '/trainee-home', { replace: true });
   }, [isCoach, navigate]);
 
-  // Back button while overlay showing → minimize (mobile-safe)
+  // Back button while overlay showing → minimize (mobile-safe).
+  // We hide the bar but DO NOT push extra history entries (that was
+  // polluting the back stack and routing the user back to /clocks).
   useEffect(() => {
     if (!showTabata) return;
-    // Full-screen tabata is open → bar should not be visible.
     setIsMinimized(false);
-    window.history.pushState(null, '', window.location.href);
     const onPop = () => {
-      window.history.pushState(null, '', window.location.href);
       handleMinimize();
     };
     window.addEventListener('popstate', onPop);

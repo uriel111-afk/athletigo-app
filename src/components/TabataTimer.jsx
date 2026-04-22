@@ -8,6 +8,7 @@ import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from
 import RoundJumpPicker from '@/components/RoundJumpPicker';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
 
 // ─── Constants ───
 const O = '#FF6F20';
@@ -64,6 +65,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // forgets to pass onMinimize / setLiveTimer.
   const navigate = useNavigate();
   const { setLiveTimerTabata, setShowTabata, setIsMinimized } = useActiveTimer();
+  // Role-aware destination — coach to /dashboard, trainee to /trainee-home
+  let _user = null;
+  try { _user = useAuth()?.user; } catch {}
+  const _isCoach = _user?.role === 'coach' || _user?.is_coach === true || _user?.role === 'admin';
+  const minimizeTarget = _isCoach ? '/dashboard' : '/trainee-home';
 
   // Jump to any round/phase. Resets startAtRef so the running loop
   // (which uses performance.now() - startAtRef) recomputes correctly.
@@ -489,15 +495,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     if (setShowTabata) setShowTabata(false);
     if (setIsMinimized) setIsMinimized(true);
 
-    // Defer navigation by one microtask. The 3 state setters above are
-    // batched in this event handler — but if we navigate synchronously,
-    // /clocks unmounts before React commits, and the new Layout/bar
-    // renders with stale context. Microtask defer ensures the state
-    // commit happens first, then the route change. Result: bar shows
-    // on the FIRST minimize tap, not the second.
+    // Defer navigation by one microtask so React commits the state
+    // setters above before the route change triggers /clocks unmount.
+    // We bypass the legacy onMinimize prop and navigate directly with
+    // { replace: true } to avoid pushing a duplicate history entry —
+    // otherwise pressing the phone back-button from /dashboard would
+    // pop back to /clocks (which Clocks.jsx popstate handler then
+    // interprets as a "minimize again" gesture and stops the timer).
     Promise.resolve().then(() => {
-      if (typeof onMinimize === 'function') onMinimize();
-      else navigate('/dashboard');
+      navigate(minimizeTarget, { replace: true });
     });
   }
 
