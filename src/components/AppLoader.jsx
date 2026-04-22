@@ -12,7 +12,7 @@ export default function AppLoader({ progress = 0, label = "טוען נתונים
       `}</style>
       <div className="text-center w-64">
         <img
-          src="/icon-192.png"
+          src="/logo-transparent.png"
           alt="AthletiGo"
           style={{
             width: 150,
