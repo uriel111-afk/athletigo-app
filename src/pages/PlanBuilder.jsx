@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
@@ -88,6 +88,34 @@ export default function PlanBuilder() {
   const [sections, setSections] = useState([]);
   const [addingSectionType, setAddingSectionType] = useState(false);
   const [editingExercise, setEditingExercise] = useState(null);
+
+  // ── Draft persistence ────────────────────────────────────────────
+  // Saves the step-1 form so an accidental refresh doesn't wipe it.
+  // Cleared once planId is set (first DB save) or on full reset.
+  const DRAFT_KEY = 'plan_builder_draft';
+  const draftHydratedRef = useRef(false);
+  useEffect(() => {
+    if (draftHydratedRef.current) return;
+    draftHydratedRef.current = true;
+    if (editPlanId) return; // edit mode loads from DB, not draft
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d?.planName) setPlanName(d.planName);
+      if (Array.isArray(d?.focusAreas)) setFocusAreas(d.focusAreas);
+      if (Array.isArray(d?.weeklyDays)) setWeeklyDays(d.weeklyDays);
+      if (typeof d?.description === 'string') setDescription(d.description);
+      if (Array.isArray(d?.selectedTrainees)) setSelectedTrainees(d.selectedTrainees);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (planId) { try { localStorage.removeItem(DRAFT_KEY); } catch {}; return; }
+    const draft = { planName, focusAreas, weeklyDays, description, selectedTrainees };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
+  }, [planId, planName, focusAreas, weeklyDays, description, selectedTrainees]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -458,7 +486,7 @@ export default function PlanBuilder() {
           <div style={{ fontSize: 15, color: "#666", marginBottom: 32 }}>
             {planName}{selectedTrainees.length > 0 && ` שויכה ל${trainees.find(t => t.id === selectedTrainees[0])?.full_name}`}
           </div>
-          <button onClick={() => { setStep(1); setPlanId(null); setPlanName(""); setFocusAreas([]); setWeeklyDays([]); setDescription(""); setSelectedTrainees([]); setSections([]); }}
+          <button onClick={() => { setStep(1); setPlanId(null); setPlanName(""); setFocusAreas([]); setWeeklyDays([]); setDescription(""); setSelectedTrainees([]); setSections([]); try { localStorage.removeItem(DRAFT_KEY); } catch {} }}
             style={{ width: "100%", height: 50, background: "#FF6F20", color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>
             + צור תוכנית נוספת
           </button>
