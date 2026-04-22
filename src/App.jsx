@@ -19,6 +19,7 @@ import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerConte
 import { useRealtimeSync } from './hooks/useRealtimeSync';
 import TraineeHome from './pages/TraineeHome';
 import TabataTimer from './components/TabataTimer';
+import LastSessionAlert from './components/LastSessionAlert';
 
 // Global TabataTimer — always mounted, never unmounts
 function GlobalTabata() {
@@ -196,6 +197,7 @@ function App() {
             </Routes>
           </Router>
           <Toaster />
+          <LastSessionAlert />
           <VisualEditAgent />
         </ActiveTimerProvider>
         </ClockProvider>

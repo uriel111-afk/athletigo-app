@@ -70,6 +70,18 @@ export async function deductSessionFromService(session, coachId) {
     const pkgName = service.package_name || service.service_type || "חבילה";
     if (newRemaining === 1) {
       toast.info(`נותר מפגש אחד בחבילה "${pkgName}"`);
+      // Open the LastSessionAlert popup so the coach can pick a renewal
+      // message tone (friendly / professional / motivation) to send.
+      try {
+        window.dispatchEvent(new CustomEvent('athletigo:last-session', {
+          detail: {
+            coachId,
+            traineeId: service.trainee_id,
+            traineeName: service.trainee_name,
+            packageName: pkgName,
+          },
+        }));
+      } catch {}
     }
     if (newRemaining <= 0) {
       toast.warning(`חבילה "${pkgName}" הסתיימה`);
