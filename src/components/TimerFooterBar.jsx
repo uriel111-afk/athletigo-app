@@ -61,7 +61,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
   let phaseEmoji = '';
   let phaseText = '';
   if (isWorkPhase) { phaseEmoji = '🔥'; phaseText = 'עבודה'; }
-  else if (isRestPhase) { phaseEmoji = '😮‍💨'; phaseText = 'מנוחה'; }
+  else if (isRestPhase) { phaseEmoji = '💤'; phaseText = 'מנוחה'; }
   else if (isPrepPhase) { phaseEmoji = '⏳'; phaseText = 'הכנה'; }
 
   return (

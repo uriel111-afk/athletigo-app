@@ -249,7 +249,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     const fields = [
       { k: 'prep',   l: 'הכנה',            icon: '⏳', u: 'שנ׳', mn: 0,  mx: 300, options: SECONDS_OPTIONS },
       { k: 'work',   l: 'עבודה',           icon: '🔥', u: 'שנ׳', mn: 1,  mx: 600, options: SECONDS_OPTIONS },
-      { k: 'rest',   l: 'מנוחה',           icon: '💚', u: 'שנ׳', mn: 0,  mx: 600, options: SECONDS_OPTIONS },
+      { k: 'rest',   l: 'מנוחה',           icon: '💤', u: 'שנ׳', mn: 0,  mx: 600, options: SECONDS_OPTIONS },
       { k: 'rounds', l: 'סבבים',            icon: '🔄', u: '',    mn: 1,  mx: 30,  options: ROUNDS_OPTIONS },
       { k: 'sets',   l: 'סטים',              icon: '📦', u: '',    mn: 1,  mx: 10,  options: [1, 2, 3, 4, 5, 6, 8, 10] },
       { k: 'rb',     l: 'מנוחה בין סטים',   icon: '⏸', u: 'שנ׳', mn: 0,  mx: 900, options: SECONDS_OPTIONS },

@@ -24,7 +24,7 @@ export default function RoundJumpPicker({
   for (let r = 1; r <= totalRounds; r++) {
     phases.push({ id: `work_${r}`,  label: `סבב ${r} — עבודה 🔥`, round: r, phase: 'work' });
     if (hasRest) {
-      phases.push({ id: `rest_${r}`, label: `סבב ${r} — מנוחה 😮‍💨`, round: r, phase: 'rest' });
+      phases.push({ id: `rest_${r}`, label: `סבב ${r} — מנוחה 💤`, round: r, phase: 'rest' });
     }
   }
 
