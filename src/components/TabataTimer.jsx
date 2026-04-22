@@ -6,6 +6,8 @@ import {
 } from '@/lib/tabataSounds';
 import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
 import RoundJumpPicker from '@/components/RoundJumpPicker';
+import { useActiveTimer } from '@/contexts/ActiveTimerContext';
+import { useNavigate } from 'react-router-dom';
 
 // ─── Constants ───
 const O = '#FF6F20';
@@ -56,6 +58,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const [paused, setPaused] = useState(false);
   const [pickingField, setPickingField] = useState(null);
   const [roundPickerOpen, setRoundPickerOpen] = useState(false);
+
+  // Defensive context access — guarantees minimize works even if a parent
+  // forgets to pass onMinimize / setLiveTimer.
+  const navigate = useNavigate();
+  const { setLiveTimerTabata, setShowTabata, setIsMinimized } = useActiveTimer();
 
   // Jump to any round/phase. Resets startAtRef so the running loop
   // (which uses performance.now() - startAtRef) recomputes correctly.
@@ -363,17 +370,31 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const totalMin = Math.floor(totalLeft / 60);
   const totalSec = totalLeft % 60;
 
-  // Minimize handler
+  // Minimize handler — bulletproof. Always:
+  //   1. Save tabata state to liveTimerTabata so the bar can render it
+  //   2. Hide the full-screen overlay (showTabata=false)
+  //   3. Flip isMinimized so the footer bar appears
+  //   4. Navigate away from /clocks if the user is on it
+  // Calls the parent's onMinimize as well (legacy navigation path).
   function doMinimize() {
-    if (onMinimize && setLiveTimer) {
-      setLiveTimer({
-        type: 'tabata',
-        display: String(display),
-        phase: PHASE_LABEL[phaseRef.current.type] || '',
-        info: `סבב ${phase.round}/${cfg.rounds} · סט ${phase.set}/${cfg.sets}`,
-        paused,
-      });
+    const snapshot = {
+      type: 'tabata',
+      display: String(display),
+      phase: PHASE_LABEL[phaseRef.current.type] || '',
+      info: `סבב ${phase.round}/${cfg.rounds} · סט ${phase.set}/${cfg.sets}`,
+      paused,
+    };
+    // Prefer the targeted tabata setter; fall back to the legacy prop.
+    if (setLiveTimerTabata) setLiveTimerTabata(snapshot);
+    else if (setLiveTimer) setLiveTimer(snapshot);
+
+    if (setShowTabata) setShowTabata(false);
+    if (setIsMinimized) setIsMinimized(true);
+
+    if (typeof onMinimize === 'function') {
       onMinimize();
+    } else if (window.location.pathname.toLowerCase().includes('clock')) {
+      navigate(-1);
     }
   }
 
