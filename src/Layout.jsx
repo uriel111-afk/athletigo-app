@@ -419,20 +419,20 @@ export default function Layout({ children, currentPageName }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  transform: 'translateX(-15px)',
+                  transform: 'translateX(-19px)',
                 }}>
                   <img
                     src="/athletigo-text.png"
                     alt="ATHLETIGO"
-                    style={{ height: 18, objectFit: 'contain', display: 'block' }}
+                    style={{ height: 15, objectFit: 'contain', display: 'block' }}
                   />
                   <img
                     src={LOGO_ICON}
                     alt=""
-                    style={{ width: 24, height: 24, objectFit: 'contain', display: 'block' }}
+                    style={{ width: 32, height: 32, objectFit: 'contain', display: 'block' }}
                   />
                 </div>
-                <div style={{ fontSize: 11, color: primaryColor, fontWeight: 600, marginTop: 1, lineHeight: 1.2 }}>
+                <div style={{ fontSize: 13, color: primaryColor, fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>
                   {userRoleLabel}
                 </div>
               </div>
