@@ -11,6 +11,9 @@ export const ActiveTimerProvider = ({ children }) => {
   const [liveTimerClock, setLiveTimerClock] = useState(null);
   const [liveTimerTabata, setLiveTimerTabata] = useState(null);
   const [showTabata, setShowTabata] = useState(false);
+  // TimerFooterBar only renders when a timer is active AND the user
+  // explicitly minimized it (tap of the minimize button or nav-away).
+  const [isMinimized, setIsMinimized] = useState(false);
 
   // Legacy single-slot getter — prefer tabata since it has richer info.
   const liveTimer = liveTimerTabata || liveTimerClock;
@@ -47,6 +50,8 @@ export const ActiveTimerProvider = ({ children }) => {
     activeTimers,
     showTabata,
     setShowTabata,
+    isMinimized,
+    setIsMinimized,
   };
 
   return (

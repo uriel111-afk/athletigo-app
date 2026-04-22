@@ -50,8 +50,10 @@ export default function Layout({ children, currentPageName }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
   const clock = useClock();
-  const { liveTimer, setLiveTimer, activeTimers } = useActiveTimer();
-  const timerBarsHeight = (activeTimers?.length || 0) * 62;
+  const { liveTimer, setLiveTimer, activeTimers, isMinimized } = useActiveTimer();
+  // Bars only contribute height when actually visible (minimized state).
+  const visibleBars = isMinimized ? (activeTimers?.length || 0) : 0;
+  const timerBarsHeight = visibleBars * 72;
   const isClocks = location.pathname.toLowerCase().includes('clock');
   const isDashboard = location.pathname.toLowerCase().includes('dashboard');
   const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');

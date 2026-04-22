@@ -237,7 +237,7 @@ export default function Clocks() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tabata');
   const clock = useClock();
-  const { setLiveTimer, setShowTabata } = useActiveTimer();
+  const { setLiveTimer, setShowTabata, setIsMinimized } = useActiveTimer();
   const { user } = React.useContext(AuthContext);
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
@@ -245,15 +245,27 @@ export default function Clocks() {
   const anyRunning = timerOrStopwatchRunning;
   const lastBackPress = useRef(0);
 
-  // Minimize — NEVER stops intervals, navigates to role dashboard
+  // Minimize — NEVER stops intervals, navigates to role dashboard,
+  // and flips isMinimized so the footer bar appears.
   const minimizeTimer = useCallback(() => {
     if (clock?.activeClock === 'timer') {
       setLiveTimer({ type: 'timer', display: fmt(clock.display), phase: 'טיימר', info: null, paused: !clock.isRunning });
     } else if (clock?.activeClock === 'stopwatch') {
       setLiveTimer({ type: 'stopwatch', display: fmtStopwatch(clock.display), phase: 'סטופר', info: null, paused: !clock.isRunning });
     }
+    setIsMinimized(true);
     navigate(isCoach ? '/dashboard' : '/traineehome');
-  }, [clock, setLiveTimer, navigate, isCoach]);
+  }, [clock, setLiveTimer, setIsMinimized, navigate, isCoach]);
+
+  // Entering the Clocks page = bar should disappear. If the user leaves
+  // while a timer is still active, re-minimize so the bar reappears.
+  React.useEffect(() => {
+    setIsMinimized(false);
+    return () => {
+      if (clock?.activeClock) setIsMinimized(true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Update floating widget every tick (timer/stopwatch from ClockContext)
   useEffect(() => {

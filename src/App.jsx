@@ -22,7 +22,7 @@ import TabataTimer from './components/TabataTimer';
 
 // Global TabataTimer — always mounted, never unmounts
 function GlobalTabata() {
-  const { showTabata, setShowTabata, setLiveTimer } = useActiveTimer();
+  const { showTabata, setShowTabata, setLiveTimer, setIsMinimized } = useActiveTimer();
   const navigate = useNavigate();
   let user = null;
   try { const auth = useAuth(); user = auth?.user; } catch(e) {}
@@ -30,12 +30,15 @@ function GlobalTabata() {
 
   const handleMinimize = useCallback(() => {
     setShowTabata(false);
+    setIsMinimized(true);
     navigate(isCoach ? '/dashboard' : '/traineehome', { replace: false });
-  }, [isCoach, navigate, setShowTabata]);
+  }, [isCoach, navigate, setShowTabata, setIsMinimized]);
 
   // Back button while overlay showing → minimize (mobile-safe)
   useEffect(() => {
     if (!showTabata) return;
+    // Full-screen tabata is open → bar should not be visible.
+    setIsMinimized(false);
     window.history.pushState(null, '', window.location.href);
     const onPop = () => {
       window.history.pushState(null, '', window.location.href);
@@ -43,7 +46,7 @@ function GlobalTabata() {
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [showTabata, handleMinimize]);
+  }, [showTabata, handleMinimize, setIsMinimized]);
 
   return (
     <div style={{
