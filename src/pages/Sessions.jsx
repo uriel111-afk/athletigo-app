@@ -22,6 +22,7 @@ import SessionFormDialog from "../components/forms/SessionFormDialog";
 import SessionEditModal from "../components/SessionEditModal";
 import { notifySessionScheduled, notifySessionCompleted } from "@/functions/notificationTriggers";
 import { AuthContext } from "@/lib/AuthContext";
+import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 
 export default function Sessions() {
   const [showSessionDialog, setShowSessionDialog] = useState(false);
@@ -36,6 +37,7 @@ export default function Sessions() {
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || "all");
   
   const [expandedSessions, setExpandedSessions] = useState({});
+  const [view, setView] = useViewToggle('sessions_view', 'list');
   const [addingParticipantsTo, setAddingParticipantsTo] = useState(null);
 
   // Group Training state
@@ -1160,6 +1162,8 @@ export default function Sessions() {
                 <SelectItem value="cancelled">❌ בוטלו</SelectItem>
               </SelectContent>
             </Select>
+
+            <ViewToggle view={view} onChange={setView} />
           </div>
 
           {/* ═══ GROUPS VIEW ═══ */}
@@ -1266,7 +1270,7 @@ export default function Sessions() {
                     </div>
                     <div className="w-16 h-1 rounded-full" style={{ background: 'linear-gradient(90deg, #FF6F20 0%, #FF8F50 100%)' }} />
                   </div>
-                  <div className="space-y-5">
+                  <div className={view === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-5'}>
                     {todaySessions.map((session) =>
                 <SessionCard key={session.id} session={session} priority={true} />
                 )}
@@ -1289,7 +1293,7 @@ export default function Sessions() {
                     </div>
                     <div className="w-16 h-1 rounded-full" style={{ backgroundColor: '#2196F3' }} />
                   </div>
-                  <div className="space-y-5">
+                  <div className={view === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-5'}>
                     {tomorrowSessions.map((session) =>
                 <SessionCard key={session.id} session={session} />
                 )}
@@ -1312,7 +1316,7 @@ export default function Sessions() {
                     </div>
                     <div className="w-16 h-1 rounded-full" style={{ backgroundColor: '#000000' }} />
                   </div>
-                  <div className="space-y-5">
+                  <div className={view === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-5'}>
                     {upcomingSessions.map((session) =>
                 <SessionCard key={session.id} session={session} />
                 )}
@@ -1335,7 +1339,7 @@ export default function Sessions() {
                     </div>
                     <div className="w-16 h-1 rounded-full" style={{ backgroundColor: '#4CAF50' }} />
                   </div>
-                  <div className="space-y-5">
+                  <div className={view === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-5'}>
                     {completedSessions.slice(0, 5).map((session) =>
                 <SessionCard key={session.id} session={session} />
                 )}

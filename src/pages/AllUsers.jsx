@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import UserCard from "../components/UserCard";
+import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 import { normalizeStatus, isActivePackage, CLIENT_STATUS_KEYS, CLIENT_STATUS } from "@/lib/enums";
 
 export default function AllUsers() {
@@ -26,6 +27,7 @@ export default function AllUsers() {
   const [filterType, setFilterType] = useState(new URLSearchParams(window.location.search).get('filter') || "all"); // all, paying, casual, active
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [userToRename, setUserToRename] = useState(null);
+  const [view, setView] = useViewToggle('clients_view', 'list');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -180,6 +182,7 @@ export default function AllUsers() {
                     <SelectItem value="active" className="hover:bg-gray-50">פעילים</SelectItem>
                   </SelectContent>
                 </Select>
+                <ViewToggle view={view} onChange={setView} />
               </div>
             </div>
           </div>
@@ -205,7 +208,7 @@ export default function AllUsers() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className={view === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'}>
               {filteredTrainees.map((trainee) => {
                 // --- Logic for Card Data ---
                 

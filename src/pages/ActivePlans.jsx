@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import PageLoader from "@/components/PageLoader";
 import ProtectedCoachPage from "@/components/ProtectedCoachPage";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
+import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { notifyPlanCreated } from "@/functions/notificationTriggers";
 
@@ -25,6 +26,7 @@ export default function ActivePlans() {
   const [editingPlan, setEditingPlan] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTrainee, setFilterTrainee] = useState("all");
+  const [view, setView] = useViewToggle('plans_view', 'list');
 
   // ── Coach ──────────────────────────────────────────────────────────────
   const { data: coach } = useQuery({
@@ -236,6 +238,7 @@ export default function ActivePlans() {
                 </SelectContent>
               </Select>
             )}
+            <ViewToggle view={view} onChange={setView} />
           </div>
           <p className="text-xs text-gray-400 mb-3">מציג {activePlans.length} מתוך {plans.filter(p => p.status === "פעילה").length} תוכניות</p>
 
@@ -271,9 +274,9 @@ export default function ActivePlans() {
             </div>
           )}
 
-          {/* Plans List */}
+          {/* Plans List / Grid */}
           {!isLoading && activePlans.length > 0 && (
-            <div className="space-y-3">
+            <div className={view === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
               {activePlans.map((plan) => (
                 <div
                   key={plan.id}

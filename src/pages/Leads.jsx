@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import PageLoader from "@/components/PageLoader";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
+import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 
 export default function Leads() {
   const [coach, setCoach] = useState(null);
@@ -31,6 +32,7 @@ export default function Leads() {
   
   const [filterStatus, setFilterStatus] = useState(filterParam === 'new' ? 'חדש' : "all");
   const [filterSource, setFilterSource] = useState("all");
+  const [view, setView] = useViewToggle('leads_view', 'list');
   
 
 
@@ -343,6 +345,7 @@ export default function Leads() {
                 <UserPlus className="w-5 h-5 ml-2" />
                 הוסף ליד
               </Button>
+              <ViewToggle view={view} onChange={setView} />
             </div>
           </div>
 
@@ -359,7 +362,7 @@ export default function Leads() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            <div className={view === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6'}>
               {filteredLeads.map(lead => {
                 const config = statusConfig[lead.status] || statusConfig["חדש"];
                 const StatusIcon = config.icon;
