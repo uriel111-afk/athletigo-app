@@ -1,3 +1,4 @@
+import { useEffect, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useClock } from '@/contexts/ClockContext';
@@ -205,6 +206,17 @@ export default function TimerFooterBar() {
   } = useActiveTimer();
   const clock = useClock();
   const navigate = useNavigate();
+
+  // Defensive 100ms tick — forces a re-render so the bar's display field
+  // always reflects the latest liveTimer.display, even if the upstream
+  // state propagation lagged for any reason. Cheap (re-renders only the
+  // bar) and only runs while the bar is actually visible.
+  const [, forceRender] = useReducer(x => x + 1, 0);
+  useEffect(() => {
+    if (!isMinimized || activeTimers.length === 0) return;
+    const id = setInterval(forceRender, 100);
+    return () => clearInterval(id);
+  }, [isMinimized, activeTimers.length]);
 
   // Only render when the user explicitly minimized an active timer.
   if (!isMinimized || !activeTimers.length) return null;

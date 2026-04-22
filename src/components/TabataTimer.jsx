@@ -163,7 +163,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Handlers ───
   const handleStart = useCallback(async () => {
     await unlockAudio();
-    playSoftBreath();
+    // Same start sound as the Stopwatch (Clocks.jsx SOUND_START = playClick).
+    playClick();
     setPaused(false);
     setScreen('running');
     const first = cfg.prep > 0
@@ -183,7 +184,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   function handleResume() {
-    playSoftBreath();
+    playClick();
     startAtRef.current = performance.now() - elapsedRef.current * 1000;
     lastBeepRef.current = -1;
     setPaused(false);
@@ -431,15 +432,34 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   const nextP = phase.type !== 'done' && phase.type !== 'idle' ? nextPhase(phase, cfg) : null;
 
-  // ─── Active Timer — FULL SCREEN, NO SCROLL, MASSIVE TEXT ───
+  // ─── Active Timer — FULL SCREEN, phase-driven theme ───
   const dashOffset = progress * CIRC;
+
+  // Phase theming — same logic as the minimized footer bar.
+  const isWork = phase.type === 'work';
+  const isRest = phase.type === 'rest' || phase.type === 'set_rest';
+  const isPrep = phase.type === 'prep';
+  const bg          = isWork ? '#FF6F20' : isRest ? '#FFF9F0' : '#1a1a1a';
+  const textPrimary = isRest ? '#1a1a1a' : '#FFFFFF';
+  const textSoft    = isRest ? '#888'    : 'rgba(255,255,255,0.8)';
+  const accent      = isRest ? '#FF6F20' : '#FFFFFF';
+  const ringTrack   = isRest ? 'rgba(255,111,32,0.15)' : 'rgba(255,255,255,0.25)';
+  const ringFill    = isRest ? '#FF6F20' : '#FFFFFF';
+  const chipBg      = isRest ? 'rgba(255,111,32,0.10)' : 'rgba(255,255,255,0.15)';
+  const chipDarkBg  = isRest ? 'rgba(0,0,0,0.05)'      : 'rgba(0,0,0,0.2)';
+  // Primary action button (pause/resume) — invert per phase
+  const primaryBtn = {
+    bg: isWork ? '#FFFFFF' : isRest ? '#FF6F20' : '#FFFFFF',
+    fg: isWork ? '#FF6F20' : isRest ? '#FFFFFF' : '#1a1a1a',
+  };
+
   return (
-    <div style={{ background: O, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: W, overflow: 'hidden' }}>
+    <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease' }}>
 
       {/* ROW 1: Phase name + minimize */}
       <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ fontSize: 'min(10vw, 40px)', fontWeight: 900 }}>{PHASE_LABEL[phase.type]}</div>
-        <button onClick={doMinimize} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12, padding: '9px 16px', color: W, fontSize: 15, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>
+        <div style={{ fontSize: 'min(10vw, 40px)', fontWeight: 900, color: textPrimary }}>{PHASE_LABEL[phase.type]}</div>
+        <button onClick={doMinimize} style={{ background: chipBg, border: 'none', borderRadius: 12, padding: '9px 16px', color: textPrimary, fontSize: 15, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>
           מזער ↗
         </button>
       </div>
@@ -449,17 +469,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         {phase.type !== 'prep' && (
           <div
             onClick={() => setRoundPickerOpen(true)}
-            style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, cursor: 'pointer' }}
+            style={{ background: chipBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, cursor: 'pointer', color: textPrimary }}
           >
             סבב {phase.round}/{cfg.rounds}
           </div>
         )}
         {cfg.sets > 1 && phase.type !== 'prep' && (
-          <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900 }}>
+          <div style={{ background: chipBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, color: textPrimary }}>
             סט {phase.set}/{cfg.sets}
           </div>
         )}
-        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ background: chipDarkBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: textPrimary }}>
           ⏱ {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
         </div>
       </div>
@@ -468,12 +488,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, width: '100%' }}>
         <div style={{ position: 'relative', width: 'min(80vw, 320px)', height: 'min(80vw, 320px)' }}>
           <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
-            <circle cx={CX} cy={CY} r={R} stroke={WD} strokeWidth={S} fill="none" />
-            <circle cx={CX} cy={CY} r={R} stroke={W} strokeWidth={S} strokeLinecap="round" fill="none"
-              strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} />
+            <circle cx={CX} cy={CY} r={R} stroke={ringTrack} strokeWidth={S} fill="none" />
+            <circle cx={CX} cy={CY} r={R} stroke={ringFill} strokeWidth={S} strokeLinecap="round" fill="none"
+              strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(55vw, 200px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -8, lineHeight: 1 }}>{display}</span>
+            <span style={{ fontSize: 'min(55vw, 200px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -8, lineHeight: 1, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
@@ -481,20 +501,20 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       {/* BOTTOM: Next + Nav + Controls */}
       <div style={{ width: '100%', maxWidth: 420, flexShrink: 0 }}>
         {nextP && nextP.type !== 'done' && (
-          <div style={{ textAlign: 'center', marginBottom: 8, fontSize: 'min(5vw, 20px)', fontWeight: 800, opacity: 0.8 }}>
+          <div style={{ textAlign: 'center', marginBottom: 8, fontSize: 'min(5vw, 20px)', fontWeight: 800, opacity: 0.8, color: textPrimary }}>
             הבא: {PHASE_LABEL[nextP.type]} · {nextP.dur} שנ׳
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
-          <button onClick={skipToNext} style={{ flex: 1, height: 48, background: 'rgba(255,255,255,0.15)', color: W, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
+          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: chipBg, color: textPrimary, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
+          <button onClick={skipToNext} style={{ flex: 1, height: 48, background: chipBg, color: textPrimary, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {paused
-            ? <button onClick={handleResume} style={{ ...cBtn, flex: 2, height: 56, fontSize: 22 }}>המשך ▶</button>
-            : <button onClick={handlePause} style={{ ...cBtn, flex: 2, height: 56, fontSize: 22 }}>השהה ‖</button>
+            ? <button onClick={handleResume} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>המשך ▶</button>
+            : <button onClick={handlePause} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>השהה ‖</button>
           }
-          <button onClick={handleStop} style={{ ...cBtn, flex: 1, height: 56, fontSize: 18, background: 'rgba(255,255,255,0.2)', color: W }}>עצור</button>
+          <button onClick={handleStop} style={{ flex: 1, height: 56, fontSize: 18, fontWeight: 800, background: chipBg, color: textPrimary, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>עצור</button>
         </div>
       </div>
       <RoundJumpPicker
