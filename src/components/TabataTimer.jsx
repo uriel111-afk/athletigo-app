@@ -17,7 +17,8 @@ const R = 120, S = 10, SIZE = R * 2 + S * 2, CX = SIZE / 2, CY = SIZE / 2;
 const CIRC = 2 * Math.PI * R;
 
 const PHASE_LABEL = { prep: 'הכנה', work: 'עבודה', rest: 'מנוחה', set_rest: 'מנוחה בין סטים', done: 'סיום' };
-const LS_KEY = 'tb3';
+const LS_KEY = 'tb3';                      // config (workSec, restSec, etc.)
+const RUNTIME_KEY = 'tabata_runtime_state'; // running phase + timestamps
 
 function load() {
   try { const r = localStorage.getItem(LS_KEY); if (r) return JSON.parse(r); } catch {}
@@ -105,6 +106,96 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   // Cleanup on unmount
   useEffect(() => () => { cancelAnimationFrame(rafRef.current); cancelScheduled(); }, []);
+
+  // ── Runtime persistence (mirrors ClockContext pattern) ───────────
+  // Save on every meaningful transition (screen, phase, paused).
+  // perfStart is captured as performance.now() but the real anchor for
+  // wall-clock recovery is `phaseElapsed` + `savedAt` (Date.now()).
+  useEffect(() => {
+    if (screen === 'settings') {
+      try { localStorage.removeItem(RUNTIME_KEY); } catch {}
+      return;
+    }
+    const phaseElapsed = paused
+      ? elapsedRef.current
+      : (performance.now() - startAtRef.current) / 1000;
+    const snapshot = {
+      screen,
+      phase: phaseRef.current,
+      cfg: cfgRef.current,
+      paused,
+      phaseElapsed,        // seconds elapsed in current phase at save time
+      savedAt: Date.now(), // wall clock — survives refresh; performance.now does not
+    };
+    try { localStorage.setItem(RUNTIME_KEY, JSON.stringify(snapshot)); } catch {}
+  }, [screen, phase, paused]);
+
+  // Hydrate once on mount — if a tabata was running when the tab was
+  // closed/refreshed, reconstruct it. If it would have completed during
+  // the offline period, jump straight to the done screen.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    let snap;
+    try {
+      const raw = localStorage.getItem(RUNTIME_KEY);
+      if (!raw) return;
+      snap = JSON.parse(raw);
+    } catch { return; }
+    if (!snap || snap.screen === 'settings') return;
+
+    const c = snap.cfg || cfg;
+    cfgRef.current = c;
+    setCfg(c);
+
+    if (snap.screen === 'done') {
+      const idle = { type: 'done', round: snap.phase?.round || 0, set: snap.phase?.set || 0, dur: 0 };
+      phaseRef.current = idle;
+      setPhase(idle);
+      setScreen('done');
+      return;
+    }
+
+    // Walk forward from the saved phase by (phaseElapsed + offline wall time).
+    let p = snap.phase || { type: 'prep', round: 0, set: 0, dur: c.prep };
+    const offline = (Date.now() - (snap.savedAt || Date.now())) / 1000;
+    let totalElapsed = (snap.phaseElapsed || 0) + (snap.paused ? 0 : offline);
+
+    while (p && p.type !== 'done' && totalElapsed >= p.dur) {
+      totalElapsed -= p.dur;
+      p = nextPhase(p, c);
+    }
+
+    if (!p || p.type === 'done') {
+      const done = { type: 'done', round: c.rounds, set: c.sets, dur: 0 };
+      phaseRef.current = done;
+      setPhase(done);
+      setDisplay(0);
+      setProgress(1);
+      setScreen('done');
+      return;
+    }
+
+    // Resume in this phase. Re-anchor performance.now() so the rAF tick
+    // computes (performance.now() - startAtRef) === totalElapsed * 1000.
+    phaseRef.current = p;
+    setPhase(p);
+    setDisplay(Math.max(0, p.dur - totalElapsed));
+    setProgress(totalElapsed / p.dur);
+    setScreen('running');
+    setPaused(!!snap.paused);
+    if (snap.paused) {
+      elapsedRef.current = totalElapsed;
+      startAtRef.current = performance.now() - totalElapsed * 1000;
+    } else {
+      startAtRef.current = performance.now() - totalElapsed * 1000;
+      elapsedRef.current = 0;
+      lastBeepRef.current = -1;
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Core engine ───
   function beginPhase(p) {
@@ -211,6 +302,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     elapsedRef.current = 0;
     setScreen('settings');
     if (setLiveTimer) setLiveTimer(null);
+    if (setLiveTimerTabata) setLiveTimerTabata(null);
+    try { localStorage.removeItem(RUNTIME_KEY); } catch {}
   }
 
   // Back button → minimize
