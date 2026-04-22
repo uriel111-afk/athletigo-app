@@ -53,7 +53,7 @@ export default function Layout({ children, currentPageName }) {
   const { liveTimer, setLiveTimer, activeTimers, isMinimized } = useActiveTimer();
   // Bars only contribute height when actually visible (minimized state).
   const visibleBars = isMinimized ? (activeTimers?.length || 0) : 0;
-  const timerBarsHeight = visibleBars * 86;
+  const timerBarsHeight = visibleBars * 74;
   const isClocks = location.pathname.toLowerCase().includes('clock');
   const isDashboard = location.pathname.toLowerCase().includes('dashboard');
   const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');
