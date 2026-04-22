@@ -51,7 +51,7 @@ export default function RoundJumpPicker({
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 3000,
+        zIndex: 6000,
       }}
     >
       <div

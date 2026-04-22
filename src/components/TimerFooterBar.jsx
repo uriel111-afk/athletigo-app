@@ -65,76 +65,74 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
   else if (isRestPhase) { phaseEmoji = '💤'; phaseText = 'מנוחה'; }
   else if (isPrepPhase) { phaseEmoji = '⏳'; phaseText = 'הכנה'; }
 
+  const btnBase = {
+    border: 'none', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+    userSelect: 'none',
+    WebkitTapHighlightColor: 'transparent',
+  };
+
   return (
     <div
       style={{
         position: 'fixed',
         bottom: bottomOffset,
         left: 0, right: 0,
-        height: 72,
+        height: 80,
         background: barBg,
         borderTop,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 10px',
-        // Above Radix Dialog overlay (z 2000) + app modals (z 1000-9000).
-        // This ensures bar buttons receive taps even when a form is open.
-        zIndex: 2500,
+        padding: '0 12px',
+        // Above Radix Dialog overlay (z 2000) + ScrollPickerPopup overlay
+        // (z 3000) + ProtectedCoachPage loading (z 10000). Picker popups
+        // are bumped to z 6000 to stay above this bar.
+        zIndex: 5000,
         direction: 'rtl',
-        // No transition — bar must appear/disappear instantly on minimize.
-        transition: 'none',
+        transition: 'background 0.3s ease',
         cursor: 'default',
       }}
     >
-      {/* CLOSE — stops and removes timer */}
+      {/* CLOSE */}
       <button
+        type="button"
         onClick={stop(onClose)}
         onPointerDown={(e) => e.stopPropagation()}
-        style={{
-          width: 28, height: 28, borderRadius: '50%',
-          background: closeBg, border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}
+        style={{ ...btnBase, width: 30, height: 30, borderRadius: '50%', background: closeBg }}
         aria-label="סגור טיימר"
       >
-        <span style={{ pointerEvents: 'none', color: closeColor, fontSize: 14, fontWeight: 700 }}>✕</span>
+        <span style={{ pointerEvents: 'none', color: closeColor, fontSize: 16, fontWeight: 700 }}>✕</span>
       </button>
 
       {/* ROUND CONTROLS — tabata/emom only */}
       {hasRounds ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <button
+            type="button"
             onClick={stop(onPrevRound)}
             onPointerDown={(e) => e.stopPropagation()}
-            style={{
-              width: 34, height: 34, borderRadius: '50%',
-              background: softBg, border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
+            style={{ ...btnBase, width: 40, height: 40, borderRadius: '50%', background: softBg }}
             aria-label="סבב קודם"
           >
-            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 14 }}>⏮</span>
+            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 18 }}>⏮</span>
           </button>
           <button
+            type="button"
             onClick={stop(onNextRound)}
             onPointerDown={(e) => e.stopPropagation()}
-            style={{
-              width: 34, height: 34, borderRadius: '50%',
-              background: softBg, border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
+            style={{ ...btnBase, width: 40, height: 40, borderRadius: '50%', background: softBg }}
             aria-label="סבב הבא"
           >
-            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 14 }}>⏭</span>
+            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 18 }}>⏭</span>
           </button>
         </div>
       ) : <div style={{ width: 0 }} />}
 
       {/* PHASE + ROUND/TYPE INFO — round counter is tappable for jump picker */}
       <div style={{ textAlign: 'center', flex: 1, minWidth: 0, padding: '0 6px' }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: primaryText }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: primaryText }}>
           {phaseEmoji ? `${phaseEmoji} ${phaseText}` : (TYPE_LABEL[type] || type)}
         </div>
         {hasRounds && info ? (
@@ -145,12 +143,12 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
               else if (type === 'emom') window.dispatchEvent(new CustomEvent('emom-open-round-picker'));
             })}
             onPointerDown={(e) => e.stopPropagation()}
-            style={{ fontSize: 12, color: secondaryText, marginTop: 2, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2, background: 'transparent', border: 'none', padding: '2px 4px', WebkitTapHighlightColor: 'transparent' }}
+            style={{ fontSize: 14, fontWeight: 600, color: secondaryText, marginTop: 2, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2, background: 'transparent', border: 'none', padding: '2px 4px', WebkitTapHighlightColor: 'transparent' }}
           >
             <span style={{ pointerEvents: 'none' }}>{info}</span>
           </button>
         ) : (
-          <div style={{ fontSize: 12, color: secondaryText, marginTop: 2 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: secondaryText, marginTop: 2 }}>
             {phaseEmoji ? (TYPE_LABEL[type] || type) : ''}
           </div>
         )}
@@ -159,43 +157,34 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
       {/* TIME — large */}
       <div style={{
         fontFamily: "'Barlow Condensed', sans-serif",
-        fontSize: 32, fontWeight: 700,
-        color: timeColor, minWidth: 85, textAlign: 'center',
+        fontSize: 38, fontWeight: 700,
+        color: timeColor, minWidth: 100, textAlign: 'center',
       }}>
         {display}
       </div>
 
       {/* PLAY / PAUSE */}
       <button
+        type="button"
         onClick={stop(onToggle)}
         onPointerDown={(e) => e.stopPropagation()}
-        style={{
-          width: 42, height: 42, borderRadius: '50%',
-          background: isWorkPhase ? '#FFFFFF' : '#FF6F20',
-          border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}
+        style={{ ...btnBase, width: 48, height: 48, borderRadius: '50%', background: isWorkPhase ? '#FFFFFF' : '#FF6F20' }}
         aria-label={isRunning ? 'השהה' : 'נגן'}
       >
-        <span style={{ pointerEvents: 'none', color: isWorkPhase ? '#FF6F20' : '#FFFFFF', fontSize: 18 }}>
+        <span style={{ pointerEvents: 'none', color: isWorkPhase ? '#FF6F20' : '#FFFFFF', fontSize: 22 }}>
           {isRunning ? '⏸' : '▶'}
         </span>
       </button>
 
       {/* EXPAND — the only button allowed to navigate */}
       <button
+        type="button"
         onClick={stop(onExpand)}
         onPointerDown={(e) => e.stopPropagation()}
-        style={{
-          width: 34, height: 34, borderRadius: 10,
-          background: softBg, border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}
+        style={{ ...btnBase, width: 40, height: 40, borderRadius: 12, background: softBg }}
         aria-label="הרחב"
       >
-        <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 14 }}>⤢</span>
+        <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 20 }}>⤢</span>
       </button>
     </div>
   );

@@ -335,11 +335,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   useEffect(() => {
     const onReset = () => handleStop();
     const onPauseResume = () => { if (paused) handleResume(); else handlePause(); };
+    const onPrevRound = () => skipToPrev();
+    const onNextRound = () => skipToNext();
     window.addEventListener('tabata-reset', onReset);
     window.addEventListener('tabata-pause-resume', onPauseResume);
+    window.addEventListener('tabata-prev-round', onPrevRound);
+    window.addEventListener('tabata-next-round', onNextRound);
     return () => {
       window.removeEventListener('tabata-reset', onReset);
       window.removeEventListener('tabata-pause-resume', onPauseResume);
+      window.removeEventListener('tabata-prev-round', onPrevRound);
+      window.removeEventListener('tabata-next-round', onNextRound);
     };
   }, [paused]);
 
