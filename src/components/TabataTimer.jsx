@@ -261,8 +261,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Handlers ───
   const handleStart = useCallback(async () => {
     await unlockAudio();
-    // Same start sound as the Stopwatch (Clocks.jsx SOUND_START = playClick).
-    playClick();
+    // נשימה רכה — soft breath on play tap. Same sound used by Countdown.
+    playSoftBreath();
     setPaused(false);
     setScreen('running');
     const first = cfg.prep > 0
@@ -282,7 +282,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   function handleResume() {
-    playClick();
+    playSoftBreath();
     startAtRef.current = performance.now() - elapsedRef.current * 1000;
     lastBeepRef.current = -1;
     setPaused(false);

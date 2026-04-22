@@ -40,7 +40,7 @@ const MIN_COL_OPTIONS = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 75, 90, 99];
 const SEC_COL_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 59];
 
 // ═══ SOUNDS (Timer & Stopwatch) — shared AudioContext ═══
-import { unlock as unlockAudio, playBeep, playClick, playWhistle, playBell, playVictory } from '@/lib/tabataSounds';
+import { unlock as unlockAudio, playBeep, playClick, playWhistle, playBell, playVictory, playSoftBreath } from '@/lib/tabataSounds';
 const SOUND_START = playClick;
 const SOUND_PAUSE = playClick;
 const SOUND_RESET = playClick;
@@ -166,7 +166,7 @@ function TimerView({ onMinimize }) {
           <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FL, color: C3 }}>שניות</span>
         </div>
         <ScrollPickerPopup isOpen={prepPicking} value={prepSec} options={PREP_OPTIONS} onSelect={setPrepSec} onClose={() => setPrepPicking(false)} title="זמן הכנה (שניות)" />
-        <button onClick={() => { unlockAudio(); SOUND_START(); startTimer(totalTimerMs, prepSec * 1000); }} disabled={totalTimerMs === 0}
+        <button onClick={() => { unlockAudio(); playSoftBreath(); startTimer(totalTimerMs, prepSec * 1000); }} disabled={totalTimerMs === 0}
           className="w-full flex items-center justify-center disabled:opacity-40 active:scale-[0.98] transition-transform"
           style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
           <Play className="w-6 h-6 ml-2" />התחל
@@ -216,7 +216,7 @@ function TimerView({ onMinimize }) {
             <Pause className="w-6 h-6 ml-2" />השהה
           </button>
         ) : (
-          <button onClick={() => { SOUND_START(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
+          <button onClick={() => { playSoftBreath(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
             style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
             <Play className="w-6 h-6 ml-2" />המשך
           </button>
