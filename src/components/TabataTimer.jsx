@@ -489,11 +489,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     if (setShowTabata) setShowTabata(false);
     if (setIsMinimized) setIsMinimized(true);
 
-    if (typeof onMinimize === 'function') {
-      onMinimize();
-    } else {
-      navigate('/dashboard');
-    }
+    // Defer navigation by one microtask. The 3 state setters above are
+    // batched in this event handler — but if we navigate synchronously,
+    // /clocks unmounts before React commits, and the new Layout/bar
+    // renders with stale context. Microtask defer ensures the state
+    // commit happens first, then the route change. Result: bar shows
+    // on the FIRST minimize tap, not the second.
+    Promise.resolve().then(() => {
+      if (typeof onMinimize === 'function') onMinimize();
+      else navigate('/dashboard');
+    });
   }
 
   // Navigation: skip to next/prev phase
