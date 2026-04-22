@@ -496,7 +496,7 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 72px per active timer bar) */}
           <div className="md:hidden"
-               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 8px 16px', direction: 'rtl', overflow: 'visible' }}>
+               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 8px 18px', direction: 'rtl', overflow: 'visible' }}>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', width: '100%' }}>
               {(() => {
                 const navItems = isCoach ? [
@@ -524,8 +524,8 @@ export default function Layout({ children, currentPageName }) {
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 4,
-                        minWidth: 56,
+                        gap: 2,
+                        minWidth: 60,
                         cursor: 'pointer',
                         textDecoration: 'none',
                         overflow: 'visible',
@@ -533,18 +533,20 @@ export default function Layout({ children, currentPageName }) {
                     >
                       {/* Emoji renders in its native multi-color — no color override. */}
                       <span style={{
-                        fontSize: 22,
+                        fontSize: 26,
                         lineHeight: 1,
-                        height: 28,
+                        height: 32,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}>{item.emoji}</span>
                       <span style={{
-                        fontSize: 11,
+                        fontSize: 12,
                         lineHeight: 1,
-                        color: active ? '#FF6F20' : '#888',
-                        fontWeight: active ? 600 : 400,
+                        letterSpacing: '0.3px',
+                        marginTop: 3,
+                        color: active ? '#FF6F20' : '#6b7280',
+                        fontWeight: active ? 700 : 500,
                       }}>{item.label}</span>
                     </Link>
                   );
