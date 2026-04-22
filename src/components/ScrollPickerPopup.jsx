@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export const SECONDS_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 45, 60, 75, 90, 120, 150, 180, 240, 300, 420, 600];
+export const SECONDS_OPTIONS = Array.from({ length: 300 }, (_, i) => i + 1);
 export const MINUTES_OPTIONS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60];
 export const ROUNDS_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
 export const PREP_OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60];
@@ -9,11 +9,10 @@ export default function ScrollPickerPopup({ isOpen, value, options, onSelect, on
   const listRef = useRef(null);
 
   useEffect(() => {
-    if (!isOpen || !listRef.current) return;
-    const idx = options.findIndex(v => v === value);
-    if (idx < 0) return;
+    if (!isOpen) return;
     const t = setTimeout(() => {
-      listRef.current?.children?.[idx]?.scrollIntoView({ block: 'center', behavior: 'instant' });
+      const selected = listRef.current?.querySelector('[data-picker-selected="true"]');
+      if (selected) selected.scrollIntoView({ block: 'center', behavior: 'instant' });
     }, 50);
     return () => clearTimeout(t);
   }, [isOpen, value, options]);
@@ -59,6 +58,7 @@ export default function ScrollPickerPopup({ isOpen, value, options, onSelect, on
             return (
               <button
                 key={opt}
+                data-picker-selected={active ? 'true' : 'false'}
                 onClick={() => { onSelect(opt); onClose(); }}
                 style={{
                   width: '100%',

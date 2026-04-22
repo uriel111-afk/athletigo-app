@@ -34,7 +34,7 @@ import {
   Clock
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import FloatingTimer from "@/components/FloatingTimer";
+import TimerFooterBar from "@/components/TimerFooterBar";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
@@ -470,7 +470,7 @@ export default function Layout({ children, currentPageName }) {
             paddingLeft: (isClocks || isDashboard) ? 0 : '16px',
             paddingRight: (isClocks || isDashboard) ? 0 : '16px',
             paddingTop: isClocks ? 0 : 'var(--content-top)',
-            paddingBottom: isClocks ? 0 : 'var(--content-bottom)',
+            paddingBottom: isClocks ? 0 : (liveTimer ? 'calc(var(--content-bottom) + 62px)' : 'var(--content-bottom)'),
             overflowY: isClocks ? 'hidden' : 'auto',
             height: isClocks ? '100dvh' : undefined,
             minHeight: 0,
@@ -484,12 +484,12 @@ export default function Layout({ children, currentPageName }) {
             </ErrorBoundary>
           </div>
 
-          {/* Floating Timer Widget */}
-          <FloatingTimer />
+          {/* Sticky timer footer bar — replaces the old draggable bubble */}
+          <TimerFooterBar />
 
-          {/* Mobile Bottom Navigation — fixed to bottom */}
+          {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 62px when timer bar is visible) */}
           <div className="md:hidden safe-area-bottom"
-               style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: '#FFFFFF', borderTop: '1px solid #E0E0E0', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)', display: isClocks ? 'none' : undefined }}>
+               style={{ position: 'fixed', bottom: liveTimer ? 62 : 0, left: 0, right: 0, zIndex: 100, backgroundColor: '#FFFFFF', borderTop: '1px solid #E0E0E0', boxShadow: '0 -2px 10px rgba(0,0,0,0.08)', display: isClocks ? 'none' : undefined }}>
             <div className="grid grid-cols-5 gap-1 p-2">
               {isCoach ? (
                 <>
