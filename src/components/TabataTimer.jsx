@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
-  playLongBeep, playDoubleBell, playVictory, playGong, cancelScheduled,
+  playLongBeep, playDoubleBell, playVictory, playGong,
+  playSoftBreath, playActionMelody, playSlowPulse, cancelScheduled,
 } from '@/lib/tabataSounds';
 import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
 import RoundJumpPicker from '@/components/RoundJumpPicker';
@@ -37,9 +38,9 @@ function nextPhase(cur, cfg) {
 }
 
 function transitionSound(from, to) {
-  if (from === 'prep'     && to === 'work')     playWhistle();
-  if (from === 'work'     && to === 'rest')     playGong();
-  if (from === 'rest'     && to === 'work')     playWhistle();
+  if (from === 'prep'     && to === 'work')     playActionMelody();
+  if (from === 'work'     && to === 'rest')     playSlowPulse();
+  if (from === 'rest'     && to === 'work')     playActionMelody();
   if (from === 'work'     && to === 'set_rest') playLongBeep();
   if (from === 'set_rest' && to === 'work')     playDoubleBell();
   if (from === 'work'     && to === 'done')     playVictory();
@@ -162,7 +163,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Handlers ───
   const handleStart = useCallback(async () => {
     await unlockAudio();
-    playClick();
+    playSoftBreath();
     setPaused(false);
     setScreen('running');
     const first = cfg.prep > 0
@@ -173,7 +174,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }, [cfg]);
 
   function handlePause() {
-    playClick();
+    // Pause is silent by spec.
     cancelAnimationFrame(rafRef.current);
     cancelScheduled();
     elapsedRef.current = (performance.now() - startAtRef.current) / 1000;
@@ -182,7 +183,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   function handleResume() {
-    playClick();
+    playSoftBreath();
     startAtRef.current = performance.now() - elapsedRef.current * 1000;
     lastBeepRef.current = -1;
     setPaused(false);

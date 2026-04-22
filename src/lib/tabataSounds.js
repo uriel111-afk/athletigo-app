@@ -109,6 +109,63 @@ function click(when) {
   scheduledNodes.push(osc);
 }
 
+// Soft breath — play/resume tap. Single sine 440Hz with gentle decay.
+function softBreath(when) {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 440;
+  g.gain.setValueAtTime(0.2, when);
+  g.gain.exponentialRampToValueAtTime(0.001, when + 0.6);
+  osc.connect(g);
+  g.connect(masterGain);
+  osc.start(when);
+  osc.stop(when + 0.62);
+  scheduledNodes.push(osc);
+}
+
+// Action melody — work phase starts. 4 ascending square notes.
+function actionMelody(when) {
+  const c = getCtx();
+  const notes = [440, 554, 659, 880];
+  let t = when;
+  for (const freq of notes) {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.25, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(t);
+    osc.stop(t + 0.12);
+    scheduledNodes.push(osc);
+    t += 0.15;
+  }
+}
+
+// Slow pulse — rest phase starts. 3 sine pulses 500Hz spaced 620ms.
+function slowPulse(when) {
+  const c = getCtx();
+  let t = when;
+  for (let i = 0; i < 3; i++) {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 500;
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(t);
+    osc.stop(t + 0.14);
+    scheduledNodes.push(osc);
+    t += 0.62;
+  }
+}
+
 // Deep gong — used for the work→rest transition. Three layered sines:
 // low fundamental + overtone + metallic shimmer.
 function gong(when) {
@@ -142,6 +199,9 @@ export function playDoubleBell() { doubleBell(getCtx().currentTime); }
 export function playLongBeep() { longBeep(getCtx().currentTime); }
 export function playVictory() { victory(getCtx().currentTime); }
 export function playGong() { gong(getCtx().currentTime); }
+export function playSoftBreath() { softBreath(getCtx().currentTime); }
+export function playActionMelody() { actionMelody(getCtx().currentTime); }
+export function playSlowPulse() { slowPulse(getCtx().currentTime); }
 
 // Cancel all scheduled oscillators
 export function cancelScheduled() {
