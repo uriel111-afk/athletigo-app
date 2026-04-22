@@ -24,7 +24,7 @@ const getTypeIcon = (type) => {
     case 'package_expiring':
     case 'low_balance':
     case 'renewal_alert':
-    case 'renewal_request': return '💰';
+    case 'renewal_request': return '🎫';
     case 'package_expired':
     case 'service_completed': return '💸';
     case 'plan_completed': return '📋';
@@ -153,7 +153,7 @@ const FILTERS = [
   { id: 'unread',   label: 'לא נקראו',   icon: '🔴' },
   { id: 'sessions', label: 'מפגשים',     icon: '📅' },
   { id: 'plans',    label: 'תוכניות',    icon: '📋' },
-  { id: 'packages', label: 'חבילות',     icon: '💰' },
+  { id: 'packages', label: 'חבילות',     icon: '🎫' },
   { id: 'records',  label: 'שיאים',      icon: '🏆' },
 ];
 

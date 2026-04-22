@@ -1656,18 +1656,18 @@ export default function TraineeProfile() {
   const hasRecentResult = results.length > 0 && new Date(results[0].date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const TAB_ITEMS = [
-    { id: 'personal', label: 'פרטים', icon: User },
-    { id: 'plans', label: 'תוכניות', icon: Folder },
-    { id: 'attendance', label: 'מפגשים', icon: Calendar },
-    { id: 'metrics', label: 'מדידות', icon: Activity },
-    { id: 'achievements', label: 'שיאים', icon: Award },
-    { id: 'baselines', label: 'בייסליין', icon: Zap },
-    { id: 'goals', label: 'יעדים', icon: Target },
-    { id: 'services', label: 'חבילות', icon: Package },
-    { id: 'documents', label: 'מסמכים', icon: FileText },
-    { id: 'notifications', label: 'התראות', icon: Bell },
-    { id: 'messages', label: 'הערות', icon: MessageSquare },
-    { id: 'clocks', label: 'שעונים', icon: Clock, isLink: true },
+    { id: 'personal',      label: 'פרטים',    emoji: '👤', icon: User },
+    { id: 'plans',         label: 'תוכניות',  emoji: '📋', icon: Folder },
+    { id: 'attendance',    label: 'מפגשים',   emoji: '📅', icon: Calendar },
+    { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity },
+    { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award },
+    { id: 'baselines',     label: 'בייסליין', emoji: '⚡', icon: Zap },
+    { id: 'goals',         label: 'יעדים',    emoji: '🎯', icon: Target },
+    { id: 'services',      label: 'חבילות',   emoji: '🎫', icon: Package },
+    { id: 'documents',     label: 'מסמכים',   emoji: '📄', icon: FileText },
+    { id: 'notifications', label: 'התראות',   emoji: '🔔', icon: Bell },
+    { id: 'messages',      label: 'הערות',    emoji: '💬', icon: MessageSquare },
+    { id: 'clocks',        label: 'שעונים',   emoji: '⏱', icon: Clock, isLink: true },
   ];
 
   return (
@@ -1761,7 +1761,6 @@ export default function TraineeProfile() {
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
             {TAB_ITEMS.map(tab => {
               const isActive = activeTab === tab.id;
-              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
@@ -1773,7 +1772,8 @@ export default function TraineeProfile() {
                       : 'bg-white border border-gray-100 hover:shadow-sm hover:border-gray-200'
                     }`}
                 >
-                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${isActive ? 'text-[#FF6F20]' : 'text-gray-400'}`} />
+                  {/* Emoji renders in native multi-color — no color override */}
+                  <span style={{ fontSize: 20, lineHeight: 1, marginBottom: 3 }}>{tab.emoji}</span>
                   <span className={`text-[10px] sm:text-xs font-bold leading-tight ${isActive ? 'text-[#FF6F20]' : 'text-gray-500'}`}>
                     {tab.label}
                   </span>

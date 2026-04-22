@@ -13,7 +13,7 @@ export const getTypeIcon = (type) => {
     case 'package_expiring':
     case 'low_balance':
     case 'renewal_alert':
-    case 'renewal_request': return '💰';
+    case 'renewal_request': return '🎫';
     case 'package_expired':
     case 'service_completed': return '💸';
     case 'plan_assigned':

@@ -473,7 +473,7 @@ export default function Dashboard() {
               { label: "יעד",       emoji: "🎯",   action: () => handleActionClick("goal") },
               { label: "שיא",       emoji: "🏆",   action: () => handleActionClick("result") },
               { label: "שעונים",    emoji: "⏱️",   action: () => navigate(createPageUrl("Clocks")) },
-              { label: "חבילה",     emoji: "💰",   action: () => handleActionClick("package") },
+              { label: "חבילה",     emoji: "🎫",   action: () => handleActionClick("package") },
               { label: "מדידה",     emoji: "📐",   action: () => handleActionClick("measurement") },
               { label: "התראות",    emoji: "🔔",   action: () => navigate(createPageUrl("Notifications")) },
             ];
