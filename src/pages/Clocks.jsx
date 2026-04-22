@@ -307,24 +307,12 @@ export default function Clocks() {
   // When returning to clocks page — hide floating widget (only if nothing running)
   // Do NOT clear liveTimer on mount — it must persist after minimize
 
-  // Back button: single = minimize, double (400ms) = dashboard
-  useEffect(() => {
-    window.history.pushState(null, '', window.location.href);
-    const onPop = () => {
-      const now = Date.now();
-      const isDouble = now - lastBackPress.current < 400;
-      if (anyRunning) {
-        window.history.pushState(null, '', window.location.href);
-        if (isDouble) { minimizeTimer(); navigate(isCoach ? '/dashboard' : '/traineehome'); }
-        else { lastBackPress.current = now; minimizeTimer(); }
-      } else {
-        if (isDouble) navigate(isCoach ? '/dashboard' : '/traineehome');
-        else { lastBackPress.current = now; navigate(-1); }
-      }
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, [anyRunning, minimizeTimer]);
+  // NOTE: an old "double-tap back = dashboard" popstate handler used to
+  // live here. It pushed a duplicate /clocks history entry on every
+  // mount which polluted the back stack and made minimize navigation
+  // race against the popstate listener. Removed — the explicit
+  // minimize button is the supported gesture; phone back button now
+  // behaves naturally (goes to wherever was before /clocks).
 
   // Wake lock
   const globalWakeLockRef = useRef(null);
