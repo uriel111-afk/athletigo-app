@@ -431,13 +431,8 @@ export default function TraineeProfile() {
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
 
-  const [manualAttendanceForm, setManualAttendanceForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    time: "10:00",
-    session_type: "אישי",
-    location: "ידני",
-    notes: ""
-  });
+  // manualAttendanceForm is provided by useFormDraft below (after
+  // userIdParam is defined) so the draft is scoped per trainee.
 
   const [serviceForm, setServiceForm] = useState({
     service_type: "personal", // personal | group | online
@@ -493,6 +488,21 @@ export default function TraineeProfile() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const userIdParam = searchParams.get("userId");
+
+  // Manual attendance draft — scoped per trainee so an in-progress
+  // entry for trainee A doesn't bleed into the dialog for trainee B.
+  const manualAttendanceInitial = {
+    date: new Date().toISOString().split('T')[0],
+    time: "10:00",
+    session_type: "אישי",
+    location: "ידני",
+    notes: "",
+  };
+  const {
+    data: manualAttendanceForm,
+    setData: setManualAttendanceForm,
+    clearDraft: clearManualAttendanceDraft,
+  } = useFormDraft('ManualAttendance', userIdParam, showManualAttendance, manualAttendanceInitial);
 
   const { data: currentUser, refetch, isLoading: currentUserLoading, isError: currentUserError } = useQuery({
     queryKey: ['current-user-trainee-profile'],
@@ -1341,7 +1351,7 @@ export default function TraineeProfile() {
         invalidateDashboard(queryClient);
 
         setShowManualAttendance(false);
-        setManualAttendanceForm({ date: new Date().toISOString().split('T')[0], time: "10:00", session_type: "אישי", location: "ידני", notes: "" });
+        clearManualAttendanceDraft();
         toast.success("✅ נוכחות נרשמה וסונכרנה עם החבילה");
 
     } catch (error) {
