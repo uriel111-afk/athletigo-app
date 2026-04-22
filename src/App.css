@@ -112,10 +112,10 @@ nav {
   overflow-x: hidden;
 }
 
-/* Prevent content from hiding behind bottom nav */
-main {
-  padding-bottom: calc(80px + env(safe-area-inset-bottom));
-}
+/* Bottom nav clearance is handled on the scrollable .page-container
+   in Layout.jsx (70px default; 132px when the timer footer bar is
+   visible). Duplicating it on <main> caused a visible white gap
+   between page content and the bottom nav. */
 
 /* Grid and flex responsive mobile-first */
 .grid-responsive {

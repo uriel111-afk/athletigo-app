@@ -470,7 +470,7 @@ export default function Layout({ children, currentPageName }) {
             paddingLeft: (isClocks || isDashboard) ? 0 : '16px',
             paddingRight: (isClocks || isDashboard) ? 0 : '16px',
             paddingTop: isClocks ? 0 : 'var(--content-top)',
-            paddingBottom: isClocks ? 0 : (liveTimer ? 'calc(var(--content-bottom) + 62px)' : 'var(--content-bottom)'),
+            paddingBottom: isClocks ? 0 : (liveTimer ? 132 : 70),
             overflowY: isClocks ? 'hidden' : 'auto',
             height: isClocks ? '100dvh' : undefined,
             minHeight: 0,
@@ -478,6 +478,10 @@ export default function Layout({ children, currentPageName }) {
             flexDirection: 'column',
             WebkitOverflowScrolling: 'touch',
             overflowX: 'hidden',
+            // Match the Dashboard cream under the scrollable area so the
+            // 70px bottom padding doesn't reveal body-white under the
+            // page's cream background.
+            backgroundColor: isDashboard ? '#FDF8F3' : undefined,
           }}>
             <ErrorBoundary>
               {children}

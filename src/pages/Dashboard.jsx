@@ -272,7 +272,7 @@ export default function Dashboard() {
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
     <ProtectedCoachPage>
-      <div className="flex flex-col flex-1 min-h-full" dir="rtl" style={BG}>
+      <div className="flex flex-col" dir="rtl" style={BG}>
         <div className="max-w-md mx-auto w-full pt-1 pb-1">
 
           {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════
