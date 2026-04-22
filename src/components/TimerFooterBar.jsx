@@ -20,6 +20,20 @@ const TYPE_LABEL = {
 };
 const TYPES_WITH_ROUNDS = new Set(['tabata', 'emom']);
 
+// Wrap each button handler so the click can never bubble to a parent
+// (e.g. a Radix Dialog's "click-outside" backdrop that would close the
+// form behind the bar). Only the expand button is allowed to navigate.
+function stop(handler) {
+  return (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.nativeEvent?.stopImmediatePropagation === 'function') {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+    handler?.(e);
+  };
+}
+
 function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRound, onNextRound }) {
   const type = timer.type;
   const display = timer.display || '0:00';
@@ -66,11 +80,13 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         zIndex: 1100,
         direction: 'rtl',
         transition: 'background 0.3s ease, bottom 0.2s ease',
+        cursor: 'default',
       }}
     >
       {/* CLOSE — stops and removes timer */}
       <button
-        onClick={onClose}
+        onClick={stop(onClose)}
+        onPointerDown={(e) => e.stopPropagation()}
         style={{
           width: 28, height: 28, borderRadius: '50%',
           background: closeBg, border: 'none', cursor: 'pointer',
@@ -86,7 +102,8 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
       {hasRounds ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <button
-            onClick={onPrevRound}
+            onClick={stop(onPrevRound)}
+            onPointerDown={(e) => e.stopPropagation()}
             style={{
               width: 34, height: 34, borderRadius: '50%',
               background: softBg, border: 'none', cursor: 'pointer',
@@ -97,7 +114,8 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
             <span style={{ color: primaryText, fontSize: 14 }}>⏮</span>
           </button>
           <button
-            onClick={onNextRound}
+            onClick={stop(onNextRound)}
+            onPointerDown={(e) => e.stopPropagation()}
             style={{
               width: 34, height: 34, borderRadius: '50%',
               background: softBg, border: 'none', cursor: 'pointer',
@@ -131,7 +149,8 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
 
       {/* PLAY / PAUSE */}
       <button
-        onClick={onToggle}
+        onClick={stop(onToggle)}
+        onPointerDown={(e) => e.stopPropagation()}
         style={{
           width: 42, height: 42, borderRadius: '50%',
           background: isWorkPhase ? '#FFFFFF' : '#FF6F20',
@@ -146,9 +165,10 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         </span>
       </button>
 
-      {/* EXPAND */}
+      {/* EXPAND — the only button allowed to navigate */}
       <button
-        onClick={onExpand}
+        onClick={stop(onExpand)}
+        onPointerDown={(e) => e.stopPropagation()}
         style={{
           width: 34, height: 34, borderRadius: 10,
           background: softBg, border: 'none', cursor: 'pointer',
