@@ -20,6 +20,7 @@ import { useRealtimeSync } from './hooks/useRealtimeSync';
 import TraineeHome from './pages/TraineeHome';
 import TabataTimer from './components/TabataTimer';
 import LastSessionAlert from './components/LastSessionAlert';
+import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 
 // Global TabataTimer — always mounted, never unmounts
 function GlobalTabata() {
@@ -198,6 +199,7 @@ function App() {
           </Router>
           <Toaster />
           <LastSessionAlert />
+          <BirthdayBlessingPopup />
           <VisualEditAgent />
         </ActiveTimerProvider>
         </ClockProvider>

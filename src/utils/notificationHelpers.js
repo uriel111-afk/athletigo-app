@@ -30,6 +30,7 @@ export const getTypeIcon = (type) => {
     case 'note':
     case 'coach_message':
     case 'new_message': return '💬';
+    case 'birthday': return '🎂';
     default: return '🔔';
   }
 };
@@ -63,6 +64,7 @@ export const getTypeTitle = (type) => {
     case 'note':
     case 'coach_message':
     case 'new_message': return 'הודעה מהמאמן';
+    case 'birthday': return 'יום הולדת';
     default: return 'התראה';
   }
 };
@@ -75,6 +77,7 @@ export const getTypeColor = (type) => {
   if (type?.includes('record') || type?.includes('goal') || type === 'new_record') return '#EAB308';
   if (type?.includes('baseline') || type?.includes('measurement') || type === 'metrics_updated') return '#7F47B5';
   if (type === 'note' || type === 'coach_message' || type === 'new_message') return '#1976D2';
+  if (type === 'birthday') return '#FF6F20';
   return '#FF6F20';
 };
 
@@ -86,6 +89,7 @@ export const getTypeBg = (type) => {
   if (type?.includes('record') || type?.includes('goal') || type === 'new_record') return '#FEF9C3';
   if (type?.includes('baseline') || type?.includes('measurement') || type === 'metrics_updated') return '#F3E8FF';
   if (type === 'note' || type === 'coach_message' || type === 'new_message') return '#E3F2FD';
+  if (type === 'birthday') return '#FFF0E4';
   return '#FFF0E4';
 };
 
@@ -121,6 +125,10 @@ export const getResponseOptions = (type) => {
         { value: 'done',          label: 'בוצע',       icon: '✅', primary: true  },
         { value: 'in_progress',   label: 'בתהליך',     icon: '🔄', primary: false },
         { value: 'didnt_manage',  label: 'לא הספקתי',  icon: '😅', primary: false },
+      ];
+    case 'birthday':
+      return [
+        { value: 'thanks', label: 'תודה!', icon: '❤️', primary: true },
       ];
     default:
       return [

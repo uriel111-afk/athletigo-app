@@ -234,7 +234,7 @@ export default function Notifications() {
       try {
         const { data } = await supabase
           .from('users')
-          .select('id, full_name')
+          .select('id, full_name, birth_date')
           .eq('coach_id', user.id)
           .order('full_name');
         return data || [];
@@ -275,6 +275,26 @@ export default function Notifications() {
 
   // Navigation
   const navigateToRelevant = (notif) => {
+    // Birthday: open the BirthdayBlessingPopup (mounted in App.jsx) instead
+    // of navigating away. Coach picks one of three tones to send the trainee.
+    if (notif.type === 'birthday') {
+      const tid = notif.trainee_id || notif.data?.trainee_id;
+      const trainee = tid ? coachTrainees.find(t => t.id === tid) : null;
+      if (tid && trainee) {
+        let age = null;
+        if (trainee.birth_date) {
+          const b = new Date(trainee.birth_date);
+          if (!Number.isNaN(b.getTime())) {
+            age = new Date().getFullYear() - b.getFullYear();
+          }
+        }
+        window.dispatchEvent(new CustomEvent('athletigo:birthday-tap', {
+          detail: { coachId: user?.id, traineeId: tid, name: trainee.full_name, age: age ?? '' },
+        }));
+        return;
+      }
+    }
+
     const tid = notif.trainee_id || notif.data?.trainee_id;
     if (tid) {
       const cat = getFilterCategory(notif.type);
