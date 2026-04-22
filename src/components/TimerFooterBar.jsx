@@ -7,6 +7,10 @@ import { useClock } from '@/contexts/ClockContext';
 // running or paused. Sits above the bottom nav at z-index 1100.
 
 const WORK_PHASE_TOKENS = ['עבודה', 'work', 'WORK', 'ריצה'];
+const REST_PHASE_TOKENS = ['מנוחה', 'rest', 'REST', 'set_rest'];
+
+const WORK_BG = '#FF6F20';   // matches full-screen work phase
+const REST_BG = '#16a34a';   // calm green for rest phase
 
 export default function TimerFooterBar() {
   const { liveTimer, setLiveTimer, setShowTabata } = useActiveTimer();
@@ -22,6 +26,9 @@ export default function TimerFooterBar() {
   const paused = !!liveTimer.paused;
   const isRunning = !paused;
   const isWorkPhase = WORK_PHASE_TOKENS.some(t => phaseLabel?.includes(t));
+  const isRestPhase = REST_PHASE_TOKENS.some(t => phaseLabel?.includes(t));
+  // Stopwatch/timer show orange by default; only tabata's rest phase flips green
+  const bg = isRestPhase ? REST_BG : WORK_BG;
 
   const togglePlayPause = (e) => {
     e.preventDefault();
@@ -54,21 +61,18 @@ export default function TimerFooterBar() {
         left: 0,
         right: 0,
         height: 62,
-        background: '#1a1a1a',
-        borderTop: '2px solid #FF6F20',
+        background: bg,
+        borderTop: '2px solid rgba(255,255,255,0.3)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 16px',
         zIndex: 1100,
         direction: 'rtl',
+        transition: 'background 0.25s ease',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 10, height: 10, borderRadius: '50%',
-          background: isWorkPhase ? '#FF6F20' : '#6b7280',
-        }} />
         <div style={{
           fontFamily: "'Barlow Condensed', sans-serif",
           fontSize: 28, fontWeight: 700, color: '#FFFFFF',
@@ -79,14 +83,14 @@ export default function TimerFooterBar() {
         {phaseLabel && (
           <div style={{
             fontSize: 13,
-            color: isWorkPhase ? '#FF6F20' : '#9CA3AF',
+            color: '#FFFFFF',
             fontWeight: 600,
           }}>
             {phaseLabel}
           </div>
         )}
         {info && (
-          <div style={{ fontSize: 13, color: '#9CA3AF' }}>{info}</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>{info}</div>
         )}
       </div>
 
@@ -95,13 +99,13 @@ export default function TimerFooterBar() {
           onClick={togglePlayPause}
           style={{
             width: 42, height: 42, borderRadius: '50%',
-            background: '#FF6F20', border: 'none',
+            background: '#FFFFFF', border: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer',
           }}
           aria-label={isRunning ? 'השהה' : 'נגן'}
         >
-          <span style={{ color: 'white', fontSize: 18 }}>
+          <span style={{ color: bg, fontSize: 18 }}>
             {isRunning ? '⏸' : '▶'}
           </span>
         </button>
@@ -109,7 +113,7 @@ export default function TimerFooterBar() {
           onClick={handleExpand}
           style={{
             width: 36, height: 36, borderRadius: 10,
-            background: 'rgba(255,255,255,0.1)', border: 'none',
+            background: 'rgba(255,255,255,0.25)', border: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', color: 'white', fontSize: 16,
           }}
