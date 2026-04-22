@@ -29,13 +29,12 @@ function GlobalTabata() {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const handleMinimize = useCallback(() => {
-    // Same flow as Timer/Stopwatch minimize — fire state updates
-    // synchronously and navigate to the role-appropriate home so the
-    // timer bar appears above the dashboard immediately.
-    setShowTabata(false);
-    setIsMinimized(true);
-    navigate(isCoach ? '/dashboard' : '/traineehome', { replace: true });
-  }, [isCoach, navigate, setShowTabata, setIsMinimized]);
+    // Single responsibility: navigate. State (showTabata, isMinimized,
+    // liveTimerTabata) is set by TabataTimer.doMinimize BEFORE calling us.
+    // This mirrors how Clocks.jsx minimizeTimer works for Countdown/
+    // Stopwatch — one function does state + navigate, no split/duplication.
+    navigate(isCoach ? '/dashboard' : '/traineehome');
+  }, [isCoach, navigate]);
 
   // Back button while overlay showing → minimize (mobile-safe)
   useEffect(() => {

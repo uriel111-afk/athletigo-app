@@ -373,12 +373,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const totalMin = Math.floor(totalLeft / 60);
   const totalSec = totalLeft % 60;
 
-  // Minimize handler — bulletproof. Always:
-  //   1. Save tabata state to liveTimerTabata so the bar can render it
+  // Minimize handler — single source of truth (mirrors Clocks.jsx
+  // minimizeTimer pattern that already works for Countdown/Stopwatch):
+  //   1. Save snapshot to liveTimerTabata so the bar can render it
   //   2. Hide the full-screen overlay (showTabata=false)
   //   3. Flip isMinimized so the footer bar appears
-  //   4. Navigate away from /clocks if the user is on it
-  // Calls the parent's onMinimize as well (legacy navigation path).
+  //   4. Delegate navigation to the parent (App.jsx GlobalTabata),
+  //      which knows the role-appropriate destination.
+  // The parent's handleMinimize is now navigation-only — no duplicate
+  // state updates, no popstate races.
   function doMinimize() {
     const snapshot = {
       type: 'tabata',
@@ -387,7 +390,6 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       info: `סבב ${phase.round}/${cfg.rounds} · סט ${phase.set}/${cfg.sets}`,
       paused,
     };
-    // Prefer the targeted tabata setter; fall back to the legacy prop.
     if (setLiveTimerTabata) setLiveTimerTabata(snapshot);
     else if (setLiveTimer) setLiveTimer(snapshot);
 
@@ -396,8 +398,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
     if (typeof onMinimize === 'function') {
       onMinimize();
-    } else if (window.location.pathname.toLowerCase().includes('clock')) {
-      navigate(-1);
+    } else {
+      navigate('/dashboard');
     }
   }
 
