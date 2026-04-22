@@ -153,7 +153,8 @@ export function ClockProvider({ children }) {
     setLaps([]);
     elapsedRef.current = 0;
     startTimeRef.current = Date.now();
-    beep('start');
+    // Tap sound is supplied by the caller (SOUND_START in Clocks.jsx) so
+    // start matches resume exactly — no extra internal beep here.
     intervalRef.current = setInterval(() => {
       setDisplay(Date.now() - startTimeRef.current + elapsedRef.current);
     }, 50);
@@ -260,7 +261,8 @@ export function ClockProvider({ children }) {
 
   const resume = useCallback(() => {
     if (isRunning) return;
-    beep('start');
+    // Tap sound is supplied by the caller (SOUND_START in Clocks.jsx) so
+    // resume matches start exactly — no extra internal beep here.
     startTimeRef.current = Date.now() - elapsedRef.current;
     setIsRunning(true);
     if (activeClock === 'stopwatch') {

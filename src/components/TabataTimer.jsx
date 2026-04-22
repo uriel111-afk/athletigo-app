@@ -435,22 +435,22 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Active Timer — FULL SCREEN, phase-driven theme ───
   const dashOffset = progress * CIRC;
 
-  // Phase theming — same logic as the minimized footer bar.
+  // Phase theming — only Work uses orange. Rest AND Prepare both use the
+  // calm cream theme so the bg stays soft when the workout isn't active.
   const isWork = phase.type === 'work';
-  const isRest = phase.type === 'rest' || phase.type === 'set_rest';
-  const isPrep = phase.type === 'prep';
-  const bg          = isWork ? '#FF6F20' : isRest ? '#FFF9F0' : '#1a1a1a';
-  const textPrimary = isRest ? '#1a1a1a' : '#FFFFFF';
-  const textSoft    = isRest ? '#888'    : 'rgba(255,255,255,0.8)';
-  const accent      = isRest ? '#FF6F20' : '#FFFFFF';
-  const ringTrack   = isRest ? 'rgba(255,111,32,0.15)' : 'rgba(255,255,255,0.25)';
-  const ringFill    = isRest ? '#FF6F20' : '#FFFFFF';
-  const chipBg      = isRest ? 'rgba(255,111,32,0.10)' : 'rgba(255,255,255,0.15)';
-  const chipDarkBg  = isRest ? 'rgba(0,0,0,0.05)'      : 'rgba(0,0,0,0.2)';
+  const cream  = !isWork; // rest | set_rest | prep | idle
+  const bg          = isWork ? '#FF6F20' : '#FFF9F0';
+  const textPrimary = cream  ? '#1a1a1a' : '#FFFFFF';
+  const textSoft    = cream  ? '#888'    : 'rgba(255,255,255,0.8)';
+  const accent      = cream  ? '#FF6F20' : '#FFFFFF';
+  const ringTrack   = cream  ? 'rgba(255,111,32,0.15)' : 'rgba(255,255,255,0.25)';
+  const ringFill    = cream  ? '#FF6F20' : '#FFFFFF';
+  const chipBg      = cream  ? 'rgba(255,111,32,0.10)' : 'rgba(255,255,255,0.15)';
+  const chipDarkBg  = cream  ? 'rgba(0,0,0,0.05)'      : 'rgba(0,0,0,0.2)';
   // Primary action button (pause/resume) — invert per phase
   const primaryBtn = {
-    bg: isWork ? '#FFFFFF' : isRest ? '#FF6F20' : '#FFFFFF',
-    fg: isWork ? '#FF6F20' : isRest ? '#FFFFFF' : '#1a1a1a',
+    bg: isWork ? '#FFFFFF' : '#FF6F20',
+    fg: isWork ? '#FF6F20' : '#FFFFFF',
   };
 
   return (
