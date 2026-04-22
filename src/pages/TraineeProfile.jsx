@@ -499,10 +499,15 @@ export default function TraineeProfile() {
     notes: "",
   };
   const {
-    data: manualAttendanceForm,
+    data: rawManualForm,
     setData: setManualAttendanceForm,
     clearDraft: clearManualAttendanceDraft,
   } = useFormDraft('ManualAttendance', userIdParam, showManualAttendance, manualAttendanceInitial);
+  // Defensive merge: useFormDraft REPLACES state from localStorage on
+  // open. Stale drafts written before fields were added (or with date
+  // cleared) would otherwise leave required fields undefined and freeze
+  // the submit button. Always read through this merged view.
+  const manualAttendanceForm = { ...manualAttendanceInitial, ...(rawManualForm || {}) };
 
   const { data: currentUser, refetch, isLoading: currentUserLoading, isError: currentUserError } = useQuery({
     queryKey: ['current-user-trainee-profile'],
@@ -2960,12 +2965,11 @@ export default function TraineeProfile() {
                 <button
                   type="button"
                   onClick={handleManualAttendanceSubmit}
-                  disabled={!manualAttendanceForm.date}
                   style={{
                     flex: 1, padding: 14, borderRadius: 14, border: 'none',
-                    background: manualAttendanceForm.date ? '#FF6F20' : '#ccc',
+                    background: '#FF6F20',
                     color: 'white', fontSize: 16, fontWeight: 600,
-                    cursor: manualAttendanceForm.date ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   }}
                 >
