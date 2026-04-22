@@ -99,7 +99,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         }}
         aria-label="סגור טיימר"
       >
-        <span style={{ color: closeColor, fontSize: 14, fontWeight: 700 }}>✕</span>
+        <span style={{ pointerEvents: 'none', color: closeColor, fontSize: 14, fontWeight: 700 }}>✕</span>
       </button>
 
       {/* ROUND CONTROLS — tabata/emom only */}
@@ -115,7 +115,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
             }}
             aria-label="סבב קודם"
           >
-            <span style={{ color: primaryText, fontSize: 14 }}>⏮</span>
+            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 14 }}>⏮</span>
           </button>
           <button
             onClick={stop(onNextRound)}
@@ -127,7 +127,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
             }}
             aria-label="סבב הבא"
           >
-            <span style={{ color: primaryText, fontSize: 14 }}>⏭</span>
+            <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 14 }}>⏭</span>
           </button>
         </div>
       ) : <div style={{ width: 0 }} />}
@@ -138,16 +138,17 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
           {phaseEmoji ? `${phaseEmoji} ${phaseText}` : (TYPE_LABEL[type] || type)}
         </div>
         {hasRounds && info ? (
-          <div
+          <button
+            type="button"
             onClick={stop(() => {
               if (type === 'tabata') window.dispatchEvent(new CustomEvent('tabata-open-round-picker'));
               else if (type === 'emom') window.dispatchEvent(new CustomEvent('emom-open-round-picker'));
             })}
             onPointerDown={(e) => e.stopPropagation()}
-            style={{ fontSize: 12, color: secondaryText, marginTop: 2, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}
+            style={{ fontSize: 12, color: secondaryText, marginTop: 2, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2, background: 'transparent', border: 'none', padding: '2px 4px', WebkitTapHighlightColor: 'transparent' }}
           >
-            {info}
-          </div>
+            <span style={{ pointerEvents: 'none' }}>{info}</span>
+          </button>
         ) : (
           <div style={{ fontSize: 12, color: secondaryText, marginTop: 2 }}>
             {phaseEmoji ? (TYPE_LABEL[type] || type) : ''}
@@ -177,7 +178,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         }}
         aria-label={isRunning ? 'השהה' : 'נגן'}
       >
-        <span style={{ color: isWorkPhase ? '#FF6F20' : '#FFFFFF', fontSize: 18 }}>
+        <span style={{ pointerEvents: 'none', color: isWorkPhase ? '#FF6F20' : '#FFFFFF', fontSize: 18 }}>
           {isRunning ? '⏸' : '▶'}
         </span>
       </button>
@@ -194,7 +195,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         }}
         aria-label="הרחב"
       >
-        <span style={{ color: primaryText, fontSize: 14 }}>⤢</span>
+        <span style={{ pointerEvents: 'none', color: primaryText, fontSize: 14 }}>⤢</span>
       </button>
     </div>
   );

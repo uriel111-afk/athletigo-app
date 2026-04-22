@@ -374,27 +374,31 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{f.l}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={cBtnMinus}>−</button>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 46 }}>
-                  <span
-                    onClick={() => setPickingField(f.k)}
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 700,
-                      color: '#FF6F20',
-                      fontFamily: "'Barlow Condensed', sans-serif",
-                      cursor: 'pointer',
-                      lineHeight: 1,
-                      textAlign: 'center',
-                    }}
-                  >{cfg[f.k]}</span>
+                <button type="button" onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={cBtnMinus}>−</button>
+                <button
+                  type="button"
+                  onClick={() => setPickingField(f.k)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    minWidth: 46, padding: '4px 6px', cursor: 'pointer',
+                    background: 'transparent', border: 'none',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <span style={{
+                    pointerEvents: 'none',
+                    fontSize: 32, fontWeight: 700,
+                    color: '#FF6F20',
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    lineHeight: 1, textAlign: 'center',
+                  }}>{cfg[f.k]}</span>
                   {f.u && (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#888', marginTop: 1 }}>
+                    <span style={{ pointerEvents: 'none', fontSize: 11, fontWeight: 600, color: '#888', marginTop: 1 }}>
                       {f.u}
                     </span>
                   )}
-                </div>
-                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={cBtnPlus}>+</button>
+                </button>
+                <button type="button" onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={cBtnPlus}>+</button>
               </div>
             </div>
           ))}
@@ -628,12 +632,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       {/* ROW 2: Stats — round + set + total time */}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexShrink: 0 }}>
         {phase.type !== 'prep' && (
-          <div
+          <button
+            type="button"
             onClick={() => setRoundPickerOpen(true)}
-            style={{ background: chipBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, cursor: 'pointer', color: textPrimary }}
+            style={{ background: chipBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
           >
-            סבב {phase.round}/{cfg.rounds}
-          </div>
+            <span style={{ pointerEvents: 'none' }}>סבב {phase.round}/{cfg.rounds}</span>
+          </button>
         )}
         {cfg.sets > 1 && phase.type !== 'prep' && (
           <div style={{ background: chipBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, color: textPrimary }}>
