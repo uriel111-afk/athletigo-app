@@ -237,7 +237,10 @@ export default function TimerFooterBar() {
     if (timer.type === 'tabata') {
       setShowTabata(true);
     } else {
-      navigate('/clocks');
+      // Pass the specific timer type so Clocks.jsx opens the matching tab
+      // (timer / stopwatch / emom / amrap) and the user sees the running
+      // view directly rather than the type-selection / config screen.
+      navigate('/clocks', { state: { openTimer: timer.type } });
     }
   };
 

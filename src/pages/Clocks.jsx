@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
@@ -211,7 +211,7 @@ function TimerView({ onMinimize }) {
           <RotateCcw className="w-5 h-5 ml-1.5" />אפס
         </button>
         {isRunning ? (
-          <button onClick={() => { SOUND_PAUSE(); pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
+          <button onClick={() => { pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
             style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
             <Pause className="w-6 h-6 ml-2" />השהה
           </button>
@@ -235,7 +235,16 @@ const MODES = [
 
 export default function Clocks() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('tabata');
+  const location = useLocation();
+  // Default tab comes from:
+  //   1. navigation state (set by TimerFooterBar expand button)
+  //   2. currently-active clock in ClockContext (after refresh)
+  //   3. fallback 'tabata'
+  const [activeTab, setActiveTab] = useState(() => {
+    const fromNav = location.state?.openTimer;
+    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch') return fromNav;
+    return 'tabata';
+  });
   const clock = useClock();
   const { setLiveTimer, setShowTabata, setIsMinimized } = useActiveTimer();
   const { user } = React.useContext(AuthContext);
@@ -244,6 +253,22 @@ export default function Clocks() {
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = timerOrStopwatchRunning;
   const lastBackPress = useRef(0);
+
+  // Apply nav-state tab selection once, then scrub state so reloading
+  // the page doesn't re-apply.
+  useEffect(() => {
+    if (location.state?.openTimer) {
+      const t = location.state.openTimer;
+      if (t === 'tabata' || t === 'timer' || t === 'stopwatch') setActiveTab(t);
+      try { window.history.replaceState({}, ''); } catch {}
+    }
+    // Fallback: if clock is currently running but no nav state,
+    // auto-open the matching tab so expand always lands on the running timer.
+    else if (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') {
+      setActiveTab(clock.activeClock);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Minimize — NEVER stops intervals, navigates to role dashboard,
   // and flips isMinimized so the footer bar appears.
