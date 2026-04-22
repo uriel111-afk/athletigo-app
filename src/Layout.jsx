@@ -400,12 +400,15 @@ export default function Layout({ children, currentPageName }) {
             direction: 'rtl',
           }}>
             <div className="flex items-center justify-between">
-              {/* Right (RTL start): notification bell */}
-              <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {user ? (
-                  <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
-                ) : null}
-              </div>
+              {/* Right (RTL start): hamburger menu */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="rounded-xl"
+                style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', border: '0.5px solid #F0E4D0' }}
+                aria-label="תפריט"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
 
               {/* Center: ATHLETIGO wordmark image + triangle, role/name underneath. */}
               {/* The brand row is shifted ~15px left so the text portion (which sits
@@ -434,15 +437,12 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </div>
 
-              {/* Left (RTL end): hamburger menu */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="rounded-xl"
-                style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', border: '0.5px solid #F0E4D0' }}
-                aria-label="תפריט"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+              {/* Left (RTL end): notification bell */}
+              <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {user ? (
+                  <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
+                ) : null}
+              </div>
             </div>
           </header>
 
