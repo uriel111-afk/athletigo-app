@@ -3,7 +3,7 @@ import React from "react";
 export default function AppLoader({ progress = 0, label = "טוען נתונים..." }) {
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center z-[9999]" dir="rtl"
-      style={{ backgroundColor: '#FDF8F3' }}>
+      style={{ backgroundColor: '#FFF9F0' }}>
       <style>{`
         @keyframes athletigo-loader-pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -15,11 +15,10 @@ export default function AppLoader({ progress = 0, label = "טוען נתונים
           src="/icon-192.png"
           alt="AthletiGo"
           style={{
-            width: 96,
-            height: 96,
+            width: 150,
+            height: 150,
             objectFit: 'contain',
-            display: 'block',
-            margin: '0 auto 20px',
+            margin: '0 auto 24px',
             animation: 'athletigo-loader-pulse 1.5s ease-in-out infinite',
           }}
         />
