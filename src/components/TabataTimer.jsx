@@ -3,6 +3,7 @@ import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
   playLongBeep, playDoubleBell, playVictory, cancelScheduled,
 } from '@/lib/tabataSounds';
+import SecondsScrollPicker from '@/components/SecondsScrollPicker';
 
 // ─── Constants ───
 const O = '#FF6F20';
@@ -229,19 +230,28 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
         <div style={{ width: '100%', maxWidth: 360 }}>
           {fields.map(f => (
-            <div key={f.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: 'rgba(255,255,255,0.1)', borderRadius: 12, marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{f.icon}</span>
-                <div>
-                  <div style={{ fontSize: 15, color: W, fontWeight: 700 }}>{f.l}</div>
-                  {f.u && <div style={{ fontSize: 11, color: WD }}>{f.u}</div>}
+            <div key={f.k} style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 12, marginBottom: 8, padding: '4px 8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>{f.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 15, color: W, fontWeight: 700 }}>{f.l}</div>
+                    {f.u && <div style={{ fontSize: 11, color: WD }}>{f.u}</div>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={sBtn}>−</button>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: W, minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{cfg[f.k]}</span>
+                  <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={sBtn}>+</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, c[f.k] - 1) }))} style={sBtn}>−</button>
-                <span style={{ fontSize: 22, fontWeight: 900, color: W, minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{cfg[f.k]}</span>
-                <button onClick={() => setCfg(c => ({ ...c, [f.k]: Math.min(f.mx, c[f.k] + 1) }))} style={sBtn}>+</button>
-              </div>
+              {f.u === 'שנ׳' && (
+                <SecondsScrollPicker
+                  value={cfg[f.k]}
+                  onChange={(sec) => setCfg(c => ({ ...c, [f.k]: Math.max(f.mn, Math.min(f.mx, sec)) }))}
+                  options={f.k === 'prep' ? [0, 5, 10, 15, 20, 30, 45, 60] : undefined}
+                />
+              )}
             </div>
           ))}
         </div>

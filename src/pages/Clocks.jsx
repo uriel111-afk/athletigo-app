@@ -4,6 +4,7 @@ import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
+import SecondsScrollPicker from "@/components/SecondsScrollPicker";
 
 const MinimizeBtn = ({ onClick }) => (
   <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -180,12 +181,18 @@ function TimerView({ onMinimize }) {
           <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>
           <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} step={1} unit="שנ׳" />
         </div>
+        <div style={{ width: '100%' }}>
+          <SecondsScrollPicker value={timerSec} onChange={setTimerSec} />
+        </div>
         <div className="flex items-center gap-3 w-full justify-center" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
           <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>הכנה</span>
           <HoldButton onClick={() => setPrepSec(Math.max(0, prepSec - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FFF', color: C2, fontSize: 18, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
           <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 700, fontFamily: FN, color: C1, minWidth: 32, textAlign: 'center' }}>{prepSec}</span>
           <HoldButton onClick={() => setPrepSec(Math.min(60, prepSec + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 18, fontWeight: 700, border: 'none' }}>+</HoldButton>
           <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FL, color: C3 }}>שניות</span>
+        </div>
+        <div style={{ width: '100%' }}>
+          <SecondsScrollPicker value={prepSec} onChange={setPrepSec} options={[0, 5, 10, 15, 20, 30, 45, 60]} />
         </div>
         <button onClick={() => { unlockAudio(); SOUND_START(); startTimer(totalTimerMs, prepSec * 1000); }} disabled={totalTimerMs === 0}
           className="w-full flex items-center justify-center disabled:opacity-40 active:scale-[0.98] transition-transform"
