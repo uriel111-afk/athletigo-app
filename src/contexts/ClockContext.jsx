@@ -254,10 +254,13 @@ export function ClockProvider({ children }) {
   const pause = useCallback(() => {
     if (!isRunning) return;
     clearTick();
-    beep('pause');
+    // Countdown pause is silent to match the Tabata pause UX
+    // (handlePause in TabataTimer is intentionally silent). Stopwatch
+    // keeps its existing pause beep so its sound profile is unchanged.
+    if (activeClock !== 'timer') beep('pause');
     elapsedRef.current = Date.now() - startTimeRef.current;
     setIsRunning(false);
-  }, [isRunning, clearTick, beep]);
+  }, [isRunning, clearTick, beep, activeClock]);
 
   const resume = useCallback(() => {
     if (isRunning) return;
