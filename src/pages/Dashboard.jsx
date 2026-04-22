@@ -31,9 +31,9 @@ import { Input } from "@/components/ui/input";
 
 // ── Design ────────────────────────────────────────────────────────────
 const SectionHeader = ({ title }) => (
-  <div className="flex items-center gap-2 my-2">
+  <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
     <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "#FF6F20" }} />
-    <span className="whitespace-nowrap text-gray-700" style={{ fontSize: 15, fontWeight: 500 }}>{title}</span>
+    <span className="whitespace-nowrap" style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{title}</span>
     <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "#FF6F20" }} />
   </div>
 );
@@ -276,32 +276,30 @@ export default function Dashboard() {
         <div className="max-w-md mx-auto w-full pt-1 pb-1">
 
           {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════
-                Container is overflow:visible so the rotated 110×110
-                squares can spill ~23px past the 280×280 box. The
-                outer 30px margin absorbs that spill so corners are
-                never clipped by the page. */}
+                Container overflow:visible so the rotated 84×84
+                squares can spill past the 210×210 box corners. */}
           <SectionHeader title="פעולות ליבה" />
           <div style={{
             position: 'relative',
-            width: 280, height: 280,
-            margin: '30px auto',
+            width: 210, height: 210,
+            margin: '0 auto 12px',
             overflow: 'visible',
           }}>
             {[
               { label: "הוסף מתאמן",  icon: Plus,     onClick: () => setIsAddTraineeOpen(true),    pos: { top: 0,   left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
-              { label: "הוסף ליד",    icon: UserPlus, onClick: () => setIsLeadDialogOpen(true),     pos: { top: 85,  right: 0,    transform: 'rotate(45deg)' } },
-              { label: "בנה תוכנית",  icon: Dumbbell, onClick: () => setIsPlanDialogOpen(true),     pos: { top: 85,  left: 0,     transform: 'rotate(45deg)' } },
-              { label: "קבע מפגש",    icon: Calendar, onClick: () => setIsSessionDialogOpen(true), pos: { top: 170, left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
+              { label: "הוסף ליד",    icon: UserPlus, onClick: () => setIsLeadDialogOpen(true),     pos: { top: 63,  right: 0,    transform: 'rotate(45deg)' } },
+              { label: "בנה תוכנית",  icon: Dumbbell, onClick: () => setIsPlanDialogOpen(true),     pos: { top: 63,  left: 0,     transform: 'rotate(45deg)' } },
+              { label: "קבע מפגש",    icon: Calendar, onClick: () => setIsSessionDialogOpen(true), pos: { top: 126, left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
             ].map((btn) => (
               <button
                 key={btn.label}
                 onClick={btn.onClick}
                 style={{
                   position: 'absolute',
-                  width: 110, height: 110,
+                  width: 84, height: 84,
                   background: 'white',
-                  borderRadius: 18,
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
+                  borderRadius: 14,
+                  boxShadow: '0 4px 14px rgba(255,111,32,0.18)',
                   border: 'none',
                   cursor: 'pointer',
                   padding: 0,
@@ -314,13 +312,13 @@ export default function Dashboard() {
                   width: '100%', height: '100%',
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center',
-                  gap: 6,
+                  gap: 4,
                   transform: 'rotate(-45deg)',
                 }}>
-                  <span style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.2, padding: '0 6px' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.15, padding: '0 4px' }}>
                     {btn.label}
                   </span>
-                  <btn.icon style={{ color: '#FF6F20', width: 28, height: 28 }} />
+                  <btn.icon style={{ color: '#FF6F20', width: 22, height: 22 }} />
                 </div>
               </button>
             ))}
@@ -328,22 +326,27 @@ export default function Dashboard() {
 
           {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />
-          <div className="grid grid-cols-4 gap-2 px-2">
+          <div className="grid grid-cols-4 px-2" style={{ gap: 6, marginBottom: 10 }}>
             {[
-              { label: "לידים חדשים",    value: newLeadsCount,         color: "#dc2626", to: createPageUrl("Leads") + "?filter=new" },
-              { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#7F47B5", to: createPageUrl("Sessions") + "?status=upcoming" },
-              { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#16a34a", to: createPageUrl("AllUsers") + "?filter=active" },
-              { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", to: createPageUrl("PlanBuilder") },
+              { label: "לידים חדשים",    value: newLeadsCount,         color: "#dc2626", rgb: "220,38,38",   to: createPageUrl("Leads") + "?filter=new" },
+              { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#7F47B5", rgb: "127,71,181",  to: createPageUrl("Sessions") + "?status=upcoming" },
+              { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#16a34a", rgb: "22,163,74",   to: createPageUrl("AllUsers") + "?filter=active" },
+              { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", rgb: "255,111,32",  to: createPageUrl("PlanBuilder") },
             ].map((m) => (
               <button key={m.label} onClick={() => navigate(m.to)}
-                className="bg-white border border-gray-100 shadow-sm flex flex-col items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.97]"
-                style={{ borderRadius: 14, padding: '14px 6px' }}>
+                className="bg-white flex flex-col items-center cursor-pointer transition-all active:scale-[0.97]"
+                style={{
+                  borderRadius: 12,
+                  padding: '10px 4px',
+                  border: '1px solid rgba(0,0,0,0.04)',
+                  boxShadow: `0 3px 10px rgba(${m.rgb}, 0.12)`,
+                }}>
                 {statsLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-300" />
                 ) : (
-                  <span className="leading-none" style={{ color: m.color, fontSize: 32, fontWeight: 500 }}>{m.value}</span>
+                  <span className="leading-none" style={{ color: m.color, fontSize: 28, fontWeight: 500 }}>{m.value}</span>
                 )}
-                <span className="mt-1 text-center leading-tight" style={{ color: '#555', fontSize: 12, fontWeight: 500 }}>{m.label}</span>
+                <span className="mt-1 text-center leading-tight" style={{ color: '#1a1a1a', fontSize: 11, fontWeight: 600 }}>{m.label}</span>
               </button>
             ))}
           </div>
@@ -469,26 +472,26 @@ export default function Dashboard() {
             const renderItem = (q) => (
               <button key={q.label} onClick={q.action}
                 className="flex flex-col items-center bg-transparent border-none cursor-pointer active:scale-[0.95] transition-transform"
-                style={{ background: 'transparent', gap: 6 }}>
+                style={{ background: 'transparent', gap: 4 }}>
                 <div style={{
-                  width: 64, height: 64,
-                  borderRadius: 18,
+                  width: 54, height: 54,
+                  borderRadius: 14,
                   background: 'white',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
+                  boxShadow: '0 3px 10px rgba(255,111,32,0.14)',
                   border: '1px solid rgba(0,0,0,0.04)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <q.icon style={{ color: '#FF6F20', width: 28, height: 28 }} />
+                  <q.icon style={{ color: '#FF6F20', width: 24, height: 24 }} />
                 </div>
-                <span className="text-gray-700" style={{ fontSize: 13, fontWeight: 500 }}>{q.label}</span>
+                <span style={{ color: '#1a1a1a', fontSize: 12, fontWeight: 600 }}>{q.label}</span>
               </button>
             );
             return (
-              <div className="px-2 pb-2" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="flex justify-around items-start" style={{ gap: 10 }}>
+              <div className="px-2 pb-2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="flex justify-around items-start" style={{ gap: 8 }}>
                   {quickItems.slice(0, 4).map(renderItem)}
                 </div>
-                <div className="flex justify-around items-start" style={{ gap: 10, paddingInline: '12%' }}>
+                <div className="flex justify-around items-start" style={{ gap: 8, paddingInline: '12%' }}>
                   {quickItems.slice(4).map(renderItem)}
                 </div>
               </div>
