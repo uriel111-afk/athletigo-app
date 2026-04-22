@@ -36,18 +36,14 @@ function GlobalTabata() {
     navigate(isCoach ? '/dashboard' : '/trainee-home', { replace: true });
   }, [isCoach, navigate]);
 
-  // Back button while overlay showing → minimize (mobile-safe).
-  // We hide the bar but DO NOT push extra history entries (that was
-  // polluting the back stack and routing the user back to /clocks).
+  // When the full-screen tabata opens, ensure the bar is hidden.
+  // Phone back-button handling lives in Clocks.jsx (double-tap = minimize)
+  // — we no longer register a single-tap popstate handler here, which
+  // used to conflict with the double-tap requirement.
   useEffect(() => {
     if (!showTabata) return;
     setIsMinimized(false);
-    const onPop = () => {
-      handleMinimize();
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, [showTabata, handleMinimize, setIsMinimized]);
+  }, [showTabata, setIsMinimized]);
 
   return (
     <div style={{

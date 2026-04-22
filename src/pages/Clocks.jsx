@@ -246,7 +246,7 @@ export default function Clocks() {
     return 'tabata';
   });
   const clock = useClock();
-  const { setLiveTimer, setShowTabata, setIsMinimized, activeTimers } = useActiveTimer();
+  const { setLiveTimer, setShowTabata, setIsMinimized, activeTimers, showTabata } = useActiveTimer();
   const { user } = React.useContext(AuthContext);
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
@@ -307,12 +307,41 @@ export default function Clocks() {
   // When returning to clocks page — hide floating widget (only if nothing running)
   // Do NOT clear liveTimer on mount — it must persist after minimize
 
-  // NOTE: an old "double-tap back = dashboard" popstate handler used to
-  // live here. It pushed a duplicate /clocks history entry on every
-  // mount which polluted the back stack and made minimize navigation
-  // race against the popstate listener. Removed — the explicit
-  // minimize button is the supported gesture; phone back button now
-  // behaves naturally (goes to wherever was before /clocks).
+  // Phone back-button: when ANY timer is active, intercept it so a
+  // single back press does nothing (just records timestamp), and a
+  // SECOND press within 500ms minimizes and navigates to dashboard.
+  // This prevents accidental "back kills my running tabata" while
+  // still letting the user escape with two quick taps.
+  //
+  // We register exactly ONE pushState as the intercept anchor — no
+  // continuous re-pushing on every render that polluted history in
+  // the previous version. The handler re-pushes only after the first
+  // tap so the second tap has something to consume.
+  useEffect(() => {
+    const hasActiveTimer = (activeTimers?.length || 0) > 0 || !!clock?.activeClock || !!showTabata;
+    if (!hasActiveTimer) return;
+
+    let lastBackTime = 0;
+    window.history.pushState(null, '', window.location.href);
+
+    const handlePopState = () => {
+      const now = Date.now();
+      if (now - lastBackTime < 500) {
+        // Double tap — minimize and navigate
+        lastBackTime = 0;
+        if (showTabata) setShowTabata(false);
+        setIsMinimized(true);
+        navigate(isCoach ? '/dashboard' : '/trainee-home', { replace: true });
+      } else {
+        // First tap — intercept by re-pushing /clocks
+        lastBackTime = now;
+        window.history.pushState(null, '', window.location.href);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTimers?.length, clock?.activeClock, showTabata, navigate, isCoach, setIsMinimized, setShowTabata]);
 
   // Wake lock
   const globalWakeLockRef = useRef(null);
