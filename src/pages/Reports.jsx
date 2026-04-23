@@ -104,19 +104,29 @@ export default function Reports() {
     //    (any user this coach has interacted with) — same pattern
     //    Dashboard uses, since the role='trainee' filter excluded
     //    rows whose role is 'user' or null in the real schema.
+    // Each query wrapped so a single-table failure can't kill the
+    // page (e.g. RLS blocks leads but sessions+packages succeed —
+    // we still render what we have).
+    const safeQuery = (p) => p.then(
+      (r) => r,
+      (err) => { console.warn('[Reports] query failed:', err); return { data: [] }; }
+    );
     const [sRes, pRes, lRes] = await Promise.all([
-      supabase.from('sessions')
+      safeQuery(supabase.from('sessions')
         .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at, trainee:trainee_id(id, full_name, phone)')
         .eq('coach_id', user.id)
-        .order('date', { ascending: false }),
-      supabase.from('client_services')
+        .order('date', { ascending: false })),
+      safeQuery(supabase.from('client_services')
         .select('id, trainee_id, package_name, package_type, service_type, total_sessions, used_sessions, sessions_remaining, final_price, payment_method, status, start_date, end_date, expires_at, created_at, trainee:trainee_id(id, full_name, phone)')
-        .eq('coach_id', user.id),
-      supabase.from('leads')
+        .eq('coach_id', user.id)),
+      safeQuery(supabase.from('leads')
         .select('id, full_name, phone, email, status, source, coach_notes, created_at')
         .eq('coach_id', user.id)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })),
     ]);
+    if (sRes.error) console.warn('[Reports] sessions error:', sRes.error);
+    if (pRes.error) console.warn('[Reports] packages error:', pRes.error);
+    if (lRes.error) console.warn('[Reports] leads error:', lRes.error);
     const sessionRows = sRes.data || [];
     const pkgRows = pRes.data || [];
     // Build the trainee roster from joined data + participants[].
@@ -137,7 +147,7 @@ export default function Reports() {
     // Top up with explicit roster (so trainees with no sessions/packages still appear)
     const explicitIds = Array.from(traineeMap.keys());
     const tRes = explicitIds.length > 0
-      ? await supabase.from('users').select('id, full_name, phone, email, created_at').in('id', explicitIds)
+      ? await safeQuery(supabase.from('users').select('id, full_name, phone, email, created_at').in('id', explicitIds))
       : { data: [] };
     for (const u of (tRes.data || [])) {
       // Prefer the fuller user row (has phone/email/created_at)
@@ -551,9 +561,15 @@ export default function Reports() {
   // trainees section (counting active trainees), so the two views
   // can never disagree. "Expiring" still counts as active for the
   // trainee tally; coach is still actively training that person.
+  // Verified field name: useServiceDeduction.jsx writes to
+  // `sessions_remaining` (line 47, 126). Defensively checks the
+  // alternate `remaining_sessions` name in case any older rows
+  // carry it; falls back to total - used as the final source.
   const remainingOf = (p) => {
+    if (p == null) return 0;
     if (typeof p.sessions_remaining === 'number') return p.sessions_remaining;
-    return Math.max(0, (p.total_sessions || 0) - (p.used_sessions || 0));
+    if (typeof p.remaining_sessions === 'number') return p.remaining_sessions;
+    return Math.max(0, (Number(p.total_sessions) || 0) - (Number(p.used_sessions) || 0));
   };
   const now = new Date();
   const in14 = new Date(now.getTime() + 14 * 86400000);
@@ -563,9 +579,13 @@ export default function Reports() {
     const remaining = remainingOf(p);
     const ed = p.expires_at || p.end_date;
     const exp = ed ? new Date(ed) : null;
-    const isActive = p.status === 'פעיל' || p.status === 'active';
-    if (['completed', 'הסתיים'].includes(p.status) || (total > 0 && used >= total)) return 'completed';
-    if (['expired', 'פג תוקף', 'cancelled', 'בוטל'].includes(p.status) || (exp && exp < now)) return 'expired';
+    // Case-insensitive status check; tolerate stray whitespace
+    // and the legacy reversed-Hebrew 'ליעפ' that some older rows
+    // accidentally hold (RTL text-direction quirk).
+    const s = String(p.status || '').trim().toLowerCase();
+    const isActive = s === 'active' || s === 'פעיל' || s === 'ליעפ';
+    if (s === 'completed' || s === 'הסתיים' || (total > 0 && used >= total)) return 'completed';
+    if (s === 'expired' || s === 'פג תוקף' || s === 'cancelled' || s === 'בוטל' || (exp && exp < now)) return 'expired';
     if (isActive && (remaining === 1 || (exp && exp <= in14))) return 'expiring';
     if (isActive) return 'active';
     return 'expired';
