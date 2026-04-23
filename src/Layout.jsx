@@ -410,18 +410,26 @@ export default function Layout({ children, currentPageName }) {
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
 
-              {/* Center: brand block (text+triangle baked into a single
-                  HORIZONTAL PNG /logo-horizontal.png) above the user-name.
-                  Loading screen uses the STACKED /logo-with-name.png at
-                  200px — keeping them as separate files so the two layouts
-                  don't fight over one asset. */}
+              {/* Center: triangle + ATHLETIGO wordmark image as two
+                  separate elements, laid out LTR so the triangle sits on
+                  the visual LEFT and the text on the visual RIGHT.
+                  Wrapped in a flex column with alignItems:center so the
+                  brand row's geometric center stacks directly above the
+                  user-role text underneath — no manual offsets. */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <img
-                  src="/logo-horizontal.png"
-                  alt="ATHLETIGO"
-                  style={{ height: 28, objectFit: 'contain', display: 'block' }}
-                />
-                <div style={{ fontSize: 13, color: primaryColor, fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, direction: 'ltr' }}>
+                  <img
+                    src="/logo-transparent.png"
+                    alt=""
+                    style={{ width: 28, height: 28, objectFit: 'contain', display: 'block' }}
+                  />
+                  <img
+                    src="/athletigo-text.png"
+                    alt="ATHLETIGO"
+                    style={{ height: 18, objectFit: 'contain', display: 'block' }}
+                  />
+                </div>
+                <div style={{ fontSize: 11, color: primaryColor, fontWeight: 600, marginTop: 1, lineHeight: 1.2 }}>
                   {userRoleLabel}
                 </div>
               </div>
