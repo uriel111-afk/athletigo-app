@@ -62,6 +62,7 @@ function calculateStreak(challenges) {
     if (typeof parsed === "string") {
       try { parsed = JSON.parse(parsed); } catch { parsed = {}; }
     }
+    if (!parsed || typeof parsed !== "object") parsed = {};
     if (parsed?.sent_date) completedDates.add(parsed.sent_date);
   }
   if (completedDates.size === 0) return 0;
@@ -81,11 +82,16 @@ function calculateStreak(challenges) {
 
 export default function ChallengeBank({ isOpen, onClose, coach, trainees }) {
   const [tab, setTab] = useState("send");
+  const [challengeMode, setChallengeMode] = useState("single"); // single | workout
   const [selectedTraineeId, setSelectedTraineeId] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [customChallenge, setCustomChallenge] = useState("");
   const [challenges, setChallenges] = useState(DEFAULT_CHALLENGES);
   const [sentChallenges, setSentChallenges] = useState([]);
+  // Workout mode state
+  const [workoutName, setWorkoutName] = useState("");
+  const [workoutType, setWorkoutType] = useState("");
+  const [workoutExercises, setWorkoutExercises] = useState([{ name: "", detail: "" }]);
 
   const BANK_KEY = coach?.id ? `challenge_bank_${coach.id}` : null;
   const today = todayStr();
@@ -136,28 +142,35 @@ export default function ChallengeBank({ isOpen, onClose, coach, trainees }) {
   useEffect(() => { if (isOpen) fetchSentChallenges(); }, [isOpen, fetchSentChallenges]);
 
   const sendChallenge = async (challenge) => {
+    console.log("[CHALLENGE] sendChallenge fired:", { challenge, selectedTraineeId, traineesCount: trainees?.length });
     if (!coach?.id) { toast.error("שגיאה: מאמן לא מזוהה"); return; }
+    if (!trainees || trainees.length === 0) { toast.error("אין מתאמנים לשלוח אליהם"); return; }
     const targetIds = selectedTraineeId === "all"
       ? trainees.map(t => t.id)
       : [selectedTraineeId];
     if (targetIds.length === 0) { toast.error("יש לבחור מתאמן"); return; }
 
+    // notifications.data is a JSONB column — insert raw object so it
+    // stores as JSON. The earlier JSON.stringify wrapped it as a quoted
+    // string literal which broke reads + may fail RLS validation.
     const inserts = targetIds.map(tid => ({
       user_id: tid,
       type: "daily_challenge",
       message: `🎯 האתגר היומי: ${challenge.text}`,
       is_read: false,
-      data: JSON.stringify({
+      data: {
         challenge_text: challenge.text,
         category: challenge.category || "custom",
         icon: challenge.icon || "🎯",
         coach_id: coach.id,
         sent_date: today,
         completed_at: null,
-      }),
+      },
     }));
+    console.log("[CHALLENGE] inserting:", inserts);
 
-    const { error } = await supabase.from("notifications").insert(inserts);
+    const { data, error } = await supabase.from("notifications").insert(inserts).select();
+    console.log("[CHALLENGE] result:", data, error);
     if (error) {
       console.error("[ChallengeBank] sendChallenge error:", error);
       toast.error("שגיאה בשליחה: " + error.message);
@@ -168,6 +181,62 @@ export default function ChallengeBank({ isOpen, onClose, coach, trainees }) {
       : `${targetIds.length} מתאמנים`;
     toast.success(`🎯 אתגר נשלח ל${targetName}`);
     fetchSentChallenges();
+  };
+
+  const sendWorkoutChallenge = async () => {
+    const exercises = workoutExercises.filter(e => e.name.trim());
+    if (!workoutName.trim() || exercises.length === 0) {
+      toast.error("יש למלא שם ולפחות תרגיל אחד");
+      return;
+    }
+    if (!coach?.id) { toast.error("שגיאה: מאמן לא מזוהה"); return; }
+    if (!trainees || trainees.length === 0) { toast.error("אין מתאמנים"); return; }
+    const targetIds = selectedTraineeId === "all"
+      ? trainees.map(t => t.id)
+      : [selectedTraineeId];
+    if (targetIds.length === 0) { toast.error("יש לבחור מתאמן"); return; }
+
+    const exerciseList = exercises
+      .map((e, i) => `${i + 1}. ${e.name}${e.detail ? " (" + e.detail + ")" : ""}`)
+      .join("\n");
+
+    const inserts = targetIds.map(tid => ({
+      user_id: tid,
+      type: "daily_challenge",
+      message: `💪 אתגר אימון: ${workoutName.trim()}\n${exerciseList}`,
+      is_read: false,
+      data: {
+        challenge_text: workoutName.trim(),
+        challenge_type: "workout",
+        workout_type: workoutType || null,
+        exercises,
+        category: workoutType || "workout",
+        icon: "💪",
+        coach_id: coach.id,
+        sent_date: today,
+        completed_at: null,
+      },
+    }));
+    console.log("[CHALLENGE] sending workout:", inserts);
+
+    const { data, error } = await supabase.from("notifications").insert(inserts).select();
+    console.log("[CHALLENGE] workout result:", data, error);
+    if (error) {
+      toast.error("שגיאה: " + error.message);
+      return;
+    }
+    toast.success("💪 אתגר אימון נשלח!");
+    setWorkoutName("");
+    setWorkoutType("");
+    setWorkoutExercises([{ name: "", detail: "" }]);
+    fetchSentChallenges();
+  };
+
+  const updateWorkoutExercise = (i, field, value) => {
+    setWorkoutExercises(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e));
+  };
+  const removeWorkoutExercise = (i) => {
+    setWorkoutExercises(prev => prev.filter((_, idx) => idx !== i));
   };
 
   const updateChallenge = (i, text) => {
@@ -254,6 +323,112 @@ export default function ChallengeBank({ isOpen, onClose, coach, trainees }) {
               </div>
             </div>
 
+            {/* Single vs workout */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {[
+                { id: "single",  label: "🎯 תרגיל בודד" },
+                { id: "workout", label: "💪 אימון קצר" },
+              ].map(m => (
+                <div key={m.id} onClick={() => setChallengeMode(m.id)} style={{
+                  flex: 1, padding: 8, borderRadius: 12,
+                  textAlign: "center", fontSize: 13, fontWeight: 600,
+                  cursor: "pointer",
+                  background: challengeMode === m.id ? "#FF6F20" : "white",
+                  color: challengeMode === m.id ? "white" : "#888",
+                }}>{m.label}</div>
+              ))}
+            </div>
+
+            {challengeMode === "workout" && (
+              <div style={{
+                background: "white", borderRadius: 14,
+                padding: 14, marginBottom: 10,
+                border: "1.5px solid #FF6F20",
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>💪 בנה אתגר אימון</div>
+                <input
+                  value={workoutName}
+                  onChange={e => setWorkoutName(e.target.value)}
+                  placeholder="שם האתגר (למשל: אתגר בוקר)"
+                  style={{
+                    width: "100%", padding: 10, borderRadius: 10,
+                    border: "0.5px solid #F0E4D0",
+                    fontSize: 14, direction: "rtl",
+                    marginBottom: 8, outline: "none", boxSizing: "border-box",
+                  }}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                  {["חימום", "כוח", "סיבולת", "גמישות", "מיומנות", "תנועה"].map(t => (
+                    <div key={t} onClick={() => setWorkoutType(workoutType === t ? "" : t)} style={{
+                      padding: "4px 10px", borderRadius: 16,
+                      fontSize: 11, fontWeight: 600, cursor: "pointer",
+                      background: workoutType === t ? "#FF6F20" : "#F8F0E8",
+                      color: workoutType === t ? "white" : "#888",
+                    }}>{t}</div>
+                  ))}
+                </div>
+
+                {workoutExercises.map((ex, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: "50%",
+                      background: "#FF6F20", color: "white",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    }}>{i + 1}</div>
+                    <input
+                      value={ex.name}
+                      onChange={e => updateWorkoutExercise(i, "name", e.target.value)}
+                      placeholder={`תרגיל ${i + 1}...`}
+                      style={{
+                        flex: 1, padding: 8, borderRadius: 8,
+                        border: "0.5px solid #F0E4D0",
+                        fontSize: 13, direction: "rtl",
+                        outline: "none", minWidth: 0, boxSizing: "border-box",
+                      }}
+                    />
+                    <input
+                      value={ex.detail}
+                      onChange={e => updateWorkoutExercise(i, "detail", e.target.value)}
+                      placeholder='12×3 / 30 שניות'
+                      style={{
+                        width: 90, padding: 8, borderRadius: 8,
+                        border: "0.5px solid #F0E4D0",
+                        fontSize: 12, textAlign: "center",
+                        outline: "none", boxSizing: "border-box",
+                      }}
+                    />
+                    {workoutExercises.length > 1 && (
+                      <button onClick={() => removeWorkoutExercise(i)} style={{
+                        background: "none", border: "none",
+                        color: "#dc2626", cursor: "pointer", fontSize: 14,
+                      }}>✕</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => setWorkoutExercises(prev => [...prev, { name: "", detail: "" }])} style={{
+                  width: "100%", padding: 6,
+                  background: "#FFF9F0", borderRadius: 8,
+                  border: "1px dashed #F0E4D0",
+                  color: "#888", fontSize: 12, cursor: "pointer",
+                  marginTop: 4, marginBottom: 10,
+                }}>+ הוסף תרגיל</button>
+
+                <button
+                  onClick={sendWorkoutChallenge}
+                  disabled={!workoutName.trim() || workoutExercises.every(e => !e.name.trim())}
+                  style={{
+                    width: "100%", padding: 12, borderRadius: 12, border: "none",
+                    background: (workoutName.trim() && workoutExercises.some(e => e.name.trim())) ? "#FF6F20" : "#ccc",
+                    color: "white", fontSize: 15, fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >📤 שלח אתגר אימון</button>
+              </div>
+            )}
+
+            {challengeMode === "single" && (
+            <>
             <div style={{ display: "flex", gap: 4, marginBottom: 10, overflowX: "auto" }}>
               {CATEGORIES.map(c => {
                 const active = categoryFilter === c.id;
@@ -318,6 +493,8 @@ export default function ChallengeBank({ isOpen, onClose, coach, trainees }) {
                 >שלח</button>
               </div>
             </div>
+            </>
+            )}
           </>
         )}
 

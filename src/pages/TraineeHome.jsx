@@ -424,11 +424,37 @@ export default function TraineeHome() {
             }}>🔥 {challengeStreak}</div>
 
             <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 4 }}>
-              {todayChallenge.is_read ? '✅ הושלם!' : '🎯 האתגר היומי שלך'}
+              {todayChallenge.is_read ? '✅ הושלם!' : (todayChallenge.parsed?.challenge_type === 'workout' ? '💪 אתגר אימון שלך' : '🎯 האתגר היומי שלך')}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
-              {todayChallenge.parsed?.challenge_text || todayChallenge.message}
-            </div>
+            {todayChallenge.parsed?.challenge_type === 'workout' && Array.isArray(todayChallenge.parsed.exercises) ? (
+              <div style={{ textAlign: 'right', direction: 'rtl', marginBottom: 12 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 10, textAlign: 'center' }}>
+                  {todayChallenge.parsed.challenge_text}
+                </div>
+                {todayChallenge.parsed.exercises.map((ex, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 0',
+                    borderBottom: '0.5px solid rgba(255,255,255,0.2)',
+                  }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    }}>{i + 1}</div>
+                    <span style={{ flex: 1, fontSize: 14 }}>{ex.name}</span>
+                    {ex.detail && (
+                      <span style={{ fontSize: 12, opacity: 0.85 }}>{ex.detail}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
+                {todayChallenge.parsed?.challenge_text || todayChallenge.message}
+              </div>
+            )}
             {challengeStreak > 0 && (
               <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12 }}>
                 {'🔥'.repeat(Math.min(challengeStreak, 10))} {challengeStreak} ימים ברצף!

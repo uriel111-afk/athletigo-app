@@ -454,63 +454,56 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Reminders quick-access — opens the RemindersPanel bottom sheet.
-              Badge count = pending reminders with remind_at <= now. */}
-          <div className="px-2" style={{ marginBottom: 10 }}>
-            <div
-              onClick={() => setShowReminders(true)}
-              style={{
-                background: "white", borderRadius: 14,
-                padding: "12px 16px",
-                display: "flex", alignItems: "center", gap: 12,
-                cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-                border: "1px solid rgba(0,0,0,0.04)",
-                position: "relative",
-              }}
-            >
-              <div style={{ fontSize: 24 }}>⏰</div>
-              <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>תזכורות</div>
-              <div style={{ fontSize: 12, color: "#888" }}>
-                {reminders.filter(r => !r.is_read).length} פעילות
+          {/* Quick-access grid — 4 cols × 2 rows = 8 icons, no scroll.
+              Badge counts overlaid on Reminders for overdue items. */}
+          {(() => {
+            const overdueReminders = reminders.filter(r =>
+              !r.is_read && r.data?.remind_at && new Date(r.data.remind_at) <= new Date()
+            ).length;
+            const items = [
+              { icon: "👥", label: "מתאמנים",  onClick: () => navigate(createPageUrl("AllUsers")) },
+              { icon: "📅", label: "מפגשים",   onClick: () => navigate(createPageUrl("Sessions")) },
+              { icon: "📋", label: "תוכניות",  onClick: () => navigate(createPageUrl("PlanBuilder")) },
+              { icon: "➕", label: "ליד חדש",  onClick: () => navigate(createPageUrl("Leads")) },
+              { icon: "🎯", label: "אתגר יומי", onClick: () => setShowChallengeBank(true) },
+              { icon: "⏰", label: "תזכורות",  onClick: () => setShowReminders(true), badge: overdueReminders },
+              { icon: "📊", label: "דוחות",    onClick: () => navigate(createPageUrl("Reports")) },
+              { icon: "⏱", label: "שעונים",   onClick: () => navigate(createPageUrl("Clocks")) },
+            ];
+            return (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: 8,
+                padding: "0 12px 12px",
+              }}>
+                {items.map((item, i) => (
+                  <div key={i} onClick={item.onClick} style={{
+                    background: "white",
+                    borderRadius: 14,
+                    padding: "12px 4px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    position: "relative",
+                  }}>
+                    <div style={{ fontSize: 24 }}>{item.icon}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "#1a1a1a", marginTop: 4 }}>{item.label}</div>
+                    {item.badge > 0 && (
+                      <div style={{
+                        position: "absolute", top: 4, right: 4,
+                        minWidth: 18, height: 18, padding: "0 5px",
+                        borderRadius: 9, background: "#dc2626", color: "white",
+                        fontSize: 10, fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        border: "2px solid white",
+                      }}>{item.badge}</div>
+                    )}
+                  </div>
+                ))}
               </div>
-              {(() => {
-                const overdue = reminders.filter(r =>
-                  !r.is_read && r.data?.remind_at && new Date(r.data.remind_at) <= new Date()
-                ).length;
-                if (overdue === 0) return null;
-                return (
-                  <div style={{
-                    position: "absolute", top: 6, right: 6,
-                    minWidth: 20, height: 20, padding: "0 6px",
-                    borderRadius: 10, background: "#dc2626", color: "white",
-                    fontSize: 11, fontWeight: 700,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    border: "2px solid white",
-                  }}>{overdue}</div>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Daily Challenge quick-access */}
-          <div className="px-2" style={{ marginBottom: 10 }}>
-            <div
-              onClick={() => setShowChallengeBank(true)}
-              style={{
-                background: "white", borderRadius: 14,
-                padding: "12px 16px",
-                display: "flex", alignItems: "center", gap: 12,
-                cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-                border: "1px solid rgba(0,0,0,0.04)",
-              }}
-            >
-              <div style={{ fontSize: 24 }}>🎯</div>
-              <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>אתגר יומי</div>
-              <div style={{ fontSize: 12, color: "#888" }}>שלח לכל המתאמנים</div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />
