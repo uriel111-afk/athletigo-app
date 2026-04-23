@@ -102,7 +102,7 @@ export default function Login() {
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
           <img
-            src="/logoR.png"
+            src="/logoR-black.png"
             alt="AthletiGo"
             style={{ width: 200, height: 'auto', objectFit: 'contain' }}
           />
