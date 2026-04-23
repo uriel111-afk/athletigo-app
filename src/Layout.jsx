@@ -177,10 +177,9 @@ export default function Layout({ children, currentPageName }) {
     { title: "כל התוכניות", url: createPageUrl("PlanBuilder"), icon: ClipboardList, section: "content" },
     { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
     // ── ניהול עסקי ──
-    // Financial summary merged into Reports page (single "דוחות"
-    // entry above) — old FinancialOverview menu link removed.
-    { title: "חבילות", url: createPageUrl("PackageStats"), icon: ClipboardList, section: "business" },
-    { title: "המרות", url: createPageUrl("ConversionDashboard"), icon: TrendingUp, section: "business" },
+    // Packages (PackageStats), Financial summary, and Conversions
+    // (ConversionDashboard) are all merged into the single Reports
+    // page above. Old menu links removed.
     // ── כלים ──
     { title: "שעונים", url: createPageUrl("Clocks"), icon: Clock, section: "content" },
     // ── הגדרות ──

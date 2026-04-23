@@ -51,7 +51,6 @@ import ActivePlans from './pages/ActivePlans';
 import AllUsers from './pages/AllUsers';
 import Forms from './pages/Forms';
 import CoachProfile from './pages/CoachProfile';
-import ConversionDashboard from './pages/ConversionDashboard';
 import Dashboard from './pages/Dashboard';
 import FinancialDebug from './pages/FinancialDebug';
 import Home from './pages/Home';
@@ -62,7 +61,6 @@ import MyWorkoutLog from './pages/MyWorkoutLog';
 import Notifications from './pages/Notifications';
 import Onboarding from './pages/Onboarding';
 import Progress from './pages/Progress';
-import PackageStats from './pages/PackageStats';
 import Reports from './pages/Reports';
 import SectionTemplates from './pages/SectionTemplates';
 import Sessions from './pages/Sessions';
@@ -81,7 +79,6 @@ export const PAGES = {
     "AllUsers": AllUsers,
     "Forms": Forms,
     "CoachProfile": CoachProfile,
-    "ConversionDashboard": ConversionDashboard,
     "Dashboard": Dashboard,
     "FinancialDebug": FinancialDebug,
     "Home": Home,
@@ -92,7 +89,6 @@ export const PAGES = {
     "Notifications": Notifications,
     "Onboarding": Onboarding,
     "Progress": Progress,
-    "PackageStats": PackageStats,
     "Reports": Reports,
     "SectionTemplates": SectionTemplates,
     "Sessions": Sessions,
