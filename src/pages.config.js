@@ -54,7 +54,6 @@ import CoachProfile from './pages/CoachProfile';
 import ConversionDashboard from './pages/ConversionDashboard';
 import Dashboard from './pages/Dashboard';
 import FinancialDebug from './pages/FinancialDebug';
-import FinancialOverview from './pages/FinancialOverview';
 import Home from './pages/Home';
 import Leads from './pages/Leads';
 import MyAttendance from './pages/MyAttendance';
@@ -85,7 +84,6 @@ export const PAGES = {
     "ConversionDashboard": ConversionDashboard,
     "Dashboard": Dashboard,
     "FinancialDebug": FinancialDebug,
-    "FinancialOverview": FinancialOverview,
     "Home": Home,
     "Leads": Leads,
     "MyAttendance": MyAttendance,
