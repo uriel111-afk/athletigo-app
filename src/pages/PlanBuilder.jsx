@@ -26,7 +26,8 @@ const PARAM_SCHEMA = {
   "זמן מנוחה":      { type: "time" },
   "RPE (קושי)":     { type: "rpe" },
   "טמפו":           { type: "tempo" },
-  "ציוד נדרש":      { type: "chips" },
+  "ציוד נדרש":      { type: "chips", allowCustom: true },
+  "רמת קושי":       { type: "select", options: ["קל", "בינוני", "מתקדם", "אתגרי"] },
   "טבטה":           { type: "tabata" },
   "רשימת תרגילים":   { type: "list", placeholder: "שם התרגיל" },
   "מנח גוף":        { type: "text", placeholder: "למשל: עמידה, שכיבה..." },
@@ -250,6 +251,13 @@ export default function PlanBuilder() {
       toast.error('יש לשמור את התוכנית קודם');
       return;
     }
+    // Difficulty is stored as a prefix in description until/unless
+    // a dedicated difficulty_level column is added to the schema.
+    const difficulty = exerciseData.params["רמת קושי"];
+    const baseNotes = exerciseData.params["דגשים"] || '';
+    const description = difficulty
+      ? `[קושי: ${difficulty}]${baseNotes ? '\n' + baseNotes : ''}`
+      : (baseNotes || null);
     const payload = {
       training_section_id: sec.id,
       training_plan_id: planId,
@@ -267,7 +275,7 @@ export default function PlanBuilder() {
       body_position: exerciseData.params["מנח גוף"] || null,
       equipment: exerciseData.params["ציוד נדרש"] || null,
       static_hold_time: exerciseData.params["החזקה סטטית"] || null,
-      description: exerciseData.params["דגשים"] || null,
+      description,
       side: exerciseData.params["צד"] || null,
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
@@ -297,6 +305,11 @@ export default function PlanBuilder() {
 
   const updateExercise = async (sectionIndex, exerciseIndex, exerciseData) => {
     const ex = sections[sectionIndex].exercises[exerciseIndex];
+    const difficulty = exerciseData.params["רמת קושי"];
+    const baseNotes = exerciseData.params["דגשים"] || '';
+    const description = difficulty
+      ? `[קושי: ${difficulty}]${baseNotes ? '\n' + baseNotes : ''}`
+      : (baseNotes || null);
     const payload = {
       exercise_name: exerciseData.name,
       name: exerciseData.name,
@@ -312,7 +325,7 @@ export default function PlanBuilder() {
       body_position: exerciseData.params["מנח גוף"] || null,
       equipment: exerciseData.params["ציוד נדרש"] || null,
       static_hold_time: exerciseData.params["החזקה סטטית"] || null,
-      description: exerciseData.params["דגשים"] || null,
+      description,
       side: exerciseData.params["צד"] || null,
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
@@ -396,7 +409,18 @@ export default function PlanBuilder() {
     if (ex.body_position) p["מנח גוף"] = ex.body_position;
     if (ex.equipment) p["ציוד נדרש"] = ex.equipment;
     if (ex.static_hold_time) p["החזקה סטטית"] = ex.static_hold_time;
-    if (ex.description) p["דגשים"] = ex.description;
+    if (ex.description) {
+      // Difficulty is encoded as a "[קושי: X]" prefix in the
+      // description field — split it back out on read so the
+      // chip selector stays in sync. See add/updateExercise.
+      const m = String(ex.description).match(/^\[קושי:\s*([^\]]+)\]\s*\n?([\s\S]*)$/);
+      if (m) {
+        p["רמת קושי"] = m[1].trim();
+        if (m[2]) p["דגשים"] = m[2].trim();
+      } else {
+        p["דגשים"] = ex.description;
+      }
+    }
     if (ex.side) p["צד"] = ex.side;
     if (ex.range_of_motion) p["טווח תנועה"] = ex.range_of_motion;
     if (ex.grip) p["אחיזה"] = ex.grip;
@@ -651,25 +675,27 @@ function ExerciseEditor({ data, onSave, onClose }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ flexShrink: 0, padding: "16px 24px 8px", borderBottom: "0.5px solid #f0f0f0" }}>
-          <div style={{ fontSize: 20, fontWeight: 900, textAlign: "center" }}>{data.isNew ? "תרגיל חדש" : "ערוך תרגיל"}</div>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div style={{ background: "#FFF9F0", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flexShrink: 0, padding: "18px 24px 12px", borderBottom: "0.5px solid #F0E4D0", background: "white" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", color: "#1a1a1a" }}>
+            {data.isNew ? "🏋️ תרגיל חדש" : "✏️ ערוך תרגיל"}
+          </div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 24px", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 20px", minHeight: 0 }}>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>שם התרגיל</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1a1a1a' }}>שם התרגיל</div>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="לדוגמה: סקוואט"
-            style={{ width: "100%", padding: "12px 14px", fontSize: 16, border: "1.5px solid", borderColor: name ? "#FF6F20" : "#ddd", borderRadius: 10, boxSizing: "border-box", direction: "rtl", outline: "none" }} />
+            style={{ width: "100%", padding: "14px", fontSize: 16, fontWeight: 600, border: "1.5px solid", borderColor: name ? "#FF6F20" : "#F0E4D0", borderRadius: 14, boxSizing: "border-box", direction: "rtl", outline: "none", background: "white" }} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>פרמטרים</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1a1a1a' }}>פרמטרים</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             {PARAM_TYPES.map(p => (
               <button key={p} onClick={() => toggleParam(p)}
-                style={{ padding: "6px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1.5px solid", borderColor: selectedParams.includes(p) ? "#FF6F20" : "#eee", background: selectedParams.includes(p) ? "#FF6F20" : "white", color: selectedParams.includes(p) ? "white" : "#555", cursor: "pointer" }}>
+                style={{ padding: "8px 12px", borderRadius: 12, fontSize: 12, fontWeight: 600, border: "1px solid", borderColor: selectedParams.includes(p) ? "#FF6F20" : "#F0E4D0", background: selectedParams.includes(p) ? "#FF6F20" : "white", color: selectedParams.includes(p) ? "white" : "#1a1a1a", cursor: "pointer" }}>
                 {p}
               </button>
             ))}
@@ -696,7 +722,7 @@ function ExerciseEditor({ data, onSave, onClose }) {
                       <TempoPattern value={val} onChange={set} />
                     )}
                     {schema.type === "chips" && (
-                      <ChipsMulti value={val} options={EQUIPMENT_OPTIONS} onChange={set} />
+                      <ChipsMulti value={val} options={EQUIPMENT_OPTIONS} onChange={set} allowCustom={!!schema.allowCustom} />
                     )}
                     {schema.type === "list" && (
                       <ListBuilder value={val} onChange={set} placeholder={schema.placeholder} />
@@ -730,7 +756,7 @@ function ExerciseEditor({ data, onSave, onClose }) {
         </div>
         </div>
 
-        <div style={{ flexShrink: 0, padding: "12px 24px", borderTop: "0.5px solid #f0f0f0", background: "#fff", paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
+        <div style={{ flexShrink: 0, padding: "14px 20px", borderTop: "0.5px solid #F0E4D0", background: "white", paddingBottom: "max(env(safe-area-inset-bottom), 14px)" }}>
           <button onClick={() => {
             // Always run — surface validation as a toast instead of
             // silently returning. Was: `if (!name.trim()) return;`
@@ -739,10 +765,10 @@ function ExerciseEditor({ data, onSave, onClose }) {
             if (!name.trim()) { toast.error('יש להזין שם תרגיל'); return; }
             onSave({ name: name.trim(), params });
           }}
-            style={{ width: "100%", height: 52, background: !name.trim() ? "#ccc" : "#FF6F20", color: "white", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 900, cursor: "pointer", marginBottom: 8 }}>
-            {data.isNew ? "הוסף תרגיל ✓" : "עדכן תרגיל ✓"}
+            style={{ width: "100%", height: 50, background: !name.trim() ? "#ccc" : "#FF6F20", color: "white", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 6, boxShadow: name.trim() ? '0 2px 8px rgba(255,111,32,0.25)' : 'none' }}>
+            {data.isNew ? "✅ הוסף תרגיל" : "💾 עדכן תרגיל"}
           </button>
-          <button onClick={onClose} style={{ width: "100%", padding: 8, background: "none", border: "none", color: "#999", fontSize: 14, cursor: "pointer" }}>ביטול</button>
+          <button onClick={onClose} style={{ width: "100%", padding: 8, background: "none", border: "none", color: "#888", fontSize: 13, cursor: "pointer" }}>ביטול</button>
         </div>
       </div>
     </div>

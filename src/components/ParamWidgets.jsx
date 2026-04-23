@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 
 const O = "#FF6F20";
 const CREAM = "#FFF9F0";
@@ -140,33 +140,70 @@ export function TempoPattern({ value, onChange }) {
 }
 
 // ── ChipsMulti ─────────────────────────────────────────────────────────
-export function ChipsMulti({ value, options, onChange }) {
+export function ChipsMulti({ value, options, onChange, allowCustom = false }) {
   const arr = Array.isArray(value) ? value : (value ? [value] : []);
+  // User-added chips that aren't in the default options list — keep
+  // them visible alongside the presets so they remain togglable.
+  const extraChips = arr.filter(x => !options.includes(x));
+  const allChips = [...options, ...extraChips];
+  const [custom, setCustom] = React.useState("");
+
   const toggle = (opt) => {
     const next = arr.includes(opt) ? arr.filter((x) => x !== opt) : [...arr, opt];
     onChange(next.length > 0 ? next : "");
   };
+  const addCustom = () => {
+    const v = custom.trim();
+    if (!v || arr.includes(v)) { setCustom(""); return; }
+    onChange([...arr, v]);
+    setCustom("");
+  };
 
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {options.map((opt) => {
-        const sel = arr.includes(opt);
-        return (
-          <button key={opt} onClick={() => toggle(opt)}
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {allChips.map((opt) => {
+          const sel = arr.includes(opt);
+          return (
+            <button key={opt} onClick={() => toggle(opt)}
+              style={{
+                padding: "8px 14px", borderRadius: 9999,
+                border: `1px solid ${sel ? O : BD}`,
+                background: sel ? O : "white",
+                color: sel ? "white" : TX,
+                fontSize: 14, fontWeight: sel ? 700 : 400,
+                cursor: "pointer", touchAction: "manipulation",
+                display: "flex", alignItems: "center", gap: 4,
+              }}>
+              {sel && <span>✓</span>}
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      {allowCustom && (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input
+            value={custom}
+            onChange={e => setCustom(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+            placeholder="הוסף פריט מותאם..."
             style={{
-              padding: "8px 14px", borderRadius: 9999,
-              border: `1px solid ${sel ? O : BD}`,
-              background: sel ? O : "white",
-              color: sel ? "white" : TX,
-              fontSize: 14, fontWeight: sel ? 700 : 400,
-              cursor: "pointer", touchAction: "manipulation",
-              display: "flex", alignItems: "center", gap: 4,
-            }}>
-            {sel && <span>✓</span>}
-            {opt}
-          </button>
-        );
-      })}
+              flex: 1, padding: '8px 12px', borderRadius: 12,
+              border: `1px solid ${BD}`, fontSize: 13, direction: 'rtl',
+              outline: 'none',
+            }}
+          />
+          <button type="button" onClick={addCustom}
+            disabled={!custom.trim()}
+            style={{
+              padding: '8px 14px', borderRadius: 12, border: 'none',
+              background: custom.trim() ? O : '#ccc',
+              color: 'white', fontSize: 13, fontWeight: 700,
+              cursor: custom.trim() ? 'pointer' : 'default',
+            }}>+ הוסף</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -244,12 +281,33 @@ export function ListBuilder({ value, onChange, placeholder = "שם הפריט" }
 // ── Tabata widget (work / rest / rounds / sets) ────────────────────────
 // Stored as an object: { work_sec, rest_sec, rounds, sets }
 // Defaults 20/10/8/1 — classic tabata.
-export const TABATA_DEFAULTS = { work_sec: 20, rest_sec: 10, rounds: 8, sets: 1 };
+export const TABATA_DEFAULTS = { work_sec: 20, rest_sec: 10, rounds: 8, sets: 1, rest_between_sets: 60, exercises: [] };
 export function Tabata({ value, onChange }) {
   const v = (value && typeof value === "object") ? value : TABATA_DEFAULTS;
   const patch = (p) => onChange({ ...TABATA_DEFAULTS, ...v, ...p });
+  const exercises = Array.isArray(v.exercises) ? v.exercises : [];
+  const rounds = v.rounds ?? TABATA_DEFAULTS.rounds;
+  const sets = v.sets ?? TABATA_DEFAULTS.sets;
+  const restBetween = v.rest_between_sets ?? TABATA_DEFAULTS.rest_between_sets;
+
+  const setExercise = (idx, name) => {
+    const next = [...exercises];
+    while (next.length <= idx) next.push({ name: '' });
+    next[idx] = { ...next[idx], name };
+    patch({ exercises: next });
+  };
+  const addExercise = () => patch({ exercises: [...exercises, { name: '' }] });
+  const removeExercise = (idx) => patch({ exercises: exercises.filter((_, i) => i !== idx) });
+  const duplicateExercise = (idx) => patch({
+    exercises: [...exercises.slice(0, idx + 1), { name: exercises[idx].name }, ...exercises.slice(idx + 1)],
+  });
+
+  // Total time estimate (seconds): rounds * (work + rest) * sets + rest_between * (sets - 1) - rest * sets
+  const totalSec = ((v.work_sec || 0) + (v.rest_sec || 0)) * rounds * sets - (v.rest_sec || 0) * sets + restBetween * Math.max(0, sets - 1);
+  const mins = Math.round(totalSec / 60);
+
   return (
-    <div style={{ background: "#FFF9F0", border: `1px solid ${BD}`, borderRight: `3px solid ${O}`, borderRadius: 10, padding: 12 }}>
+    <div style={{ background: "#FFF9F0", border: `1.5px solid ${O}`, borderRadius: 14, padding: 14 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div>
           <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>עבודה (שנ')</div>
@@ -263,17 +321,72 @@ export function Tabata({ value, onChange }) {
         </div>
         <div>
           <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>סיבובים</div>
-          <Stepper value={String(v.rounds ?? TABATA_DEFAULTS.rounds)}
+          <Stepper value={String(rounds)}
             onChange={(x) => patch({ rounds: parseInt(x) || 1 })} min={1} max={30} />
         </div>
         <div>
           <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>סטים</div>
-          <Stepper value={String(v.sets ?? TABATA_DEFAULTS.sets)}
+          <Stepper value={String(sets)}
             onChange={(x) => patch({ sets: parseInt(x) || 1 })} min={1} max={10} />
         </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <div style={{ fontSize: 12, color: MU, marginBottom: 4 }}>מנוחה בין סטים (שנ')</div>
+          <Stepper value={String(restBetween)}
+            onChange={(x) => patch({ rest_between_sets: parseInt(x) || 0 })} min={0} max={600} />
+        </div>
       </div>
-      <div style={{ marginTop: 8, fontSize: 11, color: MU, textAlign: "center" }}>
-        סיכום: {v.work_sec ?? TABATA_DEFAULTS.work_sec}/{v.rest_sec ?? TABATA_DEFAULTS.rest_sec} × {v.rounds ?? TABATA_DEFAULTS.rounds} × {v.sets ?? TABATA_DEFAULTS.sets} סט
+
+      {/* Optional sequence — name each work round so the trainee sees
+          which exercise to perform. Only saved when at least one name
+          is filled in; otherwise the timer falls back to "עבודה". */}
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: `0.5px solid ${BD}` }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6, color: TX }}>
+          📋 רצף תרגילים בסיבוב <span style={{ fontSize: 11, fontWeight: 400, color: MU }}>(אופציונלי)</span>
+        </div>
+        {exercises.length === 0 && (
+          <div style={{ fontSize: 12, color: MU, marginBottom: 8 }}>
+            הוסף שמות לכל סיבוב כדי שהמתאמן יראה איזה תרגיל לבצע
+          </div>
+        )}
+        {exercises.map((ex, idx) => (
+          <div key={idx} style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
+            background: 'white', borderRadius: 10, padding: 8, border: `0.5px solid ${BD}`,
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%',
+              background: O, color: 'white', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, flexShrink: 0,
+            }}>{idx + 1}</div>
+            <input
+              value={ex.name || ''}
+              onChange={e => setExercise(idx, e.target.value)}
+              placeholder="שם התרגיל..."
+              style={{
+                flex: 1, padding: '6px 10px', borderRadius: 8,
+                border: `0.5px solid ${BD}`, fontSize: 13,
+                direction: 'rtl', outline: 'none',
+              }}
+            />
+            <button type="button" onClick={() => duplicateExercise(idx)}
+              style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: O, padding: 4 }}
+              title="שכפל">📋</button>
+            <button type="button" onClick={() => removeExercise(idx)}
+              style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: '#dc2626', padding: 4 }}
+              title="הסר">✕</button>
+          </div>
+        ))}
+        <button type="button" onClick={addExercise} style={{
+          width: '100%', padding: 8, background: 'white', color: O,
+          border: `1px dashed ${O}`, borderRadius: 10, fontSize: 13,
+          fontWeight: 700, cursor: 'pointer', marginTop: 4,
+        }}>+ הוסף תרגיל לסיבוב</button>
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 11, color: MU, textAlign: "center" }}>
+        סיכום: {v.work_sec ?? TABATA_DEFAULTS.work_sec}/{v.rest_sec ?? TABATA_DEFAULTS.rest_sec} × {rounds} × {sets} סט
+        {totalSec > 0 ? ` · ~${mins} דק'` : ''}
       </div>
     </div>
   );
