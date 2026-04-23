@@ -34,6 +34,7 @@ import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
 import TraineeNotificationsTab from "@/components/profile/TraineeNotificationsTab";
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
+import { notifySessionScheduled } from "@/functions/notificationTriggers";
 import BaselineDetailView from "@/components/BaselineDetailView";
 import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, notifyPlanCreated } from "@/functions/notificationTriggers";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
@@ -420,6 +421,11 @@ export default function TraineeProfile() {
   const [showAddService, setShowAddService] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [showManualAttendance, setShowManualAttendance] = useState(false);
+  // Future-scheduling dialog — mirrors the Dashboard's "קבע מפגש"
+  // flow (uses SessionFormDialog + status 'ממתין לאישור' + notify).
+  // Distinct from showManualAttendance which logs PAST attendance.
+  const [showAddSession, setShowAddSession] = useState(false);
+  const [savingNewSession, setSavingNewSession] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [showEditSession, setShowEditSession] = useState(false);
   const [editingUsage, setEditingUsage] = useState(null); // service ID being edited
@@ -2243,9 +2249,14 @@ export default function TraineeProfile() {
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-[#FF6F20]" />מפגשים</h2>
                   {isCoach && (
-                    <Button onClick={() => setShowManualAttendance(true)} variant="ghost" size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                      <Plus className="w-3 h-3 ml-1" />נוכחות ידנית
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button onClick={() => setShowAddSession(true)} size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px] text-white" style={{ background: '#FF6F20' }}>
+                        <Plus className="w-3 h-3 ml-1" />הוסף מפגש
+                      </Button>
+                      <Button onClick={() => setShowManualAttendance(true)} variant="ghost" size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                        <Plus className="w-3 h-3 ml-1" />נוכחות ידנית
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -2740,6 +2751,55 @@ export default function TraineeProfile() {
             editingSession={editingSession}
             trainees={[user]}
             isLoading={false}
+          />
+        )}
+
+        {/* Schedule new session — same dialog the dashboard uses, with
+            this trainee pre-selected. Saves with status 'ממתין לאישור'
+            and notifies the trainee, identical to dashboard behavior. */}
+        {showAddSession && (
+          <SessionFormDialog
+            isOpen={showAddSession}
+            onClose={() => setShowAddSession(false)}
+            onSubmit={async (data) => {
+              setSavingNewSession(true);
+              try {
+                const created = await base44.entities.Session.create({
+                  ...data,
+                  location: data.location || "לא צוין",
+                  duration: data.duration || 60,
+                  coach_id: currentUser?.id,
+                  status: "ממתין לאישור",
+                });
+                queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
+                queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                invalidateDashboard(queryClient);
+                if (created?.participants && currentUser) {
+                  for (const p of created.participants) {
+                    try {
+                      await notifySessionScheduled({
+                        traineeId: p.trainee_id,
+                        sessionId: created.id,
+                        sessionDate: created.date,
+                        sessionTime: created.time,
+                        sessionType: created.session_type,
+                        coachName: currentUser.full_name,
+                      });
+                    } catch {}
+                  }
+                }
+                toast.success("המפגש נקבע בהצלחה");
+                setShowAddSession(false);
+              } catch (e) {
+                console.error("[TraineeProfile] add session error:", e);
+                toast.error("שגיאה ביצירת מפגש: " + (e?.message || "נסה שוב"));
+              } finally {
+                setSavingNewSession(false);
+              }
+            }}
+            trainees={[user]}
+            isLoading={savingNewSession}
           />
         )}
         <BaselineDetailView isOpen={!!showBaselineDetail} onClose={() => setShowBaselineDetail(null)} baselineId={showBaselineDetail} />
