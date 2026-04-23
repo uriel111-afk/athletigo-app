@@ -420,10 +420,8 @@ export default function TraineeProfile() {
 
   const [showAddService, setShowAddService] = useState(false);
   const [editingService, setEditingService] = useState(null);
-  const [showManualAttendance, setShowManualAttendance] = useState(false);
-  // Future-scheduling dialog — mirrors the Dashboard's "קבע מפגש"
+  // Schedules a future session — mirrors the Dashboard's "קבע מפגש"
   // flow (uses SessionFormDialog + status 'ממתין לאישור' + notify).
-  // Distinct from showManualAttendance which logs PAST attendance.
   const [showAddSession, setShowAddSession] = useState(false);
   const [savingNewSession, setSavingNewSession] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
@@ -436,9 +434,6 @@ export default function TraineeProfile() {
   const [packageSessionsLoading, setPackageSessionsLoading] = useState(false);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
-
-  // manualAttendanceForm is provided by useFormDraft below (after
-  // userIdParam is defined) so the draft is scoped per trainee.
 
   const [serviceForm, setServiceForm] = useState({
     service_type: "personal", // personal | group | online
@@ -494,26 +489,6 @@ export default function TraineeProfile() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const userIdParam = searchParams.get("userId");
-
-  // Manual attendance draft — scoped per trainee so an in-progress
-  // entry for trainee A doesn't bleed into the dialog for trainee B.
-  const manualAttendanceInitial = {
-    date: new Date().toISOString().split('T')[0],
-    time: "10:00",
-    session_type: "אישי",
-    location: "ידני",
-    notes: "",
-  };
-  const {
-    data: rawManualForm,
-    setData: setManualAttendanceForm,
-    clearDraft: clearManualAttendanceDraft,
-  } = useFormDraft('ManualAttendance', userIdParam, showManualAttendance, manualAttendanceInitial);
-  // Defensive merge: useFormDraft REPLACES state from localStorage on
-  // open. Stale drafts written before fields were added (or with date
-  // cleared) would otherwise leave required fields undefined and freeze
-  // the submit button. Always read through this merged view.
-  const manualAttendanceForm = { ...manualAttendanceInitial, ...(rawManualForm || {}) };
 
   const { data: currentUser, refetch, isLoading: currentUserLoading, isError: currentUserError } = useQuery({
     queryKey: ['current-user-trainee-profile'],
@@ -1304,71 +1279,6 @@ export default function TraineeProfile() {
       setPackageSessions([]);
     }
     setPackageSessionsLoading(false);
-  };
-
-  const handleManualAttendanceSubmit = async () => {
-    if (!manualAttendanceForm.date || !manualAttendanceForm.time) {
-        toast.error("נא למלא תאריך ושעה");
-        return;
-    }
-
-    try {
-        // 1. Create Session Record (Status: Attended)
-        if (!currentUser?.id) {
-            toast.error("שגיאה: לא ניתן לטעון את פרטי המאמן. אנא רענן את הדף.");
-            return;
-        }
-        await base44.entities.Session.create({
-            date: manualAttendanceForm.date,
-            time: manualAttendanceForm.time,
-            session_type: manualAttendanceForm.session_type,
-            location: manualAttendanceForm.location,
-            coach_id: currentUser.id,
-            status: 'התקיים',
-            coach_notes: `נוכחות ידנית: ${manualAttendanceForm.notes}`,
-            participants: [{
-                trainee_id: user.id,
-                trainee_name: user.full_name,
-                attendance_status: 'הגיע'
-            }],
-        });
-
-        // 2. If Personal Training, update package
-        if (manualAttendanceForm.session_type === 'אישי') {
-            // Fetch fresh services to ensure data consistency
-            const filterObj = { trainee_id: user.id, status: 'פעיל' };
-            if (currentUser?.id) filterObj.coach_id = currentUser.id;
-            const userServices = await base44.entities.ClientService.filter(filterObj);
-            const activePackage = userServices.find(s => s.service_type === 'אימונים אישיים' || s.service_type.includes('אישי'));
-            
-            if (activePackage) {
-                // Increment used sessions
-                const newUsedCount = (activePackage.used_sessions || 0) + 1;
-                
-                await base44.entities.ClientService.update(activePackage.id, {
-                    used_sessions: newUsedCount
-                });
-                await syncPackageStatus(activePackage.id);
-
-                // Invalidate all relevant queries
-                queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
-            }
-        }
-
-        queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-        queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
-        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-        invalidateDashboard(queryClient);
-
-        setShowManualAttendance(false);
-        clearManualAttendanceDraft();
-        toast.success("✅ נוכחות נרשמה וסונכרנה עם החבילה");
-
-    } catch (error) {
-        console.error("Error adding manual attendance:", error);
-        toast.error("שגיאה ברישום נוכחות");
-    }
   };
 
   const handleImageUpload = async (e) => {
@@ -2249,14 +2159,9 @@ export default function TraineeProfile() {
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-[#FF6F20]" />מפגשים</h2>
                   {isCoach && (
-                    <div className="flex gap-2">
-                      <Button onClick={() => setShowAddSession(true)} size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px] text-white" style={{ background: '#FF6F20' }}>
-                        <Plus className="w-3 h-3 ml-1" />הוסף מפגש
-                      </Button>
-                      <Button onClick={() => setShowManualAttendance(true)} variant="ghost" size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                        <Plus className="w-3 h-3 ml-1" />נוכחות ידנית
-                      </Button>
-                    </div>
+                    <Button onClick={() => setShowAddSession(true)} size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px] text-white" style={{ background: '#FF6F20' }}>
+                      <Plus className="w-3 h-3 ml-1" />הוסף מפגש
+                    </Button>
                   )}
                 </div>
 
@@ -2876,178 +2781,6 @@ export default function TraineeProfile() {
           </DialogContent>
         </Dialog>
 
-        {/* Manual Attendance Dialog */}
-        <Dialog open={showManualAttendance} onOpenChange={setShowManualAttendance}>
-          <DialogContent
-            dir="rtl"
-            className="max-w-sm border-0 p-0 overflow-hidden"
-            style={{ background: '#FFF9F0', borderRadius: 24, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}
-          >
-            <DialogHeader>
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: 16, background: '#FFF0E4',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 28, margin: '0 auto 12px',
-                }}>📅</div>
-                <DialogTitle style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', textAlign: 'center' }}>
-                  תיעוד מפגש חדש
-                </DialogTitle>
-                <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
-                  עם {user.full_name}
-                </div>
-              </div>
-            </DialogHeader>
-
-            {/* Package warnings — show only for personal sessions where decrement happens */}
-            {manualAttendanceForm.session_type === 'אישי' && (() => {
-              const personalPkg = activeServices.find(s =>
-                (s.service_type || '').includes('אישי') ||
-                (s.package_type || '').toLowerCase() === 'personal'
-              );
-              if (!personalPkg) {
-                return (
-                  <div style={{
-                    background: '#FFEBEE', borderRadius: 14, padding: '12px 14px',
-                    marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
-                  }}>
-                    <div style={{ fontSize: 20 }}>⚠️</div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#dc2626' }}>אין חבילה פעילה</div>
-                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>ניתן לתעד מפגש ללא חבילה</div>
-                    </div>
-                  </div>
-                );
-              }
-              const remaining = (personalPkg.total_sessions || personalPkg.sessions_count || 0) - (personalPkg.used_sessions || 0);
-              if (remaining === 1) {
-                return (
-                  <div style={{
-                    background: '#FEF9C3', borderRadius: 14, padding: '12px 14px',
-                    marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
-                  }}>
-                    <div style={{ fontSize: 20 }}>⚡</div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#CA8A04' }}>מפגש אחרון בחבילה</div>
-                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>לאחר מפגש זה החבילה תסתיים</div>
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
-
-            <div>
-              {/* Date */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>תאריך</label>
-                <input
-                  type="date"
-                  value={manualAttendanceForm.date}
-                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, date: e.target.value })}
-                  style={{
-                    width: '100%', padding: '12px 14px', borderRadius: 14,
-                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
-                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {/* Time */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>שעה</label>
-                <input
-                  type="time"
-                  value={manualAttendanceForm.time}
-                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, time: e.target.value })}
-                  style={{
-                    width: '100%', padding: '12px 14px', borderRadius: 14,
-                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
-                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {/* Session type */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>סוג מפגש</label>
-                <select
-                  value={manualAttendanceForm.session_type}
-                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, session_type: e.target.value })}
-                  style={{
-                    width: '100%', padding: '12px 14px', borderRadius: 14,
-                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
-                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
-                    appearance: 'none',
-                  }}
-                >
-                  <option value="אישי">אישי</option>
-                  <option value="קבוצתי">קבוצתי</option>
-                  <option value="אונליין">אונליין</option>
-                </select>
-              </div>
-
-              {/* Location */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>מיקום</label>
-                <input
-                  type="text"
-                  value={manualAttendanceForm.location || ''}
-                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, location: e.target.value })}
-                  placeholder={manualAttendanceForm.session_type === 'אונליין' ? 'לינק לזום / וואטסאפ' : 'סטודיו / פארק / כתובת'}
-                  style={{
-                    width: '100%', padding: '12px 14px', borderRadius: 14,
-                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
-                    background: 'white', direction: 'rtl', outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {/* Notes */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>הערות</label>
-                <textarea
-                  value={manualAttendanceForm.notes}
-                  onChange={e => setManualAttendanceForm({ ...manualAttendanceForm, notes: e.target.value })}
-                  placeholder="הערות נוספות..."
-                  style={{
-                    width: '100%', padding: '12px 14px', borderRadius: 14,
-                    border: '1.5px solid #F0E4D0', fontSize: 15, color: '#1a1a1a',
-                    background: 'white', direction: 'rtl', outline: 'none',
-                    minHeight: 80, resize: 'vertical', boxSizing: 'border-box',
-                    fontFamily: 'inherit',
-                  }}
-                />
-              </div>
-
-              {/* Buttons */}
-              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                <button
-                  type="button"
-                  onClick={handleManualAttendanceSubmit}
-                  style={{
-                    flex: 1, padding: 14, borderRadius: 14, border: 'none',
-                    background: '#FF6F20',
-                    color: 'white', fontSize: 16, fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}
-                >
-                  📅 שמור מפגש
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowManualAttendance(false)}
-                  style={{
-                    padding: '14px 20px', borderRadius: 14,
-                    border: '0.5px solid #F0E4D0', background: 'white',
-                    color: '#888', fontSize: 14, cursor: 'pointer',
-                  }}
-                >ביטול</button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Password Change Dialog */}
         <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
