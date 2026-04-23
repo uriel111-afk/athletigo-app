@@ -7,109 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
-import { getResponseLabel, getResponseBadgeBg, getResponseBadgeColor, formatDate } from "@/utils/notificationHelpers";
 
-// ── Type helpers ─────────────────────────────────────────────────────
-const getTypeIcon = (type) => {
-  switch (type) {
-    case 'session_request': return '📅';
-    case 'session_approved': return '✅';
-    case 'session_rejected': return '❌';
-    case 'session_confirmed': return '✅';
-    case 'session_completed': return '✅';
-    case 'session_cancelled_by_trainee': return '🚫';
-    case 'session_scheduled': return '📅';
-    case 'reschedule_request': return '🔄';
-    case 'package_expiring':
-    case 'low_balance':
-    case 'renewal_alert':
-    case 'renewal_request': return '🎫';
-    case 'package_expired':
-    case 'service_completed': return '💸';
-    case 'plan_completed': return '📋';
-    case 'plan_created':
-    case 'plan_assigned':
-    case 'plan_updated': return '📝';
-    case 'record_broken':
-    case 'new_record': return '🏆';
-    case 'new_baseline':
-    case 'measurement_added':
-    case 'metrics_updated': return '📐';
-    case 'goal_reached': return '🎯';
-    case 'new_message':
-    case 'coach_message': return '💬';
-    case 'exercise_completed': return '💪';
-    default: return '🔔';
-  }
-};
-
-const getTypeColor = (type) => {
-  if (type?.includes('session')) return '#FF6F20';
-  if (type?.includes('package') || type?.includes('renewal') || type === 'low_balance' || type === 'service_completed') return '#dc2626';
-  if (type?.includes('plan')) return '#16a34a';
-  if (type?.includes('record') || type?.includes('goal') || type?.includes('baseline') || type?.includes('measurement') || type === 'metrics_updated') return '#7F47B5';
-  return '#FF6F20';
-};
-
-const getTypeBg = (type) => {
-  if (type?.includes('session')) return '#FFF0E4';
-  if (type?.includes('package') || type?.includes('renewal') || type === 'low_balance' || type === 'service_completed') return '#FFEBEE';
-  if (type?.includes('plan')) return '#E8F5E9';
-  if (type?.includes('record') || type?.includes('goal') || type?.includes('baseline') || type?.includes('measurement') || type === 'metrics_updated') return '#F3E8FF';
-  return '#FFF0E4';
-};
-
-const getTypeShadow = (type) => {
-  const c = getTypeColor(type);
-  if (c === '#FF6F20') return 'rgba(255,111,32,0.12)';
-  if (c === '#dc2626') return 'rgba(220,38,38,0.12)';
-  if (c === '#16a34a') return 'rgba(22,163,74,0.12)';
-  if (c === '#7F47B5') return 'rgba(127,71,181,0.12)';
-  return 'rgba(0,0,0,0.08)';
-};
-
-const getTypeTitle = (type) => {
-  switch (type) {
-    case 'session_request': return 'בקשת מפגש חדשה';
-    case 'session_approved': return 'מפגש אושר';
-    case 'session_rejected': return 'מפגש נדחה';
-    case 'session_confirmed': return 'מפגש אושר';
-    case 'session_completed': return 'מפגש הסתיים';
-    case 'session_cancelled_by_trainee': return 'מפגש בוטל';
-    case 'session_scheduled': return 'מפגש נקבע';
-    case 'reschedule_request': return 'בקשת שינוי מועד';
-    case 'package_expiring':
-    case 'low_balance':
-    case 'renewal_alert': return 'חבילה עומדת להסתיים';
-    case 'renewal_request': return 'בקשת חידוש';
-    case 'package_expired':
-    case 'service_completed': return 'חבילה הסתיימה';
-    case 'plan_completed': return 'תוכנית הושלמה';
-    case 'plan_created':
-    case 'plan_assigned': return 'תוכנית חדשה';
-    case 'plan_updated': return 'תוכנית עודכנה';
-    case 'record_broken':
-    case 'new_record': return 'שיא חדש';
-    case 'new_baseline': return 'בייסליין חדש';
-    case 'measurement_added': return 'מדידה חדשה';
-    case 'metrics_updated': return 'מדדים עודכנו';
-    case 'goal_reached': return 'יעד הושג';
-    case 'new_message':
-    case 'coach_message': return 'הודעה חדשה';
-    case 'exercise_completed': return 'תרגיל הושלם';
-    default: return 'התראה';
-  }
-};
-
-const getNavigateLabel = (type) => {
-  if (type?.includes('session') || type === 'reschedule_request') return '← עבור למפגשים';
-  if (type?.includes('package') || type?.includes('renewal') || type === 'low_balance' || type === 'service_completed') return '← עבור לחבילות';
-  if (type?.includes('plan')) return '← עבור לתוכניות';
-  if (type?.includes('record') || type === 'new_record') return '← עבור לשיאים';
-  if (type?.includes('goal')) return '← עבור ליעדים';
-  if (type?.includes('measurement') || type?.includes('baseline') || type === 'metrics_updated') return '← עבור למדידות';
-  return '← עבור';
+// Minimal icon set — keyed off notification type
+const getNotifIcon = (type) => {
+  if (!type) return '🔔';
+  if (type === 'birthday') return '🎂';
+  if (type === 'package_expiring' || type === 'low_balance' || type === 'renewal_alert') return '⚠️';
+  if (type === 'package_expired' || type === 'service_completed') return '🎫';
+  if (type?.includes('package') || type?.includes('renewal')) return '🎫';
+  if (type === 'session_reminder') return '⏰';
+  if (type?.includes('session') || type === 'reschedule_request') return '📅';
+  if (type?.includes('plan')) return '📋';
+  if (type?.includes('measurement') || type?.includes('baseline') || type === 'metrics_updated') return '📏';
+  if (type?.includes('record') || type?.includes('goal')) return '🏆';
+  if (type === 'new_message' || type === 'coach_message') return '💬';
+  return '🔔';
 };
 
 const getFilterCategory = (type) => {
@@ -120,7 +32,7 @@ const getFilterCategory = (type) => {
   return 'other';
 };
 
-const timeAgo = (iso) => {
+const formatRelativeTime = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
@@ -134,35 +46,6 @@ const timeAgo = (iso) => {
   if (days < 7) return `לפני ${days} ימים`;
   return d.toLocaleDateString('he-IL');
 };
-
-const getTimeBucket = (iso) => {
-  if (!iso) return 'older';
-  const d = new Date(iso);
-  const now = new Date();
-  const ymd = (x) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
-  if (ymd(d) === ymd(now)) return 'today';
-  const y = new Date(now); y.setDate(y.getDate() - 1);
-  if (ymd(d) === ymd(y)) return 'yesterday';
-  const weekAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-  if (d.getTime() > weekAgo) return 'week';
-  return 'older';
-};
-
-const FILTERS = [
-  { id: 'all',      label: 'הכל',        icon: '' },
-  { id: 'unread',   label: 'לא נקראו',   icon: '🔴' },
-  { id: 'sessions', label: 'מפגשים',     icon: '📅' },
-  { id: 'plans',    label: 'תוכניות',    icon: '📋' },
-  { id: 'packages', label: 'חבילות',     icon: '🎫' },
-  { id: 'records',  label: 'שיאים',      icon: '🏆' },
-];
-
-const TIME_SECTIONS = [
-  { id: 'today',     label: 'היום' },
-  { id: 'yesterday', label: 'אתמול' },
-  { id: 'week',      label: 'השבוע' },
-  { id: 'older',     label: 'ישן יותר' },
-];
 
 export default function Notifications() {
   const [user, setUser] = useState(null);
@@ -204,30 +87,12 @@ export default function Notifications() {
 
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
 
-  // UI state — all three persist in localStorage
   const [filter, setFilter] = useState(() => {
     try { return localStorage.getItem('notifications_filter') || 'all'; } catch { return 'all'; }
   });
   React.useEffect(() => { try { localStorage.setItem('notifications_filter', filter); } catch {} }, [filter]);
 
-  const [view, setView] = useViewToggle('notifications_view', 'list');
-
-  const [groupBy, setGroupBy] = useState(() => {
-    try { return localStorage.getItem('notifications_group') || 'time'; } catch { return 'time'; }
-  });
-  React.useEffect(() => { try { localStorage.setItem('notifications_group', groupBy); } catch {} }, [groupBy]);
-
-  const [selectedTrainee, setSelectedTrainee] = useState(() => {
-    try { return localStorage.getItem('notifications_trainee_filter') || 'all'; } catch { return 'all'; }
-  });
-  React.useEffect(() => { try { localStorage.setItem('notifications_trainee_filter', selectedTrainee); } catch {} }, [selectedTrainee]);
-
-  const [timeFilter, setTimeFilter] = useState(() => {
-    try { return localStorage.getItem('notifications_time_filter') || 'all'; } catch { return 'all'; }
-  });
-  React.useEffect(() => { try { localStorage.setItem('notifications_time_filter', timeFilter); } catch {} }, [timeFilter]);
-
-  // Trainees roster for the chip filter (coach side only)
+  // Coach roster — needed for birthday popup
   const { data: coachTrainees = [] } = useQuery({
     queryKey: ['notif-coach-trainees', user?.id],
     queryFn: async () => {
@@ -243,13 +108,6 @@ export default function Notifications() {
     enabled: !!user?.id && isCoach,
     initialData: [],
   });
-  const traineeNameById = React.useMemo(() => {
-    const m = new Map();
-    for (const t of coachTrainees) m.set(t.id, t.full_name);
-    return m;
-  }, [coachTrainees]);
-
-  const [expandedIds, setExpandedIds] = useState({});
 
   // Mutations
   const markAsRead = async (id) => {
@@ -273,10 +131,8 @@ export default function Notifications() {
     onError: () => toast.error("שגיאה בסימון התראות"),
   });
 
-  // Navigation
+  // Navigation — unchanged
   const navigateToRelevant = (notif) => {
-    // Birthday: open the BirthdayBlessingPopup (mounted in App.jsx) instead
-    // of navigating away. Coach picks one of three tones to send the trainee.
     if (notif.type === 'birthday') {
       const tid = notif.trainee_id || notif.data?.trainee_id;
       const trainee = tid ? coachTrainees.find(t => t.id === tid) : null;
@@ -312,70 +168,24 @@ export default function Notifications() {
     else navigate('/dashboard');
   };
 
-  // Filter counts
-  const filterCounts = useMemo(() => {
-    const c = { all: notifications.length, unread: 0, sessions: 0, plans: 0, packages: 0, records: 0 };
-    for (const n of notifications) {
-      if (!n.is_read) c.unread++;
-      const cat = getFilterCategory(n.type);
-      if (cat in c) c[cat]++;
-    }
-    return c;
-  }, [notifications]);
+  const handleNotificationClick = (n) => {
+    if (!n.is_read) markAsRead(n.id);
+    navigateToRelevant(n);
+  };
 
-  // Apply filters: type + trainee + time
-  const filtered = useMemo(() => {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(startOfDay);
-    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const unreadCount = useMemo(
+    () => notifications.filter(n => !n.is_read).length,
+    [notifications]
+  );
 
+  const filteredNotifications = useMemo(() => {
     return notifications.filter(n => {
-      // Type
-      if (filter === 'unread' && n.is_read) return false;
-      if (filter !== 'all' && filter !== 'unread' && getFilterCategory(n.type) !== filter) return false;
-      // Trainee
-      if (selectedTrainee !== 'all') {
-        const tid = n.trainee_id || n.data?.trainee_id;
-        if (tid !== selectedTrainee) return false;
-      }
-      // Time
-      if (timeFilter !== 'all') {
-        const d = new Date(n.created_at);
-        if (timeFilter === 'today' && d < startOfDay) return false;
-        if (timeFilter === 'week'  && d < startOfWeek) return false;
-        if (timeFilter === 'month' && d < startOfMonth) return false;
-      }
+      if (filter === 'all') return true;
+      if (filter === 'unread') return !n.is_read;
+      if (filter === 'sessions') return getFilterCategory(n.type) === 'sessions';
       return true;
     });
-  }, [notifications, filter, selectedTrainee, timeFilter]);
-
-  // Group
-  const groups = useMemo(() => {
-    if (groupBy === 'trainee') {
-      const map = new Map();
-      for (const n of filtered) {
-        const key = n.data?.trainee_name || n.trainee_name || 'כללי';
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(n);
-      }
-      return [...map.entries()].map(([label, items]) => ({ label, items, isUnread: false }));
-    }
-    // time-based
-    const unread = filtered.filter(n => !n.is_read);
-    const read = filtered.filter(n => n.is_read);
-    const buckets = { today: [], yesterday: [], week: [], older: [] };
-    for (const n of read) buckets[getTimeBucket(n.created_at)].push(n);
-    const result = [];
-    if (unread.length) result.push({ label: 'לא נקראו', items: unread, isUnread: true });
-    for (const sec of TIME_SECTIONS) {
-      if (buckets[sec.id].length) result.push({ label: sec.label, items: buckets[sec.id], isUnread: false });
-    }
-    return result;
-  }, [filtered, groupBy]);
-
-  const unreadCount = filterCounts.unread;
+  }, [notifications, filter]);
 
   // Send dialog (coach)
   const { data: trainees = [] } = useQuery({
@@ -419,308 +229,149 @@ export default function Notifications() {
     );
   }
 
-  const toggleExpand = (notif) => {
-    setExpandedIds(prev => ({ ...prev, [notif.id]: !prev[notif.id] }));
-    if (!notif.is_read) markAsRead(notif.id);
-  };
-
-  // ── Card renderers ─────────────────────────────────────────────────
-  const ListCard = (notif) => {
-    const isExpanded = !!expandedIds[notif.id];
-    return (
-      <div
-        key={notif.id}
-        onClick={() => toggleExpand(notif)}
-        style={{
-          background: 'white',
-          borderRadius: 14,
-          padding: '12px 14px',
-          marginBottom: 8,
-          borderRight: notif.is_read ? 'none' : `4px solid ${getTypeColor(notif.type)}`,
-          border: notif.is_read ? '0.5px solid #F0E4D0' : 'none',
-          boxShadow: notif.is_read ? 'none' : `0 2px 8px ${getTypeShadow(notif.type)}`,
-          cursor: 'pointer',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: notif.is_read ? '#F3F4F6' : getTypeBg(notif.type),
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20, flexShrink: 0,
-          }}>{getTypeIcon(notif.type)}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 14,
-              fontWeight: notif.is_read ? 500 : 600,
-              color: notif.is_read ? '#6b7280' : '#1a1a1a',
-            }}>{notif.title || getTypeTitle(notif.type)}</div>
-            {/* Trainee name */}
-            {(() => {
-              const tName = notif.data?.trainee_name || notif.trainee_name || traineeNameById.get(notif.trainee_id || notif.data?.trainee_id);
-              return tName ? (
-                <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>{tName}</div>
-              ) : null;
-            })()}
-            <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{timeAgo(notif.created_at)}</div>
-          </div>
-          {!notif.is_read && (
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6F20', flexShrink: 0 }} />
-          )}
-          {/* 3-state status badge: responded → read → waiting */}
-          {notif.trainee_response ? (
-            <div style={{
-              fontSize: 11, padding: '3px 10px', borderRadius: 12,
-              background: getResponseBadgeBg(notif.trainee_response),
-              color: getResponseBadgeColor(notif.trainee_response),
-              fontWeight: 600, flexShrink: 0,
-            }}>{getResponseLabel(notif.trainee_response)}</div>
-          ) : notif.is_read ? (
-            <div style={{
-              fontSize: 11, padding: '3px 10px', borderRadius: 12,
-              background: '#E3F2FD', color: '#1976D2', fontWeight: 600, flexShrink: 0,
-            }}>👀 נקרא</div>
-          ) : (
-            <div style={{
-              fontSize: 11, padding: '3px 10px', borderRadius: 12,
-              background: '#F0F0F0', color: '#888', fontWeight: 600, flexShrink: 0,
-            }}>⏳ ממתין</div>
-          )}
-          <div style={{
-            fontSize: 14, color: '#888',
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
-            transition: 'transform 0.2s',
-          }}>▼</div>
-        </div>
-        {isExpanded && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid #F0E4D0' }}>
-            {notif.message && (
-              <div style={{ fontSize: 13, color: '#555', lineHeight: 1.5, marginBottom: 12 }}>{notif.message}</div>
-            )}
-            {(notif.data?.trainee_name || notif.trainee_name) && (
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>
-                מתאמן: {notif.data?.trainee_name || notif.trainee_name}
-              </div>
-            )}
-            {notif.trainee_response && (
-              <div style={{
-                marginBottom: 10, padding: 10, borderRadius: 10,
-                background: getResponseBadgeBg(notif.trainee_response),
-              }}>
-                <div style={{ fontSize: 12, color: '#888' }}>תגובת מתאמן:</div>
-                <div style={{
-                  fontSize: 14, fontWeight: 600,
-                  color: getResponseBadgeColor(notif.trainee_response),
-                  marginTop: 4,
-                }}>{getResponseLabel(notif.trainee_response)}</div>
-                {notif.responded_at && (
-                  <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                    {formatDate(notif.responded_at)}
-                  </div>
-                )}
-              </div>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); markAsRead(notif.id); navigateToRelevant(notif); }}
-              style={{
-                width: '100%', padding: 10,
-                background: '#FF6F20', color: 'white',
-                border: 'none', borderRadius: 10,
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >{getNavigateLabel(notif.type)}</button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const GridCard = (notif) => (
-    <div
-      key={notif.id}
-      onClick={() => { if (!notif.is_read) markAsRead(notif.id); navigateToRelevant(notif); }}
-      style={{
-        background: 'white',
-        borderRadius: 14,
-        padding: '14px 10px',
-        textAlign: 'center',
-        borderRight: notif.is_read ? 'none' : `3px solid ${getTypeColor(notif.type)}`,
-        border: notif.is_read ? '0.5px solid #F0E4D0' : 'none',
-        boxShadow: notif.is_read ? 'none' : `0 2px 8px ${getTypeShadow(notif.type)}`,
-        cursor: 'pointer',
-        position: 'relative',
-      }}
-    >
-      {!notif.is_read && (
-        <div style={{ position: 'absolute', top: 8, left: 8, width: 8, height: 8, borderRadius: '50%', background: '#FF6F20' }} />
-      )}
-      <div style={{ fontSize: 24, marginBottom: 6 }}>{getTypeIcon(notif.type)}</div>
-      <div style={{
-        fontSize: 13, fontWeight: notif.is_read ? 500 : 600,
-        color: notif.is_read ? '#6b7280' : '#1a1a1a',
-      }}>{notif.title || getTypeTitle(notif.type)}</div>
-      <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>{timeAgo(notif.created_at)}</div>
-    </div>
-  );
+  const markAllRead = () => markAllAsReadMutation.mutate();
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden" style={{ backgroundColor: '#FAFAFA' }} dir="rtl">
-      {/* Top bar */}
+
+      {/* A. Page header */}
       <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '12px 16px', background: 'white', borderBottom: '0.5px solid #F0E4D0',
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', padding: '16px',
+        direction: 'rtl', background: 'white',
+        borderBottom: '0.5px solid #F0E4D0',
       }}>
-        <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>
-          התראות {unreadCount > 0 && <span style={{ color: '#FF6F20' }}>({unreadCount})</span>}
+        <div style={{ fontSize: '20px', fontWeight: 700, color: '#1a1a1a' }}>
+          🔔 התראות
+          {unreadCount > 0 && (
+            <span style={{ fontSize: '14px', color: '#FF6F20', marginRight: '6px' }}>
+              ({unreadCount})
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {isCoach && (
-            <button onClick={() => setShowSend(true)}
-              style={{ background: 'none', border: 'none', color: '#FF6F20', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              onClick={() => setShowSend(true)}
+              style={{
+                background: 'none', border: 'none', color: '#FF6F20',
+                fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
               <Send className="w-3 h-3" /> שלח
             </button>
           )}
           {unreadCount > 0 && (
-            <button onClick={() => markAllAsReadMutation.mutate()} disabled={markAllAsReadMutation.isPending}
-              style={{ background: 'none', border: 'none', color: '#FF6F20', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              סמן הכל כנקרא
+            <button
+              onClick={markAllRead}
+              disabled={markAllAsReadMutation.isPending}
+              style={{
+                background: 'none', border: 'none', color: '#FF6F20',
+                fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              סמן הכל כנקרא ✓
             </button>
           )}
         </div>
       </div>
 
-      {/* Filter chips */}
-      <div className="notif-filter-row" style={{
-        display: 'flex', gap: 6, padding: '10px 14px',
-        overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
-      }}>
-        <style>{`.notif-filter-row::-webkit-scrollbar { display: none; }`}</style>
-        {FILTERS.map(f => {
-          const active = filter === f.id;
-          const count = filterCounts[f.id];
-          return (
-            <button key={f.id} onClick={() => setFilter(f.id)}
-              style={{
-                padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
-                background: active ? '#FF6F20' : 'white',
-                color: active ? 'white' : '#1a1a1a',
-                border: active ? 'none' : '0.5px solid #F0E4D0',
-              }}>
-              {f.icon && <span style={{ marginLeft: 4 }}>{f.icon}</span>}
-              {f.label} {count !== undefined && count > 0 && `(${count})`}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Trainee chips — coach side only */}
-      {isCoach && coachTrainees.length > 0 && (
-        <div className="notif-trainee-row" style={{
-          display: 'flex', gap: 6, padding: '0 14px 8px',
-          overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
-        }}>
-          <style>{`.notif-trainee-row::-webkit-scrollbar { display: none; }`}</style>
-          {[{ id: 'all', label: 'כל המתאמנים' }, ...coachTrainees.map(t => ({ id: t.id, label: t.full_name }))].map(t => {
-            const active = selectedTrainee === t.id;
-            return (
-              <div
-                key={t.id}
-                onClick={() => setSelectedTrainee(t.id)}
-                style={{
-                  padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                  whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
-                  background: active ? '#FF6F20' : 'white',
-                  color: active ? 'white' : '#1a1a1a',
-                  border: active ? 'none' : '0.5px solid #F0E4D0',
-                }}>
-                {t.label}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Time period filter */}
+      {/* B. Filter — single row of small chips */}
       <div style={{
-        display: 'flex', gap: 4, padding: '0 14px 10px', alignItems: 'center',
+        display: 'flex', gap: '6px',
+        padding: '12px 16px',
+        direction: 'rtl',
       }}>
-        <span style={{ fontSize: 12, color: '#888', marginLeft: 6 }}>תקופה:</span>
         {[
-          { id: 'all',   label: 'הכל' },
-          { id: 'today', label: 'היום' },
-          { id: 'week',  label: 'השבוע' },
-          { id: 'month', label: 'החודש' },
-        ].map(tf => {
-          const active = timeFilter === tf.id;
-          return (
-            <div
-              key={tf.id}
-              onClick={() => setTimeFilter(tf.id)}
-              style={{
-                padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                background: active ? '#FF6F20' : '#F0F0F0',
-                color: active ? 'white' : '#888',
-                cursor: 'pointer',
+          { id: 'all', label: 'הכל' },
+          { id: 'unread', label: 'לא נקראו' },
+          { id: 'sessions', label: 'מפגשים' },
+        ].map(f => (
+          <div
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '12px', fontWeight: 600,
+              cursor: 'pointer',
+              background: filter === f.id ? '#FF6F20' : 'white',
+              color: filter === f.id ? 'white' : '#888',
+              border: filter === f.id ? 'none' : '0.5px solid #F0E4D0',
+            }}
+          >
+            {f.label}
+          </div>
+        ))}
+      </div>
+
+      {/* C. Notification cards — clean list */}
+      <div>
+        {filteredNotifications.map(n => (
+          <div
+            key={n.id}
+            onClick={() => handleNotificationClick(n)}
+            style={{
+              display: 'flex', alignItems: 'flex-start',
+              gap: '10px', padding: '12px 16px',
+              background: n.is_read ? 'transparent' : '#FFF9F0',
+              borderBottom: '0.5px solid #F8F0E8',
+              cursor: 'pointer', direction: 'rtl',
+            }}
+          >
+            {!n.is_read && (
+              <div style={{
+                width: '8px', height: '8px',
+                borderRadius: '50%',
+                background: '#FF6F20',
+                marginTop: '6px', flexShrink: 0,
+              }} />
+            )}
+
+            <div style={{
+              width: '36px', height: '36px',
+              borderRadius: '10px',
+              background: '#FFF0E4',
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px', flexShrink: 0,
+            }}>
+              {getNotifIcon(n.type)}
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: n.is_read ? 400 : 600,
+                color: '#1a1a1a',
+                lineHeight: 1.4,
               }}>
-              {tf.label}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* View toggle + Group toggle */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '0 14px 10px', gap: 8,
-      }}>
-        <ViewToggle view={view} onChange={setView} />
-        <div style={{ display: 'flex', gap: 4, background: '#F0F0F0', borderRadius: 10, padding: 3 }}>
-          {[{ id: 'time', label: 'לפי זמן' }, { id: 'trainee', label: 'לפי מתאמן' }].map(g => {
-            const active = groupBy === g.id;
-            return (
-              <button key={g.id} onClick={() => setGroupBy(g.id)}
-                style={{
-                  padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                  border: 'none', cursor: 'pointer',
-                  background: active ? '#FF6F20' : 'transparent',
-                  color: active ? 'white' : '#888',
-                }}>
-                {g.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* List / grid */}
-      <div style={{ padding: '0 14px 40px' }}>
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#888' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🔔</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>אין התראות</div>
-          </div>
-        ) : view === 'grid' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {filtered.map(GridCard)}
-          </div>
-        ) : (
-          groups.map((g, idx) => (
-            <div key={`${g.label}-${idx}`}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, marginTop: idx === 0 ? 4 : 14 }}>
-                {g.isUnread && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#dc2626' }} />}
-                <div style={{ fontSize: 13, fontWeight: 600, color: g.isUnread ? '#dc2626' : '#888' }}>
-                  {g.label} ({g.items.length})
-                </div>
-                {!g.isUnread && <div style={{ flex: 1, height: '0.5px', background: '#E5E5E5' }} />}
+                {n.message || n.title}
               </div>
-              {g.items.map(ListCard)}
+              <div style={{
+                fontSize: '11px', color: '#888',
+                marginTop: '4px',
+              }}>
+                {formatRelativeTime(n.created_at)}
+              </div>
             </div>
-          ))
+          </div>
+        ))}
+
+        {/* D. Empty state */}
+        {filteredNotifications.length === 0 && (
+          <div style={{
+            textAlign: 'center', padding: '40px 20px',
+            color: '#888',
+          }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔔</div>
+            <div style={{ fontSize: '14px' }}>אין התראות</div>
+          </div>
         )}
       </div>
 
-      {/* Send dialog (coach) */}
+      {/* Send dialog (coach) — unchanged */}
       {isCoach && (
         <Dialog open={showSend} onOpenChange={setShowSend}>
           <DialogContent className="max-w-md">
