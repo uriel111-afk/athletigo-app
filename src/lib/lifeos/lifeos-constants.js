@@ -121,3 +121,115 @@ export const MENTOR_MESSAGE_TYPES = {
 
 export const YEARLY_GOAL = 10_000_000;
 export const MONTHLY_GOAL_REQUIRED = Math.round(YEARLY_GOAL / 12);
+
+// ─────────────────────────────────────────────────────────────────
+// Recurring payments — frequency options
+// ─────────────────────────────────────────────────────────────────
+
+export const RECURRING_FREQUENCIES = [
+  { key: 'monthly',   label: 'חודשי' },
+  { key: 'quarterly', label: 'רבעוני' },
+  { key: 'yearly',    label: 'שנתי' },
+  { key: 'weekly',    label: 'שבועי' },
+];
+
+// ─────────────────────────────────────────────────────────────────
+// Document categories
+// ─────────────────────────────────────────────────────────────────
+
+export const DOCUMENT_CATEGORIES = [
+  { key: 'contracts',  label: 'חוזים',   emoji: '📝' },
+  { key: 'insurance',  label: 'ביטוחים', emoji: '🛡️' },
+  { key: 'receipts',   label: 'קבלות',   emoji: '🧾' },
+  { key: 'taxes',      label: 'מיסים',   emoji: '💼' },
+  { key: 'other',      label: 'אחר',     emoji: '📁' },
+];
+
+// ─────────────────────────────────────────────────────────────────
+// Leads
+// ─────────────────────────────────────────────────────────────────
+
+export const LEAD_SOURCES = [
+  { key: 'instagram', label: 'אינסטגרם' },
+  { key: 'facebook',  label: 'פייסבוק' },
+  { key: 'whatsapp',  label: 'וואטסאפ' },
+  { key: 'website',   label: 'אתר' },
+  { key: 'referral',  label: 'הפניה' },
+  { key: 'walk_in',   label: 'הגעה ישירה' },
+  { key: 'other',     label: 'אחר' },
+];
+
+export const LEAD_STATUS = [
+  { key: 'new',         label: 'חדש',     color: '#6b7280' },
+  { key: 'contacted',   label: 'נוצר קשר', color: '#EAB308' },
+  { key: 'interested',  label: 'מתעניין',  color: '#FF6F20' },
+  { key: 'negotiating', label: 'במו"מ',    color: '#3B82F6' },
+  { key: 'converted',   label: 'נסגר',    color: '#16a34a' },
+  { key: 'lost',        label: 'אבוד',    color: '#dc2626' },
+];
+
+export const LEAD_INTERESTED_IN = [
+  { key: 'dream_machine',   label: 'Dream Machine' },
+  { key: 'speed_rope',      label: 'Speed Rope' },
+  { key: 'freestyle_rope',  label: 'Freestyle Rope' },
+  { key: 'rings',           label: 'Gymnastic Rings' },
+  { key: 'bands',           label: 'Resistance Bands' },
+  { key: 'parallettes',     label: 'Parallettes' },
+  { key: 'coaching',        label: 'אימון אישי' },
+  { key: 'course',          label: 'קורס' },
+  { key: 'other',           label: 'אחר' },
+];
+
+// ─────────────────────────────────────────────────────────────────
+// Content calendar
+// ─────────────────────────────────────────────────────────────────
+
+export const CONTENT_TYPES = [
+  { key: 'reel',      label: 'ריל',      emoji: '🎬' },
+  { key: 'story',     label: 'סטורי',    emoji: '⚡' },
+  { key: 'post',      label: 'פוסט',     emoji: '📷' },
+  { key: 'carousel',  label: 'קרוסלה',   emoji: '🖼️' },
+  { key: 'live',      label: 'שידור חי', emoji: '🔴' },
+  { key: 'youtube',   label: 'יוטיוב',   emoji: '📺' },
+  { key: 'tiktok',    label: 'טיקטוק',   emoji: '🎵' },
+];
+
+export const CONTENT_STATUS = [
+  { key: 'idea',      label: 'רעיון',    color: '#9ca3af' },
+  { key: 'scripted',  label: 'תסריט',    color: '#6b7280' },
+  { key: 'filmed',    label: 'צולם',     color: '#3B82F6' },
+  { key: 'edited',    label: 'נערך',     color: '#EAB308' },
+  { key: 'scheduled', label: 'מתוזמן',   color: '#FF6F20' },
+  { key: 'published', label: 'פורסם',    color: '#16a34a' },
+];
+
+export const CONTENT_SKILL_TAGS = [
+  { key: 'jump_rope',    label: 'קפיצה בחבל' },
+  { key: 'calisthenics', label: 'קליסטניקס' },
+  { key: 'rings',        label: 'טבעות' },
+  { key: 'handstand',    label: 'עמידת ידיים' },
+  { key: 'muscle_up',    label: 'Muscle Up' },
+  { key: 'flexibility',  label: 'גמישות' },
+  { key: 'strength',     label: 'כוח' },
+];
+
+// ─────────────────────────────────────────────────────────────────
+// Courses
+// ─────────────────────────────────────────────────────────────────
+
+export const COURSE_STATUS = [
+  { key: 'planned',   label: 'מתוכנן',  color: '#9ca3af' },
+  { key: 'outlining', label: 'מתווה',   color: '#6b7280' },
+  { key: 'recording', label: 'בהקלטה',  color: '#3B82F6' },
+  { key: 'editing',   label: 'בעריכה',  color: '#EAB308' },
+  { key: 'ready',     label: 'מוכן',    color: '#FF6F20' },
+  { key: 'launched',  label: 'הושק',    color: '#16a34a' },
+];
+
+export const COURSE_SKILL_CATEGORY = [
+  { key: 'jump_rope',    label: 'קפיצה בחבל' },
+  { key: 'calisthenics', label: 'קליסטניקס' },
+  { key: 'rings',        label: 'טבעות' },
+  { key: 'strength',     label: 'כוח' },
+  { key: 'flexibility',  label: 'גמישות' },
+];

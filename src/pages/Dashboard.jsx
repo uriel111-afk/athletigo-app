@@ -467,6 +467,7 @@ export default function Dashboard() {
               { icon: "➕", label: "ליד חדש",  onClick: () => navigate(createPageUrl("Leads")) },
               { icon: "🎯", label: "אתגר יומי", onClick: () => setShowChallengeBank(true) },
               { icon: "⏰", label: "תזכורות",  onClick: () => setShowReminders(true), badge: overdueReminders },
+              { icon: "🛤️", label: "מסלולים",  onClick: () => navigate(createPageUrl("SkillTracks")) },
               { icon: "📊", label: "דוחות",    onClick: () => navigate(createPageUrl("Reports")) },
               { icon: "⏱", label: "שעונים",   onClick: () => navigate(createPageUrl("Clocks")) },
             ];

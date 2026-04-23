@@ -375,3 +375,130 @@ export async function getAnnualIncome(userId, year = new Date().getFullYear()) {
   const rows = await listIncome(userId, { from, to });
   return rows.reduce((s, r) => s + Number(r.amount || 0), 0);
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Leads
+// ─────────────────────────────────────────────────────────────────
+
+export async function listLeads(userId, { status } = {}) {
+  let q = supabase.from('leads').select('*').eq('user_id', userId);
+  if (status) q = q.eq('status', status);
+  q = q.order('created_at', { ascending: false });
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addLead(userId, payload) {
+  const { data, error } = await supabase
+    .from('leads')
+    .insert({ ...payload, user_id: userId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateLead(id, patch) {
+  const { data, error } = await supabase
+    .from('leads')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Content calendar
+// ─────────────────────────────────────────────────────────────────
+
+export async function listContentItems(userId, { status, fromDate, toDate } = {}) {
+  let q = supabase.from('content_calendar').select('*').eq('user_id', userId);
+  if (status) q = q.eq('status', status);
+  if (fromDate) q = q.gte('scheduled_date', fromDate);
+  if (toDate) q = q.lte('scheduled_date', toDate);
+  q = q.order('scheduled_date', { ascending: false });
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addContentItem(userId, payload) {
+  const { data, error } = await supabase
+    .from('content_calendar')
+    .insert({ ...payload, user_id: userId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateContentItem(id, patch) {
+  const { data, error } = await supabase
+    .from('content_calendar')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Community metrics
+// ─────────────────────────────────────────────────────────────────
+
+export async function listCommunityMetrics(userId, { platform, limit = 30 } = {}) {
+  let q = supabase.from('community_metrics').select('*').eq('user_id', userId);
+  if (platform) q = q.eq('platform', platform);
+  q = q.order('date', { ascending: false }).limit(limit);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addCommunityMetric(userId, payload) {
+  const { data, error } = await supabase
+    .from('community_metrics')
+    .insert({ ...payload, user_id: userId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Courses
+// ─────────────────────────────────────────────────────────────────
+
+export async function listCourses(userId, { status } = {}) {
+  let q = supabase.from('courses').select('*').eq('user_id', userId);
+  if (status) q = q.eq('status', status);
+  q = q.order('created_at', { ascending: false });
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addCourse(userId, payload) {
+  const { data, error } = await supabase
+    .from('courses')
+    .insert({ ...payload, user_id: userId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCourse(id, patch) {
+  const { data, error } = await supabase
+    .from('courses')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
