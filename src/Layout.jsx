@@ -410,28 +410,16 @@ export default function Layout({ children, currentPageName }) {
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
 
-              {/* Center: ATHLETIGO wordmark image + triangle, role/name underneath. */}
-              {/* The brand row is shifted ~15px left so the text portion (which sits
-                  on the visual right of the row in RTL) lines up directly above the
-                  user-name center, rather than the brand row's geometric center. */}
-              <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transform: 'translateX(-19px)',
-                }}>
-                  <img
-                    src="/athletigo-text.png"
-                    alt="ATHLETIGO"
-                    style={{ height: 15, objectFit: 'contain', display: 'block' }}
-                  />
-                  <img
-                    src={LOGO_ICON}
-                    alt=""
-                    style={{ width: 32, height: 32, objectFit: 'contain', display: 'block' }}
-                  />
-                </div>
+              {/* Center: brand block (text+triangle baked into a single
+                  horizontal PNG) above the user-name. Single image means
+                  the unit's geometric center IS the wordmark center, so a
+                  flexbox alignItems:center is enough — no manual offsets. */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <img
+                  src="/logo-with-name.png"
+                  alt="ATHLETIGO"
+                  style={{ height: 28, objectFit: 'contain', display: 'block' }}
+                />
                 <div style={{ fontSize: 13, color: primaryColor, fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>
                   {userRoleLabel}
                 </div>
