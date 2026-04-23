@@ -39,6 +39,33 @@ const PARAM_SCHEMA = {
 };
 const PARAM_TYPES = Object.keys(PARAM_SCHEMA);
 
+// Tabata helpers — DB column is `tabata_data` (TEXT/JSON). `tabata_config`
+// is an older/wrong name that some rows still carry; read both, write only
+// `tabata_data`. Matches UnifiedPlanBuilder.handleSaveExercise and
+// ExerciseExecution.jsx which parses JSON strings back out.
+function parseTabata(val) {
+  if (!val) return null;
+  if (typeof val === "object") return val;
+  if (typeof val === "string") {
+    try { return JSON.parse(val); } catch { return null; }
+  }
+  return null;
+}
+function serializeTabata(val) {
+  if (!val || typeof val !== "object" || Object.keys(val).length === 0) return null;
+  try { return JSON.stringify(val); } catch { return null; }
+}
+function tabataPreview(t) {
+  if (!t) return null;
+  const w = t.work_sec ?? 20, r = t.rest_sec ?? 10;
+  const rounds = t.rounds ?? 8, sets = t.sets ?? 1;
+  const names = Array.isArray(t.exercises)
+    ? t.exercises.map(e => e?.name?.trim()).filter(Boolean)
+    : [];
+  const base = `${w}/${r} × ${rounds} × ${sets} סט`;
+  return names.length > 0 ? `${base} · ${names.join(" • ")}` : base;
+}
+
 const FOCUS_AREAS = [
   { id: "strength",    label: "כוח",      icon: "💪" },
   { id: "flexibility", label: "גמישות",   icon: "🧘" },
@@ -280,7 +307,8 @@ export default function PlanBuilder() {
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
       video_url: exerciseData.params["וידאו"] || null,
-      tabata_config: exerciseData.params["טבטה"] || null,
+      tabata_data: serializeTabata(exerciseData.params["טבטה"]),
+      tabata_preview: tabataPreview(exerciseData.params["טבטה"]),
       children: exerciseData.params["רשימת תרגילים"] || null,
       "order": sec.exercises.length,
       completed: false,
@@ -332,7 +360,8 @@ export default function PlanBuilder() {
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
       video_url: exerciseData.params["וידאו"] || null,
-      tabata_config: exerciseData.params["טבטה"] || null,
+      tabata_data: serializeTabata(exerciseData.params["טבטה"]),
+      tabata_preview: tabataPreview(exerciseData.params["טבטה"]),
       children: exerciseData.params["רשימת תרגילים"] || null,
     };
     if (!ex?.id) {
@@ -428,7 +457,8 @@ export default function PlanBuilder() {
     if (ex.range_of_motion) p["טווח תנועה"] = ex.range_of_motion;
     if (ex.grip) p["אחיזה"] = ex.grip;
     if (ex.video_url) p["וידאו"] = ex.video_url;
-    if (ex.tabata_config) p["טבטה"] = ex.tabata_config;
+    const tab = parseTabata(ex.tabata_data) || parseTabata(ex.tabata_config);
+    if (tab) p["טבטה"] = tab;
     if (ex.children) p["רשימת תרגילים"] = ex.children;
     return p;
   };
@@ -646,8 +676,9 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
               {ex.rest_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>😮‍💨 {formatWorkTime(ex.rest_time)}</span>}
               {ex.weight && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🏋 {ex.weight} ק״ג</span>}
               {ex.rpe && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>RPE {ex.rpe}</span>}
-              {ex.tabata_config && (() => {
-                const t = ex.tabata_config;
+              {(() => {
+                const t = parseTabata(ex.tabata_data) || parseTabata(ex.tabata_config);
+                if (!t) return null;
                 const exCount = Array.isArray(t.exercises) ? t.exercises.length : 0;
                 return <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 700, border: "1px solid #FF6F20" }}>⏱ טבטה {t.work_sec ?? 20}/{t.rest_sec ?? 10}{exCount > 0 ? ` · ${exCount} תרגילים` : ''}</span>;
               })()}
@@ -659,6 +690,15 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
               })()}
               {Array.isArray(ex.children) && ex.children.length > 0 && <span style={{ background: "#E3F2FD", color: "#1976D2", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>📋 {ex.children.length} תת-תרגילים</span>}
               {Array.isArray(ex.equipment) && ex.equipment.length > 0 && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🛠 {ex.equipment.join(', ')}</span>}
+              {ex.tempo && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏲ טמפו {ex.tempo}</span>}
+              {ex.rest_between_sets && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>מנ׳ סטים {ex.rest_between_sets}&quot;</span>}
+              {ex.rest_between_exercises && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>מנ׳ תרג׳ {ex.rest_between_exercises}&quot;</span>}
+              {ex.static_hold_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏸ החזקה {ex.static_hold_time}&quot;</span>}
+              {ex.body_position && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🧍 {ex.body_position}</span>}
+              {ex.side && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>↔ {ex.side}</span>}
+              {ex.range_of_motion && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>↔ טווח {ex.range_of_motion}</span>}
+              {ex.grip && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>✊ {ex.grip}</span>}
+              {ex.video_url && <a href={ex.video_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ background: "#FEE2E2", color: "#DC2626", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600, textDecoration: "none" }}>🎬 וידאו</a>}
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
