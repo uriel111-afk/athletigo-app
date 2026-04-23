@@ -89,18 +89,22 @@ async function makeBadge(srcImg, size) {
     console.log(`wrote: ${name} (${size}x${size}, ${Math.round(stat.size / 1024)} KB)`);
   }
 
-  // Favicons — 100% fill, raised 3% (matches PWA icons)
+  // Favicons — 100% fill, raised 3%, TRANSPARENT background.
+  // The browser tab bar already has its own background color
+  // (white on light themes, dark grey on dark themes) so a baked-in
+  // white background looks like a separate sticker. Letting the
+  // tab background show through makes the triangle blend in.
   for (const size of [16, 32, 48]) {
-    const icon = await makeIcon(src, size, 0, true, 3);
+    const icon = await makeIcon(src, size, 0, false, 3);
     await icon.write(path.join(PUB, `favicon-${size}.png`));
   }
-  console.log(`wrote: favicon-16.png, favicon-32.png, favicon-48.png`);
+  console.log(`wrote: favicon-16.png, favicon-32.png, favicon-48.png (transparent)`);
 
-  // Multi-size .ico
+  // Multi-size .ico — also transparent.
   const icoBuf = await pngToIco([
-    await (await makeIcon(src, 16, 0, true, 3)).getBuffer(JimpMime.png),
-    await (await makeIcon(src, 32, 0, true, 3)).getBuffer(JimpMime.png),
-    await (await makeIcon(src, 48, 0, true, 3)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 16, 0, false, 3)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 32, 0, false, 3)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 48, 0, false, 3)).getBuffer(JimpMime.png),
   ]);
   fs.writeFileSync(path.join(PUB, 'favicon.ico'), icoBuf);
   console.log(`wrote: favicon.ico (16+32+48)`);
