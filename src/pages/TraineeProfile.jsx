@@ -415,6 +415,11 @@ export default function TraineeProfile() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  // Coach-only: reset trainee password via Edge Function
+  const [showResetPw, setShowResetPw] = useState(false);
+  const [resetPwInput, setResetPwInput] = useState('');
+  const [resetPwGenerated, setResetPwGenerated] = useState('');
+  const [resetPwSaving, setResetPwSaving] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPass: "", confirm: "" });
   const [passwordLoading, setPasswordLoading] = useState(false);
 
@@ -1405,6 +1410,38 @@ export default function TraineeProfile() {
     });
   };
 
+  // Coach-only: reset a trainee's password via the reset-password
+  // Edge Function (uses service role server-side; never exposed to
+  // the client). Mirrors the existing delete-trainee invocation
+  // pattern used at line ~2895.
+  const generateRandomPw = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let pass = '';
+    for (let i = 0; i < 8; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    setResetPwInput(pass);
+  };
+  const handleResetTraineePassword = async () => {
+    if (!resetPwInput || resetPwInput.length < 6) {
+      toast.error('סיסמה חייבת להיות לפחות 6 תווים');
+      return;
+    }
+    if (!user?.id) { toast.error('לא נטען מתאמן'); return; }
+    setResetPwSaving(true);
+    try {
+      const { error } = await supabase.functions.invoke('reset-password', {
+        body: { userId: user.id, newPassword: resetPwInput },
+      });
+      if (error) throw error;
+      setResetPwGenerated(resetPwInput);
+      toast.success('הסיסמה אופסה בהצלחה');
+    } catch (err) {
+      console.error('[ResetPassword] failed:', err);
+      toast.error('שגיאה: ' + (err?.message || 'נסה שוב'));
+    } finally {
+      setResetPwSaving(false);
+    }
+  };
+
   const handlePasswordChange = async () => {
     if (passwordForm.newPass !== passwordForm.confirm) {
       toast.error("הסיסמאות החדשות לא תואמות");
@@ -1796,11 +1833,29 @@ export default function TraineeProfile() {
                   </div>
                 </div>
 
-                {/* Quick Actions */}
-                <button onClick={() => setShowPasswordChange(true)} className="w-full bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
-                  <div className="font-bold text-xs text-white">שינוי סיסמא</div>
-                </button>
+                {/* Password actions:
+                    - Coach viewing OWN profile (no userIdParam): can change own password
+                    - Coach viewing TRAINEE profile (userIdParam set): can reset trainee's password
+                    - Trainee viewing OWN profile: shown a hint to contact coach */}
+                {isCoach && !userIdParam && (
+                  <button onClick={() => setShowPasswordChange(true)} className="w-full bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
+                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
+                    <div className="font-bold text-xs text-white">שינוי סיסמא</div>
+                  </button>
+                )}
+                {isCoach && userIdParam && (
+                  <button onClick={() => setShowResetPw(true)} className="w-full rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform" style={{ background: '#FFF0E4', border: '1.5px solid #FF6F20' }}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#FF6F20' }}>
+                      <Lock className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="font-bold text-xs" style={{ color: '#FF6F20' }}>🔑 אפס סיסמה למתאמן</div>
+                  </button>
+                )}
+                {!isCoach && (
+                  <div className="w-full rounded-xl p-3 text-center" style={{ background: 'white', border: '0.5px solid #F0E4D0' }}>
+                    <div style={{ fontSize: 13, color: '#888' }}>🔒 לשינוי סיסמה — פנה למאמן שלך</div>
+                  </div>
+                )}
 
                 {/* Delete Trainee — coach only */}
                 {isCoach && userIdParam && (
@@ -2820,6 +2875,66 @@ export default function TraineeProfile() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Coach: Reset trainee password */}
+        {showResetPw && (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) { setShowResetPw(false); setResetPwInput(''); setResetPwGenerated(''); } }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11000, padding: 20 }}
+          >
+            <div dir="rtl" style={{ background: '#FFF9F0', borderRadius: 24, padding: 24, width: '100%', maxWidth: 340, textAlign: 'right', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🔑</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>איפוס סיסמה</div>
+                <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>ל{user?.full_name}</div>
+              </div>
+              {!resetPwGenerated ? (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 14, fontWeight: 600, display: 'block', marginBottom: 6 }}>סיסמה חדשה</label>
+                    <input
+                      type="text"
+                      value={resetPwInput}
+                      onChange={e => setResetPwInput(e.target.value)}
+                      placeholder="לפחות 6 תווים..."
+                      style={{ width: '100%', padding: 12, borderRadius: 14, border: '1.5px solid #F0E4D0', fontSize: 16, direction: 'ltr', textAlign: 'left', boxSizing: 'border-box', outline: 'none' }}
+                    />
+                  </div>
+                  <button type="button" onClick={generateRandomPw}
+                    style={{ width: '100%', padding: 8, background: 'transparent', border: 'none', color: '#FF6F20', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12 }}>
+                    🎲 ייצר סיסמה אוטומטית
+                  </button>
+                  <button type="button" onClick={handleResetTraineePassword}
+                    disabled={!resetPwInput || resetPwInput.length < 6 || resetPwSaving}
+                    style={{ width: '100%', padding: 12, borderRadius: 14, border: 'none', background: resetPwInput?.length >= 6 && !resetPwSaving ? '#FF6F20' : '#ccc', color: 'white', fontSize: 14, fontWeight: 600, cursor: resetPwInput?.length >= 6 && !resetPwSaving ? 'pointer' : 'default' }}>
+                    {resetPwSaving ? '...מאפס' : '🔑 אפס סיסמה'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ background: 'white', borderRadius: 14, padding: 16, textAlign: 'center', marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, color: '#16a34a', fontWeight: 600, marginBottom: 8 }}>✅ הסיסמה אופסה בהצלחה</div>
+                    <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הסיסמה החדשה:</div>
+                    <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', letterSpacing: 3, fontFamily: 'monospace', direction: 'ltr' }}>
+                      {resetPwGenerated}
+                    </div>
+                  </div>
+                  <button type="button"
+                    onClick={() => { try { navigator.clipboard.writeText(resetPwGenerated); toast.success('הסיסמה הועתקה'); } catch { toast.error('לא ניתן להעתיק'); } }}
+                    style={{ width: '100%', padding: 12, borderRadius: 14, border: 'none', background: '#FF6F20', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>
+                    📋 העתק סיסמה
+                  </button>
+                  <div style={{ fontSize: 12, color: '#888', textAlign: 'center' }}>שלח את הסיסמה למתאמן בוואטסאפ או בטלפון</div>
+                </>
+              )}
+              <button type="button"
+                onClick={() => { setShowResetPw(false); setResetPwInput(''); setResetPwGenerated(''); }}
+                style={{ width: '100%', padding: 8, background: 'transparent', border: 'none', color: '#888', fontSize: 13, cursor: 'pointer', marginTop: 10 }}>
+                סגור
+              </button>
+            </div>
+          </div>
+        )}
 
 
         {/* Delete Trainee Confirmation Dialog */}

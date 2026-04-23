@@ -15,9 +15,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showForgot, setShowForgot] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotLoading, setForgotLoading] = useState(false);
 
   // If already logged in, redirect to Dashboard
   const redirectAfterLogin = (profile) => {
@@ -45,26 +42,9 @@ export default function Login() {
     });
   }, [navigate]);
 
-  // TO RESET uriel111@gmail.com PASSWORD:
-  // 1. Go to Supabase Dashboard → Authentication → Users
-  // 2. Find uriel111@gmail.com → click "Send password reset" or set a new password directly
-  // 3. Alternatively: use the "שכחתי סיסמה" form below with uriel111@gmail.com to receive a reset email
-  const handleForgotPassword = async (e) => {
-    e.preventDefault();
-    setForgotLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
-      redirectTo: `${window.location.origin}/login`,
-    });
-    setForgotLoading(false);
-    if (error) {
-      toast.error("שגיאה בשליחת המייל. בדוק את הכתובת ונסה שוב.");
-    } else {
-      toast.success("מייל לאיפוס סיסמה נשלח! בדוק את תיבת הדואר שלך.");
-      setShowForgot(false);
-      setForgotEmail("");
-    }
-  };
-
+  // Self-serve password reset is intentionally disabled — only the
+  // coach can reset a trainee's password (via the Edge Function
+  // `reset-password` invoked from the trainee profile page).
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -204,42 +184,10 @@ export default function Login() {
               )}
             </Button>
 
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setShowForgot(!showForgot)}
-                className="text-sm font-medium"
-                style={{ color: "#FF6F20" }}
-              >
-                שכחתי סיסמה
-              </button>
+            <div className="text-center" style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+              שכחת סיסמה? פנה למאמן שלך
             </div>
           </form>
-
-          {showForgot && (
-            <form onSubmit={handleForgotPassword} className="mt-4 pt-4 space-y-3" style={{ borderTop: "1px solid #E0E0E0" }}>
-              <p className="text-sm font-medium text-center" style={{ color: "#000000" }}>
-                הכנס את האימייל שלך ונשלח לך קישור לאיפוס סיסמה
-              </p>
-              <Input
-                type="email"
-                placeholder="your@email.com"
-                value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)}
-                required
-                className="h-11 rounded-xl text-right"
-                style={{ border: "1px solid #E0E0E0", direction: "ltr" }}
-              />
-              <Button
-                type="submit"
-                disabled={forgotLoading}
-                className="w-full h-10 rounded-xl font-bold text-white"
-                style={{ backgroundColor: "#000000" }}
-              >
-                {forgotLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "שלח קישור לאיפוס"}
-              </Button>
-            </form>
-          )}
         </div>
       </div>
     </div>
