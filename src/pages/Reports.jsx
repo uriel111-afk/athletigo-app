@@ -38,19 +38,38 @@ function fmtDate(d) {
   if (!d) return '';
   try { return format(new Date(d), 'dd/MM/yy', { locale: he }); } catch { return ''; }
 }
+// normalizeStatus returns canonical English (completed / cancelled /
+// pending / scheduled / confirmed / present / late / absent / active /
+// expired / paused / frozen / unpaid). Map every canonical value to
+// Hebrew for display so we never leak English to the UI.
+const STATUS_HEBREW = {
+  completed: 'הושלם',
+  present:   'הגיע',
+  cancelled: 'בוטל',
+  pending:   'ממתין',
+  scheduled: 'מתוכנן',
+  confirmed: 'מאושר',
+  late:      'איחר',
+  absent:    'לא הגיע',
+  active:    'פעיל',
+  expired:   'פג תוקף',
+  paused:    'מושהה',
+  frozen:    'מוקפא',
+  unpaid:    'לא שולם',
+};
 function statusIcon(status) {
   const n = normalizeStatus(status);
   if (n === 'completed' || n === 'present') return '✅';
   if (n === 'cancelled') return '❌';
   if (n === 'pending')   return '⏳';
+  if (n === 'scheduled' || n === 'confirmed') return '📅';
+  if (n === 'late')      return '⏰';
+  if (n === 'absent')    return '🚫';
   return '📅';
 }
 function statusLabel(status) {
   const n = normalizeStatus(status);
-  if (n === 'completed' || n === 'present') return 'הושלם';
-  if (n === 'cancelled') return 'בוטל';
-  if (n === 'pending')   return 'ממתין';
-  return status || '';
+  return STATUS_HEBREW[n] || status || '';
 }
 
 export default function Reports() {
@@ -79,26 +98,54 @@ export default function Reports() {
   const fetchAll = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
-    const [sRes, tRes, pRes, lRes] = await Promise.all([
+    // 1. Sessions + packages JOIN users via trainee_id so each row
+    //    arrives with its trainee object (name guaranteed).
+    // 2. Trainees roster derived from BOTH packages and sessions
+    //    (any user this coach has interacted with) — same pattern
+    //    Dashboard uses, since the role='trainee' filter excluded
+    //    rows whose role is 'user' or null in the real schema.
+    const [sRes, pRes, lRes] = await Promise.all([
       supabase.from('sessions')
-        .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at')
+        .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at, trainee:trainee_id(id, full_name, phone)')
         .eq('coach_id', user.id)
         .order('date', { ascending: false }),
-      supabase.from('users')
-        .select('id, full_name, phone, email, created_at')
-        .eq('coach_id', user.id)
-        .eq('role', 'trainee'),
       supabase.from('client_services')
-        .select('id, trainee_id, package_name, package_type, service_type, total_sessions, used_sessions, sessions_remaining, final_price, payment_method, status, start_date, end_date, expires_at, created_at')
+        .select('id, trainee_id, package_name, package_type, service_type, total_sessions, used_sessions, sessions_remaining, final_price, payment_method, status, start_date, end_date, expires_at, created_at, trainee:trainee_id(id, full_name, phone)')
         .eq('coach_id', user.id),
       supabase.from('leads')
         .select('id, full_name, phone, email, status, source, coach_notes, created_at')
         .eq('coach_id', user.id)
         .order('created_at', { ascending: false }),
     ]);
-    setSessions(sRes.data || []);
-    setTrainees(tRes.data || []);
-    setPackages(pRes.data || []);
+    const sessionRows = sRes.data || [];
+    const pkgRows = pRes.data || [];
+    // Build the trainee roster from joined data + participants[].
+    const traineeMap = new Map();
+    for (const row of sessionRows) {
+      if (row.trainee?.id) traineeMap.set(row.trainee.id, row.trainee);
+      if (Array.isArray(row.participants)) {
+        for (const p of row.participants) {
+          if (p?.trainee_id && p?.trainee_name && !traineeMap.has(p.trainee_id)) {
+            traineeMap.set(p.trainee_id, { id: p.trainee_id, full_name: p.trainee_name });
+          }
+        }
+      }
+    }
+    for (const row of pkgRows) {
+      if (row.trainee?.id) traineeMap.set(row.trainee.id, row.trainee);
+    }
+    // Top up with explicit roster (so trainees with no sessions/packages still appear)
+    const explicitIds = Array.from(traineeMap.keys());
+    const tRes = explicitIds.length > 0
+      ? await supabase.from('users').select('id, full_name, phone, email, created_at').in('id', explicitIds)
+      : { data: [] };
+    for (const u of (tRes.data || [])) {
+      // Prefer the fuller user row (has phone/email/created_at)
+      traineeMap.set(u.id, { ...traineeMap.get(u.id), ...u });
+    }
+    setSessions(sessionRows);
+    setTrainees(Array.from(traineeMap.values()));
+    setPackages(pkgRows);
     setLeads(lRes.data || []);
     setLoading(false);
   }, [user?.id]);
@@ -123,7 +170,15 @@ export default function Reports() {
     for (const t of trainees) m.set(t.id, t.full_name);
     return m;
   }, [trainees]);
-  const getName = (id) => traineeNameById.get(id) || 'לא ידוע';
+  // Prefer the joined trainee object on the row itself; fall back to
+  // the roster lookup; then to a soft 'מתאמן' (never 'לא ידוע').
+  const nameOf = (row) => row?.trainee?.full_name || traineeNameById.get(row?.trainee_id) || 'מתאמן';
+  const getName = (id) => traineeNameById.get(id) || 'מתאמן';
+  const goToTrainee = (id, tab) => {
+    if (!id) return;
+    const url = createPageUrl('TraineeProfile') + `?userId=${id}` + (tab ? `&tab=${tab}` : '');
+    navigate(url);
+  };
 
   const traineeIdsFromSession = (s) => {
     const ids = new Set();
@@ -437,12 +492,13 @@ export default function Reports() {
           <>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>🏆 מתאמנים מובילים</div>
             {topTrainees.map((t, i) => (
-              <div key={t.id} style={{
+              <div key={t.id} onClick={(e) => { e.stopPropagation(); goToTrainee(t.id); }} style={{
                 display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0',
-                borderBottom: i < topTrainees.length - 1 ? '0.5px solid #F8F0E8' : 'none', fontSize: 13,
+                borderBottom: i < topTrainees.length - 1 ? '0.5px solid #F8F0E8' : 'none',
+                fontSize: 13, cursor: 'pointer',
               }}>
                 <span style={{ width: 20, textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6F20' : '#888' }}>{i + 1}</span>
-                <span style={{ flex: 1, fontWeight: 500 }}>{t.name}</span>
+                <span style={{ flex: 1, fontWeight: 500 }}>{t.name || 'מתאמן'}</span>
                 <span style={{ color: '#FF6F20', fontWeight: 600 }}>{t.count}</span>
               </div>
             ))}
@@ -472,9 +528,12 @@ export default function Reports() {
         {recent.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#888', padding: 8, fontSize: 12 }}>אין נתונים</div>
         ) : recent.map(s => (
-          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0', borderBottom: '0.5px solid #F8F0E8', fontSize: 12 }}>
+          <div key={s.id} onClick={(e) => { e.stopPropagation(); goToTrainee(s.trainee_id, 'attendance'); }} style={{
+            display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0',
+            borderBottom: '0.5px solid #F8F0E8', fontSize: 12, cursor: 'pointer',
+          }}>
             <span>{statusIcon(s.status)}</span>
-            <span style={{ flex: 1, fontWeight: 500 }}>{getName(s.trainee_id)}</span>
+            <span style={{ flex: 1, fontWeight: 500 }}>{nameOf(s)}</span>
             <span style={{ color: '#888', fontSize: 11 }}>{fmtDate(s.date)}</span>
             <span style={{ color: '#888', fontSize: 11 }}>{statusLabel(s.status)}</span>
           </div>
@@ -575,7 +634,7 @@ export default function Reports() {
             }}>
               <span>{emoji}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getName(p.trainee_id)}</div>
+                <div style={{ fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(p)}</div>
                 <div style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.package_name || p.service_type || 'חבילה'}</div>
               </div>
               <div style={{ textAlign: 'left' }}>
