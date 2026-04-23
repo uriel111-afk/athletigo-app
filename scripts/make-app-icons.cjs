@@ -44,7 +44,7 @@ async function makeIcon(srcImg, size, padPct, withWhiteBg) {
 // White-silhouette version — for the Android status bar badge.
 // Every opaque pixel becomes (255,255,255,a).
 async function makeBadge(srcImg, size) {
-  const icon = await makeIcon(srcImg, size, 10, false);
+  const icon = await makeIcon(srcImg, size, 8, false);
   const data = icon.bitmap.data;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] > 0) {
@@ -59,7 +59,8 @@ async function makeBadge(srcImg, size) {
   const src = await Jimp.read(SRC);
   console.log(`source dimensions: ${src.bitmap.width} x ${src.bitmap.height}`);
 
-  // PWA + Apple touch icons (white bg + 18% padding)
+  // PWA + Apple touch icons (white bg + 10% padding — logo fills
+  // ~80% of the icon area for a bolder home-screen presence)
   const pwaSizes = {
     'icon-72.png': 72,
     'icon-96.png': 96,
@@ -72,40 +73,42 @@ async function makeBadge(srcImg, size) {
     'apple-touch-icon.png': 180,
   };
   for (const [name, size] of Object.entries(pwaSizes)) {
-    const icon = await makeIcon(src, size, 18, true);
+    const icon = await makeIcon(src, size, 10, true);
     const out = path.join(PUB, name);
     await icon.write(out);
     const stat = fs.statSync(out);
     console.log(`wrote: ${name} (${size}x${size}, ${Math.round(stat.size / 1024)} KB)`);
   }
 
-  // Favicons (white bg + 12% padding)
+  // Favicons (white bg + 8% padding)
   for (const size of [16, 32, 48]) {
-    const icon = await makeIcon(src, size, 12, true);
+    const icon = await makeIcon(src, size, 8, true);
     await icon.write(path.join(PUB, `favicon-${size}.png`));
   }
   console.log(`wrote: favicon-16.png, favicon-32.png, favicon-48.png`);
 
   // Multi-size .ico
   const icoBuf = await pngToIco([
-    await (await makeIcon(src, 16, 12, true)).getBuffer(JimpMime.png),
-    await (await makeIcon(src, 32, 12, true)).getBuffer(JimpMime.png),
-    await (await makeIcon(src, 48, 12, true)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 16, 8, true)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 32, 8, true)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 48, 8, true)).getBuffer(JimpMime.png),
   ]);
   fs.writeFileSync(path.join(PUB, 'favicon.ico'), icoBuf);
   console.log(`wrote: favicon.ico (16+32+48)`);
 
-  // Maskable icon (white bg + 30% padding — Android crops outer 10-15%)
-  const maskable = await makeIcon(src, 512, 30, true);
+  // Maskable icon (white bg + 20% padding — Android safe zone needs
+  // ~15% so 20% still protects the logo from circle/squircle crop
+  // while letting it appear bolder than before)
+  const maskable = await makeIcon(src, 512, 20, true);
   await maskable.write(path.join(PUB, 'icon-maskable-512.png'));
-  console.log(`wrote: icon-maskable-512.png (512x512, 30% padding)`);
+  console.log(`wrote: icon-maskable-512.png (512x512, 20% padding)`);
 
-  // Notification icon (transparent bg + 10% padding)
-  const notif = await makeIcon(src, 96, 10, false);
+  // Notification icon (transparent bg + 8% padding)
+  const notif = await makeIcon(src, 96, 8, false);
   await notif.write(path.join(PUB, 'notification-icon.png'));
   console.log(`wrote: notification-icon.png (96x96, transparent)`);
 
-  // Badge icon (white silhouette on transparent)
+  // Badge icon (white silhouette on transparent, 8% padding)
   const badge = await makeBadge(src, 96);
   await badge.write(path.join(PUB, 'badge-icon.png'));
   console.log(`wrote: badge-icon.png (96x96, white silhouette)`);
