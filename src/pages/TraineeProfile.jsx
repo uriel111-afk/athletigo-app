@@ -2879,7 +2879,10 @@ export default function TraineeProfile() {
         {/* Coach: Reset trainee password */}
         {showResetPw && (
           <div
-            onClick={(e) => { if (e.target === e.currentTarget) { setShowResetPw(false); setResetPwInput(''); setResetPwGenerated(''); } }}
+            // Backdrop NO-OP — close only via the "סגור" button below.
+            onClick={(e) => { e.stopPropagation(); }}
+            onPointerDown={(e) => { e.stopPropagation(); }}
+            onTouchStart={(e) => { e.stopPropagation(); }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11000, padding: 20 }}
           >
             <div dir="rtl" style={{ background: '#FFF9F0', borderRadius: 24, padding: 24, width: '100%', maxWidth: 340, textAlign: 'right', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>

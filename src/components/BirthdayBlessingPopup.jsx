@@ -72,7 +72,11 @@ export default function BirthdayBlessingPopup() {
 
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
+      // Backdrop NO-OPS — close only via the "אח״כ" button or
+      // after a successful send (DEFINITIVE — no accidental closes).
+      onClick={(e) => { e.stopPropagation(); }}
+      onPointerDown={(e) => { e.stopPropagation(); }}
+      onTouchStart={(e) => { e.stopPropagation(); }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.5)',

@@ -16,7 +16,10 @@ export default function NotificationResponsePopup({ notif, onClose, onRespond })
 
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      // Backdrop NO-OP — close only via the X button.
+      onClick={(e) => { e.stopPropagation(); }}
+      onPointerDown={(e) => { e.stopPropagation(); }}
+      onTouchStart={(e) => { e.stopPropagation(); }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.5)',

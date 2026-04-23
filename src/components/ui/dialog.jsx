@@ -48,14 +48,23 @@ const DialogContent = React.forwardRef(({ className, children, onPointerDownOuts
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className
       )}
+      // Forms close ONLY via the X button (DialogPrimitive.Close
+      // below) or by an explicit onClose call from the caller's save
+      // handler. Outside-click and Escape are both prevented by
+      // default. Callers can override by passing their own
+      // onPointerDownOutside / onInteractOutside / onEscapeKeyDown
+      // that DOES NOT preventDefault.
       onPointerDownOutside={(e) => {
-        if (isFromTimerBar(e)) { e.preventDefault(); return; }
+        e.preventDefault();
+        if (isFromTimerBar(e)) return;
         onPointerDownOutside?.(e);
       }}
       onInteractOutside={(e) => {
-        if (isFromTimerBar(e)) { e.preventDefault(); return; }
+        e.preventDefault();
+        if (isFromTimerBar(e)) return;
         onInteractOutside?.(e);
       }}
+      onEscapeKeyDown={(e) => { e.preventDefault(); }}
       {...props}
     >
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6" style={{ WebkitOverflowScrolling: 'touch' }}>

@@ -268,7 +268,9 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
         alignItems: "flex-end",
         justifyContent: "center",
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { e.stopPropagation(); }}
+      onPointerDown={(e) => { e.stopPropagation(); }}
+      onTouchStart={(e) => { e.stopPropagation(); }}
     >
       <div
         style={{

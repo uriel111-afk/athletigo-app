@@ -95,7 +95,10 @@ export default function LastSessionAlert() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 11000, padding: 20,
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
+      // Backdrop NO-OPS — close only via "אח״כ" or after send.
+      onClick={(e) => { e.stopPropagation(); }}
+      onPointerDown={(e) => { e.stopPropagation(); }}
+      onTouchStart={(e) => { e.stopPropagation(); }}
     >
       <div
         dir="rtl"
