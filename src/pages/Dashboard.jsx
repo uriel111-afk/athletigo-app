@@ -10,6 +10,8 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AuthContext } from "@/lib/AuthContext";
 import PageLoader from "@/components/PageLoader";
+import RemindersPanel from "@/components/RemindersPanel";
+import NotificationPopup from "@/components/NotificationPopup";
 
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
 import { usePackageExpiry } from "../components/hooks/usePackageExpiry";
@@ -124,6 +126,13 @@ export default function Dashboard() {
   const [selectedTrainee, setSelectedTrainee] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
   const [traineeSearch, setTraineeSearch] = useState("");
+
+  // Reminders — list + due-popup. Reminders live in the notifications
+  // table with `type='coach_reminder'`. See RemindersPanel/AddForm.
+  const [showReminders, setShowReminders] = useState(false);
+  const [reminders, setReminders] = useState([]);
+  const [duePopup, setDuePopup] = useState(null);
+  const [shownReminderIds, setShownReminderIds] = useState(() => new Set());
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
 

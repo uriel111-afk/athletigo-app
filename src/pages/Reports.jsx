@@ -75,7 +75,9 @@ function statusLabel(status) {
 export default function Reports() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [timeFilter, setTimeFilter] = useState('month');
+  // Default 'all' so the page never starts empty when this month has
+  // no sessions yet. Coaches can narrow with the chips above.
+  const [timeFilter, setTimeFilter] = useState('all');
   const [openSection, setOpenSection] = useState(null);
   const [openSub, setOpenSub] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -158,6 +160,9 @@ export default function Reports() {
     setPackages(pkgRows);
     setLeads(lRes.data || []);
     setLoading(false);
+    console.log('[Reports] sessions:', sessionRows.length, 'packages:', pkgRows.length, 'trainees:', traineeMap.size, 'leads:', (lRes.data || []).length);
+    console.log('[Reports] sample session:', sessionRows[0]);
+    console.log('[Reports] sample package:', pkgRows[0]);
   }, [user?.id]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -829,11 +834,197 @@ export default function Reports() {
             </div>
           ) : (
             <>
-              {renderRevenue()}
+              {/* A. Revenue hero — always visible */}
+              <div style={{
+                background: '#FF6F20', borderRadius: 16,
+                padding: 16, margin: '0 12px 10px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>הכנסות בתקופה</div>
+                <div style={{ fontSize: 32, fontWeight: 700, color: 'white' }}>₪{totalRevenue.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
+                  סה״כ לכל הזמנים: ₪{allTimeRevenue.toLocaleString()}
+                </div>
+              </div>
+
+              {/* B. KPI strip — always visible */}
+              {(() => {
+                const kpiCard = { background: 'white', borderRadius: 12, padding: 10, textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flex: 1 };
+                const activePkgs = packages.filter(isHotPackage);
+                const activeTraineeIds = [...new Set(activePkgs.map(p => p.trainee_id).filter(Boolean))];
+                return (
+                  <div style={{ display: 'flex', gap: 6, padding: '0 12px 10px' }}>
+                    <div style={kpiCard}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: '#FF6F20' }}>{filtered.length}</div>
+                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>מפגשים</div>
+                    </div>
+                    <div style={kpiCard}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: '#16a34a' }}>{completed.length}</div>
+                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>הושלמו</div>
+                    </div>
+                    <div style={kpiCard}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: '#7F47B5' }}>{activePkgs.length}</div>
+                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>חבילות</div>
+                    </div>
+                    <div style={kpiCard}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: '#3B82F6' }}>{activeTraineeIds.length}</div>
+                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>פעילים</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* C. Clients table — always visible */}
+              <div style={{
+                background: 'white', borderRadius: 14, padding: 14,
+                margin: '0 12px 10px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>💎 לקוחות — פירוט מלא</div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 60px 50px 70px 60px',
+                  gap: 4, padding: '6px 0',
+                  borderBottom: '1.5px solid #F0E4D0',
+                  fontSize: 10, fontWeight: 600, color: '#888',
+                }}>
+                  <span>שם</span>
+                  <span style={{ textAlign: 'center' }}>חבילות</span>
+                  <span style={{ textAlign: 'center' }}>מפגשים</span>
+                  <span style={{ textAlign: 'center' }}>יתרה</span>
+                  <span style={{ textAlign: 'center' }}>שולם</span>
+                </div>
+                {trainees.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין מתאמנים</div>
+                ) : trainees.map(t => {
+                  const tPkgs = packages.filter(p => p.trainee_id === t.id);
+                  const tSessions = filtered.filter(s => traineeIdsFromSession(s).includes(t.id));
+                  const tCompleted = tSessions.filter(s => { const n = normalizeStatus(s.status); return n === 'completed' || n === 'present'; });
+                  const tActivePkgs = tPkgs.filter(isHotPackage);
+                  const tRemaining = tActivePkgs.reduce((s, p) => s + remainingOf(p), 0);
+                  const tPaid = tPkgs.reduce((s, p) => s + (Number(p.final_price) || 0), 0);
+                  return (
+                    <div key={t.id} onClick={() => goToTrainee(t.id)} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 60px 50px 70px 60px',
+                      gap: 4, padding: '8px 0',
+                      borderBottom: '0.5px solid #F8F0E8',
+                      fontSize: 13, cursor: 'pointer',
+                      alignItems: 'center',
+                    }}>
+                      <div style={{ fontWeight: 500, minWidth: 0 }}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.full_name || 'מתאמן'}</div>
+                        <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {tActivePkgs.length > 0 ? (tActivePkgs[0].package_name || tActivePkgs[0].service_type || 'חבילה') : 'אין חבילה'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'center', fontSize: 12 }}>{tPkgs.length}</div>
+                      <div style={{ textAlign: 'center', fontSize: 12, color: '#16a34a' }}>{tCompleted.length}</div>
+                      <div style={{ textAlign: 'center', fontSize: 12, color: tRemaining <= 1 ? '#dc2626' : '#1a1a1a', fontWeight: tRemaining <= 1 ? 700 : 400 }}>{tRemaining}</div>
+                      <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#FF6F20' }}>₪{tPaid.toLocaleString()}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* D. Active packages — always visible */}
+              <div style={{
+                background: 'white', borderRadius: 14, padding: 14,
+                margin: '0 12px 10px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>🎫 חבילות פעילות</div>
+                {(() => {
+                  const activePkgs = packages.filter(isHotPackage);
+                  if (activePkgs.length === 0) {
+                    return <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין חבילות פעילות</div>;
+                  }
+                  return activePkgs.map(p => {
+                    const remaining = remainingOf(p);
+                    return (
+                      <div key={p.id} onClick={() => setSelectedPkg(p)} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '8px 0', borderBottom: '0.5px solid #F8F0E8',
+                        fontSize: 13, cursor: 'pointer',
+                      }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: remaining <= 1 ? '#dc2626' : '#16a34a', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontWeight: 500 }}>{nameOf(p)}</span>
+                          <span style={{ color: '#888', marginRight: 6 }}>{p.package_name || p.service_type || 'חבילה'}</span>
+                        </div>
+                        <div style={{ fontWeight: 600, color: remaining <= 1 ? '#dc2626' : '#FF6F20' }}>{remaining}/{p.total_sessions || 0}</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>₪{Number(p.final_price) || 0}</div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* E. Recent sessions — always visible */}
+              <div style={{
+                background: 'white', borderRadius: 14, padding: 14,
+                margin: '0 12px 10px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📅 מפגשים אחרונים</div>
+                {filtered.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין מפגשים בתקופה זו</div>
+                ) : filtered.slice(0, 15).map(s => {
+                  const n = normalizeStatus(s.status);
+                  const ok = n === 'completed' || n === 'present';
+                  const cancel = n === 'cancelled';
+                  return (
+                    <div key={s.id} onClick={() => goToTrainee(s.trainee?.id || s.trainee_id)} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 0', borderBottom: '0.5px solid #F8F0E8',
+                      fontSize: 13, cursor: 'pointer',
+                    }}>
+                      <span style={{ fontSize: 14 }}>{statusIcon(s.status)}</span>
+                      <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(s)}</span>
+                      <span style={{ color: '#888', fontSize: 12 }}>{fmtDate(s.date)}</span>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 8,
+                        fontSize: 10, fontWeight: 600,
+                        background: ok ? '#E8F5E9' : cancel ? '#FEE2E2' : '#FFF0E4',
+                        color: ok ? '#16a34a' : cancel ? '#dc2626' : '#FF6F20',
+                      }}>{statusLabel(s.status)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* F. Payment methods — always visible */}
+              <div style={{
+                background: 'white', borderRadius: 14, padding: 14,
+                margin: '0 12px 10px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>💳 אמצעי תשלום</div>
+                {(() => {
+                  const m = new Map();
+                  for (const p of filteredPkgs) {
+                    const k = p.payment_method || 'לא צוין';
+                    const prev = m.get(k) || { method: k, count: 0, total: 0 };
+                    prev.count++; prev.total += Number(p.final_price) || 0;
+                    m.set(k, prev);
+                  }
+                  const pm = Array.from(m.values()).sort((a, b) => b.total - a.total);
+                  if (pm.length === 0) return <div style={{ textAlign: 'center', color: '#888', padding: 8, fontSize: 12 }}>אין נתונים</div>;
+                  return pm.map(x => (
+                    <div key={x.method} style={{
+                      display: 'flex', justifyContent: 'space-between',
+                      padding: '6px 0', fontSize: 13,
+                      borderBottom: '0.5px solid #F8F0E8',
+                    }}>
+                      <span>{x.method}</span>
+                      <span style={{ color: '#888' }}>{x.count} × ₪{x.total.toLocaleString()}</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* G. Attendance + leads — keep accordion sections for the
+                  drill-down views (charts, top trainees, leads list).
+                  Always-visible cards above cover the headline data. */}
               {renderSessions()}
               {renderPackages()}
-              {renderTrainees()}
-              {renderLeads()}
+              {leads.length > 0 && renderLeads()}
             </>
           )}
         </div>
