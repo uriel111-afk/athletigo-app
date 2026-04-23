@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 
 const PREFIX = 'athletigo_draft_';
-const DEBOUNCE = 500;
 const MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export function useFormDraft(dialogKey, scopeKey, open, initialData) {
@@ -37,15 +36,13 @@ export function useFormDraft(dialogKey, scopeKey, open, initialData) {
     setData(initialData);
   }, [open, storageKey]);
 
-  // Auto-save debounced
+  // Auto-save on EVERY change — no debounce. Even a 1s-open form must
+  // persist the latest field values before it closes.
   useEffect(() => {
     if (!open || !decided) return;
-    const t = setTimeout(() => {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify({ _draftData: data, _savedAt: new Date().toISOString() }));
-      } catch {}
-    }, DEBOUNCE);
-    return () => clearTimeout(t);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ _draftData: data, _savedAt: new Date().toISOString() }));
+    } catch {}
   }, [data, open, decided, storageKey]);
 
   const keepDraft = useCallback(() => { setHasDraft(false); setDecided(true); }, []);

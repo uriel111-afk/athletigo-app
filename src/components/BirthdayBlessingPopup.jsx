@@ -72,7 +72,7 @@ export default function BirthdayBlessingPopup() {
 
   return (
     <div
-      onClick={dismiss}
+      onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.5)',
@@ -81,7 +81,6 @@ export default function BirthdayBlessingPopup() {
       }}
     >
       <div
-        onClick={e => e.stopPropagation()}
         dir="rtl"
         style={{
           background: '#FFF9F0',

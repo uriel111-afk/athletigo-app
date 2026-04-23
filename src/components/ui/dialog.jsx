@@ -23,7 +23,18 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
+// Any interaction that originates inside the minimized timer footer bar
+// must NOT close the dialog. Radix fires onPointerDownOutside /
+// onInteractOutside when the user taps outside DialogContent — calling
+// e.preventDefault() on them cancels the close. We still honor any
+// caller-supplied handlers first so per-dialog logic (e.g. "don't close
+// while saving") keeps working.
+const isFromTimerBar = (e) => {
+  const t = e?.detail?.originalEvent?.target || e?.target;
+  return !!(t && typeof t.closest === 'function' && t.closest('[data-timer-bar]'));
+};
+
+const DialogContent = React.forwardRef(({ className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -37,6 +48,14 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className
       )}
+      onPointerDownOutside={(e) => {
+        if (isFromTimerBar(e)) { e.preventDefault(); return; }
+        onPointerDownOutside?.(e);
+      }}
+      onInteractOutside={(e) => {
+        if (isFromTimerBar(e)) { e.preventDefault(); return; }
+        onInteractOutside?.(e);
+      }}
       {...props}
     >
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6" style={{ WebkitOverflowScrolling: 'touch' }}>

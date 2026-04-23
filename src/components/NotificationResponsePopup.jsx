@@ -16,7 +16,7 @@ export default function NotificationResponsePopup({ notif, onClose, onRespond })
 
   return (
     <div
-      onClick={onClose}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.5)',
@@ -25,7 +25,6 @@ export default function NotificationResponsePopup({ notif, onClose, onRespond })
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{
           background: '#FFF9F0',
           borderRadius: 24,

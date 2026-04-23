@@ -530,6 +530,30 @@ export default function TraineeProfile() {
 
   // Sync server user to local state — but NEVER while edit dialog is open (would reset form fields)
   const effectiveUserId = effectiveUser?.id;
+  const editDraftKey = effectiveUserId ? `athletigo_draft_TraineeDetailsEdit_${effectiveUserId}` : null;
+
+  // Restore draft when edit dialog opens — overlays any saved draft over the
+  // server-synced defaults so users never lose unsaved edits, even if the
+  // dialog was closed seconds after typing.
+  useEffect(() => {
+    if (!showEdit || !editDraftKey) return;
+    try {
+      const raw = localStorage.getItem(editDraftKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?._draftData && typeof parsed._draftData === 'object') {
+        setFormData(prev => ({ ...prev, ...parsed._draftData }));
+      }
+    } catch {}
+  }, [showEdit, editDraftKey]);
+
+  // Instant draft save — every formData change writes immediately, no debounce.
+  useEffect(() => {
+    if (!showEdit || !editDraftKey) return;
+    try {
+      localStorage.setItem(editDraftKey, JSON.stringify({ _draftData: formData, _savedAt: new Date().toISOString() }));
+    } catch {}
+  }, [formData, showEdit, editDraftKey]);
   useEffect(() => {
     if (effectiveUser && !showEdit) {
       setUser(effectiveUser);
@@ -1154,6 +1178,7 @@ export default function TraineeProfile() {
       } else {
         await updateUserMutation.mutateAsync(dataToUpdate);
       }
+      if (editDraftKey) { try { localStorage.removeItem(editDraftKey); } catch {} }
       setShowEdit(false);
     } catch (error) {
       console.error("[handleSave] error:", error?.message || error);
@@ -2627,7 +2652,7 @@ export default function TraineeProfile() {
         </Dialog>
 
         {/* Vision Dialog */}
-        <VisionFormDialog isOpen={showVisionDialog} onClose={() => setShowVisionDialog(false)} initialData={user?.vision || {}} onSubmit={data => updateVisionMutation.mutate(data)} isCoach={isCoach} isLoading={updateVisionMutation.isPending} />
+        <VisionFormDialog isOpen={showVisionDialog} onClose={() => setShowVisionDialog(false)} initialData={user?.vision || {}} onSubmit={data => updateVisionMutation.mutate(data)} isCoach={isCoach} isLoading={updateVisionMutation.isPending} traineeId={user?.id} />
 
         {/* Goal Dialog */}
         <GoalFormDialog isOpen={showAddGoal} onClose={() => { setShowAddGoal(false); setEditingGoal(null); }} traineeId={user.id} traineeName={user.full_name} editingGoal={editingGoal} />

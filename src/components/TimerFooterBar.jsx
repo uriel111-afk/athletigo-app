@@ -101,8 +101,27 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
     else if (type === 'emom') window.dispatchEvent(new CustomEvent('emom-open-round-picker'));
   };
 
+  // Stop every flavor of pointer/touch/mouse/click event at the container
+  // so nothing reaches the dialog backdrops behind the bar. The
+  // data-timer-bar marker also lets Radix DialogContent recognize
+  // interactions originating from the bar and refuse to close.
+  const stopAny = (e) => {
+    e.stopPropagation();
+    if (typeof e.nativeEvent?.stopImmediatePropagation === 'function') {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+  };
+
   return (
     <div
+      data-timer-bar="true"
+      onClick={stopAny}
+      onPointerDown={stopAny}
+      onPointerUp={stopAny}
+      onMouseDown={stopAny}
+      onMouseUp={stopAny}
+      onTouchStart={stopAny}
+      onTouchEnd={stopAny}
       style={{
         position: 'fixed',
         bottom: bottomOffset,

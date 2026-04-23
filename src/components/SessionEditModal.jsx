@@ -22,19 +22,44 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
   const traineeId = session?.participants?.[0]?.trainee_id || session?.trainee_id;
   const traineeName = session?.participants?.[0]?.trainee_name || session?.trainee_name || "";
 
-  // Initialize form when session changes
+  const draftKey = session?.id ? `athletigo_draft_SessionEdit_${session.id}` : null;
+
+  // Initialize form when session changes — but prefer saved draft over server
+  // state so unsaved edits survive a close/reopen.
   useEffect(() => {
     if (!session) return;
-    setFormData({
+    const baseline = {
       date: session.date || "",
       time: session.time || "",
       session_type: session.session_type || "אישי",
       status: session.status || "ממתין לאישור",
       notes: session.coach_notes || session.notes || "",
-    });
-    setSelectedPackageId(session.service_id || "");
-    setShouldDeduct(false);
-  }, [session]);
+    };
+    let restored = null;
+    if (draftKey) {
+      try {
+        const raw = localStorage.getItem(draftKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?._draftData) restored = parsed._draftData;
+        }
+      } catch {}
+    }
+    setFormData({ ...baseline, ...(restored?.formData || {}) });
+    setSelectedPackageId(restored?.selectedPackageId ?? (session.service_id || ""));
+    setShouldDeduct(!!restored?.shouldDeduct);
+  }, [session, draftKey]);
+
+  // Instant draft save — no debounce.
+  useEffect(() => {
+    if (!isOpen || !draftKey) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({
+        _draftData: { formData, selectedPackageId, shouldDeduct },
+        _savedAt: new Date().toISOString(),
+      }));
+    } catch {}
+  }, [isOpen, draftKey, formData, selectedPackageId, shouldDeduct]);
 
   // Fetch trainee's active packages
   useEffect(() => {
@@ -151,6 +176,7 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
 
       toast.success("המפגש עודכן בהצלחה");
       window.dispatchEvent(new Event("data-changed"));
+      if (draftKey) { try { localStorage.removeItem(draftKey); } catch {} }
       onClose();
 
       // Show renewal alert if package running low
@@ -242,7 +268,7 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
         alignItems: "flex-end",
         justifyContent: "center",
       }}
-      onClick={onClose}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         style={{
@@ -255,7 +281,6 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
           direction: "rtl",
           WebkitOverflowScrolling: "touch",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div

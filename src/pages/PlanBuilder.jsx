@@ -505,8 +505,8 @@ export default function PlanBuilder() {
 
       {/* Section type picker */}
       {addingSectionType && (
-        <div onClick={() => setAddingSectionType(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "white", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480 }}>
+        <div onClick={(e) => { if (e.target === e.currentTarget) setAddingSectionType(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div style={{ background: "white", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480 }}>
             <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 4, textAlign: "center" }}>+ סקשן חדש</div>
             <div style={{ fontSize: 13, color: "#999", textAlign: "center", marginBottom: 16 }}>בחר סוג סקשן</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>

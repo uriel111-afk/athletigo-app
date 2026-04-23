@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,37 +6,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Target, Telescope, Trophy, Calendar, Heart, ShieldAlert, MessageSquare } from "lucide-react";
+import { useFormDraft } from "@/hooks/useFormDraft";
 
-export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmit, isCoach, isLoading }) {
-  const [formData, setFormData] = useState({
-    mainGoalShort: "",
-    mainGoalWhy: "",
-    longTermVision: "",
-    keySkills: "",
-    trainingFrequency: "",
-    mainMotivation: "",
-    obstacles: "",
-    coachNotesOnVision: ""
-  });
+export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmit, isCoach, isLoading, traineeId }) {
+  const seed = useMemo(() => ({
+    mainGoalShort: initialData?.mainGoalShort || "",
+    mainGoalWhy: initialData?.mainGoalWhy || "",
+    longTermVision: initialData?.longTermVision || "",
+    keySkills: initialData?.keySkills || "",
+    trainingFrequency: initialData?.trainingFrequency || "",
+    mainMotivation: initialData?.mainMotivation || "",
+    obstacles: initialData?.obstacles || "",
+    coachNotesOnVision: initialData?.coachNotesOnVision || "",
+  }), [initialData]);
 
-  useEffect(() => {
-    if (isOpen && initialData) {
-      setFormData({
-        mainGoalShort: initialData.mainGoalShort || "",
-        mainGoalWhy: initialData.mainGoalWhy || "",
-        longTermVision: initialData.longTermVision || "",
-        keySkills: initialData.keySkills || "",
-        trainingFrequency: initialData.trainingFrequency || "",
-        mainMotivation: initialData.mainMotivation || "",
-        obstacles: initialData.obstacles || "",
-        coachNotesOnVision: initialData.coachNotesOnVision || ""
-      });
-    }
-  }, [isOpen, initialData]);
+  const {
+    data: formData, setData: setFormData, clearDraft,
+  } = useFormDraft('VisionForm', traineeId ?? 'global', isOpen, seed);
 
   const handleSubmit = async () => {
     try {
       await onSubmit(formData);
+      clearDraft();
     } catch (error) {
       console.error("[VisionForm] Save error:", error);
     }

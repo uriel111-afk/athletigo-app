@@ -15,6 +15,7 @@ import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import { useFormDraft } from "@/hooks/useFormDraft";
 
 export default function UnifiedClientCard({ 
   client, 
@@ -87,9 +88,12 @@ export default function UnifiedClientCard({
     coach_notes: ""
   });
 
-  const [noteForm, setNoteForm] = useState({
-    note_text: ""
-  });
+  const { data: noteForm, setData: setNoteForm, clearDraft: clearNoteDraft } = useFormDraft(
+    'AddNote',
+    currentClient?.id ?? client?.id,
+    showAddNote,
+    { note_text: "" }
+  );
 
   const [serviceForm, setServiceForm] = useState({
     service_type: "אימונים אישיים",
@@ -1185,7 +1189,7 @@ export default function UnifiedClientCard({
                   <MessageSquare className="w-4 h-4 md:w-5 md:h-5" style={{ color: '#FF6F20' }} />
                   הערות המאמן
                 </h2>
-                <Button onClick={() => { setNoteForm({ note_text: "" }); setShowAddNote(true); }}
+                <Button onClick={() => { setShowAddNote(true); }}
                   variant="ghost" className="rounded-lg px-2 md:px-3 py-1.5 md:py-2 font-medium text-[10px] md:text-xs" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
                   <Plus className="w-3 h-3 ml-1" />
                   הוסף
@@ -1623,7 +1627,7 @@ export default function UnifiedClientCard({
           <DialogHeader><DialogTitle className="text-base md:text-lg">הוסף הערה</DialogTitle></DialogHeader>
           <div className="space-y-3 md:space-y-4">
             <div><Label className="text-xs md:text-sm">הערת מאמן</Label><Textarea value={noteForm.note_text} onChange={(e) => setNoteForm({...noteForm, note_text: e.target.value})} className="rounded-xl min-h-[100px] md:min-h-[120px] text-sm md:text-base" placeholder="הקלד הערה..." /></div>
-            <Button onClick={() => { toast.success("✅ הערה נשמרה"); setShowAddNote(false); }} className="w-full rounded-xl py-3 md:py-4 text-white text-sm md:text-base" style={{ backgroundColor: '#FF6F20' }}>
+            <Button onClick={() => { clearNoteDraft(); toast.success("✅ הערה נשמרה"); setShowAddNote(false); }} className="w-full rounded-xl py-3 md:py-4 text-white text-sm md:text-base" style={{ backgroundColor: '#FF6F20' }}>
               שמור הערה
             </Button>
           </div>

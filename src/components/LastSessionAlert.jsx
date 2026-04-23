@@ -95,10 +95,9 @@ export default function LastSessionAlert() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 6000, padding: 20,
       }}
-      onClick={dismiss}
+      onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
     >
       <div
-        onClick={e => e.stopPropagation()}
         dir="rtl"
         style={{
           background: '#FFF9F0',

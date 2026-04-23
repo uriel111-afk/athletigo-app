@@ -46,7 +46,7 @@ export default function RoundJumpPicker({
 
   return (
     <div
-      onClick={(e) => { e.stopPropagation(); onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) { e.stopPropagation(); onClose(); } }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.4)',
@@ -55,7 +55,6 @@ export default function RoundJumpPicker({
       }}
     >
       <div
-        onClick={e => e.stopPropagation()}
         style={{
           background: 'rgba(255,249,240,0.97)',
           backdropFilter: 'blur(12px)',
