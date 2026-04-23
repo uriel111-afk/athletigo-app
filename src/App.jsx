@@ -14,6 +14,18 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import AppLoader from '@/components/AppLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
+import CoachHub from './pages/CoachHub';
+import LifeOSDashboard from './pages/lifeos/LifeOSDashboard';
+import LifeOSExpenses from './pages/lifeos/Expenses';
+import LifeOSIncome from './pages/lifeos/Income';
+import LifeOSRecurring from './pages/lifeos/RecurringPayments';
+import LifeOSInstallments from './pages/lifeos/Installments';
+import LifeOSDocuments from './pages/lifeos/DocumentVault';
+import LifeOSCashFlow from './pages/lifeos/CashFlow';
+import LifeOSBusinessPlan from './pages/lifeos/BusinessPlan';
+import LifeOSTasks from './pages/lifeos/Tasks';
+import LifeOSSettings from './pages/lifeos/LifeOSSettings';
+import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
@@ -101,6 +113,16 @@ const AuthenticatedApp = () => {
 
   // Real-time sync — listen to Supabase changes and auto-refresh
   useRealtimeSync(user?.id);
+
+  // Life OS coach lands on /hub instead of the root. Every other user
+  // keeps the existing behavior untouched.
+  useEffect(() => {
+    if (!user?.id) return;
+    if (user.id !== COACH_USER_ID) return;
+    if (location.pathname === '/' || location.pathname === '') {
+      navigate('/hub', { replace: true });
+    }
+  }, [user?.id, location.pathname, navigate]);
 
   // ── Realtime notification popup (coach only) ──────────────────────
   const [popupNotif, setPopupNotif] = useState(null);
@@ -278,6 +300,22 @@ const AuthenticatedApp = () => {
           </PageRouteGuard>
         }
       />
+
+      {/* ── Life OS (coach hub + financial OS) ─────────────────── */}
+      {/* These screens render without the app-wide Layout — they use */}
+      {/* their own LifeOSLayout (CoachHub has a custom shell). */}
+      <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
+      <Route path="/lifeos"              element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
+      <Route path="/lifeos/expenses"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenses /></PageRouteGuard>} />
+      <Route path="/lifeos/income"       element={<PageRouteGuard pageKey="LifeOS"><LifeOSIncome /></PageRouteGuard>} />
+      <Route path="/lifeos/recurring"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSRecurring /></PageRouteGuard>} />
+      <Route path="/lifeos/installments" element={<PageRouteGuard pageKey="LifeOS"><LifeOSInstallments /></PageRouteGuard>} />
+      <Route path="/lifeos/documents"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSDocuments /></PageRouteGuard>} />
+      <Route path="/lifeos/cashflow"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSCashFlow /></PageRouteGuard>} />
+      <Route path="/lifeos/plan"         element={<PageRouteGuard pageKey="LifeOS"><LifeOSBusinessPlan /></PageRouteGuard>} />
+      <Route path="/lifeos/tasks"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSTasks /></PageRouteGuard>} />
+      <Route path="/lifeos/settings"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSSettings /></PageRouteGuard>} />
+
       <Route path="*" element={<PageNotFound />} />
     </Routes>
     </>

@@ -119,8 +119,12 @@ export const AuthProvider = ({ children }) => {
         }, 300);
       } else if (isOnboardingComplete && isCurrentlyOnOnboarding) {
         console.log('[AuthContext] User already completed onboarding, redirecting away');
+        // The Life OS coach (uriel111@gmail.com) lands on /hub; every
+        // other coach keeps going to /dashboard as before.
+        const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
+        const coachHome = userProfile?.id === LIFE_OS_COACH_ID ? '/hub' : '/dashboard';
         setTimeout(() => {
-          window.location.href = isCoachUser ? '/dashboard' : '/trainee-home';
+          window.location.href = isCoachUser ? coachHome : '/trainee-home';
         }, 300);
       }
     } catch (error) {

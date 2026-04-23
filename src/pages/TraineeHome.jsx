@@ -61,6 +61,12 @@ export default function TraineeHome() {
   // of the main loadData refresh. Card sits at the top of home screen.
   const [todayChallenge, setTodayChallenge] = useState(null);
   const [challengeStreak, setChallengeStreak] = useState(0);
+  // Undo flow: tap "ביצעתי" → 5s pending state with undo button → save.
+  // Also a 30s post-save revert link in case it slipped through.
+  const [pendingComplete, setPendingComplete] = useState(false);
+  const undoTimerRef = React.useRef(null);
+  const [showRevertLink, setShowRevertLink] = useState(false);
+  const revertTimerRef = React.useRef(null);
 
   const fetchDailyChallenge = useCallback(async (uid) => {
     if (!uid) return;
@@ -88,23 +94,34 @@ export default function TraineeHome() {
 
   useEffect(() => { if (user?.id) fetchDailyChallenge(user.id); }, [user?.id, fetchDailyChallenge]);
 
-  const completeChallenge = async () => {
+  const actuallyCompleteChallenge = async () => {
     if (!todayChallenge) return;
     const updatedData = {
       ...(todayChallenge.parsed || {}),
       completed_at: new Date().toISOString(),
     };
+    // notifications.data is JSONB — pass raw object, not stringified.
     const { error } = await supabase
       .from("notifications")
-      .update({ is_read: true, data: JSON.stringify(updatedData) })
+      .update({ is_read: true, data: updatedData })
       .eq("id", todayChallenge.id);
-    if (error) { toast.error("שגיאה: " + error.message); return; }
+    if (error) {
+      toast.error("שגיאה: " + error.message);
+      setPendingComplete(false);
+      return;
+    }
     setTodayChallenge(prev => prev ? { ...prev, is_read: true, parsed: updatedData } : prev);
     setChallengeStreak(prev => prev + 1);
+    setPendingComplete(false);
     toast.success("🔥 כל הכבוד! הרצף ממשיך!");
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try { navigator.vibrate([100, 50, 100, 50, 200]); } catch {}
     }
+    // 30-second window to revert if it was a misclick
+    setShowRevertLink(true);
+    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
+    revertTimerRef.current = setTimeout(() => setShowRevertLink(false), 30000);
+
     // Notify coach — best-effort, ignore failures
     if (todayChallenge.parsed?.coach_id) {
       try {
@@ -117,6 +134,48 @@ export default function TraineeHome() {
       } catch {}
     }
   };
+
+  const completeChallenge = () => {
+    if (!todayChallenge || pendingComplete) return;
+    // Optimistic UI: show success state immediately + 5s undo window
+    setPendingComplete(true);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => {
+      undoTimerRef.current = null;
+      actuallyCompleteChallenge();
+    }, 5000);
+  };
+
+  const undoComplete = () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = null;
+    setPendingComplete(false);
+    toast.success("הפעולה בוטלה");
+  };
+
+  const revertComplete = async () => {
+    if (!todayChallenge?.is_read) return;
+    const updatedData = {
+      ...(todayChallenge.parsed || {}),
+      completed_at: null,
+    };
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: false, data: updatedData })
+      .eq("id", todayChallenge.id);
+    if (error) { toast.error("שגיאה: " + error.message); return; }
+    setTodayChallenge(prev => prev ? { ...prev, is_read: false, parsed: updatedData } : prev);
+    setChallengeStreak(prev => Math.max(0, prev - 1));
+    setShowRevertLink(false);
+    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
+    toast.success("הפעולה בוטלה");
+  };
+
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -404,7 +463,7 @@ export default function TraineeHome() {
         {/* Daily Challenge card */}
         {todayChallenge && (
           <div style={{
-            background: todayChallenge.is_read
+            background: (todayChallenge.is_read || pendingComplete)
               ? 'linear-gradient(135deg, #16a34a, #22c55e)'
               : 'linear-gradient(135deg, #FF6F20, #FF8F50)',
             borderRadius: 20,
@@ -460,7 +519,23 @@ export default function TraineeHome() {
                 {'🔥'.repeat(Math.min(challengeStreak, 10))} {challengeStreak} ימים ברצף!
               </div>
             )}
-            {!todayChallenge.is_read ? (
+            {pendingComplete ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🏆</div>
+                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>כל הכבוד!</div>
+                <button onClick={undoComplete} style={{
+                  padding: '10px 24px',
+                  borderRadius: 12,
+                  border: '2px solid white',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                }}>↩️ ביטול (לחצתי בטעות)</button>
+                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6 }}>
+                  נשמר אוטומטית בעוד 5 שניות...
+                </div>
+              </div>
+            ) : !todayChallenge.is_read ? (
               <button onClick={completeChallenge} style={{
                 padding: '12px 32px',
                 borderRadius: 14,
@@ -471,7 +546,17 @@ export default function TraineeHome() {
                 cursor: 'pointer',
               }}>✅ ביצעתי!</button>
             ) : (
-              <div style={{ fontSize: 32 }}>🏆</div>
+              <>
+                <div style={{ fontSize: 32 }}>🏆</div>
+                {showRevertLink && (
+                  <button onClick={revertComplete} style={{
+                    background: 'none', border: 'none',
+                    color: 'rgba(255,255,255,0.75)',
+                    fontSize: 12, cursor: 'pointer',
+                    marginTop: 8, textDecoration: 'underline',
+                  }}>↩️ לחצתי בטעות? בטל</button>
+                )}
+              </>
             )}
           </div>
         )}

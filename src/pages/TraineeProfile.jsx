@@ -422,7 +422,7 @@ export default function TraineeProfile() {
   const [resetPwInput, setResetPwInput] = useState('');
   const [resetPwGenerated, setResetPwGenerated] = useState('');
   const [resetPwSaving, setResetPwSaving] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ newPass: "", confirm: "" });
+  const [passwordForm, setPasswordForm] = useState({ currentPass: "", newPass: "", confirm: "" });
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   const [showAddService, setShowAddService] = useState(false);
@@ -1445,6 +1445,10 @@ export default function TraineeProfile() {
   };
 
   const handlePasswordChange = async () => {
+    if (!passwordForm.currentPass) {
+      toast.error("יש להזין את הסיסמה הנוכחית");
+      return;
+    }
     if (passwordForm.newPass !== passwordForm.confirm) {
       toast.error("הסיסמאות החדשות לא תואמות");
       return;
@@ -1454,6 +1458,24 @@ export default function TraineeProfile() {
       return;
     }
     setPasswordLoading(true);
+    // Step 1: re-authenticate with the current password so we don't let
+    // an attacker who hijacks an open session change the password.
+    const emailForVerify = currentUser?.email;
+    if (!emailForVerify) {
+      setPasswordLoading(false);
+      toast.error("שגיאה: לא נטען משתמש");
+      return;
+    }
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: emailForVerify,
+      password: passwordForm.currentPass,
+    });
+    if (signInErr) {
+      setPasswordLoading(false);
+      toast.error("סיסמה נוכחית שגויה");
+      return;
+    }
+    // Step 2: update to the new password
     const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
     setPasswordLoading(false);
     if (error) {
@@ -1461,7 +1483,7 @@ export default function TraineeProfile() {
     } else {
       toast.success("✅ הסיסמה שונתה בהצלחה");
       setShowPasswordChange(false);
-      setPasswordForm({ newPass: "", confirm: "" });
+      setPasswordForm({ currentPass: "", newPass: "", confirm: "" });
     }
   };
 
@@ -1846,9 +1868,10 @@ export default function TraineeProfile() {
                   </button>
                 )}
                 {!isCoach && (
-                  <div className="w-full rounded-xl p-3 text-center" style={{ background: 'white', border: '0.5px solid #F0E4D0' }}>
-                    <div style={{ fontSize: 13, color: '#888' }}>🔒 לשינוי סיסמה — פנה למאמן שלך</div>
-                  </div>
+                  <button onClick={() => setShowPasswordChange(true)} className="w-full bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
+                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
+                    <div className="font-bold text-xs text-white">שינוי סיסמא</div>
+                  </button>
                 )}
 
                 {/* Delete Trainee — coach only */}
@@ -2861,10 +2884,14 @@ export default function TraineeProfile() {
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>שינוי סיסמא</DialogTitle></DialogHeader>
             <div className="space-y-4">
+              <div><Label className="text-sm font-bold block mb-1">סיסמה נוכחית</Label><Input type="password" placeholder="הסיסמה הנוכחית שלך" value={passwordForm.currentPass} onChange={e => setPasswordForm({ ...passwordForm, currentPass: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
               <div><Label className="text-sm font-bold block mb-1">סיסמה חדשה</Label><Input type="password" placeholder="לפחות 6 תווים" value={passwordForm.newPass} onChange={e => setPasswordForm({ ...passwordForm, newPass: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
               <div><Label className="text-sm font-bold block mb-1">אישור סיסמה חדשה</Label><Input type="password" placeholder="הכנס שוב" value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
-              <Button onClick={handlePasswordChange} disabled={passwordLoading} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
-                {passwordLoading ? 'שומר...' : 'שמור סיסמה'}
+              {passwordForm.newPass && passwordForm.confirm && passwordForm.newPass !== passwordForm.confirm && (
+                <div style={{ fontSize: 12, color: '#dc2626' }}>הסיסמאות לא תואמות</div>
+              )}
+              <Button onClick={handlePasswordChange} disabled={passwordLoading || !passwordForm.currentPass || !passwordForm.newPass || passwordForm.newPass !== passwordForm.confirm || passwordForm.newPass.length < 6} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+                {passwordLoading ? 'שומר...' : '🔒 שנה סיסמה'}
               </Button>
             </div>
           </DialogContent>
