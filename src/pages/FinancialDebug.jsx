@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
-import { Loader2 } from "lucide-react";
+import PageLoader from "@/components/PageLoader";
 
 export default function FinancialDebug() {
   const { data: payments = [], isLoading } = useQuery({
@@ -47,7 +47,7 @@ export default function FinancialDebug() {
   console.log("FIN_DEBUG_totalLastMonth", totalLastMonth);
 
   if (isLoading) {
-    return <div className="flex justify-center p-10"><Loader2 className="animate-spin" /></div>;
+    return <PageLoader />;
   }
 
   return (

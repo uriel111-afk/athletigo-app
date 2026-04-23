@@ -18,6 +18,7 @@ import { format, isToday, isTomorrow, isPast, isFuture } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
+import PageLoader from "@/components/PageLoader";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
 import SessionEditModal from "../components/SessionEditModal";
 import { notifySessionScheduled, notifySessionCompleted } from "@/functions/notificationTriggers";
@@ -1246,12 +1247,7 @@ export default function Sessions() {
           )}
 
           {/* ═══ SESSIONS VIEW ═══ */}
-          {activeView === 'sessions' && isLoading &&
-          <div className="text-center py-12">
-              <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin" style={{ color: '#FF6F20' }} />
-              <p className="text-lg" style={{ color: '#7D7D7D' }}>טוען מפגשים...</p>
-            </div>
-          }
+          {activeView === 'sessions' && isLoading && <PageLoader />}
 
           {activeView === 'sessions' && !isLoading &&
           <>

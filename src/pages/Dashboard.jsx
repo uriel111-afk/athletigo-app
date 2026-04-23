@@ -173,6 +173,45 @@ export default function Dashboard() {
     }
   };
 
+  // Reminders — fetch on mount, poll every 30s, surface the first overdue
+  // one as a NotificationPopup (each reminder popped at most once per session).
+  const fetchReminders = useCallback(async () => {
+    if (!coach?.id) return;
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', coach.id)
+      .eq('type', 'coach_reminder')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.warn('[Dashboard] reminders fetch failed:', error?.message);
+      return;
+    }
+    setReminders(data || []);
+  }, [coach?.id]);
+
+  useEffect(() => {
+    if (!coach?.id) return;
+    fetchReminders();
+    const iv = setInterval(fetchReminders, 30000);
+    return () => clearInterval(iv);
+  }, [coach?.id, fetchReminders]);
+
+  useEffect(() => {
+    if (duePopup) return;
+    const now = new Date();
+    const due = reminders.find(r =>
+      !r.is_read &&
+      r.data?.remind_at &&
+      new Date(r.data.remind_at) <= now &&
+      !shownReminderIds.has(r.id)
+    );
+    if (due) {
+      setDuePopup(due);
+      setShownReminderIds(prev => { const n = new Set(prev); n.add(due.id); return n; });
+    }
+  }, [reminders, duePopup, shownReminderIds]);
+
   // Direct trainees query — shared key with useDashboardStats, no initialData
   const { data: allTrainees = [] } = useQuery({
     queryKey: QUERY_KEYS.TRAINEES,
@@ -412,6 +451,45 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* Reminders quick-access — opens the RemindersPanel bottom sheet.
+              Badge count = pending reminders with remind_at <= now. */}
+          <div className="px-2" style={{ marginBottom: 10 }}>
+            <div
+              onClick={() => setShowReminders(true)}
+              style={{
+                background: "white", borderRadius: 14,
+                padding: "12px 16px",
+                display: "flex", alignItems: "center", gap: 12,
+                cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+                border: "1px solid rgba(0,0,0,0.04)",
+                position: "relative",
+              }}
+            >
+              <div style={{ fontSize: 24 }}>⏰</div>
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>תזכורות</div>
+              <div style={{ fontSize: 12, color: "#888" }}>
+                {reminders.filter(r => !r.is_read).length} פעילות
+              </div>
+              {(() => {
+                const overdue = reminders.filter(r =>
+                  !r.is_read && r.data?.remind_at && new Date(r.data.remind_at) <= new Date()
+                ).length;
+                if (overdue === 0) return null;
+                return (
+                  <div style={{
+                    position: "absolute", top: 6, right: 6,
+                    minWidth: 20, height: 20, padding: "0 6px",
+                    borderRadius: 10, background: "#dc2626", color: "white",
+                    fontSize: 11, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    border: "2px solid white",
+                  }}>{overdue}</div>
+                );
+              })()}
+            </div>
+          </div>
 
           {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />
@@ -653,6 +731,20 @@ export default function Dashboard() {
           <BaselineFormDialog isOpen={isBaselineDialogOpen} onClose={() => setIsBaselineDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
         </>
+      )}
+
+      <RemindersPanel
+        isOpen={showReminders}
+        onClose={() => setShowReminders(false)}
+        userId={coach?.id}
+        onChange={setReminders}
+      />
+      {duePopup && (
+        <NotificationPopup
+          notification={duePopup}
+          onDismiss={() => setDuePopup(null)}
+          onTap={() => { setDuePopup(null); setShowReminders(true); }}
+        />
       )}
     </ProtectedCoachPage>
   );

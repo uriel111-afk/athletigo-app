@@ -12,6 +12,7 @@ import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
+import PageLoader from "@/components/PageLoader";
 import { toast } from "sonner";
 
 export default function CoachProfile() {
@@ -214,11 +215,7 @@ export default function CoachProfile() {
   };
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <div className="athletigo-spinner mx-auto"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

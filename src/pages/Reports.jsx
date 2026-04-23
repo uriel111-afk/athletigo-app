@@ -7,6 +7,7 @@ import { createPageUrl } from '@/utils';
 import ProtectedCoachPage from '../components/ProtectedCoachPage';
 import PackageDetailsDialog from '../components/PackageDetailsDialog';
 import PackageFormDialog from '../components/forms/PackageFormDialog';
+import PageLoader from '@/components/PageLoader';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 
@@ -829,9 +830,7 @@ export default function Reports() {
           </div>
 
           {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-              <div style={{ width: 36, height: 36, border: '3px solid #F0E4D0', borderTop: '3px solid #FF6F20', borderRadius: '50%', animation: '_rep_spin 0.8s linear infinite' }} />
-            </div>
+            <PageLoader />
           ) : (
             <>
               {/* A. Revenue hero — always visible */}

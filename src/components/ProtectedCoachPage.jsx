@@ -1,16 +1,13 @@
 import React, { useContext } from "react";
 import { AuthContext } from "@/lib/AuthContext";
-import { Loader2, Shield } from "lucide-react";
+import { Shield } from "lucide-react";
+import PageLoader from "@/components/PageLoader";
 
 export default function ProtectedCoachPage({ children }) {
   const { user, isLoadingAuth } = useContext(AuthContext);
 
   if (isLoadingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#FF6F20' }} />
-      </div>
-    );
+    return <PageLoader fullHeight />;
   }
 
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
