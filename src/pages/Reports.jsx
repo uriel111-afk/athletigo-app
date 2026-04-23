@@ -65,32 +65,39 @@ export default function Reports() {
   const [trainees, setTrainees] = useState([]);
   const [packages, setPackages] = useState([]);
 
+  const fetchAll = React.useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    const start = getStartDate(timeFilter);
+    let q = supabase
+      .from('sessions')
+      .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at')
+      .eq('coach_id', user.id)
+      .order('date', { ascending: false });
+    if (start) q = q.gte('date', start.toISOString().split('T')[0]);
+    const [sessRes, traineesRes, pkgRes] = await Promise.all([
+      q,
+      supabase.from('users').select('id, full_name').eq('coach_id', user.id).eq('role', 'trainee'),
+      supabase.from('client_services').select('id, trainee_id, package_name, status, used_sessions, total_sessions, expires_at, end_date, created_at').eq('coach_id', user.id),
+    ]);
+    setSessions(sessRes.data || []);
+    setTrainees(traineesRes.data || []);
+    setPackages(pkgRes.data || []);
+    setLoading(false);
+  }, [user?.id, timeFilter]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Realtime sync — refetch when sessions or packages change for this coach.
   useEffect(() => {
     if (!user?.id) return;
-    let cancelled = false;
-    const fetchAll = async () => {
-      setLoading(true);
-      const start = getStartDate(timeFilter);
-      let q = supabase
-        .from('sessions')
-        .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at')
-        .eq('coach_id', user.id)
-        .order('date', { ascending: false });
-      if (start) q = q.gte('date', start.toISOString().split('T')[0]);
-      const [sessRes, traineesRes, pkgRes] = await Promise.all([
-        q,
-        supabase.from('users').select('id, full_name').eq('coach_id', user.id).eq('role', 'trainee'),
-        supabase.from('client_services').select('id, trainee_id, package_name, status, used_sessions, total_sessions, expires_at, end_date, created_at').eq('coach_id', user.id),
-      ]);
-      if (cancelled) return;
-      setSessions(sessRes.data || []);
-      setTrainees(traineesRes.data || []);
-      setPackages(pkgRes.data || []);
-      setLoading(false);
-    };
-    fetchAll();
-    return () => { cancelled = true; };
-  }, [user?.id, timeFilter]);
+    const ch = supabase
+      .channel('reports_sync_' + user.id)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions',         filter: `coach_id=eq.${user.id}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services',  filter: `coach_id=eq.${user.id}` }, () => fetchAll())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user?.id, fetchAll]);
 
   const traineeNameById = useMemo(() => {
     const m = new Map();
@@ -111,18 +118,24 @@ export default function Reports() {
 
   const metrics = useMemo(() => {
     let total = 0, completed = 0, cancelled = 0;
-    const traineeSet = new Set();
     for (const s of sessions) {
       total++;
       const n = normalizeStatus(s.status);
       if (n === 'completed' || n === 'present') completed++;
       if (n === 'cancelled') cancelled++;
-      for (const tid of traineeIdsFromSession(s)) if (tid) traineeSet.add(tid);
     }
     const scheduled = total - cancelled;
     const rate = scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0;
+    // Active trainees = unique trainee_ids holding at least one
+    // active package with sessions still remaining (matches spec).
+    const traineeSet = new Set();
+    for (const p of packages) {
+      const isActive = p.status === 'פעיל' || p.status === 'active';
+      const remaining = Math.max(0, (p.total_sessions || 0) - (p.used_sessions || 0));
+      if (isActive && remaining > 0 && p.trainee_id) traineeSet.add(p.trainee_id);
+    }
     return { total, completed, cancelled, scheduled, rate, activeTrainees: traineeSet.size };
-  }, [sessions]);
+  }, [sessions, packages]);
 
   const chartData = useMemo(() => {
     const groups = new Map();
@@ -313,9 +326,10 @@ export default function Reports() {
               </Card>
 
               {/* Top trainees */}
-              {topTrainees.length > 0 && (
-                <Card title="🏆 מתאמנים מובילים">
-                  {topTrainees.slice(0, 5).map((t, i) => (
+              <Card title="🏆 מתאמנים מובילים">
+                {topTrainees.length === 0 ? (
+                  <EmptyMsg text="אין מתאמנים עם מפגשים שהושלמו בתקופה זו" />
+                ) : topTrainees.slice(0, 5).map((t, i) => (
                     <div key={t.id} style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
                       borderBottom: i < Math.min(4, topTrainees.length - 1) ? '0.5px solid #F8F0E8' : 'none',
@@ -331,13 +345,13 @@ export default function Reports() {
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#FF6F20' }}>{t.count} מפגשים</div>
                     </div>
                   ))}
-                </Card>
-              )}
+              </Card>
 
               {/* Session types breakdown */}
-              {sessionTypesBreakdown.length > 0 && (
-                <Card title="📋 חלוקה לפי סוג מפגש">
-                  {sessionTypesBreakdown.map(st => (
+              <Card title="📋 חלוקה לפי סוג מפגש">
+                {sessionTypesBreakdown.length === 0 ? (
+                  <EmptyMsg text="אין מפגשים בתקופה זו" />
+                ) : sessionTypesBreakdown.map(st => (
                     <div key={st.type} style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                         <span style={{ fontWeight: 500 }}>{st.label}</span>
@@ -348,8 +362,7 @@ export default function Reports() {
                       </div>
                     </div>
                   ))}
-                </Card>
-              )}
+              </Card>
 
               {/* Package status summary */}
               <Card title="🎫 סטטוס חבילות">
@@ -363,9 +376,10 @@ export default function Reports() {
               </Card>
 
               {/* Recent activity */}
-              {recentActivity.length > 0 && (
-                <Card title="🕐 פעילות אחרונה" mb={16}>
-                  {recentActivity.map((a, i) => (
+              <Card title="🕐 פעילות אחרונה" mb={16}>
+                {recentActivity.length === 0 ? (
+                  <EmptyMsg text="אין פעילות אחרונה בתקופה זו" />
+                ) : recentActivity.map((a, i) => (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
                       borderBottom: i < recentActivity.length - 1 ? '0.5px solid #F8F0E8' : 'none',
@@ -376,8 +390,7 @@ export default function Reports() {
                       <div style={{ fontSize: 11, color: '#aaa', whiteSpace: 'nowrap' }}>{relativeTime(a.date)}</div>
                     </div>
                   ))}
-                </Card>
-              )}
+              </Card>
             </>
           )}
         </div>
@@ -419,4 +432,13 @@ function PkgStat({ value, color, label }) {
 
 function Divider() {
   return <div style={{ width: '0.5px', background: '#E5E5E5' }} />;
+}
+
+function EmptyMsg({ text }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '20px 0', color: '#888', fontSize: 13 }}>
+      <div style={{ fontSize: 24, marginBottom: 6 }}>📊</div>
+      {text}
+    </div>
+  );
 }
