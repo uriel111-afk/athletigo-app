@@ -248,3 +248,146 @@ export function cancelScheduled() {
   scheduledNodes.forEach(n => { try { n.stop(0); } catch (e) {} });
   scheduledNodes.length = 0;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Haptic feedback — `navigator.vibrate` guarded for browsers/iOS-Safari
+// that don't implement the Vibration API. Tapping vibrate on those
+// platforms is a safe no-op; the try/catch is belt-and-suspenders.
+// ─────────────────────────────────────────────────────────────────────
+export const VIBRATION = {
+  workStart: [200, 100, 200],            // two short pulses = GO!
+  restStart: [300],                      // one long pulse = rest
+  tick:      [50],                       // 3-2-1 countdown micro-tick
+  finish:    [200, 100, 200, 100, 400],  // celebration
+  pause:     [50],                       // subtle tap
+  resume:    [100],                      // slightly longer tap
+};
+
+export function vibrate(pattern) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(pattern);
+    }
+  } catch (e) {}
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Timer notifications — a single persistent notification (tag
+// 'athletigo-timer') that mirrors the currently-running timer so the
+// user sees timer state in the phone's notification shade even when
+// the tab is backgrounded. We use the Notification API directly for
+// foreground updates and fall back to the active Service Worker for
+// platforms (Chrome on Android) that only allow `requireInteraction`
+// via SW registrations.
+// ─────────────────────────────────────────────────────────────────────
+const TIMER_NOTIF_TAG = 'athletigo-timer';
+let lastTimerNotif = null;
+
+export async function requestNotifPermission() {
+  try {
+    if (typeof window === 'undefined' || !('Notification' in window)) return false;
+    if (Notification.permission === 'granted') return true;
+    if (Notification.permission === 'denied') return false;
+    const result = await Notification.requestPermission();
+    return result === 'granted';
+  } catch (e) {
+    return false;
+  }
+}
+
+export function showTimerNotification(title, body) {
+  try {
+    if (typeof window === 'undefined' || !('Notification' in window)) return null;
+    if (Notification.permission !== 'granted') return null;
+
+    const opts = {
+      body: body || '',
+      icon: '/logo-transparent.png',
+      tag: TIMER_NOTIF_TAG,
+      renotify: true,
+      requireInteraction: true,
+      silent: true,
+    };
+
+    // Prefer the Service Worker — supports `requireInteraction` on
+    // Android, can survive a tab background better, and the tag
+    // ensures the previous timer notification is replaced rather
+    // than stacking a new one per phase.
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.showNotification(title, opts))
+        .catch(() => {});
+      return null;
+    }
+
+    // Foreground fallback: plain Notification. Close any previous
+    // instance we kept a handle to so we don't stack notifications.
+    try { lastTimerNotif?.close?.(); } catch {}
+    const n = new Notification(title, opts);
+    n.onclick = () => {
+      try { window.focus(); } catch {}
+      try { n.close(); } catch {}
+    };
+    lastTimerNotif = n;
+    return n;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function closeTimerNotification() {
+  try { lastTimerNotif?.close?.(); } catch {}
+  lastTimerNotif = null;
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => reg.getNotifications({ tag: TIMER_NOTIF_TAG }))
+      .then((notifs) => (notifs || []).forEach((n) => { try { n.close(); } catch {} }))
+      .catch(() => {});
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Screen Wake Lock — prevents the phone from dimming/locking while a
+// timer runs. Reference-counted so overlapping timers (Tabata + Clock)
+// share one lock; the last timer to stop releases it. Automatically
+// re-acquires on `visibilitychange` in case the OS revoked the lock
+// while the page was hidden.
+// ─────────────────────────────────────────────────────────────────────
+let wakeLockSentinel = null;
+let wakeLockRefCount = 0;
+let wakeLockVisibilityAttached = false;
+
+async function acquireWakeLockInternal() {
+  try {
+    if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+    if (wakeLockSentinel) return;
+    wakeLockSentinel = await navigator.wakeLock.request('screen');
+    wakeLockSentinel.addEventListener('release', () => { wakeLockSentinel = null; });
+  } catch (e) {}
+}
+
+function attachWakeLockVisibility() {
+  if (wakeLockVisibilityAttached || typeof document === 'undefined') return;
+  wakeLockVisibilityAttached = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && wakeLockRefCount > 0 && !wakeLockSentinel) {
+      acquireWakeLockInternal();
+    }
+  });
+}
+
+export function acquireTimerWakeLock() {
+  wakeLockRefCount += 1;
+  attachWakeLockVisibility();
+  acquireWakeLockInternal();
+}
+
+export function releaseTimerWakeLock() {
+  wakeLockRefCount = Math.max(0, wakeLockRefCount - 1);
+  if (wakeLockRefCount === 0 && wakeLockSentinel) {
+    try { wakeLockSentinel.release(); } catch {}
+    wakeLockSentinel = null;
+  }
+}
+
+export function hasActiveTimerWakeLock() { return wakeLockRefCount > 0; }

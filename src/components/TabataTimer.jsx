@@ -3,6 +3,9 @@ import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
   playLongBeep, playDoubleBell, playVictory, playGong,
   playSoftBreath, playPauseSound, playActionMelody, playSlowPulse, cancelScheduled,
+  vibrate, VIBRATION,
+  requestNotifPermission, showTimerNotification, closeTimerNotification,
+  acquireTimerWakeLock, releaseTimerWakeLock,
 } from '@/lib/tabataSounds';
 import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
 import RoundJumpPicker from '@/components/RoundJumpPicker';
@@ -41,13 +44,36 @@ function nextPhase(cur, cfg) {
   return { type: 'done', round, set, dur: 0 };
 }
 
-function transitionSound(from, to) {
-  if (from === 'prep'     && to === 'work')     playActionMelody();
-  if (from === 'work'     && to === 'rest')     playSlowPulse();
-  if (from === 'rest'     && to === 'work')     playActionMelody();
-  if (from === 'work'     && to === 'set_rest') playLongBeep();
-  if (from === 'set_rest' && to === 'work')     playDoubleBell();
-  if (from === 'work'     && to === 'done')     playVictory();
+// Handles sound + haptics + system notification for every Tabata phase
+// transition. Centralized so skip/tick/hydrate all produce the same
+// audible + tactile + visible feedback even when the tab is backgrounded.
+function runPhaseTransition(fromType, nextPhase, cfg) {
+  const toType = nextPhase?.type;
+  const round = nextPhase?.round ?? 0;
+  const rounds = cfg?.rounds ?? 0;
+
+  // Sound
+  if (fromType === 'prep'     && toType === 'work')     playActionMelody();
+  if (fromType === 'work'     && toType === 'rest')     playSlowPulse();
+  if (fromType === 'rest'     && toType === 'work')     playActionMelody();
+  if (fromType === 'work'     && toType === 'set_rest') playLongBeep();
+  if (fromType === 'set_rest' && toType === 'work')     playDoubleBell();
+  if (fromType === 'work'     && toType === 'done')     playVictory();
+
+  // Haptic + system notification (phone status bar)
+  if (toType === 'work') {
+    vibrate(VIBRATION.workStart);
+    showTimerNotification('🔥 AthletiGo — עבודה!', `סבב ${round}/${rounds} · ${cfg?.work ?? 0} שניות`);
+  } else if (toType === 'rest') {
+    vibrate(VIBRATION.restStart);
+    showTimerNotification('💤 AthletiGo — מנוחה', `סבב ${round}/${rounds} · ${cfg?.rest ?? 0} שניות`);
+  } else if (toType === 'set_rest') {
+    vibrate(VIBRATION.restStart);
+    showTimerNotification('💤 AthletiGo — מנוחה בין סטים', `${cfg?.rb ?? 0} שניות`);
+  } else if (toType === 'done') {
+    vibrate(VIBRATION.finish);
+    showTimerNotification('🏆 AthletiGo — סיום!', `${rounds} סבבים הושלמו! כל הכבוד 💪`);
+  }
 }
 
 // ─── Component ───
@@ -168,6 +194,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     }
 
     // Walk forward from the saved phase by (phaseElapsed + offline wall time).
+    const originalPhaseType = snap.phase?.type;
     let p = snap.phase || { type: 'prep', round: 0, set: 0, dur: c.prep };
     const offline = (Date.now() - (snap.savedAt || Date.now())) / 1000;
     let totalElapsed = (snap.phaseElapsed || 0) + (snap.paused ? 0 : offline);
@@ -184,8 +211,23 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       setDisplay(0);
       setProgress(1);
       setScreen('done');
+      // A phase transition happened while we were hidden — fire the
+      // finish cue so the user sees/feels it the moment they re-open.
+      if (originalPhaseType && originalPhaseType !== 'done') {
+        runPhaseTransition(originalPhaseType, done, c);
+      }
+      releaseTimerWakeLock();
       return;
     }
+
+    // Detect a background phase change: fire the haptic + notification
+    // for the new phase so the user isn't left wondering why a silent
+    // app woke up into a different phase.
+    if (originalPhaseType && originalPhaseType !== p.type) {
+      runPhaseTransition(originalPhaseType, p, c);
+    }
+    // Keep the wake lock alive for the resumed running state.
+    acquireTimerWakeLock();
 
     // Resume in this phase. Re-anchor performance.now() so the rAF tick
     // computes (performance.now() - startAtRef) === totalElapsed * 1000.
@@ -237,12 +279,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     if (secs <= 3 && secs >= 1 && secs !== lastBeepRef.current) {
       lastBeepRef.current = secs;
       playBeep();
+      vibrate(VIBRATION.tick);
     }
 
     if (remaining <= 0) {
       // Transition
       const nxt = nextPhase(p, cfgRef.current);
-      transitionSound(p.type, nxt.type);
+      runPhaseTransition(p.type, nxt, cfgRef.current);
 
       if (nxt.type === 'done') {
         setPhase(nxt);
@@ -250,6 +293,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         setDisplay(0);
         setProgress(1);
         setScreen('done');
+        // Finish notification was shown by runPhaseTransition; release
+        // the wake lock so the screen can dim normally on the "done" screen.
+        releaseTimerWakeLock();
         return;
       }
 
@@ -280,6 +326,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Handlers ───
   const handleStart = useCallback(async () => {
     await unlockAudio();
+    // Ask once for system-notification permission so phase changes can
+    // surface in the phone status bar while the app is backgrounded.
+    try { requestNotifPermission(); } catch {}
+    // Keep the screen awake for as long as Tabata is running.
+    acquireTimerWakeLock();
     // נשימה רכה — soft breath on play tap. Same sound used by Countdown.
     playSoftBreath();
     // Sync ref before scheduling the first frame so tick's early-exit
@@ -291,6 +342,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       ? { type: 'prep', round: 0, set: 0, dur: cfg.prep }
       : { type: 'work', round: 1, set: 1, dur: cfg.work };
     beginPhase(first);
+    // Seed a status-bar notification so it's visible immediately
+    // (before the first phase transition fires).
+    if (first.type === 'work') {
+      showTimerNotification('🔥 AthletiGo — עבודה!', `סבב 1/${cfg.rounds} · ${cfg.work} שניות`);
+    } else {
+      showTimerNotification('⏱ AthletiGo — טבטה', 'הכנה…');
+    }
     rafRef.current = requestAnimationFrame(tick);
   }, [cfg]);
 
@@ -307,6 +365,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     setPaused(true);
     // Subtle descending cue — audibly distinct from the rising resume.
     playPauseSound();
+    vibrate(VIBRATION.pause);
     // Update BOTH slots so the minimized bar (reads liveTimerTabata)
     // and any legacy consumer (reads liveTimer) stay in sync.
     if (setLiveTimerTabata) setLiveTimerTabata(prev => prev ? { ...prev, paused: true } : prev);
@@ -324,6 +383,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     lastBeepRef.current = -1;
     setPaused(false);
     playSoftBreath();
+    vibrate(VIBRATION.resume);
     if (setLiveTimerTabata) setLiveTimerTabata(prev => prev ? { ...prev, paused: false } : prev);
     if (setLiveTimer) setLiveTimer(prev => prev ? { ...prev, paused: false } : null);
     rafRef.current = requestAnimationFrame(tick);
@@ -342,6 +402,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     setScreen('settings');
     if (setLiveTimer) setLiveTimer(null);
     if (setLiveTimerTabata) setLiveTimerTabata(null);
+    closeTimerNotification();
+    releaseTimerWakeLock();
     try { localStorage.removeItem(RUNTIME_KEY); } catch {}
   }
 
@@ -557,7 +619,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   function skipToNext() {
     cancelScheduled();
     const nxt = nextPhase(phaseRef.current, cfgRef.current);
-    transitionSound(phaseRef.current.type, nxt.type);
+    runPhaseTransition(phaseRef.current.type, nxt, cfgRef.current);
     if (nxt.type === 'done') { setPhase(nxt); phaseRef.current = nxt; setDisplay(0); setProgress(1); setScreen('done'); return; }
     beginPhase(nxt);
     if (!paused) rafRef.current = requestAnimationFrame(tick);

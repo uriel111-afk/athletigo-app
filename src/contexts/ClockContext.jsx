@@ -1,5 +1,17 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
-import { playPauseSound } from "@/lib/tabataSounds";
+import {
+  playPauseSound,
+  vibrate, VIBRATION,
+  requestNotifPermission, showTimerNotification, closeTimerNotification,
+  acquireTimerWakeLock, releaseTimerWakeLock,
+} from "@/lib/tabataSounds";
+
+function formatRemaining(ms) {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
 
 const ClockContext = createContext(null);
 export const useClock = () => useContext(ClockContext);
@@ -142,11 +154,13 @@ export function ClockProvider({ children }) {
     setSetProgress({ current: 0, total: 0 });
     phasesRef.current = [];
     phaseIdxRef.current = 0;
+    closeTimerNotification();
   }, [clearTick]);
 
   // === STOPWATCH ===
   const startStopwatch = useCallback(() => {
     ensureAudio();
+    try { requestNotifPermission(); } catch {}
     stop();
     setActiveClock('stopwatch');
     setPhase('running');
@@ -156,6 +170,7 @@ export function ClockProvider({ children }) {
     startTimeRef.current = Date.now();
     // Tap sound is supplied by the caller (SOUND_START in Clocks.jsx) so
     // start matches resume exactly — no extra internal beep here.
+    showTimerNotification('⏱ AthletiGo — סטופר רץ', 'בהצלחה 💪');
     intervalRef.current = setInterval(() => {
       setDisplay(Date.now() - startTimeRef.current + elapsedRef.current);
     }, 50);
@@ -176,6 +191,8 @@ export function ClockProvider({ children }) {
       setPhaseLabel('סיום!');
       setDisplay(0);
       beep('done');
+      vibrate(VIBRATION.finish);
+      showTimerNotification('⏱ AthletiGo — הזמן נגמר!', 'הטיימר הסתיים');
       return;
     }
     const p = phases[idx];
@@ -191,9 +208,21 @@ export function ClockProvider({ children }) {
     elapsedRef.current = 0;
     if (p.setIdx !== undefined) setSetProgress({ current: p.setIdx, total: p.totalSets });
 
-    if (p.type === 'work') beep('work');
-    else if (p.type === 'rest') beep('rest');
-    else if (p.type === 'set_rest') beep('set_rest');
+    if (p.type === 'work') {
+      beep('work');
+      vibrate(VIBRATION.workStart);
+      showTimerNotification('🔥 AthletiGo — עבודה!', p.round || `${Math.round(p.duration / 1000)} שניות`);
+    } else if (p.type === 'rest') {
+      beep('rest');
+      vibrate(VIBRATION.restStart);
+      showTimerNotification('💤 AthletiGo — מנוחה', p.round || `${Math.round(p.duration / 1000)} שניות`);
+    } else if (p.type === 'set_rest') {
+      beep('set_rest');
+      vibrate(VIBRATION.restStart);
+      showTimerNotification('💤 AthletiGo — מנוחה בין סטים', `${Math.round(p.duration / 1000)} שניות`);
+    } else if (p.type === 'prepare') {
+      showTimerNotification('⏱ AthletiGo — הכנה', `מתחילים בעוד ${Math.round(p.duration / 1000)} שניות`);
+    }
 
     intervalRef.current = setInterval(() => {
       const elapsed = Date.now() - startTimeRef.current;
@@ -209,6 +238,7 @@ export function ClockProvider({ children }) {
       if (secRemaining <= 3 && secRemaining !== lastBeepRef.current && secRemaining > 0) {
         lastBeepRef.current = secRemaining;
         beep('countdown');
+        vibrate(VIBRATION.tick);
       }
     }, 100);
   }, [clearTick, beep]);
@@ -216,6 +246,7 @@ export function ClockProvider({ children }) {
   // === TIMER ===
   const startTimer = useCallback((totalMs, prepareMs = 3000) => {
     ensureAudio();
+    try { requestNotifPermission(); } catch {}
     stop();
     setActiveClock('timer');
     const phases = [];
@@ -223,12 +254,14 @@ export function ClockProvider({ children }) {
     phases.push({ type: 'work', duration: totalMs, label: 'טיימר' });
     phasesRef.current = phases;
     phaseIdxRef.current = 0;
+    showTimerNotification('⏱ AthletiGo — טיימר רץ', `${formatRemaining(totalMs)} נותרו`);
     runPhase(0, phases);
   }, [ensureAudio, stop, runPhase]);
 
   // === TABATA ===
   const startTabata = useCallback((settings) => {
     ensureAudio();
+    try { requestNotifPermission(); } catch {}
     stop();
     setActiveClock('tabata');
     const { workTime = 20, restTime = 10, rounds = 8, sets = 1, setRest = 60, prepareTime = 10 } = settings;
@@ -260,6 +293,7 @@ export function ClockProvider({ children }) {
     // existing pause beep to preserve its distinct sound profile.
     if (activeClock !== 'timer') beep('pause');
     else playPauseSound();
+    vibrate(VIBRATION.pause);
     elapsedRef.current = Date.now() - startTimeRef.current;
     setIsRunning(false);
   }, [isRunning, clearTick, beep, activeClock]);
@@ -268,6 +302,7 @@ export function ClockProvider({ children }) {
     if (isRunning) return;
     // Tap sound is supplied by the caller (SOUND_START in Clocks.jsx) so
     // resume matches start exactly — no extra internal beep here.
+    vibrate(VIBRATION.resume);
     startTimeRef.current = Date.now() - elapsedRef.current;
     setIsRunning(true);
     if (activeClock === 'stopwatch') {
@@ -308,6 +343,7 @@ export function ClockProvider({ children }) {
     setRoundInfo('');
     setLaps([]);
     elapsedRef.current = 0;
+    closeTimerNotification();
   }, [clearTick]);
 
   useEffect(() => () => clearTick(), [clearTick]);
@@ -384,6 +420,7 @@ export function ClockProvider({ children }) {
     let idx = phaseIdxRef.current;
 
     if (snap.isRunning) {
+      const originalIdx = idx;
       // Advance through any phases that would have completed while offline
       let elapsed = Date.now() - snap.startTime;
       while (idx < phases.length && elapsed >= phases[idx].duration) {
@@ -396,6 +433,10 @@ export function ClockProvider({ children }) {
         setIsRunning(false);
         setPhaseLabel('סיום!');
         setDisplay(0);
+        // The timer finished while we were hidden — surface the "done"
+        // cue so the user knows immediately on re-open.
+        vibrate(VIBRATION.finish);
+        showTimerNotification('⏱ AthletiGo — הזמן נגמר!', 'הטיימר הסתיים');
         return;
       }
       phaseIdxRef.current = idx;
@@ -406,6 +447,13 @@ export function ClockProvider({ children }) {
       setTotalDuration(p.duration);
       if (p.setIdx !== undefined) setSetProgress({ current: p.setIdx, total: p.totalSets });
       setIsRunning(true);
+      // Fire the "arrived into new phase" cue if the phase changed
+      // while the tab was hidden.
+      if (idx !== originalIdx) {
+        if (p.type === 'work') { vibrate(VIBRATION.workStart); showTimerNotification('🔥 AthletiGo — עבודה!', p.round || ''); }
+        else if (p.type === 'rest') { vibrate(VIBRATION.restStart); showTimerNotification('💤 AthletiGo — מנוחה', p.round || ''); }
+        else if (p.type === 'set_rest') { vibrate(VIBRATION.restStart); showTimerNotification('💤 AthletiGo — מנוחה בין סטים', ''); }
+      }
       // Re-anchor so the remaining time lines up with wall-clock
       startTimeRef.current = Date.now() - elapsed;
       elapsedRef.current = 0;
