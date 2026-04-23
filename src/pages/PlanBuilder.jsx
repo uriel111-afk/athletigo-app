@@ -58,12 +58,8 @@ function serializeTabata(val) {
 function tabataPreview(t) {
   if (!t) return null;
   const w = t.work_sec ?? 20, r = t.rest_sec ?? 10;
-  const rounds = t.rounds ?? 8, sets = t.sets ?? 1;
-  const names = Array.isArray(t.exercises)
-    ? t.exercises.map(e => e?.name?.trim()).filter(Boolean)
-    : [];
-  const base = `${w}/${r} × ${rounds} × ${sets} סט`;
-  return names.length > 0 ? `${base} · ${names.join(" • ")}` : base;
+  const n = Array.isArray(t.exercises) ? t.exercises.length : 1;
+  return `${w}s/${r}s × ${n || 1}`;
 }
 
 const FOCUS_AREAS = [
@@ -316,12 +312,12 @@ export default function PlanBuilder() {
     console.log('[PlanBuilder] addExercise SAVE PAYLOAD:', payload);
     try {
       const { data, error } = await supabase.from("exercises").insert(payload).select().single();
+      console.log('[PlanBuilder] addExercise SAVE RESULT:', data, error);
       if (error) {
         console.error('[PlanBuilder] addExercise supabase error:', error, { payload });
         toast.error('שגיאה בשמירת תרגיל: ' + (error.message || 'נסה שוב'));
         return;
       }
-      console.log('[PlanBuilder] addExercise SAVED:', data);
       setSections(prev => prev.map((s, i) =>
         i === sectionIndex ? { ...s, exercises: [...s.exercises, data] } : s
       ));
@@ -376,7 +372,8 @@ export default function PlanBuilder() {
     console.log('[PlanBuilder] updateExercise SAVE PAYLOAD:', { id: ex.id, ...payload });
     let error;
     try {
-      const res = await supabase.from("exercises").update(payload).eq("id", ex.id);
+      const res = await supabase.from("exercises").update(payload).eq("id", ex.id).select();
+      console.log('[PlanBuilder] updateExercise SAVE RESULT:', res.data, res.error);
       error = res.error;
     } catch (err) {
       console.error('[PlanBuilder] updateExercise unexpected:', err);
@@ -667,38 +664,13 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{ex.exercise_name || ex.name || "תרגיל"}</div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
-              {/* Category-coded pills: orange = volume (sets/reps),
-                  green = time (work/rest), purple = load (weight/RPE),
-                  yellow = difficulty, brand-orange-bordered = tabata. */}
               {ex.sets && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.sets} סטים</span>}
               {ex.reps && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.reps} חזרות</span>}
+              {ex.weight && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🏋 {ex.weight} ק״ג</span>}
               {ex.work_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>💪 {formatWorkTime(ex.work_time)}</span>}
               {ex.rest_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>😮‍💨 {formatWorkTime(ex.rest_time)}</span>}
-              {ex.weight && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🏋 {ex.weight} ק״ג</span>}
-              {ex.rpe && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>RPE {ex.rpe}</span>}
-              {(() => {
-                const t = parseTabata(ex.tabata_data) || parseTabata(ex.tabata_config);
-                if (!t) return null;
-                const exCount = Array.isArray(t.exercises) ? t.exercises.length : 0;
-                return <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 700, border: "1px solid #FF6F20" }}>⏱ טבטה {t.work_sec ?? 20}/{t.rest_sec ?? 10}{exCount > 0 ? ` · ${exCount} תרגילים` : ''}</span>;
-              })()}
-              {(() => {
-                // Difficulty is stored as a "[קושי: X]" prefix in description.
-                const m = String(ex.description || '').match(/^\[קושי:\s*([^\]]+)\]/);
-                if (!m) return null;
-                return <span style={{ background: "#FEF9C3", color: "#CA8A04", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🎯 {m[1].trim()}</span>;
-              })()}
-              {Array.isArray(ex.children) && ex.children.length > 0 && <span style={{ background: "#E3F2FD", color: "#1976D2", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>📋 {ex.children.length} תת-תרגילים</span>}
-              {Array.isArray(ex.equipment) && ex.equipment.length > 0 && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🛠 {ex.equipment.join(', ')}</span>}
-              {ex.tempo && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏲ טמפו {ex.tempo}</span>}
-              {ex.rest_between_sets && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>מנ׳ סטים {ex.rest_between_sets}&quot;</span>}
-              {ex.rest_between_exercises && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>מנ׳ תרג׳ {ex.rest_between_exercises}&quot;</span>}
-              {ex.static_hold_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏸ החזקה {ex.static_hold_time}&quot;</span>}
-              {ex.body_position && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🧍 {ex.body_position}</span>}
-              {ex.side && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>↔ {ex.side}</span>}
-              {ex.range_of_motion && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>↔ טווח {ex.range_of_motion}</span>}
-              {ex.grip && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>✊ {ex.grip}</span>}
-              {ex.video_url && <a href={ex.video_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ background: "#FEE2E2", color: "#DC2626", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600, textDecoration: "none" }}>🎬 וידאו</a>}
+              {(ex.tabata_data || ex.tabata_config) && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏱ טבטה</span>}
+              {ex.equipment && (Array.isArray(ex.equipment) ? ex.equipment.length > 0 : true) && <span style={{ background: "#F3F4F6", color: "#888", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🛠 {Array.isArray(ex.equipment) ? ex.equipment.join(', ') : ex.equipment}</span>}
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
