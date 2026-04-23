@@ -307,7 +307,7 @@ export default function PlanBuilder() {
       tabata_data: serializeTabata(exerciseData.params["טבטה"]),
       tabata_preview: tabataPreview(exerciseData.params["טבטה"]),
       children: exerciseData.params["רשימת תרגילים"] || null,
-      "order": sec.exercises.length,
+      "order": (sec.exercises || []).length,
       completed: false,
     };
     console.log('[PlanBuilder] addExercise SAVE PAYLOAD:', payload);
@@ -320,7 +320,7 @@ export default function PlanBuilder() {
         return;
       }
       setSections(prev => prev.map((s, i) =>
-        i === sectionIndex ? { ...s, exercises: [...s.exercises, data] } : s
+        i === sectionIndex ? { ...s, exercises: [...(s.exercises || []), data] } : s
       ));
       setEditingExercise(null);
       toast.success('התרגיל נוסף');
@@ -669,10 +669,17 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
               {ex.sets && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.sets} סטים</span>}
               {ex.reps && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.reps} חזרות</span>}
+              {ex.rounds && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.rounds} סבבים</span>}
               {ex.weight && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🏋 {ex.weight} ק״ג</span>}
               {ex.work_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>💪 {formatWorkTime(ex.work_time)}</span>}
               {ex.rest_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>😮‍💨 {formatWorkTime(ex.rest_time)}</span>}
+              {ex.rest_between_sets && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>מנוחה {ex.rest_between_sets}״</span>}
+              {ex.rpe && <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>RPE {ex.rpe}</span>}
+              {ex.tempo && <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏲ {ex.tempo}</span>}
               {(ex.tabata_data || ex.tabata_config) && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏱ טבטה</span>}
+              {ex.side && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.side}</span>}
+              {ex.body_position && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.body_position}</span>}
+              {ex.video_url && <span style={{ background: "#DBEAFE", color: "#1D4ED8", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🎥 וידאו</span>}
               {ex.equipment && (Array.isArray(ex.equipment) ? ex.equipment.length > 0 : true) && <span style={{ background: "#F3F4F6", color: "#888", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🛠 {Array.isArray(ex.equipment) ? ex.equipment.join(', ') : ex.equipment}</span>}
             </div>
           </div>
@@ -711,6 +718,18 @@ const PARAM_CATEGORIES = [
   },
 ];
 
+// Stepper-type params get inline pills; everything else uses the
+// existing rich widget below (TimePicker, RpeScale, Tabata, etc).
+const STEPPER_LABELS = {
+  "סטים": "סטים",
+  "חזרות": "חזרות",
+  "סבבים": "סבבים",
+  "משקל (ק״ג)": 'ק"ג',
+  "החזקה סטטית": "שנ׳",
+  "מנ׳ בין סטים": "מנ׳ סט",
+  "מנ׳ בין תרגילים": "מנ׳ תרג׳",
+};
+
 function ExerciseEditor({ data, onSave, onClose }) {
   const [name, setName] = useState(data.name || "");
   const [params, setParams] = useState(data.params || {});
@@ -732,16 +751,14 @@ function ExerciseEditor({ data, onSave, onClose }) {
         key={paramId}
         onClick={() => toggleParam(paramId)}
         style={{
-          padding: "8px 14px",
-          borderRadius: "24px",
-          fontSize: "13px",
+          padding: "5px 10px",
+          borderRadius: "20px",
+          fontSize: "11px",
           fontWeight: 600,
           cursor: "pointer",
-          transition: "all 0.2s",
           background: isSelected ? "#FF6F20" : "white",
-          color: isSelected ? "white" : "#555",
-          border: isSelected ? "1.5px solid #FF6F20" : "1.5px solid #E8E0D8",
-          boxShadow: isSelected ? "0 2px 8px rgba(255,111,32,0.25)" : "0 1px 3px rgba(0,0,0,0.04)",
+          color: isSelected ? "white" : "#666",
+          border: isSelected ? "none" : "1px solid #E8E0D8",
         }}
       >
         {paramId}
@@ -749,22 +766,49 @@ function ExerciseEditor({ data, onSave, onClose }) {
     );
   };
 
+  // Inline editable pill for stepper-type numeric params
+  const renderInlinePill = (p) => {
+    const val = params[p] || "";
+    const set = (v) => setParams(prev => ({ ...prev, [p]: v }));
+    return (
+      <div key={p} style={{
+        display: "flex", alignItems: "center",
+        gap: "4px", background: "#FFF0E4",
+        borderRadius: "10px", padding: "4px 10px",
+      }}>
+        <span style={{ fontSize: "11px", fontWeight: 600, color: "#FF6F20" }}>{p}:</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={val}
+          onChange={e => set(e.target.value.replace(/[^0-9.]/g, ""))}
+          placeholder="0"
+          style={{
+            width: "44px", border: "none",
+            background: "transparent",
+            fontSize: "14px", fontWeight: 700,
+            textAlign: "center", outline: "none",
+            direction: "ltr",
+          }}
+        />
+        <span style={{ fontSize: "10px", color: "#888" }}>{STEPPER_LABELS[p] || ""}</span>
+      </div>
+    );
+  };
+
+  // Rich widget for non-stepper params (TimePicker / RpeScale / etc)
   const renderWidget = (p) => {
     const schema = PARAM_SCHEMA[p] || { type: "text" };
     const val = params[p] || "";
     const set = (v) => setParams(prev => ({ ...prev, [p]: v }));
     return (
       <div key={p} style={{
-        background: "#FFF9F0",
-        borderRadius: "14px",
-        padding: "12px 14px",
-        marginBottom: "8px",
-        border: "1px solid #F0E4D0",
+        background: "#FFF0E4",
+        borderRadius: "10px",
+        padding: "8px 10px",
+        marginBottom: "6px",
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 8 }}>{p}</div>
-        {schema.type === "stepper" && (
-          <Stepper value={val} onChange={set} min={schema.min} max={schema.max} unit={schema.unit} />
-        )}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#FF6F20", marginBottom: 6 }}>{p}</div>
         {schema.type === "time" && (
           <TimePicker value={val} onChange={set} />
         )}
@@ -784,148 +828,135 @@ function ExerciseEditor({ data, onSave, onClose }) {
           <Tabata value={val || TABATA_DEFAULTS} onChange={set} />
         )}
         {schema.type === "select" && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {schema.options.map(opt => (
               <button key={opt} onClick={() => set(val === opt ? "" : opt)}
-                style={{ padding: "8px 14px", borderRadius: 9999, border: `1.5px solid ${val === opt ? "#FF6F20" : "#eee"}`, background: val === opt ? "#FF6F20" : "white", color: val === opt ? "white" : "#555", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                style={{ padding: "5px 10px", borderRadius: 9999, border: `1px solid ${val === opt ? "#FF6F20" : "#eee"}`, background: val === opt ? "#FF6F20" : "white", color: val === opt ? "white" : "#555", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 {opt}
               </button>
             ))}
           </div>
         )}
         {schema.type === "textarea" && (
-          <textarea value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder} rows={3}
-            style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 12, boxSizing: "border-box", resize: "none", fontFamily: "inherit", direction: "rtl", outline: "none" }} />
+          <textarea value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder} rows={2}
+            style={{ width: "100%", padding: "6px 8px", fontSize: 13, border: "1px solid #ddd", borderRadius: 8, boxSizing: "border-box", resize: "none", fontFamily: "inherit", direction: "rtl", outline: "none" }} />
         )}
         {(schema.type === "text" || schema.type === "url") && (
           <input type={schema.type === "url" ? "url" : "text"} value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder || "..."}
-            style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid", borderColor: val ? "#FF6F20" : "#ddd", borderRadius: 12, boxSizing: "border-box", direction: "rtl", outline: "none", background: val ? "#FFF0E8" : "white" }} />
+            style={{ width: "100%", padding: "6px 8px", fontSize: 13, border: "1px solid", borderColor: val ? "#FF6F20" : "#ddd", borderRadius: 8, boxSizing: "border-box", direction: "rtl", outline: "none", background: "white" }} />
         )}
       </div>
     );
   };
 
-  return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: "#FFFFFF", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+  // Split selected params into inline-pill (stepper) vs widget-card
+  const inlineParams = selectedParams.filter(p => PARAM_SCHEMA[p]?.type === "stepper");
+  const widgetParams = selectedParams.filter(p => PARAM_SCHEMA[p]?.type !== "stepper");
 
-        {/* A. Form header — icon + title + subtitle */}
+  const handleSave = () => {
+    console.log('[ExerciseEditor] handleSave triggered, name:', name, 'params:', params);
+    if (!name.trim()) { toast.error('יש להזין שם תרגיל'); return; }
+    onSave({ name: name.trim(), params });
+  };
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: "rgba(0,0,0,0.55)", zIndex: 11001, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div style={{
+        background: "#FFF9F0",
+        borderRadius: "24px 24px 0 0",
+        width: "100%", maxWidth: 480,
+        maxHeight: "85vh",
+        display: "flex", flexDirection: "column",
+        overflow: "hidden",
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.1)",
+      }}>
+
+        {/* Compact header */}
         <div style={{
           flexShrink: 0,
-          textAlign: "center",
-          padding: "20px 16px 12px",
+          padding: "12px 16px 10px",
           direction: "rtl",
           borderBottom: "0.5px solid #F0E4D0",
+          background: "white",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <div style={{
-            width: "50px", height: "50px",
-            borderRadius: "16px",
-            background: "#FFF0E4",
-            display: "flex", alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 10px",
-            fontSize: "24px",
-          }}>{data.isNew ? "🏋️" : "✏️"}</div>
-          <div style={{
-            fontSize: "20px", fontWeight: 700,
-            color: "#1a1a1a",
-          }}>{data.isNew ? "תרגיל חדש" : "ערוך תרגיל"}</div>
-          <div style={{
-            fontSize: "12px", color: "#888",
-            marginTop: "4px",
-          }}>בחר שם ופרמטרים לתרגיל</div>
+          <div style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a" }}>
+            {data.isNew ? "🏋️ תרגיל חדש" : "✏️ ערוך תרגיל"}
+          </div>
+          <button onClick={onClose} style={{
+            background: "none", border: "none",
+            fontSize: "18px", color: "#888", cursor: "pointer", padding: 4,
+          }}>✕</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0 }}>
+        {/* Scrollable middle */}
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0, padding: "12px 16px" }}>
 
-          {/* B. Exercise name — prominent input */}
-          <div style={{ padding: "16px 16px 12px", direction: "rtl" }}>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="שם התרגיל (לדוגמה: סקוואט)"
-              style={{
-                width: "100%", padding: "14px 16px",
-                borderRadius: "16px",
-                border: "2px solid #F0E4D0",
-                fontSize: "16px", fontWeight: 600,
-                direction: "rtl", textAlign: "right",
-                background: "#FFF9F0",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
+          {/* Name — compact */}
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="שם התרגיל..."
+            style={{
+              width: "100%", padding: "12px",
+              borderRadius: "14px",
+              border: "1.5px solid #F0E4D0",
+              fontSize: "15px", fontWeight: 600,
+              direction: "rtl", textAlign: "right",
+              background: "white", outline: "none",
+              marginBottom: "12px",
+              boxSizing: "border-box",
+            }}
+          />
+
+          {/* All params — compact small chips */}
+          <div style={{
+            display: "flex", flexWrap: "wrap",
+            gap: "5px", marginBottom: "12px",
+            direction: "rtl",
+          }}>
+            {PARAM_CATEGORIES.flatMap(cat => cat.params).map(renderChip)}
           </div>
 
-          {/* C. Categorized parameter chips */}
-          <div style={{ padding: "0 16px", direction: "rtl" }}>
-            {PARAM_CATEGORIES.map(cat => (
-              <div key={cat.label}>
-                <div style={{
-                  fontSize: "13px", fontWeight: 600,
-                  color: "#FF6F20", marginBottom: "8px",
-                  display: "flex", alignItems: "center", gap: "6px",
-                }}>
-                  <div style={{
-                    width: "3px", height: "14px",
-                    borderRadius: "2px", background: "#FF6F20",
-                  }} />
-                  {cat.label}
-                </div>
-                <div style={{
-                  display: "flex", flexWrap: "wrap",
-                  gap: "6px", marginBottom: "16px",
-                }}>
-                  {cat.params.map(renderChip)}
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Selected stepper params — inline editable pills */}
+          {inlineParams.length > 0 && (
+            <div style={{
+              display: "flex", flexWrap: "wrap",
+              gap: "6px", marginBottom: "10px",
+              direction: "rtl",
+            }}>
+              {inlineParams.map(renderInlinePill)}
+            </div>
+          )}
 
-          {/* E. Selected param widgets — wrapped in cream cards */}
-          {selectedParams.length > 0 && (
-            <div style={{ padding: "4px 16px 16px", direction: "rtl" }}>
-              {selectedParams.map(renderWidget)}
+          {/* Selected complex params — compact widget cards */}
+          {widgetParams.length > 0 && (
+            <div style={{ direction: "rtl" }}>
+              {widgetParams.map(renderWidget)}
             </div>
           )}
         </div>
 
-        {/* F. Save button — gradient when active */}
+        {/* Save button — sticky bottom, always visible */}
         <div style={{
           flexShrink: 0,
-          padding: "16px",
+          padding: "12px 16px",
           borderTop: "0.5px solid #F0E4D0",
           background: "white",
-          paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 12px)",
         }}>
           <button
-            onClick={() => {
-              if (!name.trim()) { toast.error('יש להזין שם תרגיל'); return; }
-              onSave({ name: name.trim(), params });
-            }}
+            onClick={handleSave}
             style={{
-              width: "100%", padding: "16px",
-              borderRadius: "16px", border: "none",
-              background: name?.trim()
-                ? "linear-gradient(135deg, #FF6F20, #FF8F50)"
-                : "#ddd",
-              color: "white", fontSize: "17px",
+              width: "100%", padding: "14px",
+              borderRadius: "14px", border: "none",
+              background: name?.trim() ? "#FF6F20" : "#ccc",
+              color: "white", fontSize: "16px",
               fontWeight: 700, cursor: "pointer",
-              boxShadow: name?.trim()
-                ? "0 4px 15px rgba(255,111,32,0.3)"
-                : "none",
             }}
           >
             {data.isNew ? "✅ הוסף תרגיל" : "💾 עדכן תרגיל"}
           </button>
-          <div
-            onClick={onClose}
-            style={{
-              textAlign: "center", padding: "12px",
-              color: "#888", fontSize: "14px",
-              cursor: "pointer",
-            }}
-          >ביטול</div>
         </div>
       </div>
     </div>
