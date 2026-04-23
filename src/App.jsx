@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import './App.css'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -21,6 +21,8 @@ import TraineeHome from './pages/TraineeHome';
 import TabataTimer from './components/TabataTimer';
 import LastSessionAlert from './components/LastSessionAlert';
 import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
+import NotificationPopup from './components/NotificationPopup';
+import { supabase } from '@/lib/supabaseClient';
 
 // Global TabataTimer — always mounted, never unmounts
 function GlobalTabata() {
@@ -94,10 +96,81 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin, user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { isReady, progress, label, timedOut, retry, forceReady } = useDataGate(user);
 
   // Real-time sync — listen to Supabase changes and auto-refresh
   useRealtimeSync(user?.id);
+
+  // ── Realtime notification popup (coach only) ──────────────────────
+  const [popupNotif, setPopupNotif] = useState(null);
+  const isCoachUser = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
+
+  const showNotificationPopup = useCallback((n) => {
+    setPopupNotif(n);
+
+    // Browser notification — fires even when tab is backgrounded
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('AthletiGo', {
+          body: n.message || n.title || 'התראה חדשה',
+          icon: '/icon-192.png',
+          tag: 'athletigo-notif-' + n.id,
+          requireInteraction: false,
+        });
+      } catch (e) {}
+    }
+
+    // Short chime
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) {
+        const ctx = new Ctx();
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 800;
+        g.gain.setValueAtTime(0.3, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+        setTimeout(() => ctx.close(), 500);
+      }
+    } catch (e) {}
+
+    // Haptic feedback
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try { navigator.vibrate([100, 50, 100]); } catch (e) {}
+    }
+  }, []);
+
+  // Request browser notification permission once for coaches
+  useEffect(() => {
+    if (!isCoachUser) return;
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      try { Notification.requestPermission(); } catch (e) {}
+    }
+  }, [isCoachUser]);
+
+  // Subscribe to INSERT events on notifications table for this coach
+  useEffect(() => {
+    if (!user?.id || !isCoachUser) return;
+    const ch = supabase
+      .channel('coach_notifications_popup')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          const n = payload.new;
+          if (n && !n.is_read) showNotificationPopup(n);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user?.id, isCoachUser, showNotificationPopup]);
 
   // Show branded loading screen while auth is initializing
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -168,6 +241,12 @@ const AuthenticatedApp = () => {
 
   // Render the main app
   return (
+    <>
+    <NotificationPopup
+      notification={popupNotif}
+      onDismiss={() => setPopupNotif(null)}
+      onTap={() => navigate('/notifications')}
+    />
     <Routes>
       <Route path="/" element={
         <PageRouteGuard pageKey={mainPageKey}>
@@ -201,6 +280,7 @@ const AuthenticatedApp = () => {
       />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
+    </>
   );
 };
 
