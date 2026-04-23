@@ -686,6 +686,28 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
   );
 }
 
+// Param categories — schema keys preserved exactly so PARAM_SCHEMA
+// lookups & DB params keys remain identical. Only the visual grouping
+// changes here.
+const PARAM_CATEGORIES = [
+  {
+    label: "מספרים וכמויות",
+    params: ["סטים", "חזרות", "סבבים", "משקל (ק״ג)"],
+  },
+  {
+    label: "זמנים ומנוחה",
+    params: ["זמן עבודה", "זמן מנוחה", "החזקה סטטית", "מנ׳ בין סטים", "מנ׳ בין תרגילים"],
+  },
+  {
+    label: "טכניקה ופרטים",
+    params: ["RPE (קושי)", "רמת קושי", "טמפו", "ציוד נדרש", "דגשים", "צד", "טווח תנועה", "אחיזה", "מנח גוף", "וידאו"],
+  },
+  {
+    label: "מבנה מתקדם",
+    params: ["טבטה", "רשימת תרגילים"],
+  },
+];
+
 function ExerciseEditor({ data, onSave, onClose }) {
   const [name, setName] = useState(data.name || "");
   const [params, setParams] = useState(data.params || {});
@@ -700,101 +722,207 @@ function ExerciseEditor({ data, onSave, onClose }) {
     }
   };
 
-  return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: "#FFF9F0", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ flexShrink: 0, padding: "18px 24px 12px", borderBottom: "0.5px solid #F0E4D0", background: "white" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", color: "#1a1a1a" }}>
-            {data.isNew ? "🏋️ תרגיל חדש" : "✏️ ערוך תרגיל"}
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 20px", minHeight: 0 }}>
+  const renderChip = (paramId) => {
+    const isSelected = selectedParams.includes(paramId);
+    return (
+      <div
+        key={paramId}
+        onClick={() => toggleParam(paramId)}
+        style={{
+          padding: "8px 14px",
+          borderRadius: "24px",
+          fontSize: "13px",
+          fontWeight: 600,
+          cursor: "pointer",
+          transition: "all 0.2s",
+          background: isSelected ? "#FF6F20" : "white",
+          color: isSelected ? "white" : "#555",
+          border: isSelected ? "1.5px solid #FF6F20" : "1.5px solid #E8E0D8",
+          boxShadow: isSelected ? "0 2px 8px rgba(255,111,32,0.25)" : "0 1px 3px rgba(0,0,0,0.04)",
+        }}
+      >
+        {paramId}
+      </div>
+    );
+  };
 
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1a1a1a' }}>שם התרגיל</div>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="לדוגמה: סקוואט"
-            style={{ width: "100%", padding: "14px", fontSize: 16, fontWeight: 600, border: "1.5px solid", borderColor: name ? "#FF6F20" : "#F0E4D0", borderRadius: 14, boxSizing: "border-box", direction: "rtl", outline: "none", background: "white" }} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1a1a1a' }}>פרמטרים</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-            {PARAM_TYPES.map(p => (
-              <button key={p} onClick={() => toggleParam(p)}
-                style={{ padding: "8px 12px", borderRadius: 12, fontSize: 12, fontWeight: 600, border: "1px solid", borderColor: selectedParams.includes(p) ? "#FF6F20" : "#F0E4D0", background: selectedParams.includes(p) ? "#FF6F20" : "white", color: selectedParams.includes(p) ? "white" : "#1a1a1a", cursor: "pointer" }}>
-                {p}
+  const renderWidget = (p) => {
+    const schema = PARAM_SCHEMA[p] || { type: "text" };
+    const val = params[p] || "";
+    const set = (v) => setParams(prev => ({ ...prev, [p]: v }));
+    return (
+      <div key={p} style={{
+        background: "#FFF9F0",
+        borderRadius: "14px",
+        padding: "12px 14px",
+        marginBottom: "8px",
+        border: "1px solid #F0E4D0",
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 8 }}>{p}</div>
+        {schema.type === "stepper" && (
+          <Stepper value={val} onChange={set} min={schema.min} max={schema.max} unit={schema.unit} />
+        )}
+        {schema.type === "time" && (
+          <TimePicker value={val} onChange={set} />
+        )}
+        {schema.type === "rpe" && (
+          <RpeScale value={val} onChange={set} />
+        )}
+        {schema.type === "tempo" && (
+          <TempoPattern value={val} onChange={set} />
+        )}
+        {schema.type === "chips" && (
+          <ChipsMulti value={val} options={EQUIPMENT_OPTIONS} onChange={set} allowCustom={!!schema.allowCustom} />
+        )}
+        {schema.type === "list" && (
+          <ListBuilder value={val} onChange={set} placeholder={schema.placeholder} />
+        )}
+        {schema.type === "tabata" && (
+          <Tabata value={val || TABATA_DEFAULTS} onChange={set} />
+        )}
+        {schema.type === "select" && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {schema.options.map(opt => (
+              <button key={opt} onClick={() => set(val === opt ? "" : opt)}
+                style={{ padding: "8px 14px", borderRadius: 9999, border: `1.5px solid ${val === opt ? "#FF6F20" : "#eee"}`, background: val === opt ? "#FF6F20" : "white", color: val === opt ? "white" : "#555", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                {opt}
               </button>
             ))}
           </div>
+        )}
+        {schema.type === "textarea" && (
+          <textarea value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder} rows={3}
+            style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 12, boxSizing: "border-box", resize: "none", fontFamily: "inherit", direction: "rtl", outline: "none" }} />
+        )}
+        {(schema.type === "text" || schema.type === "url") && (
+          <input type={schema.type === "url" ? "url" : "text"} value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder || "..."}
+            style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid", borderColor: val ? "#FF6F20" : "#ddd", borderRadius: 12, boxSizing: "border-box", direction: "rtl", outline: "none", background: val ? "#FFF0E8" : "white" }} />
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div style={{ background: "#FFFFFF", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+        {/* A. Form header — icon + title + subtitle */}
+        <div style={{
+          flexShrink: 0,
+          textAlign: "center",
+          padding: "20px 16px 12px",
+          direction: "rtl",
+          borderBottom: "0.5px solid #F0E4D0",
+        }}>
+          <div style={{
+            width: "50px", height: "50px",
+            borderRadius: "16px",
+            background: "#FFF0E4",
+            display: "flex", alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 10px",
+            fontSize: "24px",
+          }}>{data.isNew ? "🏋️" : "✏️"}</div>
+          <div style={{
+            fontSize: "20px", fontWeight: 700,
+            color: "#1a1a1a",
+          }}>{data.isNew ? "תרגיל חדש" : "ערוך תרגיל"}</div>
+          <div style={{
+            fontSize: "12px", color: "#888",
+            marginTop: "4px",
+          }}>בחר שם ופרמטרים לתרגיל</div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0 }}>
+
+          {/* B. Exercise name — prominent input */}
+          <div style={{ padding: "16px 16px 12px", direction: "rtl" }}>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="שם התרגיל (לדוגמה: סקוואט)"
+              style={{
+                width: "100%", padding: "14px 16px",
+                borderRadius: "16px",
+                border: "2px solid #F0E4D0",
+                fontSize: "16px", fontWeight: 600,
+                direction: "rtl", textAlign: "right",
+                background: "#FFF9F0",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* C. Categorized parameter chips */}
+          <div style={{ padding: "0 16px", direction: "rtl" }}>
+            {PARAM_CATEGORIES.map(cat => (
+              <div key={cat.label}>
+                <div style={{
+                  fontSize: "13px", fontWeight: 600,
+                  color: "#FF6F20", marginBottom: "8px",
+                  display: "flex", alignItems: "center", gap: "6px",
+                }}>
+                  <div style={{
+                    width: "3px", height: "14px",
+                    borderRadius: "2px", background: "#FF6F20",
+                  }} />
+                  {cat.label}
+                </div>
+                <div style={{
+                  display: "flex", flexWrap: "wrap",
+                  gap: "6px", marginBottom: "16px",
+                }}>
+                  {cat.params.map(renderChip)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* E. Selected param widgets — wrapped in cream cards */}
           {selectedParams.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
-              {selectedParams.map(p => {
-                const schema = PARAM_SCHEMA[p] || { type: "text" };
-                const val = params[p] || "";
-                const set = (v) => setParams(prev => ({ ...prev, [p]: v }));
-                return (
-                  <div key={p}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 8 }}>{p}</div>
-                    {schema.type === "stepper" && (
-                      <Stepper value={val} onChange={set} min={schema.min} max={schema.max} unit={schema.unit} />
-                    )}
-                    {schema.type === "time" && (
-                      <TimePicker value={val} onChange={set} />
-                    )}
-                    {schema.type === "rpe" && (
-                      <RpeScale value={val} onChange={set} />
-                    )}
-                    {schema.type === "tempo" && (
-                      <TempoPattern value={val} onChange={set} />
-                    )}
-                    {schema.type === "chips" && (
-                      <ChipsMulti value={val} options={EQUIPMENT_OPTIONS} onChange={set} allowCustom={!!schema.allowCustom} />
-                    )}
-                    {schema.type === "list" && (
-                      <ListBuilder value={val} onChange={set} placeholder={schema.placeholder} />
-                    )}
-                    {schema.type === "tabata" && (
-                      <Tabata value={val || TABATA_DEFAULTS} onChange={set} />
-                    )}
-                    {schema.type === "select" && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {schema.options.map(opt => (
-                          <button key={opt} onClick={() => set(val === opt ? "" : opt)}
-                            style={{ padding: "8px 14px", borderRadius: 9999, border: `1.5px solid ${val === opt ? "#FF6F20" : "#eee"}`, background: val === opt ? "#FF6F20" : "white", color: val === opt ? "white" : "#555", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {schema.type === "textarea" && (
-                      <textarea value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder} rows={3}
-                        style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid #ddd", borderRadius: 12, boxSizing: "border-box", resize: "none", fontFamily: "inherit", direction: "rtl", outline: "none" }} />
-                    )}
-                    {(schema.type === "text" || schema.type === "url") && (
-                      <input type={schema.type === "url" ? "url" : "text"} value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder || "..."}
-                        style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: "1.5px solid", borderColor: val ? "#FF6F20" : "#ddd", borderRadius: 12, boxSizing: "border-box", direction: "rtl", outline: "none", background: val ? "#FFF0E8" : "white" }} />
-                    )}
-                  </div>
-                );
-              })}
+            <div style={{ padding: "4px 16px 16px", direction: "rtl" }}>
+              {selectedParams.map(renderWidget)}
             </div>
           )}
         </div>
-        </div>
 
-        <div style={{ flexShrink: 0, padding: "14px 20px", borderTop: "0.5px solid #F0E4D0", background: "white", paddingBottom: "max(env(safe-area-inset-bottom), 14px)" }}>
-          <button onClick={() => {
-            // Always run — surface validation as a toast instead of
-            // silently returning. Was: `if (!name.trim()) return;`
-            // which left the user staring at a grey button thinking
-            // the save had failed.
-            if (!name.trim()) { toast.error('יש להזין שם תרגיל'); return; }
-            onSave({ name: name.trim(), params });
-          }}
-            style={{ width: "100%", height: 50, background: !name.trim() ? "#ccc" : "#FF6F20", color: "white", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 6, boxShadow: name.trim() ? '0 2px 8px rgba(255,111,32,0.25)' : 'none' }}>
+        {/* F. Save button — gradient when active */}
+        <div style={{
+          flexShrink: 0,
+          padding: "16px",
+          borderTop: "0.5px solid #F0E4D0",
+          background: "white",
+          paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+        }}>
+          <button
+            onClick={() => {
+              if (!name.trim()) { toast.error('יש להזין שם תרגיל'); return; }
+              onSave({ name: name.trim(), params });
+            }}
+            style={{
+              width: "100%", padding: "16px",
+              borderRadius: "16px", border: "none",
+              background: name?.trim()
+                ? "linear-gradient(135deg, #FF6F20, #FF8F50)"
+                : "#ddd",
+              color: "white", fontSize: "17px",
+              fontWeight: 700, cursor: "pointer",
+              boxShadow: name?.trim()
+                ? "0 4px 15px rgba(255,111,32,0.3)"
+                : "none",
+            }}
+          >
             {data.isNew ? "✅ הוסף תרגיל" : "💾 עדכן תרגיל"}
           </button>
-          <button onClick={onClose} style={{ width: "100%", padding: 8, background: "none", border: "none", color: "#888", fontSize: 13, cursor: "pointer" }}>ביטול</button>
+          <div
+            onClick={onClose}
+            style={{
+              textAlign: "center", padding: "12px",
+              color: "#888", fontSize: "14px",
+              cursor: "pointer",
+            }}
+          >ביטול</div>
         </div>
       </div>
     </div>

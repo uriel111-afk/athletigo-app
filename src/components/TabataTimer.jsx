@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 const O = '#FF6F20';
 const W = '#FFFFFF';
 const WD = 'rgba(255,255,255,0.2)';
-const R = 120, S = 10, SIZE = R * 2 + S * 2, CX = SIZE / 2, CY = SIZE / 2;
+const R = 95, S = 6, SIZE = 220, CX = SIZE / 2, CY = SIZE / 2;
 const CIRC = 2 * Math.PI * R;
 
 const PHASE_LABEL = { prep: 'הכנה', work: 'עבודה', rest: 'מנוחה', set_rest: 'מנוחה בין סטים', done: 'סיום' };
@@ -723,11 +723,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         </button>
         <div style={{
           textAlign: 'center', width: '100%',
-          padding: '16px 0 8px',
-          fontSize: 'min(11vw, 48px)', fontWeight: 700,
+          padding: '12px 0 8px',
+          fontSize: 36, fontWeight: 700,
           color: isWork ? '#FFFFFF' : '#FF6F20',
-          letterSpacing: 4,
-          textTransform: 'uppercase',
         }}>
           {phase.type === 'work'     && '🔥 עבודה'}
           {phase.type === 'rest'     && '💤 מנוחה'}
@@ -736,37 +734,42 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         </div>
       </div>
 
-      {/* ROW 2: Stats — round + set + total time */}
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexShrink: 0 }}>
+      {/* ROW 2: Stats — round + set + total time (compact: label on top, big number below) */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
         {phase.type !== 'prep' && (
           <button
             type="button"
             onClick={() => setRoundPickerOpen(true)}
-            style={{ background: chipBg, borderRadius: 14, padding: '10px 22px', fontSize: 'min(8vw, 36px)', fontWeight: 900, cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
+            style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
           >
-            <span style={{ pointerEvents: 'none' }}>סבב {phase.round}/{cfg.rounds}</span>
+            <div style={{ pointerEvents: 'none', fontSize: 11, fontWeight: 600, opacity: 0.7 }}>סבב</div>
+            <div style={{ pointerEvents: 'none', fontSize: 28, fontWeight: 700 }}>{phase.round}/{cfg.rounds}</div>
           </button>
         )}
         {cfg.sets > 1 && phase.type !== 'prep' && (
-          <div style={{ background: chipBg, borderRadius: 14, padding: '10px 22px', fontSize: 'min(8vw, 36px)', fontWeight: 900, color: textPrimary }}>
-            סט {phase.set}/{cfg.sets}
+          <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', color: textPrimary }}>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.7 }}>סט</div>
+            <div style={{ fontSize: 28, fontWeight: 700 }}>{phase.set}/{cfg.sets}</div>
           </div>
         )}
-        <div style={{ background: chipDarkBg, borderRadius: 14, padding: '10px 22px', fontSize: 'min(8vw, 36px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: textPrimary }}>
-          ⏱ {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
+        <div style={{ flex: 1, background: chipDarkBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', color: textPrimary }}>
+          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.7 }}>⏱</div>
+          <div style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
+          </div>
         </div>
       </div>
 
-      {/* CENTER: Ring + MASSIVE number — fills all available space */}
+      {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, width: '100%' }}>
-        <div style={{ position: 'relative', width: 'min(80vw, 320px)', height: 'min(80vw, 320px)' }}>
+        <div style={{ position: 'relative', width: 'min(60vw, 220px)', height: 'min(60vw, 220px)' }}>
           <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
             <circle cx={CX} cy={CY} r={R} stroke={ringTrack} strokeWidth={S} fill="none" />
             <circle cx={CX} cy={CY} r={R} stroke={ringFill} strokeWidth={S} strokeLinecap="round" fill="none"
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(55vw, 200px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -8, lineHeight: 1, color: textPrimary }}>{display}</span>
+            <span style={{ fontSize: 'min(25vw, 90px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
