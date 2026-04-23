@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Loader2, Dumbbell } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,21 +99,20 @@ export default function Login() {
       dir="rtl"
     >
       <div className="w-full max-w-sm">
-        {/* Logo / branding */}
-        <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
-            style={{ backgroundColor: "#FF6F20" }}
-          >
-            <Dumbbell className="w-8 h-8 text-white" />
-          </div>
-          <h1
-            className="text-3xl font-black"
-            style={{ fontFamily: "Montserrat, Heebo, sans-serif", color: "#000000" }}
-          >
-            AthletiGo
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "#7D7D7D" }}>
+        {/* Brand — triangle logo + ATHLETIGO wordmark, same assets
+            as the loading screen for visual continuity. */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32 }}>
+          <img
+            src="/logo-transparent.png"
+            alt=""
+            style={{ width: 120, height: 120, objectFit: 'contain' }}
+          />
+          <img
+            src="/athletigo-text.png"
+            alt="ATHLETIGO"
+            style={{ height: 22, objectFit: 'contain', marginTop: 12 }}
+          />
+          <p className="text-sm mt-2" style={{ color: "#7D7D7D" }}>
             כניסה למערכת מאמנים
           </p>
         </div>
