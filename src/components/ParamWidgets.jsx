@@ -384,9 +384,31 @@ export function Tabata({ value, onChange }) {
         }}>+ הוסף תרגיל לסיבוב</button>
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 11, color: MU, textAlign: "center" }}>
-        סיכום: {v.work_sec ?? TABATA_DEFAULTS.work_sec}/{v.rest_sec ?? TABATA_DEFAULTS.rest_sec} × {rounds} × {sets} סט
-        {totalSec > 0 ? ` · ~${mins} דק'` : ''}
+      {/* Summary — 3 big stats so the coach can see total round
+          count, set count, and time estimate at a glance. */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-around', textAlign: 'center',
+        marginTop: 10, padding: '8px 4px', background: 'white', borderRadius: 10,
+      }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+            {Math.max(rounds, exercises.length) * sets}
+          </div>
+          <div style={{ fontSize: 10, color: MU }}>סיבובים</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>{sets}</div>
+          <div style={{ fontSize: 10, color: MU }}>סטים</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: O }}>
+            {totalSec > 0 ? `${mins}` : '—'}
+          </div>
+          <div style={{ fontSize: 10, color: MU }}>דקות</div>
+        </div>
+      </div>
+      <div style={{ marginTop: 6, fontSize: 10, color: MU, textAlign: 'center' }}>
+        {v.work_sec ?? TABATA_DEFAULTS.work_sec}/{v.rest_sec ?? TABATA_DEFAULTS.rest_sec} × {rounds} × {sets} סט
       </div>
     </div>
   );

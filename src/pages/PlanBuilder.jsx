@@ -285,6 +285,7 @@ export default function PlanBuilder() {
       "order": sec.exercises.length,
       completed: false,
     };
+    console.log('[PlanBuilder] addExercise SAVE PAYLOAD:', payload);
     try {
       const { data, error } = await supabase.from("exercises").insert(payload).select().single();
       if (error) {
@@ -292,6 +293,7 @@ export default function PlanBuilder() {
         toast.error('שגיאה בשמירת תרגיל: ' + (error.message || 'נסה שוב'));
         return;
       }
+      console.log('[PlanBuilder] addExercise SAVED:', data);
       setSections(prev => prev.map((s, i) =>
         i === sectionIndex ? { ...s, exercises: [...s.exercises, data] } : s
       ));
@@ -342,6 +344,7 @@ export default function PlanBuilder() {
       toast.error('שם התרגיל חסר');
       return;
     }
+    console.log('[PlanBuilder] updateExercise SAVE PAYLOAD:', { id: ex.id, ...payload });
     let error;
     try {
       const res = await supabase.from("exercises").update(payload).eq("id", ex.id);
@@ -634,17 +637,28 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{ex.exercise_name || ex.name || "תרגיל"}</div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
-              {ex.sets && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>סטים: {ex.sets}</span>}
-              {ex.reps && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>חזרות: {ex.reps}</span>}
-              {ex.work_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>עבודה: {formatWorkTime(ex.work_time)}</span>}
-              {ex.rest_time && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>מנוחה: {formatWorkTime(ex.rest_time)}</span>}
+              {/* Category-coded pills: orange = volume (sets/reps),
+                  green = time (work/rest), purple = load (weight/RPE),
+                  yellow = difficulty, brand-orange-bordered = tabata. */}
+              {ex.sets && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.sets} סטים</span>}
+              {ex.reps && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.reps} חזרות</span>}
+              {ex.work_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>💪 {formatWorkTime(ex.work_time)}</span>}
+              {ex.rest_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>😮‍💨 {formatWorkTime(ex.rest_time)}</span>}
+              {ex.weight && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🏋 {ex.weight} ק״ג</span>}
+              {ex.rpe && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>RPE {ex.rpe}</span>}
               {ex.tabata_config && (() => {
                 const t = ex.tabata_config;
-                return <span style={{ background: "#FFF0E8", color: "#FF6F20", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 700, border: "1px solid #FFD0A0" }}>טבטה: {t.work_sec ?? 20}/{t.rest_sec ?? 10} × {t.rounds ?? 8} × {t.sets ?? 1} סט</span>;
+                const exCount = Array.isArray(t.exercises) ? t.exercises.length : 0;
+                return <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 700, border: "1px solid #FF6F20" }}>⏱ טבטה {t.work_sec ?? 20}/{t.rest_sec ?? 10}{exCount > 0 ? ` · ${exCount} תרגילים` : ''}</span>;
               })()}
-              {Array.isArray(ex.children) && ex.children.length > 0 && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>{ex.children.length} תרגילים מקושרים</span>}
-              {ex.weight && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>משקל: {ex.weight}</span>}
-              {ex.rpe && <span style={{ background: "#f0f0f0", color: "#555", fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>RPE: {ex.rpe}</span>}
+              {(() => {
+                // Difficulty is stored as a "[קושי: X]" prefix in description.
+                const m = String(ex.description || '').match(/^\[קושי:\s*([^\]]+)\]/);
+                if (!m) return null;
+                return <span style={{ background: "#FEF9C3", color: "#CA8A04", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🎯 {m[1].trim()}</span>;
+              })()}
+              {Array.isArray(ex.children) && ex.children.length > 0 && <span style={{ background: "#E3F2FD", color: "#1976D2", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>📋 {ex.children.length} תת-תרגילים</span>}
+              {Array.isArray(ex.equipment) && ex.equipment.length > 0 && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🛠 {ex.equipment.join(', ')}</span>}
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
