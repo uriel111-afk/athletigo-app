@@ -99,20 +99,14 @@ export default function Login() {
       dir="rtl"
     >
       <div className="w-full max-w-sm">
-        {/* Brand — triangle logo + ATHLETIGO wordmark, same assets
-            as the loading screen for visual continuity. */}
+        {/* Brand — single combined logoR asset (triangle + wordmark). */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
           <img
-            src="/logo-transparent.png"
-            alt=""
-            style={{ width: 120, height: 120, objectFit: 'contain' }}
+            src="/logoR.png"
+            alt="AthletiGo"
+            style={{ width: 200, height: 'auto', objectFit: 'contain' }}
           />
-          <img
-            src="/athletigo-text.png"
-            alt="ATHLETIGO"
-            style={{ height: 22, objectFit: 'contain', marginTop: 8 }}
-          />
-          <div style={{ fontSize: 14, color: '#888', marginTop: 12, fontWeight: 500 }}>
+          <div style={{ fontSize: 14, color: '#888', marginTop: 16, fontWeight: 500 }}>
             כניסה למערכת מאמנים ומתאמנים
           </div>
         </div>
