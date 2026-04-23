@@ -133,9 +133,16 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         alignItems: 'center',
         padding: '0 6px',
         gap: 4,
-        // Above Radix Dialog overlay (z 2000) and ScrollPickerPopup
-        // (z 3000). Picker popups are bumped to z 6000 to stay above.
-        zIndex: 5000,
+        // Z-index hierarchy (definitive):
+        //   Timer bar:         12000  (highest — always tappable)
+        //   Custom modals:     11000  (LastSessionAlert, etc.)
+        //   Dialog content:    11001
+        //   Dialog backdrop:   11000
+        //   Tabata fullscreen: 10000
+        // Bar above modal backdrops so the user can keep using the
+        // timer while a form is open. Bar's stopPropagation guards
+        // prevent the click from also reaching the dialog underneath.
+        zIndex: 12000,
         direction: 'rtl',
         transition: 'background 0.3s ease',
         cursor: 'default',

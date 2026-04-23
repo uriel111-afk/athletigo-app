@@ -33,7 +33,7 @@ export default function NotificationResponsePopup({ notif, onClose, onRespond })
           borderRadius: 24,
           padding: 24,
           width: '100%', maxWidth: 340,
-          maxHeight: '85vh', overflowY: 'auto',
+          maxHeight: '78vh', overflowY: 'auto',
           direction: 'rtl',
         }}
       >

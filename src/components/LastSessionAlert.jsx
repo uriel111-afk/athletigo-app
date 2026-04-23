@@ -108,7 +108,7 @@ export default function LastSessionAlert() {
           padding: 24,
           width: '100%',
           maxWidth: 360,
-          maxHeight: '90vh',
+          maxHeight: '78vh',
           overflowY: 'auto',
           textAlign: 'right',
           boxShadow: '0 20px 60px rgba(0,0,0,0.25)',

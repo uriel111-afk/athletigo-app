@@ -278,7 +278,7 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
           borderRadius: "20px 20px 0 0",
           width: "100%",
           maxWidth: 500,
-          maxHeight: "92vh",
+          maxHeight: "78vh",
           overflowY: "auto",
           direction: "rtl",
           WebkitOverflowScrolling: "touch",

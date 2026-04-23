@@ -44,7 +44,10 @@ const DialogContent = React.forwardRef(({ className, children, onPointerDownOuts
       className={cn(
         "bg-white rounded-xl shadow-xl flex flex-col overflow-hidden",
         "w-[calc(100vw-2rem)] max-w-lg",
-        "max-h-[var(--modal-max-height,85vh)]",
+        // 75vh leaves clearance for the 74px minimized timer bar
+        // (z-index 12000). Without this, tall dialogs would extend
+        // behind the bar on shorter screens.
+        "max-h-[var(--modal-max-height,75vh)]",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className
       )}
