@@ -52,12 +52,12 @@ function runPhaseTransition(fromType, nextPhase, cfg) {
   const round = nextPhase?.round ?? 0;
   const rounds = cfg?.rounds ?? 0;
 
-  // Sound
-  if (fromType === 'prep'     && toType === 'work')     playActionMelody();
+  // Sound — every transition INTO a work phase plays the same
+  // playActionMelody so round 1 (prep->work, idle->work) and every
+  // subsequent round (rest->work, set_rest->work) sound identical.
+  if (toType === 'work')                                playActionMelody();
   if (fromType === 'work'     && toType === 'rest')     playSlowPulse();
-  if (fromType === 'rest'     && toType === 'work')     playActionMelody();
   if (fromType === 'work'     && toType === 'set_rest') playLongBeep();
-  if (fromType === 'set_rest' && toType === 'work')     playDoubleBell();
   if (fromType === 'work'     && toType === 'done')     playVictory();
 
   // Haptic + system notification (phone status bar)
@@ -342,10 +342,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       ? { type: 'prep', round: 0, set: 0, dur: cfg.prep }
       : { type: 'work', round: 1, set: 1, dur: cfg.work };
     beginPhase(first);
-    // Seed a status-bar notification so it's visible immediately
-    // (before the first phase transition fires).
+    // When prep is skipped (cfg.prep === 0), the first phase IS the
+    // first work phase. Run the same transition helper that fires on
+    // every other work-start so round 1 sounds identical to rounds 2+
+    // (playActionMelody + workStart vibration + system notification).
     if (first.type === 'work') {
-      showTimerNotification('🔥 AthletiGo — עבודה!', `סבב 1/${cfg.rounds} · ${cfg.work} שניות`);
+      runPhaseTransition('idle', first, cfg);
     } else {
       showTimerNotification('⏱ AthletiGo — טבטה', 'הכנה…');
     }
