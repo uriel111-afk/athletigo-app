@@ -21,7 +21,7 @@ export default function NotificationResponsePopup({ notif, onClose, onRespond })
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.5)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 6000, padding: 20,
+        zIndex: 11000, padding: 20,
       }}
     >
       <div

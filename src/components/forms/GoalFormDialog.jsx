@@ -12,7 +12,9 @@ import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFormPersistence } from "../hooks/useFormPersistence";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { useCloseConfirm } from "../hooks/useCloseConfirm";
+import DraftPrompt from "@/components/DraftPrompt";
 
 const GOAL_TYPES = [
   "חבל",
@@ -75,8 +77,15 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     extra_notes: editingGoal.extra_notes || ""
   } : defaultFormData;
 
-  const formKey = `goal_form_${editingGoal ? editingGoal.id : 'new'}_${traineeId}`;
-  const [formData, setFormData, clearDraft, draftExists, hasChanges] = useFormPersistence(formKey, currentDefaults);
+  const scopeKey = `${traineeId ?? 'no-trainee'}_${editingGoal ? editingGoal.id : 'new'}`;
+  const draftCtx = traineeId ? { traineeId, traineeName } : null;
+  const {
+    data: formData, setData: setFormData, clearDraft,
+    hasDraft, keepDraft, discardDraft,
+    draftContext: savedCtx,
+  } = useFormDraft('GoalForm', scopeKey, isOpen, currentDefaults, draftCtx);
+
+  const hasChanges = JSON.stringify(formData) !== JSON.stringify(currentDefaults);
   const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, () => { clearDraft(); onClose(); });
 
   const createGoalMutation = useMutation({
@@ -165,20 +174,25 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
-      <DialogContent className="max-w-lg">
-        {ConfirmDialog}
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            <Target className="w-6 h-6 text-[#FF6F20]" />
-            {editingGoal ? 'עריכת יעד' : 'יעד חדש'}
-          </DialogTitle>
-          {draftExists && (
-            <div className="text-sm text-gray-500 mt-1">
-              טיוטה שמורה
-            </div>
-          )}
-        </DialogHeader>
+    <>
+      {isOpen && hasDraft && (
+        <DraftPrompt
+          traineeName={savedCtx?.traineeName || traineeName}
+          formLabel="טופס יעד"
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={() => { clearDraft(); onClose(); }}
+        />
+      )}
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
+        <DialogContent className="max-w-lg">
+          {ConfirmDialog}
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Target className="w-6 h-6 text-[#FF6F20]" />
+              {editingGoal ? 'עריכת יעד' : 'יעד חדש'}
+            </DialogTitle>
+          </DialogHeader>
 
         <div className="space-y-5 py-2">
           {/* 1. Goal Name */}
@@ -348,7 +362,8 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

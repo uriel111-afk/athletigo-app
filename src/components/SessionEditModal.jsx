@@ -262,7 +262,7 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 9999,
+        zIndex: 11000,
         background: "rgba(0,0,0,0.5)",
         display: "flex",
         alignItems: "flex-end",

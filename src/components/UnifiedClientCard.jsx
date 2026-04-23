@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
+import DraftPrompt from "@/components/DraftPrompt";
 
 export default function UnifiedClientCard({ 
   client, 
@@ -88,12 +89,14 @@ export default function UnifiedClientCard({
     coach_notes: ""
   });
 
-  const { data: noteForm, setData: setNoteForm, clearDraft: clearNoteDraft } = useFormDraft(
-    'AddNote',
-    currentClient?.id ?? client?.id,
-    showAddNote,
-    { note_text: "" }
-  );
+  const noteTraineeId = currentClient?.id ?? client?.id;
+  const noteTraineeName = currentClient?.full_name ?? client?.full_name ?? "";
+  const noteDraftCtx = noteTraineeId ? { traineeId: noteTraineeId, traineeName: noteTraineeName } : null;
+  const {
+    data: noteForm, setData: setNoteForm, clearDraft: clearNoteDraft,
+    hasDraft: hasNoteDraft, keepDraft: keepNoteDraft, discardDraft: discardNoteDraft,
+    draftContext: savedNoteCtx,
+  } = useFormDraft('AddNote', noteTraineeId, showAddNote, { note_text: "" }, noteDraftCtx);
 
   const [serviceForm, setServiceForm] = useState({
     service_type: "אימונים אישיים",
@@ -1622,6 +1625,15 @@ export default function UnifiedClientCard({
       />
 
       {/* Add Note Dialog */}
+      {showAddNote && hasNoteDraft && (
+        <DraftPrompt
+          traineeName={savedNoteCtx?.traineeName || noteTraineeName}
+          formLabel="טופס הערה"
+          onResume={keepNoteDraft}
+          onNew={discardNoteDraft}
+          onDiscard={() => { clearNoteDraft(); setShowAddNote(false); }}
+        />
+      )}
       <Dialog open={showAddNote} onOpenChange={setShowAddNote}>
         <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFF', WebkitOverflowScrolling: 'touch' }}>
           <DialogHeader><DialogTitle className="text-base md:text-lg">הוסף הערה</DialogTitle></DialogHeader>

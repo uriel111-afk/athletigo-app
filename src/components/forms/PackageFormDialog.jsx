@@ -14,6 +14,7 @@ import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
+import DraftPrompt from "@/components/DraftPrompt";
 
 const TYPES = [
   { id: "personal", label: "אישי", desc: "מפגשי 1-על-1", icon: User, color: "#FF6F20" },
@@ -80,10 +81,12 @@ export default function PackageFormDialog({
   } : { ...INITIAL_DATA, start_date: new Date().toISOString().split("T")[0] };
 
   const scopeKey = `${traineeId ?? 'no-trainee'}_${editingPackage?.id ?? 'new'}`;
+  const draftCtx = traineeId ? { traineeId, traineeName } : null;
   const {
     data: form, setData: setForm,
     hasDraft, keepDraft, discardDraft, clearDraft,
-  } = useFormDraft('PackageEdit', scopeKey, isOpen, initialData);
+    draftContext: savedCtx,
+  } = useFormDraft('PackageEdit', scopeKey, isOpen, initialData, draftCtx);
 
   useKeepScreenAwake(isOpen);
 
@@ -213,15 +216,25 @@ export default function PackageFormDialog({
   const typeConfig = TYPES.find(t => t.id === form.package_type);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold flex items-center gap-2">
-            <Package className="w-5 h-5 text-[#FF6F20]" />
-            {editingPackage ? "ערוך חבילה" : "חבילה חדשה"}
-            {traineeName && <span className="text-sm font-normal text-gray-500">— {traineeName}</span>}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {isOpen && hasDraft && (
+        <DraftPrompt
+          traineeName={savedCtx?.traineeName || traineeName}
+          formLabel="טופס חבילה"
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={() => { clearDraft(); onClose(); }}
+        />
+      )}
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Package className="w-5 h-5 text-[#FF6F20]" />
+              {editingPackage ? "ערוך חבילה" : "חבילה חדשה"}
+              {traineeName && <span className="text-sm font-normal text-gray-500">— {traineeName}</span>}
+            </DialogTitle>
+          </DialogHeader>
 
         {hasDraft && (
           <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
@@ -352,7 +365,8 @@ export default function PackageFormDialog({
             </Button>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

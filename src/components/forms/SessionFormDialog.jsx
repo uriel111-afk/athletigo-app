@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
+import DraftPrompt from "@/components/DraftPrompt";
 
 const INITIAL_DATA = {
   date: "",
@@ -48,10 +49,18 @@ export default function SessionFormDialog({
   } : { ...INITIAL_DATA, date: new Date().toISOString().split('T')[0] };
 
   const scopeKey = `${currentCoach?.id ?? 'no-coach'}_${editingSession?.id ?? 'new'}`;
+  // Draft context = who the session is for (first participant) so the
+  // resume prompt can say "draft for <name>".
+  const firstParticipant = (editingSession?.participants?.[0]) || null;
+  const draftContext = firstParticipant ? {
+    traineeId: firstParticipant.trainee_id,
+    traineeName: firstParticipant.trainee_name,
+  } : null;
   const {
     data: sessionForm, setData: setSessionForm,
     hasDraft, keepDraft, discardDraft, clearDraft,
-  } = useFormDraft('SessionForm', scopeKey, isOpen, initialData);
+    draftContext: savedContext,
+  } = useFormDraft('SessionForm', scopeKey, isOpen, initialData, draftContext);
 
   useKeepScreenAwake(isOpen);
 
@@ -232,23 +241,30 @@ export default function SessionFormDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) {
-        // Just closing, preserve draft
-        onClose();
-      }
-    }}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl md:text-2xl font-black mb-2" style={{ color: '#000000' }}>
-            {editingSession ? '✏️ ערוך מפגש' : '➕ צור מפגש חדש'}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {isOpen && hasDraft && (
+        <DraftPrompt
+          traineeName={savedContext?.traineeName}
+          formLabel="טופס מפגש"
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={() => { clearDraft(); onClose(); }}
+        />
+      )}
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+          // Just closing, preserve draft
+          onClose();
+        }
+      }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl md:text-2xl font-black mb-2" style={{ color: '#000000' }}>
+              {editingSession ? '✏️ ערוך מפגש' : '➕ צור מפגש חדש'}
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-5">
-          {hasDraft && (
-            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
-          )}
+          <div className="space-y-5">
           {/* Date Selection — Calendar picker */}
           <div>
             <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
@@ -614,7 +630,8 @@ export default function SessionFormDialog({
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

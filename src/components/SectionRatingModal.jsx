@@ -33,7 +33,7 @@ export default function SectionRatingModal({ open, section, onSubmit }) {
   return (
     <div style={{
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
-      zIndex: 9999, display: "flex", alignItems: "flex-end",
+      zIndex: 11000, display: "flex", alignItems: "flex-end",
       justifyContent: "center", padding: 12, direction: "rtl",
     }}>
       <div style={{

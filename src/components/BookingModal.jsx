@@ -112,7 +112,7 @@ export default function BookingModal({ user, coach: coachProp, onClose, onSucces
     return (
       <div style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-        zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 11000, display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{
           background: 'white', borderRadius: '16px',
@@ -131,7 +131,7 @@ export default function BookingModal({ user, coach: coachProp, onClose, onSucces
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.55)',
-        zIndex: 2000,
+        zIndex: 11000,
         display: 'flex', alignItems: 'flex-end',
         justifyContent: 'center', direction: 'rtl',
       }}

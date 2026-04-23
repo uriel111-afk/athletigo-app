@@ -12,6 +12,7 @@ import { base44 } from "@/api/base44Client";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
+import DraftPrompt from "@/components/DraftPrompt";
 
 const INITIAL_DATA = {
   date: "",
@@ -39,10 +40,12 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
   } : { ...INITIAL_DATA, date: new Date().toISOString().split('T')[0] };
 
   const scopeKey = `${traineeId ?? 'no-trainee'}_${editingMeasurement?.id ?? 'new'}`;
+  const draftContext = traineeId ? { traineeId, traineeName } : null;
   const {
     data: formData, setData: setFormData,
     hasDraft, keepDraft, discardDraft, clearDraft,
-  } = useFormDraft('MeasurementsAdd', scopeKey, isOpen, initialData);
+    draftContext: savedContext,
+  } = useFormDraft('MeasurementsAdd', scopeKey, isOpen, initialData, draftContext);
 
   useKeepScreenAwake(isOpen);
 
@@ -113,8 +116,18 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-3xl">
+    <>
+      {isOpen && hasDraft && (
+        <DraftPrompt
+          traineeName={savedContext?.traineeName || traineeName}
+          formLabel="טופס מדידה"
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={() => { clearDraft(); onClose(); }}
+        />
+      )}
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
             {editingMeasurement ? '✏️ ערוך מדידה' : '➕ הוסף מדידה חדשה'}
@@ -260,7 +273,8 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

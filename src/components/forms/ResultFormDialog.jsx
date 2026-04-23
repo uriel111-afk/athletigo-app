@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Award } from "lucide-react";
 import { useCloseConfirm } from "../hooks/useCloseConfirm";
 import { useFormDraft } from "@/hooks/useFormDraft";
+import DraftPrompt from "@/components/DraftPrompt";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -78,7 +79,12 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
   // Draft persistence — survives refresh / accidental close. Editing existing
   // records doesn't share a draft slot with the "new record" flow.
   const draftScope = editingResult ? `edit_${editingResult.id}` : `new_${traineeId || 'me'}`;
-  const { data: formData, setData: setFormData, clearDraft } = useFormDraft('record_form', draftScope, isOpen, initialFormData);
+  const draftCtx = traineeId ? { traineeId, traineeName } : null;
+  const {
+    data: formData, setData: setFormData, clearDraft,
+    hasDraft, keepDraft, discardDraft,
+    draftContext: savedCtx,
+  } = useFormDraft('record_form', draftScope, isOpen, initialFormData, draftCtx);
 
   const hasChanges = !!(formData.title || formData.record_value || formData.description);
   const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, onClose);
@@ -167,9 +173,19 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
   const isLoading = createResultMutation.isPending || updateResultMutation.isPending;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
-      <DialogContent className="max-w-lg">
-        {ConfirmDialog}
+    <>
+      {isOpen && hasDraft && (
+        <DraftPrompt
+          traineeName={savedCtx?.traineeName || traineeName}
+          formLabel="טופס שיא"
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={() => { clearDraft(); onClose(); }}
+        />
+      )}
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>
+        <DialogContent className="max-w-lg">
+          {ConfirmDialog}
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <Award className="w-6 h-6 text-[#FFD700]" />
@@ -342,7 +358,8 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
