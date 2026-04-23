@@ -9,6 +9,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Stepper, TimePicker, RpeScale, TempoPattern, ChipsMulti, ListBuilder, Tabata, TABATA_DEFAULTS, EQUIPMENT_OPTIONS } from "@/components/ParamWidgets";
 import { SECTION_TYPES, getSectionType, normalizeSectionType } from "@/lib/sectionTypes";
 import CollapsibleSection from "@/components/CollapsibleSection";
+import { toast } from "sonner";
 
 // First 4 are auto-created for new plans
 const DEFAULT_SECTION_IDS = ["warmup", "mobility", "strength", "flexibility"];
@@ -232,7 +233,23 @@ export default function PlanBuilder() {
   };
 
   const addExercise = async (sectionIndex, exerciseData) => {
+    // Explicit validation with visible Hebrew toast (was: silent return)
+    if (!exerciseData?.name?.trim()) {
+      console.warn('[PlanBuilder] addExercise: name missing');
+      toast.error('שם התרגיל חסר');
+      return;
+    }
     const sec = sections[sectionIndex];
+    if (!sec?.id) {
+      console.error('[PlanBuilder] addExercise: section.id missing — section likely not saved yet', { sectionIndex, sec });
+      toast.error('יש לשמור את הסקציה לפני הוספת תרגילים');
+      return;
+    }
+    if (!planId) {
+      console.error('[PlanBuilder] addExercise: planId missing — plan likely not saved yet');
+      toast.error('יש לשמור את התוכנית קודם');
+      return;
+    }
     const payload = {
       training_section_id: sec.id,
       training_plan_id: planId,
@@ -260,12 +277,22 @@ export default function PlanBuilder() {
       "order": sec.exercises.length,
       completed: false,
     };
-    const { data, error } = await supabase.from("exercises").insert(payload).select().single();
-    if (error) { console.error('[PlanBuilder] addExercise error:', error); alert('שגיאה בשמירת תרגיל: ' + error.message); return; }
-    setSections(prev => prev.map((s, i) =>
-      i === sectionIndex ? { ...s, exercises: [...s.exercises, data] } : s
-    ));
-    setEditingExercise(null);
+    try {
+      const { data, error } = await supabase.from("exercises").insert(payload).select().single();
+      if (error) {
+        console.error('[PlanBuilder] addExercise supabase error:', error, { payload });
+        toast.error('שגיאה בשמירת תרגיל: ' + (error.message || 'נסה שוב'));
+        return;
+      }
+      setSections(prev => prev.map((s, i) =>
+        i === sectionIndex ? { ...s, exercises: [...s.exercises, data] } : s
+      ));
+      setEditingExercise(null);
+      toast.success('התרגיל נוסף');
+    } catch (err) {
+      console.error('[PlanBuilder] addExercise unexpected:', err);
+      toast.error('שגיאה לא צפויה: ' + (err?.message || 'נסה שוב'));
+    }
   };
 
   const updateExercise = async (sectionIndex, exerciseIndex, exerciseData) => {
@@ -293,8 +320,30 @@ export default function PlanBuilder() {
       tabata_config: exerciseData.params["טבטה"] || null,
       children: exerciseData.params["רשימת תרגילים"] || null,
     };
-    const { error } = await supabase.from("exercises").update(payload).eq("id", ex.id);
-    if (error) { console.error('[PlanBuilder] updateExercise error:', error); alert('שגיאה בעדכון: ' + error.message); return; }
+    if (!ex?.id) {
+      console.error('[PlanBuilder] updateExercise: ex.id missing', { sectionIndex, exerciseIndex });
+      toast.error('לא נמצא תרגיל לעדכון');
+      return;
+    }
+    if (!exerciseData?.name?.trim()) {
+      toast.error('שם התרגיל חסר');
+      return;
+    }
+    let error;
+    try {
+      const res = await supabase.from("exercises").update(payload).eq("id", ex.id);
+      error = res.error;
+    } catch (err) {
+      console.error('[PlanBuilder] updateExercise unexpected:', err);
+      toast.error('שגיאה לא צפויה: ' + (err?.message || 'נסה שוב'));
+      return;
+    }
+    if (error) {
+      console.error('[PlanBuilder] updateExercise supabase error:', error, { payload });
+      toast.error('שגיאה בעדכון: ' + (error.message || 'נסה שוב'));
+      return;
+    }
+    toast.success('התרגיל עודכן');
     setSections(prev => prev.map((s, si) =>
       si === sectionIndex ? {
         ...s,
@@ -682,7 +731,14 @@ function ExerciseEditor({ data, onSave, onClose }) {
         </div>
 
         <div style={{ flexShrink: 0, padding: "12px 24px", borderTop: "0.5px solid #f0f0f0", background: "#fff", paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
-          <button onClick={() => { if (!name.trim()) return; onSave({ name, params }); }} disabled={!name.trim()}
+          <button onClick={() => {
+            // Always run — surface validation as a toast instead of
+            // silently returning. Was: `if (!name.trim()) return;`
+            // which left the user staring at a grey button thinking
+            // the save had failed.
+            if (!name.trim()) { toast.error('יש להזין שם תרגיל'); return; }
+            onSave({ name: name.trim(), params });
+          }}
             style={{ width: "100%", height: 52, background: !name.trim() ? "#ccc" : "#FF6F20", color: "white", border: "none", borderRadius: 12, fontSize: 18, fontWeight: 900, cursor: "pointer", marginBottom: 8 }}>
             {data.isNew ? "הוסף תרגיל ✓" : "עדכן תרגיל ✓"}
           </button>

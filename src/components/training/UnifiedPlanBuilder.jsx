@@ -396,8 +396,22 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   };
 
   const handleSaveExercise = async (exerciseData) => {
-    if (!currentSection?.id || !exerciseData?.exercise_name) {
-      toast.error("נא למלא שם תרגיל");
+    // Explicit per-field validation with distinct error messages so
+    // the user knows exactly what's missing instead of seeing one
+    // generic "fill in name" toast for unrelated errors.
+    if (!exerciseData?.exercise_name?.trim()) {
+      console.warn('[UnifiedPlanBuilder] handleSaveExercise: exercise_name missing');
+      toast.error("שם התרגיל חסר");
+      return;
+    }
+    if (!currentSection?.id) {
+      console.error('[UnifiedPlanBuilder] handleSaveExercise: currentSection.id missing', { currentSection });
+      toast.error("יש לבחור סקציה לפני הוספת תרגיל");
+      return;
+    }
+    if (!plan?.id) {
+      console.error('[UnifiedPlanBuilder] handleSaveExercise: plan.id missing', { plan });
+      toast.error("יש לשמור את התוכנית קודם");
       return;
     }
 
@@ -452,8 +466,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         toast.success("נוצר בהצלחה");
       }
     } catch (error) {
-      console.error("Save failed:", error);
-      toast.error("שגיאה בשמירה");
+      // Surface the actual error text so the user (and us) can tell
+      // a schema mismatch from a network failure from an RLS denial.
+      console.error("[UnifiedPlanBuilder] handleSaveExercise failed:", error, { data });
+      const msg = error?.message || error?.error?.message || error?.body?.message || 'נסה שוב';
+      toast.error("שגיאה בשמירה: " + msg);
     }
   };
 
