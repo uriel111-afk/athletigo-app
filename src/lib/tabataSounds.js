@@ -302,7 +302,8 @@ export function showTimerNotification(title, body) {
 
     const opts = {
       body: body || '',
-      icon: '/logo-transparent.png',
+      icon: '/icon-192.png',       // dropdown icon (white bg + black triangle)
+      badge: '/badge-icon.png',    // status-bar badge (white silhouette)
       tag: TIMER_NOTIF_TAG,
       renotify: true,
       requireInteraction: true,
