@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
@@ -7,27 +7,18 @@ import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import { toast } from "sonner";
 import { useClientStats } from "../components/hooks/useClientStats";
 import { useSessionStats } from "../components/hooks/useSessionStats";
-import { useProgramStats } from "../components/hooks/useProgramStats";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Users, Search, Loader2, Filter, Plus } from "lucide-react";
 import PageLoader from "../components/PageLoader";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
-import UserCard from "../components/UserCard";
-import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
-import { normalizeStatus, isActivePackage, CLIENT_STATUS_KEYS, CLIENT_STATUS } from "@/lib/enums";
+import { normalizeStatus, isActivePackage } from "@/lib/enums";
 
 export default function AllUsers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
-  const [filterType, setFilterType] = useState(new URLSearchParams(window.location.search).get('filter') || "all"); // all, paying, casual, active
+  const [filterType, setFilterType] = useState(new URLSearchParams(window.location.search).get('filter') || "all"); // all, active, expiring, inactive
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [userToRename, setUserToRename] = useState(null);
-  const [view, setView] = useViewToggle('clients_view', 'list');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -69,192 +60,247 @@ export default function AllUsers() {
   // 2. Fetch Sessions (Shared Hook)
   const { sessions: allSessions } = useSessionStats();
 
-  // 3. Fetch Training Plans (Shared Hook)
-  const { plans: allPlans } = useProgramStats();
-
-  // Helper: Calculate Age
-  const calculateAge = (dob) => {
-    if (!dob) return "N/A";
-    const birthDate = new Date(dob);
-    const ageDifMs = Date.now() - birthDate.getTime();
-    const ageDate = new Date(ageDifMs);
-    return Math.abs(ageDate.getUTCFullYear() - 1970);
+  // ── Helpers — derive a trainee's package + session stats ───────
+  const getActivePackage = (traineeId) => {
+    return allServices.find(p =>
+      p.trainee_id === traineeId &&
+      isActivePackage(normalizeStatus(p.status))
+    );
+  };
+  const getRemaining = (pkg) => {
+    if (!pkg) return 0;
+    if (pkg.remaining_sessions != null) return Number(pkg.remaining_sessions);
+    if (pkg.sessions_remaining != null) return Number(pkg.sessions_remaining);
+    return Math.max(0, (Number(pkg.total_sessions) || 0) - (Number(pkg.used_sessions) || 0));
+  };
+  const getCompletedSessions = (traineeId) => {
+    return allSessions.filter(s => {
+      const matches = s.trainee_id === traineeId
+        || (Array.isArray(s.participants) && s.participants.some(p => p?.trainee_id === traineeId));
+      if (!matches) return false;
+      const n = normalizeStatus(s.status);
+      return n === 'completed' || n === 'present';
+    }).length;
   };
 
-  // Filtering logic
-  const filteredTrainees = allTrainees.filter(trainee => {
-    // Search filter
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = !searchTerm || 
-      trainee.full_name?.toLowerCase().includes(searchLower) ||
-      trainee.email?.toLowerCase().includes(searchLower) ||
-      trainee.phone?.includes(searchTerm);
-    
-    if (!matchesSearch) return false;
-
-    // Type filter — uses canonical enums (normalizeStatus handles legacy Hebrew rows)
-    if (filterType === 'active') {
-        // Active = has at least one package whose normalized status is 'active'
-        const hasActiveService = allServices.some(s =>
-          s.trainee_id === trainee.id && isActivePackage(normalizeStatus(s.status))
-        );
-        const isActiveUser = normalizeStatus(trainee.status) === 'active'
-          || normalizeStatus(trainee.client_status) === 'active';
-        if (!hasActiveService && !isActiveUser) return false;
-    } else if (filterType === 'inactive') {
-        // Inactive = no active package AND not a casual trainee
-        const hasActiveService = allServices.some(s =>
-          s.trainee_id === trainee.id && isActivePackage(normalizeStatus(s.status))
-        );
-        const isCasual = normalizeStatus(trainee.client_type) === 'casual';
-        if (hasActiveService || isCasual) return false;
-    } else if (filterType === 'paying') {
-        // Check if user has paid services
-        const hasPaidService = allServices.some(s => s.trainee_id === trainee.id && s.payment_status === 'שולם');
-        if (!hasPaidService) return false;
-    } else if (filterType === 'group') {
-        const hasGroupService = allServices.some(s =>
-          s.trainee_id === trainee.id && isActivePackage(normalizeStatus(s.status)) && (s.service_type || '').includes('קבוצ')
-        );
-        if (!hasGroupService) return false;
-    } else if (filterType === 'casual') {
-        if (normalizeStatus(trainee.client_type) !== 'casual') return false;
+  // ── Counts for filter chips ─────────────────────────────────────
+  const counts = useMemo(() => {
+    let active = 0, expiring = 0, inactive = 0;
+    for (const t of allTrainees) {
+      const pkg = getActivePackage(t.id);
+      if (!pkg) { inactive++; continue; }
+      const rem = getRemaining(pkg);
+      if (rem > 0 && rem <= 2) expiring++;
+      else if (rem > 0) active++;
+      else inactive++;
     }
+    return { all: allTrainees.length, active, expiring, inactive };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allTrainees, allServices]);
 
-    return true;
-  });
-
-  // Stats - Logic from Shared Hook
-  const activeClients = activeClientsCount;
-  const casualTrainees = allTrainees.length - activeClients;
-
-  console.log("Page_ActiveClientsCount", activeClients);
+  // ── Filter logic ────────────────────────────────────────────────
+  const filteredTrainees = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return allTrainees.filter(t => {
+      if (q) {
+        const hit = (t.full_name || '').toLowerCase().includes(q)
+          || (t.email || '').toLowerCase().includes(q)
+          || (t.phone || '').includes(searchTerm);
+        if (!hit) return false;
+      }
+      if (filterType === 'all') return true;
+      const pkg = getActivePackage(t.id);
+      const rem = pkg ? getRemaining(pkg) : 0;
+      if (filterType === 'active')   return !!pkg && rem > 2;
+      if (filterType === 'expiring') return !!pkg && rem > 0 && rem <= 2;
+      if (filterType === 'inactive') return !pkg || rem === 0;
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allTrainees, allServices, searchTerm, filterType]);
 
   return (
     <ProtectedCoachPage>
-      <div className="min-h-screen overflow-y-auto overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#F5F5F5', color: '#222222', WebkitOverflowScrolling: 'touch', maxWidth: '100vw' }}>
-        <div className="max-w-7xl mx-auto px-4 md:p-8">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-              <div>
-                <h1 className="text-4xl md:text-5xl font-black mb-2" style={{ color: '#222222', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                  כל המשתמשים
-                </h1>
-                <p className="text-lg" style={{ color: '#666666' }}>
-                  תצוגה מרכזית אחידה לכל המתאמנים במערכת
-                </p>
-              </div>
-              <Button onClick={() => setIsAddTraineeOpen(true)}
-                className="bg-[#FF6F20] hover:bg-[#e65b12] text-white rounded-xl font-bold h-11 px-5 flex items-center gap-2">
-                <Plus className="w-5 h-5" />
-                הוסף מתאמן
-              </Button>
-            </div>
-            <div className="w-20 h-1 rounded-full" style={{ backgroundColor: '#FF6F20' }} />
-          </div>
-
-
-
-          {/* Search and Filter */}
-          <div className="mb-8 p-4 rounded-xl bg-white shadow-sm" style={{ border: '1px solid #E0E0E0' }}>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: '#999999' }} />
-                <Input
-                  placeholder="חפש לפי שם, אימייל או טלפון..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pr-12 rounded-xl text-[#222222] placeholder:text-gray-400"
-                  style={{ border: '1px solid #E0E0E0', backgroundColor: '#FAFAFA' }}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5" style={{ color: '#999999' }} />
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="rounded-xl w-48 text-[#222222]" style={{ border: '1px solid #E0E0E0', backgroundColor: '#FAFAFA' }}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-[#E0E0E0] text-[#222222]">
-                    <SelectItem value="all" className="hover:bg-gray-50">כל המשתמשים</SelectItem>
-                    <SelectItem value="paying" className="hover:bg-gray-50">לקוחות משלמים</SelectItem>
-                    <SelectItem value="casual" className="hover:bg-gray-50">מזדמנים</SelectItem>
-                    <SelectItem value="active" className="hover:bg-gray-50">פעילים</SelectItem>
-                  </SelectContent>
-                </Select>
-                <ViewToggle view={view} onChange={setView} />
-              </div>
+      <div style={{ minHeight: '100vh', background: '#FFF9F0', paddingBottom: 100, direction: 'rtl' }}>
+        {/* A. Page header */}
+        <div style={{
+          padding: 16,
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>👥 מתאמנים</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+              {allTrainees.length} מתאמנים · {counts.active} פעילים
             </div>
           </div>
-
-          {/* Results */}
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold" style={{ color: '#222222' }}>
-              תוצאות ({filteredTrainees.length})
-            </h2>
-          </div>
-
-          {/* Users Grid */}
-          {traineesLoading ? (
-            <PageLoader message="טוען מתאמנים..." />
-          ) : filteredTrainees.length === 0 ? (
-            <div className="p-12 rounded-xl text-center bg-white" style={{ border: '1px solid #E0E0E0' }}>
-              <Users className="w-16 h-16 mx-auto mb-4" style={{ color: '#CCCCCC' }} />
-              <h3 className="text-xl font-bold mb-2" style={{ color: '#222222' }}>
-                לא נמצאו משתמשים
-              </h3>
-              <p className="text-base" style={{ color: '#666666' }}>
-                נסה לשנות את הפילטרים או את מילות החיפוש
-              </p>
-            </div>
-          ) : (
-            <div className={view === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'}>
-              {filteredTrainees.map((trainee) => {
-                // --- Logic for Card Data ---
-                
-                // 1. Active Package
-                const traineeServices = allServices.filter(s => s.trainee_id === trainee.id);
-                const activePackage = traineeServices.find(s => 
-                  s.status === 'פעיל' || 
-                  (s.total_sessions > 0 && (s.used_sessions || 0) < s.total_sessions)
-                );
-
-                // 2. Upcoming Session
-                const traineeSessions = allSessions.filter(s => 
-                  s.participants?.some(p => p.trainee_id === trainee.id)
-                );
-                const now = new Date();
-                const upcomingSession = traineeSessions
-                  .filter(s => {
-                    const sDate = new Date(`${s.date}T${s.time}`);
-                    return sDate > now && (s.status === 'מאושר' || s.status === 'ממתין לאישור');
-                  })
-                  .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
-                  [0];
-
-                // 3. Training Plans Count
-                const planCount = allPlans.filter(p => 
-                  p.assigned_to === trainee.id || p.created_by === trainee.id
-                ).length;
-
-                return (
-                  <UserCard 
-                    key={trainee.id}
-                    trainee={trainee}
-                    activePackage={activePackage}
-                    upcomingSession={upcomingSession}
-                    planCount={planCount}
-                    calculateAge={calculateAge}
-                    onRename={(user) => {
-                      setUserToRename(user);
-                      setShowRenameDialog(true);
-                    }}
-                  />
-                );
-              })}
-            </div>
-          )}
+          <button
+            onClick={() => setIsAddTraineeOpen(true)}
+            style={{
+              background: '#FF6F20', color: 'white',
+              border: 'none', borderRadius: 12,
+              padding: '10px 16px', fontSize: 13,
+              fontWeight: 600, cursor: 'pointer',
+            }}
+          >+ מתאמן חדש</button>
         </div>
+
+        {/* B. Search */}
+        <div style={{ padding: '0 16px 10px' }}>
+          <input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="🔍 חיפוש מתאמן..."
+            style={{
+              width: '100%', padding: '12px 16px',
+              borderRadius: 14,
+              border: '1.5px solid #F0E4D0',
+              fontSize: 14, direction: 'rtl',
+              background: 'white', outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* C. Filter chips */}
+        <div style={{
+          display: 'flex', gap: 6,
+          padding: '0 16px 12px',
+          overflowX: 'auto',
+        }}>
+          {[
+            { id: 'all',      label: 'הכל',          count: counts.all },
+            { id: 'active',   label: 'פעילים',       count: counts.active },
+            { id: 'expiring', label: 'חבילה נגמרת',  count: counts.expiring },
+            { id: 'inactive', label: 'לא פעילים',    count: counts.inactive },
+          ].map(f => {
+            const active = filterType === f.id;
+            return (
+              <div key={f.id} onClick={() => setFilterType(f.id)} style={{
+                padding: '6px 12px', borderRadius: 20,
+                fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                whiteSpace: 'nowrap', flexShrink: 0,
+                background: active ? '#FF6F20' : 'white',
+                color: active ? 'white' : '#888',
+                border: active ? 'none' : '1px solid #F0E4D0',
+              }}>{f.label} ({f.count})</div>
+            );
+          })}
+        </div>
+
+        {/* D. User cards or empty state */}
+        {traineesLoading ? (
+          <PageLoader />
+        ) : filteredTrainees.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: '40px 20px',
+            color: '#888',
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+            <div style={{ fontSize: 14 }}>
+              {searchTerm ? 'לא נמצאו תוצאות' : 'אין מתאמנים'}
+            </div>
+          </div>
+        ) : filteredTrainees.map(t => {
+          const pkg = getActivePackage(t.id);
+          const remaining = pkg ? getRemaining(pkg) : 0;
+          const totalSessions = getCompletedSessions(t.id);
+          const isExpiring = !!pkg && remaining > 0 && remaining <= 2;
+          const inactive = !pkg || remaining === 0;
+          const initial = (t.full_name || '?').trim().charAt(0);
+
+          return (
+            <div
+              key={t.id}
+              onClick={() => navigate(createPageUrl('TraineeProfile') + `?userId=${encodeURIComponent(t.id)}`)}
+              style={{
+                background: 'white',
+                borderRadius: 16,
+                padding: 14,
+                margin: '0 12px 8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                cursor: 'pointer',
+                border: isExpiring ? '1.5px solid #EAB308' : '0.5px solid #F0E4D0',
+              }}
+            >
+              {/* Top row */}
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                gap: 10, marginBottom: 10,
+              }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 14,
+                  background: '#FFF0E4',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, fontWeight: 600, color: '#FF6F20',
+                  flexShrink: 0,
+                }}>{initial}</div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 15, fontWeight: 600,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{t.full_name || 'מתאמן'}</div>
+                  <div style={{
+                    fontSize: 11, color: '#888', marginTop: 1,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{t.phone || t.email || ''}</div>
+                </div>
+
+                <div style={{
+                  padding: '3px 10px', borderRadius: 8,
+                  fontSize: 10, fontWeight: 600, flexShrink: 0,
+                  background: pkg ? (isExpiring ? '#FFF9E6' : '#E8F5E9') : '#F3F4F6',
+                  color: pkg ? (isExpiring ? '#EAB308' : '#16a34a') : '#888',
+                }}>
+                  {inactive ? 'לא פעיל' : (isExpiring ? 'נגמר בקרוב' : 'פעיל')}
+                </div>
+              </div>
+
+              {/* Stats row */}
+              <div style={{ display: 'flex', gap: 4 }}>
+                <div style={{
+                  flex: 1, textAlign: 'center',
+                  background: '#FFF9F0',
+                  borderRadius: 10, padding: '6px 2px',
+                }}>
+                  <div style={{
+                    fontSize: 16, fontWeight: 600,
+                    color: pkg && remaining <= 2 ? '#dc2626' : '#1a1a1a',
+                  }}>{pkg ? `${remaining}/${pkg.total_sessions || 0}` : '—'}</div>
+                  <div style={{ fontSize: 9, color: '#888' }}>מפגשים</div>
+                </div>
+                <div style={{
+                  flex: 1, textAlign: 'center',
+                  background: '#FFF9F0',
+                  borderRadius: 10, padding: '6px 2px',
+                }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: '#16a34a' }}>{totalSessions}</div>
+                  <div style={{ fontSize: 9, color: '#888' }}>הושלמו</div>
+                </div>
+                <div style={{
+                  flex: 1, textAlign: 'center',
+                  background: '#FFF9F0',
+                  borderRadius: 10, padding: '6px 2px',
+                }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: '#FF6F20' }}>—</div>
+                  <div style={{ fontSize: 9, color: '#888' }}>רצף</div>
+                </div>
+                <div style={{
+                  flex: 1.5, textAlign: 'center',
+                  background: '#FFF9F0',
+                  borderRadius: 10, padding: '6px 2px',
+                }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 500, color: '#1a1a1a',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{pkg?.package_name || pkg?.service_type || '—'}</div>
+                  <div style={{ fontSize: 9, color: '#888' }}>חבילה</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
 
         <RenameUserDialog
           isOpen={showRenameDialog}
