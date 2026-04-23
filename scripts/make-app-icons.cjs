@@ -18,25 +18,31 @@ const fs = require('fs');
 const SRC = path.join(__dirname, '..', 'public', 'logo-transparent.png');
 const PUB = path.join(__dirname, '..', 'public');
 
-async function makeIcon(srcImg, size, padPct, withWhiteBg) {
-  // Padded canvas
+async function makeIcon(srcImg, size, padPct, withWhiteBg, raisePct = 3) {
+  // Canvas
   const canvas = new Jimp({
     width: size, height: size,
     color: withWhiteBg ? 0xFFFFFFFF : 0x00000000,
   });
 
   const pad = Math.round(size * padPct / 100);
-  const avail = size - pad * 2;
+  const avail = Math.max(1, size - pad * 2);
 
-  // Resize source preserving aspect ratio
+  // Resize source preserving aspect ratio (fits inside the available
+  // square — the longer side hits the limit, the shorter has a small
+  // transparent gap from the aspect ratio).
   const srcW = srcImg.bitmap.width, srcH = srcImg.bitmap.height;
   const ratio = Math.min(avail / srcW, avail / srcH);
   const newW = Math.round(srcW * ratio);
   const newH = Math.round(srcH * ratio);
   const resized = srcImg.clone().resize({ w: newW, h: newH });
 
+  // Center horizontally; raise vertically by raisePct of the canvas
+  // (the logo's optical center sits below the geometric center
+  // because the triangle has more pixel mass at the bottom — moving
+  // up a few percent restores the visual balance).
   const x = Math.floor((size - newW) / 2);
-  const y = Math.floor((size - newH) / 2);
+  const y = Math.max(0, Math.floor((size - newH) / 2 - size * raisePct / 100));
   canvas.composite(resized, x, y);
   return canvas;
 }
@@ -59,8 +65,11 @@ async function makeBadge(srcImg, size) {
   const src = await Jimp.read(SRC);
   console.log(`source dimensions: ${src.bitmap.width} x ${src.bitmap.height}`);
 
-  // PWA + Apple touch icons (white bg + 10% padding — logo fills
-  // ~80% of the icon area for a bolder home-screen presence)
+  // PWA + Apple touch icons — 100% fill (0% padding) + raised 3%
+  // from center to compensate for the triangle's bottom-heavy
+  // optical weight. The longest side of the logo hits the canvas
+  // edge; the shorter side has a small natural transparent gap
+  // from the aspect ratio (white bg shows through).
   const pwaSizes = {
     'icon-72.png': 72,
     'icon-96.png': 96,
@@ -73,35 +82,37 @@ async function makeBadge(srcImg, size) {
     'apple-touch-icon.png': 180,
   };
   for (const [name, size] of Object.entries(pwaSizes)) {
-    const icon = await makeIcon(src, size, 10, true);
+    const icon = await makeIcon(src, size, 0, true, 3);
     const out = path.join(PUB, name);
     await icon.write(out);
     const stat = fs.statSync(out);
     console.log(`wrote: ${name} (${size}x${size}, ${Math.round(stat.size / 1024)} KB)`);
   }
 
-  // Favicons (white bg + 8% padding)
+  // Favicons — 100% fill, raised 3% (matches PWA icons)
   for (const size of [16, 32, 48]) {
-    const icon = await makeIcon(src, size, 8, true);
+    const icon = await makeIcon(src, size, 0, true, 3);
     await icon.write(path.join(PUB, `favicon-${size}.png`));
   }
   console.log(`wrote: favicon-16.png, favicon-32.png, favicon-48.png`);
 
   // Multi-size .ico
   const icoBuf = await pngToIco([
-    await (await makeIcon(src, 16, 8, true)).getBuffer(JimpMime.png),
-    await (await makeIcon(src, 32, 8, true)).getBuffer(JimpMime.png),
-    await (await makeIcon(src, 48, 8, true)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 16, 0, true, 3)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 32, 0, true, 3)).getBuffer(JimpMime.png),
+    await (await makeIcon(src, 48, 0, true, 3)).getBuffer(JimpMime.png),
   ]);
   fs.writeFileSync(path.join(PUB, 'favicon.ico'), icoBuf);
   console.log(`wrote: favicon.ico (16+32+48)`);
 
-  // Maskable icon (white bg + 20% padding — Android safe zone needs
-  // ~15% so 20% still protects the logo from circle/squircle crop
-  // while letting it appear bolder than before)
-  const maskable = await makeIcon(src, 512, 20, true);
+  // Maskable icon — logo at 65% of canvas (matches the user's
+  // sharp-based recipe: mf = Math.round(512*0.65)), centered
+  // (no raise — Android crops the outer ~17.5% so vertical
+  // shifting would defeat the safe zone). Equivalent to padPct
+  // of (100-65)/2 = 17.5%.
+  const maskable = await makeIcon(src, 512, 17.5, true, 0);
   await maskable.write(path.join(PUB, 'icon-maskable-512.png'));
-  console.log(`wrote: icon-maskable-512.png (512x512, 20% padding)`);
+  console.log(`wrote: icon-maskable-512.png (512x512, ~17.5% padding, centered)`);
 
   // Notification icon (transparent bg + 8% padding)
   const notif = await makeIcon(src, 96, 8, false);
