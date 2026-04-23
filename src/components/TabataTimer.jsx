@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
   playLongBeep, playDoubleBell, playVictory, playGong,
-  playSoftBreath, playActionMelody, playSlowPulse, cancelScheduled,
+  playSoftBreath, playPauseSound, playActionMelody, playSlowPulse, cancelScheduled,
 } from '@/lib/tabataSounds';
 import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from '@/components/ScrollPickerPopup';
 import RoundJumpPicker from '@/components/RoundJumpPicker';
@@ -305,7 +305,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     cancelScheduled();
     elapsedRef.current = (performance.now() - startAtRef.current) / 1000;
     setPaused(true);
-    // Pause is silent by spec.
+    // Subtle descending cue — audibly distinct from the rising resume.
+    playPauseSound();
+    // Update BOTH slots so the minimized bar (reads liveTimerTabata)
+    // and any legacy consumer (reads liveTimer) stay in sync.
+    if (setLiveTimerTabata) setLiveTimerTabata(prev => prev ? { ...prev, paused: true } : prev);
     if (setLiveTimer) setLiveTimer(prev => prev ? { ...prev, paused: true } : null);
   }
 
@@ -320,6 +324,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     lastBeepRef.current = -1;
     setPaused(false);
     playSoftBreath();
+    if (setLiveTimerTabata) setLiveTimerTabata(prev => prev ? { ...prev, paused: false } : prev);
     if (setLiveTimer) setLiveTimer(prev => prev ? { ...prev, paused: false } : null);
     rafRef.current = requestAnimationFrame(tick);
   }

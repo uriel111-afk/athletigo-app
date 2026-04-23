@@ -275,10 +275,9 @@ export default function TimerFooterBar() {
   if (!isMinimized || !activeTimers.length) return null;
 
   // Bar play/pause: dispatch event ONLY for tabata — TabataTimer's
-  // handlePause/handleResume own the state, the sound (playSoftBreath
-  // on resume, silent on pause), and update liveTimerTabata via
-  // setLiveTimer. Bar reads paused from liveTimerTabata.paused so the
-  // icon flips as soon as that state propagates.
+  // handlePause/handleResume own the state, the sounds (playSoftBreath
+  // on resume, playPauseSound on pause), and update liveTimerTabata so
+  // the bar's paused-icon flips as soon as that state propagates.
   const handleToggle = (timer) => {
     if (timer.type === 'tabata') {
       window.dispatchEvent(new CustomEvent('tabata-pause-resume'));

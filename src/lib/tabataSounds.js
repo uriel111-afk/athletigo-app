@@ -125,6 +125,24 @@ function softBreath(when) {
   scheduledNodes.push(osc);
 }
 
+// Pause — descending tone 440 → 220Hz over 0.3s. Mirror image of
+// softBreath's rising tap so pause and resume are audibly distinct.
+function pauseSound(when) {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, when);
+  osc.frequency.exponentialRampToValueAtTime(220, when + 0.3);
+  g.gain.setValueAtTime(0.35, when);
+  g.gain.exponentialRampToValueAtTime(0.01, when + 0.3);
+  osc.connect(g);
+  g.connect(masterGain);
+  osc.start(when);
+  osc.stop(when + 0.32);
+  scheduledNodes.push(osc);
+}
+
 // Action melody — work phase starts. 4 ascending square notes,
 // loud (0.7) and longer (150ms) so they are clearly audible over
 // breathing/gym noise.
@@ -221,6 +239,7 @@ export function playLongBeep() { longBeep(getCtx().currentTime); }
 export function playVictory() { victory(getCtx().currentTime); }
 export function playGong() { gong(getCtx().currentTime); }
 export function playSoftBreath() { softBreath(getCtx().currentTime); }
+export function playPauseSound() { pauseSound(getCtx().currentTime); }
 export function playActionMelody() { actionMelody(getCtx().currentTime); }
 export function playSlowPulse() { slowPulse(getCtx().currentTime); }
 

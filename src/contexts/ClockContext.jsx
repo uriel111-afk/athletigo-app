@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
+import { playPauseSound } from "@/lib/tabataSounds";
 
 const ClockContext = createContext(null);
 export const useClock = () => useContext(ClockContext);
@@ -254,10 +255,11 @@ export function ClockProvider({ children }) {
   const pause = useCallback(() => {
     if (!isRunning) return;
     clearTick();
-    // Countdown pause is silent to match the Tabata pause UX
-    // (handlePause in TabataTimer is intentionally silent). Stopwatch
-    // keeps its existing pause beep so its sound profile is unchanged.
+    // Countdown pause shares the subtle descending pauseSound with the
+    // Tabata pause so both timers feel identical. Stopwatch keeps its
+    // existing pause beep to preserve its distinct sound profile.
     if (activeClock !== 'timer') beep('pause');
+    else playPauseSound();
     elapsedRef.current = Date.now() - startTimeRef.current;
     setIsRunning(false);
   }, [isRunning, clearTick, beep, activeClock]);
