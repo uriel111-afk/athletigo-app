@@ -411,12 +411,13 @@ export default function Layout({ children, currentPageName }) {
               </button>
 
               {/* Center: brand block (text+triangle baked into a single
-                  horizontal PNG) above the user-name. Single image means
-                  the unit's geometric center IS the wordmark center, so a
-                  flexbox alignItems:center is enough — no manual offsets. */}
+                  HORIZONTAL PNG /logo-horizontal.png) above the user-name.
+                  Loading screen uses the STACKED /logo-with-name.png at
+                  200px — keeping them as separate files so the two layouts
+                  don't fight over one asset. */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <img
-                  src="/logo-with-name.png"
+                  src="/logo-horizontal.png"
                   alt="ATHLETIGO"
                   style={{ height: 28, objectFit: 'contain', display: 'block' }}
                 />

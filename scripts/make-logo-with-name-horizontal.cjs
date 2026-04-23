@@ -6,7 +6,9 @@ const path = require('path');
 const fs = require('fs');
 
 const PUB = path.join(__dirname, '..', 'public');
-const OUT = path.join(PUB, 'logo-with-name.png');
+// Header asset only — the stacked /logo-with-name.png (used by the
+// loading screen at 200px) lives in a separate file.
+const OUT = path.join(PUB, 'logo-horizontal.png');
 
 (async () => {
   const triangle = await Jimp.read(path.join(PUB, 'logo-transparent.png'));
