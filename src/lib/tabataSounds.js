@@ -116,7 +116,7 @@ function softBreath(when) {
   const g = c.createGain();
   osc.type = 'sine';
   osc.frequency.value = 440;
-  g.gain.setValueAtTime(0.2, when);
+  g.gain.setValueAtTime(0.4, when);
   g.gain.exponentialRampToValueAtTime(0.001, when + 0.6);
   osc.connect(g);
   g.connect(masterGain);
@@ -125,7 +125,9 @@ function softBreath(when) {
   scheduledNodes.push(osc);
 }
 
-// Action melody — work phase starts. 4 ascending square notes.
+// Action melody — work phase starts. 4 ascending square notes,
+// loud (0.7) and longer (150ms) so they are clearly audible over
+// breathing/gym noise.
 function actionMelody(when) {
   const c = getCtx();
   const notes = [440, 554, 659, 880];
@@ -135,18 +137,19 @@ function actionMelody(when) {
     const g = c.createGain();
     osc.type = 'square';
     osc.frequency.value = freq;
-    g.gain.setValueAtTime(0.25, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    g.gain.setValueAtTime(0.7, t);
+    g.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
     osc.connect(g);
     g.connect(masterGain);
     osc.start(t);
-    osc.stop(t + 0.12);
+    osc.stop(t + 0.15);
     scheduledNodes.push(osc);
-    t += 0.15;
+    t += 0.18;
   }
 }
 
-// Slow pulse — rest phase starts. 3 sine pulses 500Hz spaced 620ms.
+// Slow pulse — rest phase starts. 3 sine pulses 500Hz, loud (0.7)
+// and spaced 600ms for a clearly-audible "rest now" cue.
 function slowPulse(when) {
   const c = getCtx();
   let t = when;
@@ -155,14 +158,14 @@ function slowPulse(when) {
     const g = c.createGain();
     osc.type = 'sine';
     osc.frequency.value = 500;
-    g.gain.setValueAtTime(0.22, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    g.gain.setValueAtTime(0.7, t);
+    g.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
     osc.connect(g);
     g.connect(masterGain);
     osc.start(t);
-    osc.stop(t + 0.14);
+    osc.stop(t + 0.18);
     scheduledNodes.push(osc);
-    t += 0.62;
+    t += 0.6;
   }
 }
 
