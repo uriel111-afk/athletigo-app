@@ -547,9 +547,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   if (screen === 'done') {
     return (
       <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl', color: W }}>
-        <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
-        <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 8 }}>סיימת!</div>
-        <div style={{ fontSize: 16, opacity: 0.8 }}>{cfg.rounds} סבבים × {cfg.sets} סטים</div>
+        <div style={{ fontSize: 72, marginBottom: 12 }}>🎉</div>
+        <div style={{ fontSize: 48, fontWeight: 900, marginBottom: 8 }}>סיימת!</div>
+        <div style={{ fontSize: 24, opacity: 0.8 }}>{cfg.rounds} סבבים × {cfg.sets} סטים</div>
         <button onClick={handleStop} style={{ marginTop: 32, padding: '14px 48px', fontSize: 20, fontWeight: 900, background: W, color: O, border: 'none', borderRadius: 12, cursor: 'pointer' }}>
           אימון חדש
         </button>
@@ -724,9 +724,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         <div style={{
           textAlign: 'center', width: '100%',
           padding: '16px 0 8px',
-          fontSize: 24, fontWeight: 700,
+          fontSize: 'min(11vw, 48px)', fontWeight: 700,
           color: isWork ? '#FFFFFF' : '#FF6F20',
-          letterSpacing: 1,
+          letterSpacing: 4,
+          textTransform: 'uppercase',
         }}>
           {phase.type === 'work'     && '🔥 עבודה'}
           {phase.type === 'rest'     && '💤 מנוחה'}
@@ -741,17 +742,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           <button
             type="button"
             onClick={() => setRoundPickerOpen(true)}
-            style={{ background: chipBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
+            style={{ background: chipBg, borderRadius: 14, padding: '10px 22px', fontSize: 'min(8vw, 36px)', fontWeight: 900, cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
           >
             <span style={{ pointerEvents: 'none' }}>סבב {phase.round}/{cfg.rounds}</span>
           </button>
         )}
         {cfg.sets > 1 && phase.type !== 'prep' && (
-          <div style={{ background: chipBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, color: textPrimary }}>
+          <div style={{ background: chipBg, borderRadius: 14, padding: '10px 22px', fontSize: 'min(8vw, 36px)', fontWeight: 900, color: textPrimary }}>
             סט {phase.set}/{cfg.sets}
           </div>
         )}
-        <div style={{ background: chipDarkBg, borderRadius: 12, padding: '7px 18px', fontSize: 'min(5.5vw, 22px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: textPrimary }}>
+        <div style={{ background: chipDarkBg, borderRadius: 14, padding: '10px 22px', fontSize: 'min(8vw, 36px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: textPrimary }}>
           ⏱ {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
         </div>
       </div>

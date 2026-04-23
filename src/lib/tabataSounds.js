@@ -175,33 +175,48 @@ function slowPulse(when) {
   const c = getCtx();
   let t = when;
   for (let i = 0; i < 3; i++) {
-    // Main tone
+    // Main tone — square wave at 600Hz for sharper attack that
+    // cuts through ambient gym noise (was: sine 500Hz @ 0.85)
     const osc = c.createOscillator();
     const g = c.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 500;
-    g.gain.setValueAtTime(0.85, t);
-    g.gain.exponentialRampToValueAtTime(0.01, t + 0.22);
+    osc.type = 'square';
+    osc.frequency.value = 600;
+    g.gain.setValueAtTime(0.95, t);
+    g.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
     osc.connect(g);
     g.connect(masterGain);
     osc.start(t);
-    osc.stop(t + 0.22);
+    osc.stop(t + 0.25);
     scheduledNodes.push(osc);
 
-    // Bass layer
+    // Bass layer — punchier 100Hz at near-max gain
     const bass = c.createOscillator();
     const bg = c.createGain();
     bass.type = 'sine';
-    bass.frequency.value = 120;
-    bg.gain.setValueAtTime(0.9, t);
-    bg.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+    bass.frequency.value = 100;
+    bg.gain.setValueAtTime(0.95, t);
+    bg.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
     bass.connect(bg);
     bg.connect(masterGain);
     bass.start(t);
-    bass.stop(t + 0.3);
+    bass.stop(t + 0.35);
     scheduledNodes.push(bass);
 
-    t += 0.55;
+    // High clarity ping — 1200Hz lifts the cue above clothing
+    // rustle, breathing, music
+    const ping = c.createOscillator();
+    const pg = c.createGain();
+    ping.type = 'sine';
+    ping.frequency.value = 1200;
+    pg.gain.setValueAtTime(0.5, t);
+    pg.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+    ping.connect(pg);
+    pg.connect(masterGain);
+    ping.start(t);
+    ping.stop(t + 0.15);
+    scheduledNodes.push(ping);
+
+    t += 0.5;
   }
 }
 
