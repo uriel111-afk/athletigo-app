@@ -6,6 +6,7 @@ import { CheckCircle, FileText, ShieldCheck, Loader2, Pen, RotateCcw } from "luc
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import PageLoader from "@/components/PageLoader";
 
 const HEALTH_DECLARATION_TEXT = `הצהרת בריאות — AthletiGo
 
@@ -240,11 +241,7 @@ export default function Forms() {
   };
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#FF6F20' }} />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const formDefs = [

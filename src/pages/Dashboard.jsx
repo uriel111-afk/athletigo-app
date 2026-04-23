@@ -9,6 +9,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AuthContext } from "@/lib/AuthContext";
+import PageLoader from "@/components/PageLoader";
 
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
 import { usePackageExpiry } from "../components/hooks/usePackageExpiry";
@@ -302,9 +303,7 @@ export default function Dashboard() {
   if (!coach) {
     return (
       <ProtectedCoachPage>
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20]" />
-        </div>
+        <PageLoader />
       </ProtectedCoachPage>
     );
   }

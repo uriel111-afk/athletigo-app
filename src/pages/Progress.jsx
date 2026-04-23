@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Activity, Award, TrendingUp, TrendingDown, Plus, Edit2, Trash2, Loader2, CheckCircle, Target } from "lucide-react";
+import PageLoader from "@/components/PageLoader";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -374,13 +375,7 @@ export default function Progress() {
     }));
 
   if (!user || measurementsLoading || resultsLoading || goalsLoading) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#FDF8F3' }}>
-        <h1 className="text-2xl font-black tracking-[0.2em] mb-6" style={{ color: '#FF6F20', fontFamily: 'Barlow, sans-serif' }}>ATHLETIGO</h1>
-        <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20] mb-3" />
-        <p className="text-sm font-medium text-gray-400">טוען...</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

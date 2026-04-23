@@ -7,6 +7,7 @@ import { createPageUrl } from "@/utils";
 import { cn } from "@/lib/utils";
 import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { Button } from "@/components/ui/button";
+import PageLoader from "@/components/PageLoader";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -512,14 +513,7 @@ export default function TrainingPlans() {
   const draftPlans = plans.filter(p => p.status === 'טיוטה');
 
   if (coachLoading || !coach) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" style={{ color: '#FF6F20' }} />
-          <p className="text-sm" style={{ color: '#7D7D7D' }}>טוען...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

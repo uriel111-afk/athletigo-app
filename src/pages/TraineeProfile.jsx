@@ -28,6 +28,7 @@ import ResultFormDialog from "../components/forms/ResultFormDialog";
 import VisionFormDialog from "../components/forms/VisionFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import PageLoader from "@/components/PageLoader";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
@@ -1631,15 +1632,7 @@ export default function TraineeProfile() {
   const coreDataLoading = profileLoading || !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading || attendanceLoading || workoutLoading || coachLoading || baselinesLoading;
 
   if (coreDataLoading) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center" dir="rtl" style={{ backgroundColor: '#FDF8F3' }}>
-        <h1 className="text-2xl font-black tracking-[0.2em] mb-6" style={{ color: '#FF6F20', fontFamily: 'Barlow, sans-serif' }}>
-          ATHLETIGO
-        </h1>
-        <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20] mb-3" />
-        <p className="text-sm font-medium text-gray-400">טוען...</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const isUrielsAccount = user.email === 'uriel111@gmail.com';

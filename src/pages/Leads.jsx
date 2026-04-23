@@ -244,11 +244,7 @@ export default function Leads() {
   const notInterested = leads.filter(l => l.status === 'לא מעוניין').length;
 
   if (!coach) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#FF6F20' }} />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

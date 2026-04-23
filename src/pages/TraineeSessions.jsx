@@ -5,6 +5,7 @@ import { Loader2, Calendar, Clock as ClockIcon } from "lucide-react";
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import BookingModal from "../components/BookingModal";
+import PageLoader from "@/components/PageLoader";
 
 const STATUS_MAP = {
   'ממתין לאישור': { text: 'ממתין לאישור', bg: '#fef9c3', color: '#a16207' },
@@ -252,11 +253,7 @@ export default function TraineeSessions() {
   };
 
   if (loading) {
-    return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#FF6F20' }} />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

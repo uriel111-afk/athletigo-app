@@ -9,6 +9,7 @@ import UnifiedPlanBuilder from "../components/training/UnifiedPlanBuilder";
 import PlanFormDialog from "../components/training/PlanFormDialog";
 import { toast } from "sonner";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
+import PageLoader from "@/components/PageLoader";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
@@ -453,11 +454,7 @@ export default function MyPlan() {
 
   if (!selectedPlan) {
     if (plansLoading) {
-      return (
-        <div dir="rtl" className="min-h-screen flex items-center justify-center bg-white">
-          <Loader2 className="w-16 h-16 animate-spin text-[#FF6F20]" />
-        </div>
-      );
+      return <PageLoader />;
     }
 
     // Filter Plans & Series

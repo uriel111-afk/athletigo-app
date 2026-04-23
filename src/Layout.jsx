@@ -9,6 +9,7 @@ import AdminCoachActivator from "@/components/AdminCoachActivator";
 import NotificationBadge from "@/components/NotificationBadge";
 import PWANotifications from "@/components/PWANotifications";
 import DataLoader from "@/components/DataLoader";
+import PageLoader from "@/components/PageLoader";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -247,19 +248,7 @@ export default function Layout({ children, currentPageName }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <div className="text-center">
-          <img
-            src={LOGO_MAIN}
-            alt="AthletiGo"
-            className="splash-logo mx-auto mb-4"
-            style={{ width: '200px', height: 'auto' }}
-          />
-          <div className="athletigo-spinner mx-auto"></div>
-        </div>
-      </div>
-    );
+    return <PageLoader size={120} fullHeight />;
   }
 
   // Onboarding only for trainees, never for coaches

@@ -5,6 +5,7 @@ import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Packa
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import BookingModal from "../components/BookingModal";
+import PageLoader from "@/components/PageLoader";
 import TraineeNotificationCard from "../components/TraineeNotificationCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -228,13 +229,7 @@ export default function TraineeHome() {
   };
 
   if (loading) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#FDF8F3' }}>
-        <h1 className="text-2xl font-black tracking-[0.2em] mb-6" style={{ color: '#FF6F20', fontFamily: 'Barlow, sans-serif' }}>ATHLETIGO</h1>
-        <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20] mb-3" />
-        <p className="text-sm font-medium text-gray-400">טוען...</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (loadError) {

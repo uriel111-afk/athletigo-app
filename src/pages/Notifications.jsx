@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import PageLoader from "@/components/PageLoader";
 
 // Minimal icon set — keyed off notification type
 const getNotifIcon = (type) => {
@@ -222,11 +223,7 @@ export default function Notifications() {
   };
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFFFF' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#FF6F20' }} />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const markAllRead = () => markAllAsReadMutation.mutate();

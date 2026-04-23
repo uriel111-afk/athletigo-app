@@ -191,9 +191,7 @@ export default function ActivePlans() {
   if (!coach) {
     return (
       <ProtectedCoachPage>
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#FF6F20]" />
-        </div>
+        <PageLoader />
       </ProtectedCoachPage>
     );
   }

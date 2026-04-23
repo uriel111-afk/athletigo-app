@@ -7,6 +7,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProtectedCoachPage from "@/components/ProtectedCoachPage";
 import UnifiedPlanBuilder from "@/components/training/UnifiedPlanBuilder";
+import PageLoader from "@/components/PageLoader";
 
 /**
  * TrainingPlanView — loads a plan by ?planId= and renders the full
@@ -66,9 +67,7 @@ export default function TrainingPlanView() {
   if (isLoading) {
     return (
       <ProtectedCoachPage>
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20]" />
-        </div>
+        <PageLoader />
       </ProtectedCoachPage>
     );
   }

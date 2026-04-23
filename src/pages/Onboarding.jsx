@@ -8,6 +8,7 @@ import { Loader2, Check, ArrowRight, ArrowLeft } from "lucide-react";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import PageLoader from "@/components/PageLoader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import InstallPrompt from "@/components/InstallPrompt";
@@ -533,11 +534,7 @@ export default function Onboarding() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8F8F8]">
-        <Loader2 className="w-10 h-10 animate-spin text-[#FF6F20]" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
