@@ -47,12 +47,34 @@ function GlobalTabata() {
     setIsMinimized(false);
   }, [showTabata, setIsMinimized]);
 
+  // Block every variety of pointer/click event at the full-screen Tabata
+  // wrapper so taps on the Tabata never reach the document-level
+  // pointer-down listener that Radix DismissableLayer uses to decide
+  // whether a Dialog should close. The data-timer-bar marker is also
+  // recognized by DialogContent's isFromTimerBar() guard, so even if an
+  // event does escape, any dialog will still refuse to close.
+  const stopTimerEvents = (e) => {
+    e.stopPropagation();
+    if (typeof e.nativeEvent?.stopImmediatePropagation === 'function') {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+  };
+
   return (
-    <div style={{
-      display: showTabata ? 'flex' : 'none',
-      position: 'fixed', inset: 0, zIndex: 10000,
-      flexDirection: 'column', background: '#FF6F20'
-    }}>
+    <div
+      data-timer-bar="true"
+      onClick={stopTimerEvents}
+      onPointerDown={stopTimerEvents}
+      onPointerUp={stopTimerEvents}
+      onMouseDown={stopTimerEvents}
+      onMouseUp={stopTimerEvents}
+      onTouchStart={stopTimerEvents}
+      onTouchEnd={stopTimerEvents}
+      style={{
+        display: showTabata ? 'flex' : 'none',
+        position: 'fixed', inset: 0, zIndex: 10000,
+        flexDirection: 'column', background: '#FF6F20'
+      }}>
       <TabataTimer
         onMinimize={handleMinimize}
         setLiveTimer={setLiveTimer}

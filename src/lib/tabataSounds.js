@@ -148,24 +148,42 @@ function actionMelody(when) {
   }
 }
 
-// Slow pulse — rest phase starts. 3 sine pulses 500Hz, loud (0.7)
-// and spaced 600ms for a clearly-audible "rest now" cue.
+// Slow pulse — rest phase starts. 3 pulses, each layered with a 120Hz
+// bass so the cue punches through background noise.
+//  - main tone: sine 500Hz, gain 0.85 → 0.01 over 0.22s
+//  - bass layer: sine 120Hz, gain 0.9  → 0.01 over 0.30s
+//  - spacing: 0.55s between pulses
 function slowPulse(when) {
   const c = getCtx();
   let t = when;
   for (let i = 0; i < 3; i++) {
+    // Main tone
     const osc = c.createOscillator();
     const g = c.createGain();
     osc.type = 'sine';
     osc.frequency.value = 500;
-    g.gain.setValueAtTime(0.7, t);
-    g.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
+    g.gain.setValueAtTime(0.85, t);
+    g.gain.exponentialRampToValueAtTime(0.01, t + 0.22);
     osc.connect(g);
     g.connect(masterGain);
     osc.start(t);
-    osc.stop(t + 0.18);
+    osc.stop(t + 0.22);
     scheduledNodes.push(osc);
-    t += 0.6;
+
+    // Bass layer
+    const bass = c.createOscillator();
+    const bg = c.createGain();
+    bass.type = 'sine';
+    bass.frequency.value = 120;
+    bg.gain.setValueAtTime(0.9, t);
+    bg.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+    bass.connect(bg);
+    bg.connect(masterGain);
+    bass.start(t);
+    bass.stop(t + 0.3);
+    scheduledNodes.push(bass);
+
+    t += 0.55;
   }
 }
 
