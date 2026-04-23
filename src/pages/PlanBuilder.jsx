@@ -288,6 +288,7 @@ export default function PlanBuilder() {
       name: exerciseData.name,
       sets: exerciseData.params["סטים"] || null,
       reps: exerciseData.params["חזרות"] || null,
+      rounds: exerciseData.params["סבבים"] || null,
       work_time: exerciseData.params["זמן עבודה"] || null,
       rest_time: exerciseData.params["זמן מנוחה"] || null,
       weight: exerciseData.params["משקל (ק״ג)"] || null,
@@ -341,6 +342,7 @@ export default function PlanBuilder() {
       name: exerciseData.name,
       sets: exerciseData.params["סטים"] || null,
       reps: exerciseData.params["חזרות"] || null,
+      rounds: exerciseData.params["סבבים"] || null,
       work_time: exerciseData.params["זמן עבודה"] || null,
       rest_time: exerciseData.params["זמן מנוחה"] || null,
       weight: exerciseData.params["משקל (ק״ג)"] || null,
@@ -428,6 +430,7 @@ export default function PlanBuilder() {
     const p = {};
     if (ex.sets) p["סטים"] = ex.sets;
     if (ex.reps) p["חזרות"] = ex.reps;
+    if (ex.rounds) p["סבבים"] = ex.rounds;
     if (ex.work_time) p["זמן עבודה"] = ex.work_time;
     if (ex.rest_time) p["זמן מנוחה"] = ex.rest_time;
     if (ex.weight) p["משקל (ק״ג)"] = ex.weight;
