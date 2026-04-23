@@ -435,7 +435,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
 
               {/* Left (RTL end): notification bell */}
-              <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
                 {user ? (
                   <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
                 ) : null}

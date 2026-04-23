@@ -35,17 +35,19 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
     <button
       onClick={onClick}
       className="relative p-2 rounded-xl transition-all hover:bg-gray-100"
-      style={{ border: '1px solid #E0E0E0' }}
+      style={{ border: '1px solid #E0E0E0', overflow: 'visible' }}
     >
       <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#FF6F20' : '#7D7D7D' }} />
       {unreadCount > 0 && (
         <span
-          className="absolute -top-1 -right-1 rounded-full flex items-center justify-center font-bold"
+          className="absolute rounded-full flex items-center justify-center font-bold"
           style={{
+            top: 2, right: 2,
             backgroundColor: '#FF3B30', color: 'white',
             boxShadow: '0 1px 4px rgba(255, 59, 48, 0.4)',
             minWidth: 16, height: 16, padding: '0 3px',
             fontSize: 9, lineHeight: '16px',
+            border: '2px solid white',
           }}
         >
           {unreadCount > 9 ? '9+' : unreadCount}
