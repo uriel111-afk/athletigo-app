@@ -174,10 +174,13 @@ export default function Reports() {
   // the roster lookup; then to a soft 'מתאמן' (never 'לא ידוע').
   const nameOf = (row) => row?.trainee?.full_name || traineeNameById.get(row?.trainee_id) || 'מתאמן';
   const getName = (id) => traineeNameById.get(id) || 'מתאמן';
-  const goToTrainee = (id, tab) => {
-    if (!id) return;
-    const url = createPageUrl('TraineeProfile') + `?userId=${id}` + (tab ? `&tab=${tab}` : '');
-    navigate(url);
+  // Defensive — only navigate when we have a real, non-empty,
+  // non-"undefined" id. Otherwise TraineeProfile fires a Supabase
+  // query with a bad uuid and 400s, which has been observed to
+  // surface as a generic React minified error in production builds.
+  const goToTrainee = (id) => {
+    if (!id || typeof id !== 'string' || id === 'undefined' || id === 'null' || id.length < 8) return;
+    navigate(createPageUrl('TraineeProfile') + `?userId=${encodeURIComponent(id)}`);
   };
 
   const traineeIdsFromSession = (s) => {
@@ -528,7 +531,7 @@ export default function Reports() {
         {recent.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#888', padding: 8, fontSize: 12 }}>אין נתונים</div>
         ) : recent.map(s => (
-          <div key={s.id} onClick={(e) => { e.stopPropagation(); goToTrainee(s.trainee_id, 'attendance'); }} style={{
+          <div key={s.id} onClick={(e) => { e.stopPropagation(); goToTrainee(s.trainee?.id || s.trainee_id); }} style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0',
             borderBottom: '0.5px solid #F8F0E8', fontSize: 12, cursor: 'pointer',
           }}>
@@ -543,22 +546,37 @@ export default function Reports() {
   };
 
   // ─── Section: Packages ───────────────────────────────────────
+  // Single source of truth for "is this package active?" — used by
+  // BOTH the packages section (count + filter chips) AND the
+  // trainees section (counting active trainees), so the two views
+  // can never disagree. "Expiring" still counts as active for the
+  // trainee tally; coach is still actively training that person.
+  const remainingOf = (p) => {
+    if (typeof p.sessions_remaining === 'number') return p.sessions_remaining;
+    return Math.max(0, (p.total_sessions || 0) - (p.used_sessions || 0));
+  };
+  const now = new Date();
+  const in14 = new Date(now.getTime() + 14 * 86400000);
+  const bucketOf = (p) => {
+    const total = p.total_sessions || 0;
+    const used = p.used_sessions || 0;
+    const remaining = remainingOf(p);
+    const ed = p.expires_at || p.end_date;
+    const exp = ed ? new Date(ed) : null;
+    const isActive = p.status === 'פעיל' || p.status === 'active';
+    if (['completed', 'הסתיים'].includes(p.status) || (total > 0 && used >= total)) return 'completed';
+    if (['expired', 'פג תוקף', 'cancelled', 'בוטל'].includes(p.status) || (exp && exp < now)) return 'expired';
+    if (isActive && (remaining === 1 || (exp && exp <= in14))) return 'expiring';
+    if (isActive) return 'active';
+    return 'expired';
+  };
+  // True iff the package is in the strict "active" bucket — matches
+  // exactly what the Packages section's פעילות chip counts. Trainees
+  // section uses this so its פעילים count never disagrees with the
+  // packages section's active chip.
+  const isHotPackage = (p) => bucketOf(p) === 'active' && remainingOf(p) > 0;
+
   const renderPackages = () => {
-    const now = new Date();
-    const in14 = new Date(now.getTime() + 14 * 86400000);
-    const bucketOf = (p) => {
-      const total = p.total_sessions || 0;
-      const used = p.used_sessions || 0;
-      const remaining = Math.max(0, total - used);
-      const ed = p.expires_at || p.end_date;
-      const exp = ed ? new Date(ed) : null;
-      const isActive = p.status === 'פעיל' || p.status === 'active';
-      if (['completed', 'הסתיים'].includes(p.status) || (total > 0 && used >= total)) return 'completed';
-      if (['expired', 'פג תוקף', 'cancelled', 'בוטל'].includes(p.status) || (exp && exp < now)) return 'expired';
-      if (isActive && (remaining === 1 || (exp && exp <= in14))) return 'expiring';
-      if (isActive) return 'active';
-      return 'expired';
-    };
     let active = 0, expiring = 0, expired = 0, completedPkgs = 0;
     let totalSessionsAll = 0, usedSessionsAll = 0;
     for (const p of packages) {
@@ -625,7 +643,7 @@ export default function Reports() {
           <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין חבילות בקטגוריה זו</div>
         ) : visiblePkgs.slice(0, 50).map(p => {
           const b = bucketOf(p);
-          const remaining = Math.max(0, (p.total_sessions || 0) - (p.used_sessions || 0));
+          const remaining = remainingOf(p);
           const emoji = b === 'active' ? '🟢' : b === 'expiring' ? '⚡' : b === 'expired' ? '🔴' : '✅';
           return (
             <div key={p.id} onClick={(e) => { e.stopPropagation(); setSelectedPkg(p); }} style={{
@@ -650,16 +668,14 @@ export default function Reports() {
 
   // ─── Section: Trainees ───────────────────────────────────────
   const renderTrainees = () => {
-    const now = new Date();
     const stats = trainees.map(t => {
       const myPkgs = packages.filter(p => p.trainee_id === t.id);
-      const activePkg = myPkgs.find(p => {
-        const isActive = p.status === 'פעיל' || p.status === 'active';
-        const remaining = (p.total_sessions || 0) - (p.used_sessions || 0);
-        const ed = p.expires_at || p.end_date;
-        const expired = ed && new Date(ed) < now;
-        return isActive && remaining > 0 && !expired;
-      });
+      // Use the shared isHotPackage predicate so the active-trainee
+      // count here MATCHES the active-package count in the Packages
+      // section above. Previously the two sections had different
+      // definitions and disagreed (e.g. 4 active packages but 5
+      // active trainees).
+      const activePkg = myPkgs.find(isHotPackage);
       const mySessions = sessions.filter(s => traineeIdsFromSession(s).includes(t.id));
       return {
         id: t.id, name: t.full_name,
@@ -680,7 +696,7 @@ export default function Reports() {
         {stats.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין מתאמנים</div>
         ) : stats.map(t => (
-          <div key={t.id} onClick={(e) => { e.stopPropagation(); navigate(createPageUrl('TraineeProfile') + `?userId=${t.id}`); }} style={{
+          <div key={t.id} onClick={(e) => { e.stopPropagation(); goToTrainee(t.id); }} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
             borderBottom: '0.5px solid #F8F0E8', fontSize: 12, cursor: 'pointer',
           }}>
