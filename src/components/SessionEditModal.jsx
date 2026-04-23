@@ -261,7 +261,8 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
     <div
       style={{
         position: "fixed",
-        inset: 0,
+        top: 0, left: 0, right: 0,
+        bottom: 'var(--timer-bar-height, 0px)',
         zIndex: 11000,
         background: "rgba(0,0,0,0.5)",
         display: "flex",

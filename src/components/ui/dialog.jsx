@@ -11,11 +11,17 @@ const DialogTrigger = DialogPrimitive.Trigger
 const DialogPortal = DialogPrimitive.Portal
 const DialogClose = DialogPrimitive.Close
 
-const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
+const DialogOverlay = React.forwardRef(({ className, style, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
+    // The `bottom: var(--timer-bar-height,0)` cutout leaves the
+    // minimized timer bar fully exposed and tappable even though
+    // the overlay otherwise sits at the same body-level stacking
+    // context — the overlay literally doesn't cover the bar's
+    // pixels, so taps on bar buttons reach the bar.
+    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', ...style }}
     className={cn(
-      "fixed inset-0 z-[11000] bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "z-[11000] bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}

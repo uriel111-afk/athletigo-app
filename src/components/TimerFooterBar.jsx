@@ -278,6 +278,18 @@ export default function TimerFooterBar() {
     return () => clearInterval(id);
   }, [isMinimized, activeTimers.length]);
 
+  // Set a CSS custom property while the bar is visible so any dialog
+  // backdrop can shorten itself by `bottom: var(--timer-bar-height,0)`
+  // and never cover the bar — guarantees the bar receives every tap
+  // even when an overlay-stacking-context bug would otherwise eat it.
+  useEffect(() => {
+    if (!isMinimized || !activeTimers.length) return;
+    document.documentElement.style.setProperty('--timer-bar-height', '74px');
+    return () => {
+      document.documentElement.style.setProperty('--timer-bar-height', '0px');
+    };
+  }, [isMinimized, activeTimers.length]);
+
   // Only render when the user explicitly minimized an active timer.
   if (!isMinimized || !activeTimers.length) return null;
 

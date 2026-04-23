@@ -131,7 +131,9 @@ export default function BookingModal({ user, coach: coachProp, onClose, onSucces
       onPointerDown={(e) => { e.stopPropagation(); }}
       onTouchStart={(e) => { e.stopPropagation(); }}
       style={{
-        position: 'fixed', inset: 0,
+        position: 'fixed',
+        top: 0, left: 0, right: 0,
+        bottom: 'var(--timer-bar-height, 0px)',
         background: 'rgba(0,0,0,0.55)',
         zIndex: 11000,
         display: 'flex', alignItems: 'flex-end',

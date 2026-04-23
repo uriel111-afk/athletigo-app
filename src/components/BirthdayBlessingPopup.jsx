@@ -78,7 +78,9 @@ export default function BirthdayBlessingPopup() {
       onPointerDown={(e) => { e.stopPropagation(); }}
       onTouchStart={(e) => { e.stopPropagation(); }}
       style={{
-        position: 'fixed', inset: 0,
+        position: 'fixed',
+        top: 0, left: 0, right: 0,
+        bottom: 'var(--timer-bar-height, 0px)',
         background: 'rgba(0,0,0,0.5)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 11000, padding: 20,
