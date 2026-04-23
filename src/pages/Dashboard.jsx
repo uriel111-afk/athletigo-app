@@ -12,6 +12,7 @@ import { AuthContext } from "@/lib/AuthContext";
 import PageLoader from "@/components/PageLoader";
 import RemindersPanel from "@/components/RemindersPanel";
 import NotificationPopup from "@/components/NotificationPopup";
+import ChallengeBank from "@/components/ChallengeBank";
 
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
 import { usePackageExpiry } from "../components/hooks/usePackageExpiry";
@@ -130,6 +131,7 @@ export default function Dashboard() {
   // Reminders — list + due-popup. Reminders live in the notifications
   // table with `type='coach_reminder'`. See RemindersPanel/AddForm.
   const [showReminders, setShowReminders] = useState(false);
+  const [showChallengeBank, setShowChallengeBank] = useState(false);
   const [reminders, setReminders] = useState([]);
   const [duePopup, setDuePopup] = useState(null);
   const [shownReminderIds, setShownReminderIds] = useState(() => new Set());
@@ -491,6 +493,25 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Daily Challenge quick-access */}
+          <div className="px-2" style={{ marginBottom: 10 }}>
+            <div
+              onClick={() => setShowChallengeBank(true)}
+              style={{
+                background: "white", borderRadius: 14,
+                padding: "12px 16px",
+                display: "flex", alignItems: "center", gap: 12,
+                cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+                border: "1px solid rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ fontSize: 24 }}>🎯</div>
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>אתגר יומי</div>
+              <div style={{ fontSize: 12, color: "#888" }}>שלח לכל המתאמנים</div>
+            </div>
+          </div>
+
           {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />
           <div className="grid grid-cols-4 px-2" style={{ gap: 6, marginBottom: 10 }}>
@@ -738,6 +759,12 @@ export default function Dashboard() {
         onClose={() => setShowReminders(false)}
         userId={coach?.id}
         onChange={setReminders}
+      />
+      <ChallengeBank
+        isOpen={showChallengeBank}
+        onClose={() => setShowChallengeBank(false)}
+        coach={coach}
+        trainees={allTrainees}
       />
       {duePopup && (
         <NotificationPopup

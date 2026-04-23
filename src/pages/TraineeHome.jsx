@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList, Clock as ClockIcon, Flame, Trophy, Star } from "lucide-react";
+import { calculateStreak } from "@/components/ChallengeBank";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import BookingModal from "../components/BookingModal";
@@ -55,6 +57,66 @@ export default function TraineeHome() {
   const [acknowledgingId, setAcknowledgingId] = useState(null);
   const [completedCount, setCompletedCount] = useState(0);
   const [firstSessionDate, setFirstSessionDate] = useState(null);
+  // Daily challenge — fetched separately so it stays fresh independent
+  // of the main loadData refresh. Card sits at the top of home screen.
+  const [todayChallenge, setTodayChallenge] = useState(null);
+  const [challengeStreak, setChallengeStreak] = useState(0);
+
+  const fetchDailyChallenge = useCallback(async (uid) => {
+    if (!uid) return;
+    const today = new Date().toISOString().split("T")[0];
+    const since = new Date(Date.now() - 60 * 86400000).toISOString();
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("id, user_id, type, message, is_read, data, created_at")
+      .eq("user_id", uid)
+      .eq("type", "daily_challenge")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false });
+    if (error) { console.warn("[TraineeHome] daily challenge fetch:", error); return; }
+    const enriched = (data || []).map(c => {
+      let parsed = c.data;
+      if (typeof parsed === "string") {
+        try { parsed = JSON.parse(parsed); } catch { parsed = {}; }
+      }
+      return { ...c, parsed };
+    });
+    const todayCh = enriched.find(c => c.parsed?.sent_date === today);
+    setTodayChallenge(todayCh || null);
+    setChallengeStreak(calculateStreak(enriched));
+  }, []);
+
+  useEffect(() => { if (user?.id) fetchDailyChallenge(user.id); }, [user?.id, fetchDailyChallenge]);
+
+  const completeChallenge = async () => {
+    if (!todayChallenge) return;
+    const updatedData = {
+      ...(todayChallenge.parsed || {}),
+      completed_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true, data: JSON.stringify(updatedData) })
+      .eq("id", todayChallenge.id);
+    if (error) { toast.error("שגיאה: " + error.message); return; }
+    setTodayChallenge(prev => prev ? { ...prev, is_read: true, parsed: updatedData } : prev);
+    setChallengeStreak(prev => prev + 1);
+    toast.success("🔥 כל הכבוד! הרצף ממשיך!");
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try { navigator.vibrate([100, 50, 100, 50, 200]); } catch {}
+    }
+    // Notify coach — best-effort, ignore failures
+    if (todayChallenge.parsed?.coach_id) {
+      try {
+        await supabase.from("notifications").insert({
+          user_id: todayChallenge.parsed.coach_id,
+          type: "challenge_completed",
+          message: `🏆 ${user.full_name} השלים/ה את האתגר: ${todayChallenge.parsed.challenge_text}`,
+          is_read: false,
+        });
+      } catch {}
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -338,6 +400,67 @@ export default function TraineeHome() {
             </div>
           </div>
         </div>
+
+        {/* Daily Challenge card */}
+        {todayChallenge && (
+          <div style={{
+            background: todayChallenge.is_read
+              ? 'linear-gradient(135deg, #16a34a, #22c55e)'
+              : 'linear-gradient(135deg, #FF6F20, #FF8F50)',
+            borderRadius: 20,
+            padding: 20,
+            margin: '12px 14px 0',
+            textAlign: 'center',
+            color: 'white',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute', top: 12, left: 12,
+              background: 'rgba(255,255,255,0.2)',
+              borderRadius: 20,
+              padding: '4px 12px',
+              fontSize: 13, fontWeight: 700,
+            }}>🔥 {challengeStreak}</div>
+
+            <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 4 }}>
+              {todayChallenge.is_read ? '✅ הושלם!' : '🎯 האתגר היומי שלך'}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
+              {todayChallenge.parsed?.challenge_text || todayChallenge.message}
+            </div>
+            {challengeStreak > 0 && (
+              <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12 }}>
+                {'🔥'.repeat(Math.min(challengeStreak, 10))} {challengeStreak} ימים ברצף!
+              </div>
+            )}
+            {!todayChallenge.is_read ? (
+              <button onClick={completeChallenge} style={{
+                padding: '12px 32px',
+                borderRadius: 14,
+                border: '2px solid white',
+                background: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                fontSize: 17, fontWeight: 700,
+                cursor: 'pointer',
+              }}>✅ ביצעתי!</button>
+            ) : (
+              <div style={{ fontSize: 32 }}>🏆</div>
+            )}
+          </div>
+        )}
+        {!todayChallenge && challengeStreak > 0 && (
+          <div style={{
+            background: 'white', borderRadius: 16,
+            padding: 16, margin: '12px 14px 0',
+            textAlign: 'center',
+            border: '0.5px solid #F0E4D0',
+          }}>
+            <div style={{ fontSize: 20 }}>🔥</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>רצף של {challengeStreak} ימים!</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>ממתין לאתגר מהמאמן</div>
+          </div>
+        )}
 
         {/* Book Session Button */}
         <div style={{padding:'14px 14px 6px'}}>
