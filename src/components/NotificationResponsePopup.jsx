@@ -3,6 +3,7 @@ import {
   getResponseOptions, getResponseLabel,
   formatDate,
 } from '@/utils/notificationHelpers';
+import MiniTimerBar from '@/components/MiniTimerBar';
 
 // Trainee-side popup: shows full notification + type-based response
 // buttons. After respond, the trainee_response is saved and the coach
@@ -39,6 +40,7 @@ export default function NotificationResponsePopup({ notif, onClose, onRespond })
           direction: 'rtl',
         }}
       >
+        <MiniTimerBar />
         {/* Icon */}
         <div style={{
           width: 60, height: 60, borderRadius: 18,

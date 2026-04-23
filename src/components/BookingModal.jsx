@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { notifySessionRequest } from '@/functions/notificationTriggers';
 import { toast } from 'sonner';
+import MiniTimerBar from './MiniTimerBar';
 
 async function resolveCoachId(user) {
   // Try 1: ClientService.created_by (main path)
@@ -147,6 +148,7 @@ export default function BookingModal({ user, coach: coachProp, onClose, onSucces
         padding: '24px',
         paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
       }}>
+        <MiniTimerBar />
 
         {/* Header */}
         <div style={{

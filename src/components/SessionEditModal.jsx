@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { X, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
+import MiniTimerBar from "./MiniTimerBar";
 
 export default function SessionEditModal({ session, isOpen, onClose }) {
   const [formData, setFormData] = useState({
@@ -285,6 +286,7 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
           WebkitOverflowScrolling: "touch",
         }}
       >
+        <div style={{ padding: "8px 12px 0" }}><MiniTimerBar /></div>
         {/* Header */}
         <div
           style={{

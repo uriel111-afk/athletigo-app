@@ -35,6 +35,7 @@ import TraineeNotificationsTab from "@/components/profile/TraineeNotificationsTa
 import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import { notifySessionScheduled } from "@/functions/notificationTriggers";
+import MiniTimerBar from "@/components/MiniTimerBar";
 import BaselineDetailView from "@/components/BaselineDetailView";
 import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, notifyPlanCreated } from "@/functions/notificationTriggers";
 import PlanFormDialog from "@/components/training/PlanFormDialog";
@@ -2886,6 +2887,7 @@ export default function TraineeProfile() {
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11000, padding: 20 }}
           >
             <div dir="rtl" style={{ background: '#FFF9F0', borderRadius: 24, padding: 24, width: '100%', maxWidth: 340, textAlign: 'right', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+              <MiniTimerBar />
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <div style={{ fontSize: 28, marginBottom: 8 }}>🔑</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>איפוס סיסמה</div>

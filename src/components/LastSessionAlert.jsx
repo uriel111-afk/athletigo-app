@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
+import MiniTimerBar from "@/components/MiniTimerBar";
 
 // Listens for the global `athletigo:last-session` CustomEvent dispatched
 // from useServiceDeduction when a personal package drops to remaining=1.
@@ -116,6 +117,7 @@ export default function LastSessionAlert() {
           boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
         }}
       >
+        <MiniTimerBar />
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>
