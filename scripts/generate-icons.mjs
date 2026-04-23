@@ -4,21 +4,20 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 const PUBLIC_DIR = 'public';
-const srcPath = path.join(PUBLIC_DIR, 'logo-transparent.png');
+const SRC = path.join(PUBLIC_DIR, 'logo-transparent.png');
+const FILL = 0.99;
 
-const trimmed = await sharp(srcPath).trim().png().toBuffer();
-const meta = await sharp(trimmed).metadata();
+const trimmed = await sharp(SRC).trim().png().toBuffer();
 
-async function makeIcon(size, fillPercent = 95) {
-  const target = Math.floor((size * fillPercent) / 100);
-  const ratio = Math.min(target / meta.width, target / meta.height);
-  const newW = Math.max(1, Math.round(meta.width * ratio));
-  const newH = Math.max(1, Math.round(meta.height * ratio));
-
+async function makeIcon(size, fill = FILL) {
+  const target = Math.round(size * fill);
   const resized = await sharp(trimmed)
-    .resize(newW, newH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(target, target, { fit: 'inside' })
     .png()
     .toBuffer();
+  const { width: rW, height: rH } = await sharp(resized).metadata();
+  const left = Math.round((size - rW) / 2);
+  const top = Math.round((size - rH) / 2);
 
   return sharp({
     create: {
@@ -28,7 +27,7 @@ async function makeIcon(size, fillPercent = 95) {
       background: { r: 255, g: 255, b: 255, alpha: 1 },
     },
   })
-    .composite([{ input: resized, gravity: 'center' }])
+    .composite([{ input: resized, left, top }])
     .png({ compressionLevel: 9 })
     .toBuffer();
 }
@@ -49,50 +48,36 @@ const sizes = {
 };
 
 for (const [name, size] of Object.entries(sizes)) {
-  const buf = await makeIcon(size, 95);
+  const buf = await makeIcon(size, FILL);
   await fs.writeFile(path.join(PUBLIC_DIR, name), buf);
+  console.log(`  ${name}: ${size}x${size}`);
 }
 
-const mask = await makeIcon(512, 65);
+const mask = await makeIcon(512, 0.65);
 await fs.writeFile(path.join(PUBLIC_DIR, 'icon-maskable-512.png'), mask);
 
-const icoBufs = await Promise.all([16, 32, 48].map((s) => makeIcon(s, 95)));
+const icoBufs = await Promise.all([16, 32, 48].map((s) => makeIcon(s, FILL)));
 const icoData = await pngToIco(icoBufs);
 await fs.writeFile(path.join(PUBLIC_DIR, 'favicon.ico'), icoData);
 
-const badgeTarget = Math.floor((96 * 95) / 100);
-const badgeRatio = Math.min(badgeTarget / meta.width, badgeTarget / meta.height);
-const badgeW = Math.max(1, Math.round(meta.width * badgeRatio));
-const badgeH = Math.max(1, Math.round(meta.height * badgeRatio));
-
+const badgeTarget = Math.round(96 * FILL);
 const alpha = await sharp(trimmed)
-  .resize(badgeW, badgeH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  .resize(badgeTarget, badgeTarget, { fit: 'inside' })
   .ensureAlpha()
   .extractChannel('alpha')
   .toBuffer();
-
+const { width: bW, height: bH } = await sharp(alpha).metadata();
 const whiteLogo = await sharp({
-  create: {
-    width: badgeW,
-    height: badgeH,
-    channels: 3,
-    background: { r: 255, g: 255, b: 255 },
-  },
+  create: { width: bW, height: bH, channels: 3, background: { r: 255, g: 255, b: 255 } },
 })
-  .joinChannel(alpha, { raw: undefined })
+  .joinChannel(alpha)
   .png()
   .toBuffer();
-
 await sharp({
-  create: {
-    width: 96,
-    height: 96,
-    channels: 4,
-    background: { r: 0, g: 0, b: 0, alpha: 0 },
-  },
+  create: { width: 96, height: 96, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
 })
   .composite([{ input: whiteLogo, gravity: 'center' }])
   .png({ compressionLevel: 9 })
   .toFile(path.join(PUBLIC_DIR, 'badge-icon.png'));
 
-console.log('All icons: 95% fill');
+console.log('All icons: 99% fill, centered');
