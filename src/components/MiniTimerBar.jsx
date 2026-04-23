@@ -1,15 +1,18 @@
 import React, { useReducer, useEffect } from 'react';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
+import { useClock } from '@/contexts/ClockContext';
 
 // Slim timer control rendered INSIDE every open dialog. Solves the
 // "bar inaccessible behind backdrop" class of bugs by living in the
 // same stacking context as the form fields — there's no overlay
 // between this and the user's tap.
 //
-// Reads state from useActiveTimer (the same liveTimerTabata that
-// TimerFooterBar uses) and sends commands via the existing
-// tabata-* CustomEvents that TabataTimer already listens to. No
-// new plumbing — just a parallel control surface.
+// Handles BOTH:
+//   - Tabata (via useActiveTimer + tabata-* CustomEvents)
+//   - Stopwatch / Countdown (via useClock + clock-pause-resume event)
+//
+// Renders null when no timer is active OR not minimized — zero UI
+// impact on dialogs when there's no workout running.
 
 const WORK_TOKENS = ['עבודה', 'work', 'WORK', 'ריצה'];
 
@@ -24,38 +27,78 @@ function stop(handler) {
   };
 }
 
+function fmtMs(ms) {
+  const total = Math.max(0, Math.round((ms || 0) / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export default function MiniTimerBar() {
-  const { liveTimerTabata, isMinimized } = useActiveTimer() || {};
-  // 100ms ticker so display updates while bar is mounted (other
-  // updates come from React state propagation through context).
+  const { liveTimerTabata, isMinimized: tabataMinimized } = useActiveTimer() || {};
+  const clock = useClock() || {};
+  const clockActive = !!clock.activeClock && clock.isMinimized && (clock.isRunning || clock.display > 0);
+
+  // 100ms ticker so display updates while bar is mounted.
   const [, force] = useReducer(x => x + 1, 0);
   useEffect(() => {
-    if (!liveTimerTabata || !isMinimized) return;
+    const visible = (liveTimerTabata && tabataMinimized) || clockActive;
+    if (!visible) return;
     const id = setInterval(force, 100);
     return () => clearInterval(id);
-  }, [liveTimerTabata, isMinimized]);
+  }, [liveTimerTabata, tabataMinimized, clockActive]);
 
-  if (!liveTimerTabata || !isMinimized) return null;
+  // Tabata takes precedence if both somehow exist (shouldn't, but
+  // tabata is the richer control surface).
+  const showTabata = !!liveTimerTabata && tabataMinimized;
+  const showClock  = !showTabata && clockActive;
 
-  const t = liveTimerTabata;
-  const phase = t.phase || '';
-  const isWork = WORK_TOKENS.some(w => phase.includes(w));
-  const paused = !!t.paused;
-  const display = t.display || '0:00';
-  const roundMatch = t.info?.match?.(/(\d+\/\d+)/);
-  const round = roundMatch ? roundMatch[1] : '';
+  if (!showTabata && !showClock) return null;
 
-  const bg       = isWork ? '#FF6F20' : '#FFF9F0';
-  const text     = isWork ? '#FFFFFF' : '#1a1a1a';
-  const softBg   = isWork ? 'rgba(255,255,255,0.2)' : 'rgba(255,111,32,0.1)';
-  const softFg   = isWork ? '#FFFFFF' : '#FF6F20';
-  const playBg   = isWork ? '#FFFFFF' : '#FF6F20';
-  const playFg   = isWork ? '#FF6F20' : '#FFFFFF';
-  const border   = isWork ? 'none' : '1.5px solid #FF6F20';
+  // ─── Choose palette + display values ────────────────────────
+  let bg, text, softBg, softFg, playBg, playFg, border;
+  let display, paused, round = '', hasRounds = false;
+  let onPlayPause, onNext, onPrev;
 
-  const dispatch = (eventName) => () => {
-    try { window.dispatchEvent(new CustomEvent(eventName)); } catch {}
-  };
+  if (showTabata) {
+    const t = liveTimerTabata;
+    const phase = t.phase || '';
+    const isWork = WORK_TOKENS.some(w => phase.includes(w));
+    paused = !!t.paused;
+    display = t.display || '0:00';
+    const m = t.info?.match?.(/(\d+\/\d+)/);
+    round = m ? m[1] : '';
+    hasRounds = true;
+
+    bg     = isWork ? '#FF6F20' : '#FFF9F0';
+    text   = isWork ? '#FFFFFF' : '#1a1a1a';
+    softBg = isWork ? 'rgba(255,255,255,0.2)' : 'rgba(255,111,32,0.1)';
+    softFg = isWork ? '#FFFFFF' : '#FF6F20';
+    playBg = isWork ? '#FFFFFF' : '#FF6F20';
+    playFg = isWork ? '#FF6F20' : '#FFFFFF';
+    border = isWork ? 'none' : '1.5px solid #FF6F20';
+
+    onPlayPause = () => { try { window.dispatchEvent(new CustomEvent('tabata-pause-resume')); } catch {} };
+    onNext      = () => { try { window.dispatchEvent(new CustomEvent('tabata-next-round')); } catch {} };
+    onPrev      = () => { try { window.dispatchEvent(new CustomEvent('tabata-prev-round')); } catch {} };
+  } else {
+    // Stopwatch or Countdown
+    const isStopwatch = clock.activeClock === 'stopwatch';
+    paused = !clock.isRunning;
+    display = fmtMs(clock.display);
+    round = isStopwatch ? '⏱' : '⏳';
+    hasRounds = false;
+
+    bg     = '#FFF9F0';
+    text   = '#1a1a1a';
+    softBg = 'rgba(255,111,32,0.1)';
+    softFg = '#FF6F20';
+    playBg = '#FF6F20';
+    playFg = '#FFFFFF';
+    border = '1.5px solid #FF6F20';
+
+    onPlayPause = () => { try { window.dispatchEvent(new CustomEvent('clock-pause-resume')); } catch {} };
+  }
 
   const btnBase = {
     border: 'none', cursor: 'pointer',
@@ -67,8 +110,6 @@ export default function MiniTimerBar() {
   return (
     <div
       data-mini-timer="true"
-      // Block any pointer event from reaching the dialog backdrop or
-      // its dismiss handlers — every interaction stays local.
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
@@ -82,7 +123,7 @@ export default function MiniTimerBar() {
         border,
       }}
     >
-      {/* Round / phase label */}
+      {/* Round / phase indicator */}
       {round ? (
         <div style={{
           fontFamily: "'Barlow Condensed', sans-serif",
@@ -99,19 +140,21 @@ export default function MiniTimerBar() {
         color: text, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden',
       }}>{display}</div>
 
-      {/* Forward (next round) */}
-      <button type="button"
-        onClick={stop(dispatch('tabata-next-round'))}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{ ...btnBase, width: 30, height: 30, borderRadius: '50%', background: softBg }}
-        aria-label="קדימה"
-      >
-        <span style={{ pointerEvents: 'none', color: softFg, fontSize: 13 }}>⏭</span>
-      </button>
+      {/* Forward — tabata only */}
+      {hasRounds && (
+        <button type="button"
+          onClick={stop(onNext)}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{ ...btnBase, width: 30, height: 30, borderRadius: '50%', background: softBg }}
+          aria-label="קדימה"
+        >
+          <span style={{ pointerEvents: 'none', color: softFg, fontSize: 13 }}>⏭</span>
+        </button>
+      )}
 
-      {/* Play / Pause */}
+      {/* Play / Pause — both timer types */}
       <button type="button"
-        onClick={stop(dispatch('tabata-pause-resume'))}
+        onClick={stop(onPlayPause)}
         onPointerDown={(e) => e.stopPropagation()}
         style={{ ...btnBase, width: 38, height: 38, borderRadius: '50%', background: playBg, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}
         aria-label={paused ? 'המשך' : 'השהה'}
@@ -121,15 +164,17 @@ export default function MiniTimerBar() {
         </span>
       </button>
 
-      {/* Backward (prev round) */}
-      <button type="button"
-        onClick={stop(dispatch('tabata-prev-round'))}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{ ...btnBase, width: 30, height: 30, borderRadius: '50%', background: softBg }}
-        aria-label="אחורה"
-      >
-        <span style={{ pointerEvents: 'none', color: softFg, fontSize: 13 }}>⏮</span>
-      </button>
+      {/* Backward — tabata only */}
+      {hasRounds && (
+        <button type="button"
+          onClick={stop(onPrev)}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{ ...btnBase, width: 30, height: 30, borderRadius: '50%', background: softBg }}
+          aria-label="אחורה"
+        >
+          <span style={{ pointerEvents: 'none', color: softFg, fontSize: 13 }}>⏮</span>
+        </button>
+      )}
     </div>
   );
 }
