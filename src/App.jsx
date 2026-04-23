@@ -24,6 +24,9 @@ import LifeOSDocuments from './pages/lifeos/DocumentVault';
 import LifeOSCashFlow from './pages/lifeos/CashFlow';
 import LifeOSBusinessPlan from './pages/lifeos/BusinessPlan';
 import LifeOSTasks from './pages/lifeos/Tasks';
+import LifeOSLeads from './pages/lifeos/Leads';
+import LifeOSContent from './pages/lifeos/ContentCalendar';
+import LifeOSCommunity from './pages/lifeos/Community';
 import LifeOSSettings from './pages/lifeos/LifeOSSettings';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
@@ -314,6 +317,9 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos/cashflow"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSCashFlow /></PageRouteGuard>} />
       <Route path="/lifeos/plan"         element={<PageRouteGuard pageKey="LifeOS"><LifeOSBusinessPlan /></PageRouteGuard>} />
       <Route path="/lifeos/tasks"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSTasks /></PageRouteGuard>} />
+      <Route path="/lifeos/leads"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSLeads /></PageRouteGuard>} />
+      <Route path="/lifeos/content"      element={<PageRouteGuard pageKey="LifeOS"><LifeOSContent /></PageRouteGuard>} />
+      <Route path="/lifeos/community"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSCommunity /></PageRouteGuard>} />
       <Route path="/lifeos/settings"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSSettings /></PageRouteGuard>} />
 
       <Route path="*" element={<PageNotFound />} />

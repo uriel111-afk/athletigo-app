@@ -15,8 +15,11 @@ const MORE_ITEMS = [
   { to: '/lifeos/income',        emoji: '💰', label: 'הכנסות' },
   { to: '/lifeos/recurring',     emoji: '🔁', label: 'הוצאות קבועות' },
   { to: '/lifeos/installments',  emoji: '📊', label: 'תשלומי פס' },
-  { to: '/lifeos/documents',     emoji: '📁', label: 'כספת מסמכים' },
   { to: '/lifeos/cashflow',      emoji: '📈', label: 'תזרים מזומנים' },
+  { to: '/lifeos/leads',         emoji: '👥', label: 'לידים' },
+  { to: '/lifeos/content',       emoji: '🎬', label: 'לוח תוכן' },
+  { to: '/lifeos/community',     emoji: '📣', label: 'קהילה' },
+  { to: '/lifeos/documents',     emoji: '📁', label: 'מסמכים' },
   { to: '/lifeos/settings',      emoji: '⚙️', label: 'הגדרות' },
 ];
 
