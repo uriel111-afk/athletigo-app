@@ -126,6 +126,43 @@ export default function Dashboard() {
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
 
+  // Due 48-hour plan follow-ups for this coach — scheduled_at is set 48h
+  // ahead when a plan is sent. We surface rows that are past due and
+  // still unread; the coach dismisses them by tapping (marks is_read).
+  const { data: planFollowUps = [], refetch: refetchFollowUps } = useQuery({
+    queryKey: ['plan-followups', coach?.id],
+    queryFn: async () => {
+      if (!coach?.id) return [];
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', coach.id)
+          .eq('type', 'plan_followup')
+          .eq('is_read', false)
+          .lte('scheduled_at', new Date().toISOString())
+          .order('scheduled_at', { ascending: true });
+        if (error) throw error;
+        return data || [];
+      } catch (err) {
+        console.warn('[Dashboard] plan-followups query failed:', err?.message);
+        return [];
+      }
+    },
+    enabled: !!coach?.id,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  const dismissFollowUp = async (id) => {
+    try {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      refetchFollowUps();
+    } catch (err) {
+      console.warn('[Dashboard] dismiss follow-up failed:', err?.message);
+    }
+  };
+
   // Direct trainees query — shared key with useDashboardStats, no initialData
   const { data: allTrainees = [] } = useQuery({
     queryKey: QUERY_KEYS.TRAINEES,
@@ -242,6 +279,7 @@ export default function Dashboard() {
                 traineeId: plan.assigned_to,
                 traineeName: plan.assigned_to_name,
                 planName: plan.plan_name || plan.title,
+                coachId: coach.id,
                 coachName: coach.full_name,
               });
             } catch {}
@@ -333,6 +371,39 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
+
+          {/* ═══ SECTION — תזכורות מעקב (plan follow-ups, 48h after send) ═══ */}
+          {planFollowUps.length > 0 && (
+            <div style={{ padding: '0 8px', marginBottom: 10 }}>
+              <SectionHeader title="תזכורות מעקב" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {planFollowUps.map((fu) => (
+                  <button
+                    key={fu.id}
+                    onClick={() => dismissFollowUp(fu.id)}
+                    style={{
+                      background: '#FFF9F0',
+                      border: '1px solid #FFD0A0',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                      textAlign: 'right',
+                      cursor: 'pointer',
+                      direction: 'rtl',
+                    }}
+                    title="סמן כנקרא"
+                  >
+                    <span style={{ fontSize: 18, lineHeight: 1 }}>⏰</span>
+                    <span style={{ flex: 1, fontSize: 13, color: '#1a1a1a', lineHeight: 1.35 }}>
+                      {fu.message}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />

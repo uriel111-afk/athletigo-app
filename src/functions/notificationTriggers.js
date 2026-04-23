@@ -47,12 +47,31 @@ export async function notifySessionRejected({ traineeId, sessionId, sessionDate,
   });
 }
 
-export async function notifyPlanCreated({ traineeId, traineeName, planName, coachName }) {
+export async function notifyPlanCreated({ traineeId, traineeName, planName, coachId, coachName }) {
   await createNotification({
     user_id: traineeId,
     type: 'plan_created',
     title: 'תוכנית אימון חדשה',
     message: `${coachName} יצר עבורך תוכנית אימון חדשה: ${planName}`,
+  });
+  // Coach-side 48-hour check-in: shows up on the dashboard only once
+  // `scheduled_at` is in the past. No-op if we don't know the coach.
+  if (coachId) {
+    await schedulePlanFollowUp({ coachId, traineeId, traineeName, planName });
+  }
+}
+
+export async function schedulePlanFollowUp({ coachId, traineeId, traineeName, planName }) {
+  if (!coachId) return;
+  const followUpAt = new Date();
+  followUpAt.setHours(followUpAt.getHours() + 48);
+  await createNotification({
+    user_id: coachId,
+    type: 'plan_followup',
+    title: 'תזכורת מעקב תוכנית',
+    message: `⏰ עברו 48 שעות מאז ששלחת את התוכנית "${planName}" ל${traineeName || 'המתאמן'}. כדאי לבדוק אם התחיל/ה!`,
+    scheduled_at: followUpAt.toISOString(),
+    data: { trainee_id: traineeId || null, plan_name: planName || null },
   });
 }
 

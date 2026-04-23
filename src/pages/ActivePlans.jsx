@@ -111,7 +111,9 @@ export default function ActivePlans() {
           try {
             await notifyPlanCreated({
               traineeId: trainee.id,
+              traineeName: trainee.full_name,
               planName: planData.plan_name,
+              coachId: coach?.id,
               coachName: coach.full_name,
             });
           } catch {}

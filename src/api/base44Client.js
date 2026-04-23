@@ -271,6 +271,7 @@ const entities = {
   TrainingGroup:          createEntity('training_groups'),
   TrainingGroupMember:    createEntity('training_group_members'),
   Baseline:               createEntity('baselines'),
+  ExerciseExecution:      createEntity('exercise_executions'),
 };
 
 export const base44 = { entities, auth, integrations };

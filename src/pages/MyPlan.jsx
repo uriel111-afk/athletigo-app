@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 
 // Extracted Component for performance and safety
-const PlanCard = ({ plan, isMine, exercises, improvementData, onSelect, onDuplicate, onDelete }) => {
+const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelect, onDuplicate, onDelete }) => {
   // Safe calculation of progress
   const planExercises = useMemo(() => 
     Array.isArray(exercises) ? exercises.filter(e => e.training_plan_id === plan.id) : []
@@ -97,6 +97,46 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, onSelect, onDuplic
             <div className="h-2 rounded-full bg-[#E6E6E6] overflow-hidden">
               <div className="h-full bg-[#FF6F20] transition-all" style={{ width: `${progressPercent}%` }} />
             </div>
+          </div>
+        )}
+
+        {/* Plan score + session comparison — derived from exercise_executions */}
+        {scoreData && scoreData.sessions && scoreData.sessions.length > 0 && (
+          <div className="pt-3 border-t border-[#E0E0E0] mt-3" onClick={(e) => e.stopPropagation()} style={{ direction: 'rtl' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: scoreData.sessions.length > 1 ? 10 : 0 }}>
+              <span style={{ fontSize: 12, color: '#888' }}>ציון:</span>
+              <span style={{
+                fontSize: 14, fontWeight: 600,
+                color: scoreData.overall >= 7 ? '#16a34a' : scoreData.overall >= 4 ? '#EAB308' : '#dc2626',
+              }}>
+                {scoreData.overall.toFixed(1)}/10
+              </span>
+              <span style={{ fontSize: 11, color: '#aaa', marginRight: 'auto' }}>
+                {scoreData.sessions.length} ביצוע{scoreData.sessions.length > 1 ? 'ים' : ''}
+              </span>
+            </div>
+            {scoreData.sessions.length > 1 && (
+              <div style={{ background: 'white', borderRadius: 14, padding: 14, border: '1px solid #F0E4D0' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📈 התקדמות</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 100 }}>
+                  {scoreData.sessions.slice(-8).map((s, i) => (
+                    <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{s.avg.toFixed(1)}</div>
+                      <div style={{
+                        height: `${(s.avg / 10) * 80}px`,
+                        background: '#FF6F20',
+                        borderRadius: '4px 4px 0 0',
+                        margin: '4px auto',
+                        width: '100%',
+                      }} />
+                      <div style={{ fontSize: 9, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {new Date(s.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -211,6 +251,47 @@ export default function MyPlan() {
     },
     enabled: !!user?.id
   });
+
+  // Per-exercise execution rows — populate the plan score badge and the
+  // day-by-day progress chart. Each row is one completed exercise.
+  const { data: executions = [] } = useQuery({
+    queryKey: ['my-exercise-executions', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      try {
+        return await base44.entities.ExerciseExecution.filter({ trainee_id: user.id }, '-created_at');
+      } catch { return []; }
+    },
+    enabled: !!user?.id,
+    initialData: [],
+  });
+
+  // Group executions by plan + day. Each "session" = average mastery of
+  // all exercises completed that day for that plan.
+  const planScoreData = useMemo(() => {
+    const byPlan = {};
+    for (const ex of executions) {
+      const pid = ex.plan_id;
+      if (!pid) continue;
+      const day = (ex.created_at || '').slice(0, 10);
+      if (!day) continue;
+      if (!byPlan[pid]) byPlan[pid] = {};
+      if (!byPlan[pid][day]) byPlan[pid][day] = [];
+      const m = Number(ex.mastery_rating) || 0;
+      if (m > 0) byPlan[pid][day].push(m);
+    }
+    const result = {};
+    for (const [pid, days] of Object.entries(byPlan)) {
+      const sessions = Object.entries(days)
+        .map(([date, arr]) => ({ date, avg: arr.reduce((a, b) => a + b, 0) / arr.length }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      const overall = sessions.length
+        ? sessions.reduce((a, s) => a + s.avg, 0) / sessions.length
+        : 0;
+      result[pid] = { sessions, overall };
+    }
+    return result;
+  }, [executions]);
 
   const improvementData = useMemo(() => {
     const data = {};
@@ -435,6 +516,7 @@ export default function MyPlan() {
                       isMine={false} 
                       exercises={exercises}
                       improvementData={improvementData}
+                      scoreData={planScoreData[plan.id]}
                       onSelect={setSelectedPlan}
                       onDuplicate={(p) => duplicatePlanMutation.mutate(p)}
                       onDelete={handleDeletePlan}
@@ -462,6 +544,7 @@ export default function MyPlan() {
                             isMine={false}
                             exercises={exercises}
                             improvementData={improvementData}
+                            scoreData={planScoreData[plan.id]}
                             onSelect={setSelectedPlan}
                             onDuplicate={(p) => duplicatePlanMutation.mutate(p)}
                             onDelete={handleDeletePlan}
@@ -479,12 +562,13 @@ export default function MyPlan() {
               {/* Standalone only for My Plans for now, as user cannot create series in UI yet */}
               {myStandalonePlans.length > 0 ? (
                 myStandalonePlans.map(plan => (
-                  <PlanCard 
-                    key={plan.id} 
-                    plan={plan} 
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
                     isMine={true}
                     exercises={exercises}
                     improvementData={improvementData}
+                    scoreData={planScoreData[plan.id]}
                     onSelect={setSelectedPlan}
                     onDuplicate={(p) => duplicatePlanMutation.mutate(p)}
                     onDelete={handleDeletePlan}

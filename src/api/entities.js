@@ -19,3 +19,4 @@ export const Notification     = base44.entities.Notification;
 export const Reflection       = base44.entities.Reflection;
 export const ProgramSeries    = base44.entities.ProgramSeries;
 export const Query            = base44.entities.Query;
+export const ExerciseExecution = base44.entities.ExerciseExecution;

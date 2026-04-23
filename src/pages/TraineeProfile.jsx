@@ -1126,7 +1126,7 @@ export default function TraineeProfile() {
       if (results && currentUser) {
         for (const plan of results) {
           if (plan.assigned_to) {
-            try { await notifyPlanCreated({ traineeId: plan.assigned_to, traineeName: plan.assigned_to_name, planName: plan.plan_name || plan.title, coachName: currentUser.full_name }); } catch {}
+            try { await notifyPlanCreated({ traineeId: plan.assigned_to, traineeName: plan.assigned_to_name, planName: plan.plan_name || plan.title, coachId: currentUser.id, coachName: currentUser.full_name }); } catch {}
           }
         }
       }

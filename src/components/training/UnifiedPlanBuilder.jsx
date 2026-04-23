@@ -10,6 +10,7 @@ import SectionForm from "../workout/SectionForm";
 import ModernExerciseForm from "../workout/ModernExerciseForm";
 import SectionCard from "./SectionCard";
 import ExerciseExecutionModal from "./ExerciseExecutionModal";
+import ExerciseExecution from "@/components/ExerciseExecution";
 import { toast } from "sonner";
 import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificationTriggers";
 import { Textarea } from "@/components/ui/textarea";
@@ -659,23 +660,43 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </DialogContent>
       </Dialog>
 
-      {/* Execution Modal */}
-      <ExerciseExecutionModal
-        isOpen={showExecutionModal}
-        onClose={() => {
-          setShowExecutionModal(false);
-          setExecutionExercise(null);
-        }}
-        exercise={executionExercise}
-        onSave={async (data) => {
-          await updateExerciseMutation.mutateAsync({ id: executionExercise.id, data });
-          setShowExecutionModal(false);
-          setExecutionExercise(null);
-          toast.success("✅ בוצע");
-          checkAndTriggerPopups(executionExercise.id, true);
-        }}
-        isLoading={updateExerciseMutation.isPending}
-      />
+      {/* Execution surface — coaches log actual performance numbers via
+          the existing modal; trainees see the full-screen reflection
+          screen that also persists a row to exercise_executions for
+          plan scoring. */}
+      {isCoach ? (
+        <ExerciseExecutionModal
+          isOpen={showExecutionModal}
+          onClose={() => {
+            setShowExecutionModal(false);
+            setExecutionExercise(null);
+          }}
+          exercise={executionExercise}
+          onSave={async (data) => {
+            await updateExerciseMutation.mutateAsync({ id: executionExercise.id, data });
+            setShowExecutionModal(false);
+            setExecutionExercise(null);
+            toast.success("✅ בוצע");
+            checkAndTriggerPopups(executionExercise.id, true);
+          }}
+          isLoading={updateExerciseMutation.isPending}
+        />
+      ) : (
+        <ExerciseExecution
+          isOpen={showExecutionModal}
+          onClose={() => {
+            setShowExecutionModal(false);
+            setExecutionExercise(null);
+          }}
+          exercise={executionExercise}
+          planId={plan.id}
+          traineeId={plan.assigned_to || null}
+          onCompletedExercise={async (ex) => {
+            await updateExerciseMutation.mutateAsync({ id: ex.id, data: { completed: true } });
+            checkAndTriggerPopups(ex.id, true);
+          }}
+        />
+      )}
 
       {/* Exercise Dialog - Sticky Footer Layout */}
       <Dialog open={showExerciseDialog} onOpenChange={(open) => {
