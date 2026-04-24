@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 const O = '#FF6F20';
 const W = '#FFFFFF';
 const WD = 'rgba(255,255,255,0.2)';
-const R = 140, S = 6, SIZE = 320, CX = SIZE / 2, CY = SIZE / 2;
+const R = 120, S = 5, SIZE = 320, CX = SIZE / 2, CY = SIZE / 2;
 const CIRC = 2 * Math.PI * R;
 
 const PHASE_LABEL = { prep: 'הכנה', work: 'עבודה', rest: 'מנוחה', set_rest: 'מנוחה בין סטים', done: 'סיום' };
@@ -723,12 +723,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         </button>
         <div style={{
           textAlign: 'center', width: '100%',
-          padding: '10px 0 4px',
-          fontSize: 60, fontWeight: 900,
+          padding: '8px 0 2px',
+          fontSize: 72, fontWeight: 900,
           color: isWork ? '#FFFFFF' : '#FF6F20',
-          letterSpacing: '6px',
+          letterSpacing: '8px',
           textTransform: 'uppercase',
-          textShadow: '0 3px 12px rgba(0,0,0,0.2)',
+          textShadow: '0 4px 16px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15)',
+          WebkitTextStroke: isWork ? '1px rgba(255,255,255,0.3)' : '1px rgba(255,111,32,0.3)',
         }}>
           {phase.type === 'work'     && 'עבודה'}
           {phase.type === 'rest'     && 'מנוחה'}
@@ -770,7 +771,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(60vw, 200px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
+            <span style={{ fontSize: 'min(70vw, 240px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
