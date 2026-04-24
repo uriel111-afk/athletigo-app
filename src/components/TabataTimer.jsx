@@ -742,19 +742,19 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             onClick={() => setRoundPickerOpen(true)}
             style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
           >
-            <div style={{ pointerEvents: 'none', fontSize: 11, fontWeight: 600, opacity: 0.7 }}>סבב</div>
-            <div style={{ pointerEvents: 'none', fontSize: 28, fontWeight: 700 }}>{phase.round}/{cfg.rounds}</div>
+            <div style={{ pointerEvents: 'none', fontSize: 14, fontWeight: 700, opacity: 0.7 }}>סבב</div>
+            <div style={{ pointerEvents: 'none', fontSize: 36, fontWeight: 700 }}>{phase.round}/{cfg.rounds}</div>
           </button>
         )}
         {cfg.sets > 1 && phase.type !== 'prep' && (
           <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', color: textPrimary }}>
-            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.7 }}>סט</div>
-            <div style={{ fontSize: 28, fontWeight: 700 }}>{phase.set}/{cfg.sets}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.7 }}>סט</div>
+            <div style={{ fontSize: 36, fontWeight: 700 }}>{phase.set}/{cfg.sets}</div>
           </div>
         )}
         <div style={{ flex: 1, background: chipDarkBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', color: textPrimary }}>
-          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.7 }}>⏱</div>
-          <div style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.7 }}>⏱</div>
+          <div style={{ fontSize: 36, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
           </div>
         </div>
