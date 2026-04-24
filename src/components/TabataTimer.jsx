@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 const O = '#FF6F20';
 const W = '#FFFFFF';
 const WD = 'rgba(255,255,255,0.2)';
-const R = 130, S = 6, SIZE = 300, CX = SIZE / 2, CY = SIZE / 2;
+const R = 100, S = 5, SIZE = 240, CX = SIZE / 2, CY = SIZE / 2;
 const CIRC = 2 * Math.PI * R;
 
 const PHASE_LABEL = { prep: 'הכנה', work: 'עבודה', rest: 'מנוחה', set_rest: 'מנוחה בין סטים', done: 'סיום' };
@@ -723,15 +723,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         </button>
         <div style={{
           textAlign: 'center', width: '100%',
-          padding: '8px 0',
-          fontSize: 56, fontWeight: 800,
+          padding: '12px 0 4px',
+          fontSize: 52, fontWeight: 800,
           color: isWork ? '#FFFFFF' : '#FF6F20',
-          letterSpacing: '2px',
+          letterSpacing: '4px',
+          textShadow: '0 2px 8px rgba(0,0,0,0.15)',
         }}>
-          {phase.type === 'work'     && '🔥 עבודה'}
-          {phase.type === 'rest'     && '💤 מנוחה'}
-          {phase.type === 'set_rest' && '💤 מנוחה בין סטים'}
-          {phase.type === 'prep'     && '⏳ הכנה'}
+          {phase.type === 'work'     && 'עבודה'}
+          {phase.type === 'rest'     && 'מנוחה'}
+          {phase.type === 'set_rest' && 'מנוחה בין סטים'}
+          {phase.type === 'prep'     && 'הכנה'}
         </div>
       </div>
 
@@ -763,14 +764,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
       {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, width: '100%' }}>
-        <div style={{ position: 'relative', width: 'min(85vw, 320px)', height: 'min(85vw, 320px)', margin: '0 auto', display: 'block' }}>
+        <div style={{ position: 'relative', width: 'min(70vw, 240px)', height: 'min(70vw, 240px)', margin: '0 auto', display: 'block' }}>
           <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: 'block' }}>
             <circle cx={CX} cy={CY} r={R} stroke={ringTrack} strokeWidth={S} fill="none" />
             <circle cx={CX} cy={CY} r={R} stroke={ringFill} strokeWidth={S} strokeLinecap="round" fill="none"
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(38vw, 130px)', fontWeight: 900, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
+            <span style={{ fontSize: 'min(45vw, 140px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
