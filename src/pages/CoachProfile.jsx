@@ -1,599 +1,476 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit2, User, Mail, Phone, MapPin, Briefcase, Shield, CheckCircle, Lock, Settings, Bell, Send, Loader2, LogOut } from "lucide-react";
-import { invalidateDashboard } from "@/components/utils/queryKeys";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { base44 } from "@/api/base44Client";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageLoader from "@/components/PageLoader";
 import { toast } from "sonner";
 
+const PERMISSION_TYPES = [
+  { id: "view_plan",        label: "צפייה בתוכנית אימון", icon: "📋" },
+  { id: "view_baseline",    label: "צפייה בבייסליין",     icon: "📊" },
+  { id: "view_records",     label: "צפייה בשיאים",         icon: "🏆" },
+  { id: "view_progress",    label: "צפייה בהתקדמות",      icon: "📈" },
+  { id: "edit_profile",     label: "עריכת פרופיל",         icon: "✏️" },
+  { id: "submit_feedback",  label: "שליחת משוב",           icon: "💬" },
+  { id: "view_documents",   label: "צפייה במסמכים",        icon: "📄" },
+];
+
 export default function CoachProfile() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [showEdit, setShowEdit] = useState(false);
-  const [formData, setFormData] = useState({
-    full_name: "",
-    email: "",
-    phone: "",
-    birth_date: "",
-    gender: "",
-    address: "",
-    city: "",
-    bio: "",
-    certifications: "",
-    business_name: "",
-    services_description: "",
+  const [loading, setLoading] = useState(true);
+  const [trainees, setTrainees] = useState([]);
+
+  // View mode — persists across sessions per spec
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem("athletigo_view_mode") || "professional"; }
+    catch { return "professional"; }
   });
 
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ current: "", newPass: "", confirm: "" });
-  const [passwordLoading, setPasswordLoading] = useState(false);
+  // Trainee permissions — persisted per coach
+  const PERMS_KEY = user?.id ? `athletigo_perms_${user.id}` : null;
+  const [permissions, setPermissions] = useState({});
+  const [expandedTrainee, setExpandedTrainee] = useState(null);
 
-  const [notifForm, setNotifForm] = useState({
-    title: "",
-    message: "",
-    recipient: "all",
-    requires_acknowledgment: false,
-  });
+  // Send notification dialog state
+  const [showSendNotif, setShowSendNotif] = useState(false);
+  const [notifTarget, setNotifTarget] = useState("all");
+  const [notifMessage, setNotifMessage] = useState("");
+  const [sending, setSending] = useState(false);
 
-  const queryClient = useQueryClient();
-
-  const { data: currentUser, refetch } = useQuery({
-    queryKey: ['current-user-coach-profile'],
-    queryFn: () => base44.auth.me(),
-    staleTime: 60000,
-  });
+  // Change password dialog state
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
 
   useEffect(() => {
-    if (currentUser) {
-      setUser(currentUser);
-      if (!showEdit) {
-        setFormData({
-          full_name: currentUser.full_name || "",
-          email: currentUser.email || "",
-          phone: currentUser.phone || "",
-          birth_date: currentUser.birth_date ? new Date(currentUser.birth_date).toISOString().split('T')[0] : "",
-          gender: currentUser.gender || "",
-          address: currentUser.address || "",
-          city: currentUser.city || "",
-          bio: currentUser.bio || "",
-          certifications: currentUser.certifications || "",
-          business_name: currentUser.business_name || "",
-          services_description: currentUser.services_description || "",
-        });
+    (async () => {
+      try {
+        const me = await base44.auth.me();
+        setUser(me);
+      } catch (e) {
+        console.error("[CoachProfile] load user:", e);
+      } finally {
+        setLoading(false);
       }
-    }
-  }, [currentUser]);
+    })();
+  }, []);
 
-  const updateUserMutation = useMutation({
-    mutationFn: (data) => base44.auth.updateMe(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['current-user-coach-profile'] });
-      queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
-      invalidateDashboard(queryClient);
-      refetch();
-      setShowEdit(false);
-      toast.success("✅ הפרופיל עודכן בהצלחה");
-    },
-    onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
-  });
-
-  const enableCoachModeMutation = useMutation({
-    mutationFn: () => base44.auth.updateMe({ isCoach: true }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['current-user-coach-profile'] });
-      refetch();
-      toast.success("✅ מצב מאמן הופעל! טוען מחדש...");
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    },
-    onError: () => {
-      toast.error("❌ שגיאה בהפעלת מצב מאמן");
-    }
-  });
-
-  const { data: trainees = [] } = useQuery({
-    queryKey: ['coach-profile-trainees'],
-    queryFn: async () => {
-      const all = await base44.entities.User.list('-created_at', 1000);
-      return all.filter(u => !u.account_deleted && u.role !== 'admin' && !u.isCoach);
-    },
-    enabled: !!user?.id,
-  });
-
-  const sendNotificationMutation = useMutation({
-    mutationFn: async ({ title, message, recipientIds, requires_acknowledgment }) => {
-      for (const uid of recipientIds) {
-        await base44.entities.Notification.create({
-          user_id: uid,
-          title,
-          message,
-          type: 'coach_message',
-          is_read: false,
-          requires_acknowledgment,
-          acknowledged_at: null,
-        });
-      }
-    },
-    onSuccess: (_, vars) => {
-      toast.success(`✅ התראה נשלחה ל-${vars.recipientIds.length} מתאמנים`);
-      setNotifForm({ title: "", message: "", recipient: "all", requires_acknowledgment: false });
-    },
-    onError: () => toast.error("❌ שגיאה בשליחת התראה"),
-  });
-
-  const handleSendNotification = async () => {
-    if (!notifForm.title.trim() || !notifForm.message.trim()) {
-      toast.error("נא למלא כותרת והודעה");
-      return;
-    }
-    let recipientIds = [];
-    if (notifForm.recipient === "all") {
-      recipientIds = trainees.map(t => t.id);
-    } else {
-      recipientIds = [notifForm.recipient];
-    }
-    if (recipientIds.length === 0) {
-      toast.error("אין מתאמנים לשליחה");
-      return;
-    }
+  // Load trainees + permissions once we know the coach
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .eq("coach_id", user.id)
+        .order("full_name");
+      setTrainees(data || []);
+    })();
     try {
-      await sendNotificationMutation.mutateAsync({
-        title: notifForm.title,
-        message: notifForm.message,
-        recipientIds,
-        requires_acknowledgment: notifForm.requires_acknowledgment,
-      });
+      const raw = localStorage.getItem(`athletigo_perms_${user.id}`);
+      if (raw) setPermissions(JSON.parse(raw));
     } catch {}
+  }, [user?.id]);
+
+  const getPermission = (traineeId, permId) => {
+    // Default to enabled so existing permissions don't silently block trainees
+    return permissions[traineeId]?.[permId] ?? true;
   };
 
-  const toggleAllowTraineePlansMutation = useMutation({
-    mutationFn: (value) => base44.auth.updateMe({ allow_trainee_plans: value }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['current-user-coach-profile'] });
-      toast.success("✅ ההגדרה עודכנה");
-    },
-    onError: () => toast.error("❌ שגיאה בעדכון ההגדרה"),
-  });
+  const togglePermission = (traineeId, permId) => {
+    setPermissions(prev => {
+      const current = prev[traineeId]?.[permId] ?? true;
+      const updated = {
+        ...prev,
+        [traineeId]: {
+          ...(prev[traineeId] || {}),
+          [permId]: !current,
+        },
+      };
+      if (PERMS_KEY) {
+        try { localStorage.setItem(PERMS_KEY, JSON.stringify(updated)); } catch {}
+      }
+      return updated;
+    });
+  };
 
-  const handleSave = async () => {
-    if (!formData.full_name?.trim()) {
-      toast.error("שם מלא הוא שדה חובה");
-      return;
-    }
+  const handleChangeViewMode = (mode) => {
+    setViewMode(mode);
+    try { localStorage.setItem("athletigo_view_mode", mode); } catch {}
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPw) { toast.error("יש להזין את הסיסמה הנוכחית"); return; }
+    if (newPw !== confirmPw) { toast.error("הסיסמאות החדשות לא תואמות"); return; }
+    if (newPw.length < 6) { toast.error("הסיסמה חייבת להכיל לפחות 6 תווים"); return; }
+    setPwLoading(true);
     try {
-      await updateUserMutation.mutateAsync({
-        full_name: formData.full_name,
-        phone: formData.phone || null,
-        birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
-        gender: formData.gender || null,
-        address: formData.address || null,
-        city: formData.city || null,
-        bio: formData.bio || null,
-        certifications: formData.certifications || null,
-        business_name: formData.business_name || null,
-        services_description: formData.services_description || null,
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPw,
       });
-    } catch {
-      // error handled by onError
+      if (signInErr) { toast.error("סיסמה נוכחית שגויה"); return; }
+      const { error } = await supabase.auth.updateUser({ password: newPw });
+      if (error) { toast.error("שגיאה: " + error.message); return; }
+      toast.success("הסיסמה שונתה בהצלחה");
+      setShowChangePassword(false);
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    } finally {
+      setPwLoading(false);
     }
   };
 
-  const handlePasswordChange = async () => {
-    if (passwordForm.newPass !== passwordForm.confirm) {
-      toast.error("הסיסמאות החדשות לא תואמות");
-      return;
-    }
-    if (passwordForm.newPass.length < 6) {
-      toast.error("הסיסמה חייבת להכיל לפחות 6 תווים");
-      return;
-    }
-    setPasswordLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
-    setPasswordLoading(false);
-    if (error) {
-      toast.error("שגיאה בשינוי הסיסמה: " + error.message);
-    } else {
-      toast.success("✅ הסיסמה שונתה בהצלחה");
-      setShowPasswordChange(false);
-      setPasswordForm({ current: "", newPass: "", confirm: "" });
+  const sendNotification = async () => {
+    const msg = notifMessage.trim();
+    if (!msg) { toast.error("יש לכתוב הודעה"); return; }
+    if (!trainees.length) { toast.error("אין מתאמנים"); return; }
+    const targetIds = notifTarget === "all"
+      ? trainees.map(t => t.id)
+      : [notifTarget];
+    const inserts = targetIds.map(tid => ({
+      user_id: tid,
+      type: "coach_message",
+      message: msg,
+      is_read: false,
+      data: { from_coach: user.id, coach_name: user.full_name },
+    }));
+    setSending(true);
+    try {
+      const { error } = await supabase.from("notifications").insert(inserts);
+      if (error) { toast.error("שגיאה: " + error.message); return; }
+      toast.success(`נשלח ל-${targetIds.length} מתאמנים`);
+      setShowSendNotif(false);
+      setNotifMessage("");
+      setNotifTarget("all");
+    } finally {
+      setSending(false);
     }
   };
 
-  const handleEnableCoachMode = async () => {
-    if (confirm("האם להפעיל מצב מאמן? תקבל גישה לדשבורד ולכל התכונות של מאמן.")) {
-      await enableCoachModeMutation.mutateAsync();
-    }
+  const handleLogout = async () => {
+    try { await supabase.auth.signOut(); } catch {}
+    navigate("/login", { replace: true });
   };
 
-  if (!user) {
-    return <PageLoader />;
+  if (loading || !user) {
+    return <ProtectedCoachPage><PageLoader /></ProtectedCoachPage>;
   }
 
+  const initial = (user.full_name || "?").trim().charAt(0);
+
   return (
-    <div className="min-h-screen overflow-y-auto pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF', WebkitOverflowScrolling: 'touch' }}>
-        <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
-          {/* Header */}
-          <div className="mb-6 md:mb-10">
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black mb-2 md:mb-4" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif', letterSpacing: '-0.02em' }}>
-              הפרופיל שלי
-            </h1>
-            <p className="text-lg md:text-2xl mb-2 md:mb-4 font-medium" style={{ color: '#7D7D7D' }}>
-              פרטי המאמן וניהול חשבון
-            </p>
-            <div className="w-20 md:w-24 h-1 rounded-full" style={{ backgroundColor: '#FF6F20' }} />
+    <ProtectedCoachPage>
+      <div style={{ minHeight: "100vh", background: "#FFF9F0", paddingBottom: 100, direction: "rtl" }}>
+        {/* A. Profile header */}
+        <div style={{
+          background: "white", borderRadius: 20,
+          padding: 20, margin: 12,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+          textAlign: "center",
+        }}>
+          <div style={{
+            width: 70, height: 70, borderRadius: "50%",
+            background: "#FFF0E4",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 10px",
+            fontSize: 28, fontWeight: 700, color: "#FF6F20",
+          }}>{initial}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#1a1a1a" }}>
+            {user.full_name || "מאמן"}
           </div>
-
-          {/* Coach Mode Status */}
-          <div className="mb-6 md:mb-8 p-4 md:p-6 rounded-xl md:rounded-2xl" style={{ 
-            backgroundColor: user.isCoach ? '#E8F5E9' : '#FFF8F3',
-            border: `2px solid ${user.isCoach ? '#4CAF50' : '#FF6F20'}`
-          }}>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Shield className="w-6 h-6 md:w-8 md:h-8" style={{ color: user.isCoach ? '#4CAF50' : '#FF6F20' }} />
-                <div>
-                  <h3 className="text-base md:text-xl font-black" style={{ color: '#000000' }}>
-                    {user.isCoach ? '✅ מצב מאמן פעיל' : '⚠️ מצב מאמן לא פעיל'}
-                  </h3>
-                  <p className="text-xs md:text-sm" style={{ color: '#7D7D7D' }}>
-                    {user.isCoach 
-                      ? 'יש לך גישה מלאה לכל התכונות של מאמן'
-                      : 'הפעל מצב מאמן כדי לקבל גישה לדשבורד ולכל התכונות'
-                    }
-                  </p>
-                </div>
-              </div>
-              {!user.isCoach && (
-                <Button
-                  onClick={handleEnableCoachMode}
-                  disabled={enableCoachModeMutation.isPending}
-                  className="rounded-xl px-4 md:px-6 py-2 md:py-3 font-bold text-white text-sm md:text-base w-full md:w-auto"
-                  style={{ backgroundColor: '#FF6F20' }}
-                >
-                  {enableCoachModeMutation.isPending ? 'מפעיל...' : 'הפעל מצב מאמן'}
-                </Button>
-              )}
-              {user.isCoach && (
-                <CheckCircle className="w-6 h-6 md:w-8 md:h-8" style={{ color: '#4CAF50' }} />
-              )}
-            </div>
+          <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>
+            {user.email}
           </div>
-
-          {/* Profile Photo */}
-          <div className="mb-6 md:mb-10 text-center">
-            <div
-              className="w-24 h-24 md:w-32 md:h-32 mx-auto rounded-full flex items-center justify-center font-bold text-4xl md:text-5xl mb-3 md:mb-4"
-              style={{ 
-                backgroundColor: '#FFF8F3', 
-                color: '#FF6F20',
-                boxShadow: '0 4px 12px rgba(255, 111, 32, 0.15)'
-              }}
-            >
-              {user.full_name?.[0] || 'M'}
-            </div>
-            
-            <h2 className="text-2xl md:text-4xl font-black mb-2 md:mb-3" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-              {user.full_name}
-            </h2>
-            
-            <p className="athletigo-badge athletigo-badge-primary inline-flex text-xs md:text-sm">
-              מאמן AthletiGo
-            </p>
-          </div>
-
-          {/* Personal Info */}
-          <div className="mb-6 md:mb-8 athletigo-section">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-0 mb-4 md:mb-6">
-              <h2 className="text-2xl md:text-3xl font-black mb-0" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                מידע אישי
-              </h2>
-              <Button
-                onClick={() => setShowEdit(true)}
-                className="athletigo-button-primary rounded-xl px-4 py-2 font-bold w-full md:w-auto text-sm md:text-base"
-              >
-                <Edit2 className="w-3 h-3 md:w-4 md:h-4 ml-2" />
-                ערוך פרטים
-              </Button>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2.5">
-              {[
-                { label: 'שם מלא', value: user.full_name },
-                { label: 'אימייל', value: user.email },
-                { label: 'טלפון', value: user.phone },
-                { label: 'תאריך לידה', value: user.birth_date ? new Date(user.birth_date).toLocaleDateString('he-IL') : null },
-                { label: 'מין', value: user.gender },
-                { label: 'עיר', value: user.city },
-                { label: 'כתובת', value: user.address },
-              ].map((item, i) => (
-                <div key={i} className="text-right text-sm py-1">
-                  <span className="text-gray-500 font-medium">{item.label}: </span>
-                  <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Professional Info */}
-          <div className="mb-6 md:mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl md:text-2xl font-black" style={{ color: '#000000' }}>פרטים מקצועיים</h2>
-              <Button onClick={() => setShowEdit(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                <Edit2 className="w-3 h-3 ml-1" />ערוך
-              </Button>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2.5">
-              {[
-                { label: 'אודותיי', value: user.bio },
-                { label: 'הסמכות ותעודות', value: user.certifications },
-                { label: 'שם העסק', value: user.business_name },
-                { label: 'תיאור שירותים', value: user.services_description },
-              ].map((item, i) => (
-                <div key={i} className="text-right text-sm py-1">
-                  <span className="text-gray-500 font-medium">{item.label}: </span>
-                  <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Trainee Settings */}
-          <div className="mb-6 md:mb-8 athletigo-section">
-            <div className="flex items-center gap-3 mb-4 md:mb-6">
-              <Settings className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#FF6F20' }} />
-              <h2 className="text-2xl md:text-3xl font-black mb-0" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                הגדרות מתאמנים
-              </h2>
-            </div>
-            <div className="athletigo-card">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <p className="font-bold text-sm md:text-base" style={{ color: '#000000' }}>
-                    אפשר למתאמנים ליצור תוכניות בעצמם
-                  </p>
-                  <p className="text-xs md:text-sm mt-1" style={{ color: '#7D7D7D' }}>
-                    כאשר מופעל, מתאמנים יראו כפתור "תוכנית חדשה" בדף התוכניות שלהם
-                  </p>
-                </div>
-                <Switch
-                  checked={!!user?.allow_trainee_plans}
-                  onCheckedChange={(checked) => toggleAllowTraineePlansMutation.mutate(checked)}
-                  disabled={toggleAllowTraineePlansMutation.isPending}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Send Notification */}
-          <div className="mb-6 md:mb-8 athletigo-section">
-            <div className="flex items-center gap-3 mb-4 md:mb-6">
-              <Bell className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#FF6F20' }} />
-              <h2 className="text-2xl md:text-3xl font-black mb-0" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                שלח התראה למתאמנים
-              </h2>
-            </div>
-            <div className="athletigo-card space-y-4">
-              <div>
-                <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>כותרת</Label>
-                <Input
-                  value={notifForm.title}
-                  onChange={(e) => setNotifForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="כותרת ההתראה"
-                  className="rounded-xl"
-                />
-              </div>
-              <div>
-                <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>הודעה</Label>
-                <Textarea
-                  value={notifForm.message}
-                  onChange={(e) => setNotifForm(f => ({ ...f, message: e.target.value }))}
-                  placeholder="תוכן ההתראה..."
-                  className="rounded-xl min-h-[80px]"
-                />
-              </div>
-              <div>
-                <Label className="text-sm font-bold mb-1 block" style={{ color: '#000000' }}>נמען</Label>
-                <Select
-                  value={notifForm.recipient}
-                  onValueChange={(v) => setNotifForm(f => ({ ...f, recipient: v }))}
-                >
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="בחר נמען" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">כל המתאמנים ({trainees.length})</SelectItem>
-                    {trainees.map(t => (
-                      <SelectItem key={t.id} value={t.id}>{t.full_name || t.email}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: '#FFF8F3' }}>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: '#000000' }}>דרוש אישור קריאה</p>
-                  <p className="text-xs" style={{ color: '#7D7D7D' }}>המתאמן יצטרך ללחוץ "קראתי ומאשר"</p>
-                </div>
-                <Switch
-                  checked={notifForm.requires_acknowledgment}
-                  onCheckedChange={(v) => setNotifForm(f => ({ ...f, requires_acknowledgment: v }))}
-                />
-              </div>
-              <Button
-                onClick={handleSendNotification}
-                disabled={sendNotificationMutation.isPending}
-                className="w-full rounded-xl py-4 font-bold text-white"
-                style={{ backgroundColor: '#FF6F20' }}
-              >
-                {sendNotificationMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שולח...</>
-                ) : (
-                  <><Send className="w-4 h-4 ml-2" />שלח התראה</>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* Password Change Section */}
-          <div className="mb-6 md:mb-8 athletigo-section">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-0 mb-4 md:mb-6">
-              <h2 className="text-2xl md:text-3xl font-black mb-0" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                אבטחת חשבון
-              </h2>
-              <Button
-                onClick={() => setShowPasswordChange(true)}
-                className="rounded-xl px-4 py-2 font-bold w-full md:w-auto text-sm md:text-base"
-                style={{ backgroundColor: '#000000', color: '#FFFFFF' }}
-              >
-                <Lock className="w-3 h-3 md:w-4 md:h-4 ml-2" />
-                שנה סיסמה
-              </Button>
-            </div>
-          </div>
-
-          {/* Edit Dialog */}
-          <Dialog open={showEdit} onOpenChange={setShowEdit}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                  ערוך פרופיל
-                </DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-4" dir="rtl">
-                <h3 className="text-sm font-bold text-[#FF6F20]">פרטים אישיים</h3>
-                <div>
-                  <Label className="text-xs text-gray-500 mb-1 block">שם מלא *</Label>
-                  <Input value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-500 mb-1 block">טלפון</Label>
-                    <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="050-1234567" className="rounded-lg" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500 mb-1 block">אימייל</Label>
-                    <Input value={formData.email} disabled className="rounded-lg bg-gray-50 text-gray-400" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-500 mb-1 block">תאריך לידה</Label>
-                    <Input type="date" value={formData.birth_date} onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })} className="rounded-lg" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500 mb-1 block">מין</Label>
-                    <Select value={formData.gender} onValueChange={(v) => setFormData({ ...formData, gender: v })}>
-                      <SelectTrigger className="rounded-lg"><SelectValue placeholder="—" /></SelectTrigger>
-                      <SelectContent><SelectItem value="זכר">זכר</SelectItem><SelectItem value="נקבה">נקבה</SelectItem><SelectItem value="אחר">אחר</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-500 mb-1 block">עיר</Label>
-                    <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="rounded-lg" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500 mb-1 block">כתובת</Label>
-                    <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="rounded-lg" />
-                  </div>
-                </div>
-
-                <h3 className="text-sm font-bold text-[#FF6F20] pt-2">פרטים מקצועיים</h3>
-                <div>
-                  <Label className="text-xs text-gray-500 mb-1 block">אודותיי</Label>
-                  <Textarea value={formData.bio} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} placeholder="ספר קצת על עצמך..." className="rounded-lg resize-none min-h-[60px]" />
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500 mb-1 block">הסמכות ותעודות</Label>
-                  <Textarea value={formData.certifications} onChange={(e) => setFormData({ ...formData, certifications: e.target.value })} placeholder="הסמכות מקצועיות..." className="rounded-lg resize-none min-h-[60px]" />
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500 mb-1 block">שם העסק</Label>
-                  <Input value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} className="rounded-lg" />
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500 mb-1 block">תיאור שירותים</Label>
-                  <Textarea value={formData.services_description} onChange={(e) => setFormData({ ...formData, services_description: e.target.value })} className="rounded-lg resize-none min-h-[60px]" />
-                </div>
-
-                <Button onClick={handleSave} disabled={updateUserMutation.isPending}
-                  className="w-full py-3 font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
-                  {updateUserMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</> : 'שמור שינויים'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Password Change Dialog */}
-          <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-xl md:text-2xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-                  שינוי סיסמה
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 md:space-y-5">
-                <div>
-                  <Label className="text-sm md:text-base font-bold mb-2 block" style={{ color: '#000000' }}>סיסמה חדשה</Label>
-                  <Input
-                    type="password"
-                    placeholder="לפחות 6 תווים"
-                    value={passwordForm.newPass}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
-                    className="rounded-xl"
-                    style={{ direction: "ltr" }}
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm md:text-base font-bold mb-2 block" style={{ color: '#000000' }}>אישור סיסמה חדשה</Label>
-                  <Input
-                    type="password"
-                    placeholder="הכנס שוב את הסיסמה"
-                    value={passwordForm.confirm}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                    className="rounded-xl"
-                    style={{ direction: "ltr" }}
-                  />
-                </div>
-                <Button
-                  onClick={handlePasswordChange}
-                  disabled={passwordLoading}
-                  className="w-full py-3 font-bold text-white rounded-xl"
-                  style={{ backgroundColor: '#FF6F20' }}
-                >
-                  {passwordLoading ? "שומר..." : "שמור סיסמה"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Logout button */}
-          <div className="mt-6 px-4">
-            <button
-              onClick={async () => {
-                if (!window.confirm("האם אתה בטוח שברצונך להתנתק?")) return;
-                try { await supabase.auth.signOut(); } catch {}
-                localStorage.clear();
-                sessionStorage.clear();
-                window.location.href = "https://www.athletigo-coach.com";
-              }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="text-sm font-bold">יציאה</span>
-            </button>
+          <div style={{ fontSize: 12, color: "#FF6F20", marginTop: 4, fontWeight: 600 }}>
+            מאמן AthletiGo
           </div>
         </div>
+
+        {/* B. View mode toggle */}
+        <div style={{
+          margin: "0 12px 12px", background: "white",
+          borderRadius: 16, padding: 14,
+          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>🔄 מצב תצוגה</div>
+          <div style={{
+            display: "flex", gap: 6,
+            background: "#FFF9F0", borderRadius: 12, padding: 4,
+          }}>
+            {[
+              { id: "professional", label: "🏋️ מקצועי" },
+              { id: "financial",    label: "💰 פיננסי" },
+            ].map(m => {
+              const active = viewMode === m.id;
+              return (
+                <div key={m.id} onClick={() => handleChangeViewMode(m.id)} style={{
+                  flex: 1, padding: 10, borderRadius: 10,
+                  textAlign: "center", fontSize: 14, fontWeight: 600,
+                  cursor: "pointer",
+                  background: active ? "#FF6F20" : "transparent",
+                  color: active ? "white" : "#888",
+                }}>{m.label}</div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: "#888", marginTop: 6, textAlign: "center" }}>
+            {viewMode === "professional"
+              ? "תצוגה מקצועית — אימונים, תוכניות, מסלולים"
+              : "תצוגה פיננסית — הכנסות, חבילות, תשלומים"}
+          </div>
+        </div>
+
+        {/* C. Trainee permissions */}
+        <div style={{
+          margin: "0 12px 12px", background: "white",
+          borderRadius: 16, padding: 14,
+          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+        }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            alignItems: "center", marginBottom: 10,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>⚙️ הרשאות מתאמנים</div>
+            <div style={{ fontSize: 11, color: "#888" }}>{trainees.length} מתאמנים</div>
+          </div>
+
+          {trainees.length === 0 ? (
+            <div style={{ textAlign: "center", color: "#888", padding: 12, fontSize: 13 }}>אין מתאמנים עדיין</div>
+          ) : trainees.map(t => (
+            <div key={t.id} style={{
+              background: "#FFF9F0", borderRadius: 12,
+              padding: 10, marginBottom: 6,
+              border: "0.5px solid #F0E4D0",
+            }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between",
+                alignItems: "center", cursor: "pointer",
+              }}
+                onClick={() => setExpandedTrainee(prev => prev === t.id ? null : t.id)}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: "50%",
+                    background: "#FFF0E4",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 13, fontWeight: 600, color: "#FF6F20",
+                  }}>{(t.full_name || "?").charAt(0)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t.full_name}</div>
+                </div>
+                <span style={{ fontSize: 14, color: "#888" }}>
+                  {expandedTrainee === t.id ? "▲" : "▼"}
+                </span>
+              </div>
+
+              {expandedTrainee === t.id && (
+                <div style={{
+                  display: "flex", flexDirection: "column", gap: 4,
+                  paddingTop: 6, marginTop: 6,
+                  borderTop: "0.5px solid #F0E4D0",
+                }}>
+                  {PERMISSION_TYPES.map(perm => {
+                    const isEnabled = getPermission(t.id, perm.id);
+                    return (
+                      <div key={perm.id} onClick={() => togglePermission(t.id, perm.id)} style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: 8, background: "white", borderRadius: 10,
+                        cursor: "pointer",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 14 }}>{perm.icon}</span>
+                          <span style={{ fontSize: 12, fontWeight: 500 }}>{perm.label}</span>
+                        </div>
+                        <div style={{
+                          width: 40, height: 22, borderRadius: 11,
+                          background: isEnabled ? "#16a34a" : "#E8E0D8",
+                          position: "relative", transition: "background 0.2s",
+                        }}>
+                          <div style={{
+                            width: 18, height: 18, borderRadius: "50%",
+                            background: "white",
+                            position: "absolute", top: 2,
+                            right: isEnabled ? 2 : 20,
+                            transition: "right 0.2s",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* D. Quick actions */}
+        <div style={{
+          margin: "0 12px 12px", background: "white",
+          borderRadius: 16, padding: 14,
+          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>⚡ פעולות מהירות</div>
+
+          <div onClick={() => setShowSendNotif(true)} style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: 12, background: "#FFF9F0", borderRadius: 12,
+            marginBottom: 6, cursor: "pointer",
+            border: "0.5px solid #F0E4D0",
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, background: "#FFF0E4",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+            }}>📢</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>שלח התראה</div>
+              <div style={{ fontSize: 11, color: "#888" }}>שלח הודעה לכל המתאמנים או למתאמן ספציפי</div>
+            </div>
+            <span style={{ color: "#ccc", fontSize: 14 }}>←</span>
+          </div>
+
+          <div onClick={() => setShowChangePassword(true)} style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: 12, background: "#FFF9F0", borderRadius: 12,
+            marginBottom: 6, cursor: "pointer",
+            border: "0.5px solid #F0E4D0",
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, background: "#FFF0E4",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+            }}>🔒</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>שינוי סיסמה</div>
+              <div style={{ fontSize: 11, color: "#888" }}>עדכן את סיסמת החשבון</div>
+            </div>
+            <span style={{ color: "#ccc", fontSize: 14 }}>←</span>
+          </div>
+        </div>
+
+        {/* E. Logout */}
+        <div style={{ margin: "0 12px 100px" }}>
+          <button
+            onClick={handleLogout}
+            style={{
+              width: "100%", padding: 14,
+              borderRadius: 14, border: "1.5px solid #dc2626",
+              background: "white", color: "#dc2626",
+              fontSize: 14, fontWeight: 600, cursor: "pointer",
+            }}
+          >🚪 יציאה מהחשבון</button>
+        </div>
+
+        {/* Change password dialog */}
+        {showChangePassword && (
+          <div onClick={() => setShowChangePassword(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 11000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 20,
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: "#FFF9F0", borderRadius: 20, padding: 20,
+              width: "100%", maxWidth: 360, direction: "rtl",
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 14 }}>🔒 שינוי סיסמה</div>
+
+              {[
+                { label: "סיסמה נוכחית", value: currentPw, set: setCurrentPw },
+                { label: "סיסמה חדשה",   value: newPw,     set: setNewPw },
+                { label: "אימות סיסמה חדשה", value: confirmPw, set: setConfirmPw },
+              ].map((f, i, arr) => (
+                <div key={f.label} style={{ marginBottom: i === arr.length - 1 ? 6 : 10 }}>
+                  <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>{f.label}</label>
+                  <input type="password" value={f.value} onChange={e => f.set(e.target.value)} style={{
+                    width: "100%", padding: 10, borderRadius: 12,
+                    border: "0.5px solid #F0E4D0",
+                    fontSize: 14, direction: "ltr",
+                    background: "white", outline: "none", boxSizing: "border-box",
+                  }} />
+                </div>
+              ))}
+
+              {newPw && confirmPw && newPw !== confirmPw && (
+                <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 8 }}>הסיסמאות לא תואמות</div>
+              )}
+
+              <button
+                onClick={handleChangePassword}
+                disabled={pwLoading || !currentPw || !newPw || newPw !== confirmPw || newPw.length < 6}
+                style={{
+                  width: "100%", padding: 14, borderRadius: 14, border: "none",
+                  background: (currentPw && newPw && newPw === confirmPw && newPw.length >= 6) ? "#FF6F20" : "#ccc",
+                  color: "white", fontSize: 16, fontWeight: 700,
+                  cursor: "pointer", marginTop: 6,
+                }}
+              >{pwLoading ? "שומר..." : "🔒 שנה סיסמה"}</button>
+
+              <div onClick={() => setShowChangePassword(false)} style={{
+                textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
+              }}>ביטול</div>
+            </div>
+          </div>
+        )}
+
+        {/* Send notification dialog */}
+        {showSendNotif && (
+          <div onClick={() => setShowSendNotif(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 11000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 20,
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: "#FFF9F0", borderRadius: 20, padding: 20,
+              width: "100%", maxWidth: 360, direction: "rtl",
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 14 }}>📢 שלח התראה</div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>למי</label>
+                <select value={notifTarget} onChange={e => setNotifTarget(e.target.value)} style={{
+                  width: "100%", padding: 10, borderRadius: 12,
+                  border: "0.5px solid #F0E4D0",
+                  fontSize: 14, direction: "rtl", background: "white", outline: "none",
+                }}>
+                  <option value="all">כל המתאמנים</option>
+                  {trainees.map(t => (
+                    <option key={t.id} value={t.id}>{t.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>הודעה</label>
+                <textarea value={notifMessage} onChange={e => setNotifMessage(e.target.value)} placeholder="כתוב הודעה..." style={{
+                  width: "100%", padding: 10, borderRadius: 12,
+                  border: "0.5px solid #F0E4D0",
+                  fontSize: 14, direction: "rtl",
+                  minHeight: 80, resize: "vertical",
+                  background: "white", outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+                }} />
+              </div>
+
+              <button
+                onClick={sendNotification}
+                disabled={sending || !notifMessage.trim()}
+                style={{
+                  width: "100%", padding: 14, borderRadius: 14, border: "none",
+                  background: notifMessage.trim() ? "#FF6F20" : "#ccc",
+                  color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer",
+                }}
+              >{sending ? "שולח..." : "📢 שלח"}</button>
+
+              <div onClick={() => setShowSendNotif(false)} style={{
+                textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
+              }}>ביטול</div>
+            </div>
+          </div>
+        )}
       </div>
+    </ProtectedCoachPage>
   );
 }

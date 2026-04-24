@@ -67,10 +67,12 @@ export const PAYMENT_METHODS = [
 // ─────────────────────────────────────────────────────────────────
 
 export const INCOME_SOURCES = [
-  { key: 'product_sale', label: 'מכירת מוצר' },
-  { key: 'training',     label: 'אימון' },
-  { key: 'course',       label: 'קורס' },
-  { key: 'other',        label: 'אחר' },
+  { key: 'product_sale',     label: 'מכירת מוצר' },
+  { key: 'training',         label: 'אימון אישי' },
+  { key: 'online_coaching',  label: 'ליווי אונליין' },
+  { key: 'workshop',         label: 'סדנה' },
+  { key: 'course',           label: 'קורס דיגיטלי' },
+  { key: 'other',            label: 'אחר' },
 ];
 
 // Product catalog — prices and starting inventory. Used by
@@ -83,7 +85,24 @@ export const ATHLETIGO_PRODUCTS = [
   { key: 'resistance_bands', label: 'Resistance Bands',  price: 200,  inventory: 20, emoji: '🎗️' },
   { key: 'parallettes',      label: 'Parallettes',       price: 220,  inventory: 20, emoji: '🤸' },
   { key: 'personal_training',label: 'אימון אישי',         price: 200,  inventory: null, emoji: '💪' },
-  { key: 'digital_course',   label: 'קורס דיגיטלי',        price: 300,  inventory: null, emoji: '🎓' },
+  { key: 'online_coaching',  label: 'ליווי אונליין',      price: 500,  inventory: null, emoji: '📱' },
+  { key: 'workshop',         label: 'סדנה',               price: 200,  inventory: null, emoji: '🎪' },
+  { key: 'digital_course',   label: 'קורס דיגיטלי',        price: 400,  inventory: null, emoji: '🎓' },
+];
+
+// Full list of planned digital courses (11 total — all in planning).
+export const COURSE_CATALOG = [
+  { key: 'basic_jump_rope',   label: 'Basic Jump Rope',      category: 'jump_rope' },
+  { key: 'freestyle_rope',    label: 'Freestyle Rope',       category: 'jump_rope' },
+  { key: 'double_unders',     label: 'Double Unders',        category: 'jump_rope' },
+  { key: 'fitness_found',     label: 'Fitness Foundations',  category: 'strength' },
+  { key: 'fitness_pro',       label: 'Professional Fitness', category: 'strength' },
+  { key: 'fitness_olympic',   label: 'Olympic Fitness',      category: 'strength' },
+  { key: 'stick_spins',       label: 'Stick Spins',          category: 'calisthenics' },
+  { key: 'basic_rings',       label: 'Basic Rings',          category: 'rings' },
+  { key: 'advanced_rings',    label: 'Advanced Rings',       category: 'rings' },
+  { key: 'handstands',        label: 'Handstands',           category: 'calisthenics' },
+  { key: 'muscle_ups',        label: 'Muscle-Ups',           category: 'calisthenics' },
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -169,15 +188,17 @@ export const LEAD_STATUS = [
 ];
 
 export const LEAD_INTERESTED_IN = [
-  { key: 'dream_machine',   label: 'Dream Machine' },
-  { key: 'speed_rope',      label: 'Speed Rope' },
-  { key: 'freestyle_rope',  label: 'Freestyle Rope' },
-  { key: 'rings',           label: 'Gymnastic Rings' },
-  { key: 'bands',           label: 'Resistance Bands' },
-  { key: 'parallettes',     label: 'Parallettes' },
-  { key: 'coaching',        label: 'אימון אישי' },
-  { key: 'course',          label: 'קורס' },
-  { key: 'other',           label: 'אחר' },
+  { key: 'dream_machine',    label: 'Dream Machine' },
+  { key: 'speed_rope',       label: 'Speed Rope' },
+  { key: 'freestyle_rope',   label: 'Freestyle Rope' },
+  { key: 'rings',            label: 'Gymnastic Rings' },
+  { key: 'bands',            label: 'Resistance Bands' },
+  { key: 'parallettes',      label: 'Parallettes' },
+  { key: 'coaching',         label: 'אימון אישי' },
+  { key: 'online_coaching',  label: 'ליווי אונליין' },
+  { key: 'workshop',         label: 'סדנה' },
+  { key: 'course',           label: 'קורס דיגיטלי' },
+  { key: 'other',            label: 'אחר' },
 ];
 
 // ─────────────────────────────────────────────────────────────────
