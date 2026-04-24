@@ -733,12 +733,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           return (
             <div style={{
               textAlign: 'right', width: '100%',
-              padding: '8px 16px 2px',
+              // Long titles get top padding so they sit BELOW the
+              // floating מזער button (top: 8, h: 36 → ~48px clear).
+              padding: big ? '8px 16px 2px' : '48px 16px 2px',
               direction: 'rtl',
-              fontSize: big ? 72 : 48,
+              fontSize: big ? 72 : 36,
               fontWeight: 900,
               color: isWork ? '#FFFFFF' : '#FF6F20',
-              letterSpacing: big ? '8px' : '4px',
+              letterSpacing: big ? '8px' : '2px',
               textTransform: 'uppercase',
               textShadow: '0 4px 16px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15)',
               WebkitTextStroke: isWork ? '1px rgba(255,255,255,0.3)' : '1px rgba(255,111,32,0.3)',
@@ -783,7 +785,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(65vw, 220px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
+            <span style={{ fontSize: 'min(55vw, 180px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
