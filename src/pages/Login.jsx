@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -16,15 +17,21 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // If already logged in, redirect to Dashboard
+  // If already logged in, redirect based on role. The Life OS coach
+  // (uriel111@gmail.com) lands on /hub — the two-card entry screen —
+  // rather than going straight to /dashboard, which is now reachable
+  // only via the "מקצועי" card on the hub.
   const redirectAfterLogin = (profile) => {
     const isCoach = profile?.role === 'coach' || profile?.isCoach === true || profile?.role === 'admin';
     const isTrainee = profile?.role === 'trainee' || profile?.role === 'user';
+    const isLifeOSCoach = profile?.id === COACH_USER_ID;
     const destination = isTrainee
       ? '/trainee-home'
-      : isCoach
-        ? createPageUrl('Dashboard')
-        : createPageUrl('Dashboard');
+      : isLifeOSCoach
+        ? '/hub'
+        : isCoach
+          ? createPageUrl('Dashboard')
+          : createPageUrl('Dashboard');
     navigate(destination, { replace: true });
   };
 
