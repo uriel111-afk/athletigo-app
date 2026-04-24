@@ -439,6 +439,9 @@ export default function TraineeProfile() {
   const [selectedPackageHistory, setSelectedPackageHistory] = useState(null);
   const [packageSessions, setPackageSessions] = useState([]);
   const [packageSessionsLoading, setPackageSessionsLoading] = useState(false);
+  // Manual session→package linking inside the package history dialog
+  const [showLinkSession, setShowLinkSession] = useState(false);
+  const [unlinkedSessions, setUnlinkedSessions] = useState([]);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
 
@@ -1311,6 +1314,71 @@ export default function TraineeProfile() {
       setPackageSessions([]);
     }
     setPackageSessionsLoading(false);
+  };
+
+  // ── Manual link/unlink: session ↔ package ────────────────────────
+  const fetchUnlinkedSessions = async () => {
+    if (!user?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, date, time, status, session_type')
+        .eq('trainee_id', user.id)
+        .is('service_id', null)
+        .order('date', { ascending: false });
+      if (error) throw error;
+      setUnlinkedSessions(data || []);
+    } catch (err) {
+      console.error('[TraineeProfile] fetchUnlinkedSessions error:', err);
+      setUnlinkedSessions([]);
+    }
+  };
+
+  const refreshLinkedAfterChange = async (pkg) => {
+    if (!pkg?.id) return;
+    try {
+      const sessions = await base44.entities.Session.filter({ service_id: pkg.id });
+      const sorted = sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setPackageSessions(sorted);
+      // Re-sync used/remaining counts on the package row from the
+      // canonical truth: sessions whose service_id points at it.
+      const newUsed = sorted.length;
+      const total = Number(pkg.total_sessions) || 0;
+      const newRemaining = Math.max(0, total - newUsed);
+      await supabase
+        .from('client_services')
+        .update({ used_sessions: newUsed, remaining_sessions: newRemaining })
+        .eq('id', pkg.id);
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+    } catch (err) {
+      console.error('[TraineeProfile] refreshLinkedAfterChange error:', err);
+    }
+  };
+
+  const linkSessionToPackage = async (sessionId) => {
+    if (!selectedPackageHistory?.id) return;
+    console.log('[TraineeProfile] linking session', sessionId, '→ pkg', selectedPackageHistory.id);
+    const { error } = await supabase
+      .from('sessions')
+      .update({ service_id: selectedPackageHistory.id })
+      .eq('id', sessionId);
+    if (error) { toast.error('שגיאה: ' + error.message); return; }
+    toast.success('המפגש שויך לחבילה');
+    await refreshLinkedAfterChange(selectedPackageHistory);
+    fetchUnlinkedSessions();
+  };
+
+  const unlinkSession = async (sessionId) => {
+    if (!selectedPackageHistory?.id) return;
+    console.log('[TraineeProfile] unlinking session', sessionId);
+    const { error } = await supabase
+      .from('sessions')
+      .update({ service_id: null })
+      .eq('id', sessionId);
+    if (error) { toast.error('שגיאה: ' + error.message); return; }
+    toast.success('שיוך הוסר');
+    await refreshLinkedAfterChange(selectedPackageHistory);
   };
 
   const handleImageUpload = async (e) => {
@@ -2773,9 +2841,37 @@ export default function TraineeProfile() {
                   coach_id: currentUser?.id,
                   status: "ממתין לאישור",
                 });
+                // Auto-link to the trainee's active package (if any +
+                // remaining > 0). Mirrors the manual link logic below
+                // so balance + used_sessions stay in sync.
+                try {
+                  const activePkg = (services || []).find(p =>
+                    p.trainee_id === user?.id &&
+                    ['active','פעיל','ליעפ'].includes((p.status || '').toLowerCase())
+                  );
+                  if (activePkg && created?.id) {
+                    const total = Number(activePkg.total_sessions) || 0;
+                    const usedNow = (typeof activePkg.remaining_sessions === 'number')
+                      ? Math.max(0, total - Number(activePkg.remaining_sessions))
+                      : (Number(activePkg.used_sessions) || 0);
+                    if (usedNow < total) {
+                      console.log('[TraineeProfile] auto-link new session', created.id, '→ pkg', activePkg.id);
+                      await supabase.from('sessions').update({ service_id: activePkg.id }).eq('id', created.id);
+                      const newUsed = usedNow + 1;
+                      const newRemaining = Math.max(0, total - newUsed);
+                      await supabase
+                        .from('client_services')
+                        .update({ used_sessions: newUsed, remaining_sessions: newRemaining })
+                        .eq('id', activePkg.id);
+                    }
+                  }
+                } catch (linkErr) {
+                  console.warn('[TraineeProfile] auto-link failed:', linkErr);
+                }
                 queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
                 queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
                 queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
                 invalidateDashboard(queryClient);
                 if (created?.participants && currentUser) {
                   for (const p of created.participants) {
@@ -3091,7 +3187,18 @@ export default function TraineeProfile() {
 
                   {/* Sessions list */}
                   <div>
-                    <h3 className="text-sm font-bold text-gray-700 mb-2">מפגשים מקושרים</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-bold text-gray-700">מפגשים מקושרים</h3>
+                      <button
+                        onClick={() => { fetchUnlinkedSessions(); setShowLinkSession(true); }}
+                        style={{
+                          background: '#FF6F20', color: 'white',
+                          border: 'none', borderRadius: 10,
+                          padding: '6px 12px', fontSize: 11,
+                          fontWeight: 600, cursor: 'pointer',
+                        }}
+                      >+ שייך ידנית</button>
+                    </div>
                     {packageSessionsLoading ? (
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="w-6 h-6 animate-spin text-[#FF6F20]" />
@@ -3116,7 +3223,7 @@ export default function TraineeProfile() {
                                 </div>
                                 <span className="text-[11px] text-gray-400">{sessionType}</span>
                               </div>
-                              <div>
+                              <div className="flex items-center gap-2">
                                 {isDone ? (
                                   <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">הושלם ✓</span>
                                 ) : isApproved ? (
@@ -3124,6 +3231,15 @@ export default function TraineeProfile() {
                                 ) : (
                                   <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500">{s.status}</span>
                                 )}
+                                <button
+                                  onClick={() => unlinkSession(s.id)}
+                                  title="הסר שיוך"
+                                  style={{
+                                    background: 'none', border: 'none',
+                                    color: '#ccc', fontSize: 16,
+                                    cursor: 'pointer', padding: '0 4px',
+                                  }}
+                                >✕</button>
                               </div>
                             </div>
                           );
@@ -3138,6 +3254,52 @@ export default function TraineeProfile() {
             })()}
           </DialogContent>
         </Dialog>
+
+        {/* Manual link sub-dialog — pick an unlinked session for this package */}
+        {showLinkSession && (
+          <div onClick={() => setShowLinkSession(false)} style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 12000,
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: 20,
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: '#FFF9F0', borderRadius: 20,
+              padding: 20, width: '100%', maxWidth: 360,
+              direction: 'rtl', maxHeight: '85vh', overflowY: 'auto',
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>📅 שייך מפגש לחבילה</div>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>מפגשים שלא משויכים לאף חבילה:</div>
+              {unlinkedSessions.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#888', padding: 20, fontSize: 13 }}>כל המפגשים כבר משויכים</div>
+              ) : unlinkedSessions.map(s => {
+                const isDone = s.status === 'התקיים' || s.status === 'completed' || s.status === 'הושלם';
+                return (
+                  <div key={s.id} onClick={() => linkSessionToPackage(s.id)} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: 10, background: 'white', borderRadius: 12,
+                    marginBottom: 6, cursor: 'pointer',
+                    border: '0.5px solid #F0E4D0',
+                  }}>
+                    <div style={{ fontSize: 14 }}>{isDone ? '✅' : '📅'}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>
+                        {s.date ? new Date(s.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '—'}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#888' }}>{s.status || ''} {s.time ? '· ' + s.time : ''}</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#FF6F20', fontWeight: 600 }}>שייך ←</div>
+                  </div>
+                );
+              })}
+              <div onClick={() => setShowLinkSession(false)} style={{
+                textAlign: 'center', padding: 10, color: '#888', fontSize: 14,
+                cursor: 'pointer', marginTop: 6,
+              }}>סגור</div>
+            </div>
+          </div>
+        )}
 
         {/* Deduction Dialog — has package */}
         {deductDialog?.type === 'deduct' && (
