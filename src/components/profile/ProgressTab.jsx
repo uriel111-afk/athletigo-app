@@ -37,6 +37,8 @@ export default function ProgressTab({ traineeId }) {
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [viewingSessionRows, setViewingSessionRows] = useState(null);
   const [viewingRecord, setViewingRecord] = useState(null);
+  // null = adding a new record. Truthy = editing existing row.
+  const [editingRecord, setEditingRecord] = useState(null);
 
   // ── Baselines ──
   const { data: baselines = [] } = useQuery({
@@ -86,6 +88,7 @@ export default function ProgressTab({ traineeId }) {
         const { data, error } = await supabase.from('personal_records')
           .select('*').eq('trainee_id', traineeId).order('date', { ascending: true });
         if (error) { console.warn('personal_records query failed:', error.message); return []; }
+        console.log('[Records] fetched:', data?.length || 0, data);
         return data || [];
       } catch (e) { console.warn('personal_records table may not exist:', e.message); return []; }
     },
@@ -117,36 +120,84 @@ export default function ProgressTab({ traineeId }) {
     setRecForm(f => ({ ...f, record_type: key, name: t.name, unit: t.defaultUnit }));
   };
 
+  const resetRecordForm = () => {
+    setRecForm({ record_type: '', name: '', unit: '', value: '', date: new Date().toISOString().split('T')[0], notes: '' });
+    setEditingRecord(null);
+  };
+
+  const openAddRecord = () => {
+    resetRecordForm();
+    setShowAddRecord(true);
+  };
+
+  const openEditRecord = (record) => {
+    setEditingRecord(record);
+    setRecForm({
+      record_type: record.record_type || '',
+      name: record.name || '',
+      unit: record.unit || '',
+      value: record.value != null ? String(record.value) : '',
+      date: record.date ? String(record.date).split('T')[0] : new Date().toISOString().split('T')[0],
+      notes: record.notes || '',
+    });
+    setViewingRecord(null);
+    setShowAddRecord(true);
+  };
+
   const handleSaveRecord = async () => {
-    if (!recForm.name || !recForm.value) { toast.error('יש למלא שם וערך'); return; }
-    try {
-    const { error } = await supabase.from('personal_records').insert({
+    if (!recForm.name?.trim()) { toast.error('יש להזין שם לשיא'); return; }
+    if (recForm.value === '' || recForm.value == null) { toast.error('יש להזין ערך'); return; }
+    const numericValue = Number(recForm.value);
+    if (Number.isNaN(numericValue)) { toast.error('הערך חייב להיות מספר'); return; }
+    const payload = {
       trainee_id: traineeId,
       coach_id: isCoach ? currentUser.id : null,
       record_type: recForm.record_type || 'other',
-      name: recForm.name,
-      unit: recForm.unit || 'חזרות',
-      value: Number(recForm.value),
-      date: recForm.date,
-      notes: recForm.notes || null,
-      created_by_role: isCoach ? 'coach' : 'trainee',
-      created_by_user_id: currentUser.id,
-    });
-    if (error) { toast.error('שגיאה: ' + error.message); return; }
-    toast.success('שיא נשמר!');
-    queryClient.invalidateQueries({ queryKey: ['personal-records'] });
-    setShowAddRecord(false);
-    setRecForm({ record_type: '', name: '', unit: '', value: '', date: new Date().toISOString().split('T')[0], notes: '' });
-    } catch (e) { toast.error('שגיאה בשמירה: ' + (e?.message || 'נסה שוב')); }
+      name: recForm.name.trim(),
+      unit: recForm.unit?.trim() || '',
+      value: numericValue,
+      date: recForm.date || new Date().toISOString().split('T')[0],
+      notes: recForm.notes?.trim() || null,
+    };
+    console.log('[Records] save payload:', payload, 'editing?', editingRecord?.id || null);
+    try {
+      if (editingRecord?.id) {
+        const { error } = await supabase.from('personal_records').update(payload).eq('id', editingRecord.id);
+        if (error) { console.error('[Records] update error:', error); toast.error('שגיאה: ' + error.message); return; }
+        toast.success('שיא עודכן');
+      } else {
+        const insertPayload = {
+          ...payload,
+          created_by_role: isCoach ? 'coach' : 'trainee',
+          created_by_user_id: currentUser.id,
+        };
+        const { error } = await supabase.from('personal_records').insert(insertPayload);
+        if (error) { console.error('[Records] insert error:', error); toast.error('שגיאה: ' + error.message); return; }
+        toast.success('שיא נשמר!');
+      }
+      queryClient.invalidateQueries({ queryKey: ['personal-records'] });
+      setShowAddRecord(false);
+      resetRecordForm();
+    } catch (e) {
+      console.error('[Records] save error:', e);
+      toast.error('שגיאה בשמירה: ' + (e?.message || 'נסה שוב'));
+    }
   };
 
-  const deleteRecord = async (id) => {
+  const deleteRecord = async (record) => {
+    const id = record?.id || record;
+    if (!id) return;
     if (!window.confirm('למחוק שיא זה?')) return;
     try {
-      await supabase.from('personal_records').delete().eq('id', id);
+      const { error } = await supabase.from('personal_records').delete().eq('id', id);
+      if (error) { console.error('[Records] delete error:', error); toast.error('שגיאה: ' + error.message); return; }
       queryClient.invalidateQueries({ queryKey: ['personal-records'] });
+      setViewingRecord(null);
       toast.success('נמחק');
-    } catch (e) { toast.error('שגיאה במחיקה'); }
+    } catch (e) {
+      console.error('[Records] delete error:', e);
+      toast.error('שגיאה במחיקה: ' + (e?.message || ''));
+    }
   };
 
   if (!traineeId) return null;
@@ -178,7 +229,7 @@ export default function ProgressTab({ traineeId }) {
         <h3 className="text-base font-bold flex items-center gap-2">
           <Award className="w-5 h-5 text-yellow-500" />שיאים ובייסליינים
         </h3>
-        <Button onClick={() => setShowAddRecord(true)} size="sm" className="rounded-xl font-bold text-white text-xs h-9" style={{ backgroundColor: O }}>
+        <Button onClick={openAddRecord} size="sm" className="rounded-xl font-bold text-white text-xs h-9" style={{ backgroundColor: O }}>
           <Plus className="w-3 h-3 ml-1" />הוסף שיא
         </Button>
       </div>
@@ -207,18 +258,20 @@ export default function ProgressTab({ traineeId }) {
         </div>
       )}
 
-      {/* View-only record viewer */}
+      {/* Record viewer — coach gets edit/delete actions */}
       {viewingRecord && (
         <PersonalRecordViewer
           record={viewingRecord}
           onClose={() => setViewingRecord(null)}
+          onEdit={isCoach ? openEditRecord : undefined}
+          onDelete={isCoach ? deleteRecord : undefined}
         />
       )}
 
-      {/* ── Add Record Dialog ── */}
-      <Dialog open={showAddRecord} onOpenChange={setShowAddRecord}>
+      {/* ── Add / Edit Record Dialog ── */}
+      <Dialog open={showAddRecord} onOpenChange={(open) => { if (!open) { setShowAddRecord(false); resetRecordForm(); } else { setShowAddRecord(true); } }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="text-lg font-black">הוסף שיא חדש</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-lg font-black">{editingRecord ? 'עריכת שיא' : 'הוסף שיא חדש'}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2" dir="rtl">
             <div>
               <label className="text-sm font-bold text-gray-700 block mb-2">סוג השיא</label>
@@ -259,7 +312,7 @@ export default function ProgressTab({ traineeId }) {
             <input value={recForm.notes} onChange={e => setRecForm(f => ({ ...f, notes: e.target.value }))} placeholder="הערות (אופציונלי)"
               style={{ width: '100%', padding: '10px 12px', fontSize: 14, border: '1.5px solid #ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none' }} />
             <Button onClick={handleSaveRecord} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: O }}>
-              שמור שיא
+              {editingRecord ? '💾 עדכן שיא' : '🏆 שמור שיא'}
             </Button>
           </div>
         </DialogContent>

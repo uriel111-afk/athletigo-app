@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-export function PersonalRecordViewer({ record, onClose }) {
+export function PersonalRecordViewer({ record, onClose, onEdit, onDelete }) {
   if (!record) return null;
   const dateStr = record.date ? new Date(record.date).toLocaleDateString('he-IL') : '—';
   const role = record.created_by_role === 'coach' ? 'המאמן' : 'המתאמן';
@@ -26,10 +26,36 @@ export function PersonalRecordViewer({ record, onClose }) {
           <Row label="נוצר על ידי">{role}</Row>
         </div>
 
+        {(onEdit || onDelete) && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            {onEdit && (
+              <button
+                onClick={() => { onEdit(record); }}
+                style={{
+                  flex: 1, padding: 12,
+                  background: '#FFFFFF', color: '#FF6F20',
+                  border: '1.5px solid #FF6F20', borderRadius: 10,
+                  fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}
+              >✏️ ערוך</button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => { onDelete(record); }}
+                style={{
+                  flex: 1, padding: 12,
+                  background: '#FFFFFF', color: '#dc2626',
+                  border: '1.5px solid #fecaca', borderRadius: 10,
+                  fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}
+              >🗑 מחק</button>
+            )}
+          </div>
+        )}
         <button
           onClick={onClose}
           style={{
-            marginTop: 12, width: '100%', padding: 12,
+            marginTop: 8, width: '100%', padding: 12,
             background: '#FF6F20', color: '#FFFFFF',
             border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer',
           }}
