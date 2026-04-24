@@ -736,30 +736,28 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         </div>
       </div>
 
-      {/* ROW 2: Stats — round + set + total time (compact: label on top, big number below) */}
+      {/* ROW 2: Stats — total time + set + round. Always visible
+          (incl. prep phase). During prep, phase.round/set are 0 so we
+          display the upcoming "1/n" instead of "0/n". */}
       <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
-        {phase.type !== 'prep' && (
-          <button
-            type="button"
-            onClick={() => setRoundPickerOpen(true)}
-            style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
-          >
-            <div style={{ pointerEvents: 'none', fontSize: 14, fontWeight: 700, opacity: 0.7 }}>סבב</div>
-            <div style={{ pointerEvents: 'none', fontSize: 36, fontWeight: 700 }}>{phase.round}/{cfg.rounds}</div>
-          </button>
-        )}
-        {cfg.sets > 1 && phase.type !== 'prep' && (
-          <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 4px', textAlign: 'center', color: textPrimary }}>
-            <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.7 }}>סט</div>
-            <div style={{ fontSize: 36, fontWeight: 700 }}>{phase.set}/{cfg.sets}</div>
-          </div>
-        )}
         <div style={{ flex: 1, background: chipDarkBg, borderRadius: 12, padding: '10px 8px', textAlign: 'center', color: textPrimary }}>
           <div style={{ fontSize: 16, fontWeight: 700, opacity: 0.7 }}>⏱</div>
           <div style={{ fontSize: 48, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
           </div>
         </div>
+        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 8px', textAlign: 'center', color: textPrimary }}>
+          <div style={{ fontSize: 16, fontWeight: 700, opacity: 0.7 }}>סט</div>
+          <div style={{ fontSize: 36, fontWeight: 800 }}>{Math.max(1, phase.set)}/{cfg.sets}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setRoundPickerOpen(true)}
+          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 8px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
+        >
+          <div style={{ pointerEvents: 'none', fontSize: 16, fontWeight: 700, opacity: 0.7 }}>סבב</div>
+          <div style={{ pointerEvents: 'none', fontSize: 36, fontWeight: 800 }}>{Math.max(1, phase.round)}/{cfg.rounds}</div>
+        </button>
       </div>
 
       {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
