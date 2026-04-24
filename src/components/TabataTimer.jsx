@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 const O = '#FF6F20';
 const W = '#FFFFFF';
 const WD = 'rgba(255,255,255,0.2)';
-const R = 135, S = 8, SIZE = 320, CX = SIZE / 2, CY = SIZE / 2;
+const R = 155, S = 8, SIZE = 360, CX = SIZE / 2, CY = SIZE / 2;
 const CIRC = 2 * Math.PI * R;
 
 const PHASE_LABEL = { prep: 'הכנה', work: 'עבודה', rest: 'מנוחה', set_rest: 'מנוחה בין סטים', done: 'סיום' };
@@ -743,29 +743,29 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           (incl. prep phase). During prep, phase.round/set are 0 so we
           display the upcoming "1/n" instead of "0/n". */}
       <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
-        <div style={{ flex: 1, background: chipDarkBg, borderRadius: 12, padding: '10px 8px', textAlign: 'center', color: textPrimary }}>
-          <div style={{ fontSize: 16, fontWeight: 700, opacity: 0.7 }}>⏱</div>
-          <div style={{ fontSize: 32, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ flex: 1.5, background: chipDarkBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', color: textPrimary, overflow: 'visible' }}>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>⏱</div>
+          <div style={{ fontSize: 38, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif" }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
           </div>
         </div>
-        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 8px', textAlign: 'center', color: textPrimary }}>
-          <div style={{ fontSize: 16, fontWeight: 700, opacity: 0.7 }}>סט</div>
-          <div style={{ fontSize: 36, fontWeight: 800 }}>{Math.max(1, phase.set)}/{cfg.sets}</div>
+        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', color: textPrimary }}>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>סט</div>
+          <div style={{ fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.set)}/{cfg.sets}</div>
         </div>
         <button
           type="button"
           onClick={() => setRoundPickerOpen(true)}
-          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 8px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
+          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ pointerEvents: 'none', fontSize: 16, fontWeight: 700, opacity: 0.7 }}>סבב</div>
-          <div style={{ pointerEvents: 'none', fontSize: 36, fontWeight: 800 }}>{Math.max(1, phase.round)}/{cfg.rounds}</div>
+          <div style={{ pointerEvents: 'none', fontSize: 20, fontWeight: 800 }}>סבב</div>
+          <div style={{ pointerEvents: 'none', fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.round)}/{cfg.rounds}</div>
         </button>
       </div>
 
       {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, width: '100%' }}>
-        <div style={{ position: 'relative', width: 'min(85vw, 320px)', height: 'min(85vw, 320px)', margin: '0 auto', display: 'block' }}>
+        <div style={{ position: 'relative', width: 'min(92vw, 360px)', height: 'min(92vw, 360px)', margin: '0 auto', display: 'block' }}>
           <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: 'block' }}>
             <circle cx={CX} cy={CY} r={R} stroke={ringTrack} strokeWidth={S} fill="none" />
             <circle cx={CX} cy={CY} r={R} stroke={ringFill} strokeWidth={S} strokeLinecap="round" fill="none"
@@ -780,7 +780,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       {/* BOTTOM: Next + Nav + Controls */}
       <div style={{ width: '100%', maxWidth: 420, flexShrink: 0 }}>
         {nextP && nextP.type !== 'done' && (
-          <div style={{ textAlign: 'center', marginBottom: 8, fontSize: 'min(5vw, 20px)', fontWeight: 800, opacity: 0.8, color: textPrimary }}>
+          <div style={{
+            textAlign: 'center', marginBottom: 8,
+            fontSize: 22, fontWeight: 700,
+            color: isWork ? 'rgba(255,255,255,0.85)' : 'rgba(26,26,26,0.85)',
+            padding: '8px 0', letterSpacing: '1px',
+          }}>
             הבא: {PHASE_LABEL[nextP.type]} · {nextP.dur} שנ׳
           </div>
         )}
