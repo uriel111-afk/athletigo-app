@@ -1,40 +1,43 @@
 import React from "react";
 
-export default function AppLoader({ progress = 0, label = "טוען נתונים..." }) {
+// Unified first-paint loader — same design as index.html's boot loader
+// and PageLoader. No progress bar, no "טוען..." text — just the
+// triangle logo + ATHLETIGO wordmark with a soft pulse.
+// `progress` and `label` props are accepted for backward compatibility
+// but ignored on purpose (the visual is intentionally minimal).
+// eslint-disable-next-line no-unused-vars
+export default function AppLoader({ progress, label }) {
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center z-[9999]" dir="rtl"
-      style={{ backgroundColor: '#FFF9F0' }}>
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center z-[9999]"
+      dir="rtl"
+      style={{ backgroundColor: "#FFF9F0" }}
+    >
       <style>{`
-        @keyframes athletigo-loader-pulse {
+        @keyframes athletigo-app-loader-pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50%      { opacity: 0.7; transform: scale(0.95); }
+          50%      { opacity: 0.6; transform: scale(0.95); }
         }
       `}</style>
-      <div className="text-center w-64">
-        <img
-          src="/logo-with-name.png"
-          alt="AthletiGo"
-          style={{
-            width: 200,
-            height: 'auto',
-            objectFit: 'contain',
-            margin: '0 auto 24px',
-            display: 'block',
-            animation: 'athletigo-loader-pulse 1.5s ease-in-out infinite',
-          }}
-        />
-
-        {/* Progress bar */}
-        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
-          <div className="h-full rounded-full transition-all duration-300 ease-out"
-            style={{ width: `${progress}%`, backgroundColor: '#FF6F20' }} />
-        </div>
-
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs font-bold text-gray-400">{label}</p>
-          <p className="text-xs font-black text-[#FF6F20]">{progress}%</p>
-        </div>
-      </div>
+      <img
+        src="/logo-transparent.png"
+        alt=""
+        style={{
+          width: 120,
+          height: 120,
+          objectFit: "contain",
+          animation: "athletigo-app-loader-pulse 1.5s ease-in-out infinite",
+        }}
+      />
+      <img
+        src="/athletigo-text.png"
+        alt="ATHLETIGO"
+        style={{
+          height: 22,
+          objectFit: "contain",
+          marginTop: 8,
+        }}
+      />
     </div>
   );
 }

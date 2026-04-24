@@ -52,8 +52,21 @@
       document.addEventListener('touchmove', function(e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
     </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="margin:0;padding:0;background:#FFF9F0;">
+    <div id="root">
+      <!-- First-paint loader — shown while the JS bundle downloads.
+           React mounts into this div and replaces the markup. -->
+      <style>
+        @keyframes athletigo-boot-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.6; transform: scale(0.95); }
+        }
+      </style>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#FFF9F0;">
+        <img src="/logo-transparent.png" alt="" style="width:120px;height:120px;object-fit:contain;animation:athletigo-boot-pulse 1.5s ease-in-out infinite;" />
+        <img src="/athletigo-text.png" alt="ATHLETIGO" style="height:22px;object-fit:contain;margin-top:8px;" />
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
