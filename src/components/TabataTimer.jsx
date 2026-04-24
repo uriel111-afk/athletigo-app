@@ -723,9 +723,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         </button>
         <div style={{
           textAlign: 'center', width: '100%',
-          padding: '12px 0 8px',
-          fontSize: 36, fontWeight: 700,
+          padding: '8px 0',
+          fontSize: 56, fontWeight: 800,
           color: isWork ? '#FFFFFF' : '#FF6F20',
+          letterSpacing: '2px',
         }}>
           {phase.type === 'work'     && '🔥 עבודה'}
           {phase.type === 'rest'     && '💤 מנוחה'}
