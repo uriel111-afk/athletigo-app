@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 const O = '#FF6F20';
 const W = '#FFFFFF';
 const WD = 'rgba(255,255,255,0.2)';
-const R = 120, S = 5, SIZE = 320, CX = SIZE / 2, CY = SIZE / 2;
+const R = 135, S = 8, SIZE = 320, CX = SIZE / 2, CY = SIZE / 2;
 const CIRC = 2 * Math.PI * R;
 
 const PHASE_LABEL = { prep: 'הכנה', work: 'עבודה', rest: 'מנוחה', set_rest: 'מנוחה בין סטים', done: 'סיום' };
@@ -722,8 +722,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           מזער ↗
         </button>
         <div style={{
-          textAlign: 'center', width: '100%',
-          padding: '8px 0 2px',
+          textAlign: 'right', width: '100%',
+          padding: '8px 16px 2px',
+          direction: 'rtl',
           fontSize: 72, fontWeight: 900,
           color: isWork ? '#FFFFFF' : '#FF6F20',
           letterSpacing: '8px',
