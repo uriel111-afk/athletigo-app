@@ -721,22 +721,33 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         >
           מזער ↗
         </button>
-        <div style={{
-          textAlign: 'right', width: '100%',
-          padding: '8px 16px 2px',
-          direction: 'rtl',
-          fontSize: 72, fontWeight: 900,
-          color: isWork ? '#FFFFFF' : '#FF6F20',
-          letterSpacing: '8px',
-          textTransform: 'uppercase',
-          textShadow: '0 4px 16px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15)',
-          WebkitTextStroke: isWork ? '1px rgba(255,255,255,0.3)' : '1px rgba(255,111,32,0.3)',
-        }}>
-          {phase.type === 'work'     && 'עבודה'}
-          {phase.type === 'rest'     && 'מנוחה'}
-          {phase.type === 'set_rest' && 'מנוחה בין סטים'}
-          {phase.type === 'prep'     && 'הכנה'}
-        </div>
+        {(() => {
+          const phaseLabel =
+            phase.type === 'work'     ? 'עבודה' :
+            phase.type === 'rest'     ? 'מנוחה' :
+            phase.type === 'set_rest' ? 'מנוחה בין סטים' :
+            phase.type === 'prep'     ? 'הכנה' : '';
+          // "מנוחה בין סטים" (13 chars) shrinks so it never wraps; the
+          // short labels stay big and bold.
+          const big = phaseLabel.length <= 6;
+          return (
+            <div style={{
+              textAlign: 'right', width: '100%',
+              padding: '8px 16px 2px',
+              direction: 'rtl',
+              fontSize: big ? 72 : 48,
+              fontWeight: 900,
+              color: isWork ? '#FFFFFF' : '#FF6F20',
+              letterSpacing: big ? '8px' : '4px',
+              textTransform: 'uppercase',
+              textShadow: '0 4px 16px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15)',
+              WebkitTextStroke: isWork ? '1px rgba(255,255,255,0.3)' : '1px rgba(255,111,32,0.3)',
+              whiteSpace: 'nowrap',
+            }}>
+              {phaseLabel}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ROW 2: Stats — total time + set + round. Always visible
@@ -772,7 +783,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(70vw, 240px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
+            <span style={{ fontSize: 'min(65vw, 220px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
