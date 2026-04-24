@@ -220,7 +220,11 @@ export default function AllUsers() {
                 margin: '0 12px 8px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                 cursor: 'pointer',
-                border: isExpiring ? '1.5px solid #EAB308' : '0.5px solid #F0E4D0',
+                border: isExpiring
+                  ? '1.5px solid #EAB308'
+                  : pkg
+                    ? '1.5px solid #FF6F20'
+                    : '0.5px solid #F0E4D0',
               }}
             >
               {/* Top row */}
