@@ -166,13 +166,13 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
           onClick={stop(onRoundTap)}
           onPointerDown={(e) => e.stopPropagation()}
           style={{
-            ...btnBase, marginLeft: 4, padding: '0 4px',
+            ...btnBase, marginLeft: 4, padding: '0 6px',
             background: 'transparent',
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 24, fontWeight: 700,
+            fontSize: 42, fontWeight: 700,
             color: primaryColor,
             lineHeight: 1,
-            minWidth: 36,
+            minWidth: 48,
           }}
           aria-label="בחר סבב"
         >
