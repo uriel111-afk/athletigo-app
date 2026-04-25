@@ -1,14 +1,16 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import LifeOSNav from './LifeOSNav';
+import QuickActionFAB from './QuickActionFAB';
+import NotificationBell from './NotificationBell';
+import { AuthContext } from '@/lib/AuthContext';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
-// Shell around every Life OS screen. Fixed top bar with back-to-hub,
-// scrollable content area, fixed bottom nav. Uses inline styles to
-// stay consistent with the rest of the app.
-export default function LifeOSLayout({ title, children, rightSlot = null }) {
+// Shell around every Life OS screen.
+export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved }) {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
 
   return (
     <div
@@ -67,23 +69,19 @@ export default function LifeOSLayout({ title, children, rightSlot = null }) {
           {title}
         </div>
 
-        <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
           {rightSlot}
+          <NotificationBell userId={user?.id} />
         </div>
       </div>
 
       {/* Content */}
-      <div
-        style={{
-          padding: '16px 14px 100px',
-          maxWidth: 560,
-          margin: '0 auto',
-        }}
-      >
+      <div style={{ padding: '16px 14px 100px', maxWidth: 560, margin: '0 auto' }}>
         {children}
       </div>
 
       <LifeOSNav />
+      <QuickActionFAB onSaved={onQuickSaved} />
     </div>
   );
 }

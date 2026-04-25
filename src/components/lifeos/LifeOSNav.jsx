@@ -8,7 +8,7 @@ const PRIMARY_TABS = [
   { to: '/lifeos',          emoji: '🏠', label: 'בית' },
   { to: '/lifeos/expenses', emoji: '💸', label: 'הוצאות' },
   { to: '/lifeos/plan',     emoji: '🎯', label: 'תוכנית' },
-  { to: '/lifeos/tasks',    emoji: '✅', label: 'משימות' },
+  { to: '/lifeos/momentum', emoji: '🚀', label: 'מומנטום' },
 ];
 
 const MORE_ITEMS = [

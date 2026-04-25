@@ -27,6 +27,7 @@ import LifeOSTasks from './pages/lifeos/Tasks';
 import LifeOSLeads from './pages/lifeos/Leads';
 import LifeOSContent from './pages/lifeos/ContentCalendar';
 import LifeOSCommunity from './pages/lifeos/Community';
+import LifeOSMomentum from './pages/lifeos/Momentum';
 import LifeOSSettings from './pages/lifeos/LifeOSSettings';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
@@ -320,6 +321,7 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos/leads"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSLeads /></PageRouteGuard>} />
       <Route path="/lifeos/content"      element={<PageRouteGuard pageKey="LifeOS"><LifeOSContent /></PageRouteGuard>} />
       <Route path="/lifeos/community"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSCommunity /></PageRouteGuard>} />
+      <Route path="/lifeos/momentum"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSMomentum /></PageRouteGuard>} />
       <Route path="/lifeos/settings"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSSettings /></PageRouteGuard>} />
 
       <Route path="*" element={<PageNotFound />} />
