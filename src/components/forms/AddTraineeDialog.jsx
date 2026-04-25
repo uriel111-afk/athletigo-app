@@ -15,6 +15,7 @@ import { Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { syncTraineeToLead } from "@/lib/lifeos/lifeos-api";
 
 const INITIAL_DATA = {
   fullName: "",
@@ -133,6 +134,20 @@ export default function AddTraineeDialog({ open, onClose }) {
       if (profileError) {
         toast.error("שגיאה בשמירת הפרופיל: " + profileError.message);
         return;
+      }
+
+      // Cross-app sync (best-effort, never blocks): a new trainee is
+      // an already-converted lead in the financial app's funnel.
+      if (coach?.id) {
+        try {
+          await syncTraineeToLead(coach.id, {
+            full_name: formData.fullName,
+            phone: formData.phone || null,
+            email: email || null,
+          });
+        } catch (e) {
+          console.warn('[AddTrainee] syncTraineeToLead failed:', e?.message);
+        }
       }
 
       // Step 3: Send notification to coach

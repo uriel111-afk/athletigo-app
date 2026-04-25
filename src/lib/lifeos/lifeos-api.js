@@ -83,6 +83,160 @@ export async function listIncomeForMonth(userId, dateLike) {
   return listIncome(userId, { from: start, to: end });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Cross-app sync helpers — keep the financial app and the coach app
+// in step. Each helper is idempotent: it checks for an existing row
+// before inserting so calling it twice never duplicates data.
+// ─────────────────────────────────────────────────────────────────
+
+// (1) New package or product sale on the coach side → auto-add to income.
+//     Idempotent on (user_id, client_name, date, amount).
+export async function syncPackageToIncome(userId, pkg) {
+  if (!userId || !pkg) return null;
+  const amount = Number(pkg.final_price ?? pkg.price ?? 0);
+  if (amount <= 0) return null;
+  const date = (pkg.start_date || pkg.created_at || new Date().toISOString()).slice(0, 10);
+  const clientName = pkg.trainee_name || pkg.client_name || null;
+  // Map coach package types → financial source enum.
+  const typ = (pkg.service_type || pkg.package_type || '').toString();
+  const source = typ.includes('קבוצ') ? 'training'
+               : typ.includes('אונליין') || typ.includes('online') ? 'online_coaching'
+               : typ.includes('סדנה') || typ.includes('workshop') ? 'workshop'
+               : typ.includes('קורס') || typ.includes('course') ? 'course'
+               : typ.includes('מוצר') || typ.includes('product') ? 'product_sale'
+               : 'training';
+  // Dup check
+  const { data: existing } = await supabase
+    .from('income')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('amount', amount)
+    .eq('date', date)
+    .eq('client_name', clientName)
+    .maybeSingle();
+  if (existing?.id) {
+    console.log('[syncPackageToIncome] dup skipped:', existing.id);
+    return existing;
+  }
+  console.log('[syncPackageToIncome] inserting:', { amount, source, clientName, date });
+  const { data, error } = await supabase.from('income').insert({
+    user_id: userId,
+    amount,
+    source,
+    product: pkg.package_name || pkg.product || null,
+    client_name: clientName,
+    description: `מכירה: ${pkg.package_name || pkg.product || ''}`.trim(),
+    date,
+  }).select().maybeSingle();
+  if (error) console.warn('[syncPackageToIncome] failed:', error.message);
+  return data || null;
+}
+
+// (2) New trainee user (role=trainee) → auto-add converted lead.
+//     Idempotent on (user_id, name, status='converted').
+export async function syncTraineeToLead(userId, trainee) {
+  if (!userId || !trainee?.full_name) return null;
+  const { data: existing } = await supabase
+    .from('leads')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('name', trainee.full_name)
+    .eq('status', 'converted')
+    .maybeSingle();
+  if (existing?.id) {
+    console.log('[syncTraineeToLead] dup skipped:', existing.id);
+    return existing;
+  }
+  console.log('[syncTraineeToLead] inserting:', trainee.full_name);
+  const { data, error } = await supabase.from('leads').insert({
+    user_id: userId,
+    name: trainee.full_name,
+    phone: trainee.phone || null,
+    email: trainee.email || null,
+    status: 'converted',
+    source: 'app',
+    converted_at: new Date().toISOString(),
+  }).select().maybeSingle();
+  if (error) console.warn('[syncTraineeToLead] failed:', error.message);
+  return data || null;
+}
+
+// (3) Bump funnel_tracking purchase counter when a lead converts.
+export async function syncFunnelOnConversion(userId, productLabel) {
+  if (!userId || !productLabel) return;
+  try {
+    const { data: row } = await supabase
+      .from('funnel_tracking')
+      .select('id, contact_count')
+      .eq('user_id', userId)
+      .eq('product', productLabel)
+      .eq('stage', 'purchase')
+      .maybeSingle();
+    if (row?.id) {
+      await supabase
+        .from('funnel_tracking')
+        .update({ contact_count: (Number(row.contact_count) || 0) + 1 })
+        .eq('id', row.id);
+    } else {
+      await supabase.from('funnel_tracking').insert({
+        user_id: userId, product: productLabel,
+        stage: 'purchase', contact_count: 1,
+      });
+    }
+  } catch (e) {
+    console.warn('[syncFunnelOnConversion] failed:', e?.message);
+  }
+}
+
+// (4) Recompute business_plan.current_monthly_revenue from this
+//     month's income rows. Best-effort; column may not exist.
+export async function syncCurrentMonthlyRevenue(userId) {
+  if (!userId) return;
+  try {
+    const { start, end } = monthRange(new Date());
+    const { data: rows } = await supabase
+      .from('income')
+      .select('amount')
+      .eq('user_id', userId)
+      .gte('date', start)
+      .lte('date', end);
+    const total = (rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const { data: plan } = await supabase
+      .from('business_plan')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (plan?.id) {
+      const { error } = await supabase
+        .from('business_plan')
+        .update({ current_monthly_revenue: total })
+        .eq('id', plan.id);
+      if (error && error.code !== '42703') {
+        // 42703 = column doesn't exist; silently skip if so
+        console.warn('[syncCurrentMonthlyRevenue] update failed:', error.message);
+      }
+    }
+  } catch (e) {
+    console.warn('[syncCurrentMonthlyRevenue] failed:', e?.message);
+  }
+}
+
+// Convenience wrapper — call this from any place that mutates a
+// cross-app entity. The `kind` argument picks which sub-sync to run.
+export async function syncCrossApp(kind, userId, payload) {
+  switch (kind) {
+    case 'package':       return syncPackageToIncome(userId, payload);
+    case 'trainee':       return syncTraineeToLead(userId, payload);
+    case 'funnel':        return syncFunnelOnConversion(userId, payload);
+    case 'monthly':       return syncCurrentMonthlyRevenue(userId);
+    default:
+      console.warn('[syncCrossApp] unknown kind:', kind);
+  }
+}
+
 export async function addIncome(userId, payload) {
   const { data, error } = await supabase
     .from('income')
@@ -138,6 +292,8 @@ export async function addIncome(userId, payload) {
       revenue_generated: Number(payload.amount || 0),
       details: { product: payload.product, source: payload.source },
     });
+    // Refresh current_monthly_revenue on the active business_plan
+    syncCurrentMonthlyRevenue(userId);
   } catch (err) {
     console.warn('[addIncome] cross-app sync failed:', err?.message);
   }
@@ -541,6 +697,17 @@ export async function updateLead(id, patch) {
         revenue_generated: Number(data.revenue_if_converted),
         details: { lead_id: id, name: data.name, product: data.interested_in },
       });
+      // Bump funnel_tracking purchase counter for the matching product
+      const interestToFunnel = {
+        online_coaching: 'ליווי אונליין',
+        workshop:        'סדנאות',
+        course:          'קורסים דיגיטליים',
+        coaching:        'אימון אישי',
+      };
+      const funnelLabel = interestToFunnel[data.interested_in] || data.interested_in || null;
+      if (funnelLabel) await syncFunnelOnConversion(data.user_id, funnelLabel);
+      // Refresh current_monthly_revenue
+      syncCurrentMonthlyRevenue(data.user_id);
     } catch (err) {
       console.warn('[updateLead] cross-app sync failed:', err?.message);
     }
