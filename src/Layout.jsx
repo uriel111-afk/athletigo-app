@@ -32,7 +32,9 @@ import {
   BarChart3,
   Bell,
   Zap,
-  Clock
+  Clock,
+  Flame,
+  Route
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import TimerFooterBar from "@/components/TimerFooterBar";
@@ -176,6 +178,8 @@ export default function Layout({ children, currentPageName }) {
     { title: "התראות", url: createPageUrl("Notifications"), icon: Bell, section: "daily", showBadge: true },
     // ── ניהול תוכן ──
     { title: "כל התוכניות", url: createPageUrl("PlanBuilder"), icon: ClipboardList, section: "content" },
+    { title: "אתגרי אימון", url: createPageUrl("Challenges"), icon: Flame, section: "content" },
+    { title: "מסלולים", url: createPageUrl("SkillTracks"), icon: Route, section: "content" },
     { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
     // ── ניהול עסקי ──
     // Packages (PackageStats), Financial summary, and Conversions

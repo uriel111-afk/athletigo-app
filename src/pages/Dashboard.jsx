@@ -454,55 +454,48 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Quick-access grid — 5 icons (3+2 centered). The diamond
-              metrics row above already covers ליד חדש + תוכניות, and
-              שעונים lives in the footer tabs, so all three were
-              removed from this strip to avoid duplication. */}
+          {/* Reminders button — single card. The other quick-access
+              actions (מתאמנים / מפגשים / אתגרי אימון / דוחות) were
+              removed from here because they live in the bottom nav,
+              the diamond metrics row, or the hamburger menu. */}
           {(() => {
             const overdueReminders = reminders.filter(r =>
               !r.is_read && r.data?.remind_at && new Date(r.data.remind_at) <= new Date()
             ).length;
-            const items = [
-              { icon: "👥", label: "מתאמנים",     onClick: () => navigate(createPageUrl("AllUsers")) },
-              { icon: "📅", label: "מפגשים",      onClick: () => navigate(createPageUrl("Sessions")) },
-              { icon: "🔥", label: "אתגרי אימון", onClick: () => navigate(createPageUrl("Challenges")) },
-              { icon: "⏰", label: "תזכורות",     onClick: () => setShowReminders(true), badge: overdueReminders },
-              { icon: "📊", label: "דוחות",       onClick: () => navigate(createPageUrl("Reports")) },
-            ];
+            const pendingReminders = reminders.filter(r => !r.is_read).length;
             return (
-              <div style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                padding: "0 12px 12px",
-                justifyContent: "center",
-              }}>
-                {items.map((item, i) => (
-                  <div key={i} onClick={item.onClick} style={{
-                    background: "white",
-                    borderRadius: 14,
-                    padding: "14px 8px",
-                    textAlign: "center",
-                    cursor: "pointer",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-                    position: "relative",
-                    width: "calc(33.33% - 6px)",
-                    minWidth: 90,
-                  }}>
-                    <div style={{ fontSize: 26 }}>{item.icon}</div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "#1a1a1a", marginTop: 4 }}>{item.label}</div>
-                    {item.badge > 0 && (
-                      <div style={{
-                        position: "absolute", top: 4, right: 4,
-                        minWidth: 18, height: 18, padding: "0 5px",
-                        borderRadius: 9, background: "#dc2626", color: "white",
-                        fontSize: 10, fontWeight: 700,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        border: "2px solid white",
-                      }}>{item.badge}</div>
-                    )}
+              <div style={{ padding: "0 12px 12px" }}>
+                <div onClick={() => setShowReminders(true)}
+                     style={{
+                       background: "white", borderRadius: 14,
+                       padding: 14, display: "flex",
+                       alignItems: "center", gap: 10,
+                       cursor: "pointer", direction: "rtl",
+                       boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+                     }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 12,
+                    background: "#FFF0E4",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 20,
+                  }}>⏰</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>תזכורות</div>
+                    <div style={{ fontSize: 11, color: "#888" }}>
+                      {pendingReminders > 0
+                        ? `${pendingReminders} תזכורות ממתינות`
+                        : "אין תזכורות"}
+                    </div>
                   </div>
-                ))}
+                  {overdueReminders > 0 && (
+                    <div style={{
+                      width: 22, height: 22, borderRadius: "50%",
+                      background: "#dc2626", color: "white",
+                      fontSize: 11, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>{overdueReminders}</div>
+                  )}
+                </div>
               </div>
             );
           })()}
