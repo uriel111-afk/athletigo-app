@@ -14,6 +14,13 @@ export default function ContactCard({ contact, onLogCall, onClick }) {
   const lastDate = contact.last_contact_date ? new Date(contact.last_contact_date) : null;
   const days = lastDate ? daysBetween(new Date(), lastDate) : null;
   const overdue = days !== null && days > targetDays;
+  const veryOverdue = days !== null && days > targetDays * 2;
+  // Status traffic light:
+  //   🟢 fresh (within freq, or never tracked yet)
+  //   🟡 overdue 1× freq
+  //   🔴 very overdue 2× freq
+  const status = veryOverdue ? 'red' : overdue ? 'yellow' : 'green';
+  const statusEmoji = status === 'red' ? '🔴' : status === 'yellow' ? '🟡' : '🟢';
   const initial = (contact.name || '?').trim().charAt(0);
 
   return (
@@ -32,6 +39,9 @@ export default function ContactCard({ contact, onLogCall, onClick }) {
       }}>{initial}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12 }} title={status === 'red' ? 'מאוד מאחר' : status === 'yellow' ? 'הגיע הזמן' : 'דיברת לאחרונה'}>
+            {statusEmoji}
+          </span>
           <span style={{ fontSize: 14, fontWeight: 700, color: PERSONAL_COLORS.textPrimary }}>{contact.name}</span>
           <span style={{ fontSize: 14 }}>{cat.emoji}</span>
         </div>

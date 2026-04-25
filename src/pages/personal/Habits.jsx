@@ -38,6 +38,21 @@ function monthPctFor(habitId, logs) {
   return Math.round((done / Math.max(1, total)) * 100);
 }
 
+// Map of {iso → bool} for the current week (Sunday → Saturday). Used
+// by HabitCard to render the 7-day strip.
+function weekLogsFor(habitId, logs) {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  const startISO = start.toISOString().slice(0, 10);
+  const out = {};
+  logs.forEach(l => {
+    if (l.habit_id === habitId && l.completed && l.date >= startISO) {
+      out[l.date] = true;
+    }
+  });
+  return out;
+}
+
 export default function Habits() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
@@ -181,6 +196,7 @@ export default function Habits() {
               doneToday={!!todayLogsMap[h.id]}
               monthPct={monthPctFor(h.id, logs)}
               streak={streakFor(h.id, logs)}
+              weekLogs={weekLogsFor(h.id, logs)}
               onToggle={handleToggle}
               onClick={() => setSelected(h)}
             />

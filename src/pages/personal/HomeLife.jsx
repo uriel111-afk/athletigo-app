@@ -58,6 +58,8 @@ function TasksSection({ userId }) {
   const [showNew, setShowNew] = useState(false);
   const [editing, setEditing] = useState(null);
   const [timing, setTiming] = useState(null);
+  // 'list' = simple flat list, 'week' = grouped by assigned day
+  const [view, setView] = useState('week');
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -81,8 +83,23 @@ function TasksSection({ userId }) {
   return (
     <>
       <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ משימה חדשה</button>
+
+      {/* View toggle */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <button onClick={() => setView('week')} style={viewToggle(view === 'week')}>📅 שבועי</button>
+        <button onClick={() => setView('list')} style={viewToggle(view === 'list')}>📋 רשימה</button>
+      </div>
+
       {!loaded ? <Empty text="טוען..." /> : tasks.length === 0 ? (
         <Empty text="אין משימות" />
+      ) : view === 'week' ? (
+        <WeeklyChoreView
+          tasks={tasks}
+          onDone={handleDone}
+          onStartTimer={setTiming}
+          onEdit={(t) => { setEditing(t); setShowNew(true); }}
+          onDelete={handleDelete}
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {tasks.map(t => <HouseholdRow key={t.id} task={t}
@@ -709,3 +726,88 @@ const btnSecondary = {
   border: `1px solid ${PERSONAL_COLORS.border}`, backgroundColor: '#FFFFFF',
   color: PERSONAL_COLORS.textPrimary, fontSize: 14, fontWeight: 700, cursor: 'pointer',
 };
+
+function viewToggle(active) {
+  return {
+    flex: 1, padding: '8px 12px', borderRadius: 10,
+    border: `1px solid ${active ? PERSONAL_COLORS.primary : PERSONAL_COLORS.border}`,
+    backgroundColor: active ? PERSONAL_COLORS.primary : '#FFFFFF',
+    color: active ? '#FFFFFF' : PERSONAL_COLORS.textPrimary,
+    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+  };
+}
+
+// Groups household tasks by their assigned day of week (Sunday → Sat)
+// using `assigned_days[]`. Tasks without an explicit assignment are
+// laid out by frequency (matching weekly-api's fallback rules) so the
+// list stays informative.
+function WeeklyChoreView({ tasks, onDone, onStartTimer, onEdit, onDelete }) {
+  const HE_DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayDow = today.getDay();
+
+  const dayBuckets = Array.from({ length: 7 }, () => []);
+  tasks.forEach(t => {
+    const days = (Array.isArray(t.assigned_days) && t.assigned_days.length > 0)
+      ? t.assigned_days
+      : derivedDays(t.frequency);
+    days.forEach(d => { if (d >= 0 && d < 7) dayBuckets[d].push(t); });
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {dayBuckets.map((items, dow) => {
+        const isToday = dow === todayDow;
+        return (
+          <div key={dow} style={{
+            ...PERSONAL_CARD,
+            padding: 10,
+            backgroundColor: isToday ? '#FFF5EE' : '#FFFFFF',
+            border: `${isToday ? 2 : 1}px solid ${isToday ? PERSONAL_COLORS.primary : PERSONAL_COLORS.border}`,
+          }}>
+            <div style={{
+              fontSize: 13, fontWeight: 800,
+              color: isToday ? PERSONAL_COLORS.primary : PERSONAL_COLORS.textPrimary,
+              marginBottom: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span>{HE_DAY_NAMES[dow]}</span>
+              {isToday && (
+                <span style={{
+                  fontSize: 10, padding: '2px 8px', borderRadius: 999,
+                  backgroundColor: PERSONAL_COLORS.primary, color: '#FFFFFF',
+                  fontWeight: 700,
+                }}>היום</span>
+              )}
+            </div>
+            {items.length === 0 ? (
+              <div style={{ fontSize: 11, color: '#B0A89B' }}>—</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {items.map(t => (
+                  <HouseholdRow
+                    key={t.id} task={t}
+                    onDone={() => onDone(t)}
+                    onStartTimer={() => onStartTimer(t)}
+                    onEdit={() => onEdit(t)}
+                    onDelete={() => onDelete(t.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function derivedDays(frequency) {
+  if (frequency === 'daily') return [0, 1, 2, 3, 4, 5, 6];
+  if (frequency === 'every_3_days') return [0, 3];
+  if (frequency === 'twice_weekly') return [0, 3];
+  if (frequency === 'weekly') return [1];
+  if (frequency === 'biweekly') return [1];
+  if (frequency === 'monthly') return [1];
+  return [];
+}

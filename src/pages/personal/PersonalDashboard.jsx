@@ -156,6 +156,9 @@ export default function PersonalDashboard() {
         <WhatNowButton />
       </div>
 
+      {/* Week board CTA — bigger nudge on Fri/Sat to plan next week */}
+      <WeekBoardCard />
+
       {/* Daily check-in card */}
       {!loaded ? null : !checkin ? (
         <div
@@ -307,6 +310,40 @@ function CircleScore({ score }) {
       }}>
         {score}
       </div>
+    </div>
+  );
+}
+
+// Card that links to the full /personal/week board. Highlighted on
+// Fri/Sat as a nudge to plan the upcoming week.
+function WeekBoardCard() {
+  const navigate = useNavigate();
+  const dow = new Date().getDay();
+  const isPlanningTime = dow === 5 || dow === 6;
+  return (
+    <div
+      onClick={() => navigate('/personal/week')}
+      style={{
+        ...PERSONAL_CARD,
+        marginBottom: 14,
+        cursor: 'pointer',
+        backgroundColor: isPlanningTime ? '#FFF5EE' : '#FFFFFF',
+        border: `1px solid ${isPlanningTime ? PERSONAL_COLORS.primary : PERSONAL_COLORS.border}`,
+        display: 'flex', alignItems: 'center', gap: 12,
+      }}
+    >
+      <span style={{ fontSize: 28 }}>📅</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: PERSONAL_COLORS.textPrimary }}>
+          {isPlanningTime ? 'תכנן את השבוע הבא' : 'הלוח השבועי שלי'}
+        </div>
+        <div style={{ fontSize: 11, color: PERSONAL_COLORS.textSecondary, marginTop: 2 }}>
+          {isPlanningTime
+            ? '5 דקות עכשיו = שבוע ממוקד'
+            : 'אימונים, משימות, הרגלים, ארוחות'}
+        </div>
+      </div>
+      <span style={{ fontSize: 18, color: PERSONAL_COLORS.textSecondary }}>←</span>
     </div>
   );
 }

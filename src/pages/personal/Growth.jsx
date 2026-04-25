@@ -223,16 +223,19 @@ function LearningSection({ userId }) {
     <>
       <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ למדתי משהו</button>
       {loaded && items.length > 0 && (
-        <div style={{ ...PERSONAL_CARD, marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>
-            למדת {monthSummary.days} ימים מתוך {monthSummary.elapsed} החודש
-          </div>
-          {monthSummary.topics.length > 0 && (
-            <div style={{ fontSize: 11, color: PERSONAL_COLORS.textSecondary, marginTop: 4 }}>
-              נושאים: {monthSummary.topics.join(', ')}
+        <>
+          <div style={{ ...PERSONAL_CARD, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              למדת {monthSummary.days} ימים מתוך {monthSummary.elapsed} החודש
             </div>
-          )}
-        </div>
+            {monthSummary.topics.length > 0 && (
+              <div style={{ fontSize: 11, color: PERSONAL_COLORS.textSecondary, marginTop: 4 }}>
+                נושאים: {monthSummary.topics.join(', ')}
+              </div>
+            )}
+          </div>
+          <WeeklyMinutesChart items={items} label="דקות למידה השבוע" />
+        </>
       )}
       {!loaded ? <Empty text="טוען..." /> : items.length === 0 ? (
         <Empty text="עדיין לא תועדה למידה" />
@@ -510,6 +513,9 @@ function TrainingSection({ userId }) {
   return (
     <>
       <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ אימון</button>
+      {loaded && items.length > 0 && (
+        <WeeklyMinutesChart items={items} label="דקות אימון השבוע" />
+      )}
       {!loaded ? <Empty text="טוען..." /> : items.length === 0 ? (
         <Empty text="עדיין לא תועדו אימונים" />
       ) : (
@@ -685,3 +691,61 @@ const btnSecondary = {
   border: `1px solid ${PERSONAL_COLORS.border}`, backgroundColor: '#FFFFFF',
   color: PERSONAL_COLORS.textPrimary, fontSize: 14, fontWeight: 700, cursor: 'pointer',
 };
+
+// Tiny self-contained bar chart: shows duration_minutes summed per day
+// for the current week (Sunday → Saturday). Used by both Learning and
+// Training sections — anything with a `date` + `duration_minutes`
+// shape works.
+function WeeklyMinutesChart({ items, label = 'דקות בשבוע' }) {
+  const HE_DAY_SHORT = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  const buckets = [0, 0, 0, 0, 0, 0, 0];
+  items.forEach(it => {
+    if (!it.date || !it.duration_minutes) return;
+    const d = new Date(it.date);
+    if (d < start) return;
+    const dow = d.getDay();
+    if (dow >= 0 && dow < 7) buckets[dow] += Number(it.duration_minutes) || 0;
+  });
+  const max = Math.max(1, ...buckets);
+  const total = buckets.reduce((s, x) => s + x, 0);
+
+  return (
+    <div style={{ ...PERSONAL_CARD, marginBottom: 12, padding: 12 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 8,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: PERSONAL_COLORS.textSecondary }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 800, color: PERSONAL_COLORS.primary }}>
+          {total} דק׳
+        </div>
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+        gap: 4, alignItems: 'end', height: 80,
+      }}>
+        {buckets.map((v, i) => {
+          const h = max > 0 ? Math.max(4, Math.round((v / max) * 70)) : 4;
+          return (
+            <div key={i} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            }}>
+              <div style={{
+                width: '100%', maxWidth: 24,
+                height: h, borderRadius: 4,
+                backgroundColor: v > 0 ? PERSONAL_COLORS.primary : '#F0E4D0',
+              }} />
+              <span style={{ fontSize: 10, color: PERSONAL_COLORS.textSecondary, fontWeight: 600 }}>
+                {HE_DAY_SHORT[i]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
