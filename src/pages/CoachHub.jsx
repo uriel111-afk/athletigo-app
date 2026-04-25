@@ -66,20 +66,26 @@ export default function CoachHub() {
           </div>
         </div>
 
-        {/* Two hub cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+        {/* Three hub cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
           <HubCard
             emoji="💼"
             title="מקצועי"
-            subtitle="מתאמנים, אימונים, תוכניות"
+            subtitle="מתאמנים ותוכניות"
             onClick={() => navigate('/dashboard')}
             primary
           />
           <HubCard
             emoji="📊"
             title="פיננסי"
-            subtitle="תקציב, יעדים, תוכנית עסקית"
+            subtitle="תקציב ויעדים"
             onClick={() => navigate('/lifeos')}
+          />
+          <HubCard
+            emoji="🚀"
+            title="צמיחה"
+            subtitle="לידים והזדמנויות"
+            onClick={() => navigate('/lifeos/leads')}
           />
         </div>
 

@@ -7,6 +7,11 @@ import GoalProgress from '@/components/lifeos/GoalProgress';
 import WinCard from '@/components/lifeos/WinCard';
 import ExpenseForm from '@/components/lifeos/ExpenseForm';
 import IncomeForm from '@/components/lifeos/IncomeForm';
+import DailyStreak from '@/components/lifeos/DailyStreak';
+import WeeklyScore from '@/components/lifeos/WeeklyScore';
+import GoalBreakdown from '@/components/lifeos/GoalBreakdown';
+import QuickActionFAB from '@/components/lifeos/QuickActionFAB';
+import NotificationBell from '@/components/lifeos/NotificationBell';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
 } from '@/lib/lifeos/lifeos-constants';
@@ -17,6 +22,8 @@ import {
   markMentorMessageActedOn,
   listIncome,
 } from '@/lib/lifeos/lifeos-api';
+import { calculateStreak } from '@/lib/lifeos/streak-calculator';
+import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 
@@ -32,19 +39,25 @@ export default function LifeOSDashboard() {
   const [loaded, setLoaded] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
   const [showIncome, setShowIncome] = useState(false);
+  const [streakDays, setStreakDays] = useState(0);
+  const [weeklyScore, setWeeklyScore] = useState(0);
 
   const loadAll = useCallback(async () => {
     if (!userId) return;
     try {
-      const [annual, monthSum, msg, recentIncomeRows] = await Promise.all([
+      const [annual, monthSum, msg, recentIncomeRows, streak, score] = await Promise.all([
         getAnnualIncome(userId).catch(() => 0),
         getMonthlySummary(userId).catch(() => ({ income: 0, expenses: 0, net: 0 })),
         getFeaturedMentorMessage(userId).catch(() => null),
         listIncome(userId).then(r => r.slice(0, 5)).catch(() => []),
+        calculateStreak(userId).catch(() => 0),
+        calculateWeeklyScore(userId).catch(() => 0),
       ]);
       setAnnualIncome(annual);
       setSummary({ income: monthSum.income, expenses: monthSum.expenses, net: monthSum.net });
       setMentor(msg);
+      setStreakDays(typeof streak === 'number' ? streak : (streak?.days || 0));
+      setWeeklyScore(typeof score === 'number' ? score : (score?.score || 0));
       setRecentWins(
         recentIncomeRows.map(r => ({
           title: r.description || r.product || 'מכירה',
@@ -86,9 +99,29 @@ export default function LifeOSDashboard() {
 
   return (
     <LifeOSLayout title="פיננסי">
+      {/* Top bar — notification bell aligned right */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <NotificationBell userId={userId} />
+      </div>
+
       {/* Goal progress */}
       <div style={{ marginBottom: 14 }}>
         <GoalProgress current={annualIncome} target={YEARLY_GOAL} />
+      </div>
+
+      {/* Goal breakdown — yearly → daily + Year 1/2 simulation */}
+      <div style={{ marginBottom: 14 }}>
+        <GoalBreakdown />
+      </div>
+
+      {/* Streak + weekly score row */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <DailyStreak days={streakDays} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <WeeklyScore score={weeklyScore} />
+        </div>
       </div>
 
       {/* Mentor hero */}
@@ -221,6 +254,9 @@ export default function LifeOSDashboard() {
         userId={userId}
         onSaved={loadAll}
       />
+
+      {/* Floating quick-action button — overlays every Life OS screen */}
+      <QuickActionFAB userId={userId} onSaved={loadAll} />
     </LifeOSLayout>
   );
 }
