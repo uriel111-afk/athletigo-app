@@ -6,8 +6,9 @@ import ConfettiEffect from '@/components/lifeos/ConfettiEffect';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, TASK_STATUS, TASK_DIFFICULTY,
 } from '@/lib/lifeos/lifeos-constants';
+import { Trash2 } from 'lucide-react';
 import {
-  listTasks, updateTaskStatus, getTotalXP, addTask,
+  listTasks, updateTaskStatus, getTotalXP, addTask, deleteTask,
 } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
@@ -267,6 +268,11 @@ export default function Tasks() {
               task={t}
               isLast={idx === regularTasks.length - 1}
               onToggle={() => handleToggleStatus(t)}
+              onDelete={async () => {
+                if (!confirm('בטוח שאתה רוצה למחוק את המשימה?')) return;
+                try { await deleteTask(t.id); toast.success('נמחק'); load(); }
+                catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+              }}
             />
           ))
         )}
@@ -275,7 +281,7 @@ export default function Tasks() {
   );
 }
 
-function TaskRow({ task, isLast, onToggle }) {
+function TaskRow({ task, isLast, onToggle, onDelete }) {
   const done = task.status === 'completed';
   const diff = DIFFICULTY_BY_KEY[task.difficulty];
   const cat = CATEGORY_BY_KEY[task.category];
@@ -311,6 +317,18 @@ function TaskRow({ task, isLast, onToggle }) {
           </div>
         )}
       </div>
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          aria-label="מחק"
+          style={{
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            color: LIFEOS_COLORS.error, padding: 6, flexShrink: 0,
+          }}
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
     </div>
   );
 }

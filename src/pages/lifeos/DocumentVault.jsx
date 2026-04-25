@@ -1,10 +1,9 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Upload, ExternalLink, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import { LIFEOS_COLORS, LIFEOS_CARD, DOCUMENT_CATEGORIES } from '@/lib/lifeos/lifeos-constants';
-import { listDocuments, addDocument, uploadDocumentFile } from '@/lib/lifeos/lifeos-api';
+import { listDocuments, addDocument, uploadDocumentFile, deleteDocument } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const DOC_BY_KEY = Object.fromEntries(DOCUMENT_CATEGORIES.map(c => [c.key, c]));
@@ -97,7 +96,7 @@ export default function DocumentVault() {
     e?.preventDefault?.();
     e?.stopPropagation?.();
     if (!confirm('בטוח שאתה רוצה למחוק את המסמך?')) return;
-    try { await supabase.from('documents').delete().eq('id', id); toast.success('נמחק'); load(); }
+    try { await deleteDocument(id); toast.success('נמחק'); load(); }
     catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
   };
 

@@ -11,13 +11,15 @@ import { toast } from "sonner";
 // submit data, sign documents. When OFF, the related tab/button is
 // hidden completely on the trainee side.
 const PERMISSION_TYPES = [
-  { id: "view_baseline",  label: "מילוי בייסליין עצמאי",        icon: "📊" },
-  { id: "view_plan",      label: "תוכנית — צפייה וסימון תרגילים", icon: "📋" },
-  { id: "view_progress",  label: "מעקב התקדמות (תוצאות, מבחנים)", icon: "📈" },
-  { id: "view_documents", label: "מסמכים — חתימה ומילוי",         icon: "📄" },
-  { id: "edit_metrics",   label: "עדכון מדידות עצמאי",            icon: "✍️" },
-  { id: "send_videos",    label: "שליחת סרטוני ביצוע",            icon: "📸" },
-  { id: "send_messages",  label: "שליחת הודעות למאמן",            icon: "💬" },
+  { id: "view_baseline",      label: "מילוי בייסליין עצמאי",          icon: "📊" },
+  { id: "view_plan",          label: "תוכנית — צפייה וסימון תרגילים", icon: "📋" },
+  { id: "view_training_plan", label: "MyPlan — תוכנית אימון מלאה",    icon: "🏋️" },
+  { id: "view_progress",      label: "מעקב התקדמות (תוצאות, מבחנים)", icon: "📈" },
+  { id: "view_records",       label: "Progress — שיאים והישגים",      icon: "🏆" },
+  { id: "view_documents",     label: "מסמכים — חתימה ומילוי",         icon: "📄" },
+  { id: "edit_metrics",       label: "עדכון מדידות עצמאי",            icon: "✍️" },
+  { id: "send_videos",        label: "שליחת סרטוני ביצוע",            icon: "📸" },
+  { id: "send_messages",      label: "שליחת הודעות למאמן",            icon: "💬" },
 ];
 
 // Defaults to TRUE for any permission missing from the row — matches
@@ -344,7 +346,7 @@ export default function CoachProfile() {
             { label: "מקצועי", emoji: "💼", to: "/dashboard",     active: true,  color: "#FF6F20" },
             { label: "פיננסי", emoji: "💰", to: "/lifeos",         active: false, color: "#1a1a1a" },
             { label: "צמיחה",  emoji: "📈", to: "/lifeos/leads",   active: false, color: "#FF6F20" },
-            { label: "אישי",   emoji: "❤️", to: null,              active: false, color: "#888", soon: true },
+            { label: "אישי",   emoji: "❤️", to: "/personal",       active: false, color: "#FF6F20" },
           ].map(app => (
             <div
               key={app.label}

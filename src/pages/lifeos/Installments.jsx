@@ -4,8 +4,7 @@ import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import InstallmentForm from '@/components/lifeos/InstallmentForm';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
-import { listInstallments, updateInstallment } from '@/lib/lifeos/lifeos-api';
-import { supabase } from '@/lib/supabaseClient';
+import { listInstallments, updateInstallment, deleteInstallment } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -54,7 +53,7 @@ export default function Installments() {
 
   const handleDelete = async (id) => {
     if (!confirm('בטוח שאתה רוצה למחוק את תשלום הפס?')) return;
-    try { await supabase.from('installments').delete().eq('id', id); toast.success('נמחק'); load(); }
+    try { await deleteInstallment(id); toast.success('נמחק'); load(); }
     catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
   };
 

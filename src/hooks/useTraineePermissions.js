@@ -17,6 +17,11 @@ export const PERM_KEYS = [
   "edit_metrics",
   "send_videos",
   "send_messages",
+  // Wave-3 additions — added by 20260425_extend_trainee_permissions.sql.
+  // Default TRUE everywhere, so screens stay visible until the coach
+  // explicitly turns them off.
+  "view_training_plan",
+  "view_records",
 ];
 
 const DEFAULT_PERMS = Object.fromEntries(PERM_KEYS.map(k => [k, true]));

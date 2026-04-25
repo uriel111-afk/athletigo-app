@@ -7,8 +7,7 @@ import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import CommunityMetricForm from '@/components/lifeos/CommunityMetricForm';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
-import { listCommunityMetrics } from '@/lib/lifeos/lifeos-api';
-import { supabase } from '@/lib/supabaseClient';
+import { listCommunityMetrics, deleteCommunityMetric } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -68,7 +67,7 @@ export default function Community() {
 
   const handleDelete = async (id) => {
     if (!confirm('בטוח שאתה רוצה למחוק את המדידה?')) return;
-    try { await supabase.from('community_metrics').delete().eq('id', id); toast.success('נמחק'); load(); }
+    try { await deleteCommunityMetric(id); toast.success('נמחק'); load(); }
     catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
   };
 

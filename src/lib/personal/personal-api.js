@@ -199,6 +199,22 @@ export async function listInteractions(userId, contactId) {
   return data || [];
 }
 
+export async function updateInteraction(id, patch) {
+  const { data, error } = await supabase
+    .from('personal_interactions')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteInteraction(id) {
+  const { error } = await supabase.from('personal_interactions').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─── Goals ───────────────────────────────────────────────────────
 
 export async function listGoals(userId, { status = 'active' } = {}) {
@@ -262,6 +278,22 @@ export async function addLearning(userId, payload) {
     });
   } catch {}
   return data;
+}
+
+export async function updateLearning(id, patch) {
+  const { data, error } = await supabase
+    .from('personal_learning_log')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteLearning(id) {
+  const { error } = await supabase.from('personal_learning_log').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function listLibrary(userId) {
@@ -329,6 +361,17 @@ export async function addTrainingEntry(userId, payload) {
   return data;
 }
 
+export async function updateTrainingEntry(id, patch) {
+  const { data, error } = await supabase
+    .from('personal_training_log')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function deleteTrainingEntry(id) {
   const { error } = await supabase.from('personal_training_log').delete().eq('id', id);
   if (error) throw error;
@@ -349,6 +392,17 @@ export async function addMeal(userId, payload) {
   const { data, error } = await supabase
     .from('personal_meals')
     .insert({ ...payload, user_id: userId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateMeal(id, patch) {
+  const { data, error } = await supabase
+    .from('personal_meals')
+    .update(patch)
+    .eq('id', id)
     .select()
     .single();
   if (error) throw error;
@@ -416,6 +470,22 @@ export async function toggleShoppingItem(id, current) {
   return data;
 }
 
+export async function updateShoppingItem(id, patch) {
+  const { data, error } = await supabase
+    .from('personal_shopping_list')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteShoppingItem(id) {
+  const { error } = await supabase.from('personal_shopping_list').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function clearBoughtShopping(userId) {
   const { error } = await supabase
     .from('personal_shopping_list')
@@ -442,6 +512,17 @@ export async function addHouseholdTask(userId, payload) {
   const { data, error } = await supabase
     .from('personal_household_tasks')
     .insert({ ...payload, user_id: userId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateHouseholdTask(id, patch) {
+  const { data, error } = await supabase
+    .from('personal_household_tasks')
+    .update(patch)
+    .eq('id', id)
     .select()
     .single();
   if (error) throw error;

@@ -355,6 +355,11 @@ export async function updateRecurring(id, patch) {
   return data;
 }
 
+export async function deleteRecurring(id) {
+  const { error } = await supabase.from('recurring_payments').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─── Installments ────────────────────────────────────────────────
 
 export async function listInstallments(userId) {
@@ -388,6 +393,11 @@ export async function updateInstallment(id, patch) {
   return data;
 }
 
+export async function deleteInstallment(id) {
+  const { error } = await supabase.from('installments').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─── Documents ───────────────────────────────────────────────────
 
 export async function listDocuments(userId, { category } = {}) {
@@ -407,6 +417,22 @@ export async function addDocument(userId, payload) {
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function updateDocument(id, patch) {
+  const { data, error } = await supabase
+    .from('documents')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteDocument(id) {
+  const { error } = await supabase.from('documents').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function uploadDocumentFile(file) {
@@ -440,6 +466,22 @@ export async function addTask(userId, payload) {
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function updateTask(id, patch) {
+  const { data, error } = await supabase
+    .from('life_os_tasks')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteTask(id) {
+  const { error } = await supabase.from('life_os_tasks').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function completeTask(id) {
@@ -752,6 +794,11 @@ export async function updateLead(id, patch) {
   return data;
 }
 
+export async function deleteLead(id) {
+  const { error } = await supabase.from('leads').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Content calendar
 // ─────────────────────────────────────────────────────────────────
@@ -816,6 +863,11 @@ export async function updateContentItem(id, patch) {
   return data;
 }
 
+export async function deleteContentItem(id) {
+  const { error } = await supabase.from('content_calendar').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Community metrics
 // ─────────────────────────────────────────────────────────────────
@@ -837,6 +889,22 @@ export async function addCommunityMetric(userId, payload) {
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function updateCommunityMetric(id, patch) {
+  const { data, error } = await supabase
+    .from('community_metrics')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCommunityMetric(id) {
+  const { error } = await supabase.from('community_metrics').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ─────────────────────────────────────────────────────────────────

@@ -7,8 +7,7 @@ import {
   LIFEOS_COLORS, LIFEOS_CARD,
   CONTENT_STATUS, CONTENT_TYPES, ATHLETIGO_PRODUCTS,
 } from '@/lib/lifeos/lifeos-constants';
-import { listContentItems } from '@/lib/lifeos/lifeos-api';
-import { supabase } from '@/lib/supabaseClient';
+import { listContentItems, deleteContentItem } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const STATUS_BY_KEY = Object.fromEntries(CONTENT_STATUS.map(s => [s.key, s]));
@@ -142,7 +141,7 @@ export default function ContentCalendar() {
   const handleDelete = async (e, id) => {
     e?.stopPropagation?.();
     if (!confirm('בטוח שאתה רוצה למחוק את התוכן?')) return;
-    try { await supabase.from('content_calendar').delete().eq('id', id); toast.success('נמחק'); load(); }
+    try { await deleteContentItem(id); toast.success('נמחק'); load(); }
     catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
   };
 
