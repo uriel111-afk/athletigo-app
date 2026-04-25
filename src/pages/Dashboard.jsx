@@ -454,51 +454,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Reminders button — single card. The other quick-access
-              actions (מתאמנים / מפגשים / אתגרי אימון / דוחות) were
-              removed from here because they live in the bottom nav,
-              the diamond metrics row, or the hamburger menu. */}
-          {(() => {
-            const overdueReminders = reminders.filter(r =>
-              !r.is_read && r.data?.remind_at && new Date(r.data.remind_at) <= new Date()
-            ).length;
-            const pendingReminders = reminders.filter(r => !r.is_read).length;
-            return (
-              <div style={{ padding: "0 12px 12px" }}>
-                <div onClick={() => setShowReminders(true)}
-                     style={{
-                       background: "white", borderRadius: 14,
-                       padding: 14, display: "flex",
-                       alignItems: "center", gap: 10,
-                       cursor: "pointer", direction: "rtl",
-                       boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-                     }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: "#FFF0E4",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 20,
-                  }}>⏰</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>תזכורות</div>
-                    <div style={{ fontSize: 11, color: "#888" }}>
-                      {pendingReminders > 0
-                        ? `${pendingReminders} תזכורות ממתינות`
-                        : "אין תזכורות"}
-                    </div>
-                  </div>
-                  {overdueReminders > 0 && (
-                    <div style={{
-                      width: 22, height: 22, borderRadius: "50%",
-                      background: "#dc2626", color: "white",
-                      fontSize: 11, fontWeight: 700,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>{overdueReminders}</div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
 
           {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
           <SectionHeader title="מטריקות" />
@@ -636,6 +591,7 @@ export default function Dashboard() {
           {/* ═══ SECTION 4 — גישה מהירה (circular icons) ═══════ */}
           <SectionHeader title="גישה מהירה" />
           {(() => {
+            const pendingReminders = reminders.filter(r => !r.is_read).length;
             const quickItems = [
               { label: "בייסליין",  emoji: "⚡",   action: () => handleActionClick("baseline") },
               { label: "יעד",       emoji: "🎯",   action: () => handleActionClick("goal") },
@@ -643,6 +599,7 @@ export default function Dashboard() {
               { label: "שעונים",    emoji: "⏱️",   action: () => navigate(createPageUrl("Clocks")) },
               { label: "חבילה",     emoji: "🎫",   action: () => handleActionClick("package") },
               { label: "מדידה",     emoji: "📐",   action: () => handleActionClick("measurement") },
+              { label: "תזכורות",   emoji: "⏰",   action: () => setShowReminders(true), badge: pendingReminders > 0 ? pendingReminders : null },
               { label: "התראות",    emoji: "🔔",   action: () => navigate(createPageUrl("Notifications")) },
             ];
             const renderItem = (q) => (
@@ -650,6 +607,7 @@ export default function Dashboard() {
                 className="flex flex-col items-center bg-transparent border-none cursor-pointer active:scale-[0.95] transition-transform"
                 style={{ background: 'transparent', gap: 4 }}>
                 <div style={{
+                  position: 'relative',
                   width: 54, height: 54,
                   borderRadius: 14,
                   background: 'white',
@@ -660,6 +618,16 @@ export default function Dashboard() {
                   lineHeight: 1,
                 }}>
                   {q.emoji}
+                  {q.badge != null && (
+                    <div style={{
+                      position: 'absolute', top: 4, right: 4,
+                      minWidth: 16, height: 16, padding: '0 4px',
+                      borderRadius: 8, background: '#dc2626',
+                      color: 'white', fontSize: 9, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '1.5px solid white',
+                    }}>{q.badge}</div>
+                  )}
                 </div>
                 <span style={{ color: '#1a1a1a', fontSize: 12, fontWeight: 600 }}>{q.label}</span>
               </button>
@@ -669,7 +637,7 @@ export default function Dashboard() {
                 <div className="flex justify-around items-start" style={{ gap: 8 }}>
                   {quickItems.slice(0, 4).map(renderItem)}
                 </div>
-                <div className="flex justify-around items-start" style={{ gap: 8, paddingInline: '12%' }}>
+                <div className="flex justify-around items-start" style={{ gap: 8 }}>
                   {quickItems.slice(4).map(renderItem)}
                 </div>
               </div>
