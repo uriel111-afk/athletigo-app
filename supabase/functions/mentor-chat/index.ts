@@ -10,6 +10,10 @@
 //     log a checkin, complete a task, etc. The function executes the
 //     tool against Supabase and runs a follow-up Claude call so the
 //     final reply summarizes what happened in natural Hebrew.
+//   - Vision: when the client attaches an image we download it
+//     server-side via the service role and inline it as base64. This
+//     keeps us decoupled from Anthropic's URL-source feature flag and
+//     works even if the storage bucket is private.
 //   - Returns the assistant text + executed actions (for the UI's
 //     "✅ בוצע" chips) + token usage
 //
@@ -18,8 +22,15 @@
 //   SUPABASE_ANON_KEY           — auto-injected
 //   SUPABASE_SERVICE_ROLE_KEY   — auto-injected
 //   ANTHROPIC_API_KEY           — set via: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+//
+// Storage bucket: `lifeos-files` must exist. The function reads the
+// image with a service-role client, so it does NOT need to be public
+// for vision to work. It SHOULD be public-read if you want the
+// thumbnails inside chat bubbles to load on the client (the SmartCamera
+// flow already relies on this convention).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const MODEL = 'claude-sonnet-4-6';
@@ -492,6 +503,31 @@ async function runTool(
         const safeCat = String(input.category || 'other').replace(/[^a-zA-Z0-9_\-א-ת]/g, '_');
         const newPath = `${userId}/${subDir}/${safeCat}/${fileName}`;
 
+        // Dedup by filename — the upload stamp+rand is unique per
+        // image, so if a row already references it (either in
+        // chat/... or {receipts,documents}/.../{cat}/) the file was
+        // already saved. Without this, a double-tap on Send would
+        // create twin expense rows because the second move fails but
+        // the second insert still succeeds.
+        const fileNameStem = fileName.replace(/\.[^.]+$/, '');
+        const dedupTable = docType === 'receipt' ? 'expenses' : 'documents';
+        const dedupCol = docType === 'receipt' ? 'receipt_url' : 'file_url';
+        const { data: dedupHits } = await admin
+          .from(dedupTable)
+          .select('id')
+          .eq('user_id', userId)
+          .ilike(dedupCol, `%${fileNameStem}%`)
+          .limit(1);
+        if (dedupHits && dedupHits.length > 0) {
+          return {
+            success: true,
+            summary: docType === 'receipt'
+              ? `קבלה כבר נשמרה — ${input.description || input.category}`
+              : `מסמך כבר נשמר — ${input.description || input.category}`,
+            tool_result: 'התמונה הזו כבר נשמרה במערכת קודם. לא נוצרה כפילות.',
+          };
+        }
+
         // Move the file out of /chat into the categorized folder.
         // Storage.move() returns { error } when the source is missing
         // or the destination already exists — both are recoverable
@@ -571,7 +607,19 @@ async function callClaude(opts: {
   apiKey: string;
   systemPrompt: string;
   messages: any[];
+  // When set to { type: 'none' } we tell Claude to NOT call any tool.
+  // Used after the round cap to force a final natural-language reply.
+  toolChoice?: { type: 'auto' | 'none' | 'any' | 'tool'; name?: string };
 }) {
+  const reqBody: Record<string, unknown> = {
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    system: opts.systemPrompt,
+    tools: TOOLS,
+    messages: opts.messages,
+  };
+  if (opts.toolChoice) reqBody.tool_choice = opts.toolChoice;
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -579,13 +627,7 @@ async function callClaude(opts: {
       'x-api-key': opts.apiKey,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: opts.systemPrompt,
-      tools: TOOLS,
-      messages: opts.messages,
-    }),
+    body: JSON.stringify(reqBody),
   });
   if (!res.ok) {
     const errText = await res.text();
@@ -652,6 +694,23 @@ Deno.serve(async (req) => {
         }
       : null;
 
+    // Path-ownership guard. The Storage move runs with service role, so
+    // the only thing stopping a hostile authenticated user from sending
+    // someone else's path here is this check. The path MUST start with
+    // "<userId>/" and MUST NOT contain ".." segments. Without this, a
+    // malicious client could move (and effectively steal/delete) another
+    // user's files.
+    if (attachedImage) {
+      const ownedPrefix = `${user.id}/`;
+      const looksTraversal = attachedImage.path.includes('..');
+      if (!attachedImage.path.startsWith(ownedPrefix) || looksTraversal) {
+        console.warn('[mentor-chat] rejected image with foreign/traversal path:', attachedImage.path);
+        return new Response(JSON.stringify({ error: 'נתיב תמונה לא תקין' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     if (!question && !attachedImage) {
       return new Response(JSON.stringify({ error: 'חסרה שאלה' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -666,6 +725,37 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
     const context = await buildContext(admin, user.id);
 
+    // If an image is attached, download it via service role and encode
+    // as base64. This avoids relying on Anthropic's URL-source feature
+    // and works even when the bucket is private.
+    let imageBase64: { data: string; mediaType: string } | null = null;
+    if (attachedImage) {
+      try {
+        const { data: blob, error: dlErr } = await admin.storage
+          .from(attachedImage.bucket)
+          .download(attachedImage.path);
+        if (dlErr || !blob) {
+          throw new Error(dlErr?.message || 'download returned empty blob');
+        }
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        imageBase64 = {
+          data: encodeBase64(bytes),
+          // SmartCamera + MentorChat both upload as JPEG; if the source
+          // happened to be PNG we still treat it as JPEG visually since
+          // canvas re-encoded it. Fall back to blob.type if present.
+          mediaType: blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg',
+        };
+      } catch (err: any) {
+        console.error('[mentor-chat] image download failed:', err?.message);
+        return new Response(JSON.stringify({
+          error: 'לא הצלחתי לקרוא את התמונה מהאחסון',
+          detail: err?.message,
+        }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const imageNote = attachedImage
       ? `\n\nהמשתמש צירף תמונה להודעה הזו (image_url=${attachedImage.url}). אם זו קבלה / חוזה / חשבונית / מסמך — קרא ל-save_image_to_category עם ה-image_url הזה והקטגוריה המתאימה. אם זה receipt, חלץ amount מהתמונה. אם זה רק תוכן ויזואלי לדיון — ענה בטקסט בלי כלים.`
       : '';
@@ -676,9 +766,16 @@ Deno.serve(async (req) => {
 ${JSON.stringify(context, null, 2)}`;
 
     // First user turn — vision block + text when an image was attached.
-    const firstUserContent: any = attachedImage
+    const firstUserContent: any = imageBase64
       ? [
-          { type: 'image', source: { type: 'url', url: attachedImage.url } },
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: imageBase64.mediaType,
+              data: imageBase64.data,
+            },
+          },
           { type: 'text', text: question || 'הנה תמונה — שמור אותה בקטגוריה המתאימה.' },
         ]
       : question;
@@ -693,8 +790,13 @@ ${JSON.stringify(context, null, 2)}`;
     let lastReply = '';
     let lastUsage: any = null;
     let lastModel: string | undefined;
+    // Tracks whether the most recent loop iteration produced tool_use
+    // blocks. If we exit the loop while this is true (i.e. we hit the
+    // round cap mid-tool-flow), we owe the user one more Claude call
+    // with tools disabled so the reply is never empty.
+    let pendingFinalText = false;
 
-    for (let round = 0; round < MAX_TOOL_ROUNDS + 1; round++) {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       let res;
       try {
         res = await callClaude({ apiKey: anthropicKey, systemPrompt, messages });
@@ -713,11 +815,17 @@ ${JSON.stringify(context, null, 2)}`;
       const assistantBlocks = Array.isArray(res.content) ? res.content : [];
       lastReply = extractText(assistantBlocks);
 
-      // No tool call → done.
-      if (stopReason !== 'tool_use') break;
+      // No tool call → natural end with text reply.
+      if (stopReason !== 'tool_use') {
+        pendingFinalText = false;
+        break;
+      }
 
       const toolUses = assistantBlocks.filter((b: any) => b?.type === 'tool_use');
-      if (toolUses.length === 0) break;
+      if (toolUses.length === 0) {
+        pendingFinalText = false;
+        break;
+      }
 
       // Run each tool and build tool_result blocks.
       const toolResultBlocks: any[] = [];
@@ -743,9 +851,29 @@ ${JSON.stringify(context, null, 2)}`;
       messages.push({ role: 'assistant', content: assistantBlocks });
       messages.push({ role: 'user', content: toolResultBlocks });
 
-      // Hit the round cap → next iteration will run one more Claude
-      // call so it can produce a final text reply summarizing actions.
-      if (round === MAX_TOOL_ROUNDS) break;
+      // After this iteration we still owe the user a text reply.
+      pendingFinalText = true;
+    }
+
+    // Hit the round cap with tools still pending → make one final call
+    // with tool_choice: "none" so Claude must produce text.
+    if (pendingFinalText) {
+      try {
+        const finalRes = await callClaude({
+          apiKey: anthropicKey,
+          systemPrompt,
+          messages,
+          toolChoice: { type: 'none' },
+        });
+        lastUsage = finalRes.usage || lastUsage;
+        lastModel = finalRes.model || lastModel;
+        const finalText = extractText(finalRes.content || []);
+        if (finalText) lastReply = finalText;
+      } catch (err: any) {
+        console.warn('[mentor-chat] final-text call failed:', err?.message);
+        // Leave lastReply as-is; the UI will still show action chips
+        // and the "בוצע ✓" fallback.
+      }
     }
 
     return new Response(JSON.stringify({
