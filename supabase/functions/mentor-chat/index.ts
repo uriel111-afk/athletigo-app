@@ -172,6 +172,21 @@ const TOOLS = [
       required: ['lead_name'],
     },
   },
+  {
+    name: 'save_image_to_category',
+    description: 'שמור את התמונה שצורפה להודעה (קבלה / מסמך / חוזה / חשבונית) בתיקייה המתאימה. הפעל רק כשהמשתמש שלח תמונה והקשר מצביע על קבלה/מסמך. אם זה receipt עם amount — תיווצר אוטומטית שורת הוצאה. אם זה contract/invoice/document — תיווצר שורה ב-documents.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        image_url: { type: 'string', description: "ה-URL של התמונה (אותו URL שצורף להודעת המשתמש)" },
+        category: { type: 'string', description: 'קטגוריה — להוצאה: housing/bills/transport/insurance/food/subscriptions/taxes/electronics/cleaning/business/other. למסמך: insurance/contract/medical/financial/legal/other' },
+        document_type: { type: 'string', description: 'סוג: receipt / contract / invoice / document' },
+        amount: { type: 'number', description: 'סכום (חובה אם document_type=receipt)' },
+        description: { type: 'string', description: 'תיאור קצר (למשל "תדלוק", "ביטוח רכב 2026")' },
+      },
+      required: ['image_url', 'category', 'document_type'],
+    },
+  },
 ];
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -259,7 +274,15 @@ async function buildContext(admin: any, userId: string) {
 // `summary` is the short Hebrew chip the UI shows ("✅ בוצע: הוצאה 150₪ דלק").
 // `tool_result` is the JSON-ish string fed back into Claude as the
 // tool_result content so it can craft a natural-language reply.
-async function runTool(name: string, input: any, admin: any, userId: string) {
+type AttachedImage = { url: string; path: string; bucket: string } | null;
+
+async function runTool(
+  name: string,
+  input: any,
+  admin: any,
+  userId: string,
+  attachedImage: AttachedImage = null,
+) {
   try {
     switch (name) {
       case 'add_expense': {
@@ -439,6 +462,86 @@ async function runTool(name: string, input: any, admin: any, userId: string) {
           tool_result: `המשתמש רוצה טיוטת הודעה לליד "${input.lead_name}"${input.context ? ` בהקשר: ${input.context}` : ''}. עכשיו תן טיוטה קצרה (3-4 שורות) באווטשאפ-טון, חמה ולא דחוקה.`,
         };
       }
+      case 'save_image_to_category': {
+        if (!attachedImage) {
+          return {
+            success: false,
+            summary: '',
+            tool_result: 'אין תמונה מצורפת להודעה הנוכחית — לא ניתן לבצע save_image_to_category.',
+          };
+        }
+        const docType = String(input.document_type || '').toLowerCase();
+        const validTypes = ['receipt', 'contract', 'invoice', 'document'];
+        if (!validTypes.includes(docType)) {
+          return {
+            success: false,
+            summary: '',
+            tool_result: `document_type לא תקין: "${docType}". מותר: ${validTypes.join('/')}.`,
+          };
+        }
+        if (docType === 'receipt' && !(Number(input.amount) > 0)) {
+          return {
+            success: false,
+            summary: '',
+            tool_result: 'קבלה חייבת לכלול amount חיובי. בקש מהמשתמש את הסכום או נסה לקרוא אותו מהתמונה.',
+          };
+        }
+
+        const subDir = docType === 'receipt' ? 'receipts' : 'documents';
+        const fileName = attachedImage.path.split('/').pop() || `${Date.now()}.jpg`;
+        const safeCat = String(input.category || 'other').replace(/[^a-zA-Z0-9_\-א-ת]/g, '_');
+        const newPath = `${userId}/${subDir}/${safeCat}/${fileName}`;
+
+        // Move the file out of /chat into the categorized folder.
+        // Storage.move() returns { error } when the source is missing
+        // or the destination already exists — both are recoverable
+        // (we degrade to copy+delete or skip).
+        let movedTo = newPath;
+        const { error: moveErr } = await admin.storage
+          .from(attachedImage.bucket)
+          .move(attachedImage.path, newPath);
+        if (moveErr) {
+          console.warn('[save_image_to_category] move failed:', moveErr.message);
+          // If the file was already moved (e.g., second tool call on same
+          // message), we keep the chat path as the canonical URL.
+          movedTo = attachedImage.path;
+        }
+
+        const { data: pubData } = admin.storage.from(attachedImage.bucket).getPublicUrl(movedTo);
+        const finalUrl = pubData?.publicUrl || attachedImage.url;
+
+        if (docType === 'receipt') {
+          const { error: insErr } = await admin.from('expenses').insert({
+            user_id: userId,
+            amount: Number(input.amount),
+            category: input.category,
+            description: input.description || null,
+            receipt_url: finalUrl,
+            date: todayISO(),
+          });
+          if (insErr) throw insErr;
+          return {
+            success: true,
+            summary: `קבלה נשמרה — ${Math.round(Number(input.amount))}₪ ${input.description || input.category}`,
+            tool_result: `קבלה נשמרה ב-expenses: ${input.amount}₪ ${input.description || input.category}, receipt_url מקושר לתיקייה ${subDir}/${input.category}.`,
+          };
+        }
+
+        // contract / invoice / document → documents table
+        const { error: docErr } = await admin.from('documents').insert({
+          user_id: userId,
+          name: input.description || `${docType} ${input.category}`,
+          type: docType,
+          file_url: finalUrl,
+          category: input.category,
+        });
+        if (docErr) throw docErr;
+        return {
+          success: true,
+          summary: `מסמך נשמר — ${input.description || input.category} (${docType})`,
+          tool_result: `מסמך נשמר ב-documents: ${input.description || input.category}, תיקייה ${subDir}/${input.category}.`,
+        };
+      }
       default:
         return {
           success: false,
@@ -537,7 +640,19 @@ Deno.serve(async (req) => {
     const question: string = (body.question || '').trim();
     const rawHistory = Array.isArray(body.history) ? body.history : [];
 
-    if (!question) {
+    // Optional attached image: { url, path, bucket? }. The path is what
+    // the server uses when calling Storage.move() — we never trust a
+    // model-supplied path.
+    const rawImage = body.image && typeof body.image === 'object' ? body.image : null;
+    const attachedImage: AttachedImage = rawImage && rawImage.url && rawImage.path
+      ? {
+          url: String(rawImage.url),
+          path: String(rawImage.path),
+          bucket: String(rawImage.bucket || 'lifeos-files'),
+        }
+      : null;
+
+    if (!question && !attachedImage) {
       return new Response(JSON.stringify({ error: 'חסרה שאלה' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -551,15 +666,27 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
     const context = await buildContext(admin, user.id);
 
-    const systemPrompt = `${SYSTEM_PROMPT_BASE}
+    const imageNote = attachedImage
+      ? `\n\nהמשתמש צירף תמונה להודעה הזו (image_url=${attachedImage.url}). אם זו קבלה / חוזה / חשבונית / מסמך — קרא ל-save_image_to_category עם ה-image_url הזה והקטגוריה המתאימה. אם זה receipt, חלץ amount מהתמונה. אם זה רק תוכן ויזואלי לדיון — ענה בטקסט בלי כלים.`
+      : '';
+
+    const systemPrompt = `${SYSTEM_PROMPT_BASE}${imageNote}
 
 הנה הנתונים העדכניים (תמצית מ-Supabase):
 ${JSON.stringify(context, null, 2)}`;
 
+    // First user turn — vision block + text when an image was attached.
+    const firstUserContent: any = attachedImage
+      ? [
+          { type: 'image', source: { type: 'url', url: attachedImage.url } },
+          { type: 'text', text: question || 'הנה תמונה — שמור אותה בקטגוריה המתאימה.' },
+        ]
+      : question;
+
     // Conversation we extend round-by-round.
     const messages: any[] = [
       ...cleanHistory,
-      { role: 'user', content: question },
+      { role: 'user', content: firstUserContent },
     ];
 
     const executedActions: { name: string; summary: string; success: boolean }[] = [];
@@ -595,7 +722,7 @@ ${JSON.stringify(context, null, 2)}`;
       // Run each tool and build tool_result blocks.
       const toolResultBlocks: any[] = [];
       for (const t of toolUses) {
-        const out = await runTool(t.name, t.input || {}, admin, user.id);
+        const out = await runTool(t.name, t.input || {}, admin, user.id, attachedImage);
         if (out.summary) {
           executedActions.push({
             name: t.name,
