@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Send, X } from 'lucide-react';
+import { MessageCircle, RefreshCw, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 import { askMentor } from '@/lib/lifeos/mentor-chat-api';
@@ -45,8 +45,12 @@ export default function MentorChat({ buttonBottom = 156, buttonLeft = 16 }) {
     try {
       // Server caps history at 20 too — sending a few more is fine.
       const history = next.slice(-HISTORY_LIMIT, -1);
-      const { reply } = await askMentor(text, history);
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      const { reply, actions } = await askMentor(text, history);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: reply || '',
+        actions: Array.isArray(actions) ? actions : [],
+      }]);
     } catch (err) {
       console.error('[MentorChat] error:', err);
       toast.error('המנטור לא זמין כרגע: ' + (err?.message || ''));
@@ -197,7 +201,13 @@ export default function MentorChat({ buttonBottom = 156, buttonLeft = 16 }) {
               )}
 
               {messages.map((m, idx) => (
-                <Bubble key={idx} role={m.role} content={m.content} error={m.error} />
+                <Bubble
+                  key={idx}
+                  role={m.role}
+                  content={m.content}
+                  actions={m.actions}
+                  error={m.error}
+                />
               ))}
 
               {sending && <TypingDots />}
@@ -253,27 +263,72 @@ export default function MentorChat({ buttonBottom = 156, buttonLeft = 16 }) {
   );
 }
 
-function Bubble({ role, content, error }) {
+function Bubble({ role, content, actions, error }) {
   const isUser = role === 'user';
+  const hasActions = !isUser && Array.isArray(actions) && actions.length > 0;
   return (
     <div style={{
-      display: 'flex',
-      justifyContent: isUser ? 'flex-start' : 'flex-end',
+      display: 'flex', flexDirection: 'column',
+      alignItems: isUser ? 'flex-start' : 'flex-end',
+      gap: 6,
     }}>
-      <div style={{
-        maxWidth: '82%',
-        padding: '10px 14px',
-        borderRadius: 14,
-        backgroundColor: isUser
-          ? LIFEOS_COLORS.primary
-          : (error ? '#FEE2E2' : '#F0E4D0'),
-        color: isUser ? '#FFFFFF' : (error ? '#991B1B' : LIFEOS_COLORS.textPrimary),
-        fontSize: 13.5, lineHeight: 1.55,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-      }}>
-        {content}
-      </div>
+      {content && (
+        <div style={{
+          maxWidth: '82%',
+          padding: '10px 14px',
+          borderRadius: 14,
+          backgroundColor: isUser
+            ? LIFEOS_COLORS.primary
+            : (error ? '#FEE2E2' : '#F0E4D0'),
+          color: isUser ? '#FFFFFF' : (error ? '#991B1B' : LIFEOS_COLORS.textPrimary),
+          fontSize: 13.5, lineHeight: 1.55,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}>
+          {content}
+        </div>
+      )}
+
+      {hasActions && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 4,
+          maxWidth: '82%',
+        }}>
+          {actions.map((a, i) => (
+            <ActionChip key={i} action={a} />
+          ))}
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              alignSelf: 'flex-end',
+              marginTop: 4,
+              padding: '6px 10px', borderRadius: 999,
+              border: `1px solid ${LIFEOS_COLORS.primary}`,
+              backgroundColor: '#FFFFFF', color: LIFEOS_COLORS.primary,
+              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <RefreshCw size={12} /> רענן נתונים
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionChip({ action }) {
+  const ok = action.success !== false;
+  return (
+    <div style={{
+      padding: '6px 10px', borderRadius: 10,
+      backgroundColor: ok ? '#DCFCE7' : '#FEE2E2',
+      color: ok ? '#166534' : '#991B1B',
+      fontSize: 12, fontWeight: 600,
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+    }}>
+      <span>{ok ? '✅' : '⚠️'}</span>
+      <span style={{ direction: 'rtl' }}>בוצע: {action.summary}</span>
     </div>
   );
 }

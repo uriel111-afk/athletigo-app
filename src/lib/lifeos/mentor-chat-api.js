@@ -14,7 +14,9 @@ export async function askMentor(question, history = []) {
     const detail = error?.context?.error || error?.message || 'unknown';
     throw new Error(detail);
   }
-  if (!data?.reply) {
+  // Empty reply is OK if the server actually performed actions —
+  // the UI shows "בוצע" chips even without text.
+  if (!data?.reply && !(data?.actions?.length > 0)) {
     throw new Error('תשובה ריקה מהמנטור');
   }
   return data;
