@@ -45,17 +45,19 @@ export default function LeadForm({ isOpen, onClose, userId, lead = null, onSaved
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
   const handleSave = async () => {
+    // Name is the ONLY required field — everything else optional so a
+    // coach can dump a phone number into a lead without losing it
+    // because they don't know the source/interest yet.
     if (!form.name.trim()) { toast.error('הכנס שם'); return; }
-    if (!form.phone.trim()) { toast.error('הכנס טלפון'); return; }
 
     setSaving(true);
     const payload = {
       name: form.name.trim(),
-      phone: form.phone.trim(),
+      phone: form.phone.trim() || null,
       email: form.email.trim() || null,
-      source: form.source,
+      source: form.source || null,
       interested_in: form.interested_in || null,
-      status: form.status,
+      status: form.status || 'new',
       next_follow_up: form.next_follow_up || null,
       revenue_if_converted: form.revenue_if_converted ? parseFloat(form.revenue_if_converted) : null,
       notes: form.notes || null,
@@ -94,7 +96,7 @@ export default function LeadForm({ isOpen, onClose, userId, lead = null, onSaved
               <input type="text" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם מלא" style={inputStyle} autoFocus />
             </div>
             <div>
-              <label style={labelStyle}>טלפון *</label>
+              <label style={labelStyle}>טלפון</label>
               <input type="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="050-0000000" style={inputStyle} />
             </div>
           </div>
@@ -165,6 +167,7 @@ export default function LeadForm({ isOpen, onClose, userId, lead = null, onSaved
 function ChipBtn({ active, onClick, label, activeColor = LIFEOS_COLORS.primary }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
         padding: '8px 6px', borderRadius: 10,

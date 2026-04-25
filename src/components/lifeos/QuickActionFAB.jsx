@@ -201,12 +201,14 @@ function QLead({ onSaved, onClose }) {
   const [interestedIn, setInterestedIn] = useState('');
   const [saving, setSaving] = useState(false);
   const save = async () => {
+    // Name only — phone optional so a coach can dump a screenshot
+    // contact in one tap and fill the rest later.
     if (!name.trim()) { toast.error('הכנס שם'); return; }
-    if (!phone.trim()) { toast.error('הכנס טלפון'); return; }
     setSaving(true);
     try {
       await addLead(userId, {
-        name: name.trim(), phone: phone.trim(),
+        name: name.trim(),
+        phone: phone.trim() || null,
         interested_in: interestedIn || null,
         status: 'new', source: 'other',
       });
