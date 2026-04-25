@@ -838,8 +838,12 @@ export default function TraineeHome() {
             Hidden tabs collapse the grid (no empty cells). */}
         <div style={{ padding:'8px 14px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
           {[
-            { icon:'📅', label:'מפגשים',   to: createPageUrl("TraineeSessions") },
-            { icon:'📋', label:'תוכנית',   to: createPageUrl("MyWorkoutLog"),                       perm: 'view_plan' },
+            // MyWorkoutLog redirects to MyPlan; MyPlan and TraineeSessions
+            // are both gated by `view_training_plan` via <PermGate>. We
+            // mirror those perms here so the tile hides when the
+            // destination would block.
+            { icon:'📅', label:'מפגשים',   to: createPageUrl("TraineeSessions"),                    perm: 'view_training_plan' },
+            { icon:'📋', label:'תוכנית',   to: createPageUrl("MyWorkoutLog"),                       perm: 'view_training_plan' },
             { icon:'📈', label:'התקדמות', to: createPageUrl("Progress"),                          perm: 'view_progress' },
             { icon:'🎯', label:'יעדים',    to: createPageUrl("TraineeProfile") + "?tab=goals" },
             { icon:'⏱', label:'שעונים',   to: createPageUrl("Clocks") },

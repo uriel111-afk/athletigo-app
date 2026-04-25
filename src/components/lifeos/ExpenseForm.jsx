@@ -6,6 +6,7 @@ import {
   EXPENSE_CATEGORIES, PAYMENT_METHODS, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
+import SmartCamera from '@/components/lifeos/SmartCamera';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -17,6 +18,7 @@ const initialForm = () => ({
   date: todayISO(),
   payment_method: '',
   notes: '',
+  receipt_url: '',
 });
 
 const formFromRow = (row) => ({
@@ -27,6 +29,7 @@ const formFromRow = (row) => ({
   date: row.date || todayISO(),
   payment_method: row.payment_method || '',
   notes: row.notes || '',
+  receipt_url: row.receipt_url || '',
 });
 
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
@@ -60,6 +63,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       date: form.date,
       payment_method: form.payment_method || null,
       notes: form.notes || null,
+      receipt_url: form.receipt_url || null,
     };
     try {
       if (expense?.id) await updateExpense(expense.id, payload);
@@ -189,6 +193,39 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Receipt photo */}
+          <div>
+            <label style={labelStyle}>קבלה</label>
+            {form.receipt_url ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 10px', borderRadius: 10,
+                border: `1px solid ${LIFEOS_COLORS.border}`,
+                backgroundColor: '#FFFFFF',
+              }}>
+                <span style={{ fontSize: 18 }}>📎</span>
+                <a href={form.receipt_url} target="_blank" rel="noopener noreferrer"
+                   style={{ flex: 1, fontSize: 12, color: LIFEOS_COLORS.primary, textDecoration: 'underline' }}>
+                  צפה בקבלה
+                </a>
+                <button type="button" onClick={() => set({ receipt_url: '' })}
+                  style={{
+                    background: 'transparent', border: 'none',
+                    color: LIFEOS_COLORS.error, cursor: 'pointer',
+                    fontSize: 13, fontWeight: 700,
+                  }}>
+                  הסר
+                </button>
+              </div>
+            ) : (
+              <SmartCamera
+                label="צלם קבלה"
+                compact
+                onUploaded={({ url }) => set({ receipt_url: url })}
+              />
+            )}
           </div>
 
           {/* Buttons */}

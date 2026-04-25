@@ -323,8 +323,18 @@ function ExpenseRow({ row, isLast, onEdit, onDelete }) {
     }}>
       <div style={{ fontSize: 22 }}>{cat.emoji}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: LIFEOS_COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{
+          fontSize: 14, fontWeight: 600, color: LIFEOS_COLORS.textPrimary,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
           {row.description || row.subcategory || cat.label}
+          {row.receipt_url && (
+            <a href={row.receipt_url} target="_blank" rel="noopener noreferrer"
+               onClick={(e) => e.stopPropagation()}
+               aria-label="קבלה" title="צפה בקבלה"
+               style={{ textDecoration: 'none', fontSize: 13 }}>📎</a>
+          )}
         </div>
         <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 2 }}>
           {dateStr} • {cat.label}
