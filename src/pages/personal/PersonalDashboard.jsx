@@ -4,6 +4,8 @@ import { AuthContext } from '@/lib/AuthContext';
 import PersonalLayout from '@/components/personal/PersonalLayout';
 import DailyCheckin from '@/components/personal/DailyCheckin';
 import PersonalMentorCard from '@/components/personal/PersonalMentorCard';
+import WhatNowButton from '@/components/lifeos/WhatNowButton';
+import EndOfDaySummary from '@/components/personal/EndOfDaySummary';
 import { PERSONAL_COLORS, PERSONAL_CARD } from '@/lib/personal/personal-constants';
 import {
   getCheckin, listCheckins, listHabits, listHabitLogs,
@@ -140,6 +142,18 @@ export default function PersonalDashboard() {
         <div style={{ fontSize: 12, color: PERSONAL_COLORS.textSecondary, marginTop: 4 }}>
           {new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
         </div>
+      </div>
+
+      <EndOfDaySummary
+        checkin={checkin}
+        score={score}
+        firstName={firstName}
+        onUpdated={() => load()}
+      />
+
+      {/* What now? — single next action button */}
+      <div style={{ marginBottom: 14 }}>
+        <WhatNowButton />
       </div>
 
       {/* Daily check-in card */}

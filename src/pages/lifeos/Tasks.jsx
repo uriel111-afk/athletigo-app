@@ -6,7 +6,8 @@ import ConfettiEffect from '@/components/lifeos/ConfettiEffect';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, TASK_STATUS, TASK_DIFFICULTY,
 } from '@/lib/lifeos/lifeos-constants';
-import { Trash2, Pencil, Loader2, RefreshCw } from 'lucide-react';
+import { Trash2, Pencil, Loader2, RefreshCw, Timer } from 'lucide-react';
+import TaskTimer from '@/components/personal/TaskTimer';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   listTasks, updateTaskStatus, getTotalXP, addTask, deleteTask, updateTask,
@@ -79,6 +80,7 @@ export default function Tasks() {
   const [confettiFire, setConfettiFire] = useState(false);
   const [autoGenDoneOnce, setAutoGenDoneOnce] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [timing, setTiming] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -291,6 +293,7 @@ export default function Tasks() {
               task={t}
               isLast={idx === regularTasks.length - 1}
               onToggle={() => handleToggleStatus(t)}
+              onStartTimer={() => setTiming(t)}
               onEdit={() => setEditing(t)}
               onDelete={async () => {
                 if (!confirm('בטוח שאתה רוצה למחוק את המשימה?')) return;
@@ -310,6 +313,26 @@ export default function Tasks() {
           onSaved={() => { setEditing(null); load(); }}
         />
       )}
+
+      <TaskTimer
+        isOpen={!!timing}
+        title={timing?.title || 'משימה'}
+        emoji={timing?.is_challenge ? '🎯' : '⏱️'}
+        durationMinutes={25}
+        onClose={() => setTiming(null)}
+        onComplete={async () => {
+          if (!timing) return;
+          try {
+            await updateTaskStatus(timing.id, 'completed');
+            if (timing.xp_reward > 0) toast.success(`+${timing.xp_reward} XP! 🎉`);
+            else toast.success('כל הכבוד! ✓');
+            setConfettiFire(true);
+            load();
+          } catch (err) {
+            toast.error('שגיאה: ' + (err?.message || ''));
+          }
+        }}
+      />
     </LifeOSLayout>
   );
 }
@@ -391,7 +414,7 @@ const taskInput = {
   fontFamily: "'Heebo', 'Assistant', sans-serif", outline: 'none', boxSizing: 'border-box',
 };
 
-function TaskRow({ task, isLast, onToggle, onEdit, onDelete }) {
+function TaskRow({ task, isLast, onToggle, onStartTimer, onEdit, onDelete }) {
   const done = task.status === 'completed';
   const diff = DIFFICULTY_BY_KEY[task.difficulty];
   const cat = CATEGORY_BY_KEY[task.category];
@@ -427,6 +450,19 @@ function TaskRow({ task, isLast, onToggle, onEdit, onDelete }) {
           </div>
         )}
       </div>
+      {onStartTimer && !done && (
+        <button
+          onClick={onStartTimer}
+          aria-label="התחל טיימר"
+          title="התחל טיימר"
+          style={{
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            color: LIFEOS_COLORS.primary, padding: 6, flexShrink: 0,
+          }}
+        >
+          <Timer size={14} />
+        </button>
+      )}
       {onEdit && (
         <button
           onClick={onEdit}

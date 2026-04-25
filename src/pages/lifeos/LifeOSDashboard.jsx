@@ -10,6 +10,8 @@ import IncomeForm from '@/components/lifeos/IncomeForm';
 import DailyStreak from '@/components/lifeos/DailyStreak';
 import WeeklyScore from '@/components/lifeos/WeeklyScore';
 import GoalBreakdown from '@/components/lifeos/GoalBreakdown';
+import WhatNowButton from '@/components/lifeos/WhatNowButton';
+import MorningBrief from '@/components/lifeos/MorningBrief';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
 } from '@/lib/lifeos/lifeos-constants';
@@ -93,6 +95,13 @@ export default function LifeOSDashboard() {
 
   return (
     <LifeOSLayout title="פיננסי" onQuickSaved={loadAll}>
+      <MorningBrief />
+
+      {/* What now? — single next action button */}
+      <div style={{ marginBottom: 14 }}>
+        <WhatNowButton />
+      </div>
+
       {/* Goal progress */}
       <div style={{ marginBottom: 14 }}>
         <GoalProgress current={annualIncome} target={YEARLY_GOAL} />

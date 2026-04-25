@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import LifeOSNav from './LifeOSNav';
 import QuickActionFAB from './QuickActionFAB';
 import NotificationBell from './NotificationBell';
+import GlobalSearch from './GlobalSearch';
 import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import { AuthContext } from '@/lib/AuthContext';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
@@ -75,6 +76,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
 
         <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
           {rightSlot}
+          <GlobalSearch />
           <NotificationBell userId={user?.id} />
         </div>
       </div>

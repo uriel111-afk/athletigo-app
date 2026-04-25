@@ -1,5 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Loader2, Trash2, Check, Pencil } from 'lucide-react';
+import { Loader2, Trash2, Check, Pencil, Timer } from 'lucide-react';
+import TaskTimer from '@/components/personal/TaskTimer';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AuthContext } from '@/lib/AuthContext';
@@ -56,6 +57,7 @@ function TasksSection({ userId }) {
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [timing, setTiming] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -85,6 +87,7 @@ function TasksSection({ userId }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {tasks.map(t => <HouseholdRow key={t.id} task={t}
             onDone={() => handleDone(t)}
+            onStartTimer={() => setTiming(t)}
             onEdit={() => { setEditing(t); setShowNew(true); }}
             onDelete={() => handleDelete(t.id)} />)}
         </div>
@@ -92,11 +95,28 @@ function TasksSection({ userId }) {
       {showNew && <NewHouseholdDialog isOpen={showNew}
         onClose={() => { setShowNew(false); setEditing(null); }}
         userId={userId} task={editing} onSaved={load} />}
+      <TaskTimer
+        isOpen={!!timing}
+        title={timing?.name || 'משימה'}
+        emoji={timing?.icon || '⏱️'}
+        durationMinutes={timing?.duration_minutes || 15}
+        onClose={() => setTiming(null)}
+        onComplete={async () => {
+          if (!timing) return;
+          try {
+            await markHouseholdDone(userId, timing);
+            toast.success('כל הכבוד! ✓');
+            load();
+          } catch (err) {
+            toast.error('שגיאה: ' + (err?.message || ''));
+          }
+        }}
+      />
     </>
   );
 }
 
-function HouseholdRow({ task, onDone, onEdit, onDelete }) {
+function HouseholdRow({ task, onDone, onStartTimer, onEdit, onDelete }) {
   const now = new Date();
   const today = todayISO();
   let badge = null;
@@ -127,12 +147,25 @@ function HouseholdRow({ task, onDone, onEdit, onDelete }) {
       {justDone ? (
         <span style={{ fontSize: 14, fontWeight: 700, color: PERSONAL_COLORS.success }}>✓ עשיתי</span>
       ) : (
-        <button onClick={onDone} style={{
-          padding: '8px 12px', borderRadius: 10, border: 'none',
-          backgroundColor: PERSONAL_COLORS.success, color: '#FFFFFF',
-          fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}><Check size={14} /> עשיתי</button>
+        <>
+          {onStartTimer && (
+            <button onClick={onStartTimer} style={{
+              padding: '8px 10px', borderRadius: 10,
+              border: `1px solid ${PERSONAL_COLORS.primary}`,
+              backgroundColor: '#FFF8F3', color: PERSONAL_COLORS.primary,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }} aria-label="התחל טיימר">
+              <Timer size={14} /> התחל
+            </button>
+          )}
+          <button onClick={onDone} style={{
+            padding: '8px 12px', borderRadius: 10, border: 'none',
+            backgroundColor: PERSONAL_COLORS.success, color: '#FFFFFF',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}><Check size={14} /> עשיתי</button>
+        </>
       )}
       {onEdit && (
         <button onClick={onEdit} aria-label="ערוך" style={{

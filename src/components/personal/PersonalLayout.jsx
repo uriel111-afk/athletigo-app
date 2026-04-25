@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import PersonalNav from './PersonalNav';
 import AppSwitcher from '@/components/lifeos/AppSwitcher';
+import GlobalSearch from '@/components/lifeos/GlobalSearch';
 import { PERSONAL_COLORS } from '@/lib/personal/personal-constants';
 
 export default function PersonalLayout({ title, children, rightSlot = null }) {
@@ -50,8 +51,9 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
         }}>
           {title}
         </div>
-        <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
           {rightSlot}
+          <GlobalSearch iconColor={PERSONAL_COLORS.textSecondary} />
         </div>
       </div>
 
