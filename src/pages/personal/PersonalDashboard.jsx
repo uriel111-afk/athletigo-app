@@ -137,6 +137,9 @@ export default function PersonalDashboard() {
         <div style={{ fontSize: 24, fontWeight: 800, color: PERSONAL_COLORS.textPrimary, marginTop: 2 }}>
           {firstName}
         </div>
+        <div style={{ fontSize: 12, color: PERSONAL_COLORS.textSecondary, marginTop: 4 }}>
+          {new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </div>
       </div>
 
       {/* Daily check-in card */}

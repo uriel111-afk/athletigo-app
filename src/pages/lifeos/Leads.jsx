@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import LeadForm from '@/components/lifeos/LeadForm';
@@ -115,7 +115,16 @@ export default function Leads() {
   };
 
   return (
-    <LifeOSLayout title="לידים" onQuickSaved={load}>
+    <LifeOSLayout title="לידים" onQuickSaved={load} rightSlot={
+      <button onClick={load} aria-label="רענן" title="רענן" style={{
+        width: 32, height: 32, borderRadius: 10, border: 'none',
+        background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: LIFEOS_COLORS.textSecondary,
+      }}>
+        <RefreshCw size={16} />
+      </button>
+    }>
       <button onClick={openNew} style={{
         width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',
         backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
@@ -194,7 +203,19 @@ function ListView({ rows, counts, filter, setFilter, overdueIds, onEdit, onDelet
       </div>
       <div style={{ ...LIFEOS_CARD, padding: 0, overflow: 'hidden' }}>
         {rows.length === 0 ? (
-          <Empty text="אין לידים בסינון זה" />
+          counts.all === 0 ? (
+            <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+              <div style={{ fontSize: 38, marginBottom: 8 }}>👥</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 6 }}>
+                עדיין אין לידים
+              </div>
+              <div style={{ fontSize: 12, color: LIFEOS_COLORS.textSecondary }}>
+                לחץ על "+ ליד חדש" למעלה כדי להתחיל
+              </div>
+            </div>
+          ) : (
+            <Empty text="אין לידים בסינון זה" />
+          )
         ) : rows.map((row, idx) => (
           <LeadRow key={row.id} row={row} isLast={idx === rows.length - 1}
                    overdue={overdueIds.has(row.id)}

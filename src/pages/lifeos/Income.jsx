@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronLeft, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import IncomeForm from '@/components/lifeos/IncomeForm';
@@ -86,7 +86,11 @@ export default function Income() {
   const openEdit = (e, row) => { e?.stopPropagation?.(); setEditingIncome(row); setShowForm(true); };
 
   return (
-    <LifeOSLayout title="הכנסות" onQuickSaved={load}>
+    <LifeOSLayout title="הכנסות" onQuickSaved={load} rightSlot={
+      <button onClick={load} aria-label="רענן" title="רענן" style={refreshBtnStyle}>
+        <RefreshCw size={16} />
+      </button>
+    }>
       {/* Add button */}
       <button
         onClick={openNew}
@@ -159,7 +163,12 @@ export default function Income() {
         {!loaded ? (
           <EmptyRow text="טוען..." />
         ) : rows.length === 0 ? (
-          <EmptyRow text="עדיין אין הכנסות החודש" />
+          <EmptyState
+            emoji="💰"
+            title="עדיין אין הכנסות החודש"
+            ctaLabel="+ רשום הכנסה ראשונה"
+            onCta={openNew}
+          />
         ) : (
           rows.map((row, idx) => (
             <IncomeRow
@@ -259,6 +268,12 @@ function IncomeRow({ row, isLast, onEdit, onDelete }) {
       }}>
         +{fmt(Number(row.amount || 0))}₪
       </div>
+      {row.receipt_url && (
+        <a href={row.receipt_url} target="_blank" rel="noopener noreferrer"
+           onClick={(e) => e.stopPropagation()}
+           aria-label="אסמכתא" title="צפה באסמכתא"
+           style={{ textDecoration: 'none', fontSize: 13 }}>📎</a>
+      )}
       <button onClick={onEdit} style={iconBtn} aria-label="עריכה">
         <Pencil size={14} />
       </button>
@@ -288,6 +303,33 @@ function EmptyRow({ text }) {
     </div>
   );
 }
+
+function EmptyState({ emoji, title, ctaLabel, onCta }) {
+  return (
+    <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+      <div style={{ fontSize: 38, marginBottom: 8 }}>{emoji}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 12 }}>
+        {title}
+      </div>
+      {onCta && (
+        <button onClick={onCta} style={{
+          padding: '10px 18px', borderRadius: 12, border: 'none',
+          backgroundColor: LIFEOS_COLORS.success, color: '#FFFFFF',
+          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+        }}>
+          {ctaLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const refreshBtnStyle = {
+  width: 32, height: 32, borderRadius: 10, border: 'none',
+  background: 'transparent', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: LIFEOS_COLORS.textSecondary,
+};
 
 function navBtnStyle(disabled) {
   return {

@@ -6,7 +6,7 @@ import ConfettiEffect from '@/components/lifeos/ConfettiEffect';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, TASK_STATUS, TASK_DIFFICULTY,
 } from '@/lib/lifeos/lifeos-constants';
-import { Trash2, Pencil, Loader2 } from 'lucide-react';
+import { Trash2, Pencil, Loader2, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   listTasks, updateTaskStatus, getTotalXP, addTask, deleteTask, updateTask,
@@ -168,7 +168,16 @@ export default function Tasks() {
   const lvlPct = next ? ((xp - lvl.min) / (next.min - lvl.min)) * 100 : 100;
 
   return (
-    <LifeOSLayout title="משימות ואתגרים" onQuickSaved={load}>
+    <LifeOSLayout title="משימות ואתגרים" onQuickSaved={load} rightSlot={
+      <button onClick={load} aria-label="רענן" title="רענן" style={{
+        width: 32, height: 32, borderRadius: 10, border: 'none',
+        background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: LIFEOS_COLORS.textSecondary,
+      }}>
+        <RefreshCw size={16} />
+      </button>
+    }>
       <ConfettiEffect fire={confettiFire} onDone={() => setConfettiFire(false)} />
 
       {/* XP + level bar */}
@@ -262,7 +271,19 @@ export default function Tasks() {
         {!loaded ? (
           <EmptyRow text="טוען..." />
         ) : regularTasks.length === 0 ? (
-          <EmptyRow text="אין משימות בסינון זה" />
+          filter === 'all' ? (
+            <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+              <div style={{ fontSize: 38, marginBottom: 8 }}>✅</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: LIFEOS_COLORS.textPrimary }}>
+                כל המשימות סגורות 🎉
+              </div>
+              <div style={{ fontSize: 12, color: LIFEOS_COLORS.textSecondary, marginTop: 4 }}>
+                הוסף משימה דרך כפתור ה-+ הצף
+              </div>
+            </div>
+          ) : (
+            <EmptyRow text="אין משימות בסינון זה" />
+          )
         ) : (
           regularTasks.map((t, idx) => (
             <TaskRow

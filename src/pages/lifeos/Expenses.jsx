@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronLeft, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
@@ -173,7 +173,16 @@ export default function Expenses() {
   };
 
   return (
-    <LifeOSLayout title="הוצאות" onQuickSaved={load}>
+    <LifeOSLayout title="הוצאות" onQuickSaved={load} rightSlot={
+      <button onClick={load} aria-label="רענן" title="רענן" style={{
+        width: 32, height: 32, borderRadius: 10, border: 'none',
+        background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: LIFEOS_COLORS.textSecondary,
+      }}>
+        <RefreshCw size={16} />
+      </button>
+    }>
       <button
         onClick={openNew}
         style={{
@@ -278,7 +287,21 @@ export default function Expenses() {
         {!loaded ? (
           <EmptyRow text="טוען..." />
         ) : filtered.length === 0 ? (
-          <EmptyRow text={categoryFilter ? 'אין הוצאות בקטגוריה זו' : 'אין הוצאות החודש'} />
+          categoryFilter ? (
+            <EmptyRow text="אין הוצאות בקטגוריה זו" />
+          ) : (
+            <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+              <div style={{ fontSize: 38, marginBottom: 8 }}>💸</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 12 }}>
+                אין הוצאות החודש
+              </div>
+              <button onClick={openNew} style={{
+                padding: '10px 18px', borderRadius: 12, border: 'none',
+                backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}>+ רשום הוצאה ראשונה</button>
+            </div>
+          )
         ) : (
           filtered.map((row, idx) => (
             <ExpenseRow

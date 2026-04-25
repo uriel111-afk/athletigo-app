@@ -150,6 +150,31 @@ export default function AddTraineeDialog({ open, onClose }) {
         }
       }
 
+      // Seed a trainee_permissions row with all toggles ON. The hook
+      // already returns DEFAULT_PERMS when no row exists, but writing
+      // the row here means CoachProfile shows the trainee immediately
+      // with checkboxes the coach can flip — instead of an "no row yet,
+      // seeded on first save" state.
+      if (coach?.id && authData.user?.id) {
+        try {
+          await supabase.from('trainee_permissions').upsert({
+            coach_id: coach.id,
+            trainee_id: authData.user.id,
+            view_baseline: true,
+            view_plan: true,
+            view_progress: true,
+            view_documents: true,
+            edit_metrics: true,
+            send_videos: true,
+            send_messages: true,
+            view_training_plan: true,
+            view_records: true,
+          }, { onConflict: 'coach_id,trainee_id' });
+        } catch (e) {
+          console.warn('[AddTrainee] trainee_permissions seed failed:', e?.message);
+        }
+      }
+
       // Step 3: Send notification to coach
       if (coach) {
         try {

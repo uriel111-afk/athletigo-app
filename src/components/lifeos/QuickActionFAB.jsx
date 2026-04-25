@@ -136,7 +136,7 @@ function QExpense({ onSaved, onClose }) {
     setSaving(true);
     try {
       await addExpense(userId, { amount: a, category, date: todayISO() });
-      toast.success('נשמר ✓');
+      toast.success('הוצאה נוספה ✓');
       onSaved();
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
     finally { setSaving(false); }
@@ -168,7 +168,7 @@ function QIncome({ onSaved, onClose }) {
                  : 'product_sale';
     try {
       await addIncome(userId, { amount: a, product: product || null, source, date: todayISO() });
-      toast.success('נשמר ✓');
+      toast.success('הכנסה נוספה ✓');
       onSaved();
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
     finally { setSaving(false); }
@@ -212,7 +212,7 @@ function QLead({ onSaved, onClose }) {
         interested_in: interestedIn || null,
         status: 'new', source: 'other',
       });
-      toast.success('נשמר ✓');
+      toast.success('ליד נוסף ✓');
       onSaved();
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
     finally { setSaving(false); }
@@ -248,7 +248,7 @@ function QContent({ onSaved, onClose }) {
         status: 'published',
         scheduled_date: todayISO(),
       });
-      toast.success('נשמר ✓');
+      toast.success('תוכן נוסף ✓');
       onSaved();
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
     finally { setSaving(false); }
@@ -289,7 +289,7 @@ function QWorkshop({ onSaved, onClose }) {
           date,
         });
       }
-      toast.success(n > 0 ? `הסדנה נרשמה + ${n * p}₪ הכנסה` : 'נשמר ✓');
+      toast.success(n > 0 ? `הסדנה נרשמה + ${n * p}₪ הכנסה` : 'הסדנה נרשמה ✓');
       onSaved();
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
     finally { setSaving(false); }

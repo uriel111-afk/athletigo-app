@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AuthContext } from '@/lib/AuthContext';
@@ -72,7 +72,16 @@ export default function People() {
   };
 
   return (
-    <PersonalLayout title="קשרים">
+    <PersonalLayout title="קשרים" rightSlot={
+      <button onClick={load} aria-label="רענן" title="רענן" style={{
+        width: 32, height: 32, borderRadius: 10, border: 'none',
+        background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: PERSONAL_COLORS.textSecondary,
+      }}>
+        <RefreshCw size={16} />
+      </button>
+    }>
       <button onClick={() => setShowNew(true)} style={{
         width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',
         backgroundColor: PERSONAL_COLORS.primary, color: '#FFFFFF',
@@ -107,7 +116,17 @@ export default function People() {
       {!loaded ? (
         <Empty text="טוען..." />
       ) : contacts.length === 0 ? (
-        <Empty text="אין אנשי קשר. לחץ + כדי להתחיל" />
+        <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+          <div style={{ fontSize: 38, marginBottom: 8 }}>👥</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: PERSONAL_COLORS.textPrimary, marginBottom: 12 }}>
+            עדיין אין אנשי קשר
+          </div>
+          <button onClick={() => setShowNew(true)} style={{
+            padding: '10px 18px', borderRadius: 12, border: 'none',
+            backgroundColor: PERSONAL_COLORS.primary, color: '#FFFFFF',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>+ הוסף איש קשר ראשון</button>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {contacts.map(c => (

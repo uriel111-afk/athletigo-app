@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import ContentForm from '@/components/lifeos/ContentForm';
@@ -146,7 +146,16 @@ export default function ContentCalendar() {
   };
 
   return (
-    <LifeOSLayout title="לוח תוכן" onQuickSaved={load}>
+    <LifeOSLayout title="לוח תוכן" onQuickSaved={load} rightSlot={
+      <button onClick={load} aria-label="רענן" title="רענן" style={{
+        width: 32, height: 32, borderRadius: 10, border: 'none',
+        background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: LIFEOS_COLORS.textSecondary,
+      }}>
+        <RefreshCw size={16} />
+      </button>
+    }>
       <button onClick={openNew} style={{
         width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',
         backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
@@ -318,7 +327,21 @@ function ListView({ filtered, counts, filter, setFilter, onEdit, onDelete }) {
         ))}
       </div>
       <div style={{ ...LIFEOS_CARD, padding: 0, overflow: 'hidden' }}>
-        {filtered.length === 0 ? <Empty text="אין תוכן בסינון זה" /> : filtered.map((row, idx) => (
+        {filtered.length === 0 ? (
+          counts.all === 0 ? (
+            <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+              <div style={{ fontSize: 38, marginBottom: 8 }}>🎬</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 6 }}>
+                עדיין לא הוספת תוכן
+              </div>
+              <div style={{ fontSize: 12, color: LIFEOS_COLORS.textSecondary }}>
+                לחץ "+ פוסט חדש" למעלה לתעד פוסט/ריל
+              </div>
+            </div>
+          ) : (
+            <Empty text="אין תוכן בסינון זה" />
+          )
+        ) : filtered.map((row, idx) => (
           <ContentRow key={row.id} row={row} isLast={idx === filtered.length - 1}
                       onEdit={(e) => onEdit(e, row)} onDelete={(e) => onDelete(e, row.id)} />
         ))}

@@ -3,11 +3,13 @@ import { Loader2, Upload, ExternalLink, Trash2, Pencil } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { LIFEOS_COLORS, LIFEOS_CARD, DOCUMENT_CATEGORIES } from '@/lib/lifeos/lifeos-constants';
-import { listDocuments, addDocument, uploadDocumentFile, updateDocument, deleteDocument } from '@/lib/lifeos/lifeos-api';
+import { LIFEOS_COLORS, LIFEOS_CARD, DOCUMENT_CATEGORIES, EXPENSE_CATEGORIES } from '@/lib/lifeos/lifeos-constants';
+import { listDocuments, addDocument, uploadDocumentFile, updateDocument, deleteDocument, listExpenses } from '@/lib/lifeos/lifeos-api';
+import SmartCamera from '@/components/lifeos/SmartCamera';
 import { toast } from 'sonner';
 
 const DOC_BY_KEY = Object.fromEntries(DOCUMENT_CATEGORIES.map(c => [c.key, c]));
+const EXP_BY_KEY = Object.fromEntries(EXPENSE_CATEGORIES.map(c => [c.key, c]));
 const daysUntil = (iso) => {
   if (!iso) return null;
   const ms = new Date(iso).getTime() - Date.now();
@@ -20,19 +22,25 @@ export default function DocumentVault() {
   const fileInputRef = useRef(null);
 
   const [rows, setRows] = useState([]);
+  const [receipts, setReceipts] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [uploadingCategory, setUploadingCategory] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [openReceiptCategory, setOpenReceiptCategory] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
     setLoaded(false);
     try {
-      const data = await listDocuments(userId);
-      setRows(data || []);
+      const [docs, exp] = await Promise.all([
+        listDocuments(userId),
+        listExpenses(userId).catch(() => []),
+      ]);
+      setRows(docs || []);
+      setReceipts((exp || []).filter(e => !!e.receipt_url));
     } catch (err) {
       console.error('[DocumentVault] load error:', err);
       toast.error('שגיאה בטעינה');
@@ -42,6 +50,15 @@ export default function DocumentVault() {
   }, [userId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const receiptsByCategory = useMemo(() => {
+    const m = {};
+    receipts.forEach(r => {
+      const k = r.category || 'other';
+      (m[k] ||= []).push(r);
+    });
+    return m;
+  }, [receipts]);
 
   const filtered = useMemo(() => {
     let out = rows;
@@ -94,6 +111,27 @@ export default function DocumentVault() {
     }
   };
 
+  // Quick photo upload — uses currently filtered category, or 'other'.
+  const handleCameraUploaded = async ({ url, size }) => {
+    if (!userId) return;
+    const cat = categoryFilter || 'other';
+    const stamp = new Date().toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    try {
+      await addDocument(userId, {
+        name: `תמונה ${stamp}`,
+        type: 'image/jpeg',
+        file_url: url,
+        file_size: size,
+        category: cat,
+      });
+      toast.success('המסמך הועלה');
+      load();
+    } catch (err) {
+      console.error('[DocumentVault] camera save error:', err);
+      toast.error('שגיאה בשמירה: ' + (err?.message || ''));
+    }
+  };
+
   const handleDelete = async (e, id) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
@@ -123,9 +161,20 @@ export default function DocumentVault() {
           border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
           fontSize: 14, color: LIFEOS_COLORS.textPrimary,
           fontFamily: "'Heebo', 'Assistant', sans-serif",
-          outline: 'none', marginBottom: 12, boxSizing: 'border-box',
+          outline: 'none', marginBottom: 10, boxSizing: 'border-box',
         }}
       />
+
+      {/* Quick photo upload (uses selected category or "אחר") */}
+      <div style={{ marginBottom: 12 }}>
+        <SmartCamera
+          label={categoryFilter
+            ? `📸 צלם ל-${(DOC_BY_KEY[categoryFilter] || {}).label || 'תיקייה'}`
+            : '📸 צלם מסמך מהיר'}
+          compact
+          onUploaded={handleCameraUploaded}
+        />
+      </div>
 
       {/* Expiry alerts */}
       {expiring.length > 0 && (
@@ -143,6 +192,44 @@ export default function DocumentVault() {
               {r.name} — בעוד {days} ימים
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Receipt folders — pulled live from expenses with attached photos */}
+      {receipts.length > 0 && (
+        <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 8,
+          }}>
+            📁 קבלות מהוצאות
+          </div>
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6,
+          }}>
+            {Object.entries(receiptsByCategory).map(([key, list]) => {
+              const cat = EXP_BY_KEY[key] || { emoji: '📁', label: key };
+              return (
+                <button
+                  key={key}
+                  onClick={() => setOpenReceiptCategory(key)}
+                  style={{
+                    padding: '10px 6px', borderRadius: 10,
+                    border: `1px solid ${LIFEOS_COLORS.border}`,
+                    backgroundColor: '#FFFFFF', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{cat.emoji}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.textPrimary }}>
+                    {cat.label}
+                  </span>
+                  <span style={{ fontSize: 10, color: LIFEOS_COLORS.textSecondary }}>
+                    {list.length} קבלות
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -227,7 +314,74 @@ export default function DocumentVault() {
           onSaved={() => { setEditing(null); load(); }}
         />
       )}
+
+      {openReceiptCategory && (
+        <ReceiptFolderDialog
+          isOpen={!!openReceiptCategory}
+          onClose={() => setOpenReceiptCategory(null)}
+          categoryKey={openReceiptCategory}
+          items={receiptsByCategory[openReceiptCategory] || []}
+        />
+      )}
     </LifeOSLayout>
+  );
+}
+
+function ReceiptFolderDialog({ isOpen, onClose, categoryKey, items }) {
+  const cat = EXP_BY_KEY[categoryKey] || { emoji: '📁', label: categoryKey };
+  const sorted = [...items].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose?.(); }}>
+      <DialogContent dir="rtl" className="max-w-md" onPointerDownOutside={e => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 800, textAlign: 'right' }}>
+            {cat.emoji} {cat.label} — {sorted.length} קבלות
+          </DialogTitle>
+        </DialogHeader>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 6, maxHeight: 460, overflowY: 'auto' }}>
+          {sorted.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: LIFEOS_COLORS.textSecondary }}>
+              אין קבלות בקטגוריה זו
+            </div>
+          ) : sorted.map(r => {
+            const dateStr = r.date
+              ? new Date(r.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
+              : '';
+            return (
+              <a key={r.id} href={r.receipt_url} target="_blank" rel="noopener noreferrer"
+                 style={{
+                   display: 'flex', alignItems: 'center', gap: 10,
+                   padding: '8px 10px', borderRadius: 10,
+                   border: `1px solid ${LIFEOS_COLORS.border}`,
+                   backgroundColor: '#FFFFFF', textDecoration: 'none',
+                   color: LIFEOS_COLORS.textPrimary,
+                 }}>
+                <img src={r.receipt_url} alt="קבלה" style={{
+                  width: 44, height: 44, borderRadius: 8, objectFit: 'cover',
+                  backgroundColor: '#F7F3EC', flexShrink: 0,
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {r.description || r.subcategory || cat.label}
+                  </div>
+                  <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 2 }}>
+                    {dateStr}
+                  </div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: LIFEOS_COLORS.error, whiteSpace: 'nowrap' }}>
+                  {Math.round(Number(r.amount || 0)).toLocaleString('he-IL')}₪
+                </div>
+              </a>
+            );
+          })}
+        </div>
+        <button onClick={onClose} style={{
+          marginTop: 8, width: '100%', padding: '10px 14px', borderRadius: 10,
+          border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
+          color: LIFEOS_COLORS.textPrimary, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+        }}>סגור</button>
+      </DialogContent>
+    </Dialog>
   );
 }
 
