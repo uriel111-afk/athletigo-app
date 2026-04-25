@@ -6,6 +6,12 @@ import { toast } from "sonner";
 // `notifications` table — no new schema. See RemindersPanel for the
 // list + delete/toggle side. The reminder time + description live in
 // `notifications.data` (jsonb) since the table has no `scheduled_at`.
+//
+// Draft persistence: only the "new reminder" flow (no `existing`)
+// auto-saves to localStorage so an accidental close doesn't lose
+// what the coach typed. Edit flow always reads from `existing`.
+const DRAFT_KEY = "athletigo_draft_reminder";
+
 export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, existing }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -24,9 +30,31 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
         setTime(at.toTimeString().slice(0, 5));
       }
     } else {
+      // Restore draft if present, else fresh
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const d = JSON.parse(raw);
+          setTitle(d.title || "");
+          setDescription(d.description || "");
+          setDate(d.date || "");
+          setTime(d.time || "");
+          return;
+        }
+      } catch {}
       setTitle(""); setDescription(""); setDate(""); setTime("");
     }
   }, [isOpen, existing]);
+
+  // Persist draft on every keystroke (only for the "new reminder" flow,
+  // and only while the dialog is open).
+  useEffect(() => {
+    if (!isOpen || existing) return;
+    if (!title && !description && !date && !time) return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, description, date, time }));
+    } catch {}
+  }, [isOpen, existing, title, description, date, time]);
 
   if (!isOpen) return null;
 
@@ -69,6 +97,11 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
       return;
     }
     toast.success(existing ? "התזכורת עודכנה" : "התזכורת נשמרה");
+    // Clear draft only on a successful new-reminder save; edits don't
+    // touch the draft slot.
+    if (!existing) {
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    }
     onSaved?.();
     onClose();
   };
