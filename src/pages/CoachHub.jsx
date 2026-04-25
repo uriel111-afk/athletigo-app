@@ -271,8 +271,8 @@ export default function CoachHub() {
           <span style={{ fontSize: 18 }}>←</span>
         </div>
 
-        {/* Three hub cards with badges */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+        {/* Four hub cards with badges (4th = personal, coming soon) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
           <HubCard
             emoji="💼"
             title="מקצועי"
@@ -297,6 +297,14 @@ export default function CoachHub() {
               : null}
             badgeColor={openLeads > 0 ? LIFEOS_COLORS.error : null}
             onClick={() => navigate('/lifeos/leads')}
+          />
+          <HubCard
+            emoji="❤️"
+            title="אישי"
+            subtitle="בקרוב..."
+            badge="בקרוב"
+            onClick={() => {}}
+            disabled
           />
         </div>
 
@@ -463,10 +471,11 @@ export default function CoachHub() {
 
 // ─── Sub-components ──────────────────────────────────────────────
 
-function HubCard({ emoji, title, subtitle, badge, badgeColor, onClick, primary = false }) {
+function HubCard({ emoji, title, subtitle, badge, badgeColor, onClick, primary = false, disabled = false }) {
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -480,7 +489,8 @@ function HubCard({ emoji, title, subtitle, badge, badgeColor, onClick, primary =
         backgroundColor: primary ? LIFEOS_COLORS.primary : '#FFFFFF',
         color: primary ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
         boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
         position: 'relative',
       }}
     >

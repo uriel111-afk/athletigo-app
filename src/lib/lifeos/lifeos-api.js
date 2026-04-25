@@ -737,6 +737,16 @@ export async function addContentItem(userId, payload) {
     .select()
     .single();
   if (error) throw error;
+  // Cross-app sync — published content adds an activity_log row so
+  // the AI brain + heatmap reflect it. Best-effort.
+  if (data?.status === 'published') {
+    try {
+      const { syncContentToActivity } = await import('@/lib/lifeos/sync-engine');
+      await syncContentToActivity(data);
+    } catch (e) {
+      console.warn('[addContentItem] content sync failed:', e?.message);
+    }
+  }
   return data;
 }
 

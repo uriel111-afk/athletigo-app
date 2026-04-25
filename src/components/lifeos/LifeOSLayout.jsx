@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import LifeOSNav from './LifeOSNav';
 import QuickActionFAB from './QuickActionFAB';
 import NotificationBell from './NotificationBell';
-import AppSwitcher from '@/components/AppSwitcher';
+import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import { AuthContext } from '@/lib/AuthContext';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 

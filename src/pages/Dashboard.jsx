@@ -22,7 +22,7 @@ import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
 import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
-import AppSwitcher from "@/components/AppSwitcher";
+import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
 import SessionFormDialog from "../components/forms/SessionFormDialog";

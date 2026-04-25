@@ -29,6 +29,9 @@ export default function CoachProfile() {
   const [loading, setLoading] = useState(true);
   const [trainees, setTrainees] = useState([]);
   const [permsByTrainee, setPermsByTrainee] = useState({});
+  // Hero stats: trainees + sessions this month + active days. Each
+  // is best-effort — if a query fails we just show 0.
+  const [heroStats, setHeroStats] = useState({ trainees: 0, monthlySessions: 0, activeDays: 0 });
 
   // View mode (kept from previous version)
   const [viewMode, setViewMode] = useState(() => {
@@ -105,6 +108,36 @@ export default function CoachProfile() {
   }, [user?.id]);
 
   useEffect(() => { fetchTraineesAndPerms(); }, [fetchTraineesAndPerms]);
+
+  // Hero stats — fetched in parallel, never blocks render
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const since30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        const [traineesRes, sessionsRes, activityRes] = await Promise.all([
+          supabase.from("users").select("id", { count: "exact", head: true }).eq("coach_id", user.id),
+          supabase.from("sessions").select("id", { count: "exact", head: true })
+            .eq("coach_id", user.id).gte("date", monthStart),
+          supabase.from("sessions").select("date")
+            .eq("coach_id", user.id).gte("date", since30),
+        ]);
+        if (cancelled) return;
+        const distinctDays = new Set((activityRes.data || []).map(r => r.date)).size;
+        setHeroStats({
+          trainees: traineesRes.count || 0,
+          monthlySessions: sessionsRes.count || 0,
+          activeDays: distinctDays,
+        });
+      } catch (e) {
+        console.warn("[CoachProfile] hero stats:", e?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   // ── Single-trainee permissions ──────────────────────────────────
   const openSinglePerms = (t) => {
@@ -260,23 +293,87 @@ export default function CoachProfile() {
     <ProtectedCoachPage>
       <div style={{ minHeight: "100vh", background: "#FFF9F0", paddingBottom: 100, direction: "rtl" }}>
 
-        {/* Profile header */}
+        {/* Hero card — orange bg, white text, 3 stats */}
         <div style={{
-          background: "white", borderRadius: 20,
-          padding: 20, margin: 12,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-          textAlign: "center",
+          background: "#FF6F20", borderRadius: 14,
+          padding: 18, margin: 12,
+          boxShadow: "0 4px 14px rgba(255,111,32,0.25)",
+          color: "white", textAlign: "center",
         }}>
           <div style={{
             width: 70, height: 70, borderRadius: "50%",
-            background: "#FFF0E4",
+            background: "white",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 10px",
-            fontSize: 28, fontWeight: 700, color: "#FF6F20",
+            fontSize: 30, fontWeight: 700, color: "#FF6F20",
           }}>{initial}</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{user.full_name || "מאמן"}</div>
-          <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>{user.email}</div>
-          <div style={{ fontSize: 12, color: "#FF6F20", marginTop: 4, fontWeight: 600 }}>מאמן AthletiGo</div>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>{user.full_name || "מאמן"}</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 }}>
+            מאמן ראשי · AthletiGo
+          </div>
+          <div style={{
+            display: "flex", justifyContent: "space-around",
+            marginTop: 14, paddingTop: 12,
+            borderTop: "1px solid rgba(255,255,255,0.25)",
+          }}>
+            {[
+              { value: heroStats.trainees,        label: "מתאמנים" },
+              { value: heroStats.monthlySessions, label: "אימונים החודש" },
+              { value: heroStats.activeDays,      label: "ימים פעילים" },
+            ].map((s, i) => (
+              <div key={i} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 10, opacity: 0.85, marginTop: 4 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* My apps — quick links to the three apps */}
+        <div style={{
+          margin: "0 12px 12px", background: "white",
+          borderRadius: 16, padding: 14,
+          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📱 האפליקציות שלי</div>
+          {[
+            { label: "מקצועי", emoji: "💼", to: "/dashboard",     active: true,  color: "#FF6F20" },
+            { label: "פיננסי", emoji: "💰", to: "/lifeos",         active: false, color: "#1a1a1a" },
+            { label: "צמיחה",  emoji: "📈", to: "/lifeos/leads",   active: false, color: "#FF6F20" },
+            { label: "אישי",   emoji: "❤️", to: null,              active: false, color: "#888", soon: true },
+          ].map(app => (
+            <div
+              key={app.label}
+              onClick={() => { if (app.to) navigate(app.to); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: 12, marginBottom: 6,
+                background: "#FFF9F0", borderRadius: 12,
+                cursor: app.to ? "pointer" : "default",
+                opacity: app.soon ? 0.5 : 1,
+                border: "0.5px solid #F0E4D0",
+              }}
+            >
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: "white",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 18,
+              }}>{app.emoji}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: app.color }}>{app.label}</div>
+              </div>
+              {app.soon ? (
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  background: "#FFF0E4", color: "#FF6F20",
+                  padding: "2px 8px", borderRadius: 8,
+                }}>בקרוב</span>
+              ) : (
+                <span style={{ color: "#ccc", fontSize: 14 }}>←</span>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* View mode toggle */}
@@ -402,7 +499,7 @@ export default function CoachProfile() {
         </div>
 
         {/* Logout */}
-        <div style={{ margin: "0 12px 100px" }}>
+        <div style={{ margin: "0 12px 12px" }}>
           <button onClick={handleLogout} style={{
             width: "100%", padding: 14, borderRadius: 14,
             border: "1.5px solid #dc2626",
@@ -410,6 +507,12 @@ export default function CoachProfile() {
             fontSize: 14, fontWeight: 600, cursor: "pointer",
           }}>🚪 יציאה מהחשבון</button>
         </div>
+
+        {/* Footer */}
+        <div style={{
+          textAlign: "center", padding: "12px 12px 100px",
+          fontSize: 11, color: "#888",
+        }}>AthletiGo · גרסה 2.0</div>
 
         {/* ─── Single trainee permissions dialog ─── */}
         {permTrainee && (
