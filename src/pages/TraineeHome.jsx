@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Calendar, Dumbbell, TrendingUp, User, Loader2, Bell, ShieldCheck, Package, ClipboardList, Clock as ClockIcon, Flame, Trophy, Star } from "lucide-react";
 import { calculateStreak } from "@/components/ChallengeBank";
+import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import BookingModal from "../components/BookingModal";
@@ -57,6 +58,10 @@ export default function TraineeHome() {
   const [acknowledgingId, setAcknowledgingId] = useState(null);
   const [completedCount, setCompletedCount] = useState(0);
   const [firstSessionDate, setFirstSessionDate] = useState(null);
+  // Coach-controlled permissions. Defaults are TRUE so this is purely
+  // additive — turning off a permission in CoachProfile hides the
+  // related tab/section here.
+  const { perms } = useTraineePermissions(user?.id);
   // Daily challenge — fetched separately so it stays fresh independent
   // of the main loadData refresh. Card sits at the top of home screen.
   const [todayChallenge, setTodayChallenge] = useState(null);
@@ -699,8 +704,9 @@ export default function TraineeHome() {
           </div>
         )}
 
-        {/* My Tracks — coach-assigned skill tracks with progress + milestones */}
-        {myTracks.length > 0 && (
+        {/* My Tracks — coach-assigned skill tracks with progress + milestones.
+            Hidden when the coach has turned off "מעקב התקדמות". */}
+        {perms.view_progress && myTracks.length > 0 && (
           <div style={{
             background: 'white', borderRadius: 16,
             padding: 14, margin: '12px 14px 0',
@@ -828,16 +834,17 @@ export default function TraineeHome() {
           </button>
         </div>
 
-        {/* 3-Column Quick Access Grid */}
+        {/* 3-Column Quick Access Grid — gated by coach-set permissions.
+            Hidden tabs collapse the grid (no empty cells). */}
         <div style={{ padding:'8px 14px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
           {[
-            { icon:'📅', label:'מפגשים', to: createPageUrl("TraineeSessions") },
-            { icon:'📋', label:'תוכנית', to: createPageUrl("MyWorkoutLog") },
-            { icon:'📈', label:'התקדמות', to: createPageUrl("Progress") },
-            { icon:'🎯', label:'יעדים', to: createPageUrl("TraineeProfile") + "?tab=goals" },
-            { icon:'⏱', label:'שעונים', to: createPageUrl("Clocks") },
-            { icon:'👤', label:'פרופיל', to: createPageUrl("TraineeProfile") },
-          ].map((tab, i) => (
+            { icon:'📅', label:'מפגשים',   to: createPageUrl("TraineeSessions") },
+            { icon:'📋', label:'תוכנית',   to: createPageUrl("MyWorkoutLog"),                       perm: 'view_plan' },
+            { icon:'📈', label:'התקדמות', to: createPageUrl("Progress"),                          perm: 'view_progress' },
+            { icon:'🎯', label:'יעדים',    to: createPageUrl("TraineeProfile") + "?tab=goals" },
+            { icon:'⏱', label:'שעונים',   to: createPageUrl("Clocks") },
+            { icon:'👤', label:'פרופיל',   to: createPageUrl("TraineeProfile") },
+          ].filter(tab => !tab.perm || perms[tab.perm]).map((tab, i) => (
             <Link key={i} to={tab.to} className="no-underline">
               <div style={{ background:'white', border:'1px solid #eee', borderRadius:'14px', padding:'14px 8px', display:'flex', flexDirection:'column', alignItems:'center', gap:'8px', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
                 <div style={{ width:'40px', height:'40px', borderRadius:'50%', background:'#FFF0E8', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px' }}>{tab.icon}</div>

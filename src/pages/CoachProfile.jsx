@@ -6,14 +6,17 @@ import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageLoader from "@/components/PageLoader";
 import { toast } from "sonner";
 
+// Permissions enable the trainee to ACT (not just view): fill forms,
+// submit data, sign documents. When OFF, the related tab/button is
+// hidden completely on the trainee side.
 const PERMISSION_TYPES = [
-  { id: "view_baseline",  label: "צפייה בבייסליין",     icon: "📊" },
-  { id: "view_plan",      label: "צפייה בתוכנית אימון", icon: "📋" },
-  { id: "view_progress",  label: "צפייה בהתקדמות",      icon: "📈" },
-  { id: "view_documents", label: "צפייה במסמכים",        icon: "📄" },
-  { id: "edit_metrics",   label: "עדכון מדידות",         icon: "✍️" },
-  { id: "send_videos",    label: "שליחת סרטונים",        icon: "📸" },
-  { id: "send_messages",  label: "שליחת הודעות",         icon: "💬" },
+  { id: "view_baseline",  label: "מילוי בייסליין עצמאי",        icon: "📊" },
+  { id: "view_plan",      label: "תוכנית — צפייה וסימון תרגילים", icon: "📋" },
+  { id: "view_progress",  label: "מעקב התקדמות (תוצאות, מבחנים)", icon: "📈" },
+  { id: "view_documents", label: "מסמכים — חתימה ומילוי",         icon: "📄" },
+  { id: "edit_metrics",   label: "עדכון מדידות עצמאי",            icon: "✍️" },
+  { id: "send_videos",    label: "שליחת סרטוני ביצוע",            icon: "📸" },
+  { id: "send_messages",  label: "שליחת הודעות למאמן",            icon: "💬" },
 ];
 
 // Defaults to TRUE for any permission missing from the row — matches
