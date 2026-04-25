@@ -83,6 +83,47 @@ export default function AllUsers() {
     }).length;
   };
 
+  // ── Card data — same calculation as TraineeProfile packages tab ─
+  // The packages tab's "מפגשים מקושרים" count uses
+  //   sessions WHERE service_id = pkg.id AND was_deducted = true
+  // (see TraineeProfile.jsx:314 and the refreshLinkedAfterChange
+  // sync at line 1340 which writes back to pkg.used_sessions /
+  // remaining_sessions). To stay consistent we prefer pkg's stored
+  // counts (kept in sync), and fall back to the same filter.
+  const getLinkedUsed = (pkg) => {
+    if (!pkg) return 0;
+    if (pkg.used_sessions != null) return Number(pkg.used_sessions);
+    return allSessions.filter(
+      s => s.service_id === pkg.id && s.was_deducted === true
+    ).length;
+  };
+
+  const getNextSession = (traineeId) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return allSessions
+      .filter(s => {
+        const matches = s.trainee_id === traineeId
+          || (Array.isArray(s.participants) && s.participants.some(p => p?.trainee_id === traineeId));
+        if (!matches) return false;
+        if (!s.date || s.date < today) return false;
+        const n = normalizeStatus(s.status);
+        return n !== 'cancelled';
+      })
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0] || null;
+  };
+
+  const formatSmartDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.round((d - today) / 86_400_000);
+    if (diff === 0) return 'היום';
+    if (diff === 1) return 'מחר';
+    if (diff > 1 && diff < 7) return `בעוד ${diff} ימים`;
+    return d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+  };
+
   // ── Counts for filter chips ─────────────────────────────────────
   const counts = useMemo(() => {
     let active = 0, expiring = 0, inactive = 0;
@@ -204,10 +245,22 @@ export default function AllUsers() {
         ) : filteredTrainees.map(t => {
           const pkg = getActivePackage(t.id);
           const remaining = pkg ? getRemaining(pkg) : 0;
-          const totalSessions = getCompletedSessions(t.id);
+          const usedInPkg = pkg ? getLinkedUsed(pkg) : 0;
+          const totalInPkg = pkg ? Number(pkg.total_sessions) || 0 : 0;
+          const nextSession = getNextSession(t.id);
+          const birthDate = t.birth_date || null;
           const isExpiring = !!pkg && remaining > 0 && remaining <= 2;
           const inactive = !pkg || remaining === 0;
           const initial = (t.full_name || '?').trim().charAt(0);
+
+          // Verify card numbers match the packages tab.
+          if (typeof window !== 'undefined' && window.__DEBUG_TRAINEE_CARDS__) {
+            // eslint-disable-next-line no-console
+            console.log('[TraineeCard]', t.full_name,
+              'used:', usedInPkg, 'total:', totalInPkg,
+              'remaining:', remaining,
+              'pkgId:', pkg?.id);
+          }
 
           return (
             <div
@@ -261,45 +314,61 @@ export default function AllUsers() {
                 </div>
               </div>
 
-              {/* Stats row */}
+              {/* Info row — sessions used/total + next session + birthday */}
               <div style={{ display: 'flex', gap: 4 }}>
+                {/* Sessions: used/total — same as packages tab */}
                 <div style={{
-                  flex: 1, textAlign: 'center',
+                  flex: 1, display: 'flex', alignItems: 'center', gap: 4,
                   background: '#FFF9F0',
-                  borderRadius: 10, padding: '6px 2px',
+                  borderRadius: 8, padding: '6px 8px',
                 }}>
-                  <div style={{
-                    fontSize: 16, fontWeight: 600,
-                    color: pkg && remaining <= 2 ? '#dc2626' : '#1a1a1a',
-                  }}>{pkg ? `${remaining}/${pkg.total_sessions || 0}` : '—'}</div>
-                  <div style={{ fontSize: 9, color: '#888' }}>מפגשים</div>
+                  <span style={{ fontSize: 12 }}>🎫</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 600,
+                      color: pkg && remaining <= 2 ? '#dc2626' : '#1a1a1a',
+                    }}>
+                      {pkg ? `${usedInPkg}/${totalInPkg}` : '—'}
+                    </div>
+                    <div style={{ fontSize: 8, color: '#888' }}>בוצעו</div>
+                  </div>
                 </div>
+
+                {/* Next upcoming session */}
                 <div style={{
-                  flex: 1, textAlign: 'center',
+                  flex: 1, display: 'flex', alignItems: 'center', gap: 4,
                   background: '#FFF9F0',
-                  borderRadius: 10, padding: '6px 2px',
+                  borderRadius: 8, padding: '6px 8px',
                 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: '#16a34a' }}>{totalSessions}</div>
-                  <div style={{ fontSize: 9, color: '#888' }}>הושלמו</div>
+                  <span style={{ fontSize: 12 }}>📅</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {nextSession ? formatSmartDate(nextSession.date) : '—'}
+                    </div>
+                    <div style={{ fontSize: 8, color: '#888' }}>הבא</div>
+                  </div>
                 </div>
+
+                {/* Birthday */}
                 <div style={{
-                  flex: 1, textAlign: 'center',
+                  flex: 1, display: 'flex', alignItems: 'center', gap: 4,
                   background: '#FFF9F0',
-                  borderRadius: 10, padding: '6px 2px',
+                  borderRadius: 8, padding: '6px 8px',
                 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: '#FF6F20' }}>—</div>
-                  <div style={{ fontSize: 9, color: '#888' }}>רצף</div>
-                </div>
-                <div style={{
-                  flex: 1.5, textAlign: 'center',
-                  background: '#FFF9F0',
-                  borderRadius: 10, padding: '6px 2px',
-                }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 500, color: '#1a1a1a',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{pkg?.package_name || pkg?.service_type || '—'}</div>
-                  <div style={{ fontSize: 9, color: '#888' }}>חבילה</div>
+                  <span style={{ fontSize: 12 }}>🎂</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                    }}>
+                      {birthDate
+                        ? new Date(birthDate).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })
+                        : '—'}
+                    </div>
+                    <div style={{ fontSize: 8, color: '#888' }}>יום הולדת</div>
+                  </div>
                 </div>
               </div>
             </div>
