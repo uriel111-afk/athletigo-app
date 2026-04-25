@@ -465,7 +465,7 @@ export default function Dashboard() {
             const items = [
               { icon: "👥", label: "מתאמנים",     onClick: () => navigate(createPageUrl("AllUsers")) },
               { icon: "📅", label: "מפגשים",      onClick: () => navigate(createPageUrl("Sessions")) },
-              { icon: "🔥", label: "אתגרי אימון", onClick: () => setShowChallengeBank(true) },
+              { icon: "🔥", label: "אתגרי אימון", onClick: () => navigate(createPageUrl("Challenges")) },
               { icon: "⏰", label: "תזכורות",     onClick: () => setShowReminders(true), badge: overdueReminders },
               { icon: "📊", label: "דוחות",       onClick: () => navigate(createPageUrl("Reports")) },
             ];
