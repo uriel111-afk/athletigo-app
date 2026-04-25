@@ -301,10 +301,9 @@ export default function CoachHub() {
           <HubCard
             emoji="❤️"
             title="אישי"
-            subtitle="בקרוב..."
-            badge="בקרוב"
-            onClick={() => {}}
-            disabled
+            subtitle="הרגלים, קשרים, התפתחות"
+            badge="צ׳ק-אין"
+            onClick={() => navigate('/personal')}
           />
         </div>
 

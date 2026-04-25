@@ -14,14 +14,18 @@ export default function AppSwitcher() {
   if (!user || user.id !== COACH_USER_ID) return null;
 
   const path = location.pathname || "";
-  const isPro     = path === "/" || path === "/dashboard";
-  const isFin     = path === "/lifeos" || (path.startsWith("/lifeos") && !path.startsWith("/lifeos/leads"));
-  const isGrowth  = path.startsWith("/lifeos/leads");
+  const isPersonal = path.startsWith("/personal");
+  const isPro      = path === "/" || path === "/dashboard";
+  const isGrowth   = path.startsWith("/lifeos/leads")
+                  || path.startsWith("/lifeos/content")
+                  || path.startsWith("/lifeos/community");
+  const isFin      = path.startsWith("/lifeos") && !isGrowth;
 
   const tabs = [
-    { key: "pro",    label: "מקצועי",  href: "/dashboard",      active: isPro },
-    { key: "fin",    label: "פיננסי",  href: "/lifeos",         active: isFin && !isGrowth },
-    { key: "growth", label: "צמיחה",   href: "/lifeos/leads",   active: isGrowth },
+    { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro },
+    { key: "fin",      label: "פיננסי", href: "/lifeos",       active: isFin },
+    { key: "growth",   label: "צמיחה",  href: "/lifeos/leads", active: isGrowth },
+    { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal },
   ];
 
   return (

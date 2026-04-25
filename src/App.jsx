@@ -29,6 +29,11 @@ import LifeOSContent from './pages/lifeos/ContentCalendar';
 import LifeOSCommunity from './pages/lifeos/Community';
 import LifeOSMomentum from './pages/lifeos/Momentum';
 import LifeOSSettings from './pages/lifeos/LifeOSSettings';
+import PersonalDashboard from './pages/personal/PersonalDashboard';
+import PersonalHabits from './pages/personal/Habits';
+import PersonalPeople from './pages/personal/People';
+import PersonalGrowth from './pages/personal/Growth';
+import PersonalHomeLife from './pages/personal/HomeLife';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
@@ -323,6 +328,13 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos/community"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSCommunity /></PageRouteGuard>} />
       <Route path="/lifeos/momentum"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSMomentum /></PageRouteGuard>} />
       <Route path="/lifeos/settings"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSSettings /></PageRouteGuard>} />
+
+      {/* ── Personal app (Wave 3) — coach-only ───────────────────── */}
+      <Route path="/personal"            element={<PageRouteGuard pageKey="Personal"><PersonalDashboard /></PageRouteGuard>} />
+      <Route path="/personal/habits"     element={<PageRouteGuard pageKey="Personal"><PersonalHabits /></PageRouteGuard>} />
+      <Route path="/personal/people"     element={<PageRouteGuard pageKey="Personal"><PersonalPeople /></PageRouteGuard>} />
+      <Route path="/personal/growth"     element={<PageRouteGuard pageKey="Personal"><PersonalGrowth /></PageRouteGuard>} />
+      <Route path="/personal/home"       element={<PageRouteGuard pageKey="Personal"><PersonalHomeLife /></PageRouteGuard>} />
 
       <Route path="*" element={<PageNotFound />} />
     </Routes>
