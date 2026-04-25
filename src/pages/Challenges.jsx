@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -36,6 +37,7 @@ const todayISO = () => new Date().toISOString().split("T")[0];
 
 export default function Challenges() {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
   const [trainees, setTrainees] = useState([]);
@@ -445,6 +447,26 @@ export default function Challenges() {
                     }}
                   />
                   <span style={{ fontSize: 11, color: "#888", alignSelf: "center" }}>עדכן ערך + Enter</span>
+                </div>
+
+                {/* Link to the existing track detail page (stages + challenges) */}
+                <div style={{
+                  display: "flex", justifyContent: "space-between",
+                  alignItems: "center", marginTop: 6,
+                }}>
+                  <span style={{ fontSize: 10, color: "#888" }}>
+                    {curVal} / {goalVal || "?"} {track.goal_unit || ""}
+                  </span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate("/skilltracks?trackId=" + track.id);
+                    }}
+                    style={{
+                      fontSize: 11, color: "#FF6F20",
+                      fontWeight: 600, cursor: "pointer",
+                    }}
+                  >שלבים ואתגרים →</span>
                 </div>
               </div>
             );
