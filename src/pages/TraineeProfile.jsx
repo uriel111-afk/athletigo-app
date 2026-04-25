@@ -42,6 +42,7 @@ import { notifySessionApproved, notifySessionRejected, notifySessionCompleted, n
 import PlanFormDialog from "@/components/training/PlanFormDialog";
 import ProgressTab from "@/components/profile/ProgressTab";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
+import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 
 const PAYMENT_METHODS = [
   { value: 'cash',        label: 'מזומן',          icon: '💵' },
@@ -1732,20 +1733,43 @@ export default function TraineeProfile() {
   const activeService = activeServices[0];
   const hasRecentResult = results.length > 0 && new Date(results[0].date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const TAB_ITEMS = [
-    { id: 'personal',      label: 'פרטים',    emoji: '👤', icon: User },
-    { id: 'plans',         label: 'תוכניות',  emoji: '📋', icon: Folder },
-    { id: 'attendance',    label: 'מפגשים',   emoji: '📅', icon: Calendar },
-    { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity },
-    { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award },
-    { id: 'baselines',     label: 'בייסליין', emoji: '⚡', icon: Zap },
-    { id: 'goals',         label: 'יעדים',    emoji: '🎯', icon: Target },
-    { id: 'services',      label: 'חבילות',   emoji: '🎫', icon: Package },
-    { id: 'documents',     label: 'מסמכים',   emoji: '📄', icon: FileText },
-    { id: 'notifications', label: 'התראות',   emoji: '🔔', icon: Bell },
-    { id: 'messages',      label: 'הערות',    emoji: '💬', icon: MessageSquare },
-    { id: 'clocks',        label: 'שעונים',   emoji: '⏱', icon: Clock, isLink: true },
+  // Coach-set permissions for the *viewed* trainee. Used to hide tabs
+  // when the trainee is viewing their own profile. Coach always sees
+  // every tab regardless of permissions — the gating happens for the
+  // trainee's view only.
+  const { perms: traineePerms } = useTraineePermissions(effectiveUser?.id);
+
+  const ALL_TAB_ITEMS = [
+    { id: 'personal',      label: 'פרטים',    emoji: '👤', icon: User,            perm: null },
+    { id: 'plans',         label: 'תוכניות',  emoji: '📋', icon: Folder,          perm: 'view_plan' },
+    { id: 'attendance',    label: 'מפגשים',   emoji: '📅', icon: Calendar,        perm: null },
+    { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity,        perm: 'edit_metrics' },
+    { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award,           perm: 'view_progress' },
+    { id: 'baselines',     label: 'בייסליין', emoji: '⚡', icon: Zap,             perm: 'view_baseline' },
+    { id: 'goals',         label: 'יעדים',    emoji: '🎯', icon: Target,          perm: 'view_progress' },
+    { id: 'services',      label: 'חבילות',   emoji: '🎫', icon: Package,         perm: null },
+    { id: 'documents',     label: 'מסמכים',   emoji: '📄', icon: FileText,        perm: 'view_documents' },
+    { id: 'notifications', label: 'התראות',   emoji: '🔔', icon: Bell,            perm: null },
+    { id: 'messages',      label: 'הערות',    emoji: '💬', icon: MessageSquare,   perm: 'send_messages' },
+    { id: 'clocks',        label: 'שעונים',   emoji: '⏱', icon: Clock,           perm: null, isLink: true },
   ];
+
+  // Coach view (looking at a trainee, or their own profile) — no
+  // gating. Trainee viewing own profile — hide tabs the coach turned
+  // off.
+  const TAB_ITEMS = isCoach
+    ? ALL_TAB_ITEMS
+    : ALL_TAB_ITEMS.filter(t => !t.perm || traineePerms[t.perm]);
+
+  // If the trainee was on a tab that just got hidden, fall back to
+  // the first allowed tab ('personal' is always allowed).
+  useEffect(() => {
+    if (isCoach) return;
+    if (!TAB_ITEMS.find(t => t.id === activeTab)) {
+      setActiveTab(TAB_ITEMS[0]?.id || 'personal');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCoach, traineePerms, activeTab]);
 
   return (
     <ErrorBoundary>
