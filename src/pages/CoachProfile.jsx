@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { base44 } from "@/api/base44Client";
@@ -7,44 +7,56 @@ import PageLoader from "@/components/PageLoader";
 import { toast } from "sonner";
 
 const PERMISSION_TYPES = [
-  { id: "view_plan",        label: "צפייה בתוכנית אימון", icon: "📋" },
-  { id: "view_baseline",    label: "צפייה בבייסליין",     icon: "📊" },
-  { id: "view_records",     label: "צפייה בשיאים",         icon: "🏆" },
-  { id: "view_progress",    label: "צפייה בהתקדמות",      icon: "📈" },
-  { id: "edit_profile",     label: "עריכת פרופיל",         icon: "✏️" },
-  { id: "submit_feedback",  label: "שליחת משוב",           icon: "💬" },
-  { id: "view_documents",   label: "צפייה במסמכים",        icon: "📄" },
+  { id: "view_baseline",  label: "צפייה בבייסליין",     icon: "📊" },
+  { id: "view_plan",      label: "צפייה בתוכנית אימון", icon: "📋" },
+  { id: "view_progress",  label: "צפייה בהתקדמות",      icon: "📈" },
+  { id: "view_documents", label: "צפייה במסמכים",        icon: "📄" },
+  { id: "edit_metrics",   label: "עדכון מדידות",         icon: "✍️" },
+  { id: "send_videos",    label: "שליחת סרטונים",        icon: "📸" },
+  { id: "send_messages",  label: "שליחת הודעות",         icon: "💬" },
 ];
+
+// Defaults to TRUE for any permission missing from the row — matches
+// the migration's DEFAULT TRUE so existing trainees stay usable.
+const getPerm = (row, id) => row?.[id] ?? true;
 
 export default function CoachProfile() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [trainees, setTrainees] = useState([]);
+  const [permsByTrainee, setPermsByTrainee] = useState({});
 
-  // View mode — persists across sessions per spec
+  // View mode (kept from previous version)
   const [viewMode, setViewMode] = useState(() => {
     try { return localStorage.getItem("athletigo_view_mode") || "professional"; }
     catch { return "professional"; }
   });
 
-  // Trainee permissions — persisted per coach
-  const PERMS_KEY = user?.id ? `athletigo_perms_${user.id}` : null;
-  const [permissions, setPermissions] = useState({});
-  const [expandedTrainee, setExpandedTrainee] = useState(null);
+  // Single-trainee permissions dialog
+  const [permTrainee, setPermTrainee] = useState(null);
+  const [permDraft, setPermDraft] = useState({});
 
-  // Send notification dialog state
+  // Bulk permissions dialog
+  const [showBulkPerms, setShowBulkPerms] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState(new Set());
+  const [bulkDraft, setBulkDraft] = useState({});
+
+  // Password dialog (2 tabs)
+  const [showPwDialog, setShowPwDialog] = useState(false);
+  const [pwTab, setPwTab] = useState("self");
+  const [selfNew, setSelfNew] = useState("");
+  const [selfConfirm, setSelfConfirm] = useState("");
+  const [selfCurrent, setSelfCurrent] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [resetTraineeId, setResetTraineeId] = useState("");
+  const [resetPwInput, setResetPwInput] = useState("");
+
+  // Send notification dialog
   const [showSendNotif, setShowSendNotif] = useState(false);
   const [notifTarget, setNotifTarget] = useState("all");
   const [notifMessage, setNotifMessage] = useState("");
   const [sending, setSending] = useState(false);
-
-  // Change password dialog state
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [currentPw, setCurrentPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [confirmPw, setConfirmPw] = useState("");
-  const [pwLoading, setPwLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -59,78 +71,152 @@ export default function CoachProfile() {
     })();
   }, []);
 
-  // Load trainees + permissions once we know the coach
-  useEffect(() => {
+  const fetchTraineesAndPerms = useCallback(async () => {
     if (!user?.id) return;
-    (async () => {
-      const { data } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .eq("coach_id", user.id)
-        .order("full_name");
-      setTrainees(data || []);
-    })();
+    const { data: t } = await supabase
+      .from("users")
+      .select("id, full_name, email")
+      .eq("coach_id", user.id)
+      .order("full_name");
+    setTrainees(t || []);
+
+    // Fetch permissions — table may not exist yet (migration not run).
+    // Fall back to empty map so the UI still renders with defaults.
     try {
-      const raw = localStorage.getItem(`athletigo_perms_${user.id}`);
-      if (raw) setPermissions(JSON.parse(raw));
-    } catch {}
+      const { data: perms, error } = await supabase
+        .from("trainee_permissions")
+        .select("*")
+        .eq("coach_id", user.id);
+      if (error) {
+        console.warn("[CoachProfile] permissions fetch:", error.message);
+        setPermsByTrainee({});
+      } else {
+        const map = {};
+        for (const p of (perms || [])) map[p.trainee_id] = p;
+        setPermsByTrainee(map);
+      }
+    } catch (e) {
+      console.warn("[CoachProfile] permissions exception:", e);
+      setPermsByTrainee({});
+    }
   }, [user?.id]);
 
-  const getPermission = (traineeId, permId) => {
-    // Default to enabled so existing permissions don't silently block trainees
-    return permissions[traineeId]?.[permId] ?? true;
+  useEffect(() => { fetchTraineesAndPerms(); }, [fetchTraineesAndPerms]);
+
+  // ── Single-trainee permissions ──────────────────────────────────
+  const openSinglePerms = (t) => {
+    setPermTrainee(t);
+    const row = permsByTrainee[t.id] || {};
+    const draft = {};
+    for (const p of PERMISSION_TYPES) draft[p.id] = getPerm(row, p.id);
+    setPermDraft(draft);
   };
 
-  const togglePermission = (traineeId, permId) => {
-    setPermissions(prev => {
-      const current = prev[traineeId]?.[permId] ?? true;
-      const updated = {
-        ...prev,
-        [traineeId]: {
-          ...(prev[traineeId] || {}),
-          [permId]: !current,
-        },
-      };
-      if (PERMS_KEY) {
-        try { localStorage.setItem(PERMS_KEY, JSON.stringify(updated)); } catch {}
-      }
-      return updated;
+  const saveSinglePerms = async () => {
+    if (!permTrainee || !user?.id) return;
+    const payload = {
+      coach_id: user.id,
+      trainee_id: permTrainee.id,
+      ...permDraft,
+    };
+    console.log("[CoachProfile] upsert perms:", payload);
+    const { error } = await supabase
+      .from("trainee_permissions")
+      .upsert(payload, { onConflict: "coach_id,trainee_id" });
+    if (error) {
+      toast.error("שגיאה: " + error.message + (error.code === "42P01" ? " (יש להריץ migration)" : ""));
+      return;
+    }
+    toast.success("הרשאות עודכנו ✓");
+    setPermTrainee(null);
+    fetchTraineesAndPerms();
+  };
+
+  // ── Bulk permissions ────────────────────────────────────────────
+  const openBulkPerms = () => {
+    setBulkSelected(new Set());
+    const draft = {};
+    for (const p of PERMISSION_TYPES) draft[p.id] = true;
+    setBulkDraft(draft);
+    setShowBulkPerms(true);
+  };
+
+  const toggleBulkSelect = (id) => {
+    setBulkSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
     });
   };
 
-  const handleChangeViewMode = (mode) => {
-    setViewMode(mode);
-    try { localStorage.setItem("athletigo_view_mode", mode); } catch {}
+  const saveBulkPerms = async () => {
+    if (bulkSelected.size === 0) { toast.error("יש לבחור לפחות מתאמן אחד"); return; }
+    const rows = [...bulkSelected].map(tid => ({
+      coach_id: user.id,
+      trainee_id: tid,
+      ...bulkDraft,
+    }));
+    console.log("[CoachProfile] bulk upsert perms:", rows.length, "rows");
+    const { error } = await supabase
+      .from("trainee_permissions")
+      .upsert(rows, { onConflict: "coach_id,trainee_id" });
+    if (error) {
+      toast.error("שגיאה: " + error.message + (error.code === "42P01" ? " (יש להריץ migration)" : ""));
+      return;
+    }
+    toast.success(`הרשאות עודכנו ל-${rows.length} מתאמנים ✓`);
+    setShowBulkPerms(false);
+    fetchTraineesAndPerms();
   };
 
-  const handleChangePassword = async () => {
-    if (!currentPw) { toast.error("יש להזין את הסיסמה הנוכחית"); return; }
-    if (newPw !== confirmPw) { toast.error("הסיסמאות החדשות לא תואמות"); return; }
-    if (newPw.length < 6) { toast.error("הסיסמה חייבת להכיל לפחות 6 תווים"); return; }
+  // ── Password handlers ───────────────────────────────────────────
+  const handleSelfPassword = async () => {
+    if (!selfCurrent) { toast.error("יש להזין את הסיסמה הנוכחית"); return; }
+    if (selfNew !== selfConfirm) { toast.error("הסיסמאות לא תואמות"); return; }
+    if (selfNew.length < 6) { toast.error("מינימום 6 תווים"); return; }
     setPwLoading(true);
     try {
       const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPw,
+        email: user.email, password: selfCurrent,
       });
       if (signInErr) { toast.error("סיסמה נוכחית שגויה"); return; }
-      const { error } = await supabase.auth.updateUser({ password: newPw });
+      const { error } = await supabase.auth.updateUser({ password: selfNew });
       if (error) { toast.error("שגיאה: " + error.message); return; }
-      toast.success("הסיסמה שונתה בהצלחה");
-      setShowChangePassword(false);
-      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+      toast.success("הסיסמה עודכנה ✓");
+      setShowPwDialog(false);
+      setSelfCurrent(""); setSelfNew(""); setSelfConfirm("");
     } finally {
       setPwLoading(false);
     }
   };
 
+  const handleTraineePasswordReset = async () => {
+    if (!resetTraineeId) { toast.error("יש לבחור מתאמן"); return; }
+    if (!resetPwInput || resetPwInput.length < 6) { toast.error("סיסמה חייבת להיות לפחות 6 תווים"); return; }
+    setPwLoading(true);
+    try {
+      // Existing Edge Function — server-side service role key
+      const { error } = await supabase.functions.invoke("reset-password", {
+        body: { userId: resetTraineeId, newPassword: resetPwInput },
+      });
+      if (error) { toast.error("שגיאה: " + (error?.message || "נסה שוב")); return; }
+      toast.success("הסיסמה עודכנה ✓ — המתאמן יכול להיכנס עם הסיסמה החדשה");
+      setShowPwDialog(false);
+      setResetTraineeId(""); setResetPwInput("");
+    } catch (e) {
+      console.error("[CoachProfile] trainee password reset:", e);
+      toast.error("שגיאה: " + (e?.message || "נסה שוב"));
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  // ── Send notification ───────────────────────────────────────────
   const sendNotification = async () => {
     const msg = notifMessage.trim();
     if (!msg) { toast.error("יש לכתוב הודעה"); return; }
     if (!trainees.length) { toast.error("אין מתאמנים"); return; }
-    const targetIds = notifTarget === "all"
-      ? trainees.map(t => t.id)
-      : [notifTarget];
+    const targetIds = notifTarget === "all" ? trainees.map(t => t.id) : [notifTarget];
     const inserts = targetIds.map(tid => ({
       user_id: tid,
       type: "coach_message",
@@ -151,6 +237,11 @@ export default function CoachProfile() {
     }
   };
 
+  const handleChangeViewMode = (mode) => {
+    setViewMode(mode);
+    try { localStorage.setItem("athletigo_view_mode", mode); } catch {}
+  };
+
   const handleLogout = async () => {
     try { await supabase.auth.signOut(); } catch {}
     navigate("/login", { replace: true });
@@ -165,7 +256,8 @@ export default function CoachProfile() {
   return (
     <ProtectedCoachPage>
       <div style={{ minHeight: "100vh", background: "#FFF9F0", paddingBottom: 100, direction: "rtl" }}>
-        {/* A. Profile header */}
+
+        {/* Profile header */}
         <div style={{
           background: "white", borderRadius: 20,
           padding: 20, margin: 12,
@@ -179,18 +271,12 @@ export default function CoachProfile() {
             margin: "0 auto 10px",
             fontSize: 28, fontWeight: 700, color: "#FF6F20",
           }}>{initial}</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#1a1a1a" }}>
-            {user.full_name || "מאמן"}
-          </div>
-          <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>
-            {user.email}
-          </div>
-          <div style={{ fontSize: 12, color: "#FF6F20", marginTop: 4, fontWeight: 600 }}>
-            מאמן AthletiGo
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{user.full_name || "מאמן"}</div>
+          <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>{user.email}</div>
+          <div style={{ fontSize: 12, color: "#FF6F20", marginTop: 4, fontWeight: 600 }}>מאמן AthletiGo</div>
         </div>
 
-        {/* B. View mode toggle */}
+        {/* View mode toggle */}
         <div style={{
           margin: "0 12px 12px", background: "white",
           borderRadius: 16, padding: 14,
@@ -217,14 +303,9 @@ export default function CoachProfile() {
               );
             })}
           </div>
-          <div style={{ fontSize: 11, color: "#888", marginTop: 6, textAlign: "center" }}>
-            {viewMode === "professional"
-              ? "תצוגה מקצועית — אימונים, תוכניות, מסלולים"
-              : "תצוגה פיננסית — הכנסות, חבילות, תשלומים"}
-          </div>
         </div>
 
-        {/* C. Trainee permissions */}
+        {/* Trainee permissions */}
         <div style={{
           margin: "0 12px 12px", background: "white",
           borderRadius: 16, padding: 14,
@@ -235,79 +316,46 @@ export default function CoachProfile() {
             alignItems: "center", marginBottom: 10,
           }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>⚙️ הרשאות מתאמנים</div>
-            <div style={{ fontSize: 11, color: "#888" }}>{trainees.length} מתאמנים</div>
+            <button
+              onClick={openBulkPerms}
+              disabled={trainees.length === 0}
+              style={{
+                background: "#FF6F20", color: "white", border: "none",
+                borderRadius: 10, padding: "6px 12px",
+                fontSize: 11, fontWeight: 600, cursor: "pointer",
+                opacity: trainees.length === 0 ? 0.4 : 1,
+              }}
+            >בחר מספר מתאמנים</button>
           </div>
 
           {trainees.length === 0 ? (
             <div style={{ textAlign: "center", color: "#888", padding: 12, fontSize: 13 }}>אין מתאמנים עדיין</div>
-          ) : trainees.map(t => (
-            <div key={t.id} style={{
-              background: "#FFF9F0", borderRadius: 12,
-              padding: 10, marginBottom: 6,
-              border: "0.5px solid #F0E4D0",
-            }}>
-              <div style={{
-                display: "flex", justifyContent: "space-between",
-                alignItems: "center", cursor: "pointer",
-              }}
-                onClick={() => setExpandedTrainee(prev => prev === t.id ? null : t.id)}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{
-                    width: 30, height: 30, borderRadius: "50%",
-                    background: "#FFF0E4",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, fontWeight: 600, color: "#FF6F20",
-                  }}>{(t.full_name || "?").charAt(0)}</div>
+          ) : trainees.map(t => {
+            const initial2 = (t.full_name || "?").trim().charAt(0);
+            return (
+              <div key={t.id} onClick={() => openSinglePerms(t)} style={{
+                background: "#FFF9F0", borderRadius: 12,
+                padding: 10, marginBottom: 6,
+                border: "0.5px solid #F0E4D0",
+                display: "flex", alignItems: "center", gap: 8,
+                cursor: "pointer",
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: "#FFF0E4",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, fontWeight: 600, color: "#FF6F20",
+                }}>{initial2}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{t.full_name}</div>
                 </div>
-                <span style={{ fontSize: 14, color: "#888" }}>
-                  {expandedTrainee === t.id ? "▲" : "▼"}
-                </span>
+                <span style={{ fontSize: 18, color: "#888" }}>⚙️</span>
               </div>
-
-              {expandedTrainee === t.id && (
-                <div style={{
-                  display: "flex", flexDirection: "column", gap: 4,
-                  paddingTop: 6, marginTop: 6,
-                  borderTop: "0.5px solid #F0E4D0",
-                }}>
-                  {PERMISSION_TYPES.map(perm => {
-                    const isEnabled = getPermission(t.id, perm.id);
-                    return (
-                      <div key={perm.id} onClick={() => togglePermission(t.id, perm.id)} style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: 8, background: "white", borderRadius: 10,
-                        cursor: "pointer",
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 14 }}>{perm.icon}</span>
-                          <span style={{ fontSize: 12, fontWeight: 500 }}>{perm.label}</span>
-                        </div>
-                        <div style={{
-                          width: 40, height: 22, borderRadius: 11,
-                          background: isEnabled ? "#16a34a" : "#E8E0D8",
-                          position: "relative", transition: "background 0.2s",
-                        }}>
-                          <div style={{
-                            width: 18, height: 18, borderRadius: "50%",
-                            background: "white",
-                            position: "absolute", top: 2,
-                            right: isEnabled ? 2 : 20,
-                            transition: "right 0.2s",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                          }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* D. Quick actions */}
+        {/* Quick actions */}
         <div style={{
           margin: "0 12px 12px", background: "white",
           borderRadius: 16, padding: 14,
@@ -327,12 +375,12 @@ export default function CoachProfile() {
             }}>📢</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>שלח התראה</div>
-              <div style={{ fontSize: 11, color: "#888" }}>שלח הודעה לכל המתאמנים או למתאמן ספציפי</div>
+              <div style={{ fontSize: 11, color: "#888" }}>הודעה לכל המתאמנים או לאחד</div>
             </div>
             <span style={{ color: "#ccc", fontSize: 14 }}>←</span>
           </div>
 
-          <div onClick={() => setShowChangePassword(true)} style={{
+          <div onClick={() => setShowPwDialog(true)} style={{
             display: "flex", alignItems: "center", gap: 10,
             padding: 12, background: "#FFF9F0", borderRadius: 12,
             marginBottom: 6, cursor: "pointer",
@@ -344,126 +392,308 @@ export default function CoachProfile() {
             }}>🔒</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>שינוי סיסמה</div>
-              <div style={{ fontSize: 11, color: "#888" }}>עדכן את סיסמת החשבון</div>
+              <div style={{ fontSize: 11, color: "#888" }}>לחשבון שלך או למתאמן</div>
             </div>
             <span style={{ color: "#ccc", fontSize: 14 }}>←</span>
           </div>
         </div>
 
-        {/* E. Logout */}
+        {/* Logout */}
         <div style={{ margin: "0 12px 100px" }}>
-          <button
-            onClick={handleLogout}
-            style={{
-              width: "100%", padding: 14,
-              borderRadius: 14, border: "1.5px solid #dc2626",
-              background: "white", color: "#dc2626",
-              fontSize: 14, fontWeight: 600, cursor: "pointer",
-            }}
-          >🚪 יציאה מהחשבון</button>
+          <button onClick={handleLogout} style={{
+            width: "100%", padding: 14, borderRadius: 14,
+            border: "1.5px solid #dc2626",
+            background: "white", color: "#dc2626",
+            fontSize: 14, fontWeight: 600, cursor: "pointer",
+          }}>🚪 יציאה מהחשבון</button>
         </div>
 
-        {/* Change password dialog */}
-        {showChangePassword && (
-          <div onClick={() => setShowChangePassword(false)} style={{
+        {/* ─── Single trainee permissions dialog ─── */}
+        {permTrainee && (
+          <div onClick={() => setPermTrainee(null)} style={{
             position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-            zIndex: 11000,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: 20,
+            zIndex: 11000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
           }}>
             <div onClick={e => e.stopPropagation()} style={{
               background: "#FFF9F0", borderRadius: 20, padding: 20,
-              width: "100%", maxWidth: 360, direction: "rtl",
+              width: "100%", maxWidth: 380, direction: "rtl",
+              maxHeight: "85vh", overflowY: "auto",
             }}>
-              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 14 }}>🔒 שינוי סיסמה</div>
-
-              {[
-                { label: "סיסמה נוכחית", value: currentPw, set: setCurrentPw },
-                { label: "סיסמה חדשה",   value: newPw,     set: setNewPw },
-                { label: "אימות סיסמה חדשה", value: confirmPw, set: setConfirmPw },
-              ].map((f, i, arr) => (
-                <div key={f.label} style={{ marginBottom: i === arr.length - 1 ? 6 : 10 }}>
-                  <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>{f.label}</label>
-                  <input type="password" value={f.value} onChange={e => f.set(e.target.value)} style={{
-                    width: "100%", padding: 10, borderRadius: 12,
-                    border: "0.5px solid #F0E4D0",
-                    fontSize: 14, direction: "ltr",
-                    background: "white", outline: "none", boxSizing: "border-box",
-                  }} />
-                </div>
-              ))}
-
-              {newPw && confirmPw && newPw !== confirmPw && (
-                <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 8 }}>הסיסמאות לא תואמות</div>
-              )}
-
-              <button
-                onClick={handleChangePassword}
-                disabled={pwLoading || !currentPw || !newPw || newPw !== confirmPw || newPw.length < 6}
-                style={{
-                  width: "100%", padding: 14, borderRadius: 14, border: "none",
-                  background: (currentPw && newPw && newPw === confirmPw && newPw.length >= 6) ? "#FF6F20" : "#ccc",
-                  color: "white", fontSize: 16, fontWeight: 700,
-                  cursor: "pointer", marginTop: 6,
-                }}
-              >{pwLoading ? "שומר..." : "🔒 שנה סיסמה"}</button>
-
-              <div onClick={() => setShowChangePassword(false)} style={{
+              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 4 }}>⚙️ הרשאות</div>
+              <div style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 14 }}>
+                {permTrainee.full_name}
+              </div>
+              {PERMISSION_TYPES.map(perm => {
+                const enabled = permDraft[perm.id];
+                return (
+                  <div key={perm.id}
+                    onClick={() => setPermDraft(d => ({ ...d, [perm.id]: !d[perm.id] }))}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: 10, background: "white", borderRadius: 10,
+                      marginBottom: 6, cursor: "pointer",
+                      border: "0.5px solid #F0E4D0",
+                    }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>{perm.icon}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{perm.label}</span>
+                    </div>
+                    <div style={{
+                      width: 40, height: 22, borderRadius: 11,
+                      background: enabled ? "#16a34a" : "#E8E0D8",
+                      position: "relative", transition: "background 0.2s",
+                    }}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: "50%",
+                        background: "white", position: "absolute", top: 2,
+                        right: enabled ? 2 : 20,
+                        transition: "right 0.2s",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <button onClick={saveSinglePerms} style={{
+                width: "100%", padding: 14, borderRadius: 14, border: "none",
+                background: "#FF6F20", color: "white",
+                fontSize: 16, fontWeight: 700, cursor: "pointer", marginTop: 6,
+              }}>💾 שמור</button>
+              <div onClick={() => setPermTrainee(null)} style={{
                 textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
               }}>ביטול</div>
             </div>
           </div>
         )}
 
-        {/* Send notification dialog */}
+        {/* ─── Bulk permissions dialog ─── */}
+        {showBulkPerms && (
+          <div onClick={() => setShowBulkPerms(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 11000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: "#FFF9F0", borderRadius: 20, padding: 20,
+              width: "100%", maxWidth: 420, direction: "rtl",
+              maxHeight: "85vh", overflowY: "auto",
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 14 }}>
+                ⚙️ הרשאות לכמה מתאמנים
+              </div>
+
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>בחר מתאמנים</div>
+              <div style={{ marginBottom: 12 }}>
+                {trainees.map(t => {
+                  const sel = bulkSelected.has(t.id);
+                  return (
+                    <div key={t.id} onClick={() => toggleBulkSelect(t.id)} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: 8, marginBottom: 4,
+                      background: sel ? "#FFF0E4" : "white",
+                      border: sel ? "1.5px solid #FF6F20" : "0.5px solid #F0E4D0",
+                      borderRadius: 10, cursor: "pointer",
+                    }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: 4,
+                        background: sel ? "#FF6F20" : "white",
+                        border: sel ? "none" : "1.5px solid #ddd",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        color: "white", fontSize: 12, fontWeight: 700,
+                      }}>{sel ? "✓" : ""}</div>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{t.full_name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>הרשאות שיופעלו</div>
+              {PERMISSION_TYPES.map(perm => {
+                const enabled = bulkDraft[perm.id];
+                return (
+                  <div key={perm.id}
+                    onClick={() => setBulkDraft(d => ({ ...d, [perm.id]: !d[perm.id] }))}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: 10, background: "white", borderRadius: 10,
+                      marginBottom: 6, cursor: "pointer",
+                      border: "0.5px solid #F0E4D0",
+                    }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>{perm.icon}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{perm.label}</span>
+                    </div>
+                    <div style={{
+                      width: 40, height: 22, borderRadius: 11,
+                      background: enabled ? "#16a34a" : "#E8E0D8",
+                      position: "relative", transition: "background 0.2s",
+                    }}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: "50%",
+                        background: "white", position: "absolute", top: 2,
+                        right: enabled ? 2 : 20,
+                        transition: "right 0.2s",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button onClick={saveBulkPerms} disabled={bulkSelected.size === 0} style={{
+                width: "100%", padding: 14, borderRadius: 14, border: "none",
+                background: bulkSelected.size > 0 ? "#FF6F20" : "#ccc",
+                color: "white", fontSize: 16, fontWeight: 700,
+                cursor: "pointer", marginTop: 8,
+              }}>💾 שמור ל-{bulkSelected.size} מתאמנים</button>
+              <div onClick={() => setShowBulkPerms(false)} style={{
+                textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
+              }}>ביטול</div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Password dialog (2 tabs) ─── */}
+        {showPwDialog && (
+          <div onClick={() => setShowPwDialog(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 11000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: "#FFF9F0", borderRadius: 20, padding: 20,
+              width: "100%", maxWidth: 380, direction: "rtl",
+              maxHeight: "85vh", overflowY: "auto",
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 14 }}>🔒 שינוי סיסמה</div>
+
+              <div style={{
+                display: "flex", gap: 4, marginBottom: 12,
+                background: "#FFF0E4", borderRadius: 10, padding: 3,
+              }}>
+                {[
+                  { id: "self",    label: "הסיסמה שלי" },
+                  { id: "trainee", label: "סיסמה למתאמן" },
+                ].map(t => (
+                  <div key={t.id} onClick={() => setPwTab(t.id)} style={{
+                    flex: 1, padding: 8, borderRadius: 8,
+                    textAlign: "center", fontSize: 13, fontWeight: 600,
+                    cursor: "pointer",
+                    background: pwTab === t.id ? "#FF6F20" : "transparent",
+                    color: pwTab === t.id ? "white" : "#888",
+                  }}>{t.label}</div>
+                ))}
+              </div>
+
+              {pwTab === "self" && (
+                <>
+                  <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>סיסמה נוכחית</label>
+                  <input type="password" value={selfCurrent} onChange={e => setSelfCurrent(e.target.value)} style={{
+                    width: "100%", padding: 10, borderRadius: 12,
+                    border: "0.5px solid #F0E4D0",
+                    fontSize: 14, direction: "ltr", marginBottom: 10,
+                    background: "white", outline: "none", boxSizing: "border-box",
+                  }} />
+                  <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>סיסמה חדשה</label>
+                  <input type="password" value={selfNew} onChange={e => setSelfNew(e.target.value)} style={{
+                    width: "100%", padding: 10, borderRadius: 12,
+                    border: "0.5px solid #F0E4D0",
+                    fontSize: 14, direction: "ltr", marginBottom: 10,
+                    background: "white", outline: "none", boxSizing: "border-box",
+                  }} />
+                  <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>אימות</label>
+                  <input type="password" value={selfConfirm} onChange={e => setSelfConfirm(e.target.value)} style={{
+                    width: "100%", padding: 10, borderRadius: 12,
+                    border: "0.5px solid #F0E4D0",
+                    fontSize: 14, direction: "ltr", marginBottom: 6,
+                    background: "white", outline: "none", boxSizing: "border-box",
+                  }} />
+                  {selfNew && selfConfirm && selfNew !== selfConfirm && (
+                    <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 8 }}>הסיסמאות לא תואמות</div>
+                  )}
+                  <button
+                    onClick={handleSelfPassword}
+                    disabled={pwLoading || !selfCurrent || !selfNew || selfNew !== selfConfirm || selfNew.length < 6}
+                    style={{
+                      width: "100%", padding: 14, borderRadius: 14, border: "none",
+                      background: (selfCurrent && selfNew && selfNew === selfConfirm && selfNew.length >= 6) ? "#FF6F20" : "#ccc",
+                      color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer", marginTop: 6,
+                    }}
+                  >{pwLoading ? "שומר..." : "🔒 עדכן"}</button>
+                </>
+              )}
+
+              {pwTab === "trainee" && (
+                <>
+                  <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>בחר מתאמן</label>
+                  <select value={resetTraineeId} onChange={e => setResetTraineeId(e.target.value)} style={{
+                    width: "100%", padding: 10, borderRadius: 12,
+                    border: "0.5px solid #F0E4D0",
+                    fontSize: 14, direction: "rtl", marginBottom: 10,
+                    background: "white", outline: "none",
+                  }}>
+                    <option value="">בחר מתאמן...</option>
+                    {trainees.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+                  </select>
+                  <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>סיסמה חדשה</label>
+                  <input type="text" value={resetPwInput} onChange={e => setResetPwInput(e.target.value)} placeholder="לפחות 6 תווים" style={{
+                    width: "100%", padding: 10, borderRadius: 12,
+                    border: "0.5px solid #F0E4D0",
+                    fontSize: 14, direction: "ltr", marginBottom: 10,
+                    background: "white", outline: "none", boxSizing: "border-box",
+                  }} />
+                  <button
+                    onClick={handleTraineePasswordReset}
+                    disabled={pwLoading || !resetTraineeId || resetPwInput.length < 6}
+                    style={{
+                      width: "100%", padding: 14, borderRadius: 14, border: "none",
+                      background: (resetTraineeId && resetPwInput.length >= 6) ? "#FF6F20" : "#ccc",
+                      color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer", marginTop: 6,
+                    }}
+                  >{pwLoading ? "מעדכן..." : "🔒 עדכן סיסמה למתאמן"}</button>
+                </>
+              )}
+
+              <div onClick={() => setShowPwDialog(false)} style={{
+                textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
+              }}>ביטול</div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Send notification dialog ─── */}
         {showSendNotif && (
           <div onClick={() => setShowSendNotif(false)} style={{
             position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-            zIndex: 11000,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: 20,
+            zIndex: 11000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
           }}>
             <div onClick={e => e.stopPropagation()} style={{
               background: "#FFF9F0", borderRadius: 20, padding: 20,
               width: "100%", maxWidth: 360, direction: "rtl",
             }}>
               <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 14 }}>📢 שלח התראה</div>
-
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>למי</label>
-                <select value={notifTarget} onChange={e => setNotifTarget(e.target.value)} style={{
-                  width: "100%", padding: 10, borderRadius: 12,
-                  border: "0.5px solid #F0E4D0",
-                  fontSize: 14, direction: "rtl", background: "white", outline: "none",
-                }}>
-                  <option value="all">כל המתאמנים</option>
-                  {trainees.map(t => (
-                    <option key={t.id} value={t.id}>{t.full_name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>הודעה</label>
-                <textarea value={notifMessage} onChange={e => setNotifMessage(e.target.value)} placeholder="כתוב הודעה..." style={{
-                  width: "100%", padding: 10, borderRadius: 12,
-                  border: "0.5px solid #F0E4D0",
-                  fontSize: 14, direction: "rtl",
-                  minHeight: 80, resize: "vertical",
-                  background: "white", outline: "none", boxSizing: "border-box", fontFamily: "inherit",
-                }} />
-              </div>
-
-              <button
-                onClick={sendNotification}
-                disabled={sending || !notifMessage.trim()}
-                style={{
-                  width: "100%", padding: 14, borderRadius: 14, border: "none",
-                  background: notifMessage.trim() ? "#FF6F20" : "#ccc",
-                  color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer",
-                }}
-              >{sending ? "שולח..." : "📢 שלח"}</button>
-
+              <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>למי</label>
+              <select value={notifTarget} onChange={e => setNotifTarget(e.target.value)} style={{
+                width: "100%", padding: 10, borderRadius: 12,
+                border: "0.5px solid #F0E4D0",
+                fontSize: 14, direction: "rtl", marginBottom: 10,
+                background: "white", outline: "none",
+              }}>
+                <option value="all">כל המתאמנים</option>
+                {trainees.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+              </select>
+              <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>הודעה</label>
+              <textarea value={notifMessage} onChange={e => setNotifMessage(e.target.value)} placeholder="כתוב הודעה..." style={{
+                width: "100%", padding: 10, borderRadius: 12,
+                border: "0.5px solid #F0E4D0",
+                fontSize: 14, direction: "rtl",
+                minHeight: 80, resize: "vertical",
+                background: "white", outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+                marginBottom: 14,
+              }} />
+              <button onClick={sendNotification} disabled={sending || !notifMessage.trim()} style={{
+                width: "100%", padding: 14, borderRadius: 14, border: "none",
+                background: notifMessage.trim() ? "#FF6F20" : "#ccc",
+                color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer",
+              }}>{sending ? "שולח..." : "📢 שלח"}</button>
               <div onClick={() => setShowSendNotif(false)} style={{
                 textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
               }}>ביטול</div>
