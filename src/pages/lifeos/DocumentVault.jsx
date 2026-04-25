@@ -1,9 +1,10 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Upload, ExternalLink, Trash2 } from 'lucide-react';
+import { Loader2, Upload, ExternalLink, Trash2, Pencil } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LIFEOS_COLORS, LIFEOS_CARD, DOCUMENT_CATEGORIES } from '@/lib/lifeos/lifeos-constants';
-import { listDocuments, addDocument, uploadDocumentFile, deleteDocument } from '@/lib/lifeos/lifeos-api';
+import { listDocuments, addDocument, uploadDocumentFile, updateDocument, deleteDocument } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const DOC_BY_KEY = Object.fromEntries(DOCUMENT_CATEGORIES.map(c => [c.key, c]));
@@ -24,6 +25,7 @@ export default function DocumentVault() {
   const [search, setSearch] = useState('');
   const [uploadingCategory, setUploadingCategory] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -211,15 +213,97 @@ export default function DocumentVault() {
         ) : (
           filtered.map((row, idx) => (
             <DocumentRow key={row.id} row={row} isLast={idx === filtered.length - 1}
+                         onEdit={(e) => { e.preventDefault(); e.stopPropagation(); setEditing(row); }}
                          onDelete={(e) => handleDelete(e, row.id)} />
           ))
         )}
       </div>
+
+      {editing && (
+        <DocumentEditDialog
+          isOpen={!!editing}
+          onClose={() => setEditing(null)}
+          doc={editing}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
     </LifeOSLayout>
   );
 }
 
-function DocumentRow({ row, isLast, onDelete }) {
+function DocumentEditDialog({ isOpen, onClose, doc, onSaved }) {
+  const [name, setName] = useState(doc.name || '');
+  const [category, setCategory] = useState(doc.category || 'other');
+  const [expiry, setExpiry] = useState(doc.expiry_date ? String(doc.expiry_date).slice(0, 10) : '');
+  const [notes, setNotes] = useState(doc.notes || '');
+  const [saving, setSaving] = useState(false);
+  const handleSave = async () => {
+    if (!name.trim()) { toast.error('הכנס שם'); return; }
+    setSaving(true);
+    try {
+      await updateDocument(doc.id, {
+        name: name.trim(),
+        category,
+        expiry_date: expiry || null,
+        notes: notes || null,
+      });
+      toast.success('עודכן');
+      onSaved?.();
+    } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
+      <DialogContent dir="rtl" className="max-w-md" onPointerDownOutside={e => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>
+            עריכת מסמך
+          </DialogTitle>
+        </DialogHeader>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
+          <input type="text" value={name} onChange={e => setName(e.target.value)}
+            placeholder="שם המסמך" style={editInput} />
+          <select value={category} onChange={e => setCategory(e.target.value)} style={editInput}>
+            {DOCUMENT_CATEGORIES.map(c => (
+              <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>
+            ))}
+          </select>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: LIFEOS_COLORS.textSecondary, display: 'block', marginBottom: 4 }}>
+              תאריך תפוגה (אופציונלי)
+            </label>
+            <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)} style={editInput} />
+          </div>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="הערות"
+            style={{ ...editInput, minHeight: 60, resize: 'vertical' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} disabled={saving} style={{
+              flex: 1, padding: '10px 14px', borderRadius: 10,
+              border: `1px solid ${LIFEOS_COLORS.border}`,
+              background: '#FFFFFF', color: LIFEOS_COLORS.textPrimary,
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>ביטול</button>
+            <button onClick={handleSave} disabled={saving} style={{
+              flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
+              background: LIFEOS_COLORS.primary, color: '#FFFFFF',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>{saving ? <Loader2 size={16} className="animate-spin" style={{ margin: '0 auto' }} /> : 'שמור'}</button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const editInput = {
+  width: '100%', padding: '10px 12px', borderRadius: 10,
+  border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
+  fontSize: 14, color: LIFEOS_COLORS.textPrimary,
+  fontFamily: "'Heebo', 'Assistant', sans-serif", outline: 'none', boxSizing: 'border-box',
+};
+
+function DocumentRow({ row, isLast, onEdit, onDelete }) {
   const cat = DOC_BY_KEY[row.category] || { emoji: '📁', label: row.category };
   const dateStr = row.created_at
     ? new Date(row.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -264,6 +348,16 @@ function DocumentRow({ row, isLast, onDelete }) {
         </div>
       </div>
       <ExternalLink size={16} style={{ color: LIFEOS_COLORS.textSecondary, flexShrink: 0 }} />
+      {onEdit && (
+        <button onClick={onEdit} aria-label="ערוך" style={{
+          width: 28, height: 28, borderRadius: 8, border: 'none',
+          background: 'transparent', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: LIFEOS_COLORS.textSecondary,
+        }}>
+          <Pencil size={14} />
+        </button>
+      )}
       <button onClick={onDelete} style={{
         width: 28, height: 28, borderRadius: 8, border: 'none',
         background: 'transparent', cursor: 'pointer',

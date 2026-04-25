@@ -6,9 +6,10 @@ import ConfettiEffect from '@/components/lifeos/ConfettiEffect';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, TASK_STATUS, TASK_DIFFICULTY,
 } from '@/lib/lifeos/lifeos-constants';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  listTasks, updateTaskStatus, getTotalXP, addTask, deleteTask,
+  listTasks, updateTaskStatus, getTotalXP, addTask, deleteTask, updateTask,
 } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
@@ -77,6 +78,7 @@ export default function Tasks() {
   const [catFilter, setCatFilter] = useState('all'); // category filter
   const [confettiFire, setConfettiFire] = useState(false);
   const [autoGenDoneOnce, setAutoGenDoneOnce] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -268,6 +270,7 @@ export default function Tasks() {
               task={t}
               isLast={idx === regularTasks.length - 1}
               onToggle={() => handleToggleStatus(t)}
+              onEdit={() => setEditing(t)}
               onDelete={async () => {
                 if (!confirm('בטוח שאתה רוצה למחוק את המשימה?')) return;
                 try { await deleteTask(t.id); toast.success('נמחק'); load(); }
@@ -277,11 +280,97 @@ export default function Tasks() {
           ))
         )}
       </div>
+
+      {editing && (
+        <TaskEditDialog
+          isOpen={!!editing}
+          onClose={() => setEditing(null)}
+          task={editing}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
     </LifeOSLayout>
   );
 }
 
-function TaskRow({ task, isLast, onToggle, onDelete }) {
+function TaskEditDialog({ isOpen, onClose, task, onSaved }) {
+  const [title, setTitle] = useState(task.title || '');
+  const [description, setDescription] = useState(task.description || '');
+  const [category, setCategory] = useState(task.category || 'business');
+  const [difficulty, setDifficulty] = useState(task.difficulty || 'medium');
+  const [xp, setXp] = useState(task.xp_reward != null ? String(task.xp_reward) : '');
+  const [saving, setSaving] = useState(false);
+  const handleSave = async () => {
+    if (!title.trim()) { toast.error('הכנס כותרת'); return; }
+    setSaving(true);
+    try {
+      await updateTask(task.id, {
+        title: title.trim(),
+        description: description || null,
+        category,
+        difficulty,
+        xp_reward: xp ? parseInt(xp, 10) : 0,
+      });
+      toast.success('עודכן');
+      onSaved?.();
+    } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
+      <DialogContent dir="rtl" className="max-w-md" onPointerDownOutside={e => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>
+            עריכת משימה
+          </DialogTitle>
+        </DialogHeader>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+            placeholder="כותרת" autoFocus style={taskInput} />
+          <textarea value={description} onChange={e => setDescription(e.target.value)}
+            placeholder="תיאור (אופציונלי)" rows={2}
+            style={{ ...taskInput, minHeight: 60, resize: 'vertical' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <select value={category} onChange={e => setCategory(e.target.value)} style={taskInput}>
+              {CATEGORIES.filter(c => c.key !== 'all').map(c => (
+                <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>
+              ))}
+            </select>
+            <select value={difficulty} onChange={e => setDifficulty(e.target.value)} style={taskInput}>
+              {TASK_DIFFICULTY.map(d => (
+                <option key={d.key} value={d.key}>{d.label}</option>
+              ))}
+            </select>
+            <input type="number" value={xp} onChange={e => setXp(e.target.value)}
+              placeholder="XP" style={taskInput} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} disabled={saving} style={{
+              flex: 1, padding: '10px 14px', borderRadius: 10,
+              border: `1px solid ${LIFEOS_COLORS.border}`,
+              background: '#FFFFFF', color: LIFEOS_COLORS.textPrimary,
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>ביטול</button>
+            <button onClick={handleSave} disabled={saving} style={{
+              flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
+              background: LIFEOS_COLORS.primary, color: '#FFFFFF',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>{saving ? <Loader2 size={16} className="animate-spin" style={{ margin: '0 auto' }} /> : 'שמור'}</button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const taskInput = {
+  width: '100%', padding: '10px 12px', borderRadius: 10,
+  border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
+  fontSize: 14, color: LIFEOS_COLORS.textPrimary,
+  fontFamily: "'Heebo', 'Assistant', sans-serif", outline: 'none', boxSizing: 'border-box',
+};
+
+function TaskRow({ task, isLast, onToggle, onEdit, onDelete }) {
   const done = task.status === 'completed';
   const diff = DIFFICULTY_BY_KEY[task.difficulty];
   const cat = CATEGORY_BY_KEY[task.category];
@@ -317,6 +406,18 @@ function TaskRow({ task, isLast, onToggle, onDelete }) {
           </div>
         )}
       </div>
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          aria-label="ערוך"
+          style={{
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            color: LIFEOS_COLORS.textSecondary, padding: 6, flexShrink: 0,
+          }}
+        >
+          <Pencil size={14} />
+        </button>
+      )}
       {onDelete && (
         <button
           onClick={onDelete}

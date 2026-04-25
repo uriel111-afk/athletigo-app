@@ -529,6 +529,18 @@ export async function updateHouseholdTask(id, patch) {
   return data;
 }
 
+// History of completed household tasks. Optionally scoped to a single
+// task_id; otherwise returns the latest `limit` completions.
+export async function listHouseholdLogs(userId, { taskId, sinceDate, limit = 60 } = {}) {
+  let q = supabase.from('personal_household_log').select('*').eq('user_id', userId);
+  if (taskId) q = q.eq('task_id', taskId);
+  if (sinceDate) q = q.gte('date', sinceDate);
+  q = q.order('date', { ascending: false }).limit(limit);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
 export async function deleteHouseholdTask(id) {
   const { error } = await supabase.from('personal_household_tasks').delete().eq('id', id);
   if (error) throw error;
