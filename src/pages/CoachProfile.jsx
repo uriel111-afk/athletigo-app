@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageLoader from "@/components/PageLoader";
+import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import { toast } from "sonner";
 
 // Permissions enable the trainee to ACT (not just view): fill forms,
@@ -292,6 +293,9 @@ export default function CoachProfile() {
   return (
     <ProtectedCoachPage>
       <div style={{ minHeight: "100vh", background: "#FFF9F0", paddingBottom: 100, direction: "rtl" }}>
+
+        {/* App switcher — only renders for the Life OS coach */}
+        <AppSwitcher />
 
         {/* Hero card — orange bg, white text, 3 stats */}
         <div style={{

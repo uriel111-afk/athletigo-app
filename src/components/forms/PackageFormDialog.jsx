@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
+import { syncPackageToIncome } from "@/lib/lifeos/lifeos-api";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
@@ -199,10 +200,29 @@ export default function PackageFormDialog({
       console.log('[PackageForm] saved row:', result[0]);
       toast.success(editingPackage ? "חבילה עודכנה" : "חבילה נוצרה בהצלחה");
 
+      // Cross-app sync — only on CREATE (skip edits to avoid duplicate
+      // income rows). Idempotent inside syncPackageToIncome via the
+      // (user_id, client_name, date, amount) dup check, so even if
+      // someone edits price soon after create, the original income
+      // row stays put.
+      if (!editingPackage && coach?.id) {
+        try {
+          await syncPackageToIncome(coach.id, {
+            ...result[0],
+            trainee_name: traineeName,
+          });
+        } catch (e) {
+          console.warn('[PackageForm] syncPackageToIncome failed:', e?.message);
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
       queryClient.invalidateQueries({ queryKey: ["trainee-services"] });
       queryClient.invalidateQueries({ queryKey: ["all-trainees"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      // Refresh financial dashboard counters too
+      queryClient.invalidateQueries({ queryKey: ["lifeos-income"] });
+      queryClient.invalidateQueries({ queryKey: ["lifeos-monthly-summary"] });
       clearDraft();
       onClose();
     } catch (e) {
