@@ -22,6 +22,7 @@ import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
 import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
+import AppSwitcher from "@/components/AppSwitcher";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
@@ -363,6 +364,9 @@ export default function Dashboard() {
     <ProtectedCoachPage>
       <div className="flex flex-col" dir="rtl" style={BG}>
         <div className="max-w-md mx-auto w-full pt-1 pb-1">
+
+          {/* App switcher — only renders for the Life OS coach. */}
+          <AppSwitcher />
 
           {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════
                 Container overflow:visible so the rotated 84×84

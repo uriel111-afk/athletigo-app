@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import LifeOSNav from './LifeOSNav';
 import QuickActionFAB from './QuickActionFAB';
 import NotificationBell from './NotificationBell';
+import AppSwitcher from '@/components/AppSwitcher';
 import { AuthContext } from '@/lib/AuthContext';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
@@ -21,6 +22,9 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
         fontFamily: "'Heebo', 'Assistant', sans-serif",
       }}
     >
+      {/* App switcher pills — only renders for the coach. */}
+      <AppSwitcher />
+
       {/* Top bar */}
       <div
         className="safe-area-top"

@@ -147,6 +147,22 @@ export default function AddTraineeDialog({ open, onClose }) {
         } catch {}
       }
 
+      // Step 3b: Mirror into the leads table as `converted` so this
+      // trainee shows up in the growth app's history. Best effort —
+      // failures don't block the trainee creation flow.
+      if (coach?.id) {
+        try {
+          const { recordTraineeAsConvertedLead } = await import('@/lib/lifeos/lifeos-api');
+          await recordTraineeAsConvertedLead(coach.id, {
+            full_name: formData.fullName,
+            phone: formData.phone || '',
+            email,
+          });
+        } catch (err) {
+          console.warn('[AddTraineeDialog] lead mirror failed:', err?.message);
+        }
+      }
+
       // Step 4: Force-refetch ALL lists — await to ensure dashboard counts update before dialog closes
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['all-trainees'] }),

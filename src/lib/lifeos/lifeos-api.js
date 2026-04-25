@@ -90,6 +90,57 @@ export async function addIncome(userId, payload) {
     .select()
     .single();
   if (error) throw error;
+
+  // Cross-app sync: bump monthly_sales on the matching revenue_stream
+  // inside business_plan.revenue_streams JSONB, and log activity. Best
+  // effort — failures don't block the income save.
+  try {
+    if (payload.product) {
+      const productToStreamName = {
+        dream_machine:    'Dream Machine',
+        speed_rope:       'Speed Rope',
+        freestyle_rope:   'Freestyle Rope',
+        rings:            'Gymnastic Rings',
+        resistance_bands: 'Resistance Bands',
+        parallettes:      'Parallettes',
+        personal_training: 'אימון אישי',
+        online_coaching:  'ליווי אונליין',
+        workshop:         'סדנאות',
+        digital_course:   'קורסים דיגיטליים',
+      };
+      const streamName = productToStreamName[payload.product];
+      if (streamName) {
+        const { data: plan } = await supabase
+          .from('business_plan')
+          .select('id, revenue_streams')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .order('version', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (plan?.id && Array.isArray(plan.revenue_streams)) {
+          const next = plan.revenue_streams.map(s =>
+            s.name === streamName
+              ? { ...s, monthly_sales: (Number(s.monthly_sales) || 0) + 1 }
+              : s
+          );
+          await supabase
+            .from('business_plan')
+            .update({ revenue_streams: next, updated_at: new Date().toISOString() })
+            .eq('id', plan.id);
+        }
+      }
+    }
+    await supabase.from('activity_log').insert({
+      user_id: userId,
+      action_type: 'income_added',
+      category: payload.source || 'sales',
+      revenue_generated: Number(payload.amount || 0),
+      details: { product: payload.product, source: payload.source },
+    });
+  } catch (err) {
+    console.warn('[addIncome] cross-app sync failed:', err?.message);
+  }
   return data;
 }
 
@@ -249,6 +300,21 @@ export async function updateTaskStatus(id, status) {
     .select()
     .single();
   if (error) throw error;
+
+  // Cross-app sync: completed tasks feed into momentum/heatmap and
+  // nudge the streak forward.
+  if (status === 'completed' && data?.user_id) {
+    try {
+      await supabase.from('activity_log').insert({
+        user_id: data.user_id,
+        action_type: 'task_completed',
+        category: data.category || 'general',
+        details: { task_id: id, title: data.title, xp: data.xp_reward },
+      });
+    } catch (err) {
+      console.warn('[updateTaskStatus] activity log failed:', err?.message);
+    }
+  }
   return data;
 }
 
@@ -353,6 +419,42 @@ export async function markMentorMessageActedOn(id) {
   if (error) throw error;
 }
 
+// ─── Trainee → Lead mirror ────────────────────────────────────────
+// When a coach adds a brand-new trainee from the pro app, mirror them
+// into the leads table as `converted` so they show up in the growth
+// app's history. Idempotent on (user_id, name+phone).
+export async function recordTraineeAsConvertedLead(coachUserId, trainee) {
+  if (!coachUserId || !trainee?.full_name) return null;
+  const phone = trainee.phone || '';
+  const { data: existing } = await supabase
+    .from('leads')
+    .select('id')
+    .eq('user_id', coachUserId)
+    .eq('name', trainee.full_name)
+    .eq('phone', phone)
+    .maybeSingle();
+  if (existing?.id) return existing;
+  const { data, error } = await supabase
+    .from('leads')
+    .insert({
+      user_id: coachUserId,
+      name: trainee.full_name,
+      phone,
+      email: trainee.email || null,
+      source: 'walk_in',
+      status: 'converted',
+      converted_at: new Date().toISOString(),
+      notes: 'נוצר אוטומטית כשהמתאמן נוסף ב-Dashboard',
+    })
+    .select()
+    .single();
+  if (error) {
+    console.warn('[recordTraineeAsConvertedLead] failed:', error.message);
+    return null;
+  }
+  return data;
+}
+
 // ─── Aggregate summaries (used by dashboard) ─────────────────────
 
 // Returns { income, expenses, net } for the given month.
@@ -407,6 +509,42 @@ export async function updateLead(id, patch) {
     .select()
     .single();
   if (error) throw error;
+
+  // Cross-app sync: a lead just turned into "converted" with a known
+  // revenue_if_converted → push the matching income row into the
+  // financial app, plus an activity_log entry. Idempotent: we only
+  // fire when the patch flips status=converted (we don't re-fire on
+  // edits to an already-converted lead).
+  if (patch?.status === 'converted' && data?.user_id && Number(data.revenue_if_converted) > 0) {
+    try {
+      // Map the lead's interest to an income source.
+      const interestToSource = {
+        online_coaching: 'online_coaching',
+        course:          'course',
+        workshop:        'workshop',
+        coaching:        'training',
+      };
+      const source = interestToSource[data.interested_in] || 'product_sale';
+      await supabase.from('income').insert({
+        user_id: data.user_id,
+        amount: Number(data.revenue_if_converted),
+        source,
+        product: data.interested_in || null,
+        client_name: data.name || null,
+        description: `נסגר מליד: ${data.name || ''}`,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      await supabase.from('activity_log').insert({
+        user_id: data.user_id,
+        action_type: 'lead_converted',
+        category: 'sales',
+        revenue_generated: Number(data.revenue_if_converted),
+        details: { lead_id: id, name: data.name, product: data.interested_in },
+      });
+    } catch (err) {
+      console.warn('[updateLead] cross-app sync failed:', err?.message);
+    }
+  }
   return data;
 }
 
@@ -443,6 +581,24 @@ export async function updateContentItem(id, patch) {
     .select()
     .single();
   if (error) throw error;
+
+  // Cross-app sync: log when content actually goes live so it counts
+  // toward the financial dashboard's streak / weekly score.
+  if (patch?.status === 'published' && data?.user_id) {
+    try {
+      await supabase.from('activity_log').insert({
+        user_id: data.user_id,
+        action_type: 'content_published',
+        category: 'content',
+        details: {
+          content_id: id, title: data.title,
+          platform: data.platform, content_type: data.content_type,
+        },
+      });
+    } catch (err) {
+      console.warn('[updateContentItem] activity log failed:', err?.message);
+    }
+  }
   return data;
 }
 

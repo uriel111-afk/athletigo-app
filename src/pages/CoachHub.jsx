@@ -9,6 +9,19 @@ import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
 import DailyStreak from '@/components/lifeos/DailyStreak';
 import PageLoader from '@/components/PageLoader';
 
+const weekRangeFromOffset = (weeksAgo) => {
+  const end = new Date();
+  end.setDate(end.getDate() - 7 * weeksAgo);
+  const start = new Date(end);
+  start.setDate(end.getDate() - 7);
+  return {
+    startISO: start.toISOString(),
+    startDate: start.toISOString().slice(0, 10),
+    endISO: end.toISOString(),
+    endDate: end.toISOString().slice(0, 10),
+  };
+};
+
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 
 // Greeting splits the day into 4 windows so the hub feels alive at
@@ -55,6 +68,16 @@ export default function CoachHub() {
   const [daysSinceContent, setDaysSinceContent] = useState(99);
   const [loaded, setLoaded] = useState(false);
 
+  // Overview state — KPI deltas + attention list.
+  const [overview, setOverview] = useState({
+    incomeWeekDelta: null, leadsWeekDelta: null,
+    contentThisWeek: 0, contentLastWeek: 0,
+    unpublishedContent: 0,
+    inactiveTraineesCount: 0,
+    overdueLeads: 0,
+    expensesOverIncomeGap: 0,
+  });
+
   useEffect(() => {
     if (!user?.id) return;
     if (user.id !== COACH_USER_ID) return;
@@ -99,6 +122,73 @@ export default function CoachHub() {
           );
           setDaysSinceContent(days);
         }
+
+        // ── Overview KPIs + attention list ─────────────────────────
+        const thisWeek = weekRangeFromOffset(0);
+        const lastWeek = weekRangeFromOffset(1);
+
+        const [
+          incThis, incLast, leadsThis, leadsLast,
+          contentThis, contentLast, contentUnpublished,
+          allLeads, allSessions, allExpenses,
+        ] = await Promise.all([
+          supabase.from('income').select('amount').eq('user_id', user.id).gte('date', thisWeek.startDate),
+          supabase.from('income').select('amount').eq('user_id', user.id).gte('date', lastWeek.startDate).lt('date', thisWeek.startDate),
+          supabase.from('leads').select('id').eq('user_id', user.id).gte('created_at', thisWeek.startISO),
+          supabase.from('leads').select('id').eq('user_id', user.id).gte('created_at', lastWeek.startISO).lt('created_at', thisWeek.startISO),
+          supabase.from('content_calendar').select('id').eq('user_id', user.id).eq('status', 'published').gte('scheduled_date', thisWeek.startDate),
+          supabase.from('content_calendar').select('id').eq('user_id', user.id).eq('status', 'published').gte('scheduled_date', lastWeek.startDate).lt('scheduled_date', thisWeek.startDate),
+          supabase.from('content_calendar').select('id').eq('user_id', user.id).neq('status', 'published'),
+          supabase.from('leads').select('id, status, created_at').eq('user_id', user.id),
+          // Active trainees who didn't have a session this week.
+          supabase.from('sessions').select('trainee_id, date, status').eq('coach_id', user.id),
+          supabase.from('expenses').select('amount, date').eq('user_id', user.id),
+        ]);
+
+        const sumAmount = (rows) => (rows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+        const incThisSum = sumAmount(incThis.data);
+        const incLastSum = sumAmount(incLast.data);
+
+        // Inactive trainees: had a session in the past 30 days but
+        // none in the past 7. Indicates ghost-mode.
+        const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
+        const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+        const sessionRows = allSessions.data || [];
+        const recentTraineeIds = new Set();
+        const monthTraineeIds = new Set();
+        sessionRows.forEach(s => {
+          if (!s.trainee_id || !s.date) return;
+          const d = new Date(s.date);
+          if (d >= monthAgo) monthTraineeIds.add(s.trainee_id);
+          if (d >= weekAgo)  recentTraineeIds.add(s.trainee_id);
+        });
+        const inactive = [...monthTraineeIds].filter(id => !recentTraineeIds.has(id)).length;
+
+        // Overdue leads: status=new + 2+ days old.
+        const twoDaysAgo = new Date(); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        const overdueLeadsCount = (allLeads.data || []).filter(l =>
+          l.status === 'new' && new Date(l.created_at) <= twoDaysAgo
+        ).length;
+
+        // Monthly expenses-over-income gap.
+        const mStart = new Date(); mStart.setDate(1); const mStartISO = mStart.toISOString().slice(0, 10);
+        const monthlyExpenses = (allExpenses.data || [])
+          .filter(e => e.date && e.date >= mStartISO)
+          .reduce((s, e) => s + Number(e.amount || 0), 0);
+        const expGap = Math.max(0, monthlyExpenses - s.income);
+
+        setOverview({
+          incomeWeekDelta:  incLastSum > 0 ? Math.round(((incThisSum - incLastSum) / incLastSum) * 100) : null,
+          leadsWeekDelta:   ((leadsLast.data || []).length) > 0
+            ? Math.round((((leadsThis.data || []).length - (leadsLast.data || []).length) / (leadsLast.data || []).length) * 100)
+            : null,
+          contentThisWeek:  (contentThis.data || []).length,
+          contentLastWeek:  (contentLast.data || []).length,
+          unpublishedContent: (contentUnpublished.data || []).length,
+          inactiveTraineesCount: inactive,
+          overdueLeads: overdueLeadsCount,
+          expensesOverIncomeGap: expGap,
+        });
       } finally {
         if (!cancelled) setLoaded(true);
       }
@@ -202,11 +292,94 @@ export default function CoachHub() {
             emoji="🚀"
             title="צמיחה"
             subtitle="לידים והזדמנויות"
-            badge={loaded && openLeads > 0 ? `${openLeads} פתוחים` : null}
+            badge={loaded && (openLeads > 0 || overview.unpublishedContent > 0)
+              ? `${openLeads} לידים · ${overview.unpublishedContent} תוכן`
+              : null}
             badgeColor={openLeads > 0 ? LIFEOS_COLORS.error : null}
             onClick={() => navigate('/lifeos/leads')}
           />
         </div>
+
+        {/* ── Overview KPIs — across all 3 apps ──────────────────── */}
+        <div style={{ ...LIFEOS_CARD, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 10 }}>
+            🌐 מבט על הכל
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <KpiCard
+              label="מתאמנים פעילים"
+              value={activeTraineesCount}
+              delta={null}
+            />
+            <KpiCard
+              label="הכנסות החודש"
+              value={`${fmt(summary.income)}₪`}
+              delta={overview.incomeWeekDelta}
+            />
+            <KpiCard
+              label="לידים פתוחים"
+              value={openLeads}
+              delta={overview.leadsWeekDelta}
+              invertDeltaColor /* more leads = good even if "+" */
+            />
+            <KpiCard
+              label="תוכן השבוע"
+              value={`${overview.contentThisWeek} / 7`}
+              delta={overview.contentLastWeek > 0
+                ? Math.round(((overview.contentThisWeek - overview.contentLastWeek) / overview.contentLastWeek) * 100)
+                : null}
+            />
+          </div>
+        </div>
+
+        {/* ── דורש תשומת לב ──────────────────────────────────────── */}
+        {(() => {
+          const items = [];
+          if (overview.inactiveTraineesCount > 0) items.push({
+            emoji: '😴', text: `${overview.inactiveTraineesCount} מתאמנים לא התאמנו השבוע`,
+            href: '/dashboard',
+          });
+          if (overview.expensesOverIncomeGap > 0) items.push({
+            emoji: '⚠️', text: `ההוצאות גבוהות מההכנסות ב-${fmt(overview.expensesOverIncomeGap)}₪`,
+            href: '/lifeos/cashflow',
+          });
+          if (overview.overdueLeads > 0) items.push({
+            emoji: '⚡', text: `${overview.overdueLeads} לידים לא נענו כבר יומיים`,
+            href: '/lifeos/leads',
+          });
+          if (overview.unpublishedContent > 0) items.push({
+            emoji: '🎬', text: `${overview.unpublishedContent} פריטי תוכן עדיין לא פורסמו`,
+            href: '/lifeos/content',
+          });
+          if (!loaded || items.length === 0) return null;
+          return (
+            <div style={{ ...LIFEOS_CARD, marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.error, marginBottom: 10 }}>
+                🚨 דורש תשומת לב
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {items.slice(0, 3).map((it, i) => (
+                  <div
+                    key={i}
+                    onClick={() => navigate(it.href)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', borderRadius: 10,
+                      backgroundColor: '#FEF2F2',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>{it.emoji}</span>
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: LIFEOS_COLORS.textPrimary }}>
+                      {it.text}
+                    </div>
+                    <span style={{ fontSize: 14, color: LIFEOS_COLORS.textSecondary }}>←</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Monthly snapshot */}
         <div style={{ ...LIFEOS_CARD, marginBottom: 16 }}>
@@ -331,6 +504,33 @@ function HubCard({ emoji, title, subtitle, badge, badgeColor, onClick, primary =
         )}
       </div>
     </button>
+  );
+}
+
+function KpiCard({ label, value, delta, invertDeltaColor }) {
+  const hasDelta = delta !== null && delta !== undefined && Number.isFinite(delta);
+  const goodWhenUp = !invertDeltaColor; // income going up is good; leads-not-touched-faster is fine too
+  const arrow = !hasDelta ? null : delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+  const positive = hasDelta && (goodWhenUp ? delta > 0 : delta > 0);
+  const negative = hasDelta && (goodWhenUp ? delta < 0 : delta < 0);
+  const color = positive ? LIFEOS_COLORS.success : negative ? LIFEOS_COLORS.error : LIFEOS_COLORS.textSecondary;
+  return (
+    <div style={{
+      padding: '10px 8px', borderRadius: 10,
+      backgroundColor: '#F7F3EC', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: LIFEOS_COLORS.textSecondary }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, marginTop: 2 }}>
+        {value}
+      </div>
+      {hasDelta && (
+        <div style={{
+          fontSize: 10, fontWeight: 700, color, marginTop: 2,
+        }}>
+          {arrow} {Math.abs(delta)}% מול שבוע
+        </div>
+      )}
+    </div>
   );
 }
 
