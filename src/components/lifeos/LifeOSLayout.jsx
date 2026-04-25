@@ -89,7 +89,8 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
 
       <LifeOSNav />
       <QuickActionFAB onSaved={onQuickSaved} />
-      <MentorChat />
+      {/* MentorChat sits beside the FAB (FAB is at left:16, w:56). */}
+      <MentorChat buttonBottom={90} buttonLeft={84} />
     </div>
   );
 }

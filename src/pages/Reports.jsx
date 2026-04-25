@@ -86,6 +86,14 @@ export default function Reports() {
   const [trainees, setTrainees] = useState([]);
   const [packages, setPackages] = useState([]);
   const [leads, setLeads] = useState([]);
+  // Income rows are the source of truth for revenue figures — kept in
+  // sync with client_services via syncPackageToIncome (per-sale) +
+  // syncHistoricalData (one-shot backfill in Settings). Reports used
+  // to compute revenue from final_price; that diverged from the
+  // financial dashboard whenever historical packages weren't yet
+  // synced. We now read both: client_services for package details +
+  // income for the headline totals.
+  const [income, setIncome] = useState([]);
   const [pkgFilter, setPkgFilter] = useState('all'); // packages section sub-filter
   // Preserved dialogs from the old PackageStats — still openable from
   // the packages section so coaches can see + edit a single package.
@@ -114,7 +122,7 @@ export default function Reports() {
       (r) => r,
       (err) => { console.warn('[Reports] query failed:', err); return { data: [] }; }
     );
-    const [sRes, pRes, lRes] = await Promise.all([
+    const [sRes, pRes, lRes, iRes] = await Promise.all([
       safeQuery(supabase.from('sessions')
         .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at, trainee:trainee_id(id, full_name, phone)')
         .eq('coach_id', user.id)
@@ -126,10 +134,15 @@ export default function Reports() {
         .select('id, full_name, phone, email, status, source, coach_notes, created_at')
         .eq('coach_id', user.id)
         .order('created_at', { ascending: false })),
+      safeQuery(supabase.from('income')
+        .select('id, amount, date, source, product, client_name, description, created_at')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })),
     ]);
     if (sRes.error) console.warn('[Reports] sessions error:', sRes.error);
     if (pRes.error) console.warn('[Reports] packages error:', pRes.error);
     if (lRes.error) console.warn('[Reports] leads error:', lRes.error);
+    if (iRes.error) console.warn('[Reports] income error:', iRes.error);
     const sessionRows = sRes.data || [];
     const pkgRows = pRes.data || [];
     // Build the trainee roster from joined data + participants[].
@@ -160,6 +173,7 @@ export default function Reports() {
     setTrainees(Array.from(traineeMap.values()));
     setPackages(pkgRows);
     setLeads(lRes.data || []);
+    setIncome(iRes.data || []);
     setLoading(false);
     console.log('[Reports] sessions:', sessionRows.length, 'packages:', pkgRows.length, 'trainees:', traineeMap.size, 'leads:', (lRes.data || []).length);
     console.log('[Reports] sample session:', sessionRows[0]);
@@ -176,6 +190,7 @@ export default function Reports() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services',  filter: `coach_id=eq.${user.id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users',            filter: `coach_id=eq.${user.id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads',            filter: `coach_id=eq.${user.id}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'income',           filter: `user_id=eq.${user.id}` }, () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user?.id, fetchAll]);
@@ -216,13 +231,22 @@ export default function Reports() {
   const filteredLeads = useMemo(() => (
     startDate ? leads.filter(l => l.created_at && new Date(l.created_at) >= startDate) : leads
   ), [leads, startDate]);
+  // Income filtered by `date` (the business date, e.g. when payment
+  // was actually received) — matches how /lifeos/dashboard slices
+  // monthly numbers, so the two screens always agree.
+  const filteredIncome = useMemo(() => (
+    startDate ? income.filter(i => i.date && new Date(i.date) >= startDate) : income
+  ), [income, startDate]);
 
   const completed = filtered.filter(s => { const n = normalizeStatus(s.status); return n === 'completed' || n === 'present'; });
   const cancelled = filtered.filter(s => normalizeStatus(s.status) === 'cancelled');
   const pending   = filtered.filter(s => normalizeStatus(s.status) === 'pending');
 
-  const totalRevenue = filteredPkgs.reduce((s, p) => s + (Number(p.final_price) || 0), 0);
-  const allTimeRevenue = packages.reduce((s, p) => s + (Number(p.final_price) || 0), 0);
+  // Headline revenue uses income table (single source of truth shared
+  // with /lifeos/dashboard). filteredPkgs is still used below for
+  // package-specific breakdowns (per-trainee paid, per-package row).
+  const totalRevenue = filteredIncome.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const allTimeRevenue = income.reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
   // ─── Tiny helpers shared across sections ─────────────────────
   const SectionCard = ({ id, icon, title, subtitle, valueRight, valueLabel, valueColor = '#1a1a1a', children }) => {
@@ -292,12 +316,15 @@ export default function Reports() {
     const now = new Date();
     const thisStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const thisRev = packages.filter(p => p.created_at && new Date(p.created_at) >= thisStart).reduce((s, p) => s + (Number(p.final_price) || 0), 0);
-    const lastRev = packages.filter(p => {
-      if (!p.created_at) return false;
-      const d = new Date(p.created_at);
+    // This-month / last-month comparison reads income (the same
+     // source /lifeos/dashboard uses for monthly summary cards).
+    const thisRev = income.filter(r => r.date && new Date(r.date) >= thisStart)
+      .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const lastRev = income.filter(r => {
+      if (!r.date) return false;
+      const d = new Date(r.date);
       return d >= lastStart && d < thisStart;
-    }).reduce((s, p) => s + (Number(p.final_price) || 0), 0);
+    }).reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const change = lastRev > 0 ? Math.round((thisRev - lastRev) / lastRev * 100) : (thisRev > 0 ? 100 : 0);
 
     const profitableClients = trainees.map(t => {
@@ -316,13 +343,13 @@ export default function Reports() {
       return Array.from(m.values()).sort((a, b) => b.total - a.total);
     })();
 
-    // Revenue chart bars
+    // Revenue chart bars — also from income for parity with /lifeos.
     const chartGroups = new Map();
-    for (const p of filteredPkgs) {
-      if (!p.created_at) continue;
-      const d = new Date(p.created_at);
+    for (const r of filteredIncome) {
+      if (!r.date) continue;
+      const d = new Date(r.date);
       const k = `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
-      chartGroups.set(k, (chartGroups.get(k) || 0) + (Number(p.final_price) || 0));
+      chartGroups.set(k, (chartGroups.get(k) || 0) + (Number(r.amount) || 0));
     }
     const chartData = Array.from(chartGroups.entries()).slice(-12);
     const maxV = Math.max(...chartData.map(([, v]) => v), 1);

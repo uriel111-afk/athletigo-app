@@ -63,7 +63,7 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
       </div>
 
       <PersonalNav />
-      <MentorChat buttonBottom={90} buttonLeft={16} />
+      <MentorChat buttonBottom={90} buttonLeft={20} />
     </div>
   );
 }

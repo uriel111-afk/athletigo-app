@@ -5,7 +5,7 @@ import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
 } from '@/lib/lifeos/lifeos-constants';
-import { getBusinessPlan, updateBusinessPlan } from '@/lib/lifeos/lifeos-api';
+import { getBusinessPlan, updateBusinessPlan, syncHistoricalData } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -18,6 +18,28 @@ export default function LifeOSSettings() {
   const [goalInput, setGoalInput] = useState(String(YEARLY_GOAL));
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
+  const handleHistoricalSync = async () => {
+    if (!userId || syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const r = await syncHistoricalData(userId);
+      setSyncResult(r);
+      if (r.inserted > 0) {
+        toast.success(`סונכרנו ${r.inserted} מכירות חדשות (סה"כ ${r.scanned} חבילות)`);
+      } else {
+        toast(`הכל מסונכרן: ${r.scanned} חבילות נסרקו, אפס חדשות`);
+      }
+    } catch (err) {
+      console.error('[Settings] historical sync failed:', err);
+      toast.error('שגיאה בסנכרון: ' + (err?.message || ''));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -133,6 +155,39 @@ export default function LifeOSSettings() {
               </button>
             )}
           </>
+        )}
+      </div>
+
+      {/* Historical sync — pulls every client_services row into income */}
+      <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: LIFEOS_COLORS.textSecondary, marginBottom: 6 }}>
+          סנכרון נתונים
+        </div>
+        <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, lineHeight: 1.5, marginBottom: 10 }}>
+          מעביר חבילות שנמכרו במקצועי (client_services) להכנסות הפיננסי. כל מכירה חדשה כבר מסתנכרנת אוטומטית — כפתור זה לחבילות היסטוריות.
+        </div>
+        <button
+          onClick={handleHistoricalSync}
+          disabled={syncing}
+          style={{
+            width: '100%', padding: '12px 16px', borderRadius: 12,
+            border: 'none', backgroundColor: LIFEOS_COLORS.primary,
+            color: '#FFFFFF', fontSize: 14, fontWeight: 700,
+            cursor: syncing ? 'default' : 'pointer',
+            opacity: syncing ? 0.7 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          {syncing
+            ? <><Loader2 size={16} className="animate-spin" /> מסנכרן...</>
+            : 'סנכרן נתונים היסטוריים'}
+        </button>
+        {syncResult && !syncing && (
+          <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 8, lineHeight: 1.5 }}>
+            נסרקו {syncResult.scanned} חבילות · הוכנסו {syncResult.inserted}
+            {syncResult.skipped ? ` · קיימות ${syncResult.skipped}` : ''}
+            {syncResult.errors ? ` · שגיאות ${syncResult.errors}` : ''}
+          </div>
         )}
       </div>
 

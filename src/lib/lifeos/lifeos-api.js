@@ -132,6 +132,60 @@ export async function syncPackageToIncome(userId, pkg) {
   return data || null;
 }
 
+// One-shot historical backfill. Walks every client_services row owned
+// by the coach and runs syncPackageToIncome on each. The dup check
+// inside syncPackageToIncome makes this safe to run repeatedly. Used
+// by the "סנכרן נתונים היסטוריים" button in LifeOSSettings to bring
+// pre-Life-OS package sales into the income table so the financial
+// dashboard and the professional Reports screen show the same totals.
+//
+// Returns { scanned, inserted, skipped, errors }.
+export async function syncHistoricalData(coachId) {
+  if (!coachId) return { scanned: 0, inserted: 0, skipped: 0, errors: 0 };
+
+  const { data: pkgs, error } = await supabase
+    .from('client_services')
+    .select(`
+      id, trainee_id, package_name, package_type, service_type,
+      final_price, payment_method, start_date, created_at,
+      trainee:trainee_id(full_name)
+    `)
+    .eq('coach_id', coachId);
+  if (error) throw error;
+
+  let inserted = 0, skipped = 0, errors = 0;
+  for (const pkg of (pkgs || [])) {
+    const enriched = { ...pkg, trainee_name: pkg.trainee?.full_name || null };
+    try {
+      // Dup check inside syncPackageToIncome: any existing income row
+      // matching (user_id, amount, date, client_name) is treated as
+      // already-synced. We classify the result by checking whether it
+      // returned an existing row vs a freshly inserted one.
+      const before = await supabase
+        .from('income').select('id', { head: true, count: 'exact' })
+        .eq('user_id', coachId)
+        .eq('amount', Number(pkg.final_price || 0))
+        .eq('date', (pkg.start_date || pkg.created_at || '').slice(0, 10))
+        .eq('client_name', enriched.trainee_name);
+      const existedBefore = (before.count || 0) > 0;
+
+      const result = await syncPackageToIncome(coachId, enriched);
+      if (!result) { errors += 1; continue; }
+      if (existedBefore) skipped += 1;
+      else inserted += 1;
+    } catch (err) {
+      console.warn('[syncHistoricalData] row failed:', pkg.id, err?.message);
+      errors += 1;
+    }
+  }
+
+  // Refresh the active business plan's monthly revenue so the goal
+  // chart on /lifeos catches the freshly imported rows.
+  try { await syncCurrentMonthlyRevenue(coachId); } catch (_) {}
+
+  return { scanned: pkgs?.length || 0, inserted, skipped, errors };
+}
+
 // (2) New trainee user (role=trainee) → auto-add converted lead.
 //     Idempotent on (coach_id, full_name, status='converted').
 export async function syncTraineeToLead(coachId, trainee) {

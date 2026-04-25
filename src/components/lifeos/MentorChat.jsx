@@ -56,7 +56,12 @@ const SUGGESTIONS = [
   'אילו לידים מחכים?',
 ];
 
-export default function MentorChat({ buttonBottom = 156, buttonLeft = 16 }) {
+// Floating "ask the mentor" button + bottom-sheet chat. Defaults
+// position the button at bottom-left where the user expects it. Each
+// layout can override via props if there's a collision (e.g. the
+// LifeOS FAB sits at left:16, so LifeOSLayout passes buttonLeft={84}
+// to slot beside it instead of behind it).
+export default function MentorChat({ buttonBottom = 90, buttonLeft = 20, buttonZIndex = 1080 }) {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -175,7 +180,7 @@ export default function MentorChat({ buttonBottom = 156, buttonLeft = 16 }) {
         style={{
           position: 'fixed',
           bottom: buttonBottom, left: buttonLeft,
-          zIndex: 1071,
+          zIndex: buttonZIndex,
           width: 52, height: 52, borderRadius: 999,
           border: 'none',
           backgroundColor: '#1A1A1A', color: '#FFFFFF',

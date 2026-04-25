@@ -769,7 +769,7 @@ export default function Dashboard() {
           onTap={() => { setDuePopup(null); setShowReminders(true); }}
         />
       )}
-      <MentorChat buttonBottom={90} buttonLeft={16} />
+      <MentorChat buttonBottom={90} buttonLeft={20} />
     </ProtectedCoachPage>
   );
 }
