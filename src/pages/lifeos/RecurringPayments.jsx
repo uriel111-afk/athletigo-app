@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import RecurringForm from '@/components/lifeos/RecurringForm';
@@ -7,6 +8,7 @@ import {
   EXPENSE_CATEGORY_BY_KEY, RECURRING_FREQUENCIES,
 } from '@/lib/lifeos/lifeos-constants';
 import { listRecurring, updateRecurring } from '@/lib/lifeos/lifeos-api';
+import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -31,6 +33,7 @@ export default function RecurringPayments() {
   const [loaded, setLoaded] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -78,10 +81,19 @@ export default function RecurringPayments() {
     }
   };
 
+  const openNew = () => { setEditing(null); setShowForm(true); };
+  const openEdit = (e, row) => { e?.stopPropagation?.(); setEditing(row); setShowForm(true); };
+  const handleDelete = async (e, id) => {
+    e?.stopPropagation?.();
+    if (!confirm('בטוח שאתה רוצה למחוק את ההוצאה הקבועה?')) return;
+    try { await supabase.from('recurring_payments').delete().eq('id', id); toast.success('נמחק'); load(); }
+    catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
+
   return (
-    <LifeOSLayout title="הוצאות קבועות">
+    <LifeOSLayout title="הוצאות קבועות" onQuickSaved={load}>
       <button
-        onClick={() => setShowForm(true)}
+        onClick={openNew}
         style={{
           width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',
           backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
@@ -152,6 +164,8 @@ export default function RecurringPayments() {
                   row={r}
                   isLast={idx === items.length - 1}
                   onToggle={() => toggleActive(r)}
+                  onEdit={(e) => openEdit(e, r)}
+                  onDelete={(e) => handleDelete(e, r.id)}
                 />
               ))}
             </div>
@@ -161,15 +175,16 @@ export default function RecurringPayments() {
 
       <RecurringForm
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={() => { setShowForm(false); setEditing(null); }}
         userId={userId}
+        recurring={editing}
         onSaved={load}
       />
     </LifeOSLayout>
   );
 }
 
-function RecurringRow({ row, isLast, onToggle }) {
+function RecurringRow({ row, isLast, onToggle, onEdit, onDelete }) {
   const freq = FREQ_BY_KEY[row.frequency]?.label || row.frequency;
   const dueLabel = row.due_day ? `ב-${row.due_day} בחודש` : '';
   return (
@@ -203,9 +218,18 @@ function RecurringRow({ row, isLast, onToggle }) {
       >
         {row.is_active ? 'השבת' : 'הפעל'}
       </button>
+      <button onClick={onEdit} style={iconBtn} aria-label="עריכה"><Pencil size={14} /></button>
+      <button onClick={onDelete} style={{ ...iconBtn, color: LIFEOS_COLORS.error }} aria-label="מחיקה"><Trash2 size={14} /></button>
     </div>
   );
 }
+
+const iconBtn = {
+  width: 26, height: 26, borderRadius: 8, border: 'none',
+  background: 'transparent', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: LIFEOS_COLORS.textSecondary,
+};
 
 function EmptyCard({ text }) {
   return (

@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
@@ -7,6 +8,7 @@ import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import CommunityMetricForm from '@/components/lifeos/CommunityMetricForm';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import { listCommunityMetrics } from '@/lib/lifeos/lifeos-api';
+import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -64,8 +66,14 @@ export default function Community() {
     ? (latest.followers_count || 0) - (previous.followers_count || 0)
     : null;
 
+  const handleDelete = async (id) => {
+    if (!confirm('בטוח שאתה רוצה למחוק את המדידה?')) return;
+    try { await supabase.from('community_metrics').delete().eq('id', id); toast.success('נמחק'); load(); }
+    catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
+
   return (
-    <LifeOSLayout title="קהילה">
+    <LifeOSLayout title="קהילה" onQuickSaved={load}>
       <button
         onClick={() => setShowForm(true)}
         style={{
@@ -85,8 +93,17 @@ export default function Community() {
         <EmptyCard text="עדיין לא הזנת מדידות. לחץ + כדי להתחיל" />
       ) : (
         <>
-          {/* Hero: followers */}
-          <div style={{ ...LIFEOS_CARD, marginBottom: 12, textAlign: 'center' }}>
+          {/* Hero: followers — long-press to delete most recent */}
+          <div style={{ ...LIFEOS_CARD, marginBottom: 12, textAlign: 'center', position: 'relative' }}>
+            <button onClick={() => handleDelete(latest.id)} aria-label="מחק מדידה אחרונה" style={{
+              position: 'absolute', top: 8, left: 8,
+              width: 28, height: 28, borderRadius: 8, border: 'none',
+              background: 'transparent', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: LIFEOS_COLORS.error,
+            }}>
+              <Trash2 size={14} />
+            </button>
             <div style={{ fontSize: 12, fontWeight: 600, color: LIFEOS_COLORS.textSecondary, marginBottom: 4 }}>
               עוקבים ({latest.platform}) • {new Date(latest.date).toLocaleDateString('he-IL')}
             </div>

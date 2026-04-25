@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   EXPENSE_CATEGORIES, RECURRING_FREQUENCIES, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
-import { addRecurring } from '@/lib/lifeos/lifeos-api';
+import { addRecurring, updateRecurring } from '@/lib/lifeos/lifeos-api';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -19,11 +19,24 @@ const initialForm = () => ({
   notes: '',
 });
 
-export default function RecurringForm({ isOpen, onClose, userId, onSaved }) {
+const formFromRow = (row) => ({
+  name: row.name || '',
+  amount: row.amount != null ? String(row.amount) : '',
+  category: row.category || '',
+  frequency: row.frequency || 'monthly',
+  due_day: row.due_day != null ? String(row.due_day) : '',
+  start_date: row.start_date || todayISO(),
+  notes: row.notes || '',
+});
+
+export default function RecurringForm({ isOpen, onClose, userId, onSaved, recurring = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (isOpen) setForm(initialForm()); }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen) return;
+    setForm(recurring ? formFromRow(recurring) : initialForm());
+  }, [isOpen, recurring?.id]);
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
   const handleSave = async () => {
@@ -33,18 +46,19 @@ export default function RecurringForm({ isOpen, onClose, userId, onSaved }) {
     if (!form.category) { toast.error('בחר קטגוריה'); return; }
 
     setSaving(true);
+    const payload = {
+      name: form.name.trim(),
+      amount,
+      category: form.category,
+      frequency: form.frequency,
+      due_day: form.due_day ? parseInt(form.due_day, 10) : null,
+      start_date: form.start_date,
+      notes: form.notes || null,
+    };
     try {
-      await addRecurring(userId, {
-        name: form.name.trim(),
-        amount,
-        category: form.category,
-        frequency: form.frequency,
-        due_day: form.due_day ? parseInt(form.due_day, 10) : null,
-        start_date: form.start_date,
-        is_active: true,
-        notes: form.notes || null,
-      });
-      toast.success('הוצאה קבועה נשמרה');
+      if (recurring?.id) await updateRecurring(recurring.id, payload);
+      else               await addRecurring(userId, { ...payload, is_active: true });
+      toast.success(recurring ? 'עודכן' : 'נשמר');
       onSaved?.();
       onClose();
     } catch (err) {
@@ -60,7 +74,7 @@ export default function RecurringForm({ isOpen, onClose, userId, onSaved }) {
       <DialogContent dir="rtl" className="max-w-md" onPointerDownOutside={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
-            הוצאה קבועה חדשה
+            {recurring ? 'עריכת הוצאה קבועה' : 'הוצאה קבועה חדשה'}
           </DialogTitle>
         </DialogHeader>
 

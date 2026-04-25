@@ -1,5 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Upload, ExternalLink } from 'lucide-react';
+import { Loader2, Upload, ExternalLink, Trash2 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import { LIFEOS_COLORS, LIFEOS_CARD, DOCUMENT_CATEGORIES } from '@/lib/lifeos/lifeos-constants';
@@ -92,8 +93,16 @@ export default function DocumentVault() {
     }
   };
 
+  const handleDelete = async (e, id) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (!confirm('בטוח שאתה רוצה למחוק את המסמך?')) return;
+    try { await supabase.from('documents').delete().eq('id', id); toast.success('נמחק'); load(); }
+    catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
+
   return (
-    <LifeOSLayout title="כספת מסמכים">
+    <LifeOSLayout title="כספת מסמכים" onQuickSaved={load}>
       <input
         ref={fileInputRef}
         type="file"
@@ -202,7 +211,8 @@ export default function DocumentVault() {
           } />
         ) : (
           filtered.map((row, idx) => (
-            <DocumentRow key={row.id} row={row} isLast={idx === filtered.length - 1} />
+            <DocumentRow key={row.id} row={row} isLast={idx === filtered.length - 1}
+                         onDelete={(e) => handleDelete(e, row.id)} />
           ))
         )}
       </div>
@@ -210,7 +220,7 @@ export default function DocumentVault() {
   );
 }
 
-function DocumentRow({ row, isLast }) {
+function DocumentRow({ row, isLast, onDelete }) {
   const cat = DOC_BY_KEY[row.category] || { emoji: '📁', label: row.category };
   const dateStr = row.created_at
     ? new Date(row.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -255,6 +265,14 @@ function DocumentRow({ row, isLast }) {
         </div>
       </div>
       <ExternalLink size={16} style={{ color: LIFEOS_COLORS.textSecondary, flexShrink: 0 }} />
+      <button onClick={onDelete} style={{
+        width: 28, height: 28, borderRadius: 8, border: 'none',
+        background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: LIFEOS_COLORS.error,
+      }} aria-label="מחיקה">
+        <Trash2 size={14} />
+      </button>
     </a>
   );
 }

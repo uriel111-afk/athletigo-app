@@ -1,9 +1,11 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import InstallmentForm from '@/components/lifeos/InstallmentForm';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import { listInstallments, updateInstallment } from '@/lib/lifeos/lifeos-api';
+import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -50,6 +52,12 @@ export default function Installments() {
     [active]
   );
 
+  const handleDelete = async (id) => {
+    if (!confirm('בטוח שאתה רוצה למחוק את תשלום הפס?')) return;
+    try { await supabase.from('installments').delete().eq('id', id); toast.success('נמחק'); load(); }
+    catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
+
   const markPaymentMade = async (row) => {
     const next = Math.min((row.payments_made || 0) + 1, row.total_payments);
     try {
@@ -62,7 +70,7 @@ export default function Installments() {
   };
 
   return (
-    <LifeOSLayout title="תשלומי פס">
+    <LifeOSLayout title="תשלומי פס" onQuickSaved={load}>
       <button
         onClick={() => setShowForm(true)}
         style={{
@@ -103,7 +111,9 @@ export default function Installments() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {rows.map(r => (
-            <InstallmentCard key={r.id} row={r} onPaymentMade={() => markPaymentMade(r)} />
+            <InstallmentCard key={r.id} row={r}
+              onPaymentMade={() => markPaymentMade(r)}
+              onDelete={() => handleDelete(r.id)} />
           ))}
         </div>
       )}
@@ -118,7 +128,7 @@ export default function Installments() {
   );
 }
 
-function InstallmentCard({ row, onPaymentMade }) {
+function InstallmentCard({ row, onPaymentMade, onDelete }) {
   const paid = row.payments_made || 0;
   const total = row.total_payments || 0;
   const pct = total > 0 ? (paid / total) * 100 : 0;
@@ -158,26 +168,37 @@ function InstallmentCard({ row, onPaymentMade }) {
         }} />
       </div>
 
-      {!isDone && (
-        <button
-          onClick={onPaymentMade}
-          style={{
-            width: '100%', padding: '8px 12px', borderRadius: 8,
-            border: `1px solid ${LIFEOS_COLORS.primary}`,
-            backgroundColor: '#FFFFFF', color: LIFEOS_COLORS.primary,
-            fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
-          סמן תשלום נוסף
+      <div style={{ display: 'flex', gap: 8 }}>
+        {!isDone && (
+          <button
+            onClick={onPaymentMade}
+            style={{
+              flex: 1, padding: '8px 12px', borderRadius: 8,
+              border: `1px solid ${LIFEOS_COLORS.primary}`,
+              backgroundColor: '#FFFFFF', color: LIFEOS_COLORS.primary,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            סמן תשלום נוסף
+          </button>
+        )}
+        {isDone && (
+          <div style={{
+            flex: 1, textAlign: 'center', fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.success,
+            padding: '8px 12px',
+          }}>
+            ✓ הושלם
+          </div>
+        )}
+        <button onClick={onDelete} style={{
+          padding: '8px 12px', borderRadius: 8,
+          border: `1px solid ${LIFEOS_COLORS.border}`,
+          backgroundColor: '#FFFFFF', color: LIFEOS_COLORS.error,
+          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        }} aria-label="מחיקה">
+          <Trash2 size={14} />
         </button>
-      )}
-      {isDone && (
-        <div style={{
-          textAlign: 'center', fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.success,
-        }}>
-          ✓ הושלם
-        </div>
-      )}
+      </div>
     </div>
   );
 }
