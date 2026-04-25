@@ -624,56 +624,13 @@ export async function markMentorMessageActedOn(id) {
   if (error) throw error;
 }
 
-// ─── Trainee → Lead mirror ────────────────────────────────────────
-// When a coach adds a brand-new trainee from the pro app, mirror them
-// into the leads table as `converted` so they show up in the growth
-// app's history. Idempotent on (coach_id, full_name+phone).
-//
-// IMPORTANT: the legacy schema uses coach_id + full_name + coach_notes
-// (not user_id/name/notes). The Wave-2 columns (last_contact_date,
-// next_follow_up, revenue_if_converted, converted_at, interested_in,
-// notes) are added by 20260425_extend_leads_schema.sql. Until that
-// migration runs, anything writing to those columns will fail — we
-// keep the writes guarded so a missing column doesn't kill the flow.
-export async function recordTraineeAsConvertedLead(coachId, trainee) {
-  if (!coachId || !trainee?.full_name) return null;
-  const phone = trainee.phone || '';
-  const { data: existing } = await supabase
-    .from('leads')
-    .select('id')
-    .eq('coach_id', coachId)
-    .eq('full_name', trainee.full_name)
-    .eq('phone', phone)
-    .maybeSingle();
-  if (existing?.id) return existing;
-  // Try to write with the extended columns; fall back to the legacy
-  // shape if the migration hasn't run.
-  const baseRow = {
-    coach_id: coachId,
-    full_name: trainee.full_name,
-    phone,
-    email: trainee.email || null,
-    source: 'walk_in',
-    status: 'converted',
-  };
-  let { data, error } = await supabase
-    .from('leads')
-    .insert({
-      ...baseRow,
-      converted_at: new Date().toISOString(),
-      notes: 'נוצר אוטומטית כשהמתאמן נוסף ב-Dashboard',
-    })
-    .select()
-    .single();
-  if (error && /column .* does not exist/i.test(error.message || '')) {
-    ({ data, error } = await supabase.from('leads').insert(baseRow).select().single());
-  }
-  if (error) {
-    console.warn('[recordTraineeAsConvertedLead] failed:', error.message);
-    return null;
-  }
-  return data;
-}
+// `recordTraineeAsConvertedLead` was a duplicate of `syncTraineeToLead`
+// from when two windows worked in parallel — both inserted into leads
+// with status='converted'. The canonical implementation is
+// syncTraineeToLead (line 137). Keep this alias for any old caller
+// that imports the old name; it just forwards.
+export const recordTraineeAsConvertedLead = (coachId, trainee) =>
+  syncTraineeToLead(coachId, trainee);
 
 // ─── Aggregate summaries (used by dashboard) ─────────────────────
 
@@ -784,9 +741,10 @@ export async function updateLead(id, patch) {
         coaching:        'אימון אישי',
       };
       const funnelLabel = interestToFunnel[data.interested_in] || data.interested_in || null;
-      if (funnelLabel) await syncFunnelOnConversion(data.user_id, funnelLabel);
-      // Refresh current_monthly_revenue
-      syncCurrentMonthlyRevenue(data.user_id);
+      // leads.coach_id is the owner — not user_id (which doesn't exist
+      // on this legacy table). Both helpers expect the coach's auth uid.
+      if (funnelLabel) await syncFunnelOnConversion(data.coach_id, funnelLabel);
+      syncCurrentMonthlyRevenue(data.coach_id);
     } catch (err) {
       console.warn('[updateLead] cross-app sync failed:', err?.message);
     }

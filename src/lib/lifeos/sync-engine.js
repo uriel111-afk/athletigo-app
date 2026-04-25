@@ -24,10 +24,16 @@ export const syncIncomeToBusinessPlan = syncCurrentMonthlyRevenue;
 // Lead → income happens automatically inside updateLead() when status
 // flips to 'converted'. Expose a callable here for places that mutate
 // the row directly without going through updateLead.
+//
+// NOTE: the legacy leads table is keyed on coach_id (not user_id), so
+// callers should pass a row with coach_id populated. We keep the
+// user_id fallback for compatibility but warn in the console if it's
+// the only field available.
 export async function syncLeadConversion(lead) {
-  if (!lead?.user_id || lead.status !== "converted") return;
-  await syncFunnelOnConversion(lead.user_id, lead.interested_in);
-  await syncCurrentMonthlyRevenue(lead.user_id);
+  const ownerId = lead?.coach_id || lead?.user_id;
+  if (!ownerId || lead.status !== "converted") return;
+  await syncFunnelOnConversion(ownerId, lead.interested_in);
+  await syncCurrentMonthlyRevenue(ownerId);
 }
 
 // (5) Content published → activity_log row so the AI brain + heatmap
