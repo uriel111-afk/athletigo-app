@@ -133,14 +133,14 @@ export async function syncPackageToIncome(userId, pkg) {
 }
 
 // (2) New trainee user (role=trainee) → auto-add converted lead.
-//     Idempotent on (user_id, name, status='converted').
-export async function syncTraineeToLead(userId, trainee) {
-  if (!userId || !trainee?.full_name) return null;
+//     Idempotent on (coach_id, full_name, status='converted').
+export async function syncTraineeToLead(coachId, trainee) {
+  if (!coachId || !trainee?.full_name) return null;
   const { data: existing } = await supabase
     .from('leads')
     .select('id')
-    .eq('user_id', userId)
-    .eq('name', trainee.full_name)
+    .eq('coach_id', coachId)
+    .eq('full_name', trainee.full_name)
     .eq('status', 'converted')
     .maybeSingle();
   if (existing?.id) {
@@ -148,15 +148,22 @@ export async function syncTraineeToLead(userId, trainee) {
     return existing;
   }
   console.log('[syncTraineeToLead] inserting:', trainee.full_name);
-  const { data, error } = await supabase.from('leads').insert({
-    user_id: userId,
-    name: trainee.full_name,
+  const baseRow = {
+    coach_id: coachId,
+    full_name: trainee.full_name,
     phone: trainee.phone || null,
     email: trainee.email || null,
     status: 'converted',
     source: 'app',
-    converted_at: new Date().toISOString(),
-  }).select().maybeSingle();
+  };
+  let { data, error } = await supabase
+    .from('leads')
+    .insert({ ...baseRow, converted_at: new Date().toISOString() })
+    .select()
+    .maybeSingle();
+  if (error && /column .* does not exist/i.test(error.message || '')) {
+    ({ data, error } = await supabase.from('leads').insert(baseRow).select().maybeSingle());
+  }
   if (error) console.warn('[syncTraineeToLead] failed:', error.message);
   return data || null;
 }
@@ -578,32 +585,47 @@ export async function markMentorMessageActedOn(id) {
 // ─── Trainee → Lead mirror ────────────────────────────────────────
 // When a coach adds a brand-new trainee from the pro app, mirror them
 // into the leads table as `converted` so they show up in the growth
-// app's history. Idempotent on (user_id, name+phone).
-export async function recordTraineeAsConvertedLead(coachUserId, trainee) {
-  if (!coachUserId || !trainee?.full_name) return null;
+// app's history. Idempotent on (coach_id, full_name+phone).
+//
+// IMPORTANT: the legacy schema uses coach_id + full_name + coach_notes
+// (not user_id/name/notes). The Wave-2 columns (last_contact_date,
+// next_follow_up, revenue_if_converted, converted_at, interested_in,
+// notes) are added by 20260425_extend_leads_schema.sql. Until that
+// migration runs, anything writing to those columns will fail — we
+// keep the writes guarded so a missing column doesn't kill the flow.
+export async function recordTraineeAsConvertedLead(coachId, trainee) {
+  if (!coachId || !trainee?.full_name) return null;
   const phone = trainee.phone || '';
   const { data: existing } = await supabase
     .from('leads')
     .select('id')
-    .eq('user_id', coachUserId)
-    .eq('name', trainee.full_name)
+    .eq('coach_id', coachId)
+    .eq('full_name', trainee.full_name)
     .eq('phone', phone)
     .maybeSingle();
   if (existing?.id) return existing;
-  const { data, error } = await supabase
+  // Try to write with the extended columns; fall back to the legacy
+  // shape if the migration hasn't run.
+  const baseRow = {
+    coach_id: coachId,
+    full_name: trainee.full_name,
+    phone,
+    email: trainee.email || null,
+    source: 'walk_in',
+    status: 'converted',
+  };
+  let { data, error } = await supabase
     .from('leads')
     .insert({
-      user_id: coachUserId,
-      name: trainee.full_name,
-      phone,
-      email: trainee.email || null,
-      source: 'walk_in',
-      status: 'converted',
+      ...baseRow,
       converted_at: new Date().toISOString(),
       notes: 'נוצר אוטומטית כשהמתאמן נוסף ב-Dashboard',
     })
     .select()
     .single();
+  if (error && /column .* does not exist/i.test(error.message || '')) {
+    ({ data, error } = await supabase.from('leads').insert(baseRow).select().single());
+  }
   if (error) {
     console.warn('[recordTraineeAsConvertedLead] failed:', error.message);
     return null;
@@ -638,29 +660,44 @@ export async function getAnnualIncome(userId, year = new Date().getFullYear()) {
 // Leads
 // ─────────────────────────────────────────────────────────────────
 
+// `userId` here is actually the coach_id — the legacy `leads` table
+// is keyed by coach_id, not user_id. We accept the same arg name to
+// avoid churn at every call site.
 export async function listLeads(userId, { status } = {}) {
-  let q = supabase.from('leads').select('*').eq('user_id', userId);
+  let q = supabase.from('leads').select('*').eq('coach_id', userId);
   if (status) q = q.eq('status', status);
   q = q.order('created_at', { ascending: false });
   const { data, error } = await q;
   if (error) throw error;
-  return data || [];
+  // Normalize: surface `name` (used by Wave-2 UI) from `full_name`.
+  return (data || []).map(r => ({ ...r, name: r.full_name || r.name }));
 }
 
 export async function addLead(userId, payload) {
+  // Translate Wave-2 field names → legacy schema.
+  const row = { ...payload, coach_id: userId };
+  if (payload.name && !payload.full_name) row.full_name = payload.name;
+  delete row.name;
+  delete row.user_id;
   const { data, error } = await supabase
     .from('leads')
-    .insert({ ...payload, user_id: userId })
+    .insert(row)
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return { ...data, name: data.full_name || data.name };
 }
 
 export async function updateLead(id, patch) {
+  // Translate `name` → `full_name` and strip `user_id` if a caller
+  // accidentally passes Wave-2 field names.
+  const row = { ...patch };
+  if (patch.name && !patch.full_name) row.full_name = patch.name;
+  delete row.name;
+  delete row.user_id;
   const { data, error } = await supabase
     .from('leads')
-    .update(patch)
+    .update(row)
     .eq('id', id)
     .select()
     .single();
@@ -668,10 +705,9 @@ export async function updateLead(id, patch) {
 
   // Cross-app sync: a lead just turned into "converted" with a known
   // revenue_if_converted → push the matching income row into the
-  // financial app, plus an activity_log entry. Idempotent: we only
-  // fire when the patch flips status=converted (we don't re-fire on
-  // edits to an already-converted lead).
-  if (patch?.status === 'converted' && data?.user_id && Number(data.revenue_if_converted) > 0) {
+  // financial app, plus an activity_log entry. coach_id is the lead's
+  // owner here (legacy schema).
+  if (patch?.status === 'converted' && data?.coach_id && Number(data.revenue_if_converted) > 0) {
     try {
       // Map the lead's interest to an income source.
       const interestToSource = {
@@ -681,21 +717,22 @@ export async function updateLead(id, patch) {
         coaching:        'training',
       };
       const source = interestToSource[data.interested_in] || 'product_sale';
+      const leadName = data.full_name || data.name || '';
       await supabase.from('income').insert({
-        user_id: data.user_id,
+        user_id: data.coach_id,
         amount: Number(data.revenue_if_converted),
         source,
         product: data.interested_in || null,
-        client_name: data.name || null,
-        description: `נסגר מליד: ${data.name || ''}`,
+        client_name: leadName || null,
+        description: `נסגר מליד: ${leadName}`,
         date: new Date().toISOString().slice(0, 10),
       });
       await supabase.from('activity_log').insert({
-        user_id: data.user_id,
+        user_id: data.coach_id,
         action_type: 'lead_converted',
         category: 'sales',
         revenue_generated: Number(data.revenue_if_converted),
-        details: { lead_id: id, name: data.name, product: data.interested_in },
+        details: { lead_id: id, name: leadName, product: data.interested_in },
       });
       // Bump funnel_tracking purchase counter for the matching product
       const interestToFunnel = {

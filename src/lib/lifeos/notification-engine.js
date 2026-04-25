@@ -37,7 +37,7 @@ export async function generateNotifications(userId) {
   const sevenDaysAgo = new Date(now);  sevenDaysAgo.setDate(now.getDate() - 7);
 
   const [leads, recurring, installments, documents, content, income] = await Promise.all([
-    supabase.from('leads').select('id, name, status, created_at, last_contact_date').eq('user_id', userId),
+    supabase.from('leads').select('id, full_name, status, created_at, last_contact_date').eq('coach_id', userId),
     supabase.from('recurring_payments').select('id, name, amount, due_day').eq('user_id', userId).eq('is_active', true),
     supabase.from('installments').select('id, name, payments_made, total_payments').eq('user_id', userId),
     supabase.from('documents').select('id, name, expiry_date').eq('user_id', userId).not('expiry_date', 'is', null),
@@ -55,7 +55,7 @@ export async function generateNotifications(userId) {
       notifs.push({
         id: `lead_wait_${l.id}`,
         icon: '⚡',
-        text: `${l.name} מחכה לתשובה כבר יום!`,
+        text: `${l.full_name || l.name} מחכה לתשובה כבר יום!`,
         href: '/lifeos/leads',
         priority: 'critical',
       });

@@ -28,7 +28,7 @@ export async function calculateWeeklyScore(userId, daysBack = 7) {
     supabase.from('life_os_tasks').select('status, completed_at').eq('user_id', userId),
     supabase.from('content_calendar').select('status, scheduled_date').eq('user_id', userId)
       .eq('status', 'published').gte('scheduled_date', startDate),
-    supabase.from('leads').select('status, last_contact_date, created_at').eq('user_id', userId),
+    supabase.from('leads').select('status, last_contact_date, created_at').eq('coach_id', userId),
     supabase.from('income').select('amount, source, date').eq('user_id', userId).gte('date', startDate),
     calculateStreak(userId),
   ]);

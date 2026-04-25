@@ -27,7 +27,7 @@ export async function calculateStreak(userId) {
     supabase.from('expenses').select('date').eq('user_id', userId).gte('date', sinceISO),
     supabase.from('life_os_tasks').select('completed_at').eq('user_id', userId).eq('status', 'completed').gte('completed_at', sinceTS),
     supabase.from('content_calendar').select('scheduled_date').eq('user_id', userId).eq('status', 'published').gte('scheduled_date', sinceISO),
-    supabase.from('leads').select('created_at').eq('user_id', userId).gte('created_at', sinceTS),
+    supabase.from('leads').select('created_at').eq('coach_id', userId).gte('created_at', sinceTS),
     supabase.from('community_metrics').select('date').eq('user_id', userId).gte('date', sinceISO),
   ]);
 
