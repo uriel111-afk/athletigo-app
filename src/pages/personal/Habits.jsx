@@ -11,7 +11,7 @@ import {
   HABIT_CATEGORIES, HABIT_FREQUENCIES, HABIT_ICON_PICKER,
 } from '@/lib/personal/personal-constants';
 import {
-  listHabits, addHabit, deleteHabit,
+  listHabits, addHabit, updateHabit, deleteHabit,
   listHabitLogs, toggleHabitLog,
 } from '@/lib/personal/personal-api';
 import { findHabitInsight } from '@/lib/personal/personal-mentor';
@@ -48,6 +48,7 @@ export default function Habits() {
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState(null);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [insight, setInsight] = useState(null);
 
   const load = useCallback(async () => {
@@ -181,13 +182,22 @@ export default function Habits() {
               30 ימים אחרונים — ירוק = עשיתי
             </div>
             <HabitHeatmap logs={selectedLogs} />
-            <button onClick={() => handleDelete(selected.id)}
-              style={{
-                marginTop: 10, padding: '8px 12px', borderRadius: 10,
-                border: `1px solid ${PERSONAL_COLORS.error}`,
-                background: '#FFFFFF', color: PERSONAL_COLORS.error,
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              }}>מחק הרגל</button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button onClick={() => { setEditing(selected); setShowNew(true); setSelected(null); }}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 10,
+                  border: `1px solid ${PERSONAL_COLORS.border}`,
+                  background: '#FFFFFF', color: PERSONAL_COLORS.textPrimary,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}>ערוך הרגל</button>
+              <button onClick={() => handleDelete(selected.id)}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 10,
+                  border: `1px solid ${PERSONAL_COLORS.error}`,
+                  background: '#FFFFFF', color: PERSONAL_COLORS.error,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}>מחק הרגל</button>
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -195,8 +205,9 @@ export default function Habits() {
       {showNew && (
         <NewHabitDialog
           isOpen={showNew}
-          onClose={() => setShowNew(false)}
+          onClose={() => { setShowNew(false); setEditing(null); }}
           userId={userId}
+          habit={editing}
           onSaved={load}
         />
       )}
@@ -204,22 +215,38 @@ export default function Habits() {
   );
 }
 
-function NewHabitDialog({ isOpen, onClose, userId, onSaved }) {
+function NewHabitDialog({ isOpen, onClose, userId, habit = null, onSaved }) {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('✅');
   const [category, setCategory] = useState('general');
   const [frequency, setFrequency] = useState('daily');
   const [target, setTarget] = useState('');
   const [saving, setSaving] = useState(false);
+  // Pre-fill from habit on open (edit mode).
+  useEffect(() => {
+    if (!isOpen) return;
+    if (habit) {
+      setName(habit.name || '');
+      setIcon(habit.icon || '✅');
+      setCategory(habit.category || 'general');
+      setFrequency(habit.frequency || 'daily');
+      setTarget(habit.target_value || '');
+    } else {
+      setName(''); setIcon('✅'); setCategory('general');
+      setFrequency('daily'); setTarget('');
+    }
+  }, [isOpen, habit?.id]);
   const handleSave = async () => {
     if (!name.trim()) { toast.error('הכנס שם'); return; }
     setSaving(true);
+    const payload = {
+      name: name.trim(), icon, category, frequency,
+      target_value: target || null,
+    };
     try {
-      await addHabit(userId, {
-        name: name.trim(), icon, category, frequency,
-        target_value: target || null, is_active: true,
-      });
-      toast.success('נוסף');
+      if (habit?.id) await updateHabit(habit.id, payload);
+      else           await addHabit(userId, { ...payload, is_active: true });
+      toast.success(habit ? 'עודכן' : 'נוסף');
       onSaved?.();
       onClose?.();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
@@ -230,7 +257,7 @@ function NewHabitDialog({ isOpen, onClose, userId, onSaved }) {
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
           <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>
-            הרגל חדש
+            {habit ? 'עריכת הרגל' : 'הרגל חדש'}
           </DialogTitle>
         </DialogHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>

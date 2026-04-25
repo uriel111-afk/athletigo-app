@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import BookingModal from "../components/BookingModal";
 import PageLoader from "@/components/PageLoader";
+import PermGate from "@/components/PermGate";
 
 const STATUS_MAP = {
   'ממתין לאישור': { text: 'ממתין לאישור', bg: '#fef9c3', color: '#a16207' },
@@ -27,7 +28,7 @@ function formatDate(d) {
   return `יום ${DAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
-export default function TraineeSessions() {
+function TraineeSessionsInner() {
   const [user, setUser] = useState(null);
   const [coach, setCoach] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -588,5 +589,13 @@ export default function TraineeSessions() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TraineeSessions() {
+  return (
+    <PermGate permission="view_training_plan" label="מפגשים">
+      <TraineeSessionsInner />
+    </PermGate>
   );
 }

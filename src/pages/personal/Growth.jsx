@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Loader2, Trash2 } from 'lucide-react';
+// (lucide-react imports consolidated below)
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AuthContext } from '@/lib/AuthContext';
@@ -9,11 +9,12 @@ import {
   PERSONAL_COLORS, PERSONAL_CARD,
   GOAL_CATEGORIES, LIBRARY_TYPES, LIBRARY_STATUS, TRAINING_TYPES,
 } from '@/lib/personal/personal-constants';
+import { Loader2, Trash2, Pencil } from 'lucide-react';
 import {
   listGoals, addGoal, updateGoal, deleteGoal,
-  listLearning, addLearning,
+  listLearning, addLearning, updateLearning, deleteLearning,
   listLibrary, addLibraryItem, updateLibraryItem, deleteLibraryItem,
-  listTrainingLog, addTrainingEntry, deleteTrainingEntry,
+  listTrainingLog, addTrainingEntry, updateTrainingEntry, deleteTrainingEntry,
 } from '@/lib/personal/personal-api';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -46,6 +47,7 @@ function GoalsSection({ userId }) {
   const [goals, setGoals] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -60,39 +62,87 @@ function GoalsSection({ userId }) {
     catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
   };
 
+  const handleDelete = async (id) => {
+    if (!confirm('בטוח שאתה רוצה למחוק את היעד?')) return;
+    try { await deleteGoal(id); toast.success('נמחק'); load(); }
+    catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
+
   return (
     <>
-      <button onClick={() => setShowNew(true)} style={addBtn}>+ יעד חדש</button>
+      <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ יעד חדש</button>
       {!loaded ? <Empty text="טוען..." /> : goals.length === 0 ? (
         <Empty text="אין יעדים. לחץ + כדי להוסיף" />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {goals.map(g => <GoalCard key={g.id} goal={g} onUpdate={handleUpdate} />)}
+          {goals.map(g => (
+            <div key={g.id} style={{ position: 'relative' }}>
+              <GoalCard goal={g} onUpdate={handleUpdate} />
+              <div style={{
+                position: 'absolute', top: 8, left: 8,
+                display: 'flex', gap: 4,
+              }}>
+                <button onClick={() => { setEditing(g); setShowNew(true); }}
+                  aria-label="ערוך"
+                  style={iconBtn}><Pencil size={14} /></button>
+                <button onClick={() => handleDelete(g.id)}
+                  aria-label="מחק"
+                  style={{ ...iconBtn, color: PERSONAL_COLORS.error }}><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
-      {showNew && <NewGoalDialog isOpen={showNew} onClose={() => setShowNew(false)} userId={userId} onSaved={load} />}
+      {showNew && (
+        <NewGoalDialog
+          isOpen={showNew}
+          onClose={() => { setShowNew(false); setEditing(null); }}
+          userId={userId}
+          goal={editing}
+          onSaved={load}
+        />
+      )}
     </>
   );
 }
 
-function NewGoalDialog({ isOpen, onClose, userId, onSaved }) {
+function NewGoalDialog({ isOpen, onClose, userId, goal = null, onSaved }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('fitness');
   const [targetDate, setTargetDate] = useState('');
   const [subtasksRaw, setSubtasksRaw] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (goal) {
+      setTitle(goal.title || '');
+      setCategory(goal.category || 'fitness');
+      setTargetDate(goal.target_date || '');
+      const arr = Array.isArray(goal.subtasks) ? goal.subtasks : [];
+      setSubtasksRaw(arr.map(s => s.title || s).join('\n'));
+    } else {
+      setTitle(''); setCategory('fitness'); setTargetDate(''); setSubtasksRaw('');
+    }
+  }, [isOpen, goal?.id]);
   const handleSave = async () => {
     if (!title.trim()) { toast.error('הכנס שם'); return; }
     setSaving(true);
-    const subtasks = subtasksRaw.split('\n').map(s => s.trim()).filter(Boolean)
-      .map(s => ({ title: s, done: false }));
+    // Preserve existing done flags when editing.
+    const lines = subtasksRaw.split('\n').map(s => s.trim()).filter(Boolean);
+    const existing = Array.isArray(goal?.subtasks) ? goal.subtasks : [];
+    const subtasks = lines.map(s => {
+      const prev = existing.find(p => (p.title || p) === s);
+      return { title: s, done: prev?.done || false };
+    });
+    const payload = {
+      title: title.trim(), category,
+      target_date: targetDate || null,
+      subtasks,
+    };
     try {
-      await addGoal(userId, {
-        title: title.trim(), category,
-        target_date: targetDate || null,
-        subtasks, status: 'active', progress: 0,
-      });
-      toast.success('נוסף');
+      if (goal?.id) await updateGoal(goal.id, payload);
+      else          await addGoal(userId, { ...payload, status: 'active', progress: 0 });
+      toast.success(goal ? 'עודכן' : 'נוסף');
       onSaved?.(); onClose?.();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
     finally { setSaving(false); }
@@ -101,7 +151,7 @@ function NewGoalDialog({ isOpen, onClose, userId, onSaved }) {
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>יעד חדש</DialogTitle>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>{goal ? 'עריכת יעד' : 'יעד חדש'}</DialogTitle>
         </DialogHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
           <input type="text" placeholder="שם היעד" autoFocus
@@ -143,6 +193,13 @@ function LearningSection({ userId }) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const handleDelete = async (id) => {
+    if (!confirm('בטוח שאתה רוצה למחוק?')) return;
+    try { await deleteLearning(id); toast.success('נמחק'); load(); }
+    catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -164,7 +221,7 @@ function LearningSection({ userId }) {
 
   return (
     <>
-      <button onClick={() => setShowNew(true)} style={addBtn}>+ למדתי משהו</button>
+      <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ למדתי משהו</button>
       {loaded && items.length > 0 && (
         <div style={{ ...PERSONAL_CARD, marginBottom: 12 }}>
           <div style={{ fontSize: 13, fontWeight: 700 }}>
@@ -192,38 +249,59 @@ function LearningSection({ userId }) {
                     </div>
                   )}
                 </div>
-                <div style={{ fontSize: 10, color: PERSONAL_COLORS.textSecondary, whiteSpace: 'nowrap' }}>
-                  {new Date(it.date).toLocaleDateString('he-IL')}
-                  {it.duration_minutes ? ` · ${it.duration_minutes}'` : ''}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <div style={{ fontSize: 10, color: PERSONAL_COLORS.textSecondary, whiteSpace: 'nowrap' }}>
+                    {new Date(it.date).toLocaleDateString('he-IL')}
+                    {it.duration_minutes ? ` · ${it.duration_minutes}'` : ''}
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => { setEditing(it); setShowNew(true); }}
+                      aria-label="ערוך" style={iconBtn}><Pencil size={12} /></button>
+                    <button onClick={() => handleDelete(it.id)}
+                      aria-label="מחק" style={{ ...iconBtn, color: PERSONAL_COLORS.error }}><Trash2 size={12} /></button>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
-      {showNew && <NewLearningDialog isOpen={showNew} onClose={() => setShowNew(false)} userId={userId} onSaved={load} />}
+      {showNew && <NewLearningDialog isOpen={showNew}
+        onClose={() => { setShowNew(false); setEditing(null); }}
+        userId={userId} item={editing} onSaved={load} />}
     </>
   );
 }
 
-function NewLearningDialog({ isOpen, onClose, userId, onSaved }) {
+function NewLearningDialog({ isOpen, onClose, userId, item = null, onSaved }) {
   const [topic, setTopic] = useState('');
   const [category, setCategory] = useState('');
   const [duration, setDuration] = useState('');
   const [insight, setInsight] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (item) {
+      setTopic(item.topic || ''); setCategory(item.category || '');
+      setDuration(item.duration_minutes != null ? String(item.duration_minutes) : '');
+      setInsight(item.key_insight || '');
+    } else {
+      setTopic(''); setCategory(''); setDuration(''); setInsight('');
+    }
+  }, [isOpen, item?.id]);
   const handleSave = async () => {
     if (!topic.trim()) { toast.error('הכנס נושא'); return; }
     setSaving(true);
+    const payload = {
+      topic: topic.trim(),
+      category: category || null,
+      duration_minutes: duration ? parseInt(duration, 10) : null,
+      key_insight: insight || null,
+    };
     try {
-      await addLearning(userId, {
-        topic: topic.trim(),
-        category: category || null,
-        duration_minutes: duration ? parseInt(duration, 10) : null,
-        key_insight: insight || null,
-        date: todayISO(),
-      });
-      toast.success('נוסף'); onSaved?.(); onClose?.();
+      if (item?.id) await updateLearning(item.id, payload);
+      else          await addLearning(userId, { ...payload, date: todayISO() });
+      toast.success(item ? 'עודכן' : 'נוסף'); onSaved?.(); onClose?.();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
     finally { setSaving(false); }
   };
@@ -231,7 +309,7 @@ function NewLearningDialog({ isOpen, onClose, userId, onSaved }) {
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>למידה חדשה</DialogTitle>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>{item ? 'עריכת למידה' : 'למידה חדשה'}</DialogTitle>
         </DialogHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
           <input type="text" placeholder="נושא" autoFocus value={topic} onChange={e => setTopic(e.target.value)} style={textInput} />
@@ -265,6 +343,7 @@ function LibrarySection({ userId }) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -287,7 +366,7 @@ function LibrarySection({ userId }) {
 
   return (
     <>
-      <button onClick={() => setShowNew(true)} style={addBtn}>+ הוסף לספרייה</button>
+      <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ הוסף לספרייה</button>
       {!loaded ? <Empty text="טוען..." /> : items.length === 0 ? (
         <Empty text="הספרייה ריקה" />
       ) : (
@@ -325,6 +404,11 @@ function LibrarySection({ userId }) {
                         fontSize: 10, fontWeight: 700, cursor: 'pointer',
                       }}>{s.label}</button>
                   ))}
+                  <button onClick={() => { setEditing(it); setShowNew(true); }} style={{
+                    padding: '4px 8px', borderRadius: 6, border: 'none',
+                    backgroundColor: '#FFFFFF', color: PERSONAL_COLORS.textSecondary,
+                    fontSize: 10, cursor: 'pointer',
+                  }}><Pencil size={12} /></button>
                   <button onClick={() => handleDelete(it.id)} style={{
                     padding: '4px 8px', borderRadius: 6, border: 'none',
                     backgroundColor: '#FFFFFF', color: PERSONAL_COLORS.error,
@@ -336,26 +420,39 @@ function LibrarySection({ userId }) {
           })}
         </div>
       )}
-      {showNew && <NewLibraryDialog isOpen={showNew} onClose={() => setShowNew(false)} userId={userId} onSaved={load} />}
+      {showNew && <NewLibraryDialog isOpen={showNew}
+        onClose={() => { setShowNew(false); setEditing(null); }}
+        userId={userId} item={editing} onSaved={load} />}
     </>
   );
 }
 
-function NewLibraryDialog({ isOpen, onClose, userId, onSaved }) {
+function NewLibraryDialog({ isOpen, onClose, userId, item = null, onSaved }) {
   const [title, setTitle] = useState('');
   const [type, setType] = useState('book');
   const [author, setAuthor] = useState('');
   const [takeaway, setTakeaway] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (item) {
+      setTitle(item.title || ''); setType(item.type || 'book');
+      setAuthor(item.author || ''); setTakeaway(item.key_takeaway || '');
+    } else {
+      setTitle(''); setType('book'); setAuthor(''); setTakeaway('');
+    }
+  }, [isOpen, item?.id]);
   const handleSave = async () => {
     if (!title.trim()) { toast.error('הכנס שם'); return; }
     setSaving(true);
+    const payload = {
+      title: title.trim(), type, author: author || null,
+      key_takeaway: takeaway || null,
+    };
     try {
-      await addLibraryItem(userId, {
-        title: title.trim(), type, author: author || null,
-        status: 'want', key_takeaway: takeaway || null,
-      });
-      toast.success('נוסף'); onSaved?.(); onClose?.();
+      if (item?.id) await updateLibraryItem(item.id, payload);
+      else          await addLibraryItem(userId, { ...payload, status: 'want' });
+      toast.success(item ? 'עודכן' : 'נוסף'); onSaved?.(); onClose?.();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
     finally { setSaving(false); }
   };
@@ -363,7 +460,7 @@ function NewLibraryDialog({ isOpen, onClose, userId, onSaved }) {
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>הוסף לספרייה</DialogTitle>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>{item ? 'עריכת ספריה' : 'הוסף לספרייה'}</DialogTitle>
         </DialogHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
           <input type="text" placeholder="שם" autoFocus value={title} onChange={e => setTitle(e.target.value)} style={textInput} />
@@ -394,6 +491,7 @@ function TrainingSection({ userId }) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -411,7 +509,7 @@ function TrainingSection({ userId }) {
 
   return (
     <>
-      <button onClick={() => setShowNew(true)} style={addBtn}>+ אימון</button>
+      <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ אימון</button>
       {!loaded ? <Empty text="טוען..." /> : items.length === 0 ? (
         <Empty text="עדיין לא תועדו אימונים" />
       ) : (
@@ -432,6 +530,10 @@ function TrainingSection({ userId }) {
                       {it.intensity ? ` · עצימות ${it.intensity}/10` : ''}
                     </div>
                   </div>
+                  <button onClick={() => { setEditing(it); setShowNew(true); }} style={{
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    color: PERSONAL_COLORS.textSecondary,
+                  }}><Pencil size={14} /></button>
                   <button onClick={() => handleDelete(it.id)} style={{
                     background: 'transparent', border: 'none', cursor: 'pointer',
                     color: PERSONAL_COLORS.error,
@@ -447,28 +549,42 @@ function TrainingSection({ userId }) {
           })}
         </div>
       )}
-      {showNew && <NewTrainingDialog isOpen={showNew} onClose={() => setShowNew(false)} userId={userId} onSaved={load} />}
+      {showNew && <NewTrainingDialog isOpen={showNew}
+        onClose={() => { setShowNew(false); setEditing(null); }}
+        userId={userId} entry={editing} onSaved={load} />}
     </>
   );
 }
 
-function NewTrainingDialog({ isOpen, onClose, userId, onSaved }) {
+function NewTrainingDialog({ isOpen, onClose, userId, entry = null, onSaved }) {
   const [type, setType] = useState('strength');
   const [duration, setDuration] = useState('');
   const [intensity, setIntensity] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (entry) {
+      setType(entry.training_type || 'strength');
+      setDuration(entry.duration_minutes != null ? String(entry.duration_minutes) : '');
+      setIntensity(entry.intensity != null ? String(entry.intensity) : '');
+      setNotes(entry.notes || '');
+    } else {
+      setType('strength'); setDuration(''); setIntensity(''); setNotes('');
+    }
+  }, [isOpen, entry?.id]);
   const handleSave = async () => {
     setSaving(true);
+    const payload = {
+      training_type: type,
+      duration_minutes: duration ? parseInt(duration, 10) : null,
+      intensity: intensity ? parseInt(intensity, 10) : null,
+      notes: notes || null,
+    };
     try {
-      await addTrainingEntry(userId, {
-        date: todayISO(),
-        training_type: type,
-        duration_minutes: duration ? parseInt(duration, 10) : null,
-        intensity: intensity ? parseInt(intensity, 10) : null,
-        notes: notes || null,
-      });
-      toast.success('נוסף'); onSaved?.(); onClose?.();
+      if (entry?.id) await updateTrainingEntry(entry.id, payload);
+      else           await addTrainingEntry(userId, { ...payload, date: todayISO() });
+      toast.success(entry ? 'עודכן' : 'נוסף'); onSaved?.(); onClose?.();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
     finally { setSaving(false); }
   };
@@ -476,7 +592,7 @@ function NewTrainingDialog({ isOpen, onClose, userId, onSaved }) {
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>אימון אישי</DialogTitle>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>{entry ? 'עריכת אימון' : 'אימון אישי'}</DialogTitle>
         </DialogHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
           <div>
@@ -537,6 +653,14 @@ function Empty({ text }) {
     border: `1px solid ${PERSONAL_COLORS.border}`,
   }}>{text}</div>;
 }
+
+const iconBtn = {
+  width: 28, height: 28, borderRadius: 8, border: 'none',
+  background: '#FFFFFF', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: PERSONAL_COLORS.textSecondary,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+};
 
 const addBtn = {
   width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',

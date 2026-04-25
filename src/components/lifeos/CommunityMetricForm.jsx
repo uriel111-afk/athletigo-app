@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
-import { addCommunityMetric } from '@/lib/lifeos/lifeos-api';
+import { addCommunityMetric, updateCommunityMetric } from '@/lib/lifeos/lifeos-api';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -19,11 +19,26 @@ const initialForm = () => ({
   notes: '',
 });
 
-export default function CommunityMetricForm({ isOpen, onClose, userId, lastMetric = null, onSaved }) {
+const formFromRow = (row) => ({
+  date: row.date || todayISO(),
+  platform: row.platform || 'instagram',
+  followers_count: row.followers_count != null ? String(row.followers_count) : '',
+  new_followers: row.new_followers != null ? String(row.new_followers) : '',
+  engagement_rate: row.engagement_rate != null ? String(row.engagement_rate) : '',
+  dms_received: row.dms_received != null ? String(row.dms_received) : '',
+  comments_received: row.comments_received != null ? String(row.comments_received) : '',
+  leads_from_content: row.leads_from_content != null ? String(row.leads_from_content) : '',
+  notes: row.notes || '',
+});
+
+export default function CommunityMetricForm({ isOpen, onClose, userId, lastMetric = null, metric = null, onSaved }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (isOpen) setForm(initialForm()); }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen) return;
+    setForm(metric ? formFromRow(metric) : initialForm());
+  }, [isOpen, metric?.id]);
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
   // Auto-suggest new_followers delta from the last metric's total.
@@ -45,8 +60,9 @@ export default function CommunityMetricForm({ isOpen, onClose, userId, lastMetri
       notes: form.notes || null,
     };
     try {
-      await addCommunityMetric(userId, payload);
-      toast.success('מדד נוסף');
+      if (metric?.id) await updateCommunityMetric(metric.id, payload);
+      else            await addCommunityMetric(userId, payload);
+      toast.success(metric ? 'עודכן' : 'מדד נוסף');
       onSaved?.();
       onClose();
     } catch (err) {
@@ -62,7 +78,7 @@ export default function CommunityMetricForm({ isOpen, onClose, userId, lastMetri
       <DialogContent dir="rtl" className="max-w-md" onPointerDownOutside={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
-            מדד יומי חדש
+            {metric ? 'עריכת מדד' : 'מדד יומי חדש'}
           </DialogTitle>
         </DialogHeader>
 

@@ -10,6 +10,7 @@ import PlanFormDialog from "../components/training/PlanFormDialog";
 import { toast } from "sonner";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
 import PageLoader from "@/components/PageLoader";
+import PermGate from "@/components/PermGate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
@@ -145,7 +146,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
   );
 };
 
-export default function MyPlan() {
+function MyPlanInner() {
   const [searchParams] = useSearchParams();
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedSeries, setSelectedSeries] = useState(null); // For drilling down
@@ -665,8 +666,16 @@ export default function MyPlan() {
     <UnifiedPlanBuilder 
       plan={selectedPlan} 
       isCoach={false} 
-      canEdit={selectedPlan?.created_by === user?.id} 
-      onBack={() => setSelectedPlan(null)} 
+      canEdit={selectedPlan?.created_by === user?.id}
+      onBack={() => setSelectedPlan(null)}
     />
+  );
+}
+
+export default function MyPlan() {
+  return (
+    <PermGate permission="view_training_plan" label="תוכנית אימון">
+      <MyPlanInner />
+    </PermGate>
   );
 }

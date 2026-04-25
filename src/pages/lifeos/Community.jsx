@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
@@ -19,6 +19,7 @@ export default function Community() {
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingMetric, setEditingMetric] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -74,7 +75,7 @@ export default function Community() {
   return (
     <LifeOSLayout title="קהילה" onQuickSaved={load}>
       <button
-        onClick={() => setShowForm(true)}
+        onClick={() => { setEditingMetric(null); setShowForm(true); }}
         style={{
           width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',
           backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
@@ -94,6 +95,15 @@ export default function Community() {
         <>
           {/* Hero: followers — long-press to delete most recent */}
           <div style={{ ...LIFEOS_CARD, marginBottom: 12, textAlign: 'center', position: 'relative' }}>
+            <button onClick={() => { setEditingMetric(latest); setShowForm(true); }} aria-label="ערוך מדידה אחרונה" style={{
+              position: 'absolute', top: 8, right: 8,
+              width: 28, height: 28, borderRadius: 8, border: 'none',
+              background: 'transparent', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: LIFEOS_COLORS.textSecondary,
+            }}>
+              <Pencil size={14} />
+            </button>
             <button onClick={() => handleDelete(latest.id)} aria-label="מחק מדידה אחרונה" style={{
               position: 'absolute', top: 8, left: 8,
               width: 28, height: 28, borderRadius: 8, border: 'none',
@@ -175,9 +185,10 @@ export default function Community() {
 
       <CommunityMetricForm
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={() => { setShowForm(false); setEditingMetric(null); }}
         userId={userId}
         lastMetric={latest}
+        metric={editingMetric}
         onSaved={load}
       />
     </LifeOSLayout>

@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { LIFEOS_COLORS, EXPENSE_CATEGORIES } from '@/lib/lifeos/lifeos-constants';
-import { addInstallment } from '@/lib/lifeos/lifeos-api';
+import { addInstallment, updateInstallment } from '@/lib/lifeos/lifeos-api';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const addMonths = (iso, n) => {
@@ -22,11 +22,24 @@ const initialForm = () => ({
   notes: '',
 });
 
-export default function InstallmentForm({ isOpen, onClose, userId, onSaved }) {
+const formFromRow = (row) => ({
+  name: row.name || '',
+  total_amount: row.total_amount != null ? String(row.total_amount) : '',
+  total_payments: row.total_payments != null ? String(row.total_payments) : '',
+  payments_made: row.payments_made != null ? String(row.payments_made) : '0',
+  start_date: row.start_date || todayISO(),
+  category: row.category || '',
+  notes: row.notes || '',
+});
+
+export default function InstallmentForm({ isOpen, onClose, userId, onSaved, installment = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (isOpen) setForm(initialForm()); }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen) return;
+    setForm(installment ? formFromRow(installment) : initialForm());
+  }, [isOpen, installment?.id]);
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
   // Derived values
@@ -51,19 +64,21 @@ export default function InstallmentForm({ isOpen, onClose, userId, onSaved }) {
     if (!n || n <= 0) { toast.error('מספר תשלומים לא תקין'); return; }
 
     setSaving(true);
+    const payload = {
+      name: form.name.trim(),
+      total_amount: total,
+      monthly_amount: monthly,
+      total_payments: n,
+      payments_made: parseInt(form.payments_made || '0', 10),
+      start_date: form.start_date,
+      end_date: endDate,
+      category: form.category || null,
+      notes: form.notes || null,
+    };
     try {
-      await addInstallment(userId, {
-        name: form.name.trim(),
-        total_amount: total,
-        monthly_amount: monthly,
-        total_payments: n,
-        payments_made: parseInt(form.payments_made || '0', 10),
-        start_date: form.start_date,
-        end_date: endDate,
-        category: form.category || null,
-        notes: form.notes || null,
-      });
-      toast.success('תשלום פס נשמר');
+      if (installment?.id) await updateInstallment(installment.id, payload);
+      else                  await addInstallment(userId, payload);
+      toast.success(installment ? 'עודכן' : 'תשלום פס נשמר');
       onSaved?.();
       onClose();
     } catch (err) {
@@ -79,7 +94,7 @@ export default function InstallmentForm({ isOpen, onClose, userId, onSaved }) {
       <DialogContent dir="rtl" className="max-w-md" onPointerDownOutside={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
-            תשלום פס חדש
+            {installment ? 'עריכת תשלום פס' : 'תשלום פס חדש'}
           </DialogTitle>
         </DialogHeader>
 

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Activity, Award, TrendingUp, TrendingDown, Plus, Edit2, Trash2, Loader2, CheckCircle, Target } from "lucide-react";
 import PageLoader from "@/components/PageLoader";
+import PermGate from "@/components/PermGate";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -21,7 +22,7 @@ import ResultFormDialog from "../components/forms/ResultFormDialog";
 import BaselineSection from "../components/progress/BaselineSection";
 import BaselineFormDialog from "../components/forms/BaselineFormDialog";
 
-export default function Progress() {
+function ProgressInner() {
   const [user, setUser] = useState(null);
   const [showAddMeasurement, setShowAddMeasurement] = useState(false);
   const [showAddResult, setShowAddResult] = useState(false);
@@ -1028,5 +1029,13 @@ export default function Progress() {
       )}
 
     </div>
+  );
+}
+
+export default function Progress() {
+  return (
+    <PermGate permission="view_progress" label="מעקב התקדמות">
+      <ProgressInner />
+    </PermGate>
   );
 }

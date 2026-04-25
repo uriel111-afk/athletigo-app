@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Loader2, Trash2, Check } from 'lucide-react';
+import { Loader2, Trash2, Check, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AuthContext } from '@/lib/AuthContext';
@@ -9,10 +9,12 @@ import {
   HOUSEHOLD_FREQUENCIES, MEAL_TYPES, DAYS_OF_WEEK, SHOPPING_CATEGORIES,
 } from '@/lib/personal/personal-constants';
 import {
-  listHouseholdTasks, addHouseholdTask, deleteHouseholdTask, markHouseholdDone,
+  listHouseholdTasks, addHouseholdTask, updateHouseholdTask,
+  deleteHouseholdTask, markHouseholdDone,
   listMealPlan, upsertMealPlanEntry, deleteMealPlanEntry,
-  listShopping, addShoppingItem, toggleShoppingItem, clearBoughtShopping,
-  listMeals, addMeal, deleteMeal,
+  listShopping, addShoppingItem, updateShoppingItem,
+  toggleShoppingItem, deleteShoppingItem, clearBoughtShopping,
+  listMeals, addMeal, updateMeal, deleteMeal,
 } from '@/lib/personal/personal-api';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -53,6 +55,7 @@ function TasksSection({ userId }) {
   const [tasks, setTasks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -75,20 +78,25 @@ function TasksSection({ userId }) {
 
   return (
     <>
-      <button onClick={() => setShowNew(true)} style={addBtn}>+ משימה חדשה</button>
+      <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ משימה חדשה</button>
       {!loaded ? <Empty text="טוען..." /> : tasks.length === 0 ? (
         <Empty text="אין משימות" />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {tasks.map(t => <HouseholdRow key={t.id} task={t} onDone={() => handleDone(t)} onDelete={() => handleDelete(t.id)} />)}
+          {tasks.map(t => <HouseholdRow key={t.id} task={t}
+            onDone={() => handleDone(t)}
+            onEdit={() => { setEditing(t); setShowNew(true); }}
+            onDelete={() => handleDelete(t.id)} />)}
         </div>
       )}
-      {showNew && <NewHouseholdDialog isOpen={showNew} onClose={() => setShowNew(false)} userId={userId} onSaved={load} />}
+      {showNew && <NewHouseholdDialog isOpen={showNew}
+        onClose={() => { setShowNew(false); setEditing(null); }}
+        userId={userId} task={editing} onSaved={load} />}
     </>
   );
 }
 
-function HouseholdRow({ task, onDone, onDelete }) {
+function HouseholdRow({ task, onDone, onEdit, onDelete }) {
   const now = new Date();
   const today = todayISO();
   let badge = null;
@@ -126,6 +134,12 @@ function HouseholdRow({ task, onDone, onDelete }) {
           display: 'flex', alignItems: 'center', gap: 4,
         }}><Check size={14} /> עשיתי</button>
       )}
+      {onEdit && (
+        <button onClick={onEdit} aria-label="ערוך" style={{
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          color: PERSONAL_COLORS.textSecondary, padding: 4,
+        }}><Pencil size={14} /></button>
+      )}
       <button onClick={onDelete} style={{
         background: 'transparent', border: 'none', cursor: 'pointer',
         color: PERSONAL_COLORS.error,
@@ -134,22 +148,33 @@ function HouseholdRow({ task, onDone, onDelete }) {
   );
 }
 
-function NewHouseholdDialog({ isOpen, onClose, userId, onSaved }) {
+function NewHouseholdDialog({ isOpen, onClose, userId, task = null, onSaved }) {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('🏠');
   const [frequency, setFrequency] = useState('daily');
   const [duration, setDuration] = useState('15');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (task) {
+      setName(task.name || ''); setIcon(task.icon || '🏠');
+      setFrequency(task.frequency || 'daily');
+      setDuration(task.duration_minutes != null ? String(task.duration_minutes) : '15');
+    } else {
+      setName(''); setIcon('🏠'); setFrequency('daily'); setDuration('15');
+    }
+  }, [isOpen, task?.id]);
   const handleSave = async () => {
     if (!name.trim()) { toast.error('הכנס שם'); return; }
     setSaving(true);
+    const payload = {
+      name: name.trim(), icon, frequency,
+      duration_minutes: parseInt(duration || '15', 10),
+    };
     try {
-      await addHouseholdTask(userId, {
-        name: name.trim(), icon, frequency,
-        duration_minutes: parseInt(duration || '15', 10),
-        is_active: true,
-      });
-      toast.success('נוסף'); onSaved?.(); onClose?.();
+      if (task?.id) await updateHouseholdTask(task.id, payload);
+      else          await addHouseholdTask(userId, { ...payload, is_active: true });
+      toast.success(task ? 'עודכן' : 'נוסף'); onSaved?.(); onClose?.();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
     finally { setSaving(false); }
   };
@@ -157,7 +182,7 @@ function NewHouseholdDialog({ isOpen, onClose, userId, onSaved }) {
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>משימת בית חדשה</DialogTitle>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>{task ? 'עריכת משימת בית' : 'משימת בית חדשה'}</DialogTitle>
         </DialogHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
           <input type="text" placeholder="שם המשימה" autoFocus value={name} onChange={e => setName(e.target.value)} style={textInput} />
@@ -463,6 +488,7 @@ function MealsSection({ userId }) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -481,7 +507,7 @@ function MealsSection({ userId }) {
 
   return (
     <>
-      <button onClick={() => setShowNew(true)} style={addBtn}>+ ארוחה</button>
+      <button onClick={() => { setEditing(null); setShowNew(true); }} style={addBtn}>+ ארוחה</button>
       {!loaded ? <Empty text="טוען..." /> : items.length === 0 ? (
         <Empty text="עדיין לא תועדו ארוחות" />
       ) : (
@@ -501,6 +527,10 @@ function MealsSection({ userId }) {
                     {m.rating ? ` · ${'⭐'.repeat(m.rating)}` : ''}
                   </div>
                 </div>
+                <button onClick={() => { setEditing(m); setShowNew(true); }} aria-label="ערוך" style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: PERSONAL_COLORS.textSecondary, padding: 4,
+                }}><Pencil size={14} /></button>
                 <button onClick={() => handleDelete(m.id)} style={{
                   background: 'transparent', border: 'none', cursor: 'pointer',
                   color: PERSONAL_COLORS.error,
@@ -510,26 +540,41 @@ function MealsSection({ userId }) {
           })}
         </div>
       )}
-      {showNew && <NewMealDialog isOpen={showNew} onClose={() => setShowNew(false)} userId={userId} onSaved={load} />}
+      {showNew && <NewMealDialog isOpen={showNew}
+        onClose={() => { setShowNew(false); setEditing(null); }}
+        userId={userId} meal={editing} onSaved={load} />}
     </>
   );
 }
 
-function NewMealDialog({ isOpen, onClose, userId, onSaved }) {
+function NewMealDialog({ isOpen, onClose, userId, meal = null, onSaved }) {
   const [type, setType] = useState('lunch');
   const [description, setDescription] = useState('');
   const [cooked, setCooked] = useState(false);
   const [rating, setRating] = useState(0);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (meal) {
+      setType(meal.meal_type || 'lunch');
+      setDescription(meal.description || '');
+      setCooked(!!meal.cooked_at_home);
+      setRating(meal.rating || 0);
+    } else {
+      setType('lunch'); setDescription(''); setCooked(false); setRating(0);
+    }
+  }, [isOpen, meal?.id]);
   const handleSave = async () => {
     setSaving(true);
+    const payload = {
+      meal_type: type,
+      description: description || null,
+      cooked_at_home: cooked, rating: rating || null,
+    };
     try {
-      await addMeal(userId, {
-        date: todayISO(), meal_type: type,
-        description: description || null,
-        cooked_at_home: cooked, rating: rating || null,
-      });
-      toast.success('נוסף'); onSaved?.(); onClose?.();
+      if (meal?.id) await updateMeal(meal.id, payload);
+      else          await addMeal(userId, { ...payload, date: todayISO() });
+      toast.success(meal ? 'עודכן' : 'נוסף'); onSaved?.(); onClose?.();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
     finally { setSaving(false); }
   };
@@ -537,7 +582,7 @@ function NewMealDialog({ isOpen, onClose, userId, onSaved }) {
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
-          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>ארוחה חדשה</DialogTitle>
+          <DialogTitle style={{ fontSize: 16, fontWeight: 700, textAlign: 'right' }}>{meal ? 'עריכת ארוחה' : 'ארוחה חדשה'}</DialogTitle>
         </DialogHeader>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>

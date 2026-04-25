@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import InstallmentForm from '@/components/lifeos/InstallmentForm';
@@ -16,6 +16,7 @@ export default function Installments() {
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -112,6 +113,7 @@ export default function Installments() {
           {rows.map(r => (
             <InstallmentCard key={r.id} row={r}
               onPaymentMade={() => markPaymentMade(r)}
+              onEdit={() => { setEditing(r); setShowForm(true); }}
               onDelete={() => handleDelete(r.id)} />
           ))}
         </div>
@@ -119,15 +121,16 @@ export default function Installments() {
 
       <InstallmentForm
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={() => { setShowForm(false); setEditing(null); }}
         userId={userId}
+        installment={editing}
         onSaved={load}
       />
     </LifeOSLayout>
   );
 }
 
-function InstallmentCard({ row, onPaymentMade, onDelete }) {
+function InstallmentCard({ row, onPaymentMade, onEdit, onDelete }) {
   const paid = row.payments_made || 0;
   const total = row.total_payments || 0;
   const pct = total > 0 ? (paid / total) * 100 : 0;
@@ -188,6 +191,16 @@ function InstallmentCard({ row, onPaymentMade, onDelete }) {
           }}>
             ✓ הושלם
           </div>
+        )}
+        {onEdit && (
+          <button onClick={onEdit} style={{
+            padding: '8px 12px', borderRadius: 8,
+            border: `1px solid ${LIFEOS_COLORS.border}`,
+            backgroundColor: '#FFFFFF', color: LIFEOS_COLORS.textSecondary,
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }} aria-label="עריכה">
+            <Pencil size={14} />
+          </button>
         )}
         <button onClick={onDelete} style={{
           padding: '8px 12px', borderRadius: 8,
