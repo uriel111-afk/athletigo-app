@@ -541,7 +541,7 @@ export default function TraineeHome() {
             {(() => {
               const p = todayChallenge.parsed || {};
               if (!p.track_id) return null;
-              const trk = myTracks.find(t => t.id === p.track_id);
+              const trk = (myTracks || []).find(t => t.id === p.track_id);
               return (
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -593,13 +593,13 @@ export default function TraineeHome() {
             {(() => {
               const p = todayChallenge.parsed || {};
               if (!p.track_id) return null;
-              const trk = myTracks.find(t => t.id === p.track_id);
+              const trk = (myTracks || []).find(t => t.id === p.track_id);
               const goalVal = Number(trk?.goal_value) || 0;
               if (!trk || goalVal <= 0) return null;
               const curVal = Number(trk.current_value) || 0;
               const startVal = Number(trk.start_value) || 0;
               const pct = Math.min(100, Math.round(curVal / goalVal * 100));
-              const ms = trackMilestones[trk.id] || [];
+              const ms = (trackMilestones && trackMilestones[trk.id]) || [];
               const trkColor = trk.color || '#FF6F20';
               return (
                 <div style={{ marginBottom: 12 }}>
@@ -715,7 +715,7 @@ export default function TraineeHome() {
           }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>🛤️ המסלולים שלי</div>
             {myTracks.map(track => {
-              const milestones = trackMilestones[track.id] || [];
+              const milestones = (trackMilestones && trackMilestones[track.id]) || [];
               const goalVal = Number(track.goal_value) || 0;
               const curVal = Number(track.current_value) || 0;
               const startVal = Number(track.start_value) || 0;
