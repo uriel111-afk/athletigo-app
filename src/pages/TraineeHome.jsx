@@ -67,6 +67,48 @@ export default function TraineeHome() {
   const undoTimerRef = React.useRef(null);
   const [showRevertLink, setShowRevertLink] = useState(false);
   const revertTimerRef = React.useRef(null);
+  // Skill tracks assigned to this trainee — used both inside the
+  // challenge card (to show track context + progress) and in a
+  // dedicated "המסלולים שלי" section below.
+  const [myTracks, setMyTracks] = useState([]);
+  const [trackMilestones, setTrackMilestones] = useState({});
+  const [expandedTrack, setExpandedTrack] = useState(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Some installs may have rows with NULL status, so we don't
+        // filter on it — just skip explicit non-active values.
+        const { data: tracks, error } = await supabase
+          .from("skill_tracks")
+          .select("*")
+          .eq("trainee_id", user.id);
+        if (error) { console.warn("[TraineeHome] tracks fetch:", error); return; }
+        if (cancelled) return;
+        const visible = (tracks || []).filter(t => !["archived", "completed"].includes((t.status || "").toLowerCase()));
+        setMyTracks(visible);
+        if (visible.length > 0) {
+          const { data: ms } = await supabase
+            .from("goal_milestones")
+            .select("*")
+            .in("track_id", visible.map(t => t.id))
+            .order("value", { ascending: true });
+          if (cancelled) return;
+          const grouped = {};
+          for (const m of (ms || [])) {
+            if (!grouped[m.track_id]) grouped[m.track_id] = [];
+            grouped[m.track_id].push(m);
+          }
+          setTrackMilestones(grouped);
+        }
+      } catch (e) {
+        console.warn("[TraineeHome] my-tracks fetch:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const fetchDailyChallenge = useCallback(async (uid) => {
     if (!uid) return;
@@ -490,6 +532,26 @@ export default function TraineeHome() {
               fontSize: 13, fontWeight: 700,
             }}>🔥 {challengeStreak}</div>
 
+            {/* Track context — only when this challenge came from a skill track */}
+            {(() => {
+              const p = todayChallenge.parsed || {};
+              if (!p.track_id) return null;
+              const trk = myTracks.find(t => t.id === p.track_id);
+              return (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  marginBottom: 8, padding: '4px 10px',
+                  background: 'rgba(255,255,255,0.18)',
+                  borderRadius: 8,
+                }}>
+                  <span style={{ fontSize: 14 }}>{p.track_icon || trk?.icon || '🛤️'}</span>
+                  <span style={{ fontSize: 11, opacity: 0.9 }}>
+                    מתוך: {p.track_name || trk?.name || 'מסלול'}
+                  </span>
+                </div>
+              );
+            })()}
+
             <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 4 }}>
               {todayChallenge.is_read ? '✅ הושלם!' : (todayChallenge.parsed?.challenge_type === 'workout' ? '💪 אתגר אימון שלך' : '🎯 האתגר היומי שלך')}
             </div>
@@ -522,6 +584,62 @@ export default function TraineeHome() {
                 {todayChallenge.parsed?.challenge_text || todayChallenge.message}
               </div>
             )}
+            {/* Track progress bar inside the challenge card */}
+            {(() => {
+              const p = todayChallenge.parsed || {};
+              if (!p.track_id) return null;
+              const trk = myTracks.find(t => t.id === p.track_id);
+              const goalVal = Number(trk?.goal_value) || 0;
+              if (!trk || goalVal <= 0) return null;
+              const curVal = Number(trk.current_value) || 0;
+              const startVal = Number(trk.start_value) || 0;
+              const pct = Math.min(100, Math.round(curVal / goalVal * 100));
+              const ms = trackMilestones[trk.id] || [];
+              const trkColor = trk.color || '#FF6F20';
+              return (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    fontSize: 10, opacity: 0.85, marginBottom: 4,
+                  }}>
+                    <span>{startVal} {trk.goal_unit || ''}</span>
+                    <span style={{ fontWeight: 700 }}>{curVal} {trk.goal_unit || ''}</span>
+                    <span>⭐ {goalVal} {trk.goal_unit || ''}</span>
+                  </div>
+                  <div style={{
+                    position: 'relative',
+                    background: 'rgba(255,255,255,0.25)',
+                    borderRadius: 6, height: 10,
+                  }}>
+                    <div style={{
+                      background: 'white',
+                      height: '100%', width: `${pct}%`,
+                      borderRadius: 6,
+                      transition: 'width 0.5s ease',
+                    }} />
+                    {ms.map(m => {
+                      const mPct = Math.min(100, (m.value / goalVal) * 100);
+                      return (
+                        <div key={m.id} style={{
+                          position: 'absolute',
+                          left: `${mPct}%`, top: -3,
+                          transform: 'translateX(-50%)',
+                          width: m.reached_at ? 14 : 10,
+                          height: m.reached_at ? 14 : 10,
+                          borderRadius: '50%',
+                          background: m.reached_at ? '#16a34a' : 'white',
+                          border: m.reached_at ? '2px solid white' : `2px solid ${trkColor}`,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                          zIndex: 2,
+                        }} />
+                      );
+                    })}
+                    <div style={{ position: 'absolute', left: -6, top: -5, fontSize: 16, zIndex: 2 }}>⭐</div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {challengeStreak > 0 && (
               <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12 }}>
                 {'🔥'.repeat(Math.min(challengeStreak, 10))} {challengeStreak} ימים ברצף!
@@ -578,6 +696,127 @@ export default function TraineeHome() {
             <div style={{ fontSize: 20 }}>🔥</div>
             <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>רצף של {challengeStreak} ימים!</div>
             <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>ממתין לאתגר מהמאמן</div>
+          </div>
+        )}
+
+        {/* My Tracks — coach-assigned skill tracks with progress + milestones */}
+        {myTracks.length > 0 && (
+          <div style={{
+            background: 'white', borderRadius: 16,
+            padding: 14, margin: '12px 14px 0',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            direction: 'rtl',
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>🛤️ המסלולים שלי</div>
+            {myTracks.map(track => {
+              const milestones = trackMilestones[track.id] || [];
+              const goalVal = Number(track.goal_value) || 0;
+              const curVal = Number(track.current_value) || 0;
+              const startVal = Number(track.start_value) || 0;
+              const pct = goalVal > 0 ? Math.min(100, Math.round(curVal / goalVal * 100)) : 0;
+              const trkColor = track.color || '#FF6F20';
+              const isOpen = expandedTrack === track.id;
+              return (
+                <div
+                  key={track.id}
+                  onClick={() => setExpandedTrack(isOpen ? null : track.id)}
+                  style={{
+                    background: '#FFF9F0', borderRadius: 14,
+                    padding: 12, marginBottom: 8,
+                    borderRight: `4px solid ${trkColor}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 20 }}>{track.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{track.name}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>יעד: {track.goal || '—'}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: trkColor }}>{pct}%</div>
+                  </div>
+
+                  <div style={{ position: 'relative', marginBottom: 4, padding: '6px 8px 6px 14px' }}>
+                    <div style={{
+                      background: '#F0E4D0', borderRadius: 6,
+                      height: 10, overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        background: trkColor,
+                        height: '100%', width: `${pct}%`,
+                        borderRadius: 6,
+                        transition: 'width 0.5s ease',
+                      }} />
+                    </div>
+                    {milestones.map(m => {
+                      const mPct = goalVal > 0 ? Math.min(100, (m.value / goalVal) * 100) : 0;
+                      return (
+                        <div key={m.id} style={{
+                          position: 'absolute',
+                          left: `${mPct}%`, top: 4,
+                          transform: 'translateX(-50%)',
+                          width: m.reached_at ? 14 : 10,
+                          height: m.reached_at ? 14 : 10,
+                          borderRadius: '50%',
+                          background: m.reached_at ? '#16a34a' : 'white',
+                          border: m.reached_at ? '2px solid white' : `2px solid ${trkColor}`,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                          zIndex: 2,
+                        }} title={m.label || ''} />
+                      );
+                    })}
+                    <div style={{ position: 'absolute', left: 0, top: 1, fontSize: 16, zIndex: 2 }}>⭐</div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#888', marginTop: 2 }}>
+                    <span>{startVal} {track.goal_unit || ''}</span>
+                    <span style={{ color: trkColor, fontWeight: 600 }}>{curVal} {track.goal_unit || ''}</span>
+                    <span>⭐ {goalVal || '?'} {track.goal_unit || ''}</span>
+                  </div>
+
+                  {isOpen && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid #F0E4D0' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>📍 נקודות ציון</div>
+                      {milestones.length === 0 && (
+                        <div style={{ fontSize: 11, color: '#888' }}>אין נקודות ציון עדיין</div>
+                      )}
+                      {milestones.map((m, i) => (
+                        <div key={m.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16 }}>
+                            <div style={{
+                              width: 10, height: 10, borderRadius: '50%',
+                              background: m.reached_at ? '#16a34a' : '#E8E0D8',
+                            }} />
+                            {i < milestones.length - 1 && (
+                              <div style={{
+                                width: 2, height: 16,
+                                background: m.reached_at ? '#16a34a' : '#E8E0D8',
+                              }} />
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 500 }}>
+                              {m.value} {track.goal_unit || ''}{m.label ? ` — ${m.label}` : ''}
+                            </div>
+                            {m.reached_at && (
+                              <div style={{ fontSize: 10, color: '#16a34a' }}>
+                                ✓ {new Date(m.reached_at).toLocaleDateString('he-IL')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                        <div style={{ width: 16, textAlign: 'center' }}>⭐</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: trkColor }}>
+                          {goalVal || '?'} {track.goal_unit || ''} — {track.goal || 'יעד'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
