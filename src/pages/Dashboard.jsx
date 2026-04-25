@@ -454,41 +454,42 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Quick-access grid — 4 cols × 2 rows = 8 icons, no scroll.
-              Badge counts overlaid on Reminders for overdue items. */}
+          {/* Quick-access grid — 5 icons (3+2 centered). The diamond
+              metrics row above already covers ליד חדש + תוכניות, and
+              שעונים lives in the footer tabs, so all three were
+              removed from this strip to avoid duplication. */}
           {(() => {
             const overdueReminders = reminders.filter(r =>
               !r.is_read && r.data?.remind_at && new Date(r.data.remind_at) <= new Date()
             ).length;
             const items = [
-              { icon: "👥", label: "מתאמנים",  onClick: () => navigate(createPageUrl("AllUsers")) },
-              { icon: "📅", label: "מפגשים",   onClick: () => navigate(createPageUrl("Sessions")) },
-              { icon: "📋", label: "תוכניות",  onClick: () => navigate(createPageUrl("PlanBuilder")) },
-              { icon: "➕", label: "ליד חדש",  onClick: () => navigate(createPageUrl("Leads")) },
-              { icon: "🎯", label: "אתגר יומי", onClick: () => setShowChallengeBank(true) },
-              { icon: "⏰", label: "תזכורות",  onClick: () => setShowReminders(true), badge: overdueReminders },
-              { icon: "🛤️", label: "מסלולים",  onClick: () => navigate(createPageUrl("SkillTracks")) },
-              { icon: "📊", label: "דוחות",    onClick: () => navigate(createPageUrl("Reports")) },
-              { icon: "⏱", label: "שעונים",   onClick: () => navigate(createPageUrl("Clocks")) },
+              { icon: "👥", label: "מתאמנים",     onClick: () => navigate(createPageUrl("AllUsers")) },
+              { icon: "📅", label: "מפגשים",      onClick: () => navigate(createPageUrl("Sessions")) },
+              { icon: "🔥", label: "אתגרי אימון", onClick: () => setShowChallengeBank(true) },
+              { icon: "⏰", label: "תזכורות",     onClick: () => setShowReminders(true), badge: overdueReminders },
+              { icon: "📊", label: "דוחות",       onClick: () => navigate(createPageUrl("Reports")) },
             ];
             return (
               <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
+                display: "flex",
+                flexWrap: "wrap",
                 gap: 8,
                 padding: "0 12px 12px",
+                justifyContent: "center",
               }}>
                 {items.map((item, i) => (
                   <div key={i} onClick={item.onClick} style={{
                     background: "white",
                     borderRadius: 14,
-                    padding: "12px 4px",
+                    padding: "14px 8px",
                     textAlign: "center",
                     cursor: "pointer",
                     boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
                     position: "relative",
+                    width: "calc(33.33% - 6px)",
+                    minWidth: 90,
                   }}>
-                    <div style={{ fontSize: 24 }}>{item.icon}</div>
+                    <div style={{ fontSize: 26 }}>{item.icon}</div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "#1a1a1a", marginTop: 4 }}>{item.label}</div>
                     {item.badge > 0 && (
                       <div style={{
