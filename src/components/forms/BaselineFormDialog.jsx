@@ -1,6 +1,6 @@
 import React, { useState, useContext, useMemo, useCallback, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Loader2, Activity, X, Calendar, Clock } from "lucide-react";
+import { Loader2, Activity, X, Calendar, Clock, ChevronDown, Maximize2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
@@ -160,6 +160,13 @@ export default function BaselineFormDialog({
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Minimize state — collapses the dialog to a floating pill at the
+  // bottom-left so the coach can run a stopwatch / look at the timer
+  // without losing form state. Form data lives in `formData` (above)
+  // so it survives the Dialog mount/unmount cycle.
+  const [minimized, setMinimized] = useState(false);
+  // Reset minimized whenever the dialog is freshly opened.
+  useEffect(() => { if (isOpen) setMinimized(false); }, [isOpen]);
 
   // Convenience getters/setters bound to the drafted formData.
   const technique = formData.technique;
@@ -361,28 +368,51 @@ export default function BaselineFormDialog({
   };
 
   // ─── Render ────────────────────────────────────────────────────
+  // Dialog is hidden (open=false) when minimized so its backdrop
+  // doesn't darken the screen behind the floating pill. The component
+  // itself stays mounted, so formData (drafts, picked rounds, etc.)
+  // is fully preserved across minimize/restore cycles.
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent
-        className="max-w-md p-0"
-        style={{ backgroundColor: COLORS.bg, borderRadius: 16, overflow: 'hidden' }}
-        onInteractOutside={(e) => { if (saving) e.preventDefault(); }}
+    <>
+      <Dialog
+        open={isOpen && !minimized}
+        onOpenChange={(open) => { if (!open && !saving && !minimized) onClose(); }}
       >
+        <DialogContent
+          className="max-w-md p-0"
+          style={{ backgroundColor: COLORS.bg, borderRadius: 16, overflow: 'hidden' }}
+          onInteractOutside={(e) => { if (saving) e.preventDefault(); }}
+        >
         <div dir="rtl" style={{ padding: '20px 18px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <button
-              onClick={onClose}
-              aria-label="סגור"
-              style={{
-                width: 32, height: 32, borderRadius: 999, border: 'none',
-                background: 'transparent', cursor: 'pointer',
-                color: COLORS.textSecondary,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <X size={18} />
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button
+                onClick={onClose}
+                aria-label="סגור"
+                style={{
+                  width: 32, height: 32, borderRadius: 999, border: 'none',
+                  background: 'transparent', cursor: 'pointer',
+                  color: COLORS.textSecondary,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <X size={18} />
+              </button>
+              <button
+                onClick={() => setMinimized(true)}
+                aria-label="מזער"
+                title="מזער"
+                style={{
+                  width: 32, height: 32, borderRadius: 999, border: 'none',
+                  background: 'transparent', cursor: 'pointer',
+                  color: COLORS.textSecondary,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <ChevronDown size={18} />
+              </button>
+            </div>
             <div style={{
               flex: 1, textAlign: 'center',
               fontSize: 22, fontWeight: 800,
@@ -392,7 +422,7 @@ export default function BaselineFormDialog({
               <span>אתגר Baseline</span>
               <Activity size={20} style={{ color: COLORS.primary }} />
             </div>
-            <div style={{ width: 32 }} />
+            <div style={{ width: 68 }} />
           </div>
 
           {!viewOnly && hasDraft && (
@@ -669,6 +699,36 @@ export default function BaselineFormDialog({
         </DialogContent>
       </Dialog>
     </Dialog>
+
+    {/* Floating pill — shown only while the dialog is minimized.
+        Sits above the timer bar (z-index 12500 vs timer's 12000) so
+        the coach always sees a visible "tap to restore" affordance. */}
+    {isOpen && minimized && (
+      <button
+        onClick={() => setMinimized(false)}
+        aria-label="הרחב את הטופס"
+        style={{
+          position: 'fixed',
+          bottom: 24, left: 16,
+          zIndex: 12500,
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '10px 16px',
+          borderRadius: 999,
+          border: 'none',
+          backgroundColor: COLORS.primary,
+          color: '#FFFFFF',
+          fontSize: 13, fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 6px 18px rgba(255,111,32,0.35)',
+          fontFamily: "'Heebo', 'Assistant', sans-serif",
+        }}
+      >
+        <Activity size={16} />
+        <span>אתגר Baseline</span>
+        <Maximize2 size={14} />
+      </button>
+    )}
+    </>
   );
 }
 

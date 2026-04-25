@@ -24,7 +24,6 @@ import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificat
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import MentorChat from "@/components/lifeos/MentorChat";
-import FloatingBaselineForm from "../components/FloatingBaselineForm";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
@@ -124,14 +123,6 @@ export default function Dashboard() {
   const [showActionPicker, setShowActionPicker] = useState(false);
   const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
   const [isBaselineDialogOpen, setIsBaselineDialogOpen] = useState(false);
-
-  // Floating, minimizable baseline form. Replaces the modal flow when
-  // launched from the ⚡ quick-action so the coach can run the timer
-  // and the form side-by-side. The legacy BaselineFormDialog is left
-  // intact for any other entry point.
-  const [floatingBaseline, setFloatingBaseline] = useState({
-    active: false, traineeId: null, traineeName: '',
-  });
 
   // Trainee selection for goal/result/measurement actions
   const [showSelectTraineeDialog, setShowSelectTraineeDialog] = useState(false);
@@ -270,13 +261,10 @@ export default function Dashboard() {
     if (pendingAction === "measurement") setIsMeasurementDialogOpen(true);
     if (pendingAction === "package") setIsPackageDialogOpen(true);
     if (pendingAction === "baseline") {
-      // Open the floating, minimizable baseline form instead of the
-      // legacy modal so the coach can keep the timer visible.
-      setFloatingBaseline({
-        active: true,
-        traineeId: trainee.id,
-        traineeName: trainee.full_name || 'מתאמן',
-      });
+      // Use the JPS "אתגר Baseline" form. Minimize ("▼" header
+      // button) collapses it to a floating pill so the coach can
+      // keep the timer visible without losing form state.
+      setIsBaselineDialogOpen(true);
     }
   };
 
@@ -730,24 +718,6 @@ export default function Dashboard() {
           <BaselineFormDialog isOpen={isBaselineDialogOpen} onClose={() => setIsBaselineDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
         </>
-      )}
-
-      {/* Floating baseline form — only mounted when active, so its
-          minimized pill doesn't render unless the coach started a
-          baseline. Sits above the timer bar via z-index 11500. */}
-      {floatingBaseline.active && (
-        <FloatingBaselineForm
-          traineeId={floatingBaseline.traineeId}
-          traineeName={floatingBaseline.traineeName}
-          coachId={coach?.id}
-          onClose={() => setFloatingBaseline({ active: false, traineeId: null, traineeName: '' })}
-          onSaved={() => {
-            // Refresh trainees + dashboard counters so the new
-            // baseline shows up immediately on the trainee profile.
-            fetchTrainees();
-            invalidateDashboard(queryClient);
-          }}
-        />
       )}
 
       <RemindersPanel
