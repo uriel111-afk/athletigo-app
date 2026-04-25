@@ -10,20 +10,18 @@ import IncomeForm from '@/components/lifeos/IncomeForm';
 import DailyStreak from '@/components/lifeos/DailyStreak';
 import WeeklyScore from '@/components/lifeos/WeeklyScore';
 import GoalBreakdown from '@/components/lifeos/GoalBreakdown';
-import QuickActionFAB from '@/components/lifeos/QuickActionFAB';
-import NotificationBell from '@/components/lifeos/NotificationBell';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
 } from '@/lib/lifeos/lifeos-constants';
 import {
   getAnnualIncome,
   getMonthlySummary,
-  getFeaturedMentorMessage,
   markMentorMessageActedOn,
   listIncome,
 } from '@/lib/lifeos/lifeos-api';
 import { calculateStreak } from '@/lib/lifeos/streak-calculator';
 import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
+import { analyzeMentorInsight, MENTOR_ACTION_ROUTES } from '@/lib/lifeos/mentor-engine';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 
@@ -48,16 +46,16 @@ export default function LifeOSDashboard() {
       const [annual, monthSum, msg, recentIncomeRows, streak, score] = await Promise.all([
         getAnnualIncome(userId).catch(() => 0),
         getMonthlySummary(userId).catch(() => ({ income: 0, expenses: 0, net: 0 })),
-        getFeaturedMentorMessage(userId).catch(() => null),
+        analyzeMentorInsight(userId).catch(() => null),
         listIncome(userId).then(r => r.slice(0, 5)).catch(() => []),
         calculateStreak(userId).catch(() => 0),
-        calculateWeeklyScore(userId).catch(() => 0),
+        calculateWeeklyScore(userId).catch(() => ({ total: 0 })),
       ]);
       setAnnualIncome(annual);
       setSummary({ income: monthSum.income, expenses: monthSum.expenses, net: monthSum.net });
       setMentor(msg);
       setStreakDays(typeof streak === 'number' ? streak : (streak?.days || 0));
-      setWeeklyScore(typeof score === 'number' ? score : (score?.score || 0));
+      setWeeklyScore(typeof score === 'number' ? score : (score?.total ?? score?.score ?? 0));
       setRecentWins(
         recentIncomeRows.map(r => ({
           title: r.description || r.product || 'מכירה',
@@ -74,36 +72,27 @@ export default function LifeOSDashboard() {
 
   const handleMentorAction = async () => {
     if (!mentor) return;
-    const routing = {
-      'תכנן קמפיין Dream Machine':    '/lifeos/plan',
-      'אני מקבל את האתגר':              '/lifeos/tasks',
-      'תן לי רעיון לסרטון':              '/lifeos/tasks',
-      'תעזור לי להשיק קורס':            '/lifeos/plan',
-      'בנה לי מערכת תוכן יומית':        '/lifeos/tasks',
-      'תעזור לי לבנות את הקורס':        '/lifeos/plan',
-      'למלא הוצאות קבועות':             '/lifeos/recurring',
-    };
-    const dest = routing[mentor.action_label] || '/lifeos/tasks';
-    try { await markMentorMessageActedOn(mentor.id); } catch {}
+    const dest = MENTOR_ACTION_ROUTES[mentor.action_label] || '/lifeos/tasks';
+    // Only seeded DB messages have a real id we can mark as acted-on.
+    if (!mentor.dynamic && mentor.id) {
+      try { await markMentorMessageActedOn(mentor.id); } catch {}
+    }
     navigate(dest);
   };
 
   const handleMentorDismiss = async () => {
     if (!mentor) return;
+    if (!mentor.dynamic && mentor.id) {
+      try { await markMentorMessageActedOn(mentor.id); } catch {}
+    }
     try {
-      await markMentorMessageActedOn(mentor.id);
-      const next = await getFeaturedMentorMessage(userId);
+      const next = await analyzeMentorInsight(userId);
       setMentor(next);
     } catch {}
   };
 
   return (
-    <LifeOSLayout title="פיננסי">
-      {/* Top bar — notification bell aligned right */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        <NotificationBell userId={userId} />
-      </div>
-
+    <LifeOSLayout title="פיננסי" onQuickSaved={loadAll}>
       {/* Goal progress */}
       <div style={{ marginBottom: 14 }}>
         <GoalProgress current={annualIncome} target={YEARLY_GOAL} />
@@ -254,9 +243,6 @@ export default function LifeOSDashboard() {
         userId={userId}
         onSaved={loadAll}
       />
-
-      {/* Floating quick-action button — overlays every Life OS screen */}
-      <QuickActionFAB userId={userId} onSaved={loadAll} />
     </LifeOSLayout>
   );
 }

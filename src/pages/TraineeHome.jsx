@@ -310,6 +310,14 @@ export default function TraineeHome() {
         }
 
         setMySessions(prev => prev.map(s => s.id === session.id ? { ...s, status: "בוטל על ידי מתאמן" } : s));
+        // Refresh active packages so the balance counter reflects the
+        // refunded session immediately. Without this the trainee sees
+        // the cancelled status but the package badge stays stale.
+        try {
+          const services = await base44.entities.ClientService.filter({ trainee_id: user.id });
+          setActiveServices(services.filter(s => s.status === 'פעיל' || s.status === 'active'));
+          console.log('[REFRESH] after cancel — sessions:', mySessions.length, 'active services:', services.length);
+        } catch (e) { console.warn('[TraineeHome] refresh after cancel:', e); }
         toast.success("המפגש בוטל והיתרה הוחזרה לחבילה");
       } catch (err) {
         console.error("Error cancelling session", err);

@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Pencil, Trash2 } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import IncomeForm from '@/components/lifeos/IncomeForm';
@@ -26,6 +26,7 @@ export default function Income() {
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingIncome, setEditingIncome] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -69,22 +70,26 @@ export default function Income() {
   };
   const isCurrentMonth = sameMonth(cursor, new Date());
 
-  const handleDelete = async (id) => {
-    if (!confirm('למחוק את ההכנסה?')) return;
+  const handleDelete = async (e, id) => {
+    e?.stopPropagation?.();
+    if (!confirm('בטוח שאתה רוצה למחוק את ההכנסה?')) return;
     try {
       await deleteIncome(id);
-      toast.success('ההכנסה נמחקה');
+      toast.success('נמחק');
       load();
     } catch (err) {
       toast.error('שגיאה במחיקה: ' + (err?.message || ''));
     }
   };
 
+  const openNew  = () => { setEditingIncome(null); setShowForm(true); };
+  const openEdit = (e, row) => { e?.stopPropagation?.(); setEditingIncome(row); setShowForm(true); };
+
   return (
-    <LifeOSLayout title="הכנסות">
+    <LifeOSLayout title="הכנסות" onQuickSaved={load}>
       {/* Add button */}
       <button
-        onClick={() => setShowForm(true)}
+        onClick={openNew}
         style={{
           width: '100%',
           padding: '14px 16px',
@@ -161,7 +166,8 @@ export default function Income() {
               key={row.id}
               row={row}
               isLast={idx === rows.length - 1}
-              onDelete={() => handleDelete(row.id)}
+              onEdit={(e) => openEdit(e, row)}
+              onDelete={(e) => handleDelete(e, row.id)}
             />
           ))
         )}
@@ -208,8 +214,9 @@ export default function Income() {
 
       <IncomeForm
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={() => { setShowForm(false); setEditingIncome(null); }}
         userId={userId}
+        income={editingIncome}
         onSaved={load}
       />
     </LifeOSLayout>
@@ -218,23 +225,20 @@ export default function Income() {
 
 // ─── Row ─────────────────────────────────────────────────────────
 
-function IncomeRow({ row, isLast, onDelete }) {
+function IncomeRow({ row, isLast, onEdit, onDelete }) {
   const p = row.product ? PRODUCT_BY_KEY[row.product] : null;
   const emoji = p?.emoji || '💰';
   const label = row.description || p?.label || row.source || 'הכנסה';
   const dateStr = new Date(row.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
 
   return (
-    <div
-      onDoubleClick={onDelete}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '12px 14px',
-        borderBottom: isLast ? 'none' : `0.5px solid ${LIFEOS_COLORS.border}`,
-      }}
-    >
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '12px 14px',
+      borderBottom: isLast ? 'none' : `0.5px solid ${LIFEOS_COLORS.border}`,
+    }}>
       <div style={{ fontSize: 22 }}>{emoji}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
@@ -255,9 +259,22 @@ function IncomeRow({ row, isLast, onDelete }) {
       }}>
         +{fmt(Number(row.amount || 0))}₪
       </div>
+      <button onClick={onEdit} style={iconBtn} aria-label="עריכה">
+        <Pencil size={14} />
+      </button>
+      <button onClick={onDelete} style={{ ...iconBtn, color: LIFEOS_COLORS.error }} aria-label="מחיקה">
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 }
+
+const iconBtn = {
+  width: 28, height: 28, borderRadius: 8, border: 'none',
+  background: 'transparent', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: LIFEOS_COLORS.textSecondary,
+};
 
 function EmptyRow({ text }) {
   return (

@@ -7,9 +7,10 @@ import {
   COURSE_STATUS,
 } from '@/lib/lifeos/lifeos-constants';
 import {
-  getBusinessPlan, listCourses, getMonthlySummary,
+  getBusinessPlan, listCourses, getMonthlySummary, updateCourse, addTask,
 } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
+import ConfettiEffect from '@/components/lifeos/ConfettiEffect';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 const COURSE_STATUS_BY_KEY = Object.fromEntries(COURSE_STATUS.map(s => [s.key, s]));
@@ -22,7 +23,8 @@ export default function BusinessPlan() {
   const [courses, setCourses] = useState([]);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState('streams'); // streams | courses | opportunities | milestones | risks
+  const [tab, setTab] = useState('streams'); // streams | simulator | courses | opportunities | milestones | risks
+  const [confettiFire, setConfettiFire] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -52,8 +54,46 @@ export default function BusinessPlan() {
 
   const gap = Math.max(0, MONTHLY_GOAL_REQUIRED - monthlyIncome);
 
+  // Course Launch Tracker — advances to the next status. Confetti
+  // fires when a course reaches "launched".
+  const advanceCourseStatus = async (course) => {
+    const order = ['planned', 'outlining', 'recording', 'editing', 'ready', 'launched'];
+    const idx = order.indexOf(course.status);
+    if (idx === -1 || idx === order.length - 1) return;
+    const next = order[idx + 1];
+    try {
+      await updateCourse(course.id, { status: next });
+      if (next === 'launched') {
+        setConfettiFire(true);
+        toast.success(`🎉 ${course.name_he || course.name} הושק!`);
+      } else {
+        toast.success(`עבר ל-${COURSE_STATUS_BY_KEY[next]?.label || next}`);
+      }
+      load();
+    } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
+
+  // Opportunity → Task (creates a life_os_task with the opp title).
+  const takeOpportunity = async (opp) => {
+    try {
+      await addTask(userId, {
+        title: opp.title,
+        description: opp.description || '',
+        category: 'business',
+        priority: opp.impact === 'high' ? 'high' : 'medium',
+        difficulty: opp.effort === 'high' ? 'hard' : opp.effort === 'low' ? 'easy' : 'medium',
+        status: 'pending',
+        is_challenge: false,
+        xp_reward: opp.impact === 'high' ? 40 : 20,
+        source: 'opportunity',
+      });
+      toast.success('נוסף למשימות');
+    } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
+  };
+
   return (
-    <LifeOSLayout title="תוכנית עסקית">
+    <LifeOSLayout title="תוכנית עסקית" onQuickSaved={load}>
+      <ConfettiEffect fire={confettiFire} onDone={() => setConfettiFire(false)} />
       {/* Goal header */}
       <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: LIFEOS_COLORS.textSecondary, marginBottom: 4 }}>
@@ -77,6 +117,7 @@ export default function BusinessPlan() {
         scrollbarWidth: 'none',
       }}>
         <TabChip active={tab === 'streams'}       onClick={() => setTab('streams')}       label="מוצרים" />
+        <TabChip active={tab === 'simulator'}     onClick={() => setTab('simulator')}     label="🎚 סימולטור" />
         <TabChip active={tab === 'courses'}       onClick={() => setTab('courses')}       label={`קורסים (${courses.length})`} />
         <TabChip active={tab === 'opportunities'} onClick={() => setTab('opportunities')} label="הזדמנויות" />
         <TabChip active={tab === 'milestones'}    onClick={() => setTab('milestones')}    label="אבני דרך" />
@@ -91,8 +132,9 @@ export default function BusinessPlan() {
       ) : (
         <>
           {tab === 'streams'       && <StreamsList streams={revenueStreams} />}
-          {tab === 'courses'       && <CoursesList courses={courses} />}
-          {tab === 'opportunities' && <OpportunitiesList items={opportunities} />}
+          {tab === 'simulator'     && <RevenueSimulator />}
+          {tab === 'courses'       && <CoursesList courses={courses} onAdvance={advanceCourseStatus} />}
+          {tab === 'opportunities' && <OpportunityMatrix items={opportunities} onTake={takeOpportunity} />}
           {tab === 'milestones'    && <MilestonesList items={milestones} current={monthlyIncome} />}
           {tab === 'risks'         && <RisksList items={risks} />}
         </>
@@ -179,7 +221,146 @@ function StreamsList({ streams }) {
 
 // ─── Courses ─────────────────────────────────────────────────────
 
-function CoursesList({ courses }) {
+// ─── Revenue Simulator ───────────────────────────────────────────
+
+function RevenueSimulator() {
+  // Sliders: each dimension comes with a default that maps to the
+  // realistic year-1 plan from GoalBreakdown.
+  const [dm, setDm] = React.useState(10);
+  const [coaching, setCoaching] = React.useState(30);
+  const [coachPrice, setCoachPrice] = React.useState(500);
+  const [workshops, setWorkshops] = React.useState(4);
+  const [wsPrice, setWsPrice] = React.useState(2000);
+  const [students, setStudents] = React.useState(200);
+  const [coursePrice, setCoursePrice] = React.useState(400);
+  const [pt, setPt] = React.useState(20);
+
+  const dmRev       = dm * 1199;
+  const coachingRev = coaching * coachPrice;
+  const wsRev       = workshops * wsPrice;
+  const courseRev   = students * coursePrice;
+  const ptRev       = pt * 200;
+  const total       = dmRev + coachingRev + wsRev + courseRev + ptRev;
+  const goalPct     = Math.min(100, (total / MONTHLY_GOAL_REQUIRED) * 100);
+
+  return (
+    <div style={{ ...LIFEOS_CARD }}>
+      <SliderRow label="Dream Machine / חודש" value={dm} max={50} onChange={setDm}
+                 hint={`${fmt(dmRev)}₪`} />
+      <SliderRow label="לקוחות ליווי אונליין" value={coaching} max={200} onChange={setCoaching}
+                 hint={`${fmt(coachingRev)}₪`} />
+      <SliderRow label="מחיר ליווי / חודש" value={coachPrice} max={2000} step={50} onChange={setCoachPrice}
+                 hint="₪/לקוח" />
+      <SliderRow label="סדנאות / חודש" value={workshops} max={20} onChange={setWorkshops}
+                 hint={`${fmt(wsRev)}₪`} />
+      <SliderRow label="הכנסה לסדנה" value={wsPrice} max={10000} step={100} onChange={setWsPrice}
+                 hint="₪/סדנה" />
+      <SliderRow label="תלמידי קורס דיגיטלי / חודש" value={students} max={2000} onChange={setStudents}
+                 hint={`${fmt(courseRev)}₪`} />
+      <SliderRow label="מחיר קורס" value={coursePrice} max={1500} step={50} onChange={setCoursePrice}
+                 hint="₪" />
+      <SliderRow label="אימונים אישיים / חודש" value={pt} max={100} onChange={setPt}
+                 hint={`${fmt(ptRev)}₪`} />
+
+      <div style={{
+        marginTop: 12, padding: 12, borderRadius: 12,
+        backgroundColor: '#FFF4E6', border: `1px solid ${LIFEOS_COLORS.primary}`,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.textSecondary }}>סה״כ חודשי</span>
+          <span style={{ fontSize: 22, fontWeight: 900, color: LIFEOS_COLORS.primary }}>{fmt(total)}₪</span>
+        </div>
+        <div style={{ backgroundColor: '#F0E4D0', borderRadius: 999, height: 8, overflow: 'hidden' }}>
+          <div style={{
+            width: `${goalPct}%`, height: '100%',
+            backgroundColor: LIFEOS_COLORS.primary, transition: 'width 0.3s ease',
+          }} />
+        </div>
+        <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 6, textAlign: 'left' }}>
+          {goalPct.toFixed(1)}% מ-{fmt(MONTHLY_GOAL_REQUIRED)}₪ נדרש לחודש
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SliderRow({ label, value, max, step = 1, onChange, hint }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4,
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: LIFEOS_COLORS.textPrimary }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: LIFEOS_COLORS.primary }}>
+          {value}{hint ? ` · ${hint}` : ''}
+        </span>
+      </div>
+      <input type="range" min={0} max={max} step={step} value={value}
+             onChange={(e) => onChange(parseFloat(e.target.value))}
+             style={{ width: '100%', accentColor: LIFEOS_COLORS.primary }} />
+    </div>
+  );
+}
+
+// ─── Opportunity Matrix (impact × effort 2×2) ────────────────────
+
+function OpportunityMatrix({ items, onTake }) {
+  if (!items?.length) return <EmptyCard text="אין הזדמנויות" />;
+  // Bucket each opp into one of 4 quadrants.
+  const quadrants = {
+    'high_low':    { label: 'נצח קל',         bg: '#DCFCE7', items: [] }, // high impact, low effort
+    'high_high':   { label: 'מאמץ ראוי',       bg: '#FFF4E6', items: [] }, // high, high
+    'medium_low':  { label: 'קל לבצע',         bg: '#DBEAFE', items: [] }, // medium impact, low effort
+    'other':       { label: 'מועמדים אחרים',   bg: '#F7F3EC', items: [] },
+  };
+  items.forEach(o => {
+    const i = (o.impact || 'medium').toLowerCase();
+    const e = (o.effort || 'medium').toLowerCase();
+    if (i === 'high' && e === 'low')       quadrants.high_low.items.push(o);
+    else if (i === 'high' && e === 'high') quadrants.high_high.items.push(o);
+    else if (e === 'low')                  quadrants.medium_low.items.push(o);
+    else                                   quadrants.other.items.push(o);
+  });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {Object.entries(quadrants).map(([k, q]) => q.items.length > 0 && (
+        <div key={k} style={{
+          ...LIFEOS_CARD, backgroundColor: q.bg,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
+            {q.label} ({q.items.length})
+          </div>
+          {q.items.map((o, i) => (
+            <div key={i} style={{
+              backgroundColor: '#FFFFFF', borderRadius: 10, padding: 10, marginBottom: 6,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>🚀 {o.title}</div>
+                {o.potential_revenue > 0 && (
+                  <div style={{ fontSize: 12, fontWeight: 800, color: LIFEOS_COLORS.success, whiteSpace: 'nowrap', marginRight: 8 }}>
+                    +{fmt(o.potential_revenue)}₪
+                  </div>
+                )}
+              </div>
+              {o.description && (
+                <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 4, lineHeight: 1.45 }}>
+                  {o.description}
+                </div>
+              )}
+              <button onClick={() => onTake(o)} style={{
+                marginTop: 8, padding: '6px 12px', borderRadius: 8, border: 'none',
+                backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
+                fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              }}>אני לוקח את זה ←</button>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CoursesList({ courses, onAdvance }) {
   if (!courses?.length) {
     return <EmptyCard text="אין קורסים. צריך להוסיף seed לטבלה courses." />;
   }
@@ -255,6 +436,14 @@ function CoursesList({ courses }) {
                 </div>
               )}
             </div>
+            {/* Advance button — only when not yet launched */}
+            {c.status !== 'launched' && onAdvance && (
+              <button onClick={() => onAdvance(c)} style={{
+                marginTop: 8, width: '100%', padding: '8px 12px', borderRadius: 10, border: 'none',
+                backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}>קדם שלב ←</button>
+            )}
           </div>
         );
       })}
@@ -262,8 +451,8 @@ function CoursesList({ courses }) {
   );
 }
 
-// ─── Opportunities ───────────────────────────────────────────────
-
+// ─── Opportunities (legacy list — kept for backwards compat) ─────
+// eslint-disable-next-line no-unused-vars
 function OpportunitiesList({ items }) {
   if (!items?.length) return <EmptyCard text="אין הזדמנויות" />;
   return (

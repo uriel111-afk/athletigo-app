@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   INCOME_SOURCES, ATHLETIGO_PRODUCTS, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
-import { addIncome } from '@/lib/lifeos/lifeos-api';
+import { addIncome, updateIncome } from '@/lib/lifeos/lifeos-api';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -19,13 +19,24 @@ const initialForm = () => ({
   notes: '',
 });
 
-export default function IncomeForm({ isOpen, onClose, userId, onSaved }) {
+const formFromRow = (row) => ({
+  amount: row.amount != null ? String(row.amount) : '',
+  source: row.source || '',
+  product: row.product || '',
+  client_name: row.client_name || '',
+  description: row.description || '',
+  date: row.date || todayISO(),
+  notes: row.notes || '',
+});
+
+export default function IncomeForm({ isOpen, onClose, userId, onSaved, income = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (isOpen) setForm(initialForm());
-  }, [isOpen]);
+    if (!isOpen) return;
+    setForm(income ? formFromRow(income) : initialForm());
+  }, [isOpen, income?.id]);
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
@@ -50,17 +61,19 @@ export default function IncomeForm({ isOpen, onClose, userId, onSaved }) {
       return;
     }
     setSaving(true);
+    const payload = {
+      amount,
+      source: form.source,
+      product: form.product || null,
+      client_name: form.client_name || null,
+      description: form.description || null,
+      date: form.date,
+      notes: form.notes || null,
+    };
     try {
-      await addIncome(userId, {
-        amount,
-        source: form.source,
-        product: form.product || null,
-        client_name: form.client_name || null,
-        description: form.description || null,
-        date: form.date,
-        notes: form.notes || null,
-      });
-      toast.success('ההכנסה נשמרה');
+      if (income?.id) await updateIncome(income.id, payload);
+      else            await addIncome(userId, payload);
+      toast.success(income ? 'ההכנסה עודכנה' : 'ההכנסה נשמרה');
       onSaved?.();
       onClose();
     } catch (err) {
@@ -80,7 +93,7 @@ export default function IncomeForm({ isOpen, onClose, userId, onSaved }) {
       >
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
-            הכנסה חדשה
+            {income ? 'עריכת הכנסה' : 'הכנסה חדשה'}
           </DialogTitle>
         </DialogHeader>
 

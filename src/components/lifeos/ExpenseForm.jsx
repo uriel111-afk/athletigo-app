@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   EXPENSE_CATEGORIES, PAYMENT_METHODS, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
-import { addExpense } from '@/lib/lifeos/lifeos-api';
+import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -19,14 +19,25 @@ const initialForm = () => ({
   notes: '',
 });
 
-export default function ExpenseForm({ isOpen, onClose, userId, onSaved }) {
+const formFromRow = (row) => ({
+  amount: row.amount != null ? String(row.amount) : '',
+  category: row.category || '',
+  subcategory: row.subcategory || '',
+  description: row.description || '',
+  date: row.date || todayISO(),
+  payment_method: row.payment_method || '',
+  notes: row.notes || '',
+});
+
+export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
 
-  // Reset form whenever the dialog opens.
+  // Reset form whenever the dialog opens — pre-fill if editing.
   useEffect(() => {
-    if (isOpen) setForm(initialForm());
-  }, [isOpen]);
+    if (!isOpen) return;
+    setForm(expense ? formFromRow(expense) : initialForm());
+  }, [isOpen, expense?.id]);
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
@@ -41,17 +52,19 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved }) {
       return;
     }
     setSaving(true);
+    const payload = {
+      amount,
+      category: form.category,
+      subcategory: form.subcategory || null,
+      description: form.description || null,
+      date: form.date,
+      payment_method: form.payment_method || null,
+      notes: form.notes || null,
+    };
     try {
-      await addExpense(userId, {
-        amount,
-        category: form.category,
-        subcategory: form.subcategory || null,
-        description: form.description || null,
-        date: form.date,
-        payment_method: form.payment_method || null,
-        notes: form.notes || null,
-      });
-      toast.success('ההוצאה נשמרה');
+      if (expense?.id) await updateExpense(expense.id, payload);
+      else             await addExpense(userId, payload);
+      toast.success(expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה');
       onSaved?.();
       onClose();
     } catch (err) {
@@ -71,7 +84,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved }) {
       >
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
-            הוצאה חדשה
+            {expense ? 'עריכת הוצאה' : 'הוצאה חדשה'}
           </DialogTitle>
         </DialogHeader>
 
