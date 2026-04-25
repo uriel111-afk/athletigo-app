@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import AppSwitcher from "@/components/lifeos/AppSwitcher";
+import MentorChat from "@/components/lifeos/MentorChat";
 import FloatingBaselineForm from "../components/FloatingBaselineForm";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
@@ -768,6 +769,7 @@ export default function Dashboard() {
           onTap={() => { setDuePopup(null); setShowReminders(true); }}
         />
       )}
+      <MentorChat buttonBottom={90} buttonLeft={16} />
     </ProtectedCoachPage>
   );
 }

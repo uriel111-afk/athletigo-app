@@ -5,6 +5,7 @@ import LifeOSNav from './LifeOSNav';
 import QuickActionFAB from './QuickActionFAB';
 import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
+import MentorChat from './MentorChat';
 import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import { AuthContext } from '@/lib/AuthContext';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
@@ -88,6 +89,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
 
       <LifeOSNav />
       <QuickActionFAB onSaved={onQuickSaved} />
+      <MentorChat />
     </div>
   );
 }
