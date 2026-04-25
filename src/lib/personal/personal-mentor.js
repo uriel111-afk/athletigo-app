@@ -131,13 +131,23 @@ export async function getWeeklyInsight(userId) {
   ] = await Promise.all([
     safe(async () => (await supabase.from('personal_checkin')
       .select('*').eq('user_id', userId).gte('date', weekStartISO).lte('date', today)).data || [], []),
-    safe(async () => (await supabase.from('life_os_tasks')
-      .select('id, status, transferred_from, due_date')
-      .eq('user_id', userId).gte('due_date', weekStartISO).lte('due_date', today)).data || [], []),
+    safe(async () => {
+      // due_date / transferred_from added by 20260426_personal_weekly.
+      // Skip the rule cleanly if the migration isn't applied yet.
+      const r = await supabase.from('life_os_tasks')
+        .select('id, status, transferred_from, due_date')
+        .eq('user_id', userId).gte('due_date', weekStartISO).lte('due_date', today);
+      if (r.error) return [];
+      return r.data || [];
+    }, []),
     safe(async () => (await supabase.from('personal_training_log')
       .select('id, date').eq('user_id', userId).gte('date', weekStartISO).lte('date', today)).data || [], []),
-    safe(async () => (await supabase.from('personal_weekly_plan')
-      .select('id').eq('user_id', userId).eq('week_start', nextWeekISO).limit(1)).data || [], []),
+    safe(async () => {
+      const r = await supabase.from('personal_weekly_plan')
+        .select('id').eq('user_id', userId).eq('week_start', nextWeekISO).limit(1);
+      if (r.error) return [];
+      return r.data || [];
+    }, []),
   ]);
 
   // ── Rule 1: Friday/Saturday with no plan for next week ──────────

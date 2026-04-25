@@ -71,24 +71,38 @@ export async function fetchWeek(userId, coachId = userId, anchorDate = new Date(
       return data || [];
     }, []),
 
-    // Open tasks with a due_date in this week, plus undated open tasks.
+    // Open tasks — tries the rich shape (with due_date / transferred_from
+    // added by 20260426_personal_weekly.sql) and falls back to the
+    // legacy shape if the migration hasn't been applied yet, so the
+    // network tab stays clean and the board still renders something.
     safe(async () => {
-      const { data } = await supabase
+      const rich = await supabase
         .from('life_os_tasks')
         .select('id, title, status, priority, category, due_date, transferred_from, xp_reward, is_challenge')
         .eq('user_id', userId)
         .or(`due_date.gte.${startISO},due_date.is.null`)
         .lte('due_date', endISO)
         .neq('status', 'archived');
-      return data || [];
+      if (!rich.error) return rich.data || [];
+      const legacy = await supabase
+        .from('life_os_tasks')
+        .select('id, title, status, priority, category, xp_reward, is_challenge')
+        .eq('user_id', userId)
+        .neq('status', 'archived');
+      return (legacy.data || []).map(t => ({ ...t, due_date: null, transferred_from: null }));
     }, []),
 
     safe(async () => {
-      const { data } = await supabase
+      const rich = await supabase
         .from('personal_household_tasks')
         .select('id, name, icon, frequency, duration_minutes, last_done, next_due, assigned_days')
         .eq('user_id', userId);
-      return data || [];
+      if (!rich.error) return rich.data || [];
+      const legacy = await supabase
+        .from('personal_household_tasks')
+        .select('id, name, icon, frequency, duration_minutes, last_done, next_due')
+        .eq('user_id', userId);
+      return (legacy.data || []).map(h => ({ ...h, assigned_days: [] }));
     }, []),
 
     safe(async () => {
@@ -120,20 +134,30 @@ export async function fetchWeek(userId, coachId = userId, anchorDate = new Date(
     }, []),
 
     safe(async () => {
-      const { data } = await supabase
+      // prep_day was added in a later migration — fall back to a slim
+      // select if the column isn't there yet.
+      const rich = await supabase
         .from('personal_meal_plan')
         .select('id, week_start, day_of_week, meal_type, description, prep_day')
         .eq('user_id', userId)
         .eq('week_start', startISO);
-      return data || [];
+      if (!rich.error) return rich.data || [];
+      const legacy = await supabase
+        .from('personal_meal_plan')
+        .select('id, week_start, day_of_week, meal_type, description')
+        .eq('user_id', userId)
+        .eq('week_start', startISO);
+      return (legacy.data || []).map(m => ({ ...m, prep_day: false }));
     }, []),
 
+    // personal_weekly_plan is brand-new — table may not exist yet.
     safe(async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('personal_weekly_plan')
         .select('*')
         .eq('user_id', userId)
         .eq('week_start', startISO);
+      if (error) return [];
       return data || [];
     }, []),
 
