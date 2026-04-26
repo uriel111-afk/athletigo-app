@@ -7,17 +7,18 @@ import { AuthContext } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
-import { DraftBanner } from "@/components/DraftBanner";
+// DraftBanner replaced by inline DraftToast (floating, auto-dismiss)
+// — see component definition near the bottom of this file.
 
 // ─── Constants ───────────────────────────────────────────────────
 //
-// Tabs use the English labels exactly as in the design (Basic / Foot
-// Switch / High Knees) — these are the brand-standard names of the
-// jump-rope techniques. Internal IDs stay in snake_case for DB.
+// Tabs in Hebrew. Internal IDs stay in snake_case so DB rows + the
+// results_log mirror keep matching previous data. RTL flow puts בסיס
+// visually right-most as expected.
 const TECHNIQUES = [
-  { id: 'basic',       label: 'Basic',       color: '#FF6F20' },
-  { id: 'foot_switch', label: 'Foot Switch', color: '#FF6F20' },
-  { id: 'high_knees',  label: 'High Knees',  color: '#FF6F20' },
+  { id: 'basic',       label: 'בסיס',          color: '#FF6F20' },
+  { id: 'foot_switch', label: 'החלפת רגליים',  color: '#FF6F20' },
+  { id: 'high_knees',  label: 'הרמת ברכיים',   color: '#FF6F20' },
 ];
 
 const COLORS = {
@@ -208,14 +209,17 @@ export default function BaselineFormDialog({
 
   // Calculations for the CURRENT technique (the visible tab).
   // Score = avg jumps per round divided by work time in seconds → JPS.
+  // Best = max jumps across the round set (peak single-round value).
   const currentRounds = perTechnique[technique]?.rounds || [];
   const calc = useMemo(() => {
     const filled = currentRounds.filter(r => r.jumps !== '' && parseInt(r.jumps) >= 0);
     const total = filled.reduce((s, r) => s + (parseInt(r.jumps) || 0), 0);
     const avg = filled.length > 0 ? total / filled.length : 0;
     const score = workTime > 0 && filled.length > 0 ? avg / workTime : 0;
+    const best = filled.length > 0 ? Math.max(...filled.map(r => parseInt(r.jumps) || 0)) : 0;
     return {
       total,
+      best,
       avg: Math.round(avg * 10) / 10,
       score: Math.round(score * 100) / 100,
       filledCount: filled.length,
@@ -260,6 +264,7 @@ export default function BaselineFormDialog({
         const totalJumps = filled.reduce((s, r) => s + (parseInt(r.jumps) || 0), 0);
         const avg = Math.round((totalJumps / filled.length) * 100) / 100;
         const score = workTime > 0 ? Math.round((avg / workTime) * 100) / 100 : 0;
+        const bestRound = Math.max(...filled.map(r => parseInt(r.jumps) || 0));
         const roundsData = filled.map((r, i) => ({
           round: i + 1,
           jumps: parseInt(r.jumps) || 0,
@@ -279,11 +284,12 @@ export default function BaselineFormDialog({
           total_jumps: totalJumps,
           average_jumps: avg,
           baseline_score: score,
+          best_round: bestRound,
           notes: notes || null,
           created_at: sharedCreatedAt,
         });
 
-        perTechCalc[techId] = { totalJumps, avg, score, roundsCount: filled.length };
+        perTechCalc[techId] = { totalJumps, avg, score, bestRound, roundsCount: filled.length };
       }
 
       if (editMode && existingRows && existingRows.length > 0) {
@@ -293,10 +299,17 @@ export default function BaselineFormDialog({
         if (delErr) throw delErr;
       }
 
-      const { data: inserted, error: insErr } = await supabase
-        .from('baselines')
-        .insert(rowsToInsert)
-        .select();
+      // Insert. If best_round column doesn't exist yet
+      // (20260426_baselines_best_round.sql not applied), retry without
+      // it so the save still works and the user is unblocked.
+      let inserted, insErr;
+      ({ data: inserted, error: insErr } = await supabase
+        .from('baselines').insert(rowsToInsert).select());
+      if (insErr && /best_round/i.test(insErr.message || '')) {
+        const slim = rowsToInsert.map(({ best_round, ...rest }) => rest);
+        ({ data: inserted, error: insErr } = await supabase
+          .from('baselines').insert(slim).select());
+      }
       if (insErr) throw insErr;
 
       // Mirror to results_log so the trainee profile's "שיאים" tab
@@ -415,23 +428,32 @@ export default function BaselineFormDialog({
                 <ChevronDown size={16} />
               </button>
             </div>
-            <div style={{
-              flex: 1, textAlign: 'center',
-              fontSize: 16, fontWeight: 800,
-              color: COLORS.textPrimary,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}>
+            <div
+              onDoubleClick={() => setMinimized(true)}
+              title="לחיצה כפולה — מזער"
+              style={{
+                flex: 1, textAlign: 'center',
+                fontSize: 16, fontWeight: 800,
+                color: COLORS.textPrimary,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
               <span>אתגר Baseline</span>
               <Activity size={16} style={{ color: COLORS.primary }} />
             </div>
             <div style={{ width: 60 }} />
           </div>
 
-          {!viewOnly && hasDraft && (
-            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
-          )}
+          {/* Draft notification moved out of the form body — see
+              <DraftToast /> below the Dialog. Inline banner used to
+              push content out of the viewport and force scroll. */}
 
-          {/* Trainee dropdown */}
+          {/* Single participant — pick from the system list, or
+              choose "הזנה ידנית" to type a one-off name. The manual
+              name input only appears in that case (no double-name
+              confusion). */}
           <select
             value={selectedTraineeId}
             onChange={viewOnly ? undefined : (e) => setSelectedTraineeId(e.target.value)}
@@ -443,22 +465,17 @@ export default function BaselineFormDialog({
               <option key={t.id} value={t.id}>{t.full_name}</option>
             ))}
           </select>
-
-          {/* Manual name input — relevant when "manual entry" selected */}
-          <input
-            type="text"
-            value={manualName}
-            onChange={viewOnly ? undefined : (e) => setManualName(e.target.value)}
-            readOnly={viewOnly}
-            disabled={viewOnly}
-            placeholder="שם מלא"
-            style={{
-              ...cardSelect,
-              textAlign: 'right',
-              opacity: selectedTraineeId ? 0.5 : 1,
-              cursor: selectedTraineeId ? 'not-allowed' : 'text',
-            }}
-          />
+          {!selectedTraineeId && (
+            <input
+              type="text"
+              value={manualName}
+              onChange={viewOnly ? undefined : (e) => setManualName(e.target.value)}
+              readOnly={viewOnly}
+              disabled={viewOnly}
+              placeholder="שם מלא"
+              style={{ ...cardSelect, textAlign: 'right' }}
+            />
+          )}
 
           {/* Time + Date row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -533,11 +550,11 @@ export default function BaselineFormDialog({
                   }}
                 >
                   <div style={{
-                    fontSize: 9, fontWeight: 700,
+                    fontSize: 10, fontWeight: 700,
                     color: COLORS.textSecondary,
-                    textAlign: 'center', letterSpacing: 0.6,
+                    textAlign: 'center',
                   }}>
-                    ROUND {i + 1}
+                    סיבוב {i + 1}
                   </div>
                   <input
                     type="number"
@@ -590,17 +607,18 @@ export default function BaselineFormDialog({
             })}
           </div>
 
-          {/* Stats summary — three cells, last one (SCORE) highlighted */}
+          {/* Stats summary — four cells, SCORE highlighted */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr',
+            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.3fr',
             gap: 0,
             backgroundColor: COLORS.bgSoft,
             borderRadius: 10,
             padding: 8,
             alignItems: 'center',
           }}>
-            <StatCell label='סה"כ' value={String(calc.total)} />
+            <StatCell label='סה"כ'  value={String(calc.total)} />
             <StatCell label="ממוצע" value={String(calc.avg.toFixed(1))} dividers />
+            <StatCell label="שיא"   value={String(calc.best)} />
             <ScoreCell value={calc.score} />
           </div>
 
@@ -729,7 +747,59 @@ export default function BaselineFormDialog({
         <Maximize2 size={14} />
       </button>
     )}
+
+    {/* Draft restore toast — replaces the inline DraftBanner. Floats
+        above the dialog (z 12001 > dialog 11001) for 3 seconds. If
+        the coach taps "שחזר טיוטה" the previous-session form data
+        loads in; if they ignore it, the timeout discards the draft
+        and they start fresh. */}
+    {isOpen && !viewOnly && hasDraft && (
+      <DraftToast onRestore={keepDraft} onTimeout={discardDraft} />
+    )}
     </>
+  );
+}
+
+// Floating restore-draft toast. Top-center, auto-dismiss after 3s
+// (which counts as "discard"). Lives outside the Dialog so it isn't
+// constrained by the dialog's portal stacking context.
+function DraftToast({ onRestore, onTimeout }) {
+  useEffect(() => {
+    const id = setTimeout(() => { onTimeout?.(); }, 3000);
+    return () => clearTimeout(id);
+  }, [onTimeout]);
+  return (
+    <div
+      dir="rtl"
+      style={{
+        position: 'fixed',
+        top: 20, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 12001,
+        display: 'inline-flex', alignItems: 'center', gap: 10,
+        padding: '8px 14px',
+        borderRadius: 999,
+        backgroundColor: '#1A1A1A', color: '#FFFFFF',
+        boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
+        fontSize: 13, fontWeight: 600,
+        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        animation: 'draftToastIn 180ms ease-out',
+        maxWidth: '90vw',
+      }}
+    >
+      <style>{`@keyframes draftToastIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }`}</style>
+      <span>📝 יש טיוטה קודמת</span>
+      <button
+        onClick={onRestore}
+        style={{
+          padding: '6px 12px', borderRadius: 999, border: 'none',
+          backgroundColor: '#FF6F20', color: '#FFFFFF',
+          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          fontFamily: "'Heebo', 'Assistant', sans-serif",
+        }}
+      >
+        שחזר טיוטה
+      </button>
+    </div>
   );
 }
 
