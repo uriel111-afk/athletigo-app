@@ -73,45 +73,29 @@ function doubleBell(when) {
   bell(when + 0.25);
 }
 
-// Workout-end signal — three long, strong square-wave beeps at peak
-// gain (1.0 — masterGain still keeps us inside the safe ceiling).
-// Significantly louder + longer than any per-round transition cue
-// (those use gain 0.5–0.7 on softer waveforms) so the coach can't
-// miss "session over". Total duration ≈ 1.5 s; pairs with
-// VIBRATION.finish for haptic + audio confirmation.
+// Workout-end signal — four ascending triangle tones (C5 → C6).
+// Restored to the original arpeggio after a brief detour through a
+// 3-square-beep version that the coach didn't want. Gain bumped to
+// 1.0 (was 0.7) so it carries over headphones / pocket fabric;
+// everything else — waveform, frequencies, ramp shape, timing — is
+// unchanged from the original.
 function victory(when) {
   const c = getCtx();
-  // Three identical 880 Hz "ding" beeps. Square wave for max
-  // perceived loudness; sine added at the same frequency for a bit
-  // of body so it doesn't sound like a buzzer alone.
-  for (let i = 0; i < 3; i++) {
-    const start = when + i * 0.5;            // 0.4s tone + 0.1s gap
-    const stop  = start + 0.4;
-    // Primary square (the bite)
-    const sq = c.createOscillator();
-    const sqG = c.createGain();
-    sq.type = 'square';
-    sq.frequency.value = 880;
-    sqG.gain.setValueAtTime(0, start);
-    sqG.gain.linearRampToValueAtTime(0.6, start + 0.005);
-    sqG.gain.setValueAtTime(0.6, start + 0.35);
-    sqG.gain.exponentialRampToValueAtTime(0.001, stop);
-    sq.connect(sqG); sqG.connect(masterGain);
-    sq.start(start); sq.stop(stop + 0.02);
-    scheduledNodes.push(sq);
-    // Sine layer at same pitch for fundamental body
-    const si = c.createOscillator();
-    const siG = c.createGain();
-    si.type = 'sine';
-    si.frequency.value = 880;
-    siG.gain.setValueAtTime(0, start);
-    siG.gain.linearRampToValueAtTime(0.4, start + 0.005);
-    siG.gain.setValueAtTime(0.4, start + 0.35);
-    siG.gain.exponentialRampToValueAtTime(0.001, stop);
-    si.connect(siG); siG.connect(masterGain);
-    si.start(start); si.stop(stop + 0.02);
-    scheduledNodes.push(si);
-  }
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+    const start = when + i * 0.18;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = f;
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(1.0, start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, start + 0.6);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(start);
+    osc.stop(start + 0.62);
+    scheduledNodes.push(osc);
+  });
 }
 
 function click(when) {
@@ -295,10 +279,7 @@ export const VIBRATION = {
   workStart: [200, 100, 200],            // two short pulses = GO!
   restStart: [300],                      // one long pulse = rest
   tick:      [50],                       // 3-2-1 countdown micro-tick
-  // Exercise finish — strong, three long pulses with gaps so the
-  // coach feels it through fabric/clothing even if the phone is in
-  // a pocket. Matches the new 3-beep audio cue in victory() below.
-  finish:    [300, 100, 300, 100, 300],
+  finish:    [200, 100, 200, 100, 400],  // celebration
   pause:     [50],                       // subtle tap
   resume:    [100],                      // slightly longer tap
 };
