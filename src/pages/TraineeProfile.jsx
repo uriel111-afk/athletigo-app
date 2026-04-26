@@ -2101,10 +2101,13 @@ export default function TraineeProfile() {
         }
       }
 
-      // 3. Package freeze / unfreeze. Suspended freezes any active
-      // package; flipping back to active thaws frozen packages so
-      // session-deduction resumes where it left off.
-      if (newStatus === 'suspended') {
+      // 3. Package freeze / unfreeze. Suspended OR former freezes
+      // any active package — that's what removes the trainee from
+      // CoachHub's "active trainees" count, since that count is
+      // computed from active client_services rows. Flipping back
+      // to active thaws frozen packages so session-deduction
+      // resumes where it left off.
+      if (newStatus === 'suspended' || newStatus === 'former') {
         try {
           await supabase
             .from('client_services')
@@ -3600,17 +3603,27 @@ export default function TraineeProfile() {
                   if (!tid) return;
                   setDeleting(true);
                   try {
-                    // SOFT-DELETE: flip client_status to 'former'.
-                    // Every related row (sessions, measurements,
-                    // baselines, packages, etc.) stays intact — the
-                    // trainee just disappears from the main lists
-                    // because AllUsers filters client_status='former'
-                    // by default. Reverse with the badge → "פעיל".
+                    // SOFT-DELETE: flip client_status to 'former' +
+                    // freeze any active packages so the CoachHub
+                    // "active trainees" counter (built from active
+                    // client_services rows) drops the trainee
+                    // immediately. Sessions / measurements /
+                    // baselines stay untouched — the row is just
+                    // hidden from the main lists by client_status.
+                    // Reverse with the badge → "פעיל" (which thaws
+                    // frozen packages back to active).
                     const { error } = await supabase
                       .from('users')
                       .update({ client_status: 'former' })
                       .eq('id', tid);
                     if (error) throw error;
+                    try {
+                      await supabase
+                        .from('client_services')
+                        .update({ status: 'frozen' })
+                        .eq('trainee_id', tid)
+                        .eq('status', 'active');
+                    } catch (e) { console.warn('[Archive] freeze packages failed:', e?.message); }
 
                     toast.success(`${user.full_name} הועבר לארכיון`);
                     setShowDeleteConfirm(false);

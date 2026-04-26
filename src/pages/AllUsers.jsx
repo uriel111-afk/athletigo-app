@@ -58,7 +58,7 @@ export default function AllUsers() {
   });
 
   // 1. Fetch Users & Services (Shared Hook)
-  const { allTrainees, allServices, activeClientsCount, traineesLoading } = useClientStats();
+  const { allTrainees, visibleTrainees, allServices, activeClientsCount, traineesLoading } = useClientStats();
 
   // Realtime sync — refetch when users/services change
   useEffect(() => {
@@ -143,9 +143,12 @@ export default function AllUsers() {
   };
 
   // ── Counts for filter chips ─────────────────────────────────────
+  // Counts run on `visibleTrainees` (excludes former + suspended)
+  // so the chip numbers always match what the user actually sees
+  // when the "× הצג לשעבר" toggle is OFF.
   const counts = useMemo(() => {
     let active = 0, expiring = 0, inactive = 0;
-    for (const t of allTrainees) {
+    for (const t of visibleTrainees) {
       const pkg = getActivePackage(t.id);
       if (!pkg) { inactive++; continue; }
       const rem = getRemaining(pkg);
@@ -153,18 +156,20 @@ export default function AllUsers() {
       else if (rem > 0) active++;
       else inactive++;
     }
-    return { all: allTrainees.length, active, expiring, inactive };
+    return { all: visibleTrainees.length, active, expiring, inactive };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTrainees, allServices]);
+  }, [visibleTrainees, allServices]);
 
   // ── Filter + sort logic ─────────────────────────────────────────
   const filteredTrainees = useMemo(() => {
     const q = searchTerm.toLowerCase();
     const filtered = allTrainees.filter(t => {
-      // Archive gate — 'former' trainees are hidden unless the coach
-      // explicitly flips the toggle. Skips before the package logic
-      // so an archived trainee with a stale package doesn't surface.
-      if (t.client_status === 'former' && !showFormer) return false;
+      // Archive gate — 'former' AND 'suspended' trainees are hidden
+      // unless the coach explicitly flips the toggle. Skips before
+      // the package logic so an archived trainee with a stale
+      // package doesn't surface.
+      const isArchived = t.client_status === 'former' || t.client_status === 'suspended';
+      if (isArchived && !showFormer) return false;
       if (q) {
         const hit = (t.full_name || '').toLowerCase().includes(q)
           || (t.email || '').toLowerCase().includes(q)
@@ -209,7 +214,7 @@ export default function AllUsers() {
           <div>
             <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>👥 מתאמנים</div>
             <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-              {allTrainees.length} מתאמנים · {counts.active} פעילים
+              {visibleTrainees.length} מתאמנים · {counts.active} פעילים
             </div>
           </div>
           <button
