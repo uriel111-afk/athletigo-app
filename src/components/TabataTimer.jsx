@@ -711,11 +711,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const textPrimary = cream  ? '#1a1a1a' : '#FFFFFF';
   const textSoft    = cream  ? '#888'    : 'rgba(255,255,255,0.8)';
   const accent      = cream  ? '#FF6F20' : '#FFFFFF';
-  const ringTrack   = cream  ? 'rgba(255,111,32,0.15)' : 'rgba(255,255,255,0.25)';
-  // Active drain ring is always orange — the coach asked for one
-  // unified phase color on the inner ring so the visual stays calm.
-  // Phase distinction comes from the bg/text + the upcoming row.
-  const ringFill = '#FF6F20';
+  // Inner ring (around the central digits) — stroke is the *opposite*
+  // of the background so it always pops:
+  //   work   (orange bg) → white stroke + white-30% track
+  //   rest/prep (cream)  → orange stroke + orange-20% track
+  // Same rule applies to the total-time chip ring below — the two
+  // rings stay color-locked together so they read as one system.
+  const ringTrack = isWork ? 'rgba(255,255,255,0.3)' : 'rgba(255,111,32,0.2)';
+  const ringFill  = isWork ? '#FFFFFF' : '#FF6F20';
   const chipBg      = cream  ? 'rgba(255,111,32,0.10)' : 'rgba(255,255,255,0.15)';
   const chipDarkBg  = cream  ? 'rgba(0,0,0,0.05)'      : 'rgba(0,0,0,0.2)';
   // Primary action button (pause/resume) — invert per phase
