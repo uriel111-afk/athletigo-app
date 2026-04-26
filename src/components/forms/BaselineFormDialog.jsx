@@ -71,11 +71,10 @@ const fmtDateDDMMYYYY = (iso) => {
 
 // ─── Main component ──────────────────────────────────────────────
 
-// Global event used to open the dialog from anywhere. Detail carries
-// every prop the dialog used to take. Mount one <BaselineFormDialog />
-// at App.jsx root and dispatch from any caller — no prop drilling, and
-// the form survives route changes (so the minimized pill keeps working
-// while the coach navigates to other screens).
+// Window event used to open a baseline form from anywhere. The
+// BaselineManager (App.jsx-mounted) listens, dedups by traineeId,
+// and renders one <BaselineFormDialog /> per open session — so the
+// coach can run multiple parallel sessions for different trainees.
 export const BASELINE_OPEN_EVENT = 'baseline-open';
 
 // Convenience wrapper so callers don't have to reach for window.dispatchEvent.
@@ -83,22 +82,25 @@ export function openBaselineDialog(detail = {}) {
   window.dispatchEvent(new CustomEvent(BASELINE_OPEN_EVENT, { detail }));
 }
 
-export default function BaselineFormDialog() {
-  // Open config received from a BASELINE_OPEN_EVENT. null = closed.
-  const [openConfig, setOpenConfig] = useState(null);
-  useEffect(() => {
-    const onOpen = (e) => setOpenConfig(e.detail || {});
-    window.addEventListener(BASELINE_OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(BASELINE_OPEN_EVENT, onOpen);
-  }, []);
-
-  const isOpen = !!openConfig;
-  const onClose = () => setOpenConfig(null);
-  const traineeId    = openConfig?.traineeId    || null;
-  const traineeName  = openConfig?.traineeName  || null;
-  const editMode     = !!openConfig?.editMode;
-  const existingRows = openConfig?.existingRows || null;
-  const viewOnly     = !!openConfig?.viewOnly;
+// Controlled component: the BaselineManager owns visibility +
+// minimize state and passes them in. This file used to be
+// self-managed via a window event listener; that pattern only
+// allowed one form at a time, which broke "multiple trainees in
+// parallel". The opener helper above is unchanged for callers.
+export default function BaselineFormDialog({
+  traineeId, traineeName,
+  editMode = false, existingRows = null, viewOnly = false,
+  isMinimized = false,
+  onClose, onMinimize,
+  stackIndex = 0,
+}) {
+  const isOpen = true;          // mounted ⇒ open (manager controls mounts)
+  const minimized = isMinimized;
+  const setMinimized = (next) => {
+    // Toggle support: caller can pass a function or a value.
+    const flag = typeof next === 'function' ? next(minimized) : next;
+    if (flag !== minimized) onMinimize?.();
+  };
 
   const queryClient = useQueryClient();
   const { user: authUser } = useContext(AuthContext);
@@ -185,26 +187,12 @@ export default function BaselineFormDialog() {
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // Minimize state — collapses the dialog to a floating pill at the
-  // bottom-left so the coach can run a stopwatch / look at the timer
-  // without losing form state. Form data lives in `formData` (above)
-  // so it survives the Dialog mount/unmount cycle.
-  const [minimized, setMinimized] = useState(false);
   // Drag offset for the dialog (relative to its centered position).
-  // Pointer drag on the title bar updates this; transform on the
-  // dialog content applies it.
-  const [dialogPos, setDialogPos] = useState({ x: 0, y: 0 });
+  // Initial offset is staggered by stackIndex so multiple parallel
+  // forms don't perfectly overlap when first opened. The user can
+  // drag from there; the manager doesn't reset position on minimize.
+  const [dialogPos, setDialogPos] = useState({ x: stackIndex * 24, y: stackIndex * 24 });
   const dragRef = useRef({ active: false, startX: 0, startY: 0, baseX: 0, baseY: 0 });
-  // Pill drag offset (separate from the dialog's). Bottom-left anchor.
-  const [pillPos, setPillPos] = useState({ x: 0, y: 0 });
-  const pillDragRef = useRef({ active: false, startX: 0, startY: 0, baseX: 0, baseY: 0 });
-  // Reset minimized + drag offset whenever the dialog is freshly opened.
-  useEffect(() => {
-    if (isOpen) {
-      setMinimized(false);
-      setDialogPos({ x: 0, y: 0 });
-    }
-  }, [isOpen]);
 
   // ── Dialog drag handlers ───────────────────────────────────────
   // Bound on the title bar (onPointerDown). Move + up listeners are
@@ -247,40 +235,9 @@ export default function BaselineFormDialog() {
     };
   }, []);
 
-  // ── Pill drag handlers ─────────────────────────────────────────
-  const onPillPointerDown = (e) => {
-    if (e.button && e.button !== 0) return;
-    pillDragRef.current = {
-      active: true, moved: false,
-      startX: e.clientX, startY: e.clientY,
-      baseX: pillPos.x, baseY: pillPos.y,
-    };
-    try { e.target.setPointerCapture?.(e.pointerId); } catch {}
-  };
-  useEffect(() => {
-    const handleMove = (e) => {
-      if (!pillDragRef.current.active) return;
-      const dx = e.clientX - pillDragRef.current.startX;
-      const dy = e.clientY - pillDragRef.current.startY;
-      // 3px threshold so a quick tap still counts as "click to restore".
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) pillDragRef.current.moved = true;
-      const w = window.innerWidth, h = window.innerHeight;
-      const next = {
-        x: Math.max(-(w - 200), Math.min(w - 200, pillDragRef.current.baseX + dx)),
-        y: Math.max(-(h - 80), Math.min(0, pillDragRef.current.baseY + dy)),
-      };
-      setPillPos(next);
-    };
-    const handleUp = () => { pillDragRef.current.active = false; };
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-    window.addEventListener('pointercancel', handleUp);
-    return () => {
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-      window.removeEventListener('pointercancel', handleUp);
-    };
-  }, []);
+  // Pill drag + render moved to BaselineManager — it owns the
+  // bottom-left stack so multiple minimized forms can sit side by
+  // side without each form fighting for the same anchor.
 
   // Convenience getters/setters bound to the drafted formData.
   const technique = formData.technique;
@@ -863,46 +820,6 @@ export default function BaselineFormDialog() {
         </DialogContent>
       </Dialog>
     </Dialog>
-
-    {/* Floating pill — shown only while the dialog is minimized.
-        Sits above the timer bar (z 12500 > timer 12000), survives
-        every route change because <BaselineFormDialog /> is mounted
-        at App.jsx root. Draggable: the user can park it in any
-        corner. Tap-to-restore is gated so a drag gesture doesn't
-        accidentally re-open the dialog mid-drag. */}
-    {isOpen && minimized && (
-      <button
-        onPointerDown={onPillPointerDown}
-        onClick={() => {
-          if (pillDragRef.current.moved) {
-            // user dragged — don't treat as a restore tap
-            pillDragRef.current.moved = false;
-            return;
-          }
-          setMinimized(false);
-        }}
-        aria-label="הרחב את הטופס"
-        style={{
-          position: 'fixed',
-          bottom: 24, left: 16,
-          transform: `translate(${pillPos.x}px, ${pillPos.y}px)`,
-          zIndex: 12500,
-          display: 'inline-flex', alignItems: 'center',
-          padding: '4px 12px',
-          borderRadius: 20,
-          border: '1.5px solid #F0E4D0',
-          backgroundColor: '#FFFFFF',
-          color: '#1A1A1A',
-          fontSize: 13, fontWeight: 500,
-          cursor: pillDragRef.current.active ? 'grabbing' : 'grab',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
-          touchAction: 'none',
-        }}
-      >
-        בייסליין
-      </button>
-    )}
 
     {/* Draft restore prompt — floats above the dialog (z 12001 >
         dialog 11001) and stays put until the coach picks an option.
