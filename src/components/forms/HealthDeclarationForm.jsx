@@ -4,6 +4,18 @@ import { supabase } from "@/lib/supabaseClient";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
+// data URL → Blob converter so the canvas PNG can be uploaded to
+// Supabase Storage. Inline implementation keeps the form
+// self-contained — no extra utility import.
+function dataUrlToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(',');
+  const mime = (header.match(/:(.*?);/) || [, 'image/png'])[1];
+  const bin = atob(base64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
 // Standard PAR-Q-style screening, 8 yes/no questions per the casual
 // onboarding spec. Trainee must tick the confirmation checkbox AND
 // sign on the canvas before "חתום ואשר" enables. On save, inserts
@@ -128,6 +140,33 @@ export default function HealthDeclarationForm({
     setSaving(true);
     try {
       const signatureDataUrl = canvasRef.current.toDataURL('image/png');
+
+      // Try to upload the PNG to Supabase Storage so we can store a
+      // short URL in signature_url (and reuse it from the documents
+      // mirror). If the upload fails for any reason — bucket missing,
+      // RLS deny, network — fall back to inlining the data URL so
+      // the form still saves the signature on this attempt.
+      let signatureUrl = signatureDataUrl;
+      try {
+        const blob = dataUrlToBlob(signatureDataUrl);
+        const path = `${trainee?.id || 'unknown'}/signatures/health_declaration_${Date.now()}.png`;
+        const tryBucket = async (bucket) => {
+          const { error: upErr } = await supabase.storage
+            .from(bucket)
+            .upload(path, blob, { upsert: true, contentType: 'image/png' });
+          if (upErr) throw upErr;
+          const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+          return urlData?.publicUrl;
+        };
+        try {
+          signatureUrl = await tryBucket('lifeos-files');
+        } catch {
+          signatureUrl = await tryBucket('media');
+        }
+      } catch (e) {
+        console.warn('[HealthDeclaration] storage upload failed, falling back to inline data URL:', e?.message);
+      }
+
       const payload = {
         user_id: coachId || null,
         trainee_id: trainee?.id || null,
@@ -136,7 +175,7 @@ export default function HealthDeclarationForm({
         ...answers,
         additional_notes: additionalNotes || null,
         declaration_confirmed: true,
-        signature_url: signatureDataUrl,  // stored inline; coach can view
+        signature_url: signatureUrl,
         signed_at: new Date().toISOString(),
       };
       const { data: inserted, error } = await supabase
@@ -158,6 +197,24 @@ export default function HealthDeclarationForm({
         } catch (e) {
           console.warn('[HealthDeclaration] session update failed:', e?.message);
         }
+      }
+
+      // Mirror into documents so the coach finds the signed
+      // declaration in the trainee's "מסמכים" tab too. No registered
+      // Document entity → use raw supabase. Best-effort; failures
+      // don't block the main save.
+      try {
+        await supabase.from('documents').insert({
+          user_id: coachId || null,
+          trainee_id: trainee?.id || null,
+          name: `הצהרת בריאות — ${trainee?.full_name || ''}`.trim(),
+          type: 'health_declaration',
+          category: 'medical',
+          file_url: signatureUrl,
+          health_declaration_id: inserted?.id || null,
+        });
+      } catch (e) {
+        console.warn('[HealthDeclaration] documents mirror failed:', e?.message);
       }
 
       toast.success('הצהרת הבריאות נחתמה בהצלחה');
