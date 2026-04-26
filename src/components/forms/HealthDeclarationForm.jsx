@@ -1,0 +1,378 @@
+import React, { useEffect, useRef, useState } from "react";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { supabase } from "@/lib/supabaseClient";
+import { Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+
+// Standard PAR-Q-style screening, 8 yes/no questions per the casual
+// onboarding spec. Trainee must tick the confirmation checkbox AND
+// sign on the canvas before "חתום ואשר" enables. On save, inserts
+// into `health_declarations` and (if a session id was passed) flips
+// that session from pending_approval → confirmed.
+
+const QUESTIONS = [
+  { key: 'heart_disease',       label: 'האם אובחנת אי פעם עם מחלת לב?' },
+  { key: 'blood_pressure',      label: 'האם יש לך בעיות לחץ דם?' },
+  { key: 'joint_issues',        label: 'האם יש לך בעיות במפרקים או בעמוד השדרה?' },
+  { key: 'asthma',              label: 'האם יש לך אסטמה או בעיות נשימה?' },
+  { key: 'medications',         label: 'האם אתה נוטל תרופות באופן קבוע?' },
+  { key: 'medical_limitations', label: 'האם יש לך מגבלה רפואית כלשהי שהמאמן צריך לדעת עליה?' },
+  { key: 'recent_surgery',      label: 'האם עברת ניתוח ב-12 החודשים האחרונים?' },
+  // feels_healthy is the only inverted question — default true,
+  // a "no" answer indicates concern.
+  { key: 'feels_healthy',       label: 'האם אתה מרגיש בריא ומסוגל לבצע פעילות גופנית?', inverted: true },
+];
+
+export default function HealthDeclarationForm({
+  isOpen,
+  onClose,
+  trainee,           // { id, full_name, birth_date }
+  coachId,           // owner for RLS (user_id column)
+  sessionId,         // optional — if present, flip session status on save
+  onSigned,          // optional — fires after a successful save
+}) {
+  // Initial answer map: feels_healthy starts true, everything else false.
+  const initialAnswers = () => Object.fromEntries(
+    QUESTIONS.map((q) => [q.key, q.key === 'feels_healthy'])
+  );
+
+  const [answers, setAnswers] = useState(initialAnswers());
+  const [additionalNotes, setAdditionalNotes] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Reset form when reopened so a stale answer set doesn't carry over.
+  useEffect(() => {
+    if (!isOpen) return;
+    setAnswers(initialAnswers());
+    setAdditionalNotes('');
+    setConfirmed(false);
+    setHasSignature(false);
+  }, [isOpen]);
+
+  // ── Signature canvas ────────────────────────────────────────────
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const [hasSignature, setHasSignature] = useState(false);
+
+  // Translate touch / mouse coords to canvas-relative px (handles
+  // CSS-vs-internal-resolution scaling so the line follows the finger).
+  const getPos = (e) => {
+    const c = canvasRef.current;
+    const rect = c.getBoundingClientRect();
+    const clientX = e.touches?.[0]?.clientX ?? e.clientX;
+    const clientY = e.touches?.[0]?.clientY ?? e.clientY;
+    return {
+      x: (clientX - rect.left) * (c.width / rect.width),
+      y: (clientY - rect.top)  * (c.height / rect.height),
+    };
+  };
+
+  const startDraw = (e) => {
+    e.preventDefault?.();
+    const ctx = canvasRef.current.getContext('2d');
+    const { x, y } = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1A1A1A';
+    drawing.current = true;
+  };
+
+  const draw = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault?.();
+    const ctx = canvasRef.current.getContext('2d');
+    const { x, y } = getPos(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    if (!hasSignature) setHasSignature(true);
+  };
+
+  const endDraw = () => { drawing.current = false; };
+
+  const clearSignature = () => {
+    const c = canvasRef.current;
+    if (!c) return;
+    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    setHasSignature(false);
+  };
+
+  // ── Save ────────────────────────────────────────────────────────
+  const canSubmit = confirmed && hasSignature && !saving;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) {
+      if (!confirmed)     toast.error('יש לאשר את הצהרת הבריאות');
+      else if (!hasSignature) toast.error('יש לחתום בתיבת החתימה');
+      return;
+    }
+    setSaving(true);
+    try {
+      const signatureDataUrl = canvasRef.current.toDataURL('image/png');
+      const payload = {
+        user_id: coachId || null,
+        trainee_id: trainee?.id || null,
+        full_name: trainee?.full_name || '',
+        birth_date: trainee?.birth_date || null,
+        ...answers,
+        additional_notes: additionalNotes || null,
+        declaration_confirmed: true,
+        signature_url: signatureDataUrl,  // stored inline; coach can view
+        signed_at: new Date().toISOString(),
+      };
+      const { data: inserted, error } = await supabase
+        .from('health_declarations')
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Flip session → confirmed and link the declaration if a session
+      // was attached. Best-effort — if either column doesn't exist on
+      // this install, the session-level approval is still useful.
+      if (sessionId) {
+        try {
+          await supabase
+            .from('sessions')
+            .update({ status: 'confirmed', health_declaration_id: inserted?.id })
+            .eq('id', sessionId);
+        } catch (e) {
+          console.warn('[HealthDeclaration] session update failed:', e?.message);
+        }
+      }
+
+      toast.success('הצהרת הבריאות נחתמה בהצלחה');
+      onSigned?.(inserted);
+      onClose?.();
+    } catch (err) {
+      console.error('[HealthDeclaration] save error:', err);
+      toast.error('שגיאה בשמירה: ' + (err?.message || ''));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Initialize canvas at mount time. Internal resolution is doubled
+  // so on retina screens the signature isn't blurry.
+  const setupCanvas = (node) => {
+    canvasRef.current = node;
+    if (!node) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cssW = node.clientWidth;
+    const cssH = node.clientHeight;
+    node.width  = Math.round(cssW * dpr);
+    node.height = Math.round(cssH * dpr);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose?.(); }}>
+      <DialogContent
+        className="max-w-md p-0"
+        onInteractOutside={(e) => { if (saving) e.preventDefault(); }}
+      >
+        <DialogTitle className="sr-only">הצהרת בריאות</DialogTitle>
+        <DialogDescription className="sr-only">
+          טופס הצהרת בריאות לפני אישור מפגש אימון
+        </DialogDescription>
+
+        <div dir="rtl" style={{
+          background: '#FDF8F3',
+          borderRadius: 14,
+          maxHeight: '90dvh',
+          overflowY: 'auto',
+          fontFamily: "'Heebo', 'Assistant', sans-serif",
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: '14px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: '1px solid #F0E4D0',
+            background: '#FFFFFF',
+            borderTopLeftRadius: 14, borderTopRightRadius: 14,
+            position: 'sticky', top: 0, zIndex: 1,
+          }}>
+            <button
+              type="button"
+              onClick={() => !saving && onClose?.()}
+              aria-label="סגור"
+              style={{ width: 32, height: 32, borderRadius: 999, border: 'none', background: 'transparent', cursor: 'pointer' }}
+            >
+              <X size={18} />
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img src="/logo-transparent.png" alt="" style={{ height: 28, width: 'auto' }} />
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>הצהרת בריאות</div>
+            </div>
+            <div style={{ width: 32 }} />
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Identity */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם מלא</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A' }}>{trainee?.full_name || '—'}</div>
+              {trainee?.birth_date && (
+                <>
+                  <div style={{ fontSize: 13, color: '#888', marginTop: 8, marginBottom: 4 }}>תאריך לידה</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>
+                    {(() => {
+                      const d = new Date(trainee.birth_date);
+                      if (Number.isNaN(d.getTime())) return trainee.birth_date;
+                      return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+                    })()}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Questions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {QUESTIONS.map((q) => {
+                const value = answers[q.key];
+                const setValue = (next) => setAnswers((prev) => ({ ...prev, [q.key]: next }));
+                return (
+                  <div key={q.key} style={{
+                    background: '#FFFFFF', border: '1px solid #F0E4D0',
+                    borderRadius: 12, padding: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A', textAlign: 'right', flex: 1 }}>
+                      {q.label}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setValue(false)}
+                        style={{
+                          padding: '6px 14px', borderRadius: 8,
+                          border: value === false ? '2px solid #16a34a' : '2px solid #E5E7EB',
+                          background: value === false ? '#16a34a' : '#FFFFFF',
+                          color: value === false ? '#FFFFFF' : '#6B7280',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >לא</button>
+                      <button
+                        type="button"
+                        onClick={() => setValue(true)}
+                        style={{
+                          padding: '6px 14px', borderRadius: 8,
+                          border: value === true ? '2px solid #DC2626' : '2px solid #E5E7EB',
+                          background: value === true ? '#DC2626' : '#FFFFFF',
+                          color: value === true ? '#FFFFFF' : '#6B7280',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >כן</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Free-form notes */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A', marginBottom: 6 }}>
+                פירוט נוסף (אם יש)
+              </div>
+              <textarea
+                value={additionalNotes}
+                onChange={(e) => setAdditionalNotes(e.target.value)}
+                rows={3}
+                placeholder="ניתן לציין כאן פציעות, רגישויות או כל מידע נוסף שחשוב למאמן..."
+                style={{
+                  width: '100%', resize: 'vertical', minHeight: 70,
+                  padding: '8px 10px', borderRadius: 10,
+                  border: '1px solid #E5E7EB', background: '#FFFFFF',
+                  fontSize: 13, color: '#1A1A1A', outline: 'none',
+                  boxSizing: 'border-box', textAlign: 'right',
+                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                }}
+              />
+            </div>
+
+            {/* Confirmation checkbox */}
+            <label style={{
+              background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12,
+              display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                style={{ marginTop: 3, width: 18, height: 18, accentColor: '#FF6F20' }}
+              />
+              <span style={{ fontSize: 12, color: '#1A1A1A', lineHeight: 1.5 }}>
+                אני מצהיר/ה כי כל הפרטים שמסרתי נכונים ומדויקים. אני לוקח/ת
+                אחריות מלאה על מצבי הבריאותי.
+              </span>
+            </label>
+
+            {/* Signature */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>חתימה</div>
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  style={{
+                    padding: '4px 10px', borderRadius: 8, border: '1px solid #E5E7EB',
+                    background: 'transparent', color: '#6B7280',
+                    fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >נקה</button>
+              </div>
+              <canvas
+                ref={setupCanvas}
+                onMouseDown={startDraw}
+                onMouseMove={draw}
+                onMouseUp={endDraw}
+                onMouseLeave={endDraw}
+                onTouchStart={startDraw}
+                onTouchMove={draw}
+                onTouchEnd={endDraw}
+                style={{
+                  width: '100%', height: 140,
+                  borderRadius: 10,
+                  border: '1px dashed #C4C4C4',
+                  background: '#FAFAFA',
+                  cursor: 'crosshair',
+                  touchAction: 'none',
+                  display: 'block',
+                }}
+              />
+              {!hasSignature && (
+                <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 6 }}>
+                  חתום/חתמי כאן באצבע או בעכבר
+                </div>
+              )}
+            </div>
+
+            {/* Submit */}
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              style={{
+                width: '100%', padding: '12px 16px', borderRadius: 12, border: 'none',
+                background: canSubmit ? '#FF6F20' : '#E5E7EB',
+                color: canSubmit ? '#FFFFFF' : '#9CA3AF',
+                fontSize: 15, fontWeight: 800,
+                cursor: canSubmit ? 'pointer' : 'not-allowed',
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                marginBottom: 4,
+              }}
+            >
+              {saving
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Loader2 size={16} className="animate-spin" /> שומר...
+                  </span>
+                : 'חתום ואשר'}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

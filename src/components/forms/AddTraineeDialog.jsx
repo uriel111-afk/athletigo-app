@@ -116,6 +116,12 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         return;
       }
 
+      // Casual trainees haven't paid — they get the onboarding gate
+      // (must sign a health declaration before approving their first
+      // session). Active is the regular paying-client path.
+      const isCasual = formData.clientType === 'casual';
+      const clientStatusValue = isCasual ? 'casual' : 'active';
+
       // Step 2: Insert profile into users table
       const { error: profileError } = await supabase.from('users').insert({
         id: authData.user.id,
@@ -127,8 +133,11 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         join_date: formData.joinDate || new Date().toISOString().split('T')[0],
         address: formData.address || null,
         coach_notes: formData.coachNotes || null,
-        client_status: formData.clientStatus || 'לקוח פעיל',
-        client_type: formData.clientType === 'casual' ? 'מתאמן מזדמן' : 'לקוח פעיל',
+        // client_status is the canonical onboarding gate — 'casual'
+        // for the new pipeline, 'active' for paying clients. The
+        // legacy Hebrew client_type is kept in sync for back-compat.
+        client_status: clientStatusValue,
+        client_type: isCasual ? 'מתאמן מזדמן' : 'לקוח פעיל',
         coach_id: coach?.id || null,
         role: 'trainee',
         onboarding_completed: false,
@@ -154,25 +163,32 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         }
       }
 
-      // Seed a trainee_permissions row with all toggles ON. The hook
-      // already returns DEFAULT_PERMS when no row exists, but writing
-      // the row here means CoachProfile shows the trainee immediately
-      // with checkboxes the coach can flip — instead of an "no row yet,
-      // seeded on first save" state.
+      // Seed a trainee_permissions row. CASUAL trainees only get
+      // send_messages so they can talk to the coach about their
+      // first session — every other tab is gated until a package
+      // is sold (PackageFormDialog flips them to active and opens
+      // all toggles). ACTIVE trainees get the full set on day one
+      // (the legacy default before the casual pipeline existed).
       if (coach?.id && authData.user?.id) {
         try {
+          const minimalPerms = {
+            view_baseline: false,
+            view_plan: false,
+            view_progress: false,
+            view_documents: false,
+            edit_metrics: false,
+            send_videos: false,
+            send_messages: true,
+            view_training_plan: false,
+            view_records: false,
+          };
+          const fullPerms = Object.fromEntries(
+            Object.keys(minimalPerms).map((k) => [k, true])
+          );
           await supabase.from('trainee_permissions').upsert({
             coach_id: coach.id,
             trainee_id: authData.user.id,
-            view_baseline: true,
-            view_plan: true,
-            view_progress: true,
-            view_documents: true,
-            edit_metrics: true,
-            send_videos: true,
-            send_messages: true,
-            view_training_plan: true,
-            view_records: true,
+            ...(isCasual ? minimalPerms : fullPerms),
           }, { onConflict: 'coach_id,trainee_id' });
         } catch (e) {
           console.warn('[AddTrainee] trainee_permissions seed failed:', e?.message);

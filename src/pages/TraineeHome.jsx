@@ -14,6 +14,8 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
+import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
+import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
 
 const DAILY_MESSAGES = [
   "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
@@ -58,6 +60,13 @@ export default function TraineeHome() {
   const [acknowledgingId, setAcknowledgingId] = useState(null);
   const [completedCount, setCompletedCount] = useState(0);
   const [firstSessionDate, setFirstSessionDate] = useState(null);
+  // Casual onboarding flow: when the trainee has a session that the
+  // coach booked but the trainee hasn't approved yet, we show an
+  // approval banner that opens the health declaration. After signing,
+  // a one-shot welcome popup fires.
+  const [showHealthForm, setShowHealthForm] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [pendingSessionId, setPendingSessionId] = useState(null);
   // Coach-controlled permissions. Defaults are TRUE so this is purely
   // additive — turning off a permission in CoachProfile hides the
   // related tab/section here.
@@ -452,8 +461,46 @@ export default function TraineeHome() {
     } catch {}
   };
 
+  // First session the coach has booked that the trainee hasn't
+  // approved yet. The casual onboarding banner only renders if such
+  // a session exists — once approved, the banner disappears.
+  const pendingApprovalSession = useMemo(
+    () => mySessions.find(
+      (s) => s.status === 'pending_approval' || s.status === 'pending'
+    ) || null,
+    [mySessions]
+  );
+
   return (
     <ErrorBoundary>
+      {/* Casual onboarding gate — health declaration form +
+          one-shot welcome popup. Both render at root so they're
+          visible regardless of which scroll position the page is at. */}
+      <HealthDeclarationForm
+        isOpen={showHealthForm}
+        onClose={() => setShowHealthForm(false)}
+        trainee={user}
+        coachId={coach?.id}
+        sessionId={pendingSessionId}
+        onSigned={async () => {
+          setShowHealthForm(false);
+          setShowWelcome(true);
+          // Refresh sessions so the pending banner disappears.
+          try {
+            const { data } = await supabase
+              .from('sessions')
+              .select('*')
+              .eq('trainee_id', user?.id)
+              .order('date', { ascending: true });
+            if (data) setMySessions(data);
+          } catch (e) { console.warn('[TraineeHome] post-sign refresh:', e); }
+        }}
+      />
+      <WelcomeBlessingPopup
+        isOpen={showWelcome}
+        onClose={() => setShowWelcome(false)}
+      />
+
       {/* Unread notifications modal — large, clear, professional */}
       <Dialog open={showUnreadModal} onOpenChange={setShowUnreadModal}>
         <DialogContent className="max-w-lg">
@@ -514,6 +561,54 @@ export default function TraineeHome() {
             </div>
           </div>
         </div>
+
+        {/* Casual onboarding banner — only shows when there's a
+            session waiting for the trainee to approve. Tapping the
+            CTA opens HealthDeclarationForm; on signature, the form
+            flips the session to 'confirmed' and triggers
+            WelcomeBlessingPopup. */}
+        {pendingApprovalSession && (
+          <div style={{
+            margin: '12px 14px 0',
+            background: '#FFFFFF',
+            border: '2px solid #FF6F20',
+            borderRadius: 16,
+            padding: 16,
+            boxShadow: '0 2px 8px rgba(255,111,32,0.12)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <ShieldCheck size={20} style={{ color: '#FF6F20' }} />
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>
+                המאמן קבע לך מפגש
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, marginBottom: 12 }}>
+              {pendingApprovalSession.date && (
+                <>
+                  תאריך: <strong>{pendingApprovalSession.date}</strong>
+                  {pendingApprovalSession.time && <> בשעה <strong>{pendingApprovalSession.time}</strong></>}
+                  <br />
+                </>
+              )}
+              לפני אישור המפגש, יש לחתום על הצהרת בריאות קצרה.
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPendingSessionId(pendingApprovalSession.id);
+                setShowHealthForm(true);
+              }}
+              style={{
+                width: '100%', padding: '12px 16px', borderRadius: 12, border: 'none',
+                background: '#FF6F20', color: '#FFFFFF',
+                fontSize: 15, fontWeight: 800, cursor: 'pointer',
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+              }}
+            >
+              אשר מפגש וחתום על הצהרת בריאות
+            </button>
+          </div>
+        )}
 
         {/* Daily Challenge card */}
         {todayChallenge && (

@@ -691,6 +691,30 @@ export default function UnifiedClientCard({
             </div>
           </div>
 
+          {/* Casual/Active onboarding status badge — visible right
+              under the name. Casual = orange (still in onboarding,
+              hasn't bought a package); Active = green (paying client). */}
+          {(() => {
+            const status = currentClient.client_status;
+            if (status !== 'casual' && status !== 'active') return null;
+            const isCasual = status === 'casual';
+            return (
+              <div className="flex justify-center mb-1 md:mb-2">
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '3px 10px', borderRadius: 999,
+                  background: isCasual ? '#FFF3E5' : '#E8F5E9',
+                  color: isCasual ? '#92400E' : '#15803D',
+                  border: `1px solid ${isCasual ? '#FCD9B6' : '#BBE5C0'}`,
+                  fontSize: 11, fontWeight: 700,
+                }}>
+                  <span aria-hidden>{isCasual ? '⏳' : '✓'}</span>
+                  {isCasual ? 'מזדמן' : 'פעיל'}
+                </span>
+              </div>
+            );
+          })()}
+
           {/* Editable Header Fields */}
           <div className="space-y-1 md:space-y-2 mb-2 md:mb-3">
             {/* Name */}

@@ -214,6 +214,44 @@ export default function PackageFormDialog({
         } catch (e) {
           console.warn('[PackageForm] syncPackageToIncome failed:', e?.message);
         }
+
+        // Casual → Active onboarding flip. If the trainee this
+        // package was sold to is currently 'casual', selling them
+        // a package promotes them to 'active' and unlocks every
+        // permission toggle (the casual seed only enabled
+        // send_messages — see AddTraineeDialog).
+        try {
+          const traineeId = result[0]?.trainee_id;
+          if (traineeId) {
+            const { data: traineeRow } = await supabase
+              .from('users')
+              .select('id, full_name, client_status')
+              .eq('id', traineeId)
+              .maybeSingle();
+            if (traineeRow?.client_status === 'casual') {
+              await supabase
+                .from('users')
+                .update({ client_status: 'active', client_type: 'לקוח פעיל' })
+                .eq('id', traineeId);
+              await supabase.from('trainee_permissions').upsert({
+                coach_id: coach.id,
+                trainee_id: traineeId,
+                view_baseline: true,
+                view_plan: true,
+                view_progress: true,
+                view_documents: true,
+                edit_metrics: true,
+                send_videos: true,
+                send_messages: true,
+                view_training_plan: true,
+                view_records: true,
+              }, { onConflict: 'coach_id,trainee_id' });
+              toast.success(`${traineeRow.full_name || 'המתאמן'} הפך ללקוח פעיל ✓`);
+            }
+          }
+        } catch (e) {
+          console.warn('[PackageForm] casual→active flip failed:', e?.message);
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
