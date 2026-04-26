@@ -6,9 +6,10 @@ import React, { useState } from "react";
 // decides what to do on `onComplete`.
 //
 // Schema → users columns:
-//   training_goal        → users.training_goals (single string;
-//                          backwards-compat with the legacy array
-//                          column — string is a valid JSON value)
+//   training_goal        → users.training_goals (multi-select array;
+//                          the questionnaire owns the list and merges
+//                          the user's picks into the canonical
+//                          training_goals[] column on save)
 //   fitness_level        → users.fitness_level
 //   preferred_frequency  → users.preferred_frequency  (NEW col)
 //   current_challenges[] → users.current_challenges   (NEW JSONB)
@@ -84,9 +85,13 @@ export default function OnboardingQuestionnaire({ value, onChange, onComplete, o
   };
 
   // Validation per screen — what's required to enable "הבא".
+  // Screen 1 is now multi-select; at least one goal must be picked.
+  const screen1Goals = Array.isArray(value?.training_goal)
+    ? value.training_goal
+    : (value?.training_goal ? [value.training_goal] : []);
   const screenValid = (() => {
     switch (screen) {
-      case 1: return !!value?.training_goal;
+      case 1: return screen1Goals.length > 0;
       case 2: return !!value?.fitness_level && !!value?.preferred_frequency;
       case 3: return true;  // multi-selects are optional
       case 4: return true;  // free-text is optional
@@ -134,7 +139,7 @@ export default function OnboardingQuestionnaire({ value, onChange, onComplete, o
       `}</style>
 
       <div key={screen} style={{ animation: 'ob-slide-in 0.3s ease-out' }}>
-        {screen === 1 && <Screen1 value={value} set={set} />}
+        {screen === 1 && <Screen1 value={value} toggleInArray={toggleInArray} />}
         {screen === 2 && <Screen2 value={value} set={set} />}
         {screen === 3 && <Screen3 value={value} toggleInArray={toggleInArray} />}
         {screen === 4 && <Screen4 value={value} set={set} onSkip={onSkip} />}
@@ -248,19 +253,24 @@ function Pill({ active, onClick, emoji, label }) {
 
 // ─── Individual screens ────────────────────────────────────────
 
-function Screen1({ value, set }) {
+function Screen1({ value, toggleInArray }) {
+  // Goals are now multi-select. Be lenient about how the value is
+  // shaped on disk — older drafts may have a single string.
+  const goals = Array.isArray(value?.training_goal)
+    ? value.training_goal
+    : (value?.training_goal ? [value.training_goal] : []);
   return (
     <>
       <Header
         title="מה המטרה שלך?"
-        subtitle="התשובה תעזור לנו לבנות תוכנית בהתאמה אישית"
+        subtitle="אפשר לבחור כמה מטרות"
       />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {SCREEN_1_GOALS.map((g) => (
           <ChoiceButton
-            key={g.value}
-            active={value?.training_goal === g.value}
-            onClick={() => set({ training_goal: g.value })}
+            key={g.value} multi
+            active={goals.includes(g.value)}
+            onClick={() => toggleInArray('training_goal', g.value)}
             emoji={g.emoji}
             label={g.label}
           />

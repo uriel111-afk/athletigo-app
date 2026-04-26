@@ -17,6 +17,7 @@ import { syncPackageStatus } from "@/lib/packageStatus";
 import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
 import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
 import PaymentResultModal from "@/components/PaymentResultModal";
+import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 
 const DAILY_MESSAGES = [
   "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
@@ -754,6 +755,15 @@ export default function TraineeHome() {
             padding: 16,
             boxShadow: '0 2px 8px rgba(255,111,32,0.12)',
           }}>
+            {/* Outer onboarding progress — banner entry maps to step 3
+                (about to sign health) or step 4 (signed, just need
+                payment / final approval). The banner is the only
+                surface showing the bar after Onboarding.jsx hands off. */}
+            <div style={{ margin: '-16px -16px 12px', borderBottom: '1px solid #F0E4D0' }}>
+              <OnboardingProgressBar
+                currentStep={pendingHealthSigned ? 'payment' : 'health'}
+              />
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <ShieldCheck size={20} style={{ color: '#FF6F20' }} />
               <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>

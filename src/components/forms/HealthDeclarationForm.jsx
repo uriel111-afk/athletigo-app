@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 
 // data URL → Blob converter so the canvas PNG can be uploaded to
 // Supabase Storage. Inline implementation keeps the form
@@ -351,6 +352,9 @@ export default function HealthDeclarationForm({
             </div>
             <div style={{ width: 32 }} />
           </div>
+
+          {/* Outer onboarding progress — health is step 3 of 4. */}
+          <OnboardingProgressBar currentStep="health" />
 
           {/* Body */}
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>

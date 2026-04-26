@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import InstallPrompt from "@/components/InstallPrompt";
 import OnboardingQuestionnaire from "@/components/forms/OnboardingQuestionnaire";
+import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
 
@@ -739,15 +740,15 @@ export default function Onboarding() {
         additional_notes:     formData.questionnaire?.additional_notes     || null,
       };
 
-      // Surface the chosen single-goal from the questionnaire on
-      // top of the legacy Step2_Goals array (which is now empty
-      // since that step was removed). If the user picked a goal in
-      // the questionnaire, prepend it so the array isn't empty.
-      if (formData.questionnaire?.training_goal) {
+      // Merge the questionnaire's chosen goals (now multi-select)
+      // into the canonical training_goals[] column. Be lenient about
+      // legacy single-string values from older drafts.
+      const qGoalRaw = formData.questionnaire?.training_goal;
+      const qGoals = Array.isArray(qGoalRaw) ? qGoalRaw : (qGoalRaw ? [qGoalRaw] : []);
+      if (qGoals.length) {
         const existing = Array.isArray(optionalData.training_goals) ? optionalData.training_goals : [];
-        if (!existing.includes(formData.questionnaire.training_goal)) {
-          optionalData.training_goals = [formData.questionnaire.training_goal, ...existing];
-        }
+        const merged = [...qGoals, ...existing.filter(g => !qGoals.includes(g))];
+        optionalData.training_goals = merged;
       }
       // Same for fitness_level — questionnaire wins over Step1's
       // optional native select if both were filled.
@@ -829,15 +830,11 @@ export default function Onboarding() {
         }} />
       )}
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-6 md:p-8 relative">
-        {/* Progress Bar — 2 outer steps now (personal info → questionnaire).
-            The questionnaire owns its own internal 4-dot progress bar
-            for its sub-screens, so the user sees both layers. */}
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100">
-          <div
-            className="h-full bg-[#FF6F20] transition-all duration-500 ease-out"
-            style={{ width: `${(step / 2) * 100}%` }}
-          />
-        </div>
+        {/* Outer onboarding progress bar — covers the full 4-step
+            casual flow (פרטים → היכרות → הצהרת בריאות → תשלום ואישור).
+            The questionnaire keeps its own inner 4-dot indicator for
+            its sub-screens, so the trainee sees both layers. */}
+        <OnboardingProgressBar currentStep={step === 1 ? 'details' : 'questionnaire'} />
 
         {/* Logo */}
         <div className="flex justify-center mb-6 mt-2">
@@ -889,10 +886,6 @@ export default function Onboarding() {
           )}
         </div>
 
-        {/* Step Indicator */}
-        <div className="mt-6 text-center text-sm text-gray-400 font-medium">
-          שלב {step} מתוך 2
-        </div>
       </div>
     </div>
   );
