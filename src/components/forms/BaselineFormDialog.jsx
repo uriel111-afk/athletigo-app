@@ -1,6 +1,6 @@
 import React, { useState, useContext, useMemo, useCallback, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Activity, X, Calendar, Clock, ChevronDown, Maximize2 } from "lucide-react";
+import { Loader2, Activity, X, Calendar, Clock, ChevronDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
@@ -862,8 +862,8 @@ export default function BaselineFormDialog() {
           bottom: 24, left: 16,
           transform: `translate(${pillPos.x}px, ${pillPos.y}px)`,
           zIndex: 12500,
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '10px 16px',
+          display: 'inline-flex', alignItems: 'center',
+          padding: '8px 14px',
           borderRadius: 999,
           border: 'none',
           backgroundColor: COLORS.primary,
@@ -873,18 +873,9 @@ export default function BaselineFormDialog() {
           boxShadow: '0 6px 18px rgba(255,111,32,0.35)',
           fontFamily: "'Heebo', 'Assistant', sans-serif",
           touchAction: 'none',
-          maxWidth: 280,
         }}
       >
-        <span style={{ fontSize: 16 }}>⚡</span>
-        <span style={{
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          maxWidth: 200,
-        }}>
-          אתגר Baseline
-          {(traineeName || manualName) ? ` · ${traineeName || manualName}` : ''}
-        </span>
-        <Maximize2 size={14} />
+        בייסליין
       </button>
     )}
 
