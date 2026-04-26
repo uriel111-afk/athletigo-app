@@ -428,9 +428,11 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </div>
 
-              {/* Left (RTL end): mentor chat trigger + notification bell */}
+              {/* Left (RTL end): mentor chat trigger (coach only) +
+                  notification bell. Trainees don't have an AI mentor
+                  surface yet, so the chat icon is gated to coach. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'visible' }}>
-                {user ? <MentorChatIconButton size={32} /> : null}
+                {user && isCoach ? <MentorChatIconButton size={32} /> : null}
                 <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
                   {user ? (
                     <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
