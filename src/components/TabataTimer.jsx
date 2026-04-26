@@ -783,44 +783,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         })()}
       </div>
 
-      {/* ROW 2: Stats — total time + set + round. Always visible
-          (incl. prep phase). During prep, phase.round/set are 0 so we
-          display the upcoming "1/n" instead of "0/n". */}
+      {/* ROW 2: Stats — set + round on the LEFT, total time anchored
+          to the RIGHT edge so the drain ring around it is the most
+          visible element on the row. In RTL, the LAST DOM child is
+          leftmost, so we render Set + Button first, Total chip last
+          → Total ends up on the right edge of the screen. */}
       <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
-        <div style={{
-          flex: 1.5, position: 'relative',
-          background: chipDarkBg, borderRadius: 12,
-          padding: '10px 12px', textAlign: 'center', color: textPrimary,
-          overflow: 'visible',
-        }}>
-          {/* Total-exercise drain ring — SVG overlay sized to the
-              chip via 100% percentages. pathLength=100 normalizes
-              the perimeter so dashoffset reads as "% drained":
-              0 = full, 100 = empty. overflow:visible on the SVG +
-              the parent lets the half-stroke peek out as a real
-              border around the chip's box. */}
-          <svg
-            aria-hidden
-            style={{
-              position: 'absolute', inset: 0,
-              width: '100%', height: '100%',
-              overflow: 'visible', pointerEvents: 'none',
-            }}
-          >
-            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
-              fill="none" stroke="#F0E4D0" strokeWidth="2" />
-            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
-              fill="none" stroke="#FF6F20" strokeWidth="3" strokeLinecap="round"
-              pathLength="100" strokeDasharray="100"
-              strokeDashoffset={100 * (1 - totalBorderProgress)}
-              style={{ transition: 'stroke-dashoffset 1s linear' }}
-            />
-          </svg>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>⏱</div>
-          <div style={{ fontSize: 38, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif" }}>
-            {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
-          </div>
-        </div>
         <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', color: textPrimary }}>
           <div style={{ fontSize: 20, fontWeight: 800 }}>סט</div>
           <div style={{ fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.set)}/{cfg.sets}</div>
@@ -833,6 +801,49 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           <div style={{ pointerEvents: 'none', fontSize: 20, fontWeight: 800 }}>סבב</div>
           <div style={{ pointerEvents: 'none', fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.round)}/{cfg.rounds}</div>
         </button>
+        <div style={{
+          flex: 1.5, position: 'relative',
+          background: chipDarkBg, borderRadius: 12,
+          padding: '10px 12px', textAlign: 'center', color: textPrimary,
+          overflow: 'visible',
+        }}>
+          {/* Total-exercise drain ring — SVG overlay sized to the
+              chip via 100% percentages. pathLength=100 normalizes
+              the perimeter so dashoffset reads as "% drained":
+              0 = full, 100 = empty. Stroke + track flip per phase
+              so the drain is visible against either background:
+                work (orange bg) → white stroke + white-30% track
+                rest/prep (cream bg) → orange stroke + orange-20% track
+              overflow:visible on the SVG + the parent lets the
+              half-stroke peek out as a real border around the chip. */}
+          <svg
+            aria-hidden
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              overflow: 'visible', pointerEvents: 'none',
+            }}
+          >
+            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
+              fill="none"
+              stroke={isWork ? 'rgba(255,255,255,0.3)' : 'rgba(255,111,32,0.2)'}
+              strokeWidth="2"
+              style={{ transition: 'stroke 0.3s ease' }}
+            />
+            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
+              fill="none"
+              stroke={isWork ? '#FFFFFF' : '#FF6F20'}
+              strokeWidth="3" strokeLinecap="round"
+              pathLength="100" strokeDasharray="100"
+              strokeDashoffset={100 * (1 - totalBorderProgress)}
+              style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.3s ease' }}
+            />
+          </svg>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>⏱</div>
+          <div style={{ fontSize: 38, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif" }}>
+            {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
+          </div>
+        </div>
       </div>
 
       {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
