@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabaseClient";
 // On retry (failure path) we trigger another payment-create call
 // for the same session, mirroring SessionPaymentBadge's flow.
 
-export default function PaymentResultModal() {
+export default function PaymentResultModal({ onSuccessClose } = {}) {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const paid = params.get('paid');
   const sessionId = params.get('session');
@@ -24,7 +24,7 @@ export default function PaymentResultModal() {
     if (paid === '1' || paid === '0') setOpen(true);
   }, [paid]);
 
-  const closeAndCleanUrl = () => {
+  const closeAndCleanUrl = (wasSuccess = false) => {
     setOpen(false);
     try {
       const url = new URL(window.location.href);
@@ -32,6 +32,7 @@ export default function PaymentResultModal() {
       url.searchParams.delete('session');
       window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : ''));
     } catch {}
+    if (wasSuccess) onSuccessClose?.();
   };
 
   const handleRetry = async () => {
@@ -123,14 +124,14 @@ export default function PaymentResultModal() {
           fontSize: 16, lineHeight: 1.5,
         }}>
           {success
-            ? 'המפגש אושר — נתראה באימון! 💪'
+            ? 'המפגש אושר 🎉 נתראה באימון! 💪'
             : 'אפשר לנסות שוב או לחזור ולסיים מאוחר יותר.'}
         </p>
 
         {success ? (
           <button
             type="button"
-            onClick={closeAndCleanUrl}
+            onClick={() => closeAndCleanUrl(true)}
             style={primaryBtnStyle}
           >
             חזרה לדף הבית
@@ -151,7 +152,7 @@ export default function PaymentResultModal() {
             </button>
             <button
               type="button"
-              onClick={closeAndCleanUrl}
+              onClick={() => closeAndCleanUrl(false)}
               style={secondaryBtnStyle}
             >
               אחר כך

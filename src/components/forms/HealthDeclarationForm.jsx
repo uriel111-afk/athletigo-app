@@ -40,7 +40,10 @@ export default function HealthDeclarationForm({
   onClose,
   trainee,           // { id, full_name, birth_date }
   coachId,           // owner for RLS (user_id column)
-  sessionId,         // optional — if present, flip session status on save
+  sessionId,         // optional — if present, link declaration to session
+  autoConfirmSession = true, // when false, skip the status flip + coach
+                             // notification — caller will gate confirmation
+                             // through a separate path (e.g. payment).
   onSigned,          // optional — fires after a successful save
 }) {
   // Initial answer map: feels_healthy starts true, everything else false.
@@ -185,22 +188,27 @@ export default function HealthDeclarationForm({
         .single();
       if (error) throw error;
 
-      // Flip session → confirmed and link the declaration if a session
-      // was attached. Best-effort — if either column doesn't exist on
-      // this install, the session-level approval is still useful.
+      // Link the declaration to the session. When autoConfirmSession
+      // is true (legacy/no-price flow), also flip status to 'confirmed'
+      // and notify the coach. When false, the caller is gating
+      // confirmation through a separate step (typically payment) — the
+      // session must stay in 'pending_approval' until that step completes.
       if (sessionId) {
         try {
           await supabase
             .from('sessions')
-            .update({ status: 'confirmed', health_declaration_id: inserted?.id })
+            .update(autoConfirmSession
+              ? { status: 'confirmed', health_declaration_id: inserted?.id }
+              : { health_declaration_id: inserted?.id })
             .eq('id', sessionId);
         } catch (e) {
           console.warn('[HealthDeclaration] session update failed:', e?.message);
         }
         // Notify the coach so the green session_confirmed popup
         // surfaces via PopupNotificationManager next time they open
-        // the dashboard. Best-effort.
-        if (coachId) {
+        // the dashboard. Best-effort. Skipped when payment-gated —
+        // payment-webhook fires its own notification on success.
+        if (coachId && autoConfirmSession) {
           try {
             // Re-read the session to compose a friendly date label.
             const { data: srow } = await supabase

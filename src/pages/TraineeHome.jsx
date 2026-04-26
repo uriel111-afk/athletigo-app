@@ -46,6 +46,20 @@ const getDailyMessage = () => {
   return DAILY_MESSAGES[index];
 };
 
+const primaryApprovalBtnStyle = {
+  width: '100%',
+  padding: '14px 24px',
+  borderRadius: 14,
+  border: 'none',
+  background: '#FF6F20',
+  color: '#FFFFFF',
+  fontSize: 16,
+  fontWeight: 600,
+  cursor: 'pointer',
+  fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+  boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
+};
+
 export default function TraineeHome() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -320,6 +334,91 @@ export default function TraineeHome() {
     [mySessions]
   );
 
+  // Approval banner state machine — three states driven by
+  // (health signed?) × (price > 0?):
+  //   1) Not signed       → "חתום על הצהרת בריאות" (opens health form)
+  //   2) Signed + priced  → "שלם {price}₪ ואשר מפגש 💳" (payment-create)
+  //   3) Signed + free    → "אשר מפגש ✓" (direct status flip)
+  // Payment is the ONLY path to confirm a priced session — the trainee
+  // cannot reach 'confirmed' without webhook proof of a paid charge.
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const pendingHealthSigned = !!pendingApprovalSession?.health_declaration_id;
+  const pendingPrice = Number(pendingApprovalSession?.price || 0);
+  const pendingRequiresPayment = pendingPrice > 0;
+
+  const handlePayAndConfirm = useCallback(async () => {
+    if (!pendingApprovalSession?.id || !pendingRequiresPayment) return;
+    setApprovalBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('payment-create', {
+        body: {
+          amount: pendingPrice,
+          description: 'מפגש אימון — AthletiGo',
+          session_id: pendingApprovalSession.id,
+          trainee_name: user?.full_name || null,
+          trainee_phone: user?.phone || null,
+          trainee_email: user?.email || null,
+          payment_type: 'single_session',
+        },
+      });
+      if (error || !data?.url) {
+        toast.error('שגיאה ביצירת דף תשלום. נסה/י שוב.');
+        setApprovalBusy(false);
+        return;
+      }
+      // Off to Grow. Webhook flips session.status='confirmed' on
+      // success; the redirect back to TraineeHome?paid=1 surfaces
+      // PaymentResultModal which then chains the welcome popup.
+      window.location.href = data.url;
+    } catch (err) {
+      console.error('[TraineeHome] pay+confirm failed:', err);
+      toast.error('שגיאה. נסה/י שוב.');
+      setApprovalBusy(false);
+    }
+  }, [pendingApprovalSession?.id, pendingPrice, pendingRequiresPayment, user]);
+
+  const handleConfirmSession = useCallback(async () => {
+    if (!pendingApprovalSession?.id || pendingRequiresPayment) return;
+    setApprovalBusy(true);
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ status: 'confirmed' })
+        .eq('id', pendingApprovalSession.id);
+      if (error) throw error;
+      // Notify the coach so the green confirmed-popup surfaces on
+      // their next dashboard load. Best-effort.
+      if (coach?.id) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: coach.id,
+            type: 'session_confirmed',
+            title: '✅ מפגש אושר',
+            message: `${user?.full_name || 'מתאמן/ת'} אישר/ה את המפגש`,
+            link: user?.id ? `/TraineeProfile?userId=${user.id}` : null,
+            is_read: false,
+            data: { trainee_id: user?.id || null, session_id: pendingApprovalSession.id },
+          });
+        } catch (e) { console.warn('[TraineeHome] coach notify failed:', e?.message); }
+      }
+      // Refresh sessions so banner disappears, then welcome popup.
+      try {
+        const { data } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('trainee_id', user?.id)
+          .order('date', { ascending: true });
+        if (data) setMySessions(data);
+      } catch {}
+      setShowWelcome(true);
+    } catch (err) {
+      console.error('[TraineeHome] confirm failed:', err);
+      toast.error('שגיאה באישור המפגש. נסה/י שוב.');
+    } finally {
+      setApprovalBusy(false);
+    }
+  }, [pendingApprovalSession?.id, pendingRequiresPayment, user, coach?.id]);
+
   const packageReminder = useMemo(() => {
     if (!activeServices.length) return null;
     const withBalance = activeServices
@@ -543,10 +642,18 @@ export default function TraineeHome() {
         trainee={user}
         coachId={coach?.id}
         sessionId={pendingSessionId}
+        autoConfirmSession={!(Number(pendingApprovalSession?.price || 0) > 0)}
         onSigned={async () => {
           setShowHealthForm(false);
-          setShowWelcome(true);
-          // Refresh sessions so the pending banner disappears.
+          // Welcome popup only fires when the session is *actually*
+          // confirmed at this step. Priced sessions stay
+          // pending_approval until payment-webhook flips them — so we
+          // defer the welcome to the post-checkout success path.
+          const priced = Number(pendingApprovalSession?.price || 0) > 0;
+          if (!priced) setShowWelcome(true);
+          // Refresh sessions so the banner re-renders against the
+          // updated state (health_declaration_id linked, and for
+          // free sessions, status='confirmed').
           try {
             const { data } = await supabase
               .from('sessions')
@@ -564,8 +671,10 @@ export default function TraineeHome() {
 
       {/* Post-checkout result modal — fires when Meshulam redirects
           back with ?paid=1 (success) or ?paid=0 (cancel/fail).
-          Self-mounted at root so the URL param is the only trigger. */}
-      <PaymentResultModal />
+          Self-mounted at root so the URL param is the only trigger.
+          On success-close we chain the welcome popup, completing the
+          casual onboarding flow that pay-gating split into two halves. */}
+      <PaymentResultModal onSuccessClose={() => setShowWelcome(true)} />
 
       {/* Unread notifications modal — large, clear, professional */}
       <Dialog open={showUnreadModal} onOpenChange={setShowUnreadModal}>
@@ -628,11 +737,14 @@ export default function TraineeHome() {
           </div>
         </div>
 
-        {/* Casual onboarding banner — only shows when there's a
-            session waiting for the trainee to approve. Tapping the
-            CTA opens HealthDeclarationForm; on signature, the form
-            flips the session to 'confirmed' and triggers
-            WelcomeBlessingPopup. */}
+        {/* Casual onboarding banner — three-state approval machine:
+              (a) health declaration not signed → opens HealthDeclarationForm
+              (b) signed + price > 0 → "שלם ואשר" CTA invokes payment-create
+                  (the ONLY path to confirm a priced session — no bypass)
+              (c) signed + free       → direct flip to status='confirmed'
+            Priced sessions stay 'pending_approval' until payment-webhook
+            posts back with status=1; the trainee returns via ?paid=1 and
+            PaymentResultModal closes the loop. */}
         {pendingApprovalSession && (
           <div style={{
             margin: '12px 14px 0',
@@ -656,26 +768,58 @@ export default function TraineeHome() {
                   <br />
                 </>
               )}
-              {Number(pendingApprovalSession.price || 0) > 0 && (
-                <>עלות המפגש: <strong>{pendingApprovalSession.price}₪</strong><br /></>
+              {pendingRequiresPayment && (
+                <>עלות המפגש: <strong>{pendingPrice}₪</strong><br /></>
               )}
-              לפני אישור המפגש, יש לחתום על הצהרת בריאות קצרה.
+              {!pendingHealthSigned
+                ? 'לפני אישור המפגש, יש לחתום על הצהרת בריאות קצרה.'
+                : pendingRequiresPayment
+                  ? 'הצהרת הבריאות נחתמה ✓ — לאישור המפגש יש להשלים את התשלום.'
+                  : 'הצהרת הבריאות נחתמה ✓ — לחצ/י לאישור סופי של המפגש.'}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setPendingSessionId(pendingApprovalSession.id);
-                setShowHealthForm(true);
-              }}
-              style={{
-                width: '100%', padding: '12px 16px', borderRadius: 12, border: 'none',
-                background: '#FF6F20', color: '#FFFFFF',
-                fontSize: 15, fontWeight: 800, cursor: 'pointer',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
-              }}
-            >
-              אשר מפגש וחתום על הצהרת בריאות
-            </button>
+
+            {!pendingHealthSigned && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingSessionId(pendingApprovalSession.id);
+                  setShowHealthForm(true);
+                }}
+                style={primaryApprovalBtnStyle}
+              >
+                חתום/י על הצהרת בריאות
+              </button>
+            )}
+
+            {pendingHealthSigned && pendingRequiresPayment && (
+              <button
+                type="button"
+                onClick={handlePayAndConfirm}
+                disabled={approvalBusy}
+                style={{
+                  ...primaryApprovalBtnStyle,
+                  opacity: approvalBusy ? 0.7 : 1,
+                  cursor: approvalBusy ? 'wait' : 'pointer',
+                }}
+              >
+                {approvalBusy ? 'פותח תשלום…' : `שלם ${pendingPrice}₪ ואשר מפגש 💳`}
+              </button>
+            )}
+
+            {pendingHealthSigned && !pendingRequiresPayment && (
+              <button
+                type="button"
+                onClick={handleConfirmSession}
+                disabled={approvalBusy}
+                style={{
+                  ...primaryApprovalBtnStyle,
+                  opacity: approvalBusy ? 0.7 : 1,
+                  cursor: approvalBusy ? 'wait' : 'pointer',
+                }}
+              >
+                {approvalBusy ? 'מאשר…' : 'אשר מפגש ✓'}
+              </button>
+            )}
           </div>
         )}
 
