@@ -734,15 +734,45 @@ export default function TraineeProfile() {
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: ['trainee-sessions', user?.id],
     queryFn: async () => {
-      // sessions.trainee_id is the canonical link (per schema). The
-      // older participants[] JSONB query 400'd because the column
-      // doesn't exist. Group sessions are loaded separately if/when
-      // that feature lands.
+      // Sessions can be linked to a trainee in TWO ways depending on
+      // when/how the row was written:
+      //   - direct: sessions.trainee_id = the trainee's user id
+      //   - legacy: sessions.participants is a JSONB array containing
+      //     {trainee_id, ...} entries (used by group sessions and by
+      //     pre-migration data)
+      // We union both so existing rows (e.g. the user's 25 legacy
+      // sessions) and new rows both surface. Dedup by id; sort
+      // by date desc.
+      const byId = new Map();
+
+      // (1) Direct column
       try {
-        return await base44.entities.Session.filter({ trainee_id: user.id }, '-date');
-      } catch {
-        return [];
+        const direct = await base44.entities.Session.filter(
+          { trainee_id: user.id }, '-date'
+        );
+        (direct || []).forEach((s) => byId.set(s.id, s));
+      } catch (e) {
+        console.warn('[TraineeProfile] sessions by trainee_id failed:', e?.message);
       }
+
+      // (2) participants[] JSONB — best-effort. Some installs have no
+      //     `participants` column at all (the old query 400'd for that
+      //     exact reason); the catch swallows the schema-cache error
+      //     so the direct results still render.
+      try {
+        const { data: viaParticipants } = await supabase
+          .from('sessions')
+          .select('*')
+          .contains('participants', [{ trainee_id: user.id }])
+          .order('date', { ascending: false });
+        (viaParticipants || []).forEach((s) => byId.set(s.id, s));
+      } catch (e) {
+        console.warn('[TraineeProfile] sessions by participants failed:', e?.message);
+      }
+
+      return Array.from(byId.values()).sort(
+        (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
+      );
     },
     enabled: !!user?.id,
     staleTime: 60000,
