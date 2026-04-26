@@ -4,12 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, UserPlus, Edit2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
+
+// Shared style for the three native dropdowns (fitness_level,
+// source, status). Native <select> is intentional — Radix Selects
+// inside a Dialog with onInteractOutside guards have a long history
+// of refusing to open on certain devices because the option portal
+// counts as "outside" the dialog.
+const NATIVE_SELECT_STYLE = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 12,
+  border: '1px solid #F0E4D0',
+  background: '#FFFFFF',
+  fontSize: 14,
+  direction: 'rtl',
+  color: '#1A1A1A',
+  outline: 'none',
+  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  boxSizing: 'border-box',
+};
 
 const INITIAL_DATA = {
   full_name: "",
@@ -139,16 +157,16 @@ export default function LeadFormDialog({
     if (leadForm.training_goals)    submissionData.training_goals    = leadForm.training_goals;
 
     setSaving(true);
-    console.log("[LeadForm] Submitting:", submissionData);
+    console.log("[LeadForm] saving:", submissionData);
 
     try {
-      await onSubmit(submissionData);
-      console.log("[LeadForm] Success — closing form");
+      const result = await onSubmit(submissionData);
+      console.log("[LeadForm] result:", result || '(no return value)');
       clearDraft();
       // Ensure close even if parent onSuccess didn't fire yet
       onClose();
     } catch (error) {
-      console.error("[LeadForm] Error:", error);
+      console.error("[LeadForm] error:", error);
       const raw = error?.message || error?.body?.message || "";
       let msg = "שגיאה לא צפויה, נסה שוב";
       if (raw.includes("duplicate")) msg = "ליד עם פרטים זהים כבר קיים";
@@ -274,17 +292,22 @@ export default function LeadFormDialog({
 
             <div className="mb-4">
               <Label className="text-sm font-medium mb-2 block text-gray-600">8. מה רמת הכושר הנוכחי?</Label>
-              <Select value={leadForm.fitness_level} onValueChange={(value) => setLeadForm({ ...leadForm, fitness_level: value })}>
-                <SelectTrigger className="rounded-xl border-gray-200">
-                  <SelectValue placeholder="בחר..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="מתחיל">🌱 מתחיל</SelectItem>
-                  <SelectItem value="בינוני">🌿 בינוני</SelectItem>
-                  <SelectItem value="מתקדם">🌳 מתקדם</SelectItem>
-                  <SelectItem value="מקצועי">🏆 מקצועי</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Native <select> instead of Radix — Radix popup
+                  options live in a portal that fights the Dialog's
+                  outside-click guard, occasionally swallowing the
+                  open gesture entirely. Native always works, no
+                  z-index surprises. */}
+              <select
+                value={leadForm.fitness_level}
+                onChange={(e) => setLeadForm({ ...leadForm, fitness_level: e.target.value })}
+                style={NATIVE_SELECT_STYLE}
+              >
+                <option value="">— בחר —</option>
+                <option value="מתחיל">🌱 מתחיל</option>
+                <option value="בינוני">🌿 בינוני</option>
+                <option value="מתקדם">🌳 מתקדם</option>
+                <option value="מקצועי">🏆 מקצועי</option>
+              </select>
             </div>
 
             <div className="mb-4">
@@ -364,32 +387,30 @@ export default function LeadFormDialog({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <Label className="text-sm font-medium mb-2 block text-gray-600">15. מקור הגעה</Label>
-                <Select value={leadForm.source} onValueChange={(value) => setLeadForm({ ...leadForm, source: value })}>
-                  <SelectTrigger className="rounded-xl border-gray-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="טלפוני">📞 טלפוני</SelectItem>
-                    <SelectItem value="אינסטגרם">📸 אינסטגרם</SelectItem>
-                    <SelectItem value="אתר">🌐 אתר</SelectItem>
-                    <SelectItem value="המלצה">🤝 המלצה</SelectItem>
-                    <SelectItem value="אחר">✨ אחר</SelectItem>
-                  </SelectContent>
-                </Select>
+                <select
+                  value={leadForm.source}
+                  onChange={(e) => setLeadForm({ ...leadForm, source: e.target.value })}
+                  style={NATIVE_SELECT_STYLE}
+                >
+                  <option value="טלפוני">📞 טלפוני</option>
+                  <option value="אינסטגרם">📸 אינסטגרם</option>
+                  <option value="אתר">🌐 אתר</option>
+                  <option value="המלצה">🤝 המלצה</option>
+                  <option value="אחר">✨ אחר</option>
+                </select>
               </div>
               <div>
                 <Label className="text-sm font-medium mb-2 block text-gray-600">16. סטטוס ליד</Label>
-                <Select value={leadForm.status} onValueChange={(value) => setLeadForm({ ...leadForm, status: value })}>
-                  <SelectTrigger className="rounded-xl border-gray-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="חדש">⭐ חדש</SelectItem>
-                    <SelectItem value="בקשר">🕒 בקשר</SelectItem>
-                    <SelectItem value="סגור עסקה">✅ סגור עסקה</SelectItem>
-                    <SelectItem value="לא מעוניין">❌ לא מעוניין</SelectItem>
-                  </SelectContent>
-                </Select>
+                <select
+                  value={leadForm.status}
+                  onChange={(e) => setLeadForm({ ...leadForm, status: e.target.value })}
+                  style={NATIVE_SELECT_STYLE}
+                >
+                  <option value="חדש">⭐ חדש</option>
+                  <option value="בקשר">🕒 בקשר</option>
+                  <option value="סגור עסקה">✅ סגור עסקה</option>
+                  <option value="לא מעוניין">❌ לא מעוניין</option>
+                </select>
               </div>
             </div>
             

@@ -59,13 +59,15 @@ export default function Leads() {
   });
 
   const createLeadMutation = useMutation({
-    mutationFn: (data) => {
+    mutationFn: async (data) => {
       // Guard against null coach_id — leads RLS requires the row owner.
       if (!data?.coach_id) {
         throw new Error("פרטי המאמן לא נטענו עדיין — נסה שוב בעוד רגע");
       }
       console.log("[Leads] Creating lead with data:", data);
-      return base44.entities.Lead.create(data);
+      const result = await base44.entities.Lead.create(data);
+      console.log("[Leads] Create result:", result);
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
