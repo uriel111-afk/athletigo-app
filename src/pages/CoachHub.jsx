@@ -135,12 +135,12 @@ export default function CoachHub() {
         ] = await Promise.all([
           supabase.from('income').select('amount').eq('user_id', user.id).gte('date', thisWeek.startDate),
           supabase.from('income').select('amount').eq('user_id', user.id).gte('date', lastWeek.startDate).lt('date', thisWeek.startDate),
-          supabase.from('leads').select('id').eq('coach_id', user.id).gte('created_at', thisWeek.startISO),
-          supabase.from('leads').select('id').eq('coach_id', user.id).gte('created_at', lastWeek.startISO).lt('created_at', thisWeek.startISO),
+          supabase.from('leads').select('id').eq('user_id', user.id).gte('created_at', thisWeek.startISO),
+          supabase.from('leads').select('id').eq('user_id', user.id).gte('created_at', lastWeek.startISO).lt('created_at', thisWeek.startISO),
           supabase.from('content_calendar').select('id').eq('user_id', user.id).eq('status', 'published').gte('scheduled_date', thisWeek.startDate),
           supabase.from('content_calendar').select('id').eq('user_id', user.id).eq('status', 'published').gte('scheduled_date', lastWeek.startDate).lt('scheduled_date', thisWeek.startDate),
           supabase.from('content_calendar').select('id').eq('user_id', user.id).neq('status', 'published'),
-          supabase.from('leads').select('id, status, created_at').eq('coach_id', user.id),
+          supabase.from('leads').select('id, status, created_at').eq('user_id', user.id),
           // Active trainees who didn't have a session this week.
           supabase.from('sessions').select('trainee_id, date, status').eq('coach_id', user.id),
           supabase.from('expenses').select('amount, date').eq('user_id', user.id),

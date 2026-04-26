@@ -60,8 +60,9 @@ export default function Leads() {
 
   const createLeadMutation = useMutation({
     mutationFn: async (data) => {
-      // Guard against null coach_id — leads RLS requires the row owner.
-      if (!data?.coach_id) {
+      // Guard against null user_id — RLS on leads checks
+      // auth.uid() = user_id, so an owner-less row is rejected.
+      if (!data?.user_id) {
         throw new Error("פרטי המאמן לא נטענו עדיין — נסה שוב בעוד רגע");
       }
       console.log("[Leads] Creating lead with data:", data);
@@ -122,7 +123,7 @@ export default function Leads() {
       if (!coach) throw new Error("פרטי מאמן חסרים");
 
       // 1. Generate auth credentials — use lead email or auto-generate
-      const email = lead.email || `${lead.full_name.replace(/\s+/g, '.').toLowerCase()}.${Date.now()}@athletigo.app`;
+      const email = lead.email || `${(lead.name || lead.full_name).replace(/\s+/g, '.').toLowerCase()}.${Date.now()}@athletigo.app`;
       const password = `Ath${Date.now().toString(36)}!`;
 
       // 2. Create auth user + profile via Edge Function (same as AddTraineeDialog)
@@ -130,7 +131,7 @@ export default function Leads() {
         body: {
           email,
           password,
-          full_name: lead.full_name,
+          full_name: (lead.name || lead.full_name),
           phone: lead.phone || null,
           birth_date: lead.birth_date ? new Date(lead.birth_date).toISOString() : null,
           age: lead.age ? parseInt(lead.age) : null,
@@ -175,10 +176,7 @@ export default function Leads() {
       // next (syncPackageToIncome), so we don't double-insert income here.
       try {
         await syncLeadConversion({
-          // Send both owner keys so syncLeadConversion's
-          // ownerId fallback (coach_id || user_id) finds one.
-          coach_id: coach.id,
-          user_id:  coach.id,
+          user_id: coach.id,
           status: 'converted',  // normalize for the helper
           interested_in: lead.interested_in || lead.service_interest || null,
         });
@@ -212,7 +210,7 @@ export default function Leads() {
       queryClient.invalidateQueries({ queryKey: ['users-trainees'] });
       invalidateDashboard(queryClient);
       if (result.wasAutoEmail) {
-        toast.success(`הליד "${variables.lead.full_name}" הומר ל${variables.type} בהצלחה`);
+        toast.success(`הליד "${variables.lead.name || variables.lead.full_name}" הומר ל${variables.type} בהצלחה`);
       } else {
         toast.success(`הליד הומר — אימייל: ${result.email}, סיסמה: ${result.password}`);
       }
@@ -226,13 +224,13 @@ export default function Leads() {
   });
 
   const handleConvert = async (lead, type) => {
-    if (!confirm(`האם להמיר את ${lead.full_name} ל-${type}?`)) return;
+    if (!confirm(`האם להמיר את ${(lead.name || lead.full_name)} ל-${type}?`)) return;
     await convertToClientMutation.mutateAsync({ lead, type });
   };
 
   const filteredLeads = sortedLeads.filter(lead => {
     const matchesSearch = 
-      lead.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (lead.name || lead.full_name)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.phone?.includes(searchTerm) ||
       lead.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -406,7 +404,7 @@ export default function Leads() {
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
                         <h3 className="text-xl font-black mb-2" style={{ color: '#000000' }}>
-                          {lead.full_name}
+                          {(lead.name || lead.full_name)}
                         </h3>
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-2xl">{sourceIcons[lead.source] || '✨'}</span>
@@ -426,7 +424,7 @@ export default function Leads() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`האם למחוק את ${lead.full_name}?`)) {
+                            if (window.confirm(`האם למחוק את ${(lead.name || lead.full_name)}?`)) {
                               deleteLeadMutation.mutate(lead.id);
                             }
                           }}
@@ -530,14 +528,11 @@ export default function Leads() {
         isOpen={showAddDialog}
         onClose={() => setShowAddDialog(false)}
         onSubmit={async (data) => {
-          // Dual-write owner id: live schema may use coach_id OR
-          // user_id. The base44Client retry layer drops whichever
-          // doesn't exist, so sending both guarantees the row has
-          // a valid owner column for RLS.
+          // Live leads schema is keyed on user_id (RLS:
+          // auth.uid() = user_id). Send only that.
           await createLeadMutation.mutateAsync({
             ...data,
-            coach_id: coach?.id || null,
-            user_id:  coach?.id || null,
+            user_id: coach?.id || null,
           });
         }}
         isLoading={createLeadMutation.isPending}

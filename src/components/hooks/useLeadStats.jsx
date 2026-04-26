@@ -11,7 +11,7 @@ export function useLeadStats() {
     queryKey: QUERY_KEYS.LEADS,
     queryFn: async () => {
       try {
-        return await base44.entities.Lead.filter({ coach_id: user?.id }, '-created_at', 1000);
+        return await base44.entities.Lead.filter({ user_id: user?.id }, '-created_at', 1000);
       } catch (error) {
         console.error("[useLeadStats] Error loading leads:", error);
         return [];

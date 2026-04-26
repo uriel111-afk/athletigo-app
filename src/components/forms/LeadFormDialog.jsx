@@ -116,21 +116,13 @@ export default function LeadFormDialog({
       return;
     }
 
-    // Whitelist of columns the leads table accepts. We send each
-    // populated field as its own column. Anything the live schema
-    // happens not to have is automatically stripped + retried by
-    // base44Client's 42703 retry layer (commit cf9b3a8) — so this
-    // payload is safe even if a column is missing on this install.
-    //
-    // Owner / name dual-write: different installs have either
-    // (coach_id + full_name) or (user_id + name) on `leads`. We
-    // send BOTH pairs and let the retry layer drop the one that
-    // doesn't exist — without sending both, dropping coach_id
-    // alone would leave the row owner-less and trip RLS.
-    const submissionData = {
-      full_name: fullName,
-      name:      fullName,
-    };
+    // Canonical leads schema (verified against the live DB via
+    // 400-error console traces): name + user_id are the real
+    // columns; the older coach_id + full_name pair doesn't exist
+    // here. Sending the legacy fields used to trip the retry
+    // layer to strip them, after which RLS rejected the
+    // owner-less row. Single-write the canonical fields.
+    const submissionData = { name: fullName };
 
     // Always send status + source (defaults guarantee a value).
     submissionData.status = leadForm.status || "חדש";

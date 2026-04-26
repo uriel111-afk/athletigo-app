@@ -188,40 +188,36 @@ export async function syncHistoricalData(coachId) {
 }
 
 // (2) New trainee user (role=trainee) → auto-add converted lead.
-//     Idempotent on (owner, name, status='converted'). Owner /
-//     name dual-write: see addLead() comment for the schema-variance
-//     reasoning.
+//     Idempotent on (user_id, name, status='converted'). Live schema
+//     is user_id + name (verified via 400-error traces).
 export async function syncTraineeToLead(coachId, trainee) {
   if (!coachId || !trainee?.full_name) return null;
 
-  // Dup check across both schemas — try coach_id, fall back to user_id.
-  const findExisting = async (col) => {
-    try {
-      const { data } = await supabase
-        .from('leads')
-        .select('id')
-        .eq(col, coachId)
-        .or(`full_name.eq.${trainee.full_name},name.eq.${trainee.full_name}`)
-        .eq('status', 'converted')
-        .maybeSingle();
-      return data;
-    } catch { return null; }
-  };
-  const existing = (await findExisting('coach_id')) || (await findExisting('user_id'));
-  if (existing?.id) {
-    console.log('[syncTraineeToLead] dup skipped:', existing.id);
-    return existing;
+  // Dup check on the canonical schema.
+  try {
+    const { data: existing } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('user_id', coachId)
+      .eq('name', trainee.full_name)
+      .eq('status', 'converted')
+      .maybeSingle();
+    if (existing?.id) {
+      console.log('[syncTraineeToLead] dup skipped:', existing.id);
+      return existing;
+    }
+  } catch (e) {
+    console.warn('[syncTraineeToLead] dup check failed:', e?.message);
   }
 
   console.log('[syncTraineeToLead] inserting:', trainee.full_name);
   try {
-    // Use the entity layer so the 42703 retry strips whichever
-    // owner / name column doesn't exist on this install.
+    // Entity layer keeps the 42703 retry around for any non-owner
+    // columns the schema may not have (e.g. converted_at on older
+    // installs); owner + name themselves are now canonical.
     const data = await base44.entities.Lead.create({
-      coach_id: coachId,
-      user_id:  coachId,
-      full_name: trainee.full_name,
-      name:      trainee.full_name,
+      user_id: coachId,
+      name:    trainee.full_name,
       phone: trainee.phone || null,
       email: trainee.email || null,
       status: 'converted',
@@ -726,72 +722,44 @@ export async function getAnnualIncome(userId, year = new Date().getFullYear()) {
 // Leads
 // ─────────────────────────────────────────────────────────────────
 
-// `userId` here is the auth.uid() of the coach. Different installs
-// of the leads table key the owner under either column name —
-// (coach_id) on the legacy schema, (user_id) on the Wave-2 schema.
-// We try coach_id first; if that 400s ("column does not exist"),
-// we fall back to user_id. Empty result on either branch means
-// "no leads owned by this user" — also a valid outcome.
+// Canonical leads schema: user_id (RLS owner) + name.
 export async function listLeads(userId, { status } = {}) {
-  const tryFetch = async (ownerCol) => {
-    let q = supabase.from('leads').select('*').eq(ownerCol, userId);
-    if (status) q = q.eq('status', status);
-    q = q.order('created_at', { ascending: false });
-    return await q;
-  };
-  // First attempt — coach_id (legacy)
-  let { data, error } = await tryFetch('coach_id');
-  if (error && /column .* does not exist|in the schema cache/i.test(error.message || '')) {
-    console.warn('[listLeads] coach_id missing, retrying with user_id');
-    ({ data, error } = await tryFetch('user_id'));
-  }
+  let q = supabase.from('leads').select('*').eq('user_id', userId);
+  if (status) q = q.eq('status', status);
+  q = q.order('created_at', { ascending: false });
+  const { data, error } = await q;
   if (error) throw error;
-  // Surface `name` (used by Wave-2 UI) from `full_name` so callers
-  // get a consistent shape regardless of which column the row came from.
-  return (data || []).map(r => ({ ...r, name: r.full_name || r.name }));
+  return data || [];
 }
 
 export async function addLead(userId, payload) {
-  // Owner / name dual-write: different installs of this app's
-  // `leads` table use either (coach_id + full_name) or
-  // (user_id + name). Send both pairs and let the base44Client
-  // 42703 retry layer (commit cf9b3a8) strip the column that
-  // doesn't exist. Without dual-writing the owner column, RLS
-  // ends up with an owner-less row and rejects the insert.
+  // Canonical schema verified via console traces: user_id + name.
+  // The legacy coach_id + full_name pair doesn't exist on the
+  // live table, and including them used to trip the 42703 retry
+  // before reaching RLS. Now we single-write the canonical fields
+  // and strip any legacy aliases callers happen to pass.
   const name = payload.name || payload.full_name;
-  const row = {
-    ...payload,
-    coach_id: userId,
-    user_id:  userId,
-    full_name: name,
-    name:      name,
-  };
-  // Route through the entity layer so the retry kicks in.
+  const { full_name: _drop1, coach_id: _drop2, ...rest } = payload;
+  const row = { ...rest, user_id: userId, name };
   const data = await base44.entities.Lead.create(row);
-  return { ...data, name: data?.full_name || data?.name || name };
+  return { ...data, name: data?.name || name };
 }
 
 export async function updateLead(id, patch) {
-  // Dual-write owner / name same as addLead — installs vary on
-  // whether the leads table has (coach_id + full_name) or
-  // (user_id + name). Sending both lets the schema-cache retry
-  // strip whichever doesn't exist.
-  const row = { ...patch };
-  const name = patch.name || patch.full_name;
-  if (name) {
-    row.full_name = name;
-    row.name = name;
-  }
-  // Route through the entity layer so the 42703 retry kicks in if
-  // the install is missing one of the dual-write columns.
+  // Canonical fields: name + user_id. Strip legacy aliases callers
+  // may pass; anything else flows through to the entity layer
+  // (which still retries on 42703 for unrelated drift like
+  // converted_at being missing on old installs).
+  const { full_name, coach_id: _drop, ...rest } = patch;
+  const row = { ...rest };
+  const name = patch.name || full_name;
+  if (name) row.name = name;
   const data = await base44.entities.Lead.update(id, row);
 
   // Cross-app sync: a lead just turned into "converted" with a known
   // revenue_if_converted → push the matching income row into the
-  // financial app, plus an activity_log entry. Owner column varies
-  // (coach_id on legacy installs, user_id on Wave-2) — fall back
-  // through both so the income row attributes correctly.
-  const ownerId = data?.coach_id || data?.user_id;
+  // financial app, plus an activity_log entry.
+  const ownerId = data?.user_id;
   if (patch?.status === 'converted' && ownerId && Number(data.revenue_if_converted) > 0) {
     try {
       // Map the lead's interest to an income source.
@@ -802,7 +770,7 @@ export async function updateLead(id, patch) {
         coaching:        'training',
       };
       const source = interestToSource[data.interested_in] || 'product_sale';
-      const leadName = data.full_name || data.name || '';
+      const leadName = data.name || data.full_name || '';
       await supabase.from('income').insert({
         user_id: ownerId,
         amount: Number(data.revenue_if_converted),

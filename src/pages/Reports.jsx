@@ -131,8 +131,8 @@ export default function Reports() {
         .select('id, trainee_id, package_name, package_type, service_type, total_sessions, used_sessions, sessions_remaining, final_price, payment_method, status, start_date, end_date, expires_at, created_at, trainee:trainee_id(id, full_name, phone)')
         .eq('coach_id', user.id)),
       safeQuery(supabase.from('leads')
-        .select('id, full_name, phone, email, status, source, coach_notes, created_at')
-        .eq('coach_id', user.id)
+        .select('id, name, phone, email, status, source, notes, created_at')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })),
       safeQuery(supabase.from('income')
         .select('id, amount, date, source, product, client_name, description, created_at')
@@ -189,7 +189,7 @@ export default function Reports() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions',         filter: `coach_id=eq.${user.id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services',  filter: `coach_id=eq.${user.id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users',            filter: `coach_id=eq.${user.id}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads',            filter: `coach_id=eq.${user.id}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads',            filter: `user_id=eq.${user.id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'income',           filter: `user_id=eq.${user.id}` }, () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

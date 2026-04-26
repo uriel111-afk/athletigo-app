@@ -34,7 +34,7 @@ export default function MorningBrief() {
           supabase.from('sessions').select('id, time, trainee_id')
             .eq('coach_id', user.id).eq('date', today),
           supabase.from('leads').select('id')
-            .eq('coach_id', user.id).eq('status', 'new'),
+            .eq('user_id', user.id).eq('status', 'new'),
           supabase.from('life_os_tasks').select('id, title')
             .eq('user_id', user.id).eq('status', 'pending'),
           supabase.from('personal_household_tasks')

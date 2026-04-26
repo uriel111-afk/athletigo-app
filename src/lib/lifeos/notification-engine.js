@@ -39,14 +39,16 @@ export async function generateNotifications(userId) {
   // Defensive: last_contact_date was added by 20260425_extend_leads_
   // schema.sql. If the migration isn't applied, the rich select 400s
   // — fall back to the legacy column set so notifications still load.
+  // Owner column is user_id (canonical schema verified via console
+  // traces; the older coach_id is not on this table).
   const fetchLeads = async () => {
     const rich = await supabase.from('leads')
-      .select('id, full_name, status, created_at, last_contact_date')
-      .eq('coach_id', userId);
+      .select('id, name, status, created_at, last_contact_date')
+      .eq('user_id', userId);
     if (!rich.error) return rich;
     const legacy = await supabase.from('leads')
-      .select('id, full_name, status, created_at')
-      .eq('coach_id', userId);
+      .select('id, name, status, created_at')
+      .eq('user_id', userId);
     return {
       ...legacy,
       data: (legacy.data || []).map(l => ({ ...l, last_contact_date: null })),
@@ -71,7 +73,7 @@ export async function generateNotifications(userId) {
       notifs.push({
         id: `lead_wait_${l.id}`,
         icon: '⚡',
-        text: `${l.full_name || l.name} מחכה לתשובה כבר יום!`,
+        text: `${l.name || l.full_name} מחכה לתשובה כבר יום!`,
         href: '/lifeos/leads',
         priority: 'critical',
       });

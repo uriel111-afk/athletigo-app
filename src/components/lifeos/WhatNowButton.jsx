@@ -20,8 +20,8 @@ async function pickNextAction(userId) {
   // 1) Cold lead waiting > 24h
   const { data: leads } = await supabase
     .from('leads')
-    .select('id, full_name, created_at')
-    .eq('coach_id', userId)
+    .select('id, name, created_at')
+    .eq('user_id', userId)
     .eq('status', 'new')
     .lt('created_at', isoNDaysAgo(1))
     .order('created_at', { ascending: true })
@@ -30,7 +30,7 @@ async function pickNextAction(userId) {
     const lead = leads[0];
     return {
       emoji: '🔥',
-      title: `תענה ל-${lead.full_name || 'הליד'} — ליד חם שמחכה`,
+      title: `תענה ל-${lead.name || lead.full_name || 'הליד'} — ליד חם שמחכה`,
       subtitle: 'התגובה הראשונה היא 70% מהסגירה',
       ctaLabel: 'פתח לידים',
       onAction: (nav) => nav('/lifeos/leads'),

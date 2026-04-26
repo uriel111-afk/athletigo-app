@@ -42,9 +42,9 @@ export default function Momentum() {
         supabase.from('expenses').select('amount, date').eq('user_id', userId).gte('date', sinceISO),
         supabase.from('life_os_tasks').select('completed_at, status').eq('user_id', userId).eq('status', 'completed').gte('completed_at', sinceTS),
         supabase.from('content_calendar').select('scheduled_date, status').eq('user_id', userId).eq('status', 'published').gte('scheduled_date', sinceISO),
-        // leads is owned by coach_id (legacy schema), not user_id —
-        // filtering by user_id 400s with "column user_id does not exist".
-        supabase.from('leads').select('created_at').eq('coach_id', userId).gte('created_at', sinceTS),
+        // leads owner column is user_id (canonical schema, verified
+        // via console traces — coach_id doesn't exist on this table).
+        supabase.from('leads').select('created_at').eq('user_id', userId).gte('created_at', sinceTS),
       ]);
 
       const streak = await calculateStreak(userId);

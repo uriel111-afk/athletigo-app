@@ -25,7 +25,7 @@ async function gatherSignals(userId) {
     supabase.from('income').select('amount, source, date').eq('user_id', userId).gte('date', mStart),
     supabase.from('expenses').select('amount, date').eq('user_id', userId).gte('date', mStart),
     supabase.from('content_calendar').select('scheduled_date, status').eq('user_id', userId).order('scheduled_date', { ascending: false }).limit(30),
-    supabase.from('leads').select('status, created_at').eq('coach_id', userId),
+    supabase.from('leads').select('status, created_at').eq('user_id', userId),
     supabase.from('life_os_tasks').select('status').eq('user_id', userId),
     supabase.from('courses').select('status').eq('user_id', userId),
   ]);
