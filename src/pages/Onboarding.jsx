@@ -12,6 +12,7 @@ import PageLoader from "@/components/PageLoader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import InstallPrompt from "@/components/InstallPrompt";
+import OnboardingQuestionnaire from "@/components/forms/OnboardingQuestionnaire";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
 
@@ -506,6 +507,16 @@ export default function Onboarding() {
     weight_kg: "",
     medical_history: "",
     referral_source: "",
+    // OnboardingQuestionnaire (Step 2) — single object so the
+    // wizard's controlled value/onChange API is one prop.
+    questionnaire: {
+      training_goal:        '',
+      fitness_level:        '',
+      preferred_frequency:  '',
+      current_challenges:   [],
+      training_preferences: [],
+      additional_notes:     '',
+    },
     // Structured medical questionnaire — { answer: bool|null, details: string }
     // per question key. Defaults to all-null so nothing is implicitly
     // claimed before the trainee actually answers.
@@ -591,12 +602,15 @@ export default function Onboarding() {
 
       if (coachId) {
         console.log("[Onboarding] Creating notification for coach:", coachId);
+        const traineeName = formData.full_name || user.full_name || 'המתאמן/ת';
         await base44.entities.Notification.create({
           user_id: coachId,
-          type: "system",
-          title: "אונבורדינג הושלם 🚀",
-          message: `המתאמן ${formData.full_name || user.full_name} נרשם והשלים את תהליך האונבורדינג בהצלחה.`,
-          is_read: false
+          type: 'onboarding_complete',
+          title: '🎉 מתאמן/ת חדש/ה סיים/ה הרשמה',
+          message: `${traineeName} השלים/ה את תהליך ההרשמה — לצפייה בפרטים`,
+          link: `/TraineeProfile?userId=${user.id}`,
+          is_read: false,
+          data: { trainee_id: user.id, trainee_name: traineeName },
         });
         console.log("[Onboarding] Notification created successfully");
       } else {
@@ -715,7 +729,31 @@ export default function Onboarding() {
         weight_kg: formData.weight_kg ? parseFloat(formData.weight_kg)   : null,
         medical_history: formData.medical_history || null,
         referral_source: formData.referral_source || null,
+        // OnboardingQuestionnaire (Step 2) results — added by
+        // 20260427_onboarding_questionnaire.sql. JSONB columns
+        // accept null for "not answered". The retry layer drops
+        // any column the live schema is missing.
+        preferred_frequency:  formData.questionnaire?.preferred_frequency  || null,
+        current_challenges:   formData.questionnaire?.current_challenges?.length    ? formData.questionnaire.current_challenges    : null,
+        training_preferences: formData.questionnaire?.training_preferences?.length  ? formData.questionnaire.training_preferences  : null,
+        additional_notes:     formData.questionnaire?.additional_notes     || null,
       };
+
+      // Surface the chosen single-goal from the questionnaire on
+      // top of the legacy Step2_Goals array (which is now empty
+      // since that step was removed). If the user picked a goal in
+      // the questionnaire, prepend it so the array isn't empty.
+      if (formData.questionnaire?.training_goal) {
+        const existing = Array.isArray(optionalData.training_goals) ? optionalData.training_goals : [];
+        if (!existing.includes(formData.questionnaire.training_goal)) {
+          optionalData.training_goals = [formData.questionnaire.training_goal, ...existing];
+        }
+      }
+      // Same for fitness_level — questionnaire wins over Step1's
+      // optional native select if both were filled.
+      if (formData.questionnaire?.fitness_level) {
+        optionalData.fitness_level = formData.questionnaire.fitness_level;
+      }
 
       // Combine data with critical fields taking precedence
       const updateData = { ...optionalData, ...criticalData };
@@ -791,11 +829,13 @@ export default function Onboarding() {
         }} />
       )}
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-6 md:p-8 relative">
-        {/* Progress Bar */}
+        {/* Progress Bar — 2 outer steps now (personal info → questionnaire).
+            The questionnaire owns its own internal 4-dot progress bar
+            for its sub-screens, so the user sees both layers. */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100">
-          <div 
+          <div
             className="h-full bg-[#FF6F20] transition-all duration-500 ease-out"
-            style={{ width: `${(step / 4) * 100}%` }}
+            style={{ width: `${(step / 2) * 100}%` }}
           />
         </div>
 
@@ -804,53 +844,54 @@ export default function Onboarding() {
           <img src={LOGO_MAIN} alt="Logo" className="h-12 object-contain" />
         </div>
 
-        {/* Content */}
+        {/* Content — Step 1 = personal info, Step 2 = the new
+            OnboardingQuestionnaire (replaces the legacy Step2_Goals
+            / Step3_Profile / Step4_Preferences trio). */}
         <div className="min-h-[400px]">
-          {step === 1 && <Step1_PersonalInfo formData={formData} setFormData={setFormData} />}
-          {step === 2 && <Step2_Goals formData={formData} setFormData={setFormData} handleGoalToggle={handleGoalToggle} />}
-          {step === 3 && <Step3_Profile formData={formData} setFormData={setFormData} />}
-          {step === 4 && <Step4_Preferences formData={formData} setFormData={setFormData} />}
+          {step === 1 && (
+            <Step1_PersonalInfo formData={formData} setFormData={setFormData} />
+          )}
+          {step === 2 && (
+            <OnboardingQuestionnaire
+              value={formData.questionnaire}
+              onChange={(next) => setFormData(prev => ({ ...prev, questionnaire: next }))}
+              onComplete={handleComplete}
+              onSkip={handleComplete}
+            />
+          )}
         </div>
 
         {/* Navigation */}
         <div className="mt-8 flex gap-3">
-          {step > 1 && (
-            <Button 
-              onClick={handleBack}
-              variant="outline"
-              className="flex-1 h-12 rounded-xl border-gray-200 font-bold text-gray-600 hover:bg-gray-50"
-            >
-              <ArrowRight className="w-4 h-4 ml-2" />
-              חזור
-            </Button>
-          )}
-          
-          {step < 4 ? (
-            <Button 
+          {/* Outer nav. Step 1: just "המשך" → Step 2 (questionnaire).
+              Step 2: only the "← חזור" affordance, since the
+              questionnaire renders its own next + back + complete
+              buttons internally and calls handleComplete via
+              onComplete prop. */}
+          {step === 1 && (
+            <Button
               onClick={handleNext}
               className="flex-1 h-12 rounded-xl bg-[#FF6F20] hover:bg-[#E65100] text-white font-bold shadow-md hover:shadow-lg transition-all"
             >
               המשך
               <ArrowLeft className="w-4 h-4 mr-2" />
             </Button>
-          ) : (
-            <Button 
-              onClick={handleComplete}
-              disabled={updateUserMutation.isPending}
-              className="flex-1 h-12 rounded-xl bg-[#FF6F20] hover:bg-[#E65100] text-white font-bold shadow-md hover:shadow-lg transition-all"
+          )}
+          {step === 2 && (
+            <Button
+              onClick={handleBack}
+              variant="outline"
+              className="flex-1 h-12 rounded-xl border-gray-200 font-bold text-gray-600 hover:bg-gray-50"
             >
-              {updateUserMutation.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                "סיום והתחלה! 🚀"
-              )}
+              <ArrowRight className="w-4 h-4 ml-2" />
+              חזור לפרטים
             </Button>
           )}
         </div>
 
         {/* Step Indicator */}
         <div className="mt-6 text-center text-sm text-gray-400 font-medium">
-          שלב {step} מתוך 4
+          שלב {step} מתוך 2
         </div>
       </div>
     </div>
