@@ -31,6 +31,11 @@ export default function Sessions() {
   const [sessionToEdit, setSessionToEdit] = useState(null);
   const [deletingSession, setDeletingSession] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  // Permanent (soft-)delete is a separate destructive action from
+  // cancel. Cancel keeps the row visible with a gray "בוטל" badge;
+  // delete hides it from every list (deleted_at + status='deleted').
+  const [purgingSession, setPurgingSession] = useState(null);
+  const [showPurgeDialog, setShowPurgeDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   
   const searchParams = new URLSearchParams(window.location.search);
@@ -265,10 +270,9 @@ export default function Sessions() {
   });
 
   const deleteSessionMutation = useMutation({
-    // Soft-delete: never remove a session row. We keep the audit
-    // trail and let the UI filter cancelled rows out by default.
-    // (See TraineeProfile sessions tab — cancelled sessions still
-    // render under a 'בוטל' badge so the coach has full history.)
+    // Cancel = soft-mark as cancelled. Row stays in the DB and stays
+    // visible in the list with a gray 'בוטל' badge so the coach has
+    // a full audit trail.
     mutationFn: (sessionId) => base44.entities.Session.update(sessionId, {
       status: 'cancelled',
       status_updated_at: new Date().toISOString(),
@@ -286,6 +290,31 @@ export default function Sessions() {
     onError: (error) => {
       console.error("[Sessions] Cancel error:", error);
       toast.error("❌ שגיאה בביטול המפגש");
+    }
+  });
+
+  const purgeSessionMutation = useMutation({
+    // Delete = soft-delete via status='deleted' + deleted_at. Row is
+    // hidden from coach + trainee lists but the data is still in the
+    // DB (recoverable). Hard DELETE FROM sessions is never used.
+    mutationFn: (sessionId) => base44.entities.Session.update(sessionId, {
+      status: 'deleted',
+      deleted_at: new Date().toISOString(),
+      status_updated_at: new Date().toISOString(),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+      invalidateDashboard(queryClient);
+      setShowPurgeDialog(false);
+      setPurgingSession(null);
+      toast.success("✅ המפגש נמחק");
+    },
+    onError: (error) => {
+      console.error("[Sessions] Purge error:", error);
+      toast.error("❌ שגיאה במחיקת המפגש");
     }
   });
 
@@ -597,6 +626,10 @@ export default function Sessions() {
   };
 
   const filteredSessions = sessions.filter((session) => {
+    // Soft-deleted sessions are hidden from every list regardless of
+    // any other filter. status='deleted' OR a populated deleted_at
+    // both qualify so this handles older rows that only carry one.
+    if (session.status === 'deleted' || session.deleted_at) return false;
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch =
@@ -942,7 +975,7 @@ export default function Sessions() {
 
               {/* Coach Action Buttons */}
               <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -953,7 +986,7 @@ export default function Sessions() {
                     <UserPlus className="w-3.5 h-3.5 ml-1" />
                     הוסף
                   </Button>
-                  
+
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -964,12 +997,27 @@ export default function Sessions() {
                     <Edit2 className="w-3.5 h-3.5 ml-1" />
                     ערוך
                   </Button>
+                </div>
 
+                {/* Two destructive actions:
+                      • בטל   → status='cancelled' (kept in list, gray badge)
+                      • מחק   → status='deleted' + deleted_at (hidden) */}
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeletingSession(session);
                       setShowDeleteDialog(true);
+                    }}
+                    className="rounded-xl py-3 font-bold text-xs px-1"
+                    style={{ backgroundColor: '#FFF3E0', color: '#E65100', border: '2px solid #FFCC80' }}>
+                    ❌ בטל
+                  </Button>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPurgingSession(session);
+                      setShowPurgeDialog(true);
                     }}
                     className="rounded-xl py-3 font-bold text-xs px-1"
                     style={{ backgroundColor: '#FFEBEE', color: '#D32F2F', border: '2px solid #FFCDD2' }}>
@@ -1618,7 +1666,7 @@ export default function Sessions() {
                 })()}
                 <div className="p-5 rounded-xl" style={{ backgroundColor: '#FFEBEE', border: '2px solid #f44336' }}>
                   <p className="text-base leading-relaxed mb-3" style={{ color: '#000000' }}>
-                    האם אתה בטוח שברצונך למחוק את המפגש הזה?
+                    האם לבטל את המפגש?
                   </p>
                   {deletingSession &&
                   <div className="p-3 rounded-lg mb-3" style={{ backgroundColor: '#FFFFFF' }}>
@@ -1630,8 +1678,8 @@ export default function Sessions() {
                       </p>
                     </div>
                   }
-                  <p className="text-sm font-bold" style={{ color: '#f44336' }}>
-                    ⚠️ פעולה זו אינה ניתנת לביטול!
+                  <p className="text-sm" style={{ color: '#7D7D7D' }}>
+                    המפגש יישאר בהיסטוריה עם סטטוס "בוטל".
                   </p>
                 </div>
 
@@ -1645,25 +1693,81 @@ export default function Sessions() {
                     className="flex-1 rounded-xl py-6 font-bold"
                     style={{ border: '1px solid #E0E0E0', color: '#000000' }}>
 
-                    ביטול
+                    חזור
                   </Button>
                   <Button
                     onClick={handleDeleteSession}
                     disabled={deleteSessionMutation.isPending}
                     className="flex-1 rounded-xl py-6 font-bold text-white"
-                    style={{ backgroundColor: '#f44336' }}>
+                    style={{ backgroundColor: '#FF8F00' }}>
 
                     {deleteSessionMutation.isPending ?
                     <>
                         <Loader2 className="w-5 h-5 ml-2 animate-spin" />
-                        מוחק...
+                        מבטל...
                       </> :
 
                     <>
-                        <Trash2 className="w-5 h-5 ml-2" />
-                        כן, מחק מפגש
+                        ❌ כן, בטל מפגש
                       </>
                     }
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Permanent-delete dialog — separate red action that hides
+              the session from every list. The row is preserved in DB
+              with status='deleted' + deleted_at, so it can be
+              recovered manually if needed. Hard DELETE is never used. */}
+          <Dialog open={showPurgeDialog} onOpenChange={(open) => { if (!open) { setShowPurgeDialog(false); setPurgingSession(null); } }}>
+            <DialogContent className="max-w-sm rounded-2xl">
+              <div style={{ padding: 16, direction: 'rtl', textAlign: 'right' }}>
+                <h3 className="text-xl font-black mb-3" style={{ color: '#000000' }}>
+                  🗑️ מחיקת מפגש
+                </h3>
+                <p className="text-base leading-relaxed mb-3" style={{ color: '#000000' }}>
+                  למחוק את המפגש לצמיתות?
+                </p>
+                {purgingSession && (
+                  <div className="p-3 rounded-lg mb-3" style={{ backgroundColor: '#FFFFFF', border: '1px solid #FFCDD2' }}>
+                    <p className="text-sm" style={{ color: '#7D7D7D' }}>
+                      📅 {purgingSession.date} | ⏰ {purgingSession.time}
+                    </p>
+                    <p className="text-sm font-bold" style={{ color: '#000000' }}>
+                      {purgingSession.participants?.length || 0} משתתפים רשומים
+                    </p>
+                  </div>
+                )}
+                <p className="text-sm font-bold mb-3" style={{ color: '#D32F2F' }}>
+                  ⚠️ המפגש לא יופיע יותר באף רשימה.
+                </p>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => { setShowPurgeDialog(false); setPurgingSession(null); }}
+                    variant="outline"
+                    className="flex-1 rounded-xl py-6 font-bold"
+                    style={{ border: '1px solid #E0E0E0', color: '#000000' }}>
+                    חזור
+                  </Button>
+                  <Button
+                    onClick={() => purgeSessionMutation.mutate(purgingSession?.id)}
+                    disabled={purgeSessionMutation.isPending || !purgingSession?.id}
+                    className="flex-1 rounded-xl py-6 font-bold text-white"
+                    style={{ backgroundColor: '#D32F2F' }}>
+                    {purgeSessionMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-5 h-5 ml-2 animate-spin" />
+                        מוחק...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-5 h-5 ml-2" />
+                        כן, מחק לצמיתות
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

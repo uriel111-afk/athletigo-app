@@ -1381,9 +1381,12 @@ export default function TraineeProfile() {
         }
       }
 
-      const result = Array.from(byId.values()).sort(
-        (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
-      );
+      // Soft-deleted sessions are hidden from every list. status
+      // 'deleted' or a populated deleted_at both qualify so we
+      // handle older rows that may carry only one signal.
+      const result = Array.from(byId.values())
+        .filter(s => s.status !== 'deleted' && !s.deleted_at)
+        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
       console.log('[TraineeProfile] sessions FINAL count:', result.length);
       return result;
     },
@@ -3391,9 +3394,12 @@ export default function TraineeProfile() {
                                   onClick={() => { setEditingSession(session); setShowEditSession(true); }}>
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-red-500"
+                                <Button
+                                  variant="ghost" size="icon"
+                                  className="w-8 h-8 text-gray-400 hover:text-red-600"
+                                  title="מחק מפגש לצמיתות"
                                   onClick={async () => {
-                                    if (!window.confirm(`לבטל את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
+                                    if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')} לצמיתות?\n\nהמפגש לא יופיע יותר באף רשימה. לביטול בלבד — השתמש/י בסטטוס "בוטל" בתפריט.`)) return;
                                     try {
                                       // Restore package unit if session was attended
                                       const wasAttended = participant?.attendance_status === 'הגיע';
@@ -3406,12 +3412,13 @@ export default function TraineeProfile() {
                                           }
                                         } catch {}
                                       }
-                                      // Soft-delete: flip status to 'cancelled' instead
-                                      // of removing the row, so the attendance tab keeps
-                                      // the audit trail and the trainee's session history
-                                      // stays intact.
+                                      // True soft-delete: status='deleted' + deleted_at.
+                                      // Row stays in the DB (recoverable) but is hidden
+                                      // from every list. For "cancel" use the status
+                                      // dropdown → "בוטל" instead.
                                       await base44.entities.Session.update(session.id, {
-                                        status: 'cancelled',
+                                        status: 'deleted',
+                                        deleted_at: new Date().toISOString(),
                                         status_updated_at: new Date().toISOString(),
                                       });
                                       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
@@ -3419,9 +3426,9 @@ export default function TraineeProfile() {
                                       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
                                       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
                                       invalidateDashboard(queryClient);
-                                      toast.success("המפגש בוטל");
+                                      toast.success("המפגש נמחק");
                                     } catch (err) {
-                                      toast.error("שגיאה בביטול: " + (err?.message || "נסה שוב"));
+                                      toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
                                     }
                                   }}>
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -3504,16 +3511,20 @@ export default function TraineeProfile() {
                                             <SelectTrigger className="h-7 text-[10px] w-auto min-w-[60px] border-gray-200"><SelectValue /></SelectTrigger>
                                             <SelectContent position="popper" side="top" sideOffset={4}><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
                                           </Select>
-                                          <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-300 hover:text-red-500 flex-shrink-0"
+                                          <Button
+                                            variant="ghost" size="icon"
+                                            className="w-7 h-7 text-gray-300 hover:text-red-600 flex-shrink-0"
+                                            title="מחק מפגש לצמיתות"
                                             onClick={async () => {
-                                              if (!window.confirm(`לבטל את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
+                                              if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')} לצמיתות?\n\nהמפגש לא יופיע יותר באף רשימה. לביטול בלבד — השתמש/י בסטטוס "בוטל" בתפריט.`)) return;
                                               try {
                                                 if (participant?.attendance_status === 'הגיע' && session.service_id) {
                                                   try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) { await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); await syncPackageStatus(svc.id); } } catch {}
                                                 }
-                                                // Soft-delete (see other delete sites in this file).
+                                                // True soft-delete (see other delete sites).
                                                 await base44.entities.Session.update(session.id, {
-                                                  status: 'cancelled',
+                                                  status: 'deleted',
+                                                  deleted_at: new Date().toISOString(),
                                                   status_updated_at: new Date().toISOString(),
                                                 });
                                                 queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
@@ -3521,8 +3532,8 @@ export default function TraineeProfile() {
                                                 queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
                                                 queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
                                                 invalidateDashboard(queryClient);
-                                                toast.success("המפגש בוטל");
-                                              } catch (err) { toast.error("שגיאה בביטול: " + (err?.message || "נסה שוב")); }
+                                                toast.success("המפגש נמחק");
+                                              } catch (err) { toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב")); }
                                             }}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </Button>
@@ -3807,14 +3818,19 @@ export default function TraineeProfile() {
             isOpen={showEditSession}
             onClose={() => { setShowEditSession(false); setEditingSession(null); }}
             onSubmit={async (data) => {
-              await base44.entities.Session.update(editingSession.id, data);
-              queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-              queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-              queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-              invalidateDashboard(queryClient);
-              setShowEditSession(false);
-              setEditingSession(null);
-              toast.success("המפגש עודכן בהצלחה");
+              try {
+                await base44.entities.Session.update(editingSession.id, data);
+                queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                invalidateDashboard(queryClient);
+                setShowEditSession(false);
+                setEditingSession(null);
+                toast.success("המפגש עודכן בהצלחה");
+              } catch (err) {
+                console.error('[TraineeProfile] session update failed:', err);
+                toast.error('שגיאה בעדכון המפגש: ' + (err?.message || 'נסה/י שוב'));
+              }
             }}
             editingSession={editingSession}
             trainees={[user]}
