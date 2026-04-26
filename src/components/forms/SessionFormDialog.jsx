@@ -25,6 +25,10 @@ const INITIAL_DATA = {
   coach_notes: "",
   participants: [],
   service_id: null,
+  // Optional price — null/empty = free. When set, the trainee sees
+  // a "שלם" CTA on the session card that goes through the
+  // payment-create Edge Function (Grow integration).
+  price: "",
 };
 
 export default function SessionFormDialog({
@@ -46,6 +50,7 @@ export default function SessionFormDialog({
     coach_notes: editingSession.coach_notes || "",
     participants: editingSession.participants || [],
     service_id: editingSession.service_id || null,
+    price: editingSession.price != null ? String(editingSession.price) : "",
   } : { ...INITIAL_DATA, date: new Date().toISOString().split('T')[0] };
 
   const scopeKey = `${currentCoach?.id ?? 'no-coach'}_${editingSession?.id ?? 'new'}`;
@@ -208,6 +213,9 @@ export default function SessionFormDialog({
     }
 
     // Explicit field mapping — no blind spread
+    const priceNumber = sessionForm.price === "" || sessionForm.price == null
+      ? null
+      : Number(sessionForm.price);
     const sessionDataWithStatus = {
       date: sessionForm.date,
       time: sessionForm.time,
@@ -217,6 +225,10 @@ export default function SessionFormDialog({
       coach_notes: sessionForm.coach_notes || null,
       coach_id: currentCoach?.id || null,
       participants: sessionForm.participants || [],
+      // null = free / no price; positive number → unpaid until the
+      // trainee runs payment-create. Coach can mark paid manually.
+      price: Number.isFinite(priceNumber) && priceNumber > 0 ? priceNumber : null,
+      payment_status: Number.isFinite(priceNumber) && priceNumber > 0 ? 'unpaid' : null,
       status: editingSession ? sessionForm.status : 'ממתין לאישור',
     };
     // Only include service_id if a package was selected
@@ -387,6 +399,29 @@ export default function SessionFormDialog({
               className="rounded-xl"
               style={{ border: '1px solid #E0E0E0' }}
             />
+          </div>
+
+          {/* Price — optional. When set, the trainee's session card
+              shows a "שלם 💳" CTA that runs through payment-create
+              (Grow integration). Empty = free session. */}
+          <div>
+            <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
+              מחיר (₪) <span className="text-xs font-normal text-gray-400">(אופציונלי)</span>
+            </Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="1"
+              value={sessionForm.price}
+              onChange={(e) => setSessionForm({ ...sessionForm, price: e.target.value })}
+              placeholder="200"
+              className="rounded-xl"
+              style={{ border: '1px solid #E0E0E0' }}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              אם תזין מחיר — המתאמן/ת יראה כפתור "שלם" באישור המפגש.
+            </p>
           </div>
 
           <div>

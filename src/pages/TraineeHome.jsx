@@ -650,6 +650,9 @@ export default function TraineeHome() {
                   <br />
                 </>
               )}
+              {Number(pendingApprovalSession.price || 0) > 0 && (
+                <>עלות המפגש: <strong>{pendingApprovalSession.price}₪</strong><br /></>
+              )}
               לפני אישור המפגש, יש לחתום על הצהרת בריאות קצרה.
             </div>
             <button
