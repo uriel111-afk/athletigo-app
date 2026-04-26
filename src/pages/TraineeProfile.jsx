@@ -4,8 +4,13 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 // change-status dialog, and the permissions/package side-effects
 // when the coach flips a trainee between states. Keys must match
 // the values written into users.client_status by AddTraineeDialog
-// and PackageFormDialog (see commit c2939ba for the casual pipeline).
+// (see commit c2939ba for the casual pipeline). The `onboarding`
+// state piggybacks on the existing `users.onboarding_completed`
+// flag so the Layout-level redirect to /Onboarding kicks in for
+// free.
 const CLIENT_STATUS_OPTIONS = [
+  { key: 'onboarding', label: 'אונבורדינג', badgeBg: '#DBEAFE', badgeFg: '#1D4ED8', borderColor: '#93C5FD', icon: '🔄',
+    description: 'תהליך כניסה ראשונה: מסך קבלת פנים, פרטים אישיים, הצהרת בריאות, אישור מפגש ראשון. אחרי השלמה — עובר אוטומטית למזדמן.' },
   { key: 'casual',    label: 'מזדמן',  badgeBg: '#FFF3E5', badgeFg: '#92400E', borderColor: '#FCD9B6', icon: '⏳',
     description: 'גישה מוגבלת, בלי קיזוז חבילות. מתאים למתאמן שעדיין לא רכש חבילה.' },
   { key: 'active',    label: 'פעיל',   badgeBg: '#E8F5E9', badgeFg: '#15803D', borderColor: '#BBE5C0', icon: '✓',
@@ -20,9 +25,13 @@ const STATUS_BY_KEY = Object.fromEntries(
   CLIENT_STATUS_OPTIONS.map((s) => [s.key, s])
 );
 
-// Permissions per status — active is fully open, casual keeps only
-// messaging, suspended/former lock everything down.
+// Permissions per status — active is fully open, casual + onboarding
+// keep only messaging, suspended/former lock everything down.
+// onboarding gets the same minimal perms as casual: the trainee is
+// either on the /Onboarding page (no app access needed) or just
+// finished it (about to flip to casual anyway).
 const PERMS_BY_STATUS = {
+  onboarding:{ view_baseline: false, view_training_plan: false, view_progress: false, view_documents: false, edit_metrics: false, send_videos: false, send_messages: true,  view_plan: false, view_records: false },
   active:    { view_baseline: true,  view_training_plan: true,  view_progress: true,  view_documents: true,  edit_metrics: true,  send_videos: true,  send_messages: true,  view_plan: true,  view_records: true },
   casual:    { view_baseline: false, view_training_plan: false, view_progress: false, view_documents: false, edit_metrics: false, send_videos: false, send_messages: true,  view_plan: false, view_records: false },
   suspended: { view_baseline: false, view_training_plan: false, view_progress: false, view_documents: false, edit_metrics: false, send_videos: false, send_messages: false, view_plan: false, view_records: false },
@@ -2255,10 +2264,14 @@ export default function TraineeProfile() {
     if (!user?.id || !newStatus || !PERMS_BY_STATUS[newStatus]) return;
     setStatusSaving(true);
     try {
-      // 1. users.client_status
+      // 1. users.client_status (+ onboarding_completed reset when
+      // sending back to onboarding — that flag is what Layout uses
+      // to redirect the trainee to the /Onboarding page).
+      const userPatch = { client_status: newStatus };
+      if (newStatus === 'onboarding') userPatch.onboarding_completed = false;
       const { error: userErr } = await supabase
         .from('users')
-        .update({ client_status: newStatus })
+        .update(userPatch)
         .eq('id', user.id);
       if (userErr) throw userErr;
 
@@ -2307,10 +2320,11 @@ export default function TraineeProfile() {
       const opt = STATUS_BY_KEY[newStatus];
       const name = user.full_name || 'המתאמן';
       const flavorByStatus = {
-        active:    `${name} הפך ללקוח פעיל ✓`,
-        casual:    `${name} הועבר למזדמן`,
-        suspended: `${name} מושהה — החבילה הוקפאה`,
-        former:    `${name} הועבר לארכיון`,
+        onboarding: `${name} חזר לתהליך אונבורדינג — הנתונים נשמרים`,
+        active:     `${name} הפך ללקוח פעיל ✓`,
+        casual:     `${name} הועבר למזדמן`,
+        suspended:  `${name} מושהה — החבילה הוקפאה`,
+        former:     `${name} הועבר לארכיון`,
       };
       toast.success(flavorByStatus[newStatus] || `${name} — סטטוס עודכן ל${opt?.label || newStatus}`);
       setPendingStatus(null);

@@ -28,10 +28,12 @@ export default function AllUsers() {
   // always show; only 'former' is gated.
   const [showFormer, setShowFormer] = useState(false);
 
-  // Status badge config — mirrors the four canonical statuses on
-  // the trainee profile page so the visual language is consistent
-  // (orange ⏳ casual, green ✓ active, gray ⏸ suspended, red × former).
+  // Status badge config — mirrors the canonical statuses on the
+  // trainee profile page so the visual language is consistent
+  // (blue 🔄 onboarding, orange ⏳ casual, green ✓ active,
+  //  gray ⏸ suspended, red × former).
   const STATUS_BADGES = {
+    onboarding:{ label: 'אונבורדינג', bg: '#DBEAFE', fg: '#1D4ED8', border: '#93C5FD', icon: '🔄' },
     casual:    { label: 'מזדמן',  bg: '#FFF3E5', fg: '#92400E', border: '#FCD9B6', icon: '⏳' },
     active:    { label: 'פעיל',   bg: '#E8F5E9', fg: '#15803D', border: '#BBE5C0', icon: '✓' },
     suspended: { label: 'מושהה',  bg: '#F3F4F6', fg: '#4B5563', border: '#D1D5DB', icon: '⏸' },

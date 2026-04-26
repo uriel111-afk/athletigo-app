@@ -698,25 +698,32 @@ export default function UnifiedClientCard({
             </div>
           </div>
 
-          {/* Casual/Active onboarding status badge — visible right
-              under the name. Casual = orange (still in onboarding,
-              hasn't bought a package); Active = green (paying client). */}
+          {/* Onboarding-status badge — visible under the name.
+              Five canonical states: onboarding (blue), casual
+              (orange), active (green), suspended (gray), former
+              (red). Legacy Hebrew client_status values render no
+              badge so the visual stays clean during migration. */}
           {(() => {
-            const status = currentClient.client_status;
-            if (status !== 'casual' && status !== 'active') return null;
-            const isCasual = status === 'casual';
+            const palette = {
+              onboarding: { bg: '#DBEAFE', fg: '#1D4ED8', border: '#93C5FD', icon: '🔄', label: 'אונבורדינג' },
+              casual:     { bg: '#FFF3E5', fg: '#92400E', border: '#FCD9B6', icon: '⏳', label: 'מזדמן' },
+              active:     { bg: '#E8F5E9', fg: '#15803D', border: '#BBE5C0', icon: '✓',  label: 'פעיל' },
+              suspended:  { bg: '#F3F4F6', fg: '#4B5563', border: '#D1D5DB', icon: '⏸',  label: 'מושהה' },
+              former:     { bg: '#FEE2E2', fg: '#B91C1C', border: '#FCA5A5', icon: '×',  label: 'לשעבר' },
+            };
+            const conf = palette[currentClient.client_status];
+            if (!conf) return null;
             return (
               <div className="flex justify-center mb-1 md:mb-2">
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                   padding: '3px 10px', borderRadius: 999,
-                  background: isCasual ? '#FFF3E5' : '#E8F5E9',
-                  color: isCasual ? '#92400E' : '#15803D',
-                  border: `1px solid ${isCasual ? '#FCD9B6' : '#BBE5C0'}`,
+                  background: conf.bg, color: conf.fg,
+                  border: `1px solid ${conf.border}`,
                   fontSize: 11, fontWeight: 700,
                 }}>
-                  <span aria-hidden>{isCasual ? '⏳' : '✓'}</span>
-                  {isCasual ? 'מזדמן' : 'פעיל'}
+                  <span aria-hidden>{conf.icon}</span>
+                  {conf.label}
                 </span>
               </div>
             );

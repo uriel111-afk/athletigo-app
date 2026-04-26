@@ -116,11 +116,16 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         return;
       }
 
-      // Casual trainees haven't paid — they get the onboarding gate
-      // (must sign a health declaration before approving their first
-      // session). Active is the regular paying-client path.
+      // Every new trainee starts at 'onboarding' regardless of the
+      // casual/active type the coach picked. They flow through the
+      // /Onboarding page (welcome + personal info form + medical
+      // questionnaire) which sets onboarding_completed=true and
+      // client_status='casual' on submit. The coach can later flip
+      // them to 'active' from the profile badge once they're onboard.
+      // The legacy "casual" type still seeds minimal perms +
+      // legacy Hebrew client_type for back-compat reads.
       const isCasual = formData.clientType === 'casual';
-      const clientStatusValue = isCasual ? 'casual' : 'active';
+      const clientStatusValue = 'onboarding';
 
       // Step 2: Insert profile into users table
       const { error: profileError } = await supabase.from('users').insert({

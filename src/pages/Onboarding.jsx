@@ -562,10 +562,16 @@ export default function Onboarding() {
 
       console.log("[Onboarding] Final goals:", finalGoals);
 
-      // CRITICAL: These fields MUST be updated to mark onboarding as complete
+      // CRITICAL: These fields MUST be updated to mark onboarding as
+      // complete. client_status flips onboarding → casual so the
+      // trainee's TraineeHome shows the casual experience (sessions
+      // + messages only) until the coach sells a package and bumps
+      // them to active. The coach can also flip to 'active' manually
+      // from the profile badge if they want the full app immediately.
       const criticalData = {
         onboarding_completed: true,
-        role: "trainee"
+        role: "trainee",
+        client_status: "casual",
       };
 
       // Fold the structured medical answers into health_issues so
