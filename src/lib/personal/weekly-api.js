@@ -108,7 +108,10 @@ export async function fetchWeek(userId, coachId = userId, anchorDate = new Date(
     safe(async () => {
       const { data } = await supabase
         .from('personal_habits')
-        .select('id, name, icon, target_per_week, frequency, streak_current, streak_best')
+        // target_per_week never existed on this table — the schema
+        // has target_value (text) + target_minutes (int). Selecting
+        // it 400'd ("column target_per_week does not exist").
+        .select('id, name, icon, target_value, target_minutes, frequency, streak_current, streak_best')
         .eq('user_id', userId)
         .eq('is_active', true)
         .order('created_at', { ascending: true });

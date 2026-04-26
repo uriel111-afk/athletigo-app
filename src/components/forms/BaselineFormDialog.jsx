@@ -75,6 +75,11 @@ export default function BaselineFormDialog({
   editMode = false, existingRows = null,
   viewOnly = false,
 }) {
+  // Diagnostic — confirms the component mounts and what isOpen is on
+  // each render. Remove once the dialog is verified visible.
+  if (typeof window !== 'undefined') {
+    console.log('[BaselineFormDialog] render isOpen=', isOpen, 'traineeId=', traineeId);
+  }
   const queryClient = useQueryClient();
   const { user: authUser } = useContext(AuthContext);
   const isCoach = authUser?.is_coach === true || authUser?.role === 'coach' || authUser?.role === 'admin';
