@@ -37,6 +37,7 @@ import PersonalHomeLife from './pages/personal/HomeLife';
 import WeeklyBoard from './components/personal/WeeklyBoard';
 import MentorChat from './components/lifeos/MentorChat';
 import BaselineManager from './components/forms/BaselineManager';
+import LoadingProgress from './components/LoadingProgress';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
@@ -206,9 +207,16 @@ const AuthenticatedApp = () => {
     return () => { supabase.removeChannel(ch); };
   }, [user?.id, isCoachUser, showNotificationPopup]);
 
-  // Show branded loading screen while auth is initializing
+  // Show branded loading screen while auth is initializing. The thin
+  // top progress bar sits on top of the splash so the user sees the
+  // same indicator pattern they'll see on every subsequent page.
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return <AppLoader progress={5} label="מתחבר..." />;
+    return (
+      <>
+        <LoadingProgress isLoading={true} />
+        <AppLoader progress={5} label="מתחבר..." />
+      </>
+    );
   }
 
   // Handle authentication errors
@@ -236,7 +244,12 @@ const AuthenticatedApp = () => {
         </div>
       );
     }
-    return <AppLoader progress={progress} label={label} />;
+    return (
+      <>
+        <LoadingProgress isLoading={true} />
+        <AppLoader progress={progress} label={label} />
+      </>
+    );
   }
 
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
@@ -291,6 +304,10 @@ const AuthenticatedApp = () => {
         parallel, each with its own draft + minimized pill. Lives at
         the root so forms survive every route change. */}
     <BaselineManager />
+    {/* Thin top progress bar — auto-tracks every react-query fetch
+        across the entire app via useIsFetching(), so no per-page
+        wiring is needed. Fades out when all queries resolve. */}
+    <LoadingProgress />
     <Routes>
       <Route path="/" element={
         <PageRouteGuard pageKey={mainPageKey}>
