@@ -457,15 +457,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const twMin = Math.floor(totalWorkoutTime / 60);
   const twSec = totalWorkoutTime % 60;
 
-  // Total exercise length — purely derived from cfg by simulating the
-  // phase walk from prep all the way to done, summing each dur. Used
-  // below to drive the orange drain border around the total-time chip.
+  // Total exercise length — sum of every phase EXCEPT prep, since
+  // the drain ring on the total-time chip represents the active
+  // workout only. Walking starts from work(1,1); prep doesn't count
+  // toward the bar's progress (the bar stays full during prep, then
+  // starts draining the moment the first work phase begins).
   // Hoisted ABOVE the early returns at "settings" / "done" so the hook
   // call order stays stable (React #310 — hooks must run every render).
   const totalExerciseSeconds = useMemo(() => {
     const c = cfgRef.current;
-    let total = c.prep || 0;
-    let cur = { type: 'prep', round: 1, set: 1, dur: c.prep || 0 };
+    let total = c.work || 0;
+    let cur = { type: 'work', round: 1, set: 1, dur: c.work || 0 };
     // Defensive cap so a misconfigured cfg can't infinite-loop.
     for (let i = 0; i < 1000; i++) {
       const nxt = nextPhase(cur, c);
@@ -474,8 +476,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       cur = nxt;
     }
     return total;
+    // Deps reference the actual cfg fields (cfg.rb, NOT cfg.set_rest —
+    // that field doesn't exist; nextPhase reads cfg.rb for set rests).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.prep, cfg.work, cfg.rest, cfg.set_rest, cfg.rounds, cfg.sets]);
+  }, [cfg.work, cfg.rest, cfg.rb, cfg.rounds, cfg.sets]);
 
   // ─── Settings Screen ───
   if (screen === 'settings') {
@@ -578,16 +582,23 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   // ─── Compute total remaining time ───
+  // Returns the seconds left until the workout proper finishes.
+  // While in prep, returns the full totalExerciseSeconds so the
+  // drain ring stays at 100% — the bar represents the active
+  // workout, not the warm-up. The moment prep ends and the first
+  // work phase starts, this drops to totalExerciseSeconds and
+  // begins counting down monotonically through every set.
   function calcTotalRemaining() {
     const c = cfgRef.current;
     const p = phaseRef.current;
     if (p.type === 'idle' || p.type === 'done') return 0;
+    if (p.type === 'prep') return totalExerciseSeconds;
 
     // Current phase remaining
     const elapsed = (performance.now() - startAtRef.current) / 1000;
     let total = Math.max(0, p.dur - elapsed);
 
-    // Remaining phases
+    // Remaining phases (always non-prep at this point)
     let cur = { ...p };
     while (true) {
       const nxt = nextPhase(cur, c);
@@ -794,7 +805,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           rightmost. */}
       <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
         <div style={{
-          flex: 1.5, position: 'relative',
+          // flex: 2.3 makes the total-time chip ~53% of the row
+          // (vs ~43% with flex:1.5) — a ~25% relative width bump
+          // toward the right edge so the drain ring around it has
+          // more room to breathe and reads as the dominant element.
+          flex: 2.3, position: 'relative',
           background: chipDarkBg, borderRadius: 12,
           padding: '10px 12px', textAlign: 'center', color: textPrimary,
           overflow: 'visible',
