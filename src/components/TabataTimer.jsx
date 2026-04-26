@@ -684,7 +684,18 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const textSoft    = cream  ? '#888'    : 'rgba(255,255,255,0.8)';
   const accent      = cream  ? '#FF6F20' : '#FFFFFF';
   const ringTrack   = cream  ? 'rgba(255,111,32,0.15)' : 'rgba(255,255,255,0.25)';
-  const ringFill    = cream  ? '#FF6F20' : '#FFFFFF';
+  // Active ring color tells the coach which phase they're in at a
+  // glance:
+  //   work       → white (against the orange bg, max contrast)
+  //   rest /
+  //   set_rest   → green so it visually differs from the orange
+  //                "active" theme and reads as "recovery"
+  //   prep / idle → orange (matches the warm-up / pre-flight feel)
+  const ringFill = isWork
+    ? '#FFFFFF'
+    : (phase.type === 'rest' || phase.type === 'set_rest')
+      ? '#16A34A'
+      : '#FF6F20';
   const chipBg      = cream  ? 'rgba(255,111,32,0.10)' : 'rgba(255,255,255,0.15)';
   const chipDarkBg  = cream  ? 'rgba(0,0,0,0.05)'      : 'rgba(0,0,0,0.2)';
   // Primary action button (pause/resume) — invert per phase
