@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
   playLongBeep, playDoubleBell, playVictory, playGong,
@@ -582,6 +582,31 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const totalMin = Math.floor(totalLeft / 60);
   const totalSec = totalLeft % 60;
 
+  // Total exercise length — purely derived from cfg by simulating the
+  // phase walk from prep all the way to done, summing each dur. Used
+  // to drive the orange drain border around the total-time chip:
+  // borderProgress = totalLeft / totalExerciseSeconds (1 → 0).
+  const totalExerciseSeconds = useMemo(() => {
+    const c = cfgRef.current;
+    let total = c.prep || 0;
+    let cur = { type: 'prep', round: 1, set: 1, dur: c.prep || 0 };
+    // Defensive cap so a misconfigured cfg can't infinite-loop.
+    for (let i = 0; i < 1000; i++) {
+      const nxt = nextPhase(cur, c);
+      if (!nxt || nxt.type === 'done') break;
+      total += nxt.dur || 0;
+      cur = nxt;
+    }
+    return total;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg.prep, cfg.work, cfg.rest, cfg.set_rest, cfg.rounds, cfg.sets]);
+
+  // borderProgress: 1 = full, 0 = empty. Survives the "done" phase
+  // (totalLeft becomes 0 — that's fine, ring just empties).
+  const totalBorderProgress = totalExerciseSeconds > 0
+    ? Math.max(0, Math.min(1, totalLeft / totalExerciseSeconds))
+    : 0;
+
   // Minimize handler — single source of truth (mirrors Clocks.jsx
   // minimizeTimer pattern that already works for Countdown/Stopwatch):
   //   1. Save snapshot to liveTimerTabata so the bar can render it
@@ -684,18 +709,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const textSoft    = cream  ? '#888'    : 'rgba(255,255,255,0.8)';
   const accent      = cream  ? '#FF6F20' : '#FFFFFF';
   const ringTrack   = cream  ? 'rgba(255,111,32,0.15)' : 'rgba(255,255,255,0.25)';
-  // Active ring color tells the coach which phase they're in at a
-  // glance:
-  //   work       → white (against the orange bg, max contrast)
-  //   rest /
-  //   set_rest   → green so it visually differs from the orange
-  //                "active" theme and reads as "recovery"
-  //   prep / idle → orange (matches the warm-up / pre-flight feel)
-  const ringFill = isWork
-    ? '#FFFFFF'
-    : (phase.type === 'rest' || phase.type === 'set_rest')
-      ? '#16A34A'
-      : '#FF6F20';
+  // Active drain ring is always orange — the coach asked for one
+  // unified phase color on the inner ring so the visual stays calm.
+  // Phase distinction comes from the bg/text + the upcoming row.
+  const ringFill = '#FF6F20';
   const chipBg      = cream  ? 'rgba(255,111,32,0.10)' : 'rgba(255,255,255,0.15)';
   const chipDarkBg  = cream  ? 'rgba(0,0,0,0.05)'      : 'rgba(0,0,0,0.2)';
   // Primary action button (pause/resume) — invert per phase
@@ -767,7 +784,35 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           (incl. prep phase). During prep, phase.round/set are 0 so we
           display the upcoming "1/n" instead of "0/n". */}
       <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
-        <div style={{ flex: 1.5, background: chipDarkBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', color: textPrimary, overflow: 'visible' }}>
+        <div style={{
+          flex: 1.5, position: 'relative',
+          background: chipDarkBg, borderRadius: 12,
+          padding: '10px 12px', textAlign: 'center', color: textPrimary,
+          overflow: 'visible',
+        }}>
+          {/* Total-exercise drain ring — SVG overlay sized to the
+              chip via 100% percentages. pathLength=100 normalizes
+              the perimeter so dashoffset reads as "% drained":
+              0 = full, 100 = empty. overflow:visible on the SVG +
+              the parent lets the half-stroke peek out as a real
+              border around the chip's box. */}
+          <svg
+            aria-hidden
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              overflow: 'visible', pointerEvents: 'none',
+            }}
+          >
+            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
+              fill="none" stroke="#F0E4D0" strokeWidth="2" />
+            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
+              fill="none" stroke="#FF6F20" strokeWidth="3" strokeLinecap="round"
+              pathLength="100" strokeDasharray="100"
+              strokeDashoffset={100 * (1 - totalBorderProgress)}
+              style={{ transition: 'stroke-dashoffset 1s linear' }}
+            />
+          </svg>
           <div style={{ fontSize: 20, fontWeight: 800 }}>⏱</div>
           <div style={{ fontSize: 38, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif" }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
