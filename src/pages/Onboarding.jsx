@@ -30,6 +30,76 @@ const GOAL_OPTIONS = [
 const FITNESS_LEVELS = ["מתחיל", "בינוני", "מתקדם"];
 const TRAINING_STYLES = ["אישי", "קבוצה", "אונליין", "תוכנית עצמאית"];
 
+// Structured medical questionnaire — each item gets a yes/no choice
+// + a free-text follow-up that only appears after "כן". Keys are
+// stored in formData.medical_answers and serialized into the
+// `health_issues` field on submit so the existing schema is honored.
+const MEDICAL_QUESTIONS = [
+  { key: 'back_neck_pain',      label: 'כאבי גב או צוואר' },
+  { key: 'prior_injuries',      label: 'פציעות קודמות' },
+  { key: 'chronic_conditions',  label: 'מחלות כרוניות' },
+  { key: 'regular_medications', label: 'תרופות קבועות' },
+  { key: 'surgeries',           label: 'ניתוחים בעבר' },
+];
+
+// Renders one yes/no medical row + an animated details Textarea.
+// Stateless — parent owns the {answer, details} object via `value`
+// and `onChange`. Hoisted to module scope so it doesn't remount on
+// every parent re-render (which would lose focus mid-typing).
+function MedicalQuestion({ label, value, onChange }) {
+  const answer  = value?.answer ?? null;
+  const details = value?.details ?? '';
+
+  const setAnswer = (next) => {
+    // Clearing details when switching back to "לא" mirrors the
+    // existing has_limitations toggle behavior — old text shouldn't
+    // linger as a hidden ghost answer the coach can't see.
+    onChange({ answer: next, details: next ? details : '' });
+  };
+  const setDetails = (next) => onChange({ answer, details: next });
+
+  return (
+    <div className="space-y-2 p-3 rounded-xl border border-gray-100 bg-white">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-bold text-gray-900 text-right">{label}</span>
+        <div className="flex gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setAnswer(false)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              answer === false
+                ? 'bg-[#4CAF50] text-white border-2 border-[#4CAF50]'
+                : 'bg-white text-gray-500 border-2 border-gray-200'
+            }`}
+          >
+            לא
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnswer(true)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              answer === true
+                ? 'bg-[#f44336] text-white border-2 border-[#f44336]'
+                : 'bg-white text-gray-500 border-2 border-gray-200'
+            }`}
+          >
+            כן
+          </button>
+        </div>
+      </div>
+      {answer === true && (
+        <Textarea
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          className="bg-white border-red-100 focus:border-red-300 min-h-[60px] text-right resize-none text-sm animate-in fade-in slide-in-from-top-2 duration-300"
+          placeholder="אילו כאבים/מגבלות את/ה חווה? פרט/י..."
+          autoFocus
+        />
+      )}
+    </div>
+  );
+}
+
 // Step Components defined outside to prevent re-renders losing focus
 const Step1_PersonalInfo = ({ formData, setFormData }) => (
   <div className="space-y-6">
@@ -212,6 +282,32 @@ const Step3_Profile = ({ formData, setFormData }) => (
           </div>
         )}
 
+        {/* Structured medical questionnaire — five yes/no questions
+            with conditional details fields. Each "כן" reveals a
+            text input that fades in (animation lives inside the
+            MedicalQuestion component). The answers are merged into
+            `health_issues` on submit. */}
+        <div className="space-y-2 pt-2 mt-2 border-t border-gray-100">
+          <Label className="text-right block font-bold text-gray-900">שאלון רפואי מפורט</Label>
+          <p className="text-xs text-gray-500 text-right mb-2">
+            מענה לכל אחת מהשאלות עוזר לי לבנות לך תוכנית בטוחה ומותאמת.
+          </p>
+          {MEDICAL_QUESTIONS.map((q) => (
+            <MedicalQuestion
+              key={q.key}
+              label={q.label}
+              value={formData.medical_answers?.[q.key]}
+              onChange={(next) => setFormData({
+                ...formData,
+                medical_answers: {
+                  ...(formData.medical_answers || {}),
+                  [q.key]: next,
+                },
+              })}
+            />
+          ))}
+        </div>
+
         <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
           <Checkbox 
             id="health-declare" 
@@ -309,7 +405,17 @@ export default function Onboarding() {
     preferred_training_style: "",
     onboarding_notes: "",
     has_limitations: null,
-    health_declaration_approved: false
+    health_declaration_approved: false,
+    // Structured medical questionnaire — { answer: bool|null, details: string }
+    // per question key. Defaults to all-null so nothing is implicitly
+    // claimed before the trainee actually answers.
+    medical_answers: {
+      back_neck_pain:      { answer: null, details: '' },
+      prior_injuries:      { answer: null, details: '' },
+      chronic_conditions:  { answer: null, details: '' },
+      regular_medications: { answer: null, details: '' },
+      surgeries:           { answer: null, details: '' },
+    },
   });
 
   useEffect(() => {
@@ -462,6 +568,20 @@ export default function Onboarding() {
         role: "trainee"
       };
 
+      // Fold the structured medical answers into health_issues so
+      // the existing `users.health_issues` column captures both the
+      // free-form text and the questionnaire details. Each "כן"
+      // answer becomes one labeled line; "לא" rows are skipped.
+      const medicalLines = MEDICAL_QUESTIONS
+        .filter((q) => formData.medical_answers?.[q.key]?.answer === true)
+        .map((q) => {
+          const details = (formData.medical_answers[q.key].details || '').trim();
+          return details ? `${q.label}: ${details}` : `${q.label}: כן`;
+        });
+      const fullHealthIssues = [formData.health_issues?.trim(), ...medicalLines]
+        .filter(Boolean)
+        .join('\n');
+
       // OPTIONAL: These fields are nice-to-have but shouldn't block completion
       const optionalData = {
         full_name: formData.full_name,
@@ -470,7 +590,7 @@ export default function Onboarding() {
         training_goals: finalGoals,
         sport_background: formData.sport_background,
         fitness_level: formData.fitness_level,
-        health_issues: formData.health_issues,
+        health_issues: fullHealthIssues,
         health_declaration_accepted: true,
         training_frequency: formData.training_frequency,
         motivation: formData.motivation,
