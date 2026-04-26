@@ -18,6 +18,7 @@ import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
 import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
 import PaymentResultModal from "@/components/PaymentResultModal";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
+import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 
 const DAILY_MESSAGES = [
   "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
@@ -1344,6 +1345,7 @@ export default function TraineeHome() {
         {/* Upcoming Sessions — only shown when there are future approved/pending sessions */}
         {(() => {
           const upcoming = mySessions
+            .filter(s => s.status !== 'deleted' && !s.deleted_at)
             .filter(s => new Date(`${s.date}T${s.time}`) >= new Date() && !['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'התקיים', 'לא הגיע'].includes(s.status))
             .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
           if (upcoming.length === 0) return null;
@@ -1351,7 +1353,15 @@ export default function TraineeHome() {
             <div className="mb-6">
               <h2 className="text-lg font-bold mb-3 text-gray-800 border-r-4 border-[#FF6F20] pr-3">מפגש קרוב</h2>
               <div className="space-y-3">
-                {upcoming.map(session => (
+                {upcoming.map(session => {
+                  // Any priced + unpaid session gets a "שלם" CTA on
+                  // the home card itself — the onboarding banner
+                  // handles the same path for pending_approval, but
+                  // active/casual trainees with newly-priced sessions
+                  // wouldn't otherwise have a pay surface here.
+                  const needsPayment = Number(session.price || 0) > 0
+                                       && session.payment_status !== 'paid';
+                  return (
                   <div key={session.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
                     <div className="flex justify-between items-start">
                       <div>
@@ -1365,6 +1375,17 @@ export default function TraineeHome() {
                         <div className="text-sm text-gray-500">{session.location}</div>
                       </div>
                     </div>
+
+                    {needsPayment && (
+                      <div className="mt-3 pt-2 border-t border-gray-100">
+                        <SessionPaymentBadge
+                          session={session}
+                          trainee={user}
+                          coachView={false}
+                        />
+                      </div>
+                    )}
+
                     {(() => {
                       const sessionStart = new Date(`${session.date}T${session.time}`);
                       const hoursAway = (sessionStart - new Date()) / (1000 * 60 * 60);
@@ -1390,7 +1411,8 @@ export default function TraineeHome() {
                       return null;
                     })()}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
