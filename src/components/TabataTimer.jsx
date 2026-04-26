@@ -737,6 +737,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     bg: isWork ? '#FFFFFF' : '#FF6F20',
     fg: isWork ? '#FF6F20' : '#FFFFFF',
   };
+  // Secondary buttons (◀ חזור / הבא ▶ / עצור) in the bottom bar.
+  // During work the cream-tinted chip bg works (it's white-ish on
+  // orange page bg). During prep / rest / set_rest the page bg is
+  // cream so the orange-tint chip read as a muddy "double orange"
+  // overlay — switch to a clean white card with a #F0E4D0 border so
+  // each button sits as one solid surface, no color stacking.
+  const secondaryBtn = isWork
+    ? { bg: chipBg, fg: textPrimary, border: 'none' }
+    : { bg: '#FFFFFF', fg: '#1A1A1A', border: '1px solid #F0E4D0' };
 
   return (
     <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease' }}>
@@ -892,15 +901,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: chipBg, color: textPrimary, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
-          <button onClick={skipToNext} style={{ flex: 1, height: 48, background: chipBg, color: textPrimary, border: 'none', borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
+          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
+          <button onClick={skipToNext} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {paused
             ? <button onClick={handleResume} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>המשך ▶</button>
             : <button onClick={handlePause} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>השהה ‖</button>
           }
-          <button onClick={handleStop} style={{ flex: 1, height: 56, fontSize: 18, fontWeight: 800, background: chipBg, color: textPrimary, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>עצור</button>
+          <button onClick={handleStop} style={{ flex: 1, height: 56, fontSize: 18, fontWeight: 800, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>עצור</button>
         </div>
       </div>
       <RoundJumpPicker
