@@ -19,6 +19,10 @@ export default function AllUsers() {
   const [filterType, setFilterType] = useState(new URLSearchParams(window.location.search).get('filter') || "all"); // all, active, expiring, inactive
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [userToRename, setUserToRename] = useState(null);
+  // Sort: 'recent' = created_at desc (default), 'asc' = full_name א-ב,
+  // 'desc' = full_name ב-א. Toggle cycles asc → desc → asc (one tap
+  // flip). The "recent" default kicks in until the coach taps it once.
+  const [sortMode, setSortMode] = useState('recent');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -139,10 +143,10 @@ export default function AllUsers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTrainees, allServices]);
 
-  // ── Filter logic ────────────────────────────────────────────────
+  // ── Filter + sort logic ─────────────────────────────────────────
   const filteredTrainees = useMemo(() => {
     const q = searchTerm.toLowerCase();
-    return allTrainees.filter(t => {
+    const filtered = allTrainees.filter(t => {
       if (q) {
         const hit = (t.full_name || '').toLowerCase().includes(q)
           || (t.email || '').toLowerCase().includes(q)
@@ -157,8 +161,23 @@ export default function AllUsers() {
       if (filterType === 'inactive') return !pkg || rem === 0;
       return true;
     });
+
+    // Sort: default is reverse-chronological by created_at (most
+    // recent signups first). Tapping the toggle switches to Hebrew
+    // alphabetical (asc/desc) via localeCompare with locale 'he'.
+    if (sortMode === 'asc' || sortMode === 'desc') {
+      const dir = sortMode === 'asc' ? 1 : -1;
+      filtered.sort((a, b) =>
+        dir * (a.full_name || '').localeCompare(b.full_name || '', 'he')
+      );
+    } else {
+      filtered.sort((a, b) =>
+        new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      );
+    }
+    return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTrainees, allServices, searchTerm, filterType]);
+  }, [allTrainees, allServices, searchTerm, filterType, sortMode]);
 
   return (
     <ProtectedCoachPage>
@@ -186,14 +205,14 @@ export default function AllUsers() {
           >+ מתאמן חדש</button>
         </div>
 
-        {/* B. Search */}
-        <div style={{ padding: '0 16px 10px' }}>
+        {/* B. Search + sort toggle */}
+        <div style={{ padding: '0 16px 10px', display: 'flex', gap: 8 }}>
           <input
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             placeholder="🔍 חיפוש מתאמן..."
             style={{
-              width: '100%', padding: '12px 16px',
+              flex: 1, padding: '12px 16px',
               borderRadius: 14,
               border: '1.5px solid #F0E4D0',
               fontSize: 14, direction: 'rtl',
@@ -201,6 +220,37 @@ export default function AllUsers() {
               boxSizing: 'border-box',
             }}
           />
+          {/* Cycle: recent → asc (א-ב) → desc (ב-א) → asc → desc → ...
+              Once the coach taps once, "recent" is no longer in the
+              cycle — they explicitly want a name sort. The label
+              shows the action that the next tap will perform, which
+              is the most predictable affordance. */}
+          <button
+            onClick={() =>
+              setSortMode(prev =>
+                prev === 'asc' ? 'desc' : 'asc'
+              )
+            }
+            title={
+              sortMode === 'recent'
+                ? 'מיון לפי שם — לחץ למיון א-ב'
+                : sortMode === 'asc'
+                  ? 'כעת ממוין א-ב — לחץ למיון ב-א'
+                  : 'כעת ממוין ב-א — לחץ למיון א-ב'
+            }
+            style={{
+              padding: '0 14px',
+              borderRadius: 14,
+              border: '1.5px solid #F0E4D0',
+              background: sortMode === 'recent' ? 'white' : '#FFF3E5',
+              color: '#1a1a1a',
+              fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', whiteSpace: 'nowrap',
+              fontFamily: "'Heebo', 'Assistant', sans-serif",
+            }}
+          >
+            {sortMode === 'desc' ? 'מיין א-ב' : 'מיין ב-א'}
+          </button>
         </div>
 
         {/* C. Filter chips */}
