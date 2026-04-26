@@ -739,6 +739,34 @@ export default function TraineeProfile() {
   // more hooks than during the previous render").
   const { perms: traineePerms } = useTraineePermissions(effectiveUser?.id);
 
+  // Tab-permission map. Tabs absent from this map have no perm gate.
+  // Used by the auto-fallback effect below — kept as a const-per-render
+  // (cheap object literal) instead of a useMemo since the keys are
+  // static.
+  const TAB_PERM_MAP = {
+    plans:        'view_plan',
+    metrics:      'edit_metrics',
+    achievements: 'view_progress',
+    baselines:    'view_baseline',
+    goals:        'view_progress',
+    documents:    'view_documents',
+    messages:     'send_messages',
+  };
+
+  // If the trainee was on a tab the coach just turned off, fall back
+  // to 'personal' (always allowed). Hoisted above the loading gate
+  // so the hook count is stable across the loading → loaded transition
+  // — moving it inside would re-introduce React #310. Coaches see all
+  // tabs regardless of perms, so we no-op for them.
+  useEffect(() => {
+    if (isCoach) return;
+    const requiredPerm = TAB_PERM_MAP[activeTab];
+    if (requiredPerm && !traineePerms?.[requiredPerm]) {
+      setActiveTab('personal');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCoach, traineePerms, activeTab]);
+
   // (traineeNotifs query moved into TraineeNotificationsTab — same query key
   // 'trainee-notifications' is used there, so existing invalidations keep working.)
 
@@ -1767,15 +1795,9 @@ export default function TraineeProfile() {
     ? ALL_TAB_ITEMS
     : ALL_TAB_ITEMS.filter(t => !t.perm || traineePerms[t.perm]);
 
-  // If the trainee was on a tab that just got hidden, fall back to
-  // the first allowed tab ('personal' is always allowed).
-  useEffect(() => {
-    if (isCoach) return;
-    if (!TAB_ITEMS.find(t => t.id === activeTab)) {
-      setActiveTab(TAB_ITEMS[0]?.id || 'personal');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCoach, traineePerms, activeTab]);
+  // (Tab-fallback useEffect lives above the loading gate — see
+  // TAB_PERM_MAP block. Hoisted to keep the hook count stable
+  // across the loading → loaded transition.)
 
   return (
     <ErrorBoundary>
