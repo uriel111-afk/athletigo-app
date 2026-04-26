@@ -65,8 +65,9 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           .eq('id', session.id);
       } catch (e) { console.warn('[Pay] optimistic update failed:', e?.message); }
 
-      console.log('[Payment] invoking payment-create:', {
+      console.log('[Payment] invoking payment-create with:', {
         amount: price, session_id: session.id, trainee_name: trainee?.full_name,
+        trainee_email: trainee?.email, trainee_phone: trainee?.phone,
       });
       const { data, error } = await supabase.functions.invoke('payment-create', {
         body: {
@@ -74,21 +75,35 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           description: 'מפגש אימון — AthletiGo',
           session_id: session.id,
           trainee_id: trainee?.id || null,
-          trainee_name: trainee?.full_name || null,
-          trainee_email: trainee?.email || null,
-          trainee_phone: trainee?.phone || null,
+          trainee_name: trainee?.full_name || trainee?.name || '',
+          trainee_email: trainee?.email || '',
+          trainee_phone: trainee?.phone || '',
           payment_type: 'single_session',
         },
       });
-      console.log('[Payment] result:', data, error);
-      if (error) throw error;
+      console.log('[Payment] response:', data, error);
+
       const url = data?.url || data?.payment_url;
-      if (!url) {
-        throw new Error('לא התקבלה כתובת תשלום מהשרת');
+      if (url) {
+        // Open the Grow checkout. Same-tab redirect is the most
+        // reliable pattern across mobile browsers (popups get blocked).
+        window.location.href = url;
+        return;
       }
-      // Open the Grow checkout. Same-tab redirect is the most
-      // reliable pattern across mobile browsers (popups get blocked).
-      window.location.href = url;
+
+      // Pull the real reason out of supabase-js's FunctionsHttpError
+      // so the toast surfaces *why* the function refused (e.g. missing
+      // MESHULAM secrets, invalid amount, expired auth) instead of the
+      // generic fallback.
+      let detailMsg = '';
+      try {
+        const body = await error?.context?.json?.();
+        detailMsg = body?.error || body?.message || '';
+      } catch {}
+      if (!detailMsg && data?.error) detailMsg = data.error;
+      if (!detailMsg && error?.message) detailMsg = error.message;
+      console.error('[Payment] no checkout URL returned:', { data, error, detailMsg });
+      throw new Error(detailMsg || 'לא התקבלה כתובת תשלום מהשרת');
     } catch (err) {
       console.error('[Pay] failed:', err);
       // Revert the optimistic 'pending' since payment never started.
@@ -98,7 +113,9 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           .update({ payment_status: 'unpaid' })
           .eq('id', session.id);
       } catch {}
-      toast.error('תשלומים אינם זמינים כרגע. נסה/י שוב מאוחר יותר.');
+      toast.error(err?.message
+        ? `שגיאה ביצירת דף תשלום: ${err.message}`
+        : 'תשלומים אינם זמינים כרגע. נסה/י שוב מאוחר יותר.');
       setPaying(false);
     }
   };

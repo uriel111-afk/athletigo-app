@@ -374,6 +374,23 @@ export default function TraineeHome() {
   const pendingPaymentStatus = pendingApprovalSession?.payment_status || null;
   const pendingRequiresPayment = pendingPrice > 0 && pendingPaymentStatus !== 'paid';
 
+  // Diagnostic: which banner button should the trainee see right now?
+  // Useful when debugging "why didn't the pay screen open" — the
+  // expected sequence is: signed=true + requiresPayment=true → "שלם".
+  useEffect(() => {
+    if (!pendingApprovalSession) return;
+    console.log('[TraineeHome] banner state:', {
+      session_id: pendingApprovalSession.id,
+      price: pendingPrice,
+      payment_status: pendingPaymentStatus,
+      hasSignedHealth,
+      pendingRequiresPayment,
+      button: !pendingHealthSigned ? 'sign-health'
+              : pendingRequiresPayment ? 'pay-and-confirm'
+              : 'confirm',
+    });
+  }, [pendingApprovalSession?.id, pendingPrice, pendingPaymentStatus, hasSignedHealth, pendingHealthSigned, pendingRequiresPayment]);
+
   const handlePayAndConfirm = useCallback(async () => {
     if (!pendingApprovalSession?.id || !pendingRequiresPayment) return;
     // Defensive gate: never start checkout if health isn't signed.
@@ -385,34 +402,53 @@ export default function TraineeHome() {
     }
     setApprovalBusy(true);
     try {
-      console.log('[Payment] invoking payment-create:', {
+      console.log('[Payment] invoking payment-create with:', {
         amount: pendingPrice,
         session_id: pendingApprovalSession.id,
         trainee_name: user?.full_name,
+        trainee_email: user?.email,
+        trainee_phone: user?.phone,
       });
       const { data, error } = await supabase.functions.invoke('payment-create', {
         body: {
           amount: pendingPrice,
           description: 'מפגש אימון — AthletiGo',
           session_id: pendingApprovalSession.id,
-          trainee_name: user?.full_name || null,
-          trainee_phone: user?.phone || null,
-          trainee_email: user?.email || null,
+          trainee_name: user?.full_name || user?.name || '',
+          trainee_phone: user?.phone || '',
+          trainee_email: user?.email || '',
           payment_type: 'single_session',
         },
       });
-      console.log('[Payment] result:', data, error);
-      if (error || !data?.url) {
-        toast.error('שגיאה ביצירת דף תשלום. נסה/י שוב.');
-        setApprovalBusy(false);
+      console.log('[Payment] response:', data, error);
+
+      const checkoutUrl = data?.url || data?.payment_url;
+      if (checkoutUrl) {
+        // Off to Grow. Webhook flips session.status='confirmed' on
+        // success; the redirect back to TraineeHome?paid=1 surfaces
+        // PaymentResultModal which then chains the welcome popup.
+        window.location.href = checkoutUrl;
         return;
       }
-      // Off to Grow. Webhook flips session.status='confirmed' on
-      // success; the redirect back to TraineeHome?paid=1 surfaces
-      // PaymentResultModal which then chains the welcome popup.
-      window.location.href = data.url;
+
+      // No URL → surface the real cause. supabase-js wraps function
+      // failures in a FunctionsHttpError whose context is the raw
+      // Response — read the JSON body so the toast reflects the
+      // server-side error instead of a generic fallback.
+      let detailMsg = '';
+      try {
+        const body = await error?.context?.json?.();
+        detailMsg = body?.error || body?.message || '';
+      } catch {}
+      if (!detailMsg && data?.error) detailMsg = data.error;
+      if (!detailMsg && error?.message) detailMsg = error.message;
+      console.error('[Payment] no checkout URL returned:', { data, error, detailMsg });
+      toast.error(detailMsg
+        ? `שגיאה ביצירת דף תשלום: ${detailMsg}`
+        : 'שגיאה ביצירת דף תשלום. נסה/י שוב.');
+      setApprovalBusy(false);
     } catch (err) {
-      console.error('[TraineeHome] pay+confirm failed:', err);
+      console.error('[TraineeHome] pay+confirm threw:', err);
       toast.error('שגיאה. נסה/י שוב.');
       setApprovalBusy(false);
     }
