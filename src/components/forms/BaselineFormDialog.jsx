@@ -379,7 +379,10 @@ export default function BaselineFormDialog({
         onOpenChange={(open) => { if (!open && !saving && !minimized) onClose(); }}
       >
         <DialogContent
-          className="max-w-md p-0"
+          // !max-h-[100dvh] overrides the primitive's 75vh cap so the
+          // form has the full viewport when needed (small screens) and
+          // never scrolls — every element is sized to fit.
+          className="max-w-md p-0 !max-h-[100dvh]"
           onInteractOutside={(e) => { if (saving) e.preventDefault(); }}
         >
         {/* Radix requires a DialogTitle for accessibility. Visual
@@ -389,46 +392,39 @@ export default function BaselineFormDialog({
         <DialogDescription className="sr-only">
           טופס מדידת קפיצות לשנייה (JPS) עם 3 טכניקות ו-3 סיבובים לטכניקה.
         </DialogDescription>
-        <div dir="rtl" style={{ padding: '20px 18px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Header */}
+        {/* Compact column — every section sized to fit a single
+            viewport without scroll. Header/footer don't need
+            position:sticky because nothing here scrolls. */}
+        <div dir="rtl" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Header — compact 28×28 buttons, 16px title */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 2 }}>
               <button
                 onClick={onClose}
                 aria-label="סגור"
-                style={{
-                  width: 32, height: 32, borderRadius: 999, border: 'none',
-                  background: 'transparent', cursor: 'pointer',
-                  color: COLORS.textSecondary,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
+                style={iconBtn28}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
               <button
                 onClick={() => setMinimized(true)}
                 aria-label="מזער"
                 title="מזער"
-                style={{
-                  width: 32, height: 32, borderRadius: 999, border: 'none',
-                  background: 'transparent', cursor: 'pointer',
-                  color: COLORS.textSecondary,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
+                style={iconBtn28}
               >
-                <ChevronDown size={18} />
+                <ChevronDown size={16} />
               </button>
             </div>
             <div style={{
               flex: 1, textAlign: 'center',
-              fontSize: 22, fontWeight: 800,
+              fontSize: 16, fontWeight: 800,
               color: COLORS.textPrimary,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}>
               <span>אתגר Baseline</span>
-              <Activity size={20} style={{ color: COLORS.primary }} />
+              <Activity size={16} style={{ color: COLORS.primary }} />
             </div>
-            <div style={{ width: 68 }} />
+            <div style={{ width: 60 }} />
           </div>
 
           {!viewOnly && hasDraft && (
@@ -465,7 +461,7 @@ export default function BaselineFormDialog({
           />
 
           {/* Time + Date row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             <DateTimeCard
               icon={<Calendar size={16} style={{ color: COLORS.textSecondary }} />}
               displayValue={fmtDateDDMMYYYY(baselineDate)}
@@ -486,7 +482,7 @@ export default function BaselineFormDialog({
           </div>
 
           {/* Three timer config cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             <TimerCard label='מנוחה טכניקות' seconds={techRestTime} onChange={viewOnly ? null : setTechRestTime} />
             <TimerCard label='מנוחה סבבים'    seconds={restTime}     onChange={viewOnly ? null : setRestTime} />
             <TimerCard label='זמן עבודה'      seconds={workTime}     onChange={viewOnly ? null : setWorkTime} />
@@ -496,7 +492,7 @@ export default function BaselineFormDialog({
           <div style={{
             display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
             backgroundColor: COLORS.primaryLight,
-            borderRadius: 14, padding: 4,
+            borderRadius: 10, padding: 3,
           }}>
             {TECHNIQUES.map(t => {
               const active = technique === t.id;
@@ -506,11 +502,11 @@ export default function BaselineFormDialog({
                   type="button"
                   onClick={() => setTechnique(t.id)}
                   style={{
-                    padding: '10px 6px', borderRadius: 10,
+                    padding: '6px 4px', borderRadius: 8,
                     border: 'none',
                     backgroundColor: active ? COLORS.primary : 'transparent',
                     color: active ? '#FFFFFF' : COLORS.textPrimary,
-                    fontSize: 14, fontWeight: 700,
+                    fontSize: 12, fontWeight: 700,
                     cursor: 'pointer',
                     transition: 'all 0.15s',
                   }}
@@ -522,7 +518,7 @@ export default function BaselineFormDialog({
           </div>
 
           {/* Round cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             {[0, 1, 2].map(i => {
               const r = currentRounds[i] || { jumps: '', misses: '' };
               return (
@@ -531,15 +527,15 @@ export default function BaselineFormDialog({
                   style={{
                     backgroundColor: COLORS.bg,
                     border: `1px solid ${COLORS.borderSoft}`,
-                    borderRadius: 14,
-                    padding: 12,
-                    display: 'flex', flexDirection: 'column', gap: 8,
+                    borderRadius: 10,
+                    padding: 6,
+                    display: 'flex', flexDirection: 'column', gap: 4,
                   }}
                 >
                   <div style={{
-                    fontSize: 11, fontWeight: 700,
+                    fontSize: 9, fontWeight: 700,
                     color: COLORS.textSecondary,
-                    textAlign: 'center', letterSpacing: 1,
+                    textAlign: 'center', letterSpacing: 0.6,
                   }}>
                     ROUND {i + 1}
                   </div>
@@ -554,12 +550,12 @@ export default function BaselineFormDialog({
                     placeholder="קפיצות"
                     style={{
                       width: '100%',
-                      padding: '14px 8px',
-                      borderRadius: 10,
+                      padding: '8px 4px',
+                      borderRadius: 8,
                       border: `2px solid ${COLORS.primary}`,
                       backgroundColor: COLORS.bg,
                       color: COLORS.textPrimary,
-                      fontSize: 22, fontWeight: 800,
+                      fontSize: 16, fontWeight: 800,
                       textAlign: 'center',
                       outline: 'none',
                       fontFamily: "'Heebo', 'Assistant', sans-serif",
@@ -577,12 +573,12 @@ export default function BaselineFormDialog({
                     placeholder="פספוסים"
                     style={{
                       width: '100%',
-                      padding: '10px 8px',
-                      borderRadius: 8,
+                      padding: '6px 4px',
+                      borderRadius: 6,
                       border: 'none',
                       backgroundColor: COLORS.bgSoft,
                       color: COLORS.textSecondary,
-                      fontSize: 13, fontWeight: 600,
+                      fontSize: 11, fontWeight: 600,
                       textAlign: 'center',
                       outline: 'none',
                       fontFamily: "'Heebo', 'Assistant', sans-serif",
@@ -599,8 +595,8 @@ export default function BaselineFormDialog({
             display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr',
             gap: 0,
             backgroundColor: COLORS.bgSoft,
-            borderRadius: 14,
-            padding: 14,
+            borderRadius: 10,
+            padding: 8,
             alignItems: 'center',
           }}>
             <StatCell label='סה"כ' value={String(calc.total)} />
@@ -610,7 +606,7 @@ export default function BaselineFormDialog({
 
           {/* Buttons row */}
           {viewOnly ? (
-            <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={onClose}
                 style={btnPrimary}
@@ -623,10 +619,10 @@ export default function BaselineFormDialog({
                   onClick={() => setShowDeleteConfirm(true)}
                   style={{
                     flex: 1,
-                    padding: '14px 16px', borderRadius: 12,
+                    padding: '10px 14px', borderRadius: 10,
                     background: '#FFFFFF', color: COLORS.danger,
                     border: `1px solid ${COLORS.danger}`,
-                    fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                    fontWeight: 700, fontSize: 13, cursor: 'pointer',
                   }}
                 >
                   🗑️ מחק בייסליין
@@ -636,7 +632,7 @@ export default function BaselineFormDialog({
           ) : (
             <div style={{
               display: 'grid', gridTemplateColumns: '2fr 1fr',
-              gap: 10, paddingTop: 4,
+              gap: 8,
             }}>
               <button
                 onClick={handleSave}
@@ -747,16 +743,16 @@ function DateTimeCard({ icon, displayValue, type, value, onChange, disabled, max
     <label
       style={{
         position: 'relative',
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '10px 12px', borderRadius: 12,
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '6px 10px', borderRadius: 10,
         border: `1px solid ${COLORS.border}`,
         backgroundColor: COLORS.bg,
         cursor: disabled ? 'default' : 'pointer',
       }}
     >
-      <span style={{ fontSize: 12, color: COLORS.textSecondary }}>▾</span>
+      <span style={{ fontSize: 10, color: COLORS.textSecondary }}>▾</span>
       <span style={{
-        flex: 1, fontSize: 14, fontWeight: 700,
+        flex: 1, fontSize: 13, fontWeight: 700,
         color: COLORS.textPrimary,
         textAlign: 'center',
       }}>
@@ -795,18 +791,18 @@ function TimerCard({ label, seconds, onChange }) {
     <div style={{
       backgroundColor: COLORS.bg,
       border: `1px solid ${COLORS.borderSoft}`,
-      borderRadius: 14,
-      padding: '12px 8px',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+      borderRadius: 10,
+      padding: '6px 4px',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
       position: 'relative',
     }}>
       <span style={{
-        fontSize: 11, fontWeight: 600, color: COLORS.textSecondary,
+        fontSize: 10, fontWeight: 600, color: COLORS.textSecondary,
       }}>
         {label}
       </span>
       <span style={{
-        fontSize: 20, fontWeight: 800,
+        fontSize: 15, fontWeight: 800,
         color: COLORS.textPrimary,
         fontVariantNumeric: 'tabular-nums',
         letterSpacing: 0.5,
@@ -843,12 +839,12 @@ function TimerCard({ label, seconds, onChange }) {
 function StatCell({ label, value, dividers = false }) {
   return (
     <div style={{
-      textAlign: 'center', padding: '4px 8px',
+      textAlign: 'center', padding: '2px 6px',
       borderLeft: dividers ? `1px solid ${COLORS.border}` : 'none',
       borderRight: dividers ? `1px solid ${COLORS.border}` : 'none',
     }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.textSecondary }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.textPrimary, marginTop: 4 }}>{value}</div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: COLORS.textSecondary }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.textPrimary, marginTop: 2 }}>{value}</div>
     </div>
   );
 }
@@ -857,14 +853,14 @@ function ScoreCell({ value }) {
   return (
     <div style={{
       backgroundColor: COLORS.primaryTint,
-      borderRadius: 12,
-      padding: '8px 10px',
+      borderRadius: 8,
+      padding: '4px 6px',
       textAlign: 'center',
     }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.primary, letterSpacing: 1 }}>SCORE</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary, marginTop: 2 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.primary, letterSpacing: 0.6 }}>SCORE</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.primary, marginTop: 1 }}>
         {value.toFixed(2)}
-        <span style={{ fontSize: 11, fontWeight: 700, marginRight: 4 }}>JPS</span>
+        <span style={{ fontSize: 9, fontWeight: 700, marginRight: 3 }}>JPS</span>
       </div>
     </div>
   );
@@ -872,14 +868,25 @@ function ScoreCell({ value }) {
 
 // ─── Inline styles ───────────────────────────────────────────────
 
+// 28×28 pill button (close + minimize). Slightly smaller than the
+// 32px header buttons we had pre-compaction; saves vertical space.
+const iconBtn28 = {
+  width: 28, height: 28, borderRadius: 999, border: 'none',
+  background: 'transparent', cursor: 'pointer',
+  color: COLORS.textSecondary,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  padding: 0,
+};
+
+// Form row controls — ~36px tall instead of the previous ~44px.
 const cardSelect = {
   width: '100%',
-  padding: '12px 14px',
-  borderRadius: 12,
+  padding: '8px 12px',
+  borderRadius: 10,
   border: `1px solid ${COLORS.border}`,
   backgroundColor: COLORS.bgInput,
   color: COLORS.textPrimary,
-  fontSize: 14, fontWeight: 600,
+  fontSize: 13, fontWeight: 600,
   fontFamily: "'Heebo', 'Assistant', sans-serif",
   outline: 'none',
   boxSizing: 'border-box',
@@ -890,24 +897,24 @@ const cardSelect = {
 
 const btnPrimary = {
   width: '100%',
-  padding: '14px 16px',
-  borderRadius: 12,
+  padding: '10px 14px',
+  borderRadius: 10,
   border: 'none',
   backgroundColor: COLORS.primary,
   color: '#FFFFFF',
-  fontSize: 15, fontWeight: 700,
+  fontSize: 14, fontWeight: 700,
   cursor: 'pointer',
   fontFamily: "'Heebo', 'Assistant', sans-serif",
 };
 
 const btnGhost = {
   width: '100%',
-  padding: '14px 16px',
-  borderRadius: 12,
+  padding: '10px 14px',
+  borderRadius: 10,
   border: 'none',
   background: 'transparent',
   color: COLORS.textPrimary,
-  fontSize: 14, fontWeight: 600,
+  fontSize: 13, fontWeight: 600,
   cursor: 'pointer',
   fontFamily: "'Heebo', 'Assistant', sans-serif",
 };
