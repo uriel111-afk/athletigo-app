@@ -99,13 +99,30 @@ export default function HealthDeclarationForm({
     setHasSignature(false);
   };
 
+  // Refs for scroll-to-error — when "חתום ואשר" is tapped without
+  // checking the box / signing, we both toast AND scroll the
+  // missing field into view + add a red border for that one tick.
+  const confirmRef = useRef(null);
+  const signatureBoxRef = useRef(null);
+
   // ── Save ────────────────────────────────────────────────────────
   const canSubmit = confirmed && hasSignature && !saving;
 
+  const focusFirstError = () => {
+    const target = !confirmed
+      ? confirmRef.current
+      : (!hasSignature ? signatureBoxRef.current : null);
+    if (!target) return;
+    try {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch { /* old browsers — best-effort */ }
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit) {
-      if (!confirmed)     toast.error('יש לאשר את הצהרת הבריאות');
-      else if (!hasSignature) toast.error('יש לחתום בתיבת החתימה');
+      if (!confirmed)         toast.error('נא לאשר את הצהרת הבריאות');
+      else if (!hasSignature) toast.error('נא לחתום בתיבת החתימה');
+      focusFirstError();
       return;
     }
     setSaving(true);
@@ -177,11 +194,16 @@ export default function HealthDeclarationForm({
           טופס הצהרת בריאות לפני אישור מפגש אימון
         </DialogDescription>
 
+        {/* No maxHeight / overflowY here on purpose — the dialog
+            primitive's inner wrapper already provides the scroll
+            container with overflow-y-auto + overscroll-contain.
+            A second scroll container nested inside it fought the
+            outer one and trapped touch gestures on mobile, so the
+            trainee couldn't reach the signature pad / submit
+            button. Plain styling only now. */}
         <div dir="rtl" style={{
           background: '#FDF8F3',
           borderRadius: 14,
-          maxHeight: '90dvh',
-          overflowY: 'auto',
           fontFamily: "'Heebo', 'Assistant', sans-serif",
         }}>
           {/* Header */}
@@ -292,11 +314,19 @@ export default function HealthDeclarationForm({
               />
             </div>
 
-            {/* Confirmation checkbox */}
-            <label style={{
-              background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12,
-              display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
-            }}>
+            {/* Confirmation checkbox — gets a red border when the
+                user hits submit without checking it. confirmRef
+                lets focusFirstError() scroll it into view. */}
+            <label
+              ref={confirmRef}
+              data-error={!confirmed || undefined}
+              style={{
+                background: '#FFFFFF',
+                border: `${!confirmed ? '2px' : '1px'} solid ${!confirmed ? 'transparent' : '#F0E4D0'}`,
+                borderRadius: 12, padding: 12,
+                display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={confirmed}
@@ -310,7 +340,11 @@ export default function HealthDeclarationForm({
             </label>
 
             {/* Signature */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+            <div
+              ref={signatureBoxRef}
+              data-error={!hasSignature || undefined}
+              style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>חתימה</div>
                 <button

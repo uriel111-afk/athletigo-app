@@ -664,7 +664,12 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F8F8] flex flex-col items-center justify-center p-4" dir="rtl">
+    // Wrapper: no vertical centering so tall content flows from the
+    // top and the page itself scrolls naturally. `items-start` keeps
+    // the card pinned to the top of the viewport, `py-6` adds breathing
+    // room above + below. Card no longer uses overflow-hidden — that
+    // was clipping the medical questionnaire and trapping scroll.
+    <div className="min-h-screen bg-[#F8F8F8] flex flex-col items-center py-6 px-4" dir="rtl">
       {/* Install prompt — shown once after onboarding completes */}
       {showInstallPrompt && (
         <InstallPrompt onDismiss={() => {
@@ -672,7 +677,7 @@ export default function Onboarding() {
           setTimeout(() => { window.location.href = createPageUrl("TraineeHome"); }, 300);
         }} />
       )}
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-6 md:p-8 relative overflow-hidden">
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-6 md:p-8 relative">
         {/* Progress Bar */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100">
           <div 
