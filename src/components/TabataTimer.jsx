@@ -913,9 +913,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             הבא: {PHASE_LABEL[nextP.type]} · {nextP.dur} שנ׳
           </div>
         )}
+        {/* RTL flex row: first DOM child sits at the right edge,
+            last child at the left. To put הבא on the right and
+            חזור on the left, render הבא first. Styles unchanged. */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
           <button onClick={skipToNext} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
+          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {paused
