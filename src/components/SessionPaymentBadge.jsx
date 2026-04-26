@@ -30,7 +30,7 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
   if (!hasPrice && coachView) {
     return (
       <span style={{
-        display: 'inline-block', padding: '2px 8px', borderRadius: 999,
+        display: 'inline-block', padding: '2px 8px', borderRadius: 14,
         background: '#F3F4F6', color: '#6B7280',
         fontSize: 11, fontWeight: 600,
       }}>ללא תשלום</span>
@@ -41,12 +41,14 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
   const isPending = status === 'pending';
   const isUnpaid  = status === 'unpaid' || status == null;
 
-  // Visual: badge color follows the status.
+  // Visual: badge color follows the status. Orange (#FF6F20) for
+  // pending matches the brand primary so the "shelm" CTA below
+  // visually anchors to its own status color.
   const badge = isPaid
-    ? { bg: '#E8F5E9', fg: '#15803D', label: `${price}₪ — שולם ✓` }
+    ? { bg: '#E8F5E9', fg: '#15803D', label: `שולם ✓ — ${price}₪` }
     : isPending
-      ? { bg: '#FEF3C7', fg: '#92400E', label: `${price}₪ — ממתין לאישור` }
-      : { bg: '#FEE2E2', fg: '#B91C1C', label: `${price}₪ — לא שולם` };
+      ? { bg: '#FFF1E6', fg: '#FF6F20', label: `ממתין לתשלום — ${price}₪` }
+      : { bg: '#FEE2E2', fg: '#B91C1C', label: `לא שולם — ${price}₪` };
 
   const handlePay = async () => {
     if (!session?.id || price <= 0) return;
@@ -98,11 +100,11 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
   };
 
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <span style={{
-        display: 'inline-block', padding: '3px 10px', borderRadius: 999,
+        display: 'inline-block', padding: '4px 12px', borderRadius: 14,
         background: badge.bg, color: badge.fg,
-        fontSize: 11, fontWeight: 700,
+        fontSize: 12, fontWeight: 700,
       }}>{badge.label}</span>
       {!coachView && isUnpaid && (
         <button
@@ -110,15 +112,16 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           onClick={handlePay}
           disabled={paying}
           style={{
-            padding: '6px 14px', borderRadius: 999, border: 'none',
+            padding: '10px 18px', borderRadius: 14, border: 'none',
             background: '#FF6F20', color: '#FFFFFF',
-            fontSize: 12, fontWeight: 800,
+            fontSize: 16, fontWeight: 600,
             cursor: paying ? 'wait' : 'pointer',
             opacity: paying ? 0.7 : 1,
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+            boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
           }}
         >
-          {paying ? 'פותח תשלום…' : `שלם 💳 ${price}₪`}
+          {paying ? 'פותח תשלום…' : `שלם ${price}₪ 💳`}
         </button>
       )}
     </div>

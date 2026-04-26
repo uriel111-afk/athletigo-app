@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
 import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
+import PaymentResultModal from "@/components/PaymentResultModal";
 
 const DAILY_MESSAGES = [
   "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
@@ -560,6 +561,11 @@ export default function TraineeHome() {
         isOpen={showWelcome}
         onClose={() => setShowWelcome(false)}
       />
+
+      {/* Post-checkout result modal — fires when Meshulam redirects
+          back with ?paid=1 (success) or ?paid=0 (cancel/fail).
+          Self-mounted at root so the URL param is the only trigger. */}
+      <PaymentResultModal />
 
       {/* Unread notifications modal — large, clear, professional */}
       <Dialog open={showUnreadModal} onOpenChange={setShowUnreadModal}>
