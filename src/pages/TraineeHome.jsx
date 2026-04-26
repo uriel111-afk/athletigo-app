@@ -462,12 +462,14 @@ export default function TraineeHome() {
   };
 
   // First session the coach has booked that the trainee hasn't
-  // approved yet. The casual onboarding banner only renders if such
-  // a session exists — once approved, the banner disappears.
+  // approved yet. The banner is gated to the canonical
+  // 'pending_approval' status so it ONLY shows for casual trainees
+  // (Sessions.jsx writes that string only when client_status='casual'
+  // — any other trainee gets the legacy 'ממתין לאישור' which is read
+  // elsewhere as a generic "scheduled" state and shouldn't trigger
+  // the health-declaration onboarding gate).
   const pendingApprovalSession = useMemo(
-    () => mySessions.find(
-      (s) => s.status === 'pending_approval' || s.status === 'pending'
-    ) || null,
+    () => mySessions.find((s) => s.status === 'pending_approval') || null,
     [mySessions]
   );
 

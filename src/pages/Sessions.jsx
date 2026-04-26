@@ -287,12 +287,43 @@ export default function Sessions() {
       return;
     }
 
+    // Casual-trainee gate: when the booked trainee's client_status is
+    // 'casual', the session is saved as 'pending_approval' so the
+    // TraineeHome banner can offer the health-declaration → confirm
+    // flow. Anything else (active / suspended / legacy Hebrew status
+    // / no row) keeps the existing 'ממתין לאישור' default. Best-effort
+    // — if the lookup fails for any reason we fall back to the legacy
+    // status rather than blocking the save.
+    let traineeStatus = null;
+    const traineeIds = [];
+    if (sessionData?.trainee_id) traineeIds.push(sessionData.trainee_id);
+    if (Array.isArray(sessionData?.participants)) {
+      for (const p of sessionData.participants) {
+        if (p?.trainee_id) traineeIds.push(p.trainee_id);
+      }
+    }
+    if (traineeIds.length > 0) {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('client_status')
+          .in('id', traineeIds);
+        // If ANY participant is casual, the whole session waits for
+        // their approval — safer side of the gate.
+        if ((data || []).some((row) => row?.client_status === 'casual')) {
+          traineeStatus = 'casual';
+        }
+      } catch (e) {
+        console.warn('[Sessions] client_status lookup failed:', e?.message);
+      }
+    }
+
     const fullSessionData = {
       ...sessionData,
       location: sessionData.location || "לא צוין",
       duration: sessionData.duration || 60,
       coach_id: coach.id,
-      status: 'ממתין לאישור'
+      status: traineeStatus === 'casual' ? 'pending_approval' : 'ממתין לאישור',
     };
 
     if (editingSession) {
