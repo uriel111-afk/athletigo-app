@@ -904,26 +904,22 @@ export default function BaselineFormDialog() {
       </button>
     )}
 
-    {/* Draft restore toast — replaces the inline DraftBanner. Floats
-        above the dialog (z 12001 > dialog 11001) for 3 seconds. If
-        the coach taps "שחזר טיוטה" the previous-session form data
-        loads in; if they ignore it, the timeout discards the draft
-        and they start fresh. */}
+    {/* Draft restore prompt — floats above the dialog (z 12001 >
+        dialog 11001) and stays put until the coach picks an option.
+        No auto-dismiss: choosing prematurely lost their old data, so
+        the prompt waits for an explicit click. */}
     {isOpen && !viewOnly && hasDraft && (
-      <DraftToast onRestore={keepDraft} onTimeout={discardDraft} />
+      <DraftToast onRestore={keepDraft} onDiscard={discardDraft} />
     )}
     </>
   );
 }
 
-// Floating restore-draft toast. Top-center, auto-dismiss after 3s
-// (which counts as "discard"). Lives outside the Dialog so it isn't
-// constrained by the dialog's portal stacking context.
-function DraftToast({ onRestore, onTimeout }) {
-  useEffect(() => {
-    const id = setTimeout(() => { onTimeout?.(); }, 3000);
-    return () => clearTimeout(id);
-  }, [onTimeout]);
+// Persistent restore-draft prompt. Two explicit choices, no timer —
+// the coach controls when (and how) it goes away. Lives outside the
+// Dialog so it isn't constrained by the dialog's portal stacking
+// context.
+function DraftToast({ onRestore, onDiscard }) {
   return (
     <div
       dir="rtl"
@@ -931,30 +927,54 @@ function DraftToast({ onRestore, onTimeout }) {
         position: 'fixed',
         top: 20, left: '50%', transform: 'translateX(-50%)',
         zIndex: 12001,
-        display: 'inline-flex', alignItems: 'center', gap: 10,
-        padding: '8px 14px',
-        borderRadius: 999,
-        backgroundColor: '#1A1A1A', color: '#FFFFFF',
-        boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
-        fontSize: 13, fontWeight: 600,
+        display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 10,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        border: '1px solid #FF6F20',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
         fontFamily: "'Heebo', 'Assistant', sans-serif",
         animation: 'draftToastIn 180ms ease-out',
-        maxWidth: '90vw',
+        maxWidth: 'min(90vw, 360px)',
+        minWidth: 280,
       }}
     >
       <style>{`@keyframes draftToastIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }`}</style>
-      <span>📝 יש טיוטה קודמת</span>
-      <button
-        onClick={onRestore}
-        style={{
-          padding: '6px 12px', borderRadius: 999, border: 'none',
-          backgroundColor: '#FF6F20', color: '#FFFFFF',
-          fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
-        }}
-      >
-        שחזר טיוטה
-      </button>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        fontSize: 14, fontWeight: 700, color: '#1A1A1A',
+      }}>
+        <span style={{ fontSize: 18 }}>📝</span>
+        <span>יש טיוטה קודמת — להמשיך אותה?</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={onRestore}
+          style={{
+            flex: 1,
+            padding: '10px 12px', borderRadius: 10, border: 'none',
+            backgroundColor: '#FF6F20', color: '#FFFFFF',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
+          }}
+        >
+          המשך מאיפה שהפסקתי
+        </button>
+        <button
+          onClick={onDiscard}
+          style={{
+            flex: 1,
+            padding: '10px 12px', borderRadius: 10,
+            backgroundColor: 'transparent',
+            color: '#6B7280',
+            border: '1px solid #E5E7EB',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
+          }}
+        >
+          התחל מחדש
+        </button>
+      </div>
     </div>
   );
 }
