@@ -83,6 +83,12 @@ export default function TraineeHome() {
   const [showHealthForm, setShowHealthForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [pendingSessionId, setPendingSessionId] = useState(null);
+  // Per-trainee gate. ANY signed health declaration (current session
+  // or any prior one) marks the trainee as "signed". Used by the
+  // approval banner so a returning casual trainee doesn't have to
+  // re-sign per session — but every session still has its own
+  // payment gate. Initialized null = unknown / loading.
+  const [hasSignedHealth, setHasSignedHealth] = useState(null);
   // Coach-controlled permissions. Defaults are TRUE so this is purely
   // additive — turning off a permission in CoachProfile hides the
   // related tab/section here.
@@ -287,6 +293,23 @@ export default function TraineeHome() {
             }
           } catch (e) { console.error("Error fetching completed sessions", e); }
 
+          // Per-trainee health-declaration check. Drives the approval
+          // banner gate for both NEW sessions (no per-session link
+          // yet) AND legacy sessions where the link column was never
+          // populated. Any signed row → trainee is considered signed.
+          try {
+            const { data: hd, error: hdErr } = await supabase
+              .from('health_declarations')
+              .select('id')
+              .eq('trainee_id', currentUser.id)
+              .limit(1);
+            if (!hdErr) setHasSignedHealth((hd?.length || 0) > 0);
+            else setHasSignedHealth(false);
+          } catch (e) {
+            console.warn('[TraineeHome] health-declaration check failed:', e?.message);
+            setHasSignedHealth(false);
+          }
+
           // Fetch sessions
           try {
             // Attempt server-side filtering for privacy and performance
@@ -297,10 +320,10 @@ export default function TraineeHome() {
             }, 'date', 100); // Limit 100 upcoming
 
             // Client-side filter for participants (as JSON array filtering might vary by backend)
-            const userSessions = allSessions.filter(s => 
+            const userSessions = allSessions.filter(s =>
               s.participants?.some(p => p.trainee_id === currentUser.id)
             );
-            
+
             setMySessions(userSessions);
           } catch (err) {
             console.error("Error fetching sessions", err);
@@ -336,19 +359,30 @@ export default function TraineeHome() {
   );
 
   // Approval banner state machine — three states driven by
-  // (health signed?) × (price > 0?):
-  //   1) Not signed       → "חתום על הצהרת בריאות" (opens health form)
-  //   2) Signed + priced  → "שלם {price}₪ ואשר מפגש 💳" (payment-create)
-  //   3) Signed + free    → "אשר מפגש ✓" (direct status flip)
-  // Payment is the ONLY path to confirm a priced session — the trainee
-  // cannot reach 'confirmed' without webhook proof of a paid charge.
+  // (health signed *for this trainee*) × (this session needs payment).
+  //   1) Not signed              → "חתום על הצהרת בריאות"
+  //   2) Signed + needs payment  → "שלם {price}₪ ואשר מפגש 💳"
+  //   3) Signed + paid/free      → "אשר מפגש ✓"
+  // Health is checked PER-TRAINEE (any prior signed declaration counts)
+  // so returning casual trainees aren't asked to re-sign per session;
+  // payment is checked PER-SESSION (price > 0 AND payment_status !== 'paid').
+  // No path skips a step — each button only renders for its state and
+  // every direct status='confirmed' flip re-checks the same gates.
   const [approvalBusy, setApprovalBusy] = useState(false);
-  const pendingHealthSigned = !!pendingApprovalSession?.health_declaration_id;
+  const pendingHealthSigned = hasSignedHealth === true;
   const pendingPrice = Number(pendingApprovalSession?.price || 0);
-  const pendingRequiresPayment = pendingPrice > 0;
+  const pendingPaymentStatus = pendingApprovalSession?.payment_status || null;
+  const pendingRequiresPayment = pendingPrice > 0 && pendingPaymentStatus !== 'paid';
 
   const handlePayAndConfirm = useCallback(async () => {
     if (!pendingApprovalSession?.id || !pendingRequiresPayment) return;
+    // Defensive gate: never start checkout if health isn't signed.
+    // The button shouldn't even render in that state, but a race
+    // (e.g. hasSignedHealth still loading) could expose it.
+    if (!pendingHealthSigned) {
+      toast.error('יש לחתום על הצהרת בריאות לפני התשלום');
+      return;
+    }
     setApprovalBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('payment-create', {
@@ -376,10 +410,23 @@ export default function TraineeHome() {
       toast.error('שגיאה. נסה/י שוב.');
       setApprovalBusy(false);
     }
-  }, [pendingApprovalSession?.id, pendingPrice, pendingRequiresPayment, user]);
+  }, [pendingApprovalSession?.id, pendingPrice, pendingRequiresPayment, pendingHealthSigned, user]);
 
   const handleConfirmSession = useCallback(async () => {
-    if (!pendingApprovalSession?.id || pendingRequiresPayment) return;
+    if (!pendingApprovalSession?.id) return;
+    // Belt-and-suspenders: re-check both gates before flipping. The
+    // button only renders when both pass, but we recheck so this
+    // function can never confirm a session that's missing health
+    // declaration or that still owes payment — even if it's called
+    // from an unexpected code path in the future.
+    if (!pendingHealthSigned) {
+      toast.error('יש לחתום על הצהרת בריאות לפני אישור המפגש');
+      return;
+    }
+    if (pendingRequiresPayment) {
+      toast.error('יש להשלים את התשלום לפני אישור המפגש');
+      return;
+    }
     setApprovalBusy(true);
     try {
       const { error } = await supabase
@@ -418,7 +465,7 @@ export default function TraineeHome() {
     } finally {
       setApprovalBusy(false);
     }
-  }, [pendingApprovalSession?.id, pendingRequiresPayment, user, coach?.id]);
+  }, [pendingApprovalSession?.id, pendingRequiresPayment, pendingHealthSigned, user, coach?.id]);
 
   const packageReminder = useMemo(() => {
     if (!activeServices.length) return null;
@@ -646,6 +693,10 @@ export default function TraineeHome() {
         autoConfirmSession={!(Number(pendingApprovalSession?.price || 0) > 0)}
         onSigned={async () => {
           setShowHealthForm(false);
+          // The trainee just signed → flip the per-trainee gate now
+          // so the banner re-renders into its next state on the
+          // current frame (not after the sessions refetch round-trip).
+          setHasSignedHealth(true);
           // Welcome popup only fires when the session is *actually*
           // confirmed at this step. Priced sessions stay
           // pending_approval until payment-webhook flips them — so we

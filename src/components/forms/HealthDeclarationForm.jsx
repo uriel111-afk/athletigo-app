@@ -194,11 +194,36 @@ export default function HealthDeclarationForm({
       // and notify the coach. When false, the caller is gating
       // confirmation through a separate step (typically payment) — the
       // session must stay in 'pending_approval' until that step completes.
+      //
+      // Defense-in-depth: regardless of the prop, never flip status
+      // for a session that still owes payment. We re-read price /
+      // payment_status from the row right before the update, so a
+      // stale or wrong autoConfirmSession from the caller cannot
+      // bypass the payment gate.
+      let safeAutoConfirm = autoConfirmSession;
+      if (sessionId && safeAutoConfirm) {
+        try {
+          const { data: pre } = await supabase
+            .from('sessions')
+            .select('price, payment_status')
+            .eq('id', sessionId)
+            .maybeSingle();
+          const pricedAndUnpaid = Number(pre?.price || 0) > 0
+                                  && pre?.payment_status !== 'paid';
+          if (pricedAndUnpaid) {
+            safeAutoConfirm = false;
+            console.warn('[HealthDeclaration] auto-confirm blocked: session needs payment');
+          }
+        } catch (e) {
+          console.warn('[HealthDeclaration] price recheck failed:', e?.message);
+        }
+      }
+
       if (sessionId) {
         try {
           await supabase
             .from('sessions')
-            .update(autoConfirmSession
+            .update(safeAutoConfirm
               ? { status: 'confirmed', health_declaration_id: inserted?.id }
               : { health_declaration_id: inserted?.id })
             .eq('id', sessionId);
@@ -209,7 +234,7 @@ export default function HealthDeclarationForm({
         // surfaces via PopupNotificationManager next time they open
         // the dashboard. Best-effort. Skipped when payment-gated —
         // payment-webhook fires its own notification on success.
-        if (coachId && autoConfirmSession) {
+        if (coachId && safeAutoConfirm) {
           try {
             // Re-read the session to compose a friendly date label.
             const { data: srow } = await supabase
