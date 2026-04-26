@@ -10,6 +10,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { supabase } from '@/lib/supabaseClient';
+import { base44 } from '@/api/base44Client';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -187,39 +188,51 @@ export async function syncHistoricalData(coachId) {
 }
 
 // (2) New trainee user (role=trainee) → auto-add converted lead.
-//     Idempotent on (coach_id, full_name, status='converted').
+//     Idempotent on (owner, name, status='converted'). Owner /
+//     name dual-write: see addLead() comment for the schema-variance
+//     reasoning.
 export async function syncTraineeToLead(coachId, trainee) {
   if (!coachId || !trainee?.full_name) return null;
-  const { data: existing } = await supabase
-    .from('leads')
-    .select('id')
-    .eq('coach_id', coachId)
-    .eq('full_name', trainee.full_name)
-    .eq('status', 'converted')
-    .maybeSingle();
+
+  // Dup check across both schemas — try coach_id, fall back to user_id.
+  const findExisting = async (col) => {
+    try {
+      const { data } = await supabase
+        .from('leads')
+        .select('id')
+        .eq(col, coachId)
+        .or(`full_name.eq.${trainee.full_name},name.eq.${trainee.full_name}`)
+        .eq('status', 'converted')
+        .maybeSingle();
+      return data;
+    } catch { return null; }
+  };
+  const existing = (await findExisting('coach_id')) || (await findExisting('user_id'));
   if (existing?.id) {
     console.log('[syncTraineeToLead] dup skipped:', existing.id);
     return existing;
   }
+
   console.log('[syncTraineeToLead] inserting:', trainee.full_name);
-  const baseRow = {
-    coach_id: coachId,
-    full_name: trainee.full_name,
-    phone: trainee.phone || null,
-    email: trainee.email || null,
-    status: 'converted',
-    source: 'app',
-  };
-  let { data, error } = await supabase
-    .from('leads')
-    .insert({ ...baseRow, converted_at: new Date().toISOString() })
-    .select()
-    .maybeSingle();
-  if (error && /column .* does not exist/i.test(error.message || '')) {
-    ({ data, error } = await supabase.from('leads').insert(baseRow).select().maybeSingle());
+  try {
+    // Use the entity layer so the 42703 retry strips whichever
+    // owner / name column doesn't exist on this install.
+    const data = await base44.entities.Lead.create({
+      coach_id: coachId,
+      user_id:  coachId,
+      full_name: trainee.full_name,
+      name:      trainee.full_name,
+      phone: trainee.phone || null,
+      email: trainee.email || null,
+      status: 'converted',
+      source: 'app',
+      converted_at: new Date().toISOString(),
+    });
+    return data || null;
+  } catch (error) {
+    console.warn('[syncTraineeToLead] failed:', error?.message);
+    return null;
   }
-  if (error) console.warn('[syncTraineeToLead] failed:', error.message);
-  return data || null;
 }
 
 // (3) Bump funnel_tracking purchase counter when a lead converts.
@@ -727,18 +740,23 @@ export async function listLeads(userId, { status } = {}) {
 }
 
 export async function addLead(userId, payload) {
-  // Translate Wave-2 field names → legacy schema.
-  const row = { ...payload, coach_id: userId };
-  if (payload.name && !payload.full_name) row.full_name = payload.name;
-  delete row.name;
-  delete row.user_id;
-  const { data, error } = await supabase
-    .from('leads')
-    .insert(row)
-    .select()
-    .single();
-  if (error) throw error;
-  return { ...data, name: data.full_name || data.name };
+  // Owner / name dual-write: different installs of this app's
+  // `leads` table use either (coach_id + full_name) or
+  // (user_id + name). Send both pairs and let the base44Client
+  // 42703 retry layer (commit cf9b3a8) strip the column that
+  // doesn't exist. Without dual-writing the owner column, RLS
+  // ends up with an owner-less row and rejects the insert.
+  const name = payload.name || payload.full_name;
+  const row = {
+    ...payload,
+    coach_id: userId,
+    user_id:  userId,
+    full_name: name,
+    name:      name,
+  };
+  // Route through the entity layer so the retry kicks in.
+  const data = await base44.entities.Lead.create(row);
+  return { ...data, name: data?.full_name || data?.name || name };
 }
 
 export async function updateLead(id, patch) {

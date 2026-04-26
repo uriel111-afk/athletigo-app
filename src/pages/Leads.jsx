@@ -173,7 +173,10 @@ export default function Leads() {
       // next (syncPackageToIncome), so we don't double-insert income here.
       try {
         await syncLeadConversion({
+          // Send both owner keys so syncLeadConversion's
+          // ownerId fallback (coach_id || user_id) finds one.
           coach_id: coach.id,
+          user_id:  coach.id,
           status: 'converted',  // normalize for the helper
           interested_in: lead.interested_in || lead.service_interest || null,
         });
@@ -525,9 +528,14 @@ export default function Leads() {
         isOpen={showAddDialog}
         onClose={() => setShowAddDialog(false)}
         onSubmit={async (data) => {
+          // Dual-write owner id: live schema may use coach_id OR
+          // user_id. The base44Client retry layer drops whichever
+          // doesn't exist, so sending both guarantees the row has
+          // a valid owner column for RLS.
           await createLeadMutation.mutateAsync({
             ...data,
-            coach_id: coach?.id || null
+            coach_id: coach?.id || null,
+            user_id:  coach?.id || null,
           });
         }}
         isLoading={createLeadMutation.isPending}

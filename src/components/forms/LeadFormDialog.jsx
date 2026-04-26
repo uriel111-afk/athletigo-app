@@ -103,7 +103,16 @@ export default function LeadFormDialog({
     // happens not to have is automatically stripped + retried by
     // base44Client's 42703 retry layer (commit cf9b3a8) — so this
     // payload is safe even if a column is missing on this install.
-    const submissionData = { full_name: fullName };
+    //
+    // Owner / name dual-write: different installs have either
+    // (coach_id + full_name) or (user_id + name) on `leads`. We
+    // send BOTH pairs and let the retry layer drop the one that
+    // doesn't exist — without sending both, dropping coach_id
+    // alone would leave the row owner-less and trip RLS.
+    const submissionData = {
+      full_name: fullName,
+      name:      fullName,
+    };
 
     // Always send status + source (defaults guarantee a value).
     submissionData.status = leadForm.status || "חדש";
@@ -160,15 +169,17 @@ export default function LeadFormDialog({
         onClose();
       }
     }}>
-      {/* Prevent any outside interaction from closing the dialog —
-          Radix Select renders its options in a separate portal which
-          counts as "outside", so a coach clicking "מתחיל" in the
-          fitness-level dropdown would inadvertently close the form
-          mid-fill. The cancel button + X stay as the only close
-          paths, which makes data loss impossible mid-edit. */}
+      {/* Prevent outside interaction from closing the dialog —
+          Radix Select renders its options in a separate portal
+          which counts as "outside", so a coach tapping a dropdown
+          option would inadvertently close the form mid-fill.
+          onInteractOutside is the umbrella event (covers pointer
+          + focus); the previous version doubled it with
+          onPointerDownOutside, which interfered with the Select
+          trigger receiving its own pointer events on some setups
+          (the dropdown wouldn't open). Single handler is enough. */}
       <DialogContent className="max-w-3xl"
-        onInteractOutside={(e) => e.preventDefault()}
-        onPointerDownOutside={(e) => e.preventDefault()}>
+        onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-2xl md:text-3xl font-black text-[#222]">
             {editingLead ? '✏️ ערוך ליד' : '➕ הוסף ליד חדש'}
