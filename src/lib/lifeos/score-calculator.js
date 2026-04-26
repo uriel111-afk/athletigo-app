@@ -24,11 +24,25 @@ const clamp = (v, max) => Math.min(max, Math.max(0, v));
 export async function calculateWeeklyScore(userId, daysBack = 7) {
   const { startDate, startTS } = rangeISO(daysBack);
 
+  // Same fallback as notification-engine: last_contact_date may not
+  // exist on the user's DB yet (20260425_extend_leads_schema.sql).
+  const fetchLeads = async () => {
+    const rich = await supabase.from('leads')
+      .select('status, last_contact_date, created_at').eq('coach_id', userId);
+    if (!rich.error) return rich;
+    const legacy = await supabase.from('leads')
+      .select('status, created_at').eq('coach_id', userId);
+    return {
+      ...legacy,
+      data: (legacy.data || []).map(l => ({ ...l, last_contact_date: null })),
+    };
+  };
+
   const [tasks, content, leads, income, streakDays] = await Promise.all([
     supabase.from('life_os_tasks').select('status, completed_at').eq('user_id', userId),
     supabase.from('content_calendar').select('status, scheduled_date').eq('user_id', userId)
       .eq('status', 'published').gte('scheduled_date', startDate),
-    supabase.from('leads').select('status, last_contact_date, created_at').eq('coach_id', userId),
+    fetchLeads(),
     supabase.from('income').select('amount, source, date').eq('user_id', userId).gte('date', startDate),
     calculateStreak(userId),
   ]);

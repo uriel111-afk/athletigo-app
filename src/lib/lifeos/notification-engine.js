@@ -36,8 +36,24 @@ export async function generateNotifications(userId) {
   const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(now.getDate() - 30);
   const sevenDaysAgo = new Date(now);  sevenDaysAgo.setDate(now.getDate() - 7);
 
+  // Defensive: last_contact_date was added by 20260425_extend_leads_
+  // schema.sql. If the migration isn't applied, the rich select 400s
+  // — fall back to the legacy column set so notifications still load.
+  const fetchLeads = async () => {
+    const rich = await supabase.from('leads')
+      .select('id, full_name, status, created_at, last_contact_date')
+      .eq('coach_id', userId);
+    if (!rich.error) return rich;
+    const legacy = await supabase.from('leads')
+      .select('id, full_name, status, created_at')
+      .eq('coach_id', userId);
+    return {
+      ...legacy,
+      data: (legacy.data || []).map(l => ({ ...l, last_contact_date: null })),
+    };
+  };
   const [leads, recurring, installments, documents, content, income] = await Promise.all([
-    supabase.from('leads').select('id, full_name, status, created_at, last_contact_date').eq('coach_id', userId),
+    fetchLeads(),
     supabase.from('recurring_payments').select('id, name, amount, due_day').eq('user_id', userId).eq('is_active', true),
     supabase.from('installments').select('id, name, payments_made, total_payments').eq('user_id', userId),
     supabase.from('documents').select('id, name, expiry_date').eq('user_id', userId).not('expiry_date', 'is', null),

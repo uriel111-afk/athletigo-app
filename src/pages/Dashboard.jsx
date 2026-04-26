@@ -247,12 +247,14 @@ export default function Dashboard() {
 
   // ── Handlers ────────────────────────────────────────────────────────
   const handleActionClick = (action) => {
+    console.log('[Dashboard] action click:', action);
     setPendingAction(action);
     setTraineeSearch("");
     setShowSelectTraineeDialog(true);
   };
 
   const handleTraineeSelect = (trainee) => {
+    console.log('[Dashboard] trainee picked:', trainee?.full_name, 'pendingAction:', pendingAction);
     setSelectedTrainee(trainee);
     setShowSelectTraineeDialog(false);
     if (pendingAction === "goal") setIsGoalDialogOpen(true);
@@ -263,6 +265,7 @@ export default function Dashboard() {
       // Use the JPS "אתגר Baseline" form. Minimize ("▼" header
       // button) collapses it to a floating pill so the coach can
       // keep the timer visible without losing form state.
+      console.log('[Dashboard] opening BaselineFormDialog');
       setIsBaselineDialogOpen(true);
     }
   };
