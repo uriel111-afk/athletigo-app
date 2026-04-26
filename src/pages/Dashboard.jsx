@@ -22,6 +22,7 @@ import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
 import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
+import PopupNotificationManager from "../components/PopupNotificationManager";
 import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
@@ -367,6 +368,12 @@ export default function Dashboard() {
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
     <ProtectedCoachPage>
+      {/* Popup queue: trainee onboarding-complete + session
+          confirm/cancel + past-date "what happened?" prompts.
+          Coach-only by design (the manager checks isCoach before
+          fetching anything). */}
+      <PopupNotificationManager />
+
       <div className="flex flex-col" dir="rtl" style={BG}>
         <div className="max-w-md mx-auto w-full pt-1 pb-1">
 

@@ -368,13 +368,17 @@ export default function TraineeHome() {
         // Notify coach
         if (coach?.id) {
           try {
+            // Type aligned with PopupNotificationManager's red-border
+            // alert (was 'session_cancelled_by_trainee' which the
+            // manager didn't know about).
             await base44.entities.Notification.create({
               user_id: coach.id,
-              type: 'session_cancelled_by_trainee',
-              title: 'מפגש בוטל על ידי מתאמן',
-              message: `${user.full_name} ביטל את המפגש ב-${new Date(session.date).toLocaleDateString('he-IL')}`,
+              type: 'session_cancelled',
+              title: '❌ מפגש בוטל',
+              message: `${user.full_name} ביטל/ה את המפגש ב-${new Date(session.date).toLocaleDateString('he-IL')}`,
+              link: `/TraineeProfile?userId=${user.id}`,
               is_read: false,
-              data: { session_id: session.id },
+              data: { trainee_id: user.id, session_id: session.id },
             });
           } catch {}
         }

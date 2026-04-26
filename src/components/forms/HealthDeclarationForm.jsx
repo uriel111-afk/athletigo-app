@@ -197,6 +197,33 @@ export default function HealthDeclarationForm({
         } catch (e) {
           console.warn('[HealthDeclaration] session update failed:', e?.message);
         }
+        // Notify the coach so the green session_confirmed popup
+        // surfaces via PopupNotificationManager next time they open
+        // the dashboard. Best-effort.
+        if (coachId) {
+          try {
+            // Re-read the session to compose a friendly date label.
+            const { data: srow } = await supabase
+              .from('sessions').select('date, time').eq('id', sessionId).maybeSingle();
+            const d = srow?.date ? new Date(srow.date) : null;
+            const dateLabel = d && !Number.isNaN(d.getTime())
+              ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+              : '';
+            const timeLabel = (srow?.time || '').slice(0, 5);
+            const traineeName = trainee?.full_name || 'המתאמן/ת';
+            await supabase.from('notifications').insert({
+              user_id: coachId,
+              type: 'session_confirmed',
+              title: '✅ מפגש אושר',
+              message: `${traineeName} אישר/ה את המפגש${dateLabel ? ` ב-${dateLabel}` : ''}${timeLabel ? ` בשעה ${timeLabel}` : ''}`,
+              link: trainee?.id ? `/TraineeProfile?userId=${trainee.id}` : null,
+              is_read: false,
+              data: { trainee_id: trainee?.id || null, session_id: sessionId },
+            });
+          } catch (e) {
+            console.warn('[HealthDeclaration] coach notification failed:', e?.message);
+          }
+        }
       }
 
       // Mirror into documents so the coach finds the signed

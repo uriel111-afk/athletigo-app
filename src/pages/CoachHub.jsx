@@ -9,6 +9,7 @@ import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
 import DailyStreak from '@/components/lifeos/DailyStreak';
 import PageLoader from '@/components/PageLoader';
 import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
+import PopupNotificationManager from '@/components/PopupNotificationManager';
 
 const weekRangeFromOffset = (weeksAgo) => {
   const end = new Date();
@@ -216,6 +217,9 @@ export default function CoachHub() {
         padding: '24px 16px 40px',
       }}
     >
+      {/* Popup queue: trainee onboarding-complete + session
+          confirm/cancel + past-date "what happened?" prompts. */}
+      <PopupNotificationManager />
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
         {/* Greeting + mentor button (CoachHub has no app-wide header) */}
         <div style={{
