@@ -75,11 +75,6 @@ export default function BaselineFormDialog({
   editMode = false, existingRows = null,
   viewOnly = false,
 }) {
-  // Diagnostic — confirms the component mounts and what isOpen is on
-  // each render. Remove once the dialog is verified visible.
-  if (typeof window !== 'undefined') {
-    console.log('[BaselineFormDialog] render isOpen=', isOpen, 'traineeId=', traineeId);
-  }
   const queryClient = useQueryClient();
   const { user: authUser } = useContext(AuthContext);
   const isCoach = authUser?.is_coach === true || authUser?.role === 'coach' || authUser?.role === 'admin';
@@ -385,7 +380,6 @@ export default function BaselineFormDialog({
       >
         <DialogContent
           className="max-w-md p-0"
-          style={{ backgroundColor: COLORS.bg, borderRadius: 16, overflow: 'hidden' }}
           onInteractOutside={(e) => { if (saving) e.preventDefault(); }}
         >
         {/* Radix requires a DialogTitle for accessibility. Visual
@@ -669,10 +663,7 @@ export default function BaselineFormDialog({
 
       {/* Delete confirm modal */}
       <Dialog open={showDeleteConfirm} onOpenChange={(o) => { if (!o && !deleting) setShowDeleteConfirm(false); }}>
-        <DialogContent
-          className="max-w-sm"
-          style={{ background: '#FFFFFF', border: `2px solid ${COLORS.danger}`, borderRadius: 14 }}
-        >
+        <DialogContent className="max-w-sm">
           <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <DialogTitle style={{ color: COLORS.danger, fontWeight: 800, fontSize: 18, margin: 0 }}>
               מחיקת בייסליין
