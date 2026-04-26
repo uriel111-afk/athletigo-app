@@ -5,7 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MESHULAM_ENDPOINT = 'https://api.meshulam.co.il/api/light/server/1.0/createPaymentProcess';
+// Pick endpoint by MESHULAM_ENV ('sandbox' | 'production'). Default
+// is production so existing deploys don't change behavior. Switch
+// via:   supabase secrets set MESHULAM_ENV=sandbox
+// Sandbox uses test cards (Meshulam's docs list them); no real
+// charges and no real transaction emails.
+const MESHULAM_ENV = (Deno.env.get('MESHULAM_ENV') || 'production').toLowerCase();
+const MESHULAM_ENDPOINT = MESHULAM_ENV === 'sandbox'
+  ? 'https://sandbox.meshulam.co.il/api/light/server/1.0/createPaymentProcess'
+  : 'https://api.meshulam.co.il/api/light/server/1.0/createPaymentProcess';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
