@@ -733,6 +733,12 @@ export default function TraineeProfile() {
     staleTime: 60000,
   });
 
+  // Trainee-permission hook must live UP HERE — above the loading
+  // gate's early return — otherwise the first render skips it and
+  // the second render adds it back, triggering React #310 ("rendered
+  // more hooks than during the previous render").
+  const { perms: traineePerms } = useTraineePermissions(effectiveUser?.id);
+
   // (traineeNotifs query moved into TraineeNotificationsTab — same query key
   // 'trainee-notifications' is used there, so existing invalidations keep working.)
 
@@ -1736,8 +1742,8 @@ export default function TraineeProfile() {
   // Coach-set permissions for the *viewed* trainee. Used to hide tabs
   // when the trainee is viewing their own profile. Coach always sees
   // every tab regardless of permissions — the gating happens for the
-  // trainee's view only.
-  const { perms: traineePerms } = useTraineePermissions(effectiveUser?.id);
+  // trainee's view only. Hook itself is called above (before the
+  // coreDataLoading early return); we just consume traineePerms here.
 
   const ALL_TAB_ITEMS = [
     { id: 'personal',      label: 'פרטים',    emoji: '👤', icon: User,            perm: null },
