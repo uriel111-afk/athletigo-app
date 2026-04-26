@@ -831,10 +831,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               labels are 12px per spec; readable but not greedy */}
       <div style={{ display: 'flex', gap: 6, padding: '0 12px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
         <div style={{
-          // flex: 2.3 keeps the total-time chip the dominant element
-          // on the row (~53% of available width) so the drain ring
-          // reads cleanly.
-          flex: 2.3, position: 'relative',
+          // Total chip = flex 1.5 (≈43% of the row vs 28% each for
+          // set/round). Stays the largest of the three but no longer
+          // dominates the row — leaves more room for the set/round
+          // numbers to sit at a comfortable size on narrow screens.
+          flex: 1.5, position: 'relative',
           background: chipDarkBg, borderRadius: 12,
           padding: '8px 10px', textAlign: 'center', color: textPrimary,
           overflow: 'visible',
@@ -881,14 +882,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               style={{ transition: 'stroke 0.3s ease' }}
             />
           </svg>
-          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.85, lineHeight: 1.1 }}>⏱ זמן כולל</div>
-          <div style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif", lineHeight: 1.1, marginTop: 2 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, lineHeight: 1.1 }}>⏱ זמן כולל</div>
+          <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif", lineHeight: 1.1, marginTop: 2 }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
           </div>
         </div>
         <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 6px', textAlign: 'center', color: textPrimary, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.85, lineHeight: 1.1 }}>סט</div>
-          <div style={{ fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, lineHeight: 1.1 }}>סט</div>
+          <div style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
             {Math.max(1, phase.set)}/{cfg.sets}
           </div>
         </div>
@@ -897,8 +898,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           onClick={() => setRoundPickerOpen(true)}
           style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 6px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent', minWidth: 0 }}
         >
-          <div style={{ pointerEvents: 'none', fontSize: 12, fontWeight: 700, opacity: 0.85, lineHeight: 1.1 }}>סבב</div>
-          <div style={{ pointerEvents: 'none', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
+          <div style={{ pointerEvents: 'none', fontSize: 11, fontWeight: 600, opacity: 0.8, lineHeight: 1.1 }}>סבב</div>
+          <div style={{ pointerEvents: 'none', fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
             {Math.max(1, phase.round)}/{cfg.rounds}
           </div>
         </button>
