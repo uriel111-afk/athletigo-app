@@ -5,7 +5,7 @@ import LifeOSNav from './LifeOSNav';
 import QuickActionFAB from './QuickActionFAB';
 import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
-import MentorChat from './MentorChat';
+import { MentorChatIconButton } from './MentorChat';
 import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import { AuthContext } from '@/lib/AuthContext';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
@@ -78,6 +78,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
         <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
           {rightSlot}
           <GlobalSearch />
+          <MentorChatIconButton />
           <NotificationBell userId={user?.id} />
         </div>
       </div>
@@ -89,8 +90,8 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
 
       <LifeOSNav />
       <QuickActionFAB onSaved={onQuickSaved} />
-      {/* MentorChat sits beside the FAB (FAB is at left:16, w:56). */}
-      <MentorChat buttonBottom={90} buttonLeft={84} />
+      {/* MentorChat sheet is mounted globally in App.jsx — the
+          header's MentorChatIconButton triggers it via window event. */}
     </div>
   );
 }

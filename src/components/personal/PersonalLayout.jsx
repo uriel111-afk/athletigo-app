@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import PersonalNav from './PersonalNav';
 import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import GlobalSearch from '@/components/lifeos/GlobalSearch';
-import MentorChat from '@/components/lifeos/MentorChat';
+import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
 import { PERSONAL_COLORS } from '@/lib/personal/personal-constants';
 
 export default function PersonalLayout({ title, children, rightSlot = null }) {
@@ -55,6 +55,7 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
         <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
           {rightSlot}
           <GlobalSearch iconColor={PERSONAL_COLORS.textSecondary} />
+          <MentorChatIconButton />
         </div>
       </div>
 
@@ -63,7 +64,6 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
       </div>
 
       <PersonalNav />
-      <MentorChat buttonBottom={90} buttonLeft={20} />
     </div>
   );
 }

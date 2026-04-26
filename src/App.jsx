@@ -35,6 +35,7 @@ import PersonalPeople from './pages/personal/People';
 import PersonalGrowth from './pages/personal/Growth';
 import PersonalHomeLife from './pages/personal/HomeLife';
 import WeeklyBoard from './components/personal/WeeklyBoard';
+import MentorChat from './components/lifeos/MentorChat';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
@@ -279,6 +280,11 @@ const AuthenticatedApp = () => {
       onDismiss={() => setPopupNotif(null)}
       onTap={() => navigate('/notifications')}
     />
+    {/* Single global mentor sheet — opened from any header's
+        <MentorChatIconButton /> via the MENTOR_CHAT_OPEN_EVENT
+        window event. Mounting it once here means no double-renders
+        and consistent state across route changes. */}
+    <MentorChat />
     <Routes>
       <Route path="/" element={
         <PageRouteGuard pageKey={mainPageKey}>

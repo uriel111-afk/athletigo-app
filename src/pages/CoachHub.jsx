@@ -8,6 +8,7 @@ import { calculateStreak } from '@/lib/lifeos/streak-calculator';
 import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
 import DailyStreak from '@/components/lifeos/DailyStreak';
 import PageLoader from '@/components/PageLoader';
+import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
 
 const weekRangeFromOffset = (weeksAgo) => {
   const end = new Date();
@@ -216,14 +217,20 @@ export default function CoachHub() {
       }}
     >
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
-        {/* Greeting */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: LIFEOS_COLORS.textSecondary, fontWeight: 500 }}>
-            {greet.text} {greet.emoji}
+        {/* Greeting + mentor button (CoachHub has no app-wide header) */}
+        <div style={{
+          marginBottom: 16,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, color: LIFEOS_COLORS.textSecondary, fontWeight: 500 }}>
+              {greet.text} {greet.emoji}
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, marginTop: 2 }}>
+              שלום {firstName}
+            </div>
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, marginTop: 2 }}>
-            שלום {firstName}
-          </div>
+          <MentorChatIconButton size={36} />
         </div>
 
         {/* Mini streak + score */}

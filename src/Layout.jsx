@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AdminCoachActivator from "@/components/AdminCoachActivator";
 import NotificationBadge from "@/components/NotificationBadge";
+import { MentorChatIconButton } from "@/components/lifeos/MentorChat";
 import PWANotifications from "@/components/PWANotifications";
 import DataLoader from "@/components/DataLoader";
 import PageLoader from "@/components/PageLoader";
@@ -414,12 +415,12 @@ export default function Layout({ children, currentPageName }) {
                   <img
                     src="/logo-transparent.png"
                     alt=""
-                    style={{ width: 28, height: 28, objectFit: 'contain', display: 'block' }}
+                    style={{ width: 24, height: 24, objectFit: 'contain', display: 'block' }}
                   />
                   <img
                     src="/athletigo-text.png"
                     alt="ATHLETIGO"
-                    style={{ height: 18, objectFit: 'contain', display: 'block' }}
+                    style={{ height: 16, objectFit: 'contain', display: 'block' }}
                   />
                 </div>
                 <div style={{ fontSize: 11, color: primaryColor, fontWeight: 600, marginTop: 1, lineHeight: 1.2 }}>
@@ -427,11 +428,14 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </div>
 
-              {/* Left (RTL end): notification bell */}
-              <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
-                {user ? (
-                  <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
-                ) : null}
+              {/* Left (RTL end): mentor chat trigger + notification bell */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'visible' }}>
+                {user ? <MentorChatIconButton size={32} /> : null}
+                <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+                  {user ? (
+                    <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
+                  ) : null}
+                </div>
               </div>
             </div>
           </header>

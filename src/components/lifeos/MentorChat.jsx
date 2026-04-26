@@ -56,14 +56,51 @@ const SUGGESTIONS = [
   'אילו לידים מחכים?',
 ];
 
-// Floating "ask the mentor" button + bottom-sheet chat. Defaults
-// position the button at bottom-left where the user expects it. Each
-// layout can override via props if there's a collision (e.g. the
-// LifeOS FAB sits at left:16, so LifeOSLayout passes buttonLeft={84}
-// to slot beside it instead of behind it).
-export default function MentorChat({ buttonBottom = 90, buttonLeft = 20, buttonZIndex = 1080 }) {
+// Global event other components fire to open the chat sheet. Both
+// the in-header icon and any legacy floating-button replacement use
+// it, so a single <MentorChat /> mount at app root handles every
+// open request without prop drilling or context.
+export const MENTOR_CHAT_OPEN_EVENT = 'mentor-chat-open';
+
+// Compact icon button intended for layout headers. Renders a round
+// dark dot with a 💬 inside; on click, dispatches the global open
+// event. Drop one of these next to the bell in any header — there's
+// no state to wire up.
+export function MentorChatIconButton({ size = 32, title = 'שאל את המנטור' }) {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(MENTOR_CHAT_OPEN_EVENT))}
+      aria-label={title}
+      title={title}
+      style={{
+        width: size, height: size, borderRadius: 999,
+        border: 'none',
+        backgroundColor: '#1A1A1A', color: '#FFFFFF',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', flexShrink: 0,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+      }}
+    >
+      <MessageCircle size={Math.round(size * 0.55)} />
+    </button>
+  );
+}
+
+// Mentor chat sheet. Mount ONCE at app root (App.jsx). Open via the
+// global event — typically by clicking <MentorChatIconButton /> in a
+// header, but anything calling
+// window.dispatchEvent(new Event(MENTOR_CHAT_OPEN_EVENT)) works.
+export default function MentorChat() {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
+
+  // Listen for global open requests. Single subscriber, single sheet.
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(MENTOR_CHAT_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(MENTOR_CHAT_OPEN_EVENT, onOpen);
+  }, []);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -172,25 +209,8 @@ export default function MentorChat({ buttonBottom = 90, buttonLeft = 20, buttonZ
 
   return (
     <>
-      {/* Floating chat button */}
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="שאל את המנטור"
-        title="שאל את המנטור"
-        style={{
-          position: 'fixed',
-          bottom: buttonBottom, left: buttonLeft,
-          zIndex: buttonZIndex,
-          width: 52, height: 52, borderRadius: 999,
-          border: 'none',
-          backgroundColor: '#1A1A1A', color: '#FFFFFF',
-          boxShadow: '0 6px 18px rgba(0,0,0,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer',
-        }}
-      >
-        <MessageCircle size={22} />
-      </button>
+      {/* No floating button — open via the global event from
+          <MentorChatIconButton /> placed in layout headers. */}
 
       {open && (
         <div
