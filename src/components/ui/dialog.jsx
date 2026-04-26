@@ -41,13 +41,19 @@ const isFromTimerBar = (e) => {
   return !!(t && typeof t.closest === 'function' && t.closest('[data-timer-bar]'));
 };
 
-const DialogContent = React.forwardRef(({ className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
+const DialogContent = React.forwardRef(({ className, children, style: callerStyle, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       dir="rtl"
-      style={{ position: 'fixed', zIndex: 11001, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+      // Caller's style merges over the primitive's defaults, so an
+      // override of `transform` (used by drag-positioned dialogs) wins
+      // without wiping out position/zIndex/top/left. Earlier passes
+      // had {...props} after style, which let any caller's style prop
+      // clobber the entire centering — leaving the dialog invisibly
+      // pinned at viewport (0,0).
+      style={{ position: 'fixed', zIndex: 11001, left: '50%', top: '50%', transform: 'translate(-50%, -50%)', ...callerStyle }}
       className={cn(
         "bg-white rounded-xl shadow-xl flex flex-col overflow-hidden",
         "w-[calc(100vw-2rem)] max-w-lg",

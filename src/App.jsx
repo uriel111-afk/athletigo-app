@@ -36,6 +36,7 @@ import PersonalGrowth from './pages/personal/Growth';
 import PersonalHomeLife from './pages/personal/HomeLife';
 import WeeklyBoard from './components/personal/WeeklyBoard';
 import MentorChat from './components/lifeos/MentorChat';
+import BaselineFormDialog from './components/forms/BaselineFormDialog';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
@@ -285,6 +286,11 @@ const AuthenticatedApp = () => {
         window event. Mounting it once here means no double-renders
         and consistent state across route changes. */}
     <MentorChat />
+    {/* Single global baseline form — opened via openBaselineDialog()
+        / dispatchEvent(BASELINE_OPEN_EVENT). Lives at the root so
+        the minimized pill survives route changes (coach can keep
+        the form open in the background while navigating). */}
+    <BaselineFormDialog />
     <Routes>
       <Route path="/" element={
         <PageRouteGuard pageKey={mainPageKey}>

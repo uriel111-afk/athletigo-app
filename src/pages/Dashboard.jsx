@@ -31,7 +31,7 @@ import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
 import PackageFormDialog from "../components/forms/PackageFormDialog";
-import BaselineFormDialog from "../components/forms/BaselineFormDialog";
+import { openBaselineDialog } from "../components/forms/BaselineFormDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
@@ -121,7 +121,8 @@ export default function Dashboard() {
 
   const [showActionPicker, setShowActionPicker] = useState(false);
   const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
-  const [isBaselineDialogOpen, setIsBaselineDialogOpen] = useState(false);
+  // Baseline dialog is mounted globally in App.jsx — opened here via
+  // openBaselineDialog({ traineeId, traineeName }).
 
   // Trainee selection for goal/result/measurement actions
   const [showSelectTraineeDialog, setShowSelectTraineeDialog] = useState(false);
@@ -260,10 +261,9 @@ export default function Dashboard() {
     if (pendingAction === "measurement") setIsMeasurementDialogOpen(true);
     if (pendingAction === "package") setIsPackageDialogOpen(true);
     if (pendingAction === "baseline") {
-      // Use the JPS "אתגר Baseline" form. Minimize ("▼" header
-      // button) collapses it to a floating pill so the coach can
-      // keep the timer visible without losing form state.
-      setIsBaselineDialogOpen(true);
+      // Open the global baseline dialog (mounted in App.jsx). Form
+      // state + minimize pill survive route changes from there.
+      openBaselineDialog({ traineeId: trainee.id, traineeName: trainee.full_name });
     }
   };
 
@@ -714,8 +714,8 @@ export default function Dashboard() {
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
           <PackageFormDialog isOpen={isPackageDialogOpen} onClose={() => setIsPackageDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
-          <BaselineFormDialog isOpen={isBaselineDialogOpen} onClose={() => setIsBaselineDialogOpen(false)}
-            traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
+          {/* BaselineFormDialog mounted at App.jsx root — opened via
+              openBaselineDialog() in handleTraineeSelect. */}
         </>
       )}
 

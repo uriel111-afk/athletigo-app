@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { RECORD_TYPES, getTypeByKey } from '@/lib/personalRecordTypes';
-import BaselineFormDialog from '@/components/forms/BaselineFormDialog';
+import { openBaselineDialog } from '@/components/forms/BaselineFormDialog';
 import { groupRecordsByName } from '@/lib/recordGrouping';
 import { RecordFolderCard } from './RecordFolderCard';
 import { RecordFlatCard } from './RecordFlatCard';
@@ -35,7 +35,8 @@ export default function ProgressTab({ traineeId }) {
   const isCoach = currentUser?.is_coach || currentUser?.role === 'coach' || currentUser?.role === 'admin';
   const queryClient = useQueryClient();
   const [showAddRecord, setShowAddRecord] = useState(false);
-  const [viewingSessionRows, setViewingSessionRows] = useState(null);
+  // BaselineFormDialog mounts globally in App.jsx — fire openBaselineDialog
+  // with viewOnly + existingRows when the user taps a session in the folder.
   const [viewingRecord, setViewingRecord] = useState(null);
   // null = adding a new record. Truthy = editing existing row.
   const [editingRecord, setEditingRecord] = useState(null);
@@ -209,20 +210,12 @@ export default function ProgressTab({ traineeId }) {
       {baselineSessions.length > 0 && (
         <BaselinesFolderCard
           sessions={baselineSessions}
-          onSessionClick={(s) => setViewingSessionRows(s.techniques)}
+          onSessionClick={(s) => openBaselineDialog({ traineeId, viewOnly: true, existingRows: s.techniques })}
         />
       )}
 
-      {/* View-only baseline dialog (opened by tapping a session inside the folder) */}
-      {viewingSessionRows && (
-        <BaselineFormDialog
-          isOpen={true}
-          onClose={() => setViewingSessionRows(null)}
-          traineeId={traineeId}
-          viewOnly={true}
-          existingRows={viewingSessionRows}
-        />
-      )}
+      {/* BaselineFormDialog mounted globally in App.jsx — opened
+          via openBaselineDialog() in onSessionClick above. */}
 
       {/* Add-record button row (header) */}
       <div className="flex justify-between items-center mb-2">

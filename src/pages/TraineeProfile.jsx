@@ -33,7 +33,7 @@ import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
 import TraineeNotificationsTab from "@/components/profile/TraineeNotificationsTab";
-import BaselineFormDialog from "@/components/forms/BaselineFormDialog";
+import { openBaselineDialog } from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
 import { notifySessionScheduled } from "@/functions/notificationTriggers";
 import MiniTimerBar from "@/components/MiniTimerBar";
@@ -413,7 +413,8 @@ export default function TraineeProfile() {
   const [editingGoal, setEditingGoal] = useState(null);
   const [showAddResult, setShowAddResult] = useState(false);
   const [editingResult, setEditingResult] = useState(null);
-  const [showBaselineForm, setShowBaselineForm] = useState(false);
+  // BaselineFormDialog mounts globally in App.jsx — opened via
+  // openBaselineDialog({ traineeId, traineeName }).
   const [showBaselineDetail, setShowBaselineDetail] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -2083,7 +2084,7 @@ export default function TraineeProfile() {
               <TabsContent value="achievements" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center mb-3">
                   <div />
-                  <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                  <Button onClick={() => openBaselineDialog({ traineeId: user.id, traineeName: user.full_name })} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
                     <Zap className="w-3 h-3 ml-1" />בייסליין חדש
                   </Button>
                 </div>
@@ -2096,7 +2097,7 @@ export default function TraineeProfile() {
               <TabsContent value="baselines" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין</h2>
-                  <Button onClick={() => setShowBaselineForm(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                  <Button onClick={() => openBaselineDialog({ traineeId: user.id, traineeName: user.full_name })} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
                     <Plus className="w-3 h-3 ml-1" />הוסף בייסליין
                   </Button>
                 </div>
@@ -2853,7 +2854,8 @@ export default function TraineeProfile() {
         <ResultFormDialog isOpen={showAddResult} onClose={() => { setShowAddResult(false); setEditingResult(null); }} traineeId={user.id} traineeName={user.full_name} editingResult={editingResult} />
 
         {/* Baseline Dialogs */}
-        <BaselineFormDialog isOpen={showBaselineForm} onClose={() => setShowBaselineForm(false)} traineeId={user.id} traineeName={user.full_name} />
+        {/* BaselineFormDialog mounted globally in App.jsx — opened
+            via openBaselineDialog() in the buttons above. */}
 
         {/* Edit Session Dialog */}
         {showEditSession && editingSession && (

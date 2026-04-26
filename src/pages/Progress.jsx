@@ -20,7 +20,7 @@ import { Home, Dumbbell, FileText, User } from "lucide-react";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import BaselineSection from "../components/progress/BaselineSection";
-import BaselineFormDialog from "../components/forms/BaselineFormDialog";
+import { openBaselineDialog } from "../components/forms/BaselineFormDialog";
 
 function ProgressInner() {
   const [user, setUser] = useState(null);
@@ -32,7 +32,8 @@ function ProgressInner() {
   const [editingResult, setEditingResult] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingItem, setDeletingItem] = useState(null);
-  const [showBaselineDialog, setShowBaselineDialog] = useState(false);
+  // BaselineFormDialog is mounted globally in App.jsx — opened via
+  // openBaselineDialog({ traineeId, traineeName }).
 
   const [measurementForm, setMeasurementForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -442,7 +443,7 @@ function ProgressInner() {
           </Button>
 
           <Button
-            onClick={() => setShowBaselineDialog(true)}
+            onClick={() => openBaselineDialog({ traineeId: user?.id, traineeName: user?.full_name })}
             className="rounded-xl px-4 md:px-6 py-4 md:py-5 font-bold text-white flex items-center justify-center gap-2 w-full"
             style={{ backgroundColor: '#1a1a2e' }}
           >
@@ -1018,15 +1019,8 @@ function ProgressInner() {
         </DialogContent>
       </Dialog>
 
-      {/* Baseline Dialog */}
-      {user && (
-        <BaselineFormDialog
-          isOpen={showBaselineDialog}
-          onClose={() => setShowBaselineDialog(false)}
-          traineeId={user.id}
-          traineeName={user.full_name}
-        />
-      )}
+      {/* BaselineFormDialog mounted at App.jsx root — opened via
+          openBaselineDialog() above. */}
 
     </div>
   );
