@@ -305,6 +305,20 @@ export default function TraineeHome() {
     return Math.max(1, Math.ceil((Date.now() - firstSessionDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
   }, [firstSessionDate]);
 
+  // First session the coach has booked that the trainee hasn't
+  // approved yet. The banner is gated to the canonical
+  // 'pending_approval' status so it ONLY shows for casual trainees
+  // (Sessions.jsx writes that string only when client_status='casual'
+  // — any other trainee gets the legacy 'ממתין לאישור' which is read
+  // elsewhere as a generic "scheduled" state and shouldn't trigger
+  // the health-declaration onboarding gate).
+  // Hoisted ABOVE all early returns (loading / loadError / !user)
+  // so the hook count stays stable per render — React #310.
+  const pendingApprovalSession = useMemo(
+    () => mySessions.find((s) => s.status === 'pending_approval') || null,
+    [mySessions]
+  );
+
   const packageReminder = useMemo(() => {
     if (!activeServices.length) return null;
     const withBalance = activeServices
@@ -461,18 +475,6 @@ export default function TraineeHome() {
     } catch {}
   };
 
-  // First session the coach has booked that the trainee hasn't
-  // approved yet. The banner is gated to the canonical
-  // 'pending_approval' status so it ONLY shows for casual trainees
-  // (Sessions.jsx writes that string only when client_status='casual'
-  // — any other trainee gets the legacy 'ממתין לאישור' which is read
-  // elsewhere as a generic "scheduled" state and shouldn't trigger
-  // the health-declaration onboarding gate).
-  const pendingApprovalSession = useMemo(
-    () => mySessions.find((s) => s.status === 'pending_approval') || null,
-    [mySessions]
-  );
-
   // client_status gates the whole page:
   //   suspended / former → lock screen (no other content rendered)
   //   casual             → only the header + pending-session banner +
@@ -481,6 +483,9 @@ export default function TraineeHome() {
   //                        trainee_permissions
   // Treat null/legacy values as 'active' so existing trainees that
   // pre-date the casual pipeline still see their full home.
+  // (Bound here, AFTER the if-(!user)-return on purpose: the
+  // useMemo it depends on is hoisted above all early returns to
+  // keep hook order stable — see the top of the function.)
   const clientStatus = user?.client_status || null;
   const isSuspended  = clientStatus === 'suspended';
   const isFormer     = clientStatus === 'former';

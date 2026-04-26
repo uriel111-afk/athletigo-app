@@ -3570,29 +3570,27 @@ export default function TraineeProfile() {
         )}
 
 
-        {/* Delete Trainee Confirmation Dialog */}
+        {/* Archive Trainee Confirmation Dialog (soft-delete) */}
         <Dialog open={showDeleteConfirm} onOpenChange={(open) => { if (!deleting) setShowDeleteConfirm(open); }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold text-red-600 flex items-center gap-2">
-                <Trash2 className="w-5 h-5" />מחיקת מתאמן
+              <DialogTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />העברה לארכיון
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm text-gray-700 text-right">
-                האם אתה בטוח שברצונך למחוק את <strong>{user.full_name}</strong>?
+                האם להעביר את <strong>{user.full_name}</strong> לארכיון?
               </p>
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-right text-xs text-red-700 space-y-1">
-                <p className="font-bold">פעולה זו תמחק לצמיתות את:</p>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-right text-xs text-gray-700 space-y-1">
+                <p className="font-bold">מה יקרה:</p>
                 <ul className="list-disc list-inside space-y-0.5 mr-2">
-                  <li>כל המפגשים שלו</li>
-                  <li>כל התוכניות שלו</li>
-                  <li>כל המדידות והשיאים</li>
-                  <li>כל החבילות והתשלומים</li>
-                  <li>כל המסמכים והיעדים</li>
-                  <li>כל היסטוריית האימון</li>
+                  <li>הסטטוס יהפוך ל"לשעבר"</li>
+                  <li>המתאמן יוסתר מהרשימה הראשית</li>
+                  <li>כל הנתונים נשמרים — מפגשים, מדידות, חבילות, היסטוריה</li>
+                  <li>אפשר לשחזר בכל רגע (סטטוס → פעיל)</li>
                 </ul>
-                <p className="font-bold pt-1">הפעולה אינה ניתנת לביטול.</p>
+                <p className="font-bold pt-1 text-gray-500">פעולה הפיכה. אין מחיקה לצמיתות.</p>
               </div>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}
@@ -3602,61 +3600,34 @@ export default function TraineeProfile() {
                   if (!tid) return;
                   setDeleting(true);
                   try {
-                    // 1. Delete service transactions & payments
-                    const { data: svcs } = await supabase.from('client_services').select('id').eq('trainee_id', tid);
-                    if (svcs?.length) {
-                      const svcIds = svcs.map(s => s.id);
-                      await supabase.from('service_transactions').delete().in('service_id', svcIds);
-                      await supabase.from('service_payments').delete().in('service_id', svcIds);
-                    }
-                    // 2. Delete direct child tables
-                    await supabase.from('client_services').delete().eq('trainee_id', tid);
-                    await supabase.from('measurements').delete().eq('trainee_id', tid);
-                    await supabase.from('results_log').delete().eq('trainee_id', tid);
-                    await supabase.from('baselines').delete().eq('trainee_id', tid);
-                    await supabase.from('goals').delete().eq('trainee_id', tid);
-                    await supabase.from('notifications').delete().eq('user_id', tid);
-                    await supabase.from('messages').delete().eq('sender_id', tid);
-                    await supabase.from('messages').delete().eq('receiver_id', tid);
-                    await supabase.from('attendance_log').delete().eq('user_id', tid);
-                    await supabase.from('workout_logs').delete().eq('user_id', tid);
-                    await supabase.from('workout_history').delete().eq('user_id', tid);
-                    await supabase.from('reflections').delete().eq('user_id', tid);
-                    // 3. Delete training plans cascade
-                    const { data: plans } = await supabase.from('training_plans').select('id').or(`assigned_to.eq.${tid},created_by.eq.${tid}`);
-                    if (plans?.length) {
-                      const planIds = plans.map(p => p.id);
-                      const { data: sections } = await supabase.from('training_sections').select('id').in('plan_id', planIds);
-                      if (sections?.length) await supabase.from('exercises').delete().in('section_id', sections.map(s => s.id));
-                      await supabase.from('training_sections').delete().in('plan_id', planIds);
-                      await supabase.from('training_plans').delete().in('id', planIds);
-                    }
-                    // 4. Delete sessions
-                    const { data: allSessions } = await supabase.from('sessions').select('id,participants');
-                    const sessionsToDelete = (allSessions || []).filter(s =>
-                      s.participants?.some(p => p.trainee_id === tid)
-                    );
-                    if (sessionsToDelete.length) await supabase.from('sessions').delete().in('id', sessionsToDelete.map(s => s.id));
-                    // 5. Delete user
-                    await supabase.from('users').delete().eq('id', tid);
-                    // 6. Try auth cleanup
-                    try { await supabase.functions.invoke('delete-trainee', { body: { trainee_id: tid } }); } catch {}
+                    // SOFT-DELETE: flip client_status to 'former'.
+                    // Every related row (sessions, measurements,
+                    // baselines, packages, etc.) stays intact — the
+                    // trainee just disappears from the main lists
+                    // because AllUsers filters client_status='former'
+                    // by default. Reverse with the badge → "פעיל".
+                    const { error } = await supabase
+                      .from('users')
+                      .update({ client_status: 'former' })
+                      .eq('id', tid);
+                    if (error) throw error;
 
-                    toast.success(`${user.full_name} נמחק בהצלחה`);
+                    toast.success(`${user.full_name} הועבר לארכיון`);
                     setShowDeleteConfirm(false);
                     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
                     queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                    queryClient.invalidateQueries({ queryKey: ['user-profile', tid] });
                     invalidateDashboard(queryClient);
                     navigate('/');
                   } catch (err) {
-                    console.error("[DeleteTrainee]", err);
-                    toast.error("לא הצלחנו למחוק את המתאמן. נסה שוב או פנה לתמיכה.");
+                    console.error("[ArchiveTrainee]", err);
+                    toast.error("לא הצלחנו להעביר לארכיון. נסה שוב או פנה לתמיכה.");
                   } finally {
                     setDeleting(false);
                   }
                 }} disabled={deleting}
-                  className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold">
-                  {deleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />מוחק...</> : 'כן, מחק לצמיתות'}
+                  className="flex-1 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold">
+                  {deleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />מעביר...</> : 'העבר לארכיון'}
                 </Button>
               </div>
             </div>
