@@ -665,12 +665,11 @@ export default function TraineeProfile() {
     staleTime: 0,
   });
 
-  const { data: attendanceLog = [], isLoading: attendanceLoading } = useQuery({
-    queryKey: ['trainee-attendance-log', user?.id],
-    queryFn: () => base44.entities.AttendanceLog.filter({ user_id: user.id }, '-date').catch(() => []),
-    enabled: !!user?.id,
-    staleTime: 60000,
-  });
+  // Attendance is tracked via sessions.status in this codebase; the
+  // legacy attendance_log table is unused here. The previous query
+  // 400'd because the column case mismatched (snake_case vs camelCase)
+  // and the result was never consumed anyway.
+  const attendanceLoading = false;
 
   const { data: trainingPlans = [], isLoading: plansLoading } = useQuery({
     queryKey: ['training-plans', user?.id],
@@ -697,11 +696,14 @@ export default function TraineeProfile() {
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: ['trainee-sessions', user?.id],
     queryFn: async () => {
+      // sessions.trainee_id is the canonical link (per schema). The
+      // older participants[] JSONB query 400'd because the column
+      // doesn't exist. Group sessions are loaded separately if/when
+      // that feature lands.
       try {
-        return await base44.entities.Session.filter({ participants: { $elemMatch: { trainee_id: user.id } } }, '-date');
+        return await base44.entities.Session.filter({ trainee_id: user.id }, '-date');
       } catch {
-        const allSessions = await base44.entities.Session.list('-date', 1000);
-        return allSessions.filter(s => s.participants?.some(p => p.trainee_id === user.id));
+        return [];
       }
     },
     enabled: !!user?.id,

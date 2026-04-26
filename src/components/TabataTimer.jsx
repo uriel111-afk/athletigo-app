@@ -457,6 +457,26 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const twMin = Math.floor(totalWorkoutTime / 60);
   const twSec = totalWorkoutTime % 60;
 
+  // Total exercise length — purely derived from cfg by simulating the
+  // phase walk from prep all the way to done, summing each dur. Used
+  // below to drive the orange drain border around the total-time chip.
+  // Hoisted ABOVE the early returns at "settings" / "done" so the hook
+  // call order stays stable (React #310 — hooks must run every render).
+  const totalExerciseSeconds = useMemo(() => {
+    const c = cfgRef.current;
+    let total = c.prep || 0;
+    let cur = { type: 'prep', round: 1, set: 1, dur: c.prep || 0 };
+    // Defensive cap so a misconfigured cfg can't infinite-loop.
+    for (let i = 0; i < 1000; i++) {
+      const nxt = nextPhase(cur, c);
+      if (!nxt || nxt.type === 'done') break;
+      total += nxt.dur || 0;
+      cur = nxt;
+    }
+    return total;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg.prep, cfg.work, cfg.rest, cfg.set_rest, cfg.rounds, cfg.sets]);
+
   // ─── Settings Screen ───
   if (screen === 'settings') {
     const fields = [
@@ -582,27 +602,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const totalMin = Math.floor(totalLeft / 60);
   const totalSec = totalLeft % 60;
 
-  // Total exercise length — purely derived from cfg by simulating the
-  // phase walk from prep all the way to done, summing each dur. Used
-  // to drive the orange drain border around the total-time chip:
-  // borderProgress = totalLeft / totalExerciseSeconds (1 → 0).
-  const totalExerciseSeconds = useMemo(() => {
-    const c = cfgRef.current;
-    let total = c.prep || 0;
-    let cur = { type: 'prep', round: 1, set: 1, dur: c.prep || 0 };
-    // Defensive cap so a misconfigured cfg can't infinite-loop.
-    for (let i = 0; i < 1000; i++) {
-      const nxt = nextPhase(cur, c);
-      if (!nxt || nxt.type === 'done') break;
-      total += nxt.dur || 0;
-      cur = nxt;
-    }
-    return total;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.prep, cfg.work, cfg.rest, cfg.set_rest, cfg.rounds, cfg.sets]);
-
   // borderProgress: 1 = full, 0 = empty. Survives the "done" phase
   // (totalLeft becomes 0 — that's fine, ring just empties).
+  // totalExerciseSeconds is computed above (hoisted past the early
+  // returns so hook order stays stable).
   const totalBorderProgress = totalExerciseSeconds > 0
     ? Math.max(0, Math.min(1, totalLeft / totalExerciseSeconds))
     : 0;
