@@ -1,5 +1,35 @@
 import { supabase } from '@/lib/supabaseClient';
 
+// Postgres "column does not exist" → SQLSTATE 42703. Supabase surfaces
+// this through `error.code` (preferred) or in `error.message` like:
+//   `column "foo" of relation "bar" does not exist`
+//   `Could not find the 'foo' column of 'bar' in the schema cache`
+// We strip the offending column from the payload and retry once per
+// missing column so a single unknown field can't block a save. This
+// is intentionally conservative: it only triggers on the exact 42703
+// signal — anything else (RLS, NOT NULL, type mismatch) bubbles up.
+function extractMissingColumn(error) {
+  const msg = error?.message || '';
+  if (error?.code !== '42703' && !/does not exist|in the schema cache/i.test(msg)) {
+    return null;
+  }
+  // "column \"X\" of relation"  |  "column X does not exist"  |
+  // "Could not find the 'X' column"
+  const m = msg.match(/column\s+"?([\w.]+)"?\s+of\s+relation/i)
+         || msg.match(/column\s+"?([\w.]+)"?\s+does not exist/i)
+         || msg.match(/['"`]([\w.]+)['"`]\s+column/i);
+  if (!m?.[1]) return null;
+  // Strip an optional `relation.` prefix supabase sometimes prepends.
+  return m[1].split('.').pop();
+}
+
+function dropColumn(payload, col) {
+  if (!payload || !(col in payload)) return null;
+  const { [col]: _drop, ...rest } = payload;
+  console.warn(`[base44] dropping unknown column "${col}" from payload and retrying`);
+  return rest;
+}
+
 // ---------------------------------------------------------------------------
 // Entity factory — wraps a Supabase table with the same API that base44 used:
 //   Entity.create(data)
@@ -12,24 +42,41 @@ import { supabase } from '@/lib/supabaseClient';
 function createEntity(tableName) {
   return {
     async create(data) {
-      const { data: result, error } = await supabase
-        .from(tableName)
-        .insert(data)
-        .select()
-        .single();
-      if (error) throw error;
-      return result;
+      // Up to 6 retries: enough to forgive a handful of stale field
+      // names without masking real schema problems.
+      let payload = data;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const { data: result, error } = await supabase
+          .from(tableName)
+          .insert(payload)
+          .select()
+          .single();
+        if (!error) return result;
+        const missing = extractMissingColumn(error);
+        const next = missing ? dropColumn(payload, missing) : null;
+        if (!next) throw error;
+        payload = next;
+      }
+      // Exhausted retries — re-throw whatever the last attempt gave.
+      throw new Error(`[base44] ${tableName}.create exhausted column-retry budget`);
     },
 
     async update(id, data) {
-      const { data: result, error } = await supabase
-        .from(tableName)
-        .update(data)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return result;
+      let payload = data;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const { data: result, error } = await supabase
+          .from(tableName)
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error) return result;
+        const missing = extractMissingColumn(error);
+        const next = missing ? dropColumn(payload, missing) : null;
+        if (!next) throw error;
+        payload = next;
+      }
+      throw new Error(`[base44] ${tableName}.update exhausted column-retry budget`);
     },
 
     async delete(id) {

@@ -60,6 +60,10 @@ export default function Leads() {
 
   const createLeadMutation = useMutation({
     mutationFn: (data) => {
+      // Guard against null coach_id — leads RLS requires the row owner.
+      if (!data?.coach_id) {
+        throw new Error("פרטי המאמן לא נטענו עדיין — נסה שוב בעוד רגע");
+      }
       console.log("[Leads] Creating lead with data:", data);
       return base44.entities.Lead.create(data);
     },
@@ -67,7 +71,9 @@ export default function Leads() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
       invalidateDashboard(queryClient);
       setShowAddDialog(false);
-      setLeadForm({ full_name: "", phone: "", email: "", source: "אחר", main_goal: "", status: "חדש", coach_notes: "" });
+      // (form state lives inside <LeadFormDialog />; nothing to reset
+      // here. The dialog's clearDraft() runs in its own handleSubmit
+      // success path.)
       toast.success("✅ ליד נוסף בהצלחה");
     },
     onError: (error) => {
