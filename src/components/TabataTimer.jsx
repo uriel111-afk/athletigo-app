@@ -813,22 +813,32 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         })()}
       </div>
 
-      {/* ROW 2: Stats — total time anchored to the RIGHT edge of the
-          row, then set + round filling the rest. In an RTL flex row
-          (direction:rtl + flex-direction:row), the FIRST DOM child
-          sits at the main-start which is the RIGHT edge, and
-          subsequent children flow leftward. So Total chip first =
-          rightmost. */}
-      <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
+      {/* ROW 2: Stats — total time anchored to the RIGHT edge, then
+          set + round filling the rest. In an RTL flex row (direction:
+          rtl + flex-direction:row), the FIRST DOM child sits at the
+          main-start which is the RIGHT edge — so Total chip first =
+          rightmost.
+
+          Sizing rules:
+            - container has 12px side padding so chips never sit at
+              the screen edge (the total-chip's drain-ring stroke
+              also gets a 1.5px overhang on the outside that needed
+              the breathing room)
+            - gap is 6px so 3 chips + 2 gaps fit on a 360px screen
+            - chip internal padding 8px so the wider numbers (10/12)
+              still fit with whiteSpace:nowrap + minWidth:0
+            - number font is 20px (was 38–40px which clipped) and
+              labels are 12px per spec; readable but not greedy */}
+      <div style={{ display: 'flex', gap: 6, padding: '0 12px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
         <div style={{
-          // flex: 2.3 makes the total-time chip ~53% of the row
-          // (vs ~43% with flex:1.5) — a ~25% relative width bump
-          // toward the right edge so the drain ring around it has
-          // more room to breathe and reads as the dominant element.
+          // flex: 2.3 keeps the total-time chip the dominant element
+          // on the row (~53% of available width) so the drain ring
+          // reads cleanly.
           flex: 2.3, position: 'relative',
           background: chipDarkBg, borderRadius: 12,
-          padding: '10px 12px', textAlign: 'center', color: textPrimary,
+          padding: '8px 10px', textAlign: 'center', color: textPrimary,
           overflow: 'visible',
+          minWidth: 0,
         }}>
           {/* Total-exercise drain ring — SVG overlay sized to the
               chip via 100% percentages. pathLength=100 normalizes
@@ -838,7 +848,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
                 work (orange bg) → white stroke + white-30% track
                 rest/prep (cream bg) → orange stroke + orange-20% track
               overflow:visible on the SVG + the parent lets the
-              half-stroke peek out as a real border around the chip. */}
+              half-stroke peek out as a real border around the chip.
+              Container padding (12px on the row) reserves space for
+              that overhang so the ring never gets clipped at the
+              screen edge. */}
           <svg
             aria-hidden
             style={{
@@ -868,22 +881,26 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               style={{ transition: 'stroke 0.3s ease' }}
             />
           </svg>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>⏱</div>
-          <div style={{ fontSize: 38, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.85, lineHeight: 1.1 }}>⏱ זמן כולל</div>
+          <div style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif", lineHeight: 1.1, marginTop: 2 }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
           </div>
         </div>
-        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', color: textPrimary }}>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>סט</div>
-          <div style={{ fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.set)}/{cfg.sets}</div>
+        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 6px', textAlign: 'center', color: textPrimary, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.85, lineHeight: 1.1 }}>סט</div>
+          <div style={{ fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
+            {Math.max(1, phase.set)}/{cfg.sets}
+          </div>
         </div>
         <button
           type="button"
           onClick={() => setRoundPickerOpen(true)}
-          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
+          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 6px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent', minWidth: 0 }}
         >
-          <div style={{ pointerEvents: 'none', fontSize: 20, fontWeight: 800 }}>סבב</div>
-          <div style={{ pointerEvents: 'none', fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.round)}/{cfg.rounds}</div>
+          <div style={{ pointerEvents: 'none', fontSize: 12, fontWeight: 700, opacity: 0.85, lineHeight: 1.1 }}>סבב</div>
+          <div style={{ pointerEvents: 'none', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
+            {Math.max(1, phase.round)}/{cfg.rounds}
+          </div>
         </button>
       </div>
 
