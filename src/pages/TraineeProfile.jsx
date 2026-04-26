@@ -339,12 +339,35 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
 
 function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSession, onRefundSession }) {
   const [expanded, setExpanded] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [selectedToLink, setSelectedToLink] = useState(new Set());
+  const [linkSaving, setLinkSaving] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Linked sessions = every session pointing at this package, regardless
+  // of whether it was already deducted/completed. Pre-deduction
+  // bookings count as "linked" so the coach can see what's reserved
+  // against this package upfront.
   const linked = useMemo(() => {
     if (!pkg?.id || !Array.isArray(allSessions)) return [];
     return allSessions
-      .filter(s => s.service_id === pkg.id && s.was_deducted === true)
+      .filter(s => s.service_id === pkg.id)
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   }, [pkg?.id, allSessions]);
+
+  // Sessions that exist for this trainee but aren't tied to ANY
+  // package yet — candidates for "+ הוסף מפגש". Sessions linked to a
+  // different package are shown disabled (with the other package's
+  // hint) so the coach knows why they can't pick them.
+  const linkCandidates = useMemo(() => {
+    if (!Array.isArray(allSessions)) return [];
+    return allSessions
+      .slice()
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  }, [allSessions]);
+
+  // Total session capacity for the package — used in the counter.
+  const totalCapacity = Number(pkg?.total_sessions || pkg?.sessions_count || 0);
 
   const sessionTypeLabel = (t) => {
     if (!t) return '';
@@ -352,6 +375,75 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
     if (t.includes('קבוצ') || t === 'group') return 'קבוצתי';
     if (t.includes('אונליין') || t === 'online') return 'אונליין';
     return t;
+  };
+
+  // Status badge color per session — uses the same palette as the
+  // sessions tab: green=confirmed/completed/attended, gray=cancelled,
+  // orange=pending_approval, red=no_show, yellow=other (scheduled).
+  const statusBadge = (s) => {
+    const v = s.status || '';
+    if (['confirmed','completed','הושלם','הגיע','התקיים','מאושר'].includes(v))
+      return { bg: '#16a34a', fg: '#FFFFFF', label: v === 'completed' || v === 'הושלם' ? 'הושלם' : 'מאושר' };
+    if (['cancelled','בוטל','בוטל על ידי מתאמן','בוטל על ידי מאמן'].includes(v))
+      return { bg: '#9CA3AF', fg: '#FFFFFF', label: 'בוטל' };
+    if (v === 'pending_approval' || v === 'ממתין לאישור')
+      return { bg: '#F59E0B', fg: '#FFFFFF', label: 'ממתין' };
+    if (v === 'no_show' || v === 'לא הגיע')
+      return { bg: '#DC2626', fg: '#FFFFFF', label: 'לא הגיע' };
+    return { bg: '#EAB308', fg: '#FFFFFF', label: v || 'מתוכנן' };
+  };
+
+  // Refresh both caches the session/package linkage touches so the
+  // package row + the attendance tab update simultaneously.
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+    queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
+  };
+
+  const handleLinkConfirm = async () => {
+    if (selectedToLink.size === 0) { setShowLinkDialog(false); return; }
+    setLinkSaving(true);
+    try {
+      const ids = Array.from(selectedToLink);
+      const { error } = await supabase
+        .from('sessions')
+        .update({ service_id: pkg.id })
+        .in('id', ids);
+      if (error) throw error;
+      toast.success(`${ids.length} מפגשים שויכו לחבילה`);
+      setSelectedToLink(new Set());
+      setShowLinkDialog(false);
+      refresh();
+    } catch (err) {
+      toast.error('שיוך נכשל: ' + (err?.message || ''));
+    } finally {
+      setLinkSaving(false);
+    }
+  };
+
+  const handleUnlink = async (sessionId) => {
+    if (!window.confirm('לנתק את המפגש מהחבילה?')) return;
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ service_id: null })
+        .eq('id', sessionId);
+      if (error) throw error;
+      toast.success('המפגש נותק מהחבילה');
+      refresh();
+    } catch (err) {
+      toast.error('הניתוק נכשל: ' + (err?.message || ''));
+    }
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedToLink((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   return (
@@ -365,7 +457,7 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
         }}
       >
         <span style={{ color: '#1a1a1a', fontWeight: 600, fontSize: 13 }}>
-          מפגשים מקושרים ({linked.length})
+          מפגשים מקושרים ({linked.length}{totalCapacity > 0 ? ` / ${totalCapacity}` : ''})
         </span>
         <span style={{ color: '#FF6F20', fontSize: 14 }}>{expanded ? '▼' : '▸'}</span>
       </div>
@@ -380,6 +472,7 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
             linked.map((s) => {
               const dateStr = s.date ? format(new Date(s.date), 'dd/MM/yy') : '—';
               const timeStr = (s.time || s.start_time || '').slice(0, 5);
+              const sb = statusBadge(s);
               return (
                 <div
                   key={s.id}
@@ -394,12 +487,24 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
                     {timeStr && <> · {timeStr}</>}
                     {s.session_type && <> · {sessionTypeLabel(s.session_type)}</>}
                   </div>
-                  <span style={{
-                    background: '#16a34a', color: '#FFFFFF', padding: '2px 8px',
-                    borderRadius: 4, fontSize: 11, fontWeight: 600,
-                  }}>
-                    ✓ הושלם
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      background: sb.bg, color: sb.fg, padding: '2px 8px',
+                      borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    }}>{sb.label}</span>
+                    {isCoach && (
+                      <button
+                        type="button"
+                        onClick={() => handleUnlink(s.id)}
+                        title="נתק מפגש מהחבילה"
+                        style={{
+                          background: 'transparent', border: 'none',
+                          color: '#9CA3AF', cursor: 'pointer',
+                          fontSize: 16, lineHeight: 1, padding: '2px 6px',
+                        }}
+                      >×</button>
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -407,6 +512,13 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
 
           {isCoach && (
             <div style={{ marginTop: 10, display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid #FFE5D0' }}>
+              <button
+                onClick={() => { setSelectedToLink(new Set()); setShowLinkDialog(true); }}
+                style={{
+                  flex: 1, padding: '8px 12px', background: '#FF6F20', color: '#FFFFFF',
+                  border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >+ הוסף מפגש</button>
               <button
                 onClick={onUseSession}
                 style={{
@@ -425,6 +537,93 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
           )}
         </div>
       )}
+
+      {/* Link existing sessions dialog — picks from the trainee's
+          full session list. Already-linked sessions show disabled
+          with a hint pointing at their current package; truly
+          unlinked sessions are checkbox-selectable. */}
+      <Dialog open={showLinkDialog} onOpenChange={(o) => { if (!o && !linkSaving) setShowLinkDialog(false); }}>
+        <DialogContent className="max-w-md" onInteractOutside={(e) => { if (linkSaving) e.preventDefault(); }}>
+          <DialogHeader>
+            <DialogTitle style={{ textAlign: 'right', fontSize: 18, fontWeight: 800 }}>
+              שיוך מפגשים לחבילה
+            </DialogTitle>
+          </DialogHeader>
+          <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '60vh', overflowY: 'auto', paddingTop: 4 }}>
+            {linkCandidates.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+                אין מפגשים זמינים למתאמן הזה.
+              </div>
+            ) : (
+              linkCandidates.map((s) => {
+                const isLinkedHere  = s.service_id === pkg.id;
+                const isLinkedOther = !!s.service_id && s.service_id !== pkg.id;
+                const dateStr = s.date ? format(new Date(s.date), 'dd/MM/yy') : '—';
+                const timeStr = (s.time || s.start_time || '').slice(0, 5);
+                const checked = selectedToLink.has(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 10px', borderRadius: 10,
+                      background: isLinkedHere ? '#FFF3E5' : (isLinkedOther ? '#F3F4F6' : '#FFFFFF'),
+                      border: `1px solid ${isLinkedHere ? '#FCD9B6' : (isLinkedOther ? '#E5E7EB' : '#F0E4D0')}`,
+                      cursor: (isLinkedHere || isLinkedOther) ? 'not-allowed' : 'pointer',
+                      opacity: isLinkedOther ? 0.7 : 1,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={isLinkedHere || isLinkedOther}
+                      checked={checked || isLinkedHere}
+                      onChange={() => toggleSelected(s.id)}
+                      style={{ width: 16, height: 16, accentColor: '#FF6F20' }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
+                        {dateStr}{timeStr && <> · {timeStr}</>}{s.session_type && <> · {sessionTypeLabel(s.session_type)}</>}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                        {isLinkedHere    && 'כבר משויך לחבילה זו'}
+                        {isLinkedOther   && 'משויך לחבילה אחרת'}
+                        {!isLinkedHere && !isLinkedOther && (s.status || 'מתוכנן')}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, paddingTop: 10 }}>
+            <button
+              type="button"
+              onClick={() => setShowLinkDialog(false)}
+              disabled={linkSaving}
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 10,
+                border: '1px solid #E5E7EB', background: '#FFFFFF',
+                color: '#374151', fontSize: 14, fontWeight: 700,
+                cursor: linkSaving ? 'wait' : 'pointer',
+              }}
+            >ביטול</button>
+            <button
+              type="button"
+              onClick={handleLinkConfirm}
+              disabled={linkSaving || selectedToLink.size === 0}
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
+                background: '#FF6F20', color: '#FFFFFF',
+                fontSize: 14, fontWeight: 800,
+                cursor: (linkSaving || selectedToLink.size === 0) ? 'not-allowed' : 'pointer',
+                opacity: (linkSaving || selectedToLink.size === 0) ? 0.6 : 1,
+              }}
+            >
+              {linkSaving ? 'משייך...' : `שייך ${selectedToLink.size > 0 ? `(${selectedToLink.size})` : ''}`}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
