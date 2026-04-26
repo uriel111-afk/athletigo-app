@@ -82,6 +82,7 @@ import PlanFormDialog from "@/components/training/PlanFormDialog";
 import ProgressTab from "@/components/profile/ProgressTab";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
 import { useTraineePermissions } from "@/hooks/useTraineePermissions";
+import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 
 const PAYMENT_METHODS = [
   { value: 'cash',        label: 'מזומן',          icon: '💵' },
@@ -808,6 +809,196 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Intro Tab — renders the onboarding questionnaire snapshot stored
+// on the users row. Pure read-only view with chips per the spec.
+// ─────────────────────────────────────────────────────────────────
+const INTRO_GOAL_LABELS = {
+  strength:    { emoji: '💪', label: 'חיזוק והתחשלות' },
+  weight_loss: { emoji: '⚖️', label: 'ירידה במשקל' },
+  flexibility: { emoji: '🤸', label: 'גמישות ותנועתיות' },
+  endurance:   { emoji: '🏃', label: 'סיבולת וכושר' },
+  skill:       { emoji: '🎯', label: 'מיומנות ספציפית' },
+  wellbeing:   { emoji: '😊', label: 'הנאה ותחושה טובה' },
+  rehab:       { emoji: '🩹', label: 'שיקום' },
+  muscle_up:   { emoji: '🎯', label: 'Muscle-Up' },
+};
+const INTRO_FITNESS_LABELS = {
+  beginner:     { emoji: '🌱', label: 'מתחיל/ה' },
+  intermediate: { emoji: '🌿', label: 'בינוני/ת' },
+  advanced:     { emoji: '🌳', label: 'מתקדם/ת' },
+  athlete:      { emoji: '🏆', label: 'ספורטאי/ת' },
+};
+const INTRO_FREQUENCY_LABELS = {
+  '1-2':   '1-2 פעמים בשבוע',
+  '3-4':   '3-4 פעמים בשבוע',
+  '5-6':   '5-6 פעמים בשבוע',
+  'daily': 'כל יום',
+};
+const INTRO_CHALLENGE_LABELS = {
+  motivation:  { emoji: '😫', label: 'חוסר מוטיבציה' },
+  time:        { emoji: '⏰', label: 'חוסר זמן' },
+  injuries:    { emoji: '🤕', label: 'כאבים או פציעות' },
+  where_start: { emoji: '🤷', label: 'קושי לדעת מאיפה להתחיל' },
+  plateau:     { emoji: '📉', label: 'תחושת עצירה' },
+  nutrition:   { emoji: '🍔', label: 'תזונה לא מסודרת' },
+};
+const INTRO_PREFERENCE_LABELS = {
+  fast_results: { emoji: '🎯', label: 'תוצאות מהירות' },
+  technique:    { emoji: '🧠', label: 'טכניקה נכונה' },
+  guidance:     { emoji: '🤝', label: 'ליווי אישי צמוד' },
+  tracking:     { emoji: '📊', label: 'מעקב ומדידות' },
+  variety:      { emoji: '🎮', label: 'גיוון ואתגרים' },
+  calm:         { emoji: '🧘', label: 'רוגע ומתיחות' },
+};
+
+// JSONB columns may arrive parsed (array) or as a stringified JSON
+// blob, depending on driver path. Be lenient.
+const parseList = (raw) => {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [raw];
+    } catch {
+      return [raw];
+    }
+  }
+  return [];
+};
+
+function IntroChip({ emoji, label }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      background: '#FFF5EE', color: '#FF6F20',
+      border: '1px solid #FF6F20', borderRadius: 20,
+      padding: '4px 12px', fontSize: 13, fontWeight: 600,
+    }}>
+      {emoji && <span aria-hidden>{emoji}</span>}
+      {label}
+    </span>
+  );
+}
+
+function IntroSection({ title, children, last }) {
+  return (
+    <div style={{
+      paddingBlock: 12,
+      borderBottom: last ? 'none' : '1px solid #F0E4D0',
+    }}>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 600 }}>{title}</div>
+      <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.5 }}>{children}</div>
+    </div>
+  );
+}
+
+function IntroTab({ user }) {
+  const goals       = parseList(user?.training_goals);
+  const challenges  = parseList(user?.current_challenges);
+  const preferences = parseList(user?.training_preferences);
+  const fitness     = user?.fitness_level || null;
+  const frequency   = user?.preferred_frequency || user?.training_frequency || null;
+  const notes       = user?.additional_notes || null;
+
+  const hasAnything = goals.length || challenges.length || preferences.length
+                      || fitness || frequency || notes;
+
+  if (!hasAnything) {
+    return (
+      <div style={{
+        background: '#FDF8F3', borderRadius: 14,
+        padding: 20, textAlign: 'center', color: '#888',
+        fontSize: 14,
+      }}>
+        השאלון טרם מולא
+      </div>
+    );
+  }
+
+  // Best-effort "filled at" line. The questionnaire doesn't have its
+  // own timestamp column, so we fall back to onboarding_completed_at
+  // → updated_at → created_at, in that order.
+  const filledAtRaw = user?.onboarding_completed_at || user?.updated_at || user?.created_at || null;
+  let filledAtLabel = null;
+  if (filledAtRaw) {
+    try {
+      const d = new Date(filledAtRaw);
+      if (!Number.isNaN(d.getTime())) filledAtLabel = format(d, 'dd/MM/yyyy', { locale: he });
+    } catch {}
+  }
+
+  const fitnessMeta = fitness ? (INTRO_FITNESS_LABELS[fitness] || { emoji: '', label: fitness }) : null;
+  const freqLabel = frequency ? (INTRO_FREQUENCY_LABELS[frequency] || frequency) : null;
+
+  return (
+    <div style={{
+      background: '#FDF8F3', borderRadius: 14, padding: 16,
+      border: '1px solid #F0E4D0',
+    }} dir="rtl">
+      {!!goals.length && (
+        <IntroSection title="מטרות אימון">
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {goals.map((g, i) => {
+              const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
+              return <IntroChip key={`${g}-${i}`} emoji={meta.emoji} label={meta.label} />;
+            })}
+          </div>
+        </IntroSection>
+      )}
+
+      {fitnessMeta && (
+        <IntroSection title="רמת כושר">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span aria-hidden style={{ fontSize: 18 }}>{fitnessMeta.emoji}</span>
+            {fitnessMeta.label}
+          </span>
+        </IntroSection>
+      )}
+
+      {freqLabel && (
+        <IntroSection title="תדירות רצויה">
+          {freqLabel}
+        </IntroSection>
+      )}
+
+      {!!challenges.length && (
+        <IntroSection title="אתגרים נוכחיים">
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {challenges.map((c, i) => {
+              const meta = INTRO_CHALLENGE_LABELS[c] || { emoji: '⚪', label: c };
+              return <IntroChip key={`${c}-${i}`} emoji={meta.emoji} label={meta.label} />;
+            })}
+          </div>
+        </IntroSection>
+      )}
+
+      {!!preferences.length && (
+        <IntroSection title="העדפות אימון">
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {preferences.map((p, i) => {
+              const meta = INTRO_PREFERENCE_LABELS[p] || { emoji: '⚪', label: p };
+              return <IntroChip key={`${p}-${i}`} emoji={meta.emoji} label={meta.label} />;
+            })}
+          </div>
+        </IntroSection>
+      )}
+
+      {notes && (
+        <IntroSection title="הערות נוספות" last>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{notes}</div>
+        </IntroSection>
+      )}
+
+      {filledAtLabel && (
+        <div style={{ marginTop: 12, fontSize: 11, color: '#999', textAlign: 'center' }}>
+          מולא ב-{filledAtLabel}
+        </div>
+      )}
     </div>
   );
 }
@@ -2354,16 +2545,21 @@ export default function TraineeProfile() {
   // trainee's view only. Hook itself is called above (before the
   // coreDataLoading early return); we just consume traineePerms here.
 
+  // Tab order per spec:
+  //   פרטים | היכרות | מפגשים | חבילות | תוכניות | בייסליין | מדידות | מסמכים
+  // Extras (יעדים, שיאים, התראות, הערות, שעונים) tail-stack in their
+  // legacy order so nothing is removed — only re-prioritized.
   const ALL_TAB_ITEMS = [
     { id: 'personal',      label: 'פרטים',    emoji: '👤', icon: User,            perm: null },
-    { id: 'plans',         label: 'תוכניות',  emoji: '📋', icon: Folder,          perm: 'view_plan' },
+    { id: 'intro',         label: 'היכרות',   emoji: '🎯', icon: Target,          perm: null },
     { id: 'attendance',    label: 'מפגשים',   emoji: '📅', icon: Calendar,        perm: null },
-    { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity,        perm: 'edit_metrics' },
-    { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award,           perm: 'view_progress' },
-    { id: 'baselines',     label: 'בייסליין', emoji: '⚡', icon: Zap,             perm: 'view_baseline' },
-    { id: 'goals',         label: 'יעדים',    emoji: '🎯', icon: Target,          perm: 'view_progress' },
     { id: 'services',      label: 'חבילות',   emoji: '🎫', icon: Package,         perm: null },
+    { id: 'plans',         label: 'תוכניות',  emoji: '📋', icon: Folder,          perm: 'view_plan' },
+    { id: 'baselines',     label: 'בייסליין', emoji: '⚡', icon: Zap,             perm: 'view_baseline' },
+    { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity,        perm: 'edit_metrics' },
     { id: 'documents',     label: 'מסמכים',   emoji: '📄', icon: FileText,        perm: 'view_documents' },
+    { id: 'goals',         label: 'יעדים',    emoji: '🥇', icon: Target,          perm: 'view_progress' },
+    { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award,           perm: 'view_progress' },
     { id: 'notifications', label: 'התראות',   emoji: '🔔', icon: Bell,            perm: null },
     { id: 'messages',      label: 'הערות',    emoji: '💬', icon: MessageSquare,   perm: 'send_messages' },
     { id: 'clocks',        label: 'שעונים',   emoji: '⏱', icon: Clock,           perm: null, isLink: true },
@@ -2534,21 +2730,43 @@ export default function TraineeProfile() {
                     </Button>
                   </div>
                   <div className="p-4 space-y-2.5">
-                    {[
-                      { label: 'שם מלא', value: user.full_name },
-                      { label: 'טלפון', value: user.phone },
-                      { label: 'אימייל', value: user.email },
-                      { label: 'גיל', value: user.age ? user.age + ' שנים' : null },
-                      { label: 'מין', value: user.gender },
-                      { label: 'עיר', value: user.city },
-                      { label: 'כתובת', value: user.address },
-                      { label: 'מטרה עיקרית', value: user.main_goal },
-                    ].map((item, i) => (
-                      <div key={i} className="text-right text-sm py-1">
-                        <span className="text-gray-500 font-medium">{item.label}: </span>
-                        <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
-                      </div>
-                    ))}
+                    {(() => {
+                      // Build a "birthDate + age" composite when birth_date
+                      // is present; otherwise fall back to the legacy age
+                      // column written by older onboarding flows.
+                      let birthLabel = null;
+                      if (user.birth_date) {
+                        try {
+                          const d = new Date(user.birth_date);
+                          if (!Number.isNaN(d.getTime())) {
+                            const dateStr = format(d, 'dd/MM/yyyy');
+                            const ageNow = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                            birthLabel = `${dateStr} • ${ageNow} שנים`;
+                          }
+                        } catch {}
+                      } else if (user.age) {
+                        birthLabel = `${user.age} שנים`;
+                      }
+                      const fields = [
+                        { label: 'שם מלא',       value: user.full_name },
+                        { label: 'טלפון',        value: user.phone },
+                        { label: 'אימייל',       value: user.email },
+                        { label: 'תאריך לידה',   value: birthLabel },
+                        { label: 'גובה',         value: user.height_cm ? `${user.height_cm} ס״מ` : null },
+                        { label: 'משקל',         value: user.weight_kg ? `${user.weight_kg} ק״ג` : null },
+                        { label: 'מקור הגעה',    value: user.referral_source },
+                        { label: 'מין',          value: user.gender },
+                        { label: 'עיר',          value: user.city },
+                        { label: 'כתובת',        value: user.address },
+                        { label: 'מטרה עיקרית',  value: user.main_goal },
+                      ];
+                      return fields.map((item, i) => (
+                        <div key={i} className="text-right text-sm py-1">
+                          <span className="text-gray-500 font-medium">{item.label}: </span>
+                          <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא הוזן'}</span>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
 
@@ -2611,6 +2829,14 @@ export default function TraineeProfile() {
                     </button>
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Intro Tab — answers from the casual onboarding
+                  questionnaire (training_goals/fitness_level/
+                  preferred_frequency/current_challenges/
+                  training_preferences/additional_notes). */}
+              <TabsContent value="intro" className="space-y-4 w-full" dir="rtl">
+                <IntroTab user={user} />
               </TabsContent>
 
               {/* Goals Tab */}
@@ -3084,6 +3310,15 @@ export default function TraineeProfile() {
                               </div>
                               <h4 className="font-bold text-base text-gray-900">{format(new Date(session.date), 'EEEE, dd/MM/yy', { locale: he })}</h4>
                               <p className="text-xs text-gray-500">{session.time} • {session.location || 'לא צוין'} • {session.duration || 60} דקות</p>
+                              {Number(session.price || 0) > 0 && (
+                                <div style={{ marginTop: 6 }}>
+                                  <SessionPaymentBadge
+                                    session={session}
+                                    trainee={user}
+                                    coachView={isCoach}
+                                  />
+                                </div>
+                              )}
                             </div>
                             {isCoach && (
                               <div className="flex items-center gap-1 flex-shrink-0">
@@ -3183,6 +3418,15 @@ export default function TraineeProfile() {
                                         </div>
                                         <div className="text-sm font-bold text-gray-700">{format(new Date(session.date), 'dd/MM/yy', { locale: he })}</div>
                                         <div className="text-xs text-gray-400">{session.time} • {session.location || 'לא צוין'}</div>
+                                        {Number(session.price || 0) > 0 && (
+                                          <div style={{ marginTop: 4 }}>
+                                            <SessionPaymentBadge
+                                              session={session}
+                                              trainee={user}
+                                              coachView={isCoach}
+                                            />
+                                          </div>
+                                        )}
                                       </div>
                                       {isCoach && (
                                         <div className="flex items-center gap-1 flex-shrink-0">

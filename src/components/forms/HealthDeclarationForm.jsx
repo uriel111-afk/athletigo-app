@@ -252,6 +252,36 @@ export default function HealthDeclarationForm({
         console.warn('[HealthDeclaration] documents mirror failed:', e?.message);
       }
 
+      // Mirror into signed_documents so DocumentSigningTab in the
+      // trainee profile renders this with the standard signed-card UI
+      // (label + green "חתום ✓" badge + click-to-view modal with the
+      // signature image). The structure mirrors what
+      // DocumentSigningTab writes itself.
+      try {
+        await supabase.from('signed_documents').insert({
+          trainee_id: trainee?.id || null,
+          coach_id: coachId || null,
+          document_type: 'health_declaration',
+          document_data: {
+            version: 1,
+            source: 'casual_onboarding',
+            questions: QUESTIONS.map((q) => ({
+              key: q.key, label: q.label, answer: !!answers[q.key],
+            })),
+            additional_notes: additionalNotes || null,
+            declaration_confirmed: true,
+            signed_name: trainee?.full_name || '',
+          },
+          signature_data: signatureUrl,
+          signed_at: new Date().toISOString(),
+          status: 'signed',
+          is_locked: true,
+          file_url: signatureUrl,
+        });
+      } catch (e) {
+        console.warn('[HealthDeclaration] signed_documents mirror failed:', e?.message);
+      }
+
       toast.success('הצהרת הבריאות נחתמה בהצלחה');
       onSigned?.(inserted);
       onClose?.();
