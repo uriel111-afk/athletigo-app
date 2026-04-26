@@ -23,6 +23,20 @@ export default function AllUsers() {
   // 'desc' = full_name ב-א. Toggle cycles asc → desc → asc (one tap
   // flip). The "recent" default kicks in until the coach taps it once.
   const [sortMode, setSortMode] = useState('recent');
+  // 'former' trainees are archived — hidden from the main list by
+  // default and surfaced via this toggle. casual / active / suspended
+  // always show; only 'former' is gated.
+  const [showFormer, setShowFormer] = useState(false);
+
+  // Status badge config — mirrors the four canonical statuses on
+  // the trainee profile page so the visual language is consistent
+  // (orange ⏳ casual, green ✓ active, gray ⏸ suspended, red × former).
+  const STATUS_BADGES = {
+    casual:    { label: 'מזדמן',  bg: '#FFF3E5', fg: '#92400E', border: '#FCD9B6', icon: '⏳' },
+    active:    { label: 'פעיל',   bg: '#E8F5E9', fg: '#15803D', border: '#BBE5C0', icon: '✓' },
+    suspended: { label: 'מושהה',  bg: '#F3F4F6', fg: '#4B5563', border: '#D1D5DB', icon: '⏸' },
+    former:    { label: 'לשעבר',  bg: '#FEE2E2', fg: '#B91C1C', border: '#FCA5A5', icon: '×' },
+  };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -147,6 +161,10 @@ export default function AllUsers() {
   const filteredTrainees = useMemo(() => {
     const q = searchTerm.toLowerCase();
     const filtered = allTrainees.filter(t => {
+      // Archive gate — 'former' trainees are hidden unless the coach
+      // explicitly flips the toggle. Skips before the package logic
+      // so an archived trainee with a stale package doesn't surface.
+      if (t.client_status === 'former' && !showFormer) return false;
       if (q) {
         const hit = (t.full_name || '').toLowerCase().includes(q)
           || (t.email || '').toLowerCase().includes(q)
@@ -177,7 +195,7 @@ export default function AllUsers() {
     }
     return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTrainees, allServices, searchTerm, filterType, sortMode]);
+  }, [allTrainees, allServices, searchTerm, filterType, sortMode, showFormer]);
 
   return (
     <ProtectedCoachPage>
@@ -277,6 +295,23 @@ export default function AllUsers() {
               }}>{f.label} ({f.count})</div>
             );
           })}
+          {/* Archived toggle — separate from the package-state chips
+              because client_status is a different axis. Tap to flip
+              archived (former) trainees in/out of the list. */}
+          <div
+            onClick={() => setShowFormer((v) => !v)}
+            style={{
+              padding: '6px 12px', borderRadius: 20,
+              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              whiteSpace: 'nowrap', flexShrink: 0,
+              background: showFormer ? '#FEE2E2' : 'white',
+              color: showFormer ? '#B91C1C' : '#888',
+              border: showFormer ? '1px solid #FCA5A5' : '1px solid #F0E4D0',
+            }}
+            title={showFormer ? 'מציג גם לשעבר' : 'הצג גם לשעבר'}
+          >
+            {showFormer ? '× לשעבר מוצגים' : '× הצג לשעבר'}
+          </div>
         </div>
 
         {/* D. User cards or empty state */}
@@ -345,9 +380,31 @@ export default function AllUsers() {
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 15, fontWeight: 600,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{t.full_name || 'מתאמן'}</div>
+                    display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                  }}>
+                    <span style={{
+                      fontSize: 15, fontWeight: 600,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      maxWidth: '100%',
+                    }}>{t.full_name || 'מתאמן'}</span>
+                    {/* client_status badge — only renders for the
+                        four canonical statuses; legacy Hebrew values
+                        (לקוח פעיל/לא פעיל) are skipped to avoid
+                        cluttering the row with a redundant chip. */}
+                    {STATUS_BADGES[t.client_status] && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                        padding: '1px 7px', borderRadius: 999,
+                        background: STATUS_BADGES[t.client_status].bg,
+                        color: STATUS_BADGES[t.client_status].fg,
+                        border: `1px solid ${STATUS_BADGES[t.client_status].border}`,
+                        fontSize: 10, fontWeight: 700, flexShrink: 0,
+                      }}>
+                        <span aria-hidden>{STATUS_BADGES[t.client_status].icon}</span>
+                        {STATUS_BADGES[t.client_status].label}
+                      </span>
+                    )}
+                  </div>
                   <div style={{
                     fontSize: 11, color: '#888', marginTop: 1,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',

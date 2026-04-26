@@ -1,4 +1,34 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+
+// Client onboarding status — drives the badge color, the
+// change-status dialog, and the permissions/package side-effects
+// when the coach flips a trainee between states. Keys must match
+// the values written into users.client_status by AddTraineeDialog
+// and PackageFormDialog (see commit c2939ba for the casual pipeline).
+const CLIENT_STATUS_OPTIONS = [
+  { key: 'casual',    label: 'מזדמן',  badgeBg: '#FFF3E5', badgeFg: '#92400E', borderColor: '#FCD9B6', icon: '⏳',
+    description: 'גישה מוגבלת, בלי קיזוז חבילות. מתאים למתאמן שעדיין לא רכש חבילה.' },
+  { key: 'active',    label: 'פעיל',   badgeBg: '#E8F5E9', badgeFg: '#15803D', borderColor: '#BBE5C0', icon: '✓',
+    description: 'גישה מלאה לכל התכנים, קיזוז חבילות פעיל.' },
+  { key: 'suspended', label: 'מושהה',  badgeBg: '#F3F4F6', badgeFg: '#4B5563', borderColor: '#D1D5DB', icon: '⏸',
+    description: 'הקפאת חבילה, אין גישה לתכנים. ניתן להחזיר לפעיל בכל שלב.' },
+  { key: 'former',    label: 'לשעבר',  badgeBg: '#FEE2E2', badgeFg: '#B91C1C', borderColor: '#FCA5A5', icon: '×',
+    description: 'ארכיון. המתאמן לא יוצג ברשימה הראשית כברירת מחדל.' },
+];
+
+const STATUS_BY_KEY = Object.fromEntries(
+  CLIENT_STATUS_OPTIONS.map((s) => [s.key, s])
+);
+
+// Permissions per status — active is fully open, casual keeps only
+// messaging, suspended/former lock everything down.
+const PERMS_BY_STATUS = {
+  active:    { view_baseline: true,  view_training_plan: true,  view_progress: true,  view_documents: true,  edit_metrics: true,  send_videos: true,  send_messages: true,  view_plan: true,  view_records: true },
+  casual:    { view_baseline: false, view_training_plan: false, view_progress: false, view_documents: false, edit_metrics: false, send_videos: false, send_messages: true,  view_plan: false, view_records: false },
+  suspended: { view_baseline: false, view_training_plan: false, view_progress: false, view_documents: false, edit_metrics: false, send_videos: false, send_messages: false, view_plan: false, view_records: false },
+  former:    { view_baseline: false, view_training_plan: false, view_progress: false, view_documents: false, edit_metrics: false, send_videos: false, send_messages: false, view_plan: false, view_records: false },
+};
+
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
@@ -501,6 +531,14 @@ export default function TraineeProfile() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const userIdParam = searchParams.get("userId");
+
+  // Status-change dialog. Coach taps the badge → menu opens →
+  // picks a target status → confirm dialog with description →
+  // confirm runs the update side-effects (perms + package
+  // freeze/unfreeze) and closes.
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(null);
+  const [statusSaving, setStatusSaving] = useState(false);
 
   const { data: currentUser, refetch, isLoading: currentUserLoading, isError: currentUserError } = useQuery({
     queryKey: ['current-user-trainee-profile'],
@@ -1765,6 +1803,87 @@ export default function TraineeProfile() {
 
   const isUrielsAccount = user.email === 'uriel111@gmail.com';
 
+  // Status change side-effects: update users.client_status, sync
+  // trainee_permissions to the per-status preset, and freeze/
+  // unfreeze packages when the trainee toggles between
+  // active ↔ suspended. Best-effort on the package step (some
+  // installs use Hebrew status enums; the .eq filter just won't
+  // match those rows and the call no-ops).
+  const handleStatusChange = async (newStatus) => {
+    if (!user?.id || !newStatus || !PERMS_BY_STATUS[newStatus]) return;
+    setStatusSaving(true);
+    try {
+      // 1. users.client_status
+      const { error: userErr } = await supabase
+        .from('users')
+        .update({ client_status: newStatus })
+        .eq('id', user.id);
+      if (userErr) throw userErr;
+
+      // 2. trainee_permissions (only when the coach actually owns
+      // the relationship — coach_id is required by the table's PK).
+      if (currentUser?.id) {
+        try {
+          await supabase.from('trainee_permissions').upsert({
+            coach_id: currentUser.id,
+            trainee_id: user.id,
+            ...PERMS_BY_STATUS[newStatus],
+          }, { onConflict: 'coach_id,trainee_id' });
+        } catch (e) {
+          console.warn('[StatusChange] perms upsert failed:', e?.message);
+        }
+      }
+
+      // 3. Package freeze / unfreeze. Suspended freezes any active
+      // package; flipping back to active thaws frozen packages so
+      // session-deduction resumes where it left off.
+      if (newStatus === 'suspended') {
+        try {
+          await supabase
+            .from('client_services')
+            .update({ status: 'frozen' })
+            .eq('trainee_id', user.id)
+            .eq('status', 'active');
+        } catch (e) { console.warn('[StatusChange] freeze failed:', e?.message); }
+      } else if (newStatus === 'active') {
+        try {
+          await supabase
+            .from('client_services')
+            .update({ status: 'active' })
+            .eq('trainee_id', user.id)
+            .eq('status', 'frozen');
+        } catch (e) { console.warn('[StatusChange] thaw failed:', e?.message); }
+      }
+
+      // 4. Refetch + toast
+      queryClient.invalidateQueries({ queryKey: ['user-profile', user.id] });
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+      const opt = STATUS_BY_KEY[newStatus];
+      const name = user.full_name || 'המתאמן';
+      const flavorByStatus = {
+        active:    `${name} הפך ללקוח פעיל ✓`,
+        casual:    `${name} הועבר למזדמן`,
+        suspended: `${name} מושהה — החבילה הוקפאה`,
+        former:    `${name} הועבר לארכיון`,
+      };
+      toast.success(flavorByStatus[newStatus] || `${name} — סטטוס עודכן ל${opt?.label || newStatus}`);
+      setPendingStatus(null);
+      setStatusMenuOpen(false);
+    } catch (err) {
+      console.error('[StatusChange] failed:', err);
+      toast.error('שגיאה בעדכון הסטטוס: ' + (err?.message || ''));
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  // Status badge meta — derived per render from the live user row.
+  const currentStatusKey = user.client_status && STATUS_BY_KEY[user.client_status]
+    ? user.client_status
+    : null;
+  const currentStatusOpt = currentStatusKey ? STATUS_BY_KEY[currentStatusKey] : null;
+
   const attendedSessions = sessions.filter(s => s.participants?.some(p => p.trainee_id === user?.id && p.attendance_status === 'הגיע'));
   const attendancePct = sessions.length > 0 ? Math.round((attendedSessions.length / sessions.length) * 100) : 0;
   const activeService = activeServices[0];
@@ -1819,9 +1938,34 @@ export default function TraineeProfile() {
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 20 }}>
-                    {user.full_name}
-                  </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 20 }}>
+                      {user.full_name}
+                    </h2>
+                    {/* Status badge — only renders for the four
+                        canonical statuses (legacy Hebrew values are
+                        skipped). Click opens the change-status menu. */}
+                    {isCoach && currentStatusOpt && (
+                      <button
+                        type="button"
+                        onClick={() => setStatusMenuOpen(true)}
+                        title="לחץ לשינוי סטטוס"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '2px 9px', borderRadius: 999,
+                          background: currentStatusOpt.badgeBg,
+                          color: currentStatusOpt.badgeFg,
+                          border: `1px solid ${currentStatusOpt.borderColor}`,
+                          fontSize: 11, fontWeight: 700,
+                          cursor: 'pointer', flexShrink: 0,
+                          fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        }}
+                      >
+                        <span aria-hidden>{currentStatusOpt.icon}</span>
+                        {currentStatusOpt.label}
+                      </button>
+                    )}
+                  </div>
                   <p className="text-white/70 text-[11px] mt-0.5">
                     {user.age ? user.age + ' שנים' : ''}{user.age && user.phone ? ' • ' : ''}{user.phone || ''}
                   </p>
@@ -3449,6 +3593,118 @@ export default function TraineeProfile() {
         )}
 
       </div>
+
+      {/* ─── Change client status dialog ───────────────────────────
+          Two stages in one mount:
+          1. Menu (statusMenuOpen, no pendingStatus): pick a new
+             status from the 4 options + see its description.
+          2. Confirm (pendingStatus is set): explicit confirm step
+             before the side-effects fire. */}
+      {isCoach && (
+        <Dialog
+          open={statusMenuOpen}
+          onOpenChange={(open) => { if (!open && !statusSaving) { setStatusMenuOpen(false); setPendingStatus(null); } }}
+        >
+          <DialogContent className="max-w-sm" onInteractOutside={(e) => { if (statusSaving) e.preventDefault(); }}>
+            <DialogHeader>
+              <DialogTitle style={{ textAlign: 'right', fontSize: 18, fontWeight: 800 }}>
+                {pendingStatus ? 'אישור שינוי סטטוס' : 'שינוי סטטוס לקוח'}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
+              {!pendingStatus ? (
+                CLIENT_STATUS_OPTIONS.map((opt) => {
+                  const isCurrent = opt.key === currentStatusKey;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => { if (!isCurrent) setPendingStatus(opt.key); }}
+                      disabled={isCurrent}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        padding: 12, borderRadius: 12,
+                        background: isCurrent ? '#F9FAFB' : '#FFFFFF',
+                        border: `1.5px solid ${isCurrent ? '#E5E7EB' : opt.borderColor}`,
+                        cursor: isCurrent ? 'not-allowed' : 'pointer',
+                        opacity: isCurrent ? 0.6 : 1,
+                        textAlign: 'right',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      <span style={{
+                        flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: 999,
+                        background: opt.badgeBg, color: opt.badgeFg,
+                        fontSize: 14, fontWeight: 800,
+                      }}>{opt.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#1A1A1A', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {opt.label}
+                          {isCurrent && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF' }}>(נוכחי)</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, lineHeight: 1.4 }}>
+                          {opt.description}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <>
+                  <div style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6, padding: '8px 0' }}>
+                    לשנות את הסטטוס של <strong>{user.full_name}</strong> ל-
+                    <strong style={{ color: STATUS_BY_KEY[pendingStatus]?.badgeFg }}>
+                      {' '}{STATUS_BY_KEY[pendingStatus]?.label}
+                    </strong>
+                    ?
+                  </div>
+                  <div style={{
+                    background: STATUS_BY_KEY[pendingStatus]?.badgeBg,
+                    border: `1px solid ${STATUS_BY_KEY[pendingStatus]?.borderColor}`,
+                    borderRadius: 10, padding: 10,
+                    fontSize: 12, color: STATUS_BY_KEY[pendingStatus]?.badgeFg,
+                    lineHeight: 1.5,
+                  }}>
+                    {STATUS_BY_KEY[pendingStatus]?.description}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, paddingTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setPendingStatus(null)}
+                      disabled={statusSaving}
+                      style={{
+                        flex: 1, padding: '10px 14px', borderRadius: 10,
+                        border: '1px solid #E5E7EB', background: '#FFFFFF',
+                        color: '#374151', fontSize: 14, fontWeight: 700,
+                        cursor: statusSaving ? 'wait' : 'pointer',
+                      }}
+                    >חזור</button>
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange(pendingStatus)}
+                      disabled={statusSaving}
+                      style={{
+                        flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
+                        background: '#FF6F20', color: '#FFFFFF',
+                        fontSize: 14, fontWeight: 800,
+                        cursor: statusSaving ? 'wait' : 'pointer',
+                        opacity: statusSaving ? 0.7 : 1,
+                      }}
+                    >
+                      {statusSaving ? 'שומר...' : 'אשר שינוי'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </ErrorBoundary>
   );
 }
