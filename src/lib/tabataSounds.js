@@ -74,27 +74,61 @@ function doubleBell(when) {
 }
 
 // Workout-end signal — four ascending triangle tones (C5 → C6).
-// Restored to the original arpeggio after a brief detour through a
-// 3-square-beep version that the coach didn't want. Gain bumped to
-// 1.0 (was 0.7) so it carries over headphones / pocket fabric;
-// everything else — waveform, frequencies, ramp shape, timing — is
-// unchanged from the original.
+// Same arpeggio as the original (waveform, frequencies, timing all
+// preserved). Volume boost is achieved by layering and compression,
+// NOT by changing the musical content:
+//   - triangle osc at gain 1.0 (the bright "bite" — original tone)
+//   - sine osc at the same freq + gain 0.5 (adds body / fundamental)
+//   - both feed a per-call DynamicsCompressor (threshold -10 dB,
+//     ratio 4:1) which evens the peak and lets a higher RMS through
+//     without clipping
+//   - compressor → masterGain, isolated to this call so other
+//     per-round cues stay at their original loudness
 function victory(when) {
   const c = getCtx();
+
+  // One compressor per victory() invocation — disposed implicitly
+  // when the scheduled nodes finish playing. Compresses the layered
+  // signal so the perceived loudness goes up without distortion.
+  const comp = c.createDynamicsCompressor();
+  comp.threshold.setValueAtTime(-10, c.currentTime);
+  comp.knee.setValueAtTime(20, c.currentTime);
+  comp.ratio.setValueAtTime(4, c.currentTime);
+  comp.attack.setValueAtTime(0.003, c.currentTime);
+  comp.release.setValueAtTime(0.25, c.currentTime);
+  comp.connect(masterGain);
+
   [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
     const start = when + i * 0.18;
-    const osc = c.createOscillator();
-    const g = c.createGain();
-    osc.type = "triangle";
-    osc.frequency.value = f;
-    g.gain.setValueAtTime(0, start);
-    g.gain.linearRampToValueAtTime(1.0, start + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, start + 0.6);
-    osc.connect(g);
-    g.connect(masterGain);
-    osc.start(start);
-    osc.stop(start + 0.62);
-    scheduledNodes.push(osc);
+
+    // Layer 1 — triangle (the original tone, unchanged).
+    const tri = c.createOscillator();
+    const triG = c.createGain();
+    tri.type = "triangle";
+    tri.frequency.value = f;
+    triG.gain.setValueAtTime(0, start);
+    triG.gain.linearRampToValueAtTime(1.0, start + 0.02);
+    triG.gain.exponentialRampToValueAtTime(0.001, start + 0.6);
+    tri.connect(triG);
+    triG.connect(comp);
+    tri.start(start);
+    tri.stop(start + 0.62);
+    scheduledNodes.push(tri);
+
+    // Layer 2 — sine at the same pitch for fundamental body. Same
+    // envelope shape, lower peak so it doesn't dominate the timbre.
+    const sin = c.createOscillator();
+    const sinG = c.createGain();
+    sin.type = "sine";
+    sin.frequency.value = f;
+    sinG.gain.setValueAtTime(0, start);
+    sinG.gain.linearRampToValueAtTime(0.5, start + 0.02);
+    sinG.gain.exponentialRampToValueAtTime(0.001, start + 0.6);
+    sin.connect(sinG);
+    sinG.connect(comp);
+    sin.start(start);
+    sin.stop(start + 0.62);
+    scheduledNodes.push(sin);
   });
 }
 
