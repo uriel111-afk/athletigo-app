@@ -340,8 +340,19 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
 function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSession, onRefundSession }) {
   const [expanded, setExpanded] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkTab, setLinkTab] = useState('existing');
   const [selectedToLink, setSelectedToLink] = useState(new Set());
   const [linkSaving, setLinkSaving] = useState(false);
+  // New-session form (Tab 2). Past dates are intentionally allowed —
+  // the coach often needs to log a session that already happened.
+  const initialNewSession = () => ({
+    date: new Date().toISOString().split('T')[0],
+    time: new Date().toTimeString().slice(0, 5),
+    session_type: 'אישי',
+    status: 'מאושר',
+    notes: '',
+  });
+  const [newSession, setNewSession] = useState(initialNewSession);
   const queryClient = useQueryClient();
 
   // Linked sessions = every session pointing at this package, regardless
@@ -401,17 +412,38 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
     queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
   };
 
+  // Increment used_sessions on the package by `n` (or refund -n).
+  // Mirrors adjustPackageBalance' core logic without the toast/UI
+  // side-effects so we can call it inline. Auto-completes the
+  // package when remaining hits 0.
+  const bumpPackageUsage = async (delta) => {
+    const total = Number(pkg.total_sessions || pkg.sessions_count || 0);
+    const currentUsed = Number(pkg.used_sessions || 0);
+    const newUsed = Math.max(0, currentUsed + delta);
+    const update = { used_sessions: newUsed };
+    if (total > 0) update.sessions_remaining = Math.max(0, total - newUsed);
+    if (total > 0 && newUsed >= total) update.status = 'completed';
+    if (delta < 0 && pkg.status === 'completed' && newUsed < total) update.status = 'active';
+    await supabase.from('client_services').update(update).eq('id', pkg.id);
+  };
+
   const handleLinkConfirm = async () => {
     if (selectedToLink.size === 0) { setShowLinkDialog(false); return; }
     setLinkSaving(true);
     try {
       const ids = Array.from(selectedToLink);
-      const { error } = await supabase
+      // 1) Link the sessions + mark them as deducted so the existing
+      //    status-change deduct path doesn't double-count later.
+      const { error: linkErr } = await supabase
         .from('sessions')
-        .update({ service_id: pkg.id })
+        .update({ service_id: pkg.id, was_deducted: true })
         .in('id', ids);
-      if (error) throw error;
-      toast.success(`${ids.length} מפגשים שויכו לחבילה`);
+      if (linkErr) throw linkErr;
+      // 2) Deduct N slots from the package. One link === one slot.
+      try { await bumpPackageUsage(ids.length); } catch (e) {
+        console.warn('[Link] package usage bump failed:', e?.message);
+      }
+      toast.success(`${ids.length} מפגשים שויכו לחבילה ✓`);
       setSelectedToLink(new Set());
       setShowLinkDialog(false);
       refresh();
@@ -422,15 +454,62 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
     }
   };
 
+  const handleCreateAndLink = async () => {
+    if (!newSession.date) { toast.error('בחר תאריך'); return; }
+    setLinkSaving(true);
+    try {
+      // Build the row. service_id is set inline so the session is
+      // born already linked; was_deducted=true protects against the
+      // status-change flow trying to deduct it again.
+      const row = {
+        trainee_id: pkg.trainee_id,
+        coach_id: pkg.coach_id || null,
+        date: newSession.date,
+        time: newSession.time || null,
+        session_type: newSession.session_type || 'אישי',
+        status: newSession.status || 'מאושר',
+        notes: newSession.notes || null,
+        service_id: pkg.id,
+        was_deducted: true,
+        // participants[] mirrors the legacy group-session shape so the
+        // attendance tab + counters that rely on it still find the row.
+        participants: [{
+          trainee_id: pkg.trainee_id,
+          attendance_status:
+            newSession.status === 'הושלם' || newSession.status === 'הגיע' ? 'הגיע'
+            : newSession.status === 'לא הגיע' ? 'לא הגיע'
+            : 'ממתין',
+        }],
+      };
+      const { error: insErr } = await supabase.from('sessions').insert(row);
+      if (insErr) throw insErr;
+      try { await bumpPackageUsage(1); } catch (e) {
+        console.warn('[CreateAndLink] package usage bump failed:', e?.message);
+      }
+      toast.success('מפגש נוצר ושויך ✓');
+      setNewSession(initialNewSession());
+      setShowLinkDialog(false);
+      refresh();
+    } catch (err) {
+      toast.error('יצירת מפגש נכשלה: ' + (err?.message || ''));
+    } finally {
+      setLinkSaving(false);
+    }
+  };
+
   const handleUnlink = async (sessionId) => {
     if (!window.confirm('לנתק את המפגש מהחבילה?')) return;
     try {
+      // Mirror of handleLinkConfirm: drop the link + refund a slot.
       const { error } = await supabase
         .from('sessions')
-        .update({ service_id: null })
+        .update({ service_id: null, was_deducted: false })
         .eq('id', sessionId);
       if (error) throw error;
-      toast.success('המפגש נותק מהחבילה');
+      try { await bumpPackageUsage(-1); } catch (e) {
+        console.warn('[Unlink] package usage refund failed:', e?.message);
+      }
+      toast.success('המפגש נותק מהחבילה ✓');
       refresh();
     } catch (err) {
       toast.error('הניתוק נכשל: ' + (err?.message || ''));
@@ -538,63 +617,155 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
         </div>
       )}
 
-      {/* Link existing sessions dialog — picks from the trainee's
-          full session list. Already-linked sessions show disabled
-          with a hint pointing at their current package; truly
-          unlinked sessions are checkbox-selectable. */}
+      {/* Two-tab "+ הוסף מפגש" dialog. Tab 1 picks from existing
+          unlinked sessions; tab 2 creates a brand-new session
+          already linked to this package. Either path decrements
+          one slot from the package (was_deducted=true on the
+          session row prevents double-count later). */}
       <Dialog open={showLinkDialog} onOpenChange={(o) => { if (!o && !linkSaving) setShowLinkDialog(false); }}>
         <DialogContent className="max-w-md" onInteractOutside={(e) => { if (linkSaving) e.preventDefault(); }}>
           <DialogHeader>
             <DialogTitle style={{ textAlign: 'right', fontSize: 18, fontWeight: 800 }}>
-              שיוך מפגשים לחבילה
+              הוסף מפגש לחבילה
             </DialogTitle>
           </DialogHeader>
-          <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '60vh', overflowY: 'auto', paddingTop: 4 }}>
-            {linkCandidates.length === 0 ? (
-              <div style={{ padding: 24, textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
-                אין מפגשים זמינים למתאמן הזה.
-              </div>
-            ) : (
-              linkCandidates.map((s) => {
-                const isLinkedHere  = s.service_id === pkg.id;
-                const isLinkedOther = !!s.service_id && s.service_id !== pkg.id;
-                const dateStr = s.date ? format(new Date(s.date), 'dd/MM/yy') : '—';
-                const timeStr = (s.time || s.start_time || '').slice(0, 5);
-                const checked = selectedToLink.has(s.id);
-                return (
-                  <label
-                    key={s.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 10px', borderRadius: 10,
-                      background: isLinkedHere ? '#FFF3E5' : (isLinkedOther ? '#F3F4F6' : '#FFFFFF'),
-                      border: `1px solid ${isLinkedHere ? '#FCD9B6' : (isLinkedOther ? '#E5E7EB' : '#F0E4D0')}`,
-                      cursor: (isLinkedHere || isLinkedOther) ? 'not-allowed' : 'pointer',
-                      opacity: isLinkedOther ? 0.7 : 1,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      disabled={isLinkedHere || isLinkedOther}
-                      checked={checked || isLinkedHere}
-                      onChange={() => toggleSelected(s.id)}
-                      style={{ width: 16, height: 16, accentColor: '#FF6F20' }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
-                        {dateStr}{timeStr && <> · {timeStr}</>}{s.session_type && <> · {sessionTypeLabel(s.session_type)}</>}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
-                        {isLinkedHere    && 'כבר משויך לחבילה זו'}
-                        {isLinkedOther   && 'משויך לחבילה אחרת'}
-                        {!isLinkedHere && !isLinkedOther && (s.status || 'מתוכנן')}
-                      </div>
-                    </div>
-                  </label>
-                );
-              })
-            )}
+
+          {/* Tabs */}
+          <div dir="rtl" style={{ display: 'flex', gap: 4, marginBottom: 8, padding: 4, background: '#F3F4F6', borderRadius: 10 }}>
+            {[
+              { id: 'existing', label: 'בחר מפגש קיים' },
+              { id: 'new',      label: 'צור מפגש חדש' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setLinkTab(t.id)}
+                style={{
+                  flex: 1, padding: '8px 10px', borderRadius: 8,
+                  border: 'none', cursor: 'pointer',
+                  background: linkTab === t.id ? '#FFFFFF' : 'transparent',
+                  color: linkTab === t.id ? '#FF6F20' : '#6B7280',
+                  fontSize: 13, fontWeight: 700,
+                  boxShadow: linkTab === t.id ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >{t.label}</button>
+            ))}
           </div>
+
+          {/* Tab body */}
+          {linkTab === 'existing' ? (
+            <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '50vh', overflowY: 'auto', paddingTop: 4 }}>
+              {linkCandidates.filter(s => !s.service_id).length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+                  אין מפגשים זמינים לשיוך.
+                </div>
+              ) : (
+                linkCandidates.map((s) => {
+                  const isLinkedHere  = s.service_id === pkg.id;
+                  const isLinkedOther = !!s.service_id && s.service_id !== pkg.id;
+                  const dateStr = s.date ? format(new Date(s.date), 'dd/MM/yy') : '—';
+                  const timeStr = (s.time || s.start_time || '').slice(0, 5);
+                  const checked = selectedToLink.has(s.id);
+                  return (
+                    <label
+                      key={s.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 10px', borderRadius: 10,
+                        background: isLinkedHere ? '#FFF3E5' : (isLinkedOther ? '#F3F4F6' : '#FFFFFF'),
+                        border: `1px solid ${isLinkedHere ? '#FCD9B6' : (isLinkedOther ? '#E5E7EB' : '#F0E4D0')}`,
+                        cursor: (isLinkedHere || isLinkedOther) ? 'not-allowed' : 'pointer',
+                        opacity: isLinkedOther ? 0.7 : 1,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={isLinkedHere || isLinkedOther}
+                        checked={checked || isLinkedHere}
+                        onChange={() => toggleSelected(s.id)}
+                        style={{ width: 16, height: 16, accentColor: '#FF6F20' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
+                          {dateStr}{timeStr && <> · {timeStr}</>}{s.session_type && <> · {sessionTypeLabel(s.session_type)}</>}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                          {isLinkedHere    && 'כבר משויך לחבילה זו'}
+                          {isLinkedOther   && 'משויך לחבילה אחרת'}
+                          {!isLinkedHere && !isLinkedOther && (s.status || 'מתוכנן')}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+              {/* New-session form. min/max NOT set on date input — past
+                  dates are intentional so the coach can log retroactively. */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>תאריך</label>
+                  <input
+                    type="date"
+                    value={newSession.date}
+                    onChange={(e) => setNewSession({ ...newSession, date: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>שעה</label>
+                  <input
+                    type="time"
+                    value={newSession.time}
+                    onChange={(e) => setNewSession({ ...newSession, time: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>סוג</label>
+                  <select
+                    value={newSession.session_type}
+                    onChange={(e) => setNewSession({ ...newSession, session_type: e.target.value })}
+                    style={{ width: '100%', padding: '10px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
+                  >
+                    <option value="אישי">אישי</option>
+                    <option value="קבוצתי">קבוצתי</option>
+                    <option value="אונליין">אונליין</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>סטטוס</label>
+                  <select
+                    value={newSession.status}
+                    onChange={(e) => setNewSession({ ...newSession, status: e.target.value })}
+                    style={{ width: '100%', padding: '10px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
+                  >
+                    <option value="מאושר">מתוכנן</option>
+                    <option value="הושלם">הושלם</option>
+                    <option value="לא הגיע">לא הגיע</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>הערות (אופציונלי)</label>
+                <textarea
+                  value={newSession.notes}
+                  onChange={(e) => setNewSession({ ...newSession, notes: e.target.value })}
+                  rows={2}
+                  placeholder="פרטים נוספים על המפגש..."
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 13, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box', resize: 'vertical', minHeight: 50 }}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'right', marginTop: 2 }}>
+                ⓘ אפשר לבחור גם תאריך בעבר — לתיעוד מפגש שכבר התקיים. השמירה תקזז מפגש אחד מהחבילה.
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, paddingTop: 10 }}>
             <button
               type="button"
@@ -609,17 +780,21 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
             >ביטול</button>
             <button
               type="button"
-              onClick={handleLinkConfirm}
-              disabled={linkSaving || selectedToLink.size === 0}
+              onClick={linkTab === 'existing' ? handleLinkConfirm : handleCreateAndLink}
+              disabled={linkSaving || (linkTab === 'existing' && selectedToLink.size === 0) || (linkTab === 'new' && !newSession.date)}
               style={{
                 flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
                 background: '#FF6F20', color: '#FFFFFF',
                 fontSize: 14, fontWeight: 800,
-                cursor: (linkSaving || selectedToLink.size === 0) ? 'not-allowed' : 'pointer',
-                opacity: (linkSaving || selectedToLink.size === 0) ? 0.6 : 1,
+                cursor: linkSaving ? 'not-allowed' : 'pointer',
+                opacity: linkSaving ? 0.6 : 1,
               }}
             >
-              {linkSaving ? 'משייך...' : `שייך ${selectedToLink.size > 0 ? `(${selectedToLink.size})` : ''}`}
+              {linkSaving
+                ? 'שומר...'
+                : linkTab === 'existing'
+                  ? `שייך ${selectedToLink.size > 0 ? `(${selectedToLink.size})` : ''}`
+                  : 'צור ושייך'}
             </button>
           </div>
         </DialogContent>
