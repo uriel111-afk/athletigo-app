@@ -710,12 +710,20 @@ export default function UnifiedClientCard({
               </p>
             </div>
 
-            {/* Birth Date */}
+            {/* Birth Date — formatted dd/MM/yyyy + age computed from
+                birth_date so it's correct even when the legacy `age`
+                column on the user row is empty/stale. */}
             <div onClick={() => setShowEditBirthDate(true)} className="cursor-pointer p-1.5 md:p-2 rounded-lg hover:bg-gray-50 transition-all active:bg-gray-100">
               <p className="text-xs md:text-sm flex items-center justify-center gap-1 md:gap-2 flex-wrap" style={{ color: '#7D7D7D' }}>
                 <Calendar className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
-                <span>{currentClient.birth_date ? format(new Date(currentClient.birth_date), 'dd/MM/yyyy') : 'הוסף תאריך לידה'}</span>
-                {currentClient.age && <span>({currentClient.age})</span>}
+                {currentClient.birth_date ? (() => {
+                  const d = new Date(currentClient.birth_date);
+                  if (Number.isNaN(d.getTime())) return <span>הוסף תאריך לידה</span>;
+                  const age = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                  return <span>{format(d, 'dd/MM/yyyy')} ({age})</span>;
+                })() : (
+                  <span>הוסף תאריך לידה</span>
+                )}
                 <Edit2 className="w-2.5 h-2.5 md:w-3 md:h-3 flex-shrink-0" style={{ color: '#FF6F20' }} />
               </p>
             </div>
