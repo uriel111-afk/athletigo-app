@@ -783,24 +783,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         })()}
       </div>
 
-      {/* ROW 2: Stats — set + round on the LEFT, total time anchored
-          to the RIGHT edge so the drain ring around it is the most
-          visible element on the row. In RTL, the LAST DOM child is
-          leftmost, so we render Set + Button first, Total chip last
-          → Total ends up on the right edge of the screen. */}
+      {/* ROW 2: Stats — total time anchored to the RIGHT edge of the
+          row, then set + round filling the rest. In an RTL flex row
+          (direction:rtl + flex-direction:row), the FIRST DOM child
+          sits at the main-start which is the RIGHT edge, and
+          subsequent children flow leftward. So Total chip first =
+          rightmost. */}
       <div style={{ display: 'flex', gap: 8, padding: '0 16px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
-        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', color: textPrimary }}>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>סט</div>
-          <div style={{ fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.set)}/{cfg.sets}</div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setRoundPickerOpen(true)}
-          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
-        >
-          <div style={{ pointerEvents: 'none', fontSize: 20, fontWeight: 800 }}>סבב</div>
-          <div style={{ pointerEvents: 'none', fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.round)}/{cfg.rounds}</div>
-        </button>
         <div style={{
           flex: 1.5, position: 'relative',
           background: chipDarkBg, borderRadius: 12,
@@ -844,6 +833,18 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
           </div>
         </div>
+        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', color: textPrimary }}>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>סט</div>
+          <div style={{ fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.set)}/{cfg.sets}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setRoundPickerOpen(true)}
+          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '10px 12px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent' }}
+        >
+          <div style={{ pointerEvents: 'none', fontSize: 20, fontWeight: 800 }}>סבב</div>
+          <div style={{ pointerEvents: 'none', fontSize: 40, fontWeight: 800 }}>{Math.max(1, phase.round)}/{cfg.rounds}</div>
+        </button>
       </div>
 
       {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
