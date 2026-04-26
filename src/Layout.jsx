@@ -8,6 +8,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import AdminCoachActivator from "@/components/AdminCoachActivator";
 import NotificationBadge from "@/components/NotificationBadge";
 import { MentorChatIconButton } from "@/components/lifeos/MentorChat";
+import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import PWANotifications from "@/components/PWANotifications";
 import DataLoader from "@/components/DataLoader";
 import PageLoader from "@/components/PageLoader";
@@ -53,6 +54,10 @@ export default function Layout({ children, currentPageName }) {
   const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
+  // Trainee permissions — only consumed for the bottom-nav trim.
+  // The hook returns a friendly default when the row is missing,
+  // so calling it for coaches is a cheap no-op.
+  const { perms: traineePerms } = useTraineePermissions(!isCoach ? user?.id : null);
   const clock = useClock();
   const { liveTimer, setLiveTimer, activeTimers, isMinimized } = useActiveTimer();
   // Bars only contribute height when actually visible (minimized state).
@@ -513,29 +518,43 @@ export default function Layout({ children, currentPageName }) {
                style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 8px 18px', direction: 'rtl', overflow: 'visible' }}>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', width: '100%' }}>
               {(() => {
-                const fullTraineeNav = [
-                  { to: createPageUrl("TraineeHome"),     emoji: '🏠', label: 'בית' },
-                  { to: createPageUrl("MyWorkoutLog"),    emoji: '📋', label: 'תוכניות' },
-                  { to: createPageUrl("TraineeSessions"), emoji: '📅', label: 'מפגשים' },
-                  { to: createPageUrl("Progress"),        emoji: '🏆', label: 'שיאים' },
-                  { to: createPageUrl("TraineeProfile"),  emoji: '👤', label: 'פרופיל' },
-                ];
-                // Trim trainee nav by client_status:
-                //   suspended / former → only home + profile (so the
-                //     lock screen has a way out — TraineeHome itself
-                //     short-circuits to a status message)
+                // The five canonical trainee tabs. Indices used below
+                // for the trimmed variants (0=home, 1=plans, 2=sessions,
+                // 3=records, 4=profile) — keep this array in this order.
+                const HOME_TAB     = { to: createPageUrl("TraineeHome"),     emoji: '🏠', label: 'בית' };
+                const PLAN_TAB     = { to: createPageUrl("MyWorkoutLog"),    emoji: '📋', label: 'תוכניות' };
+                const SESSIONS_TAB = { to: createPageUrl("TraineeSessions"), emoji: '📅', label: 'מפגשים' };
+                const RECORDS_TAB  = { to: createPageUrl("Progress"),        emoji: '🏆', label: 'שיאים' };
+                const PROFILE_TAB  = { to: createPageUrl("TraineeProfile"),  emoji: '👤', label: 'פרופיל' };
+
+                // Trim trainee nav by client_status + permissions:
+                //   onboarding → no nav (Layout already redirects to
+                //     /Onboarding before this code runs, but be safe)
+                //   suspended / former → only home + profile (lock
+                //     screen needs a way out)
                 //   casual → home + profile (no plan/sessions/records
-                //     until the coach sells them a package and flips
-                //     status to active)
-                //   active or legacy null → full nav
+                //     until coach sells a package and flips to active)
+                //   active → home + profile + every middle tab the coach
+                //     has unlocked in trainee_permissions
+                //   legacy null → assume active, all tabs open
                 const traineeStatus = user?.client_status || null;
                 let traineeNav;
-                if (traineeStatus === 'suspended' || traineeStatus === 'former') {
-                  traineeNav = [fullTraineeNav[0], fullTraineeNav[4]];
+                if (traineeStatus === 'onboarding' ||
+                    traineeStatus === 'suspended'  ||
+                    traineeStatus === 'former') {
+                  traineeNav = [HOME_TAB, PROFILE_TAB];
                 } else if (traineeStatus === 'casual') {
-                  traineeNav = [fullTraineeNav[0], fullTraineeNav[4]];
+                  traineeNav = [HOME_TAB, PROFILE_TAB];
                 } else {
-                  traineeNav = fullTraineeNav;
+                  // active or legacy null
+                  const middle = [];
+                  if (traineePerms?.view_training_plan !== false) middle.push(PLAN_TAB);
+                  // Sessions tab is part of the training-plan permission
+                  // bundle (matches how MyPlan / TraineeSessions are
+                  // gated by <PermGate perm="view_training_plan">).
+                  if (traineePerms?.view_training_plan !== false) middle.push(SESSIONS_TAB);
+                  if (traineePerms?.view_progress      !== false) middle.push(RECORDS_TAB);
+                  traineeNav = [HOME_TAB, ...middle, PROFILE_TAB];
                 }
                 const navItems = isCoach ? [
                   { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },

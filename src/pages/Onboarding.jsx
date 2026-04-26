@@ -101,17 +101,33 @@ function MedicalQuestion({ label, value, onChange }) {
 }
 
 // Step Components defined outside to prevent re-renders losing focus
+// Native-select style — same palette as the rest of the form.
+// Native selects (vs Radix) avoid portal-vs-dialog focus issues
+// and "just work" on every device.
+const ONB_NATIVE_SELECT_STYLE = {
+  width: '100%', padding: '10px 12px', borderRadius: 12,
+  border: '1px solid #F0E4D0', background: '#FFFFFF',
+  fontSize: 14, direction: 'rtl', color: '#1A1A1A',
+  outline: 'none', boxSizing: 'border-box', height: 48,
+  fontFamily: "'Heebo', 'Assistant', sans-serif",
+};
+// Subtle "אופציונלי" tag next to optional labels.
+const OptionalTag = () => (
+  <span className="text-xs font-normal text-gray-400 mr-1">(אופציונלי)</span>
+);
+
 const Step1_PersonalInfo = ({ formData, setFormData }) => (
   <div className="space-y-6">
     <div className="text-center space-y-2">
       <h2 className="text-2xl font-bold text-gray-900">בואו נכיר אותך! 👋</h2>
-      <p className="text-gray-500">פרטים אישיים בסיסיים ליצירת הקשר</p>
+      <p className="text-gray-500">רק שם וטלפון חובה — שאר הפרטים אופציונליים וניתן להשלים בכל רגע.</p>
     </div>
-    
+
+    {/* Required */}
     <div className="space-y-4">
       <div className="space-y-2">
         <Label className="text-right block font-bold">שם מלא *</Label>
-        <Input 
+        <Input
           value={formData.full_name}
           onChange={e => setFormData({...formData, full_name: e.target.value})}
           className="bg-white border-gray-200 h-12 text-right"
@@ -121,7 +137,7 @@ const Step1_PersonalInfo = ({ formData, setFormData }) => (
 
       <div className="space-y-2">
         <Label className="text-right block font-bold">טלפון *</Label>
-        <Input 
+        <Input
           value={formData.phone}
           onChange={e => setFormData({...formData, phone: e.target.value})}
           className="bg-white border-gray-200 h-12 text-right"
@@ -129,27 +145,104 @@ const Step1_PersonalInfo = ({ formData, setFormData }) => (
           type="tel"
         />
       </div>
+    </div>
 
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">אימייל *</Label>
-        <Input
-          value={formData.email}
-          onChange={e => setFormData({...formData, email: e.target.value})}
-          className="bg-white border-gray-200 h-12 text-right"
-          placeholder="email@example.com"
-          type="email"
-        />
+    {/* Optional section — collapsible visually via the heading + */}
+    <div className="space-y-4 pt-2 border-t border-gray-100">
+      <div className="text-right text-sm font-bold text-gray-700">פרטים נוספים <OptionalTag /></div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-right block text-sm text-gray-600">אימייל <OptionalTag /></Label>
+          <Input
+            value={formData.email}
+            onChange={e => setFormData({...formData, email: e.target.value})}
+            className="bg-white border-gray-100 h-12 text-right"
+            placeholder="email@example.com"
+            type="email"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-right block text-sm text-gray-600">תאריך לידה <OptionalTag /></Label>
+          <Input
+            value={formData.birth_date}
+            onChange={e => setFormData({...formData, birth_date: e.target.value})}
+            className="bg-white border-gray-100 h-12 text-right"
+            type="date"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-right block text-sm text-gray-600">גובה (ס״מ) <OptionalTag /></Label>
+          <Input
+            value={formData.height_cm}
+            onChange={e => setFormData({...formData, height_cm: e.target.value})}
+            className="bg-white border-gray-100 h-12 text-right"
+            placeholder="170"
+            type="number"
+            min={50} max={250}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-right block text-sm text-gray-600">משקל (ק״ג) <OptionalTag /></Label>
+          <Input
+            value={formData.weight_kg}
+            onChange={e => setFormData({...formData, weight_kg: e.target.value})}
+            className="bg-white border-gray-100 h-12 text-right"
+            placeholder="75"
+            type="number"
+            min={20} max={300}
+            step="0.1"
+          />
+        </div>
       </div>
 
       <div className="space-y-2">
-        <Label className="text-right block font-bold">תאריך לידה *</Label>
-        <Input
-          value={formData.birth_date}
-          onChange={e => setFormData({...formData, birth_date: e.target.value})}
-          className="bg-white border-gray-200 h-12 text-right"
-          type="date"
+        <Label className="text-right block text-sm text-gray-600">ניסיון ספורטיבי קודם <OptionalTag /></Label>
+        <select
+          value={formData.fitness_level}
+          onChange={(e) => setFormData({...formData, fitness_level: e.target.value})}
+          style={ONB_NATIVE_SELECT_STYLE}
+        >
+          <option value="">— בחר —</option>
+          <option value="ללא ניסיון">ללא ניסיון</option>
+          <option value="מתחיל">🌱 מתחיל</option>
+          <option value="בינוני">🌿 בינוני</option>
+          <option value="מתקדם">🌳 מתקדם</option>
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-right block text-sm text-gray-600">איך הגעת אלינו? <OptionalTag /></Label>
+        <select
+          value={formData.referral_source}
+          onChange={(e) => setFormData({...formData, referral_source: e.target.value})}
+          style={ONB_NATIVE_SELECT_STYLE}
+        >
+          <option value="">— בחר —</option>
+          <option value="instagram">📸 אינסטגרם</option>
+          <option value="facebook">📘 פייסבוק</option>
+          <option value="friend">🤝 חבר/ה</option>
+          <option value="google">🔍 גוגל</option>
+          <option value="other">✨ אחר</option>
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-right block text-sm text-gray-600">פציעות או מגבלות <OptionalTag /></Label>
+        <Textarea
+          value={formData.medical_history}
+          onChange={e => setFormData({...formData, medical_history: e.target.value})}
+          className="bg-white border-gray-100 min-h-[70px] text-right resize-none"
+          placeholder="ספר/י על פציעות או מגבלות שחשוב שהמאמן ידע..."
         />
       </div>
+
+      <p className="text-xs text-gray-500 text-right pt-1">
+        ניתן להשלים פרטים נוספים בכל שלב מתוך הפרופיל שלך.
+      </p>
     </div>
   </div>
 );
@@ -406,6 +499,13 @@ export default function Onboarding() {
     onboarding_notes: "",
     has_limitations: null,
     health_declaration_approved: false,
+    // Optional profile fields surfaced in Step1 (NEW columns added
+    // by 20260427_users_optional_profile.sql + reuse of existing
+    // medical_history / fitness_level columns).
+    height_cm: "",
+    weight_kg: "",
+    medical_history: "",
+    referral_source: "",
     // Structured medical questionnaire — { answer: bool|null, details: string }
     // per question key. Defaults to all-null so nothing is implicitly
     // claimed before the trainee actually answers.
@@ -521,10 +621,13 @@ export default function Onboarding() {
 
   const isStepValid = () => {
     switch (step) {
-      case 1: // Mandatory Info
-        return formData.full_name && formData.phone && formData.email && formData.birth_date;
+      case 1: // Mandatory: name + phone only. Email / birth_date /
+              // height / weight / fitness_level / medical_history /
+              // referral_source are all optional and can be filled
+              // later from the trainee profile.
+        return !!(formData.full_name && formData.phone);
       case 2: // Goals
-        return true; 
+        return true;
       default:
         return true;
     }
@@ -588,7 +691,9 @@ export default function Onboarding() {
         .filter(Boolean)
         .join('\n');
 
-      // OPTIONAL: These fields are nice-to-have but shouldn't block completion
+      // OPTIONAL: These fields are nice-to-have but shouldn't block
+      // completion. Numbers are parsed only when the user actually
+      // entered something so we don't write a stray 0.
       const optionalData = {
         full_name: formData.full_name,
         phone: formData.phone,
@@ -601,7 +706,15 @@ export default function Onboarding() {
         training_frequency: formData.training_frequency,
         motivation: formData.motivation,
         preferred_training_style: formData.preferred_training_style,
-        onboarding_notes: formData.onboarding_notes
+        onboarding_notes: formData.onboarding_notes,
+        // New optional profile columns (per
+        // 20260427_users_optional_profile.sql migration). The
+        // base44Client 42703 retry layer drops these silently if the
+        // migration hasn't been run yet, so the save still succeeds.
+        height_cm: formData.height_cm ? parseInt(formData.height_cm, 10) : null,
+        weight_kg: formData.weight_kg ? parseFloat(formData.weight_kg)   : null,
+        medical_history: formData.medical_history || null,
+        referral_source: formData.referral_source || null,
       };
 
       // Combine data with critical fields taking precedence
