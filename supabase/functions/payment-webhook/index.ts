@@ -55,6 +55,13 @@ Deno.serve(async (req) => {
 
     const isSuccess = status === 1;
 
+    // Receipt URL — Grow/Meshulam exposes the receipt under its
+    // public link domain keyed by transaction id. Built only on
+    // success so failed/cancelled rows stay null.
+    const receiptUrl = (isSuccess && transactionId)
+      ? `https://grow.link/receipt/${encodeURIComponent(transactionId)}`
+      : null;
+
     if (paymentRow?.id) {
       try {
         await admin.from('payments').update({
@@ -62,6 +69,7 @@ Deno.serve(async (req) => {
           transaction_id: transactionId,
           raw_callback: payload,
           completed_at: isSuccess ? new Date().toISOString() : null,
+          receipt_url: receiptUrl,
         }).eq('id', paymentRow.id);
       } catch (e: any) {
         console.warn('[payment-webhook] payments update failed:', e?.message);
@@ -78,6 +86,7 @@ Deno.serve(async (req) => {
           payment_type: cFieldType || null,
           raw_callback: payload,
           completed_at: isSuccess ? new Date().toISOString() : null,
+          receipt_url: receiptUrl,
         });
       } catch (e: any) {
         console.warn('[payment-webhook] orphan payment insert failed:', e?.message);
@@ -144,6 +153,25 @@ Deno.serve(async (req) => {
           });
         } catch (e: any) {
           console.warn('[payment-webhook] notification insert failed:', e?.message);
+        }
+      }
+
+      // Mirror the receipt into the documents table so the coach
+      // finds it in the trainee's "מסמכים" tab and the trainee can
+      // re-open it from their own profile. Best-effort.
+      if (receiptUrl && (coachId || traineeId)) {
+        try {
+          await admin.from('documents').insert({
+            user_id: coachId || null,
+            trainee_id: traineeId || null,
+            name: `קבלה — ${traineeName || 'מתאמן/ת'} — ${amount}₪`,
+            type: 'receipt',
+            category: 'financial',
+            file_url: receiptUrl,
+            created_at: new Date().toISOString(),
+          });
+        } catch (e: any) {
+          console.warn('[payment-webhook] documents receipt insert failed:', e?.message);
         }
       }
     }

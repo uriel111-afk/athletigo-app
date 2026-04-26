@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PopupNotificationManager from "../components/PopupNotificationManager";
+import RecentPaymentsCard from "../components/RecentPaymentsCard";
 import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
@@ -603,6 +604,9 @@ export default function Dashboard() {
               </div>
             </>
           )}
+
+          {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
+          <RecentPaymentsCard coachId={coach?.id} />
 
           {/* ═══ SECTION 4 — גישה מהירה (circular icons) ═══════ */}
           <SectionHeader title="גישה מהירה" />

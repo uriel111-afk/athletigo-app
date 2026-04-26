@@ -65,6 +65,9 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           .eq('id', session.id);
       } catch (e) { console.warn('[Pay] optimistic update failed:', e?.message); }
 
+      console.log('[Payment] invoking payment-create:', {
+        amount: price, session_id: session.id, trainee_name: trainee?.full_name,
+      });
       const { data, error } = await supabase.functions.invoke('payment-create', {
         body: {
           amount: price,
@@ -77,6 +80,7 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           payment_type: 'single_session',
         },
       });
+      console.log('[Payment] result:', data, error);
       if (error) throw error;
       const url = data?.url || data?.payment_url;
       if (!url) {

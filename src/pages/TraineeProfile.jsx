@@ -83,6 +83,7 @@ import ProgressTab from "@/components/profile/ProgressTab";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
 import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
+import TraineeReceiptsList from "@/components/TraineeReceiptsList";
 
 const PAYMENT_METHODS = [
   { value: 'cash',        label: 'מזומן',          icon: '💵' },
@@ -1402,6 +1403,32 @@ export default function TraineeProfile() {
   const { data: baselines = [], isLoading: baselinesLoading } = useQuery({
     queryKey: ['baselines', user?.id],
     queryFn: () => base44.entities.Baseline.filter({ trainee_id: user.id }, '-date').catch(() => []),
+    enabled: !!user?.id,
+    staleTime: 60000,
+  });
+
+  // Per-trainee payments — used to surface a small 🧾 receipt button
+  // next to paid sessions in the attendance tab. Keyed by session_id
+  // so the rendering is a cheap map lookup.
+  const { data: paymentsBySession = {} } = useQuery({
+    queryKey: ['trainee-payments', user?.id],
+    queryFn: async () => {
+      try {
+        const { data } = await supabase
+          .from('payments')
+          .select('id, session_id, status, amount, receipt_url, completed_at')
+          .eq('trainee_id', user.id)
+          .eq('status', 'completed');
+        const map = {};
+        for (const p of (data || [])) {
+          if (p.session_id) map[p.session_id] = p;
+        }
+        return map;
+      } catch (e) {
+        console.warn('[TraineeProfile] payments fetch failed:', e?.message);
+        return {};
+      }
+    },
     enabled: !!user?.id,
     staleTime: 60000,
   });
@@ -3311,12 +3338,23 @@ export default function TraineeProfile() {
                               <h4 className="font-bold text-base text-gray-900">{format(new Date(session.date), 'EEEE, dd/MM/yy', { locale: he })}</h4>
                               <p className="text-xs text-gray-500">{session.time} • {session.location || 'לא צוין'} • {session.duration || 60} דקות</p>
                               {Number(session.price || 0) > 0 && (
-                                <div style={{ marginTop: 6 }}>
+                                <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                   <SessionPaymentBadge
                                     session={session}
                                     trainee={user}
                                     coachView={isCoach}
                                   />
+                                  {paymentsBySession[session.id]?.receipt_url && (
+                                    <button
+                                      type="button"
+                                      onClick={() => window.open(paymentsBySession[session.id].receipt_url, '_blank', 'noopener,noreferrer')}
+                                      title="פתח קבלה"
+                                      style={{
+                                        background: 'transparent', border: 'none', cursor: 'pointer',
+                                        fontSize: 18, padding: 0, lineHeight: 1,
+                                      }}
+                                    >🧾</button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -3419,12 +3457,23 @@ export default function TraineeProfile() {
                                         <div className="text-sm font-bold text-gray-700">{format(new Date(session.date), 'dd/MM/yy', { locale: he })}</div>
                                         <div className="text-xs text-gray-400">{session.time} • {session.location || 'לא צוין'}</div>
                                         {Number(session.price || 0) > 0 && (
-                                          <div style={{ marginTop: 4 }}>
+                                          <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                             <SessionPaymentBadge
                                               session={session}
                                               trainee={user}
                                               coachView={isCoach}
                                             />
+                                            {paymentsBySession[session.id]?.receipt_url && (
+                                              <button
+                                                type="button"
+                                                onClick={() => window.open(paymentsBySession[session.id].receipt_url, '_blank', 'noopener,noreferrer')}
+                                                title="פתח קבלה"
+                                                style={{
+                                                  background: 'transparent', border: 'none', cursor: 'pointer',
+                                                  fontSize: 16, padding: 0, lineHeight: 1,
+                                                }}
+                                              >🧾</button>
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -3617,6 +3666,7 @@ export default function TraineeProfile() {
                       coachId={currentUser?.id}
                     />
                   )}
+                  <TraineeReceiptsList traineeId={user?.id} />
                   <DocumentSigningTab
                     effectiveUser={effectiveUser || user}
                     isCoach={isCoach}

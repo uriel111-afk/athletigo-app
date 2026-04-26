@@ -385,6 +385,11 @@ export default function TraineeHome() {
     }
     setApprovalBusy(true);
     try {
+      console.log('[Payment] invoking payment-create:', {
+        amount: pendingPrice,
+        session_id: pendingApprovalSession.id,
+        trainee_name: user?.full_name,
+      });
       const { data, error } = await supabase.functions.invoke('payment-create', {
         body: {
           amount: pendingPrice,
@@ -396,6 +401,7 @@ export default function TraineeHome() {
           payment_type: 'single_session',
         },
       });
+      console.log('[Payment] result:', data, error);
       if (error || !data?.url) {
         toast.error('שגיאה ביצירת דף תשלום. נסה/י שוב.');
         setApprovalBusy(false);
