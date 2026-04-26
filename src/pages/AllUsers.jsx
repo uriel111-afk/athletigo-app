@@ -352,7 +352,7 @@ export default function AllUsers() {
                   </div>
                 </div>
 
-                {/* Birthday */}
+                {/* Birthday — full DD/MM/YYYY + current age in years */}
                 <div style={{
                   flex: 1, display: 'flex', alignItems: 'center', gap: 4,
                   background: '#FFF9F0',
@@ -361,11 +361,21 @@ export default function AllUsers() {
                   <span style={{ fontSize: 12 }}>🎂</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{
-                      fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                      fontSize: 12, fontWeight: 600, color: '#1a1a1a',
+                      whiteSpace: 'nowrap',
                     }}>
-                      {birthDate
-                        ? new Date(birthDate).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })
-                        : '—'}
+                      {(() => {
+                        if (!birthDate) return 'לא הוזן';
+                        const d = new Date(birthDate);
+                        if (Number.isNaN(d.getTime())) return 'לא הוזן';
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        const yyyy = d.getFullYear();
+                        const age = Math.floor(
+                          (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+                        );
+                        return `${dd}/${mm}/${yyyy} (${age})`;
+                      })()}
                     </div>
                     <div style={{ fontSize: 8, color: '#888' }}>יום הולדת</div>
                   </div>
