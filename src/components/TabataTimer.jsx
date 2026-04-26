@@ -582,19 +582,24 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   // ─── Compute total remaining time ───
-  // Returns the seconds left until the workout proper finishes.
+  // Returns FLOAT seconds left until the workout proper finishes.
   // While in prep, returns the full totalExerciseSeconds so the
   // drain ring stays at 100% — the bar represents the active
   // workout, not the warm-up. The moment prep ends and the first
   // work phase starts, this drops to totalExerciseSeconds and
   // begins counting down monotonically through every set.
+  //
+  // Float precision is critical here: rounding to integer seconds
+  // would let the ring only update once per second, which combined
+  // with the rAF re-render rate makes the ring feel laggy vs. the
+  // digits. Caller (digits) does its own Math.ceil for display.
   function calcTotalRemaining() {
     const c = cfgRef.current;
     const p = phaseRef.current;
     if (p.type === 'idle' || p.type === 'done') return 0;
     if (p.type === 'prep') return totalExerciseSeconds;
 
-    // Current phase remaining
+    // Current phase remaining (sub-second precision, no ceil/floor).
     const elapsed = (performance.now() - startAtRef.current) / 1000;
     let total = Math.max(0, p.dur - elapsed);
 
@@ -606,19 +611,24 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       total += nxt.dur;
       cur = nxt;
     }
-    return Math.ceil(total);
+    return total;
   }
 
-  const totalLeft = calcTotalRemaining();
+  // Float total — drives both the ring and the digit countdown so
+  // the two stay perfectly in lockstep. Computed ONCE per render.
+  const totalLeftPrecise = calcTotalRemaining();
+  // Integer for the displayed mm:ss countdown.
+  const totalLeft = Math.ceil(totalLeftPrecise);
   const totalMin = Math.floor(totalLeft / 60);
   const totalSec = totalLeft % 60;
 
-  // borderProgress: 1 = full, 0 = empty. Survives the "done" phase
-  // (totalLeft becomes 0 — that's fine, ring just empties).
-  // totalExerciseSeconds is computed above (hoisted past the early
-  // returns so hook order stays stable).
+  // borderProgress: 1 = full, 0 = empty. Uses the float value so
+  // the ring drains continuously every rAF frame in lockstep with
+  // performance.now() — no CSS transition needed (and adding one
+  // would lag the ring ~1s behind the digits, since CSS would
+  // chase each new offset value over 1s while reality keeps moving).
   const totalBorderProgress = totalExerciseSeconds > 0
-    ? Math.max(0, Math.min(1, totalLeft / totalExerciseSeconds))
+    ? Math.max(0, Math.min(1, totalLeftPrecise / totalExerciseSeconds))
     : 0;
 
   // Minimize handler — single source of truth (mirrors Clocks.jsx
@@ -852,7 +862,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               strokeWidth="3" strokeLinecap="round"
               pathLength="100" strokeDasharray="100"
               strokeDashoffset={100 * (1 - totalBorderProgress)}
-              style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.3s ease' }}
+              // No transition on stroke-dashoffset on purpose — the
+              // value is recomputed every rAF frame from the precise
+              // performance.now() elapsed, so it already animates
+              // smoothly (~60fps). A CSS transition would chase
+              // each new value over 1s and lag visibly behind the
+              // digits. Color swap (work↔rest) keeps its 0.3s ease.
+              style={{ transition: 'stroke 0.3s ease' }}
             />
           </svg>
           <div style={{ fontSize: 20, fontWeight: 800 }}>⏱</div>
