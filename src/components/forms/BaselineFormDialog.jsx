@@ -214,7 +214,7 @@ export default function BaselineFormDialog() {
   const onTitlePointerDown = (e) => {
     if (e.button && e.button !== 0) return; // ignore right-click
     dragRef.current = {
-      active: true,
+      active: true, moved: false,
       startX: e.clientX, startY: e.clientY,
       baseX: dialogPos.x, baseY: dialogPos.y,
     };
@@ -225,6 +225,8 @@ export default function BaselineFormDialog() {
       if (!dragRef.current.active) return;
       const dx = e.clientX - dragRef.current.startX;
       const dy = e.clientY - dragRef.current.startY;
+      // 3px threshold so a tap (no real movement) still counts as a click.
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragRef.current.moved = true;
       const w = window.innerWidth, h = window.innerHeight;
       // Allow ~half-screen drift in any direction. Generous bounds —
       // the dialog is centered, so x=0 means centered.
@@ -547,9 +549,18 @@ export default function BaselineFormDialog() {
               </button>
             </div>
             <div
-              onDoubleClick={() => setMinimized(true)}
               onPointerDown={onTitlePointerDown}
-              title="גרור להזזה · לחיצה כפולה ממזערת"
+              onClick={() => {
+                // A real drag also fires click on pointerup. Skip the
+                // toggle in that case so dragging the dialog doesn't
+                // accidentally minimize it.
+                if (dragRef.current.moved) {
+                  dragRef.current.moved = false;
+                  return;
+                }
+                setMinimized(m => !m);
+              }}
+              title="גרור להזזה · לחיצה ממזערת"
               style={{
                 flex: 1, textAlign: 'center',
                 fontSize: 16, fontWeight: 800,
@@ -618,27 +629,40 @@ export default function BaselineFormDialog() {
             />
           </div>
 
-          {/* Three timer config cards */}
+          {/* Three timer config cards. RTL flow: first JSX child sits
+              visually right-most. Order: זמן עבודה (R) | זמן מנוחה
+              (M) | מנוחה בין טכניקות (L). */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            <TimerCard label='מנוחה טכניקות' seconds={techRestTime} onChange={viewOnly ? null : setTechRestTime} />
-            <TimerCard label='מנוחה סבבים'    seconds={restTime}     onChange={viewOnly ? null : setRestTime} />
-            <TimerCard label='זמן עבודה'      seconds={workTime}     onChange={viewOnly ? null : setWorkTime} />
+            <TimerCard label='זמן עבודה'         seconds={workTime}     onChange={viewOnly ? null : setWorkTime} />
+            <TimerCard label='זמן מנוחה'         seconds={restTime}     onChange={viewOnly ? null : setRestTime} />
+            <TimerCard label='מנוחה בין טכניקות' seconds={techRestTime} onChange={viewOnly ? null : setTechRestTime} />
           </div>
 
-          {/* Pill tabs */}
+          {/* Pill tabs — orange divider between buttons. Switched to
+              flex so we can interleave <Divider/> elements between
+              the tabs (grid would scatter them across columns). */}
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+            display: 'flex', alignItems: 'center',
             backgroundColor: COLORS.primaryLight,
             borderRadius: 10, padding: 3,
           }}>
-            {TECHNIQUES.map(t => {
+            {TECHNIQUES.map((t, idx) => {
               const active = technique === t.id;
               return (
+                <React.Fragment key={t.id}>
+                  {idx > 0 && (
+                    <span aria-hidden style={{
+                      width: 2, height: 16,
+                      backgroundColor: COLORS.primary,
+                      margin: '0 4px',
+                      flexShrink: 0,
+                    }} />
+                  )}
                 <button
-                  key={t.id}
                   type="button"
                   onClick={() => setTechnique(t.id)}
                   style={{
+                    flex: 1,
                     padding: '6px 4px', borderRadius: 8,
                     border: 'none',
                     backgroundColor: active ? COLORS.primary : 'transparent',
@@ -650,6 +674,7 @@ export default function BaselineFormDialog() {
                 >
                   {t.label}
                 </button>
+                </React.Fragment>
               );
             })}
           </div>
