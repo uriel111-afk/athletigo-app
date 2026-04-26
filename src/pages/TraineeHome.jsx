@@ -473,6 +473,55 @@ export default function TraineeHome() {
     [mySessions]
   );
 
+  // client_status gates the whole page:
+  //   suspended / former → lock screen (no other content rendered)
+  //   casual             → only the header + pending-session banner +
+  //                        upcoming-sessions list (rich features hidden)
+  //   active or legacy   → full home as before, gated only by
+  //                        trainee_permissions
+  // Treat null/legacy values as 'active' so existing trainees that
+  // pre-date the casual pipeline still see their full home.
+  const clientStatus = user?.client_status || null;
+  const isSuspended  = clientStatus === 'suspended';
+  const isFormer     = clientStatus === 'former';
+  const isCasual     = clientStatus === 'casual';
+
+  // Lock screens for suspended / former — full-screen message,
+  // single CTA to contact coach (opens the same chat sheet the
+  // notifications modal uses isn't worth rebuilding here, so we
+  // keep it minimal: just sign-out + a coach contact hint).
+  if (isSuspended || isFormer) {
+    const lockTitle   = isSuspended ? 'החשבון מושהה' : 'החשבון לא פעיל';
+    const lockMessage = isSuspended
+      ? 'החשבון שלך מושהה כרגע. פנה למאמן כדי להפעיל אותו מחדש.'
+      : 'החשבון שלך הועבר לארכיון. פנה למאמן אם ברצונך לחדש את הפעילות.';
+    return (
+      <ErrorBoundary>
+        <div
+          dir="rtl"
+          className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
+          style={{ background: '#FFF9F0' }}
+        >
+          <div style={{ fontSize: 56, marginBottom: 12 }}>{isSuspended ? '⏸' : '📦'}</div>
+          <h1 className="text-2xl font-black text-gray-900 mb-2">{lockTitle}</h1>
+          <p className="text-sm text-gray-600 leading-relaxed max-w-sm mb-6">
+            {lockMessage}
+          </p>
+          {coach?.full_name && (
+            <p className="text-xs text-gray-500 mb-4">המאמן שלך: <strong>{coach.full_name}</strong></p>
+          )}
+          <button
+            type="button"
+            onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
+            className="text-xs text-gray-500 underline mt-2"
+          >
+            התנתק
+          </button>
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       {/* Casual onboarding gate — health declaration form +
@@ -612,8 +661,32 @@ export default function TraineeHome() {
           </div>
         )}
 
-        {/* Daily Challenge card */}
-        {todayChallenge && (
+        {/* Casual empty state — when a casual trainee has no pending
+            session AND no sessions at all, the rest of the page is
+            hidden by other isCasual gates. Show a friendly waiting
+            message so the page isn't blank. */}
+        {isCasual && !pendingApprovalSession && mySessions.length === 0 && (
+          <div style={{
+            margin: '24px 14px 0',
+            background: '#FFFFFF',
+            border: '1px solid #F0E4D0',
+            borderRadius: 16,
+            padding: '28px 20px',
+            textAlign: 'center',
+            color: '#444',
+          }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>📅</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A', marginBottom: 4 }}>
+              המאמן עוד לא קבע לך מפגש
+            </div>
+            <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
+              ברגע שייקבע מפגש, תקבל כאן הודעה לאישור.
+            </div>
+          </div>
+        )}
+
+        {/* Daily Challenge card — hidden for casual (no plan yet) */}
+        {!isCasual && todayChallenge && (
           <div style={{
             background: (todayChallenge.is_read || pendingComplete)
               ? 'linear-gradient(135deg, #16a34a, #22c55e)'
@@ -802,8 +875,9 @@ export default function TraineeHome() {
         )}
 
         {/* My Tracks — coach-assigned skill tracks with progress + milestones.
-            Hidden when the coach has turned off "מעקב התקדמות". */}
-        {perms.view_progress && myTracks.length > 0 && (
+            Hidden when the coach has turned off "מעקב התקדמות".
+            Also hidden for casual trainees (no plan yet). */}
+        {!isCasual && perms.view_progress && myTracks.length > 0 && (
           <div style={{
             background: 'white', borderRadius: 16,
             padding: 14, margin: '12px 14px 0',
@@ -932,7 +1006,10 @@ export default function TraineeHome() {
         </div>
 
         {/* 3-Column Quick Access Grid — gated by coach-set permissions.
-            Hidden tabs collapse the grid (no empty cells). */}
+            Hidden tabs collapse the grid (no empty cells). Whole grid
+            is also hidden for casual trainees who don't have plans /
+            progress / measurements unlocked yet. */}
+        {!isCasual && (
         <div style={{ padding:'8px 14px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
           {[
             // MyWorkoutLog redirects to MyPlan; MyPlan and TraineeSessions
@@ -954,11 +1031,13 @@ export default function TraineeHome() {
             </Link>
           ))}
         </div>
+        )}
 
         <div style={{padding:'0 14px'}}>
 
-        {/* Streak / Progress Card */}
-        {completedCount > 0 && (
+        {/* Streak / Progress Card — hidden for casual (no completed
+            sessions yet, and no plan to track progress against). */}
+        {!isCasual && completedCount > 0 && (
           <div style={{ background:'linear-gradient(135deg, #FF6F20, #FF9A56)', borderRadius:'16px', padding:'16px 18px', marginBottom:'12px', color:'white', boxShadow:'0 4px 14px rgba(255,111,32,0.25)' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
               <Flame className="w-5 h-5" />
@@ -977,8 +1056,9 @@ export default function TraineeHome() {
           </div>
         )}
 
-        {/* Package Balance Reminder */}
-        {packageReminder && (
+        {/* Package Balance Reminder — casual trainees haven't bought
+            a package yet, so the reminder is meaningless for them. */}
+        {!isCasual && packageReminder && (
           <div style={{ background: packageReminder.remaining <= 1 ? '#FEF2F2' : '#FFFBEB', border: `1px solid ${packageReminder.remaining <= 1 ? '#FECACA' : '#FDE68A'}`, borderRadius:'14px', padding:'14px 16px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
               <Package className="w-5 h-5" style={{ color: packageReminder.remaining <= 1 ? '#EF4444' : '#F59E0B' }} />

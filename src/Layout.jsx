@@ -511,19 +511,37 @@ export default function Layout({ children, currentPageName }) {
                style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 8px 18px', direction: 'rtl', overflow: 'visible' }}>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', width: '100%' }}>
               {(() => {
-                const navItems = isCoach ? [
-                  { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
-                  { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
-                  { to: createPageUrl("PlanBuilder"),  emoji: '📋', label: 'תוכניות' },
-                  { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
-                  { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
-                ] : [
+                const fullTraineeNav = [
                   { to: createPageUrl("TraineeHome"),     emoji: '🏠', label: 'בית' },
                   { to: createPageUrl("MyWorkoutLog"),    emoji: '📋', label: 'תוכניות' },
                   { to: createPageUrl("TraineeSessions"), emoji: '📅', label: 'מפגשים' },
                   { to: createPageUrl("Progress"),        emoji: '🏆', label: 'שיאים' },
                   { to: createPageUrl("TraineeProfile"),  emoji: '👤', label: 'פרופיל' },
                 ];
+                // Trim trainee nav by client_status:
+                //   suspended / former → only home + profile (so the
+                //     lock screen has a way out — TraineeHome itself
+                //     short-circuits to a status message)
+                //   casual → home + profile (no plan/sessions/records
+                //     until the coach sells them a package and flips
+                //     status to active)
+                //   active or legacy null → full nav
+                const traineeStatus = user?.client_status || null;
+                let traineeNav;
+                if (traineeStatus === 'suspended' || traineeStatus === 'former') {
+                  traineeNav = [fullTraineeNav[0], fullTraineeNav[4]];
+                } else if (traineeStatus === 'casual') {
+                  traineeNav = [fullTraineeNav[0], fullTraineeNav[4]];
+                } else {
+                  traineeNav = fullTraineeNav;
+                }
+                const navItems = isCoach ? [
+                  { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
+                  { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
+                  { to: createPageUrl("PlanBuilder"),  emoji: '📋', label: 'תוכניות' },
+                  { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
+                  { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
+                ] : traineeNav;
                 return navItems.map(item => {
                   const active = location.pathname === item.to;
                   return (
