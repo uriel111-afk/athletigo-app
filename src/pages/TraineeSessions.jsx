@@ -97,21 +97,24 @@ function TraineeSessionsInner() {
 
   const today = new Date().toISOString().split('T')[0];
 
+  // Status taxonomy spans Hebrew + English. Cancelled covers
+  // every variant of "this session won't happen anymore"; past
+  // covers "this session ended" (whether attended or not).
+  const CANCELLED_STATUSES = ['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'בוטל', 'cancelled'];
+  const PAST_STATUSES = ['התקיים', 'הושלם', 'הגיע', 'לא הגיע', 'completed', 'no_show'];
+  const DONE_STATUSES = [...CANCELLED_STATUSES, ...PAST_STATUSES];
+
   const filtered = sessions.filter(s => {
     if (filter === 'upcoming') {
-      return s.date >= today &&
-        !['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'בוטל'].includes(s.status);
+      return s.date >= today && !CANCELLED_STATUSES.includes(s.status);
     }
     if (filter === 'past') {
-      return s.date < today ||
-        ['התקיים', 'הושלם', 'הגיע', 'לא הגיע'].includes(s.status);
+      return s.date < today || PAST_STATUSES.includes(s.status);
     }
     return true;
   });
 
   const canCancel = (s) => isOver24h(s) && isActive(s);
-
-  const DONE_STATUSES = ['בוטל על ידי מתאמן', 'בוטל על ידי מאמן', 'בוטל', 'התקיים', 'הושלם', 'הגיע', 'לא הגיע'];
 
   const isOver24h = (s) => {
     const dt = new Date(`${s.date}T${s.time || '00:00'}`);
@@ -131,15 +134,23 @@ function TraineeSessionsInner() {
   };
 
   const handleDelete = async (session) => {
-    if (!window.confirm('האם למחוק את הבקשה למפגש?')) return;
+    if (!window.confirm('האם לבטל את הבקשה למפגש?')) return;
     setActionLoading(session.id);
     try {
-      await base44.entities.Session.delete(session.id);
-      setSessions(prev => prev.filter(s => s.id !== session.id));
-      toast.success('הבקשה נמחקה');
+      // Soft-delete: never DELETE a session row. Flip to 'cancelled'
+      // so the audit trail stays intact (matches the iron rule
+      // applied across SessionEditModal, Sessions.jsx, TraineeProfile).
+      await base44.entities.Session.update(session.id, {
+        status: 'cancelled',
+        status_updated_at: new Date().toISOString(),
+      });
+      setSessions(prev => prev.map(s =>
+        s.id === session.id ? { ...s, status: 'cancelled' } : s
+      ));
+      toast.success('הבקשה בוטלה');
       window.dispatchEvent(new CustomEvent('data-changed'));
     } catch (err) {
-      toast.error('שגיאה במחיקה: ' + (err?.message || 'נסה שוב'));
+      toast.error('שגיאה בביטול: ' + (err?.message || 'נסה שוב'));
     } finally {
       setActionLoading(null);
     }

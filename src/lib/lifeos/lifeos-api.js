@@ -726,16 +726,28 @@ export async function getAnnualIncome(userId, year = new Date().getFullYear()) {
 // Leads
 // ─────────────────────────────────────────────────────────────────
 
-// `userId` here is actually the coach_id — the legacy `leads` table
-// is keyed by coach_id, not user_id. We accept the same arg name to
-// avoid churn at every call site.
+// `userId` here is the auth.uid() of the coach. Different installs
+// of the leads table key the owner under either column name —
+// (coach_id) on the legacy schema, (user_id) on the Wave-2 schema.
+// We try coach_id first; if that 400s ("column does not exist"),
+// we fall back to user_id. Empty result on either branch means
+// "no leads owned by this user" — also a valid outcome.
 export async function listLeads(userId, { status } = {}) {
-  let q = supabase.from('leads').select('*').eq('coach_id', userId);
-  if (status) q = q.eq('status', status);
-  q = q.order('created_at', { ascending: false });
-  const { data, error } = await q;
+  const tryFetch = async (ownerCol) => {
+    let q = supabase.from('leads').select('*').eq(ownerCol, userId);
+    if (status) q = q.eq('status', status);
+    q = q.order('created_at', { ascending: false });
+    return await q;
+  };
+  // First attempt — coach_id (legacy)
+  let { data, error } = await tryFetch('coach_id');
+  if (error && /column .* does not exist|in the schema cache/i.test(error.message || '')) {
+    console.warn('[listLeads] coach_id missing, retrying with user_id');
+    ({ data, error } = await tryFetch('user_id'));
+  }
   if (error) throw error;
-  // Normalize: surface `name` (used by Wave-2 UI) from `full_name`.
+  // Surface `name` (used by Wave-2 UI) from `full_name` so callers
+  // get a consistent shape regardless of which column the row came from.
   return (data || []).map(r => ({ ...r, name: r.full_name || r.name }));
 }
 
@@ -760,25 +772,27 @@ export async function addLead(userId, payload) {
 }
 
 export async function updateLead(id, patch) {
-  // Translate `name` → `full_name` and strip `user_id` if a caller
-  // accidentally passes Wave-2 field names.
+  // Dual-write owner / name same as addLead — installs vary on
+  // whether the leads table has (coach_id + full_name) or
+  // (user_id + name). Sending both lets the schema-cache retry
+  // strip whichever doesn't exist.
   const row = { ...patch };
-  if (patch.name && !patch.full_name) row.full_name = patch.name;
-  delete row.name;
-  delete row.user_id;
-  const { data, error } = await supabase
-    .from('leads')
-    .update(row)
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
+  const name = patch.name || patch.full_name;
+  if (name) {
+    row.full_name = name;
+    row.name = name;
+  }
+  // Route through the entity layer so the 42703 retry kicks in if
+  // the install is missing one of the dual-write columns.
+  const data = await base44.entities.Lead.update(id, row);
 
   // Cross-app sync: a lead just turned into "converted" with a known
   // revenue_if_converted → push the matching income row into the
-  // financial app, plus an activity_log entry. coach_id is the lead's
-  // owner here (legacy schema).
-  if (patch?.status === 'converted' && data?.coach_id && Number(data.revenue_if_converted) > 0) {
+  // financial app, plus an activity_log entry. Owner column varies
+  // (coach_id on legacy installs, user_id on Wave-2) — fall back
+  // through both so the income row attributes correctly.
+  const ownerId = data?.coach_id || data?.user_id;
+  if (patch?.status === 'converted' && ownerId && Number(data.revenue_if_converted) > 0) {
     try {
       // Map the lead's interest to an income source.
       const interestToSource = {
@@ -790,7 +804,7 @@ export async function updateLead(id, patch) {
       const source = interestToSource[data.interested_in] || 'product_sale';
       const leadName = data.full_name || data.name || '';
       await supabase.from('income').insert({
-        user_id: data.coach_id,
+        user_id: ownerId,
         amount: Number(data.revenue_if_converted),
         source,
         product: data.interested_in || null,
@@ -799,7 +813,7 @@ export async function updateLead(id, patch) {
         date: new Date().toISOString().slice(0, 10),
       });
       await supabase.from('activity_log').insert({
-        user_id: data.coach_id,
+        user_id: ownerId,
         action_type: 'lead_converted',
         category: 'sales',
         revenue_generated: Number(data.revenue_if_converted),
@@ -813,10 +827,10 @@ export async function updateLead(id, patch) {
         coaching:        'אימון אישי',
       };
       const funnelLabel = interestToFunnel[data.interested_in] || data.interested_in || null;
-      // leads.coach_id is the owner — not user_id (which doesn't exist
-      // on this legacy table). Both helpers expect the coach's auth uid.
-      if (funnelLabel) await syncFunnelOnConversion(data.coach_id, funnelLabel);
-      syncCurrentMonthlyRevenue(data.coach_id);
+      // The owner column varies by install (coach_id or user_id);
+      // ownerId resolves to whichever the row carries.
+      if (funnelLabel) await syncFunnelOnConversion(ownerId, funnelLabel);
+      syncCurrentMonthlyRevenue(ownerId);
     } catch (err) {
       console.warn('[updateLead] cross-app sync failed:', err?.message);
     }

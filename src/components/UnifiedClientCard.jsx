@@ -179,7 +179,14 @@ export default function UnifiedClientCard({
           if (updatedParticipants.length > 0) {
             await base44.entities.Session.update(session.id, { participants: updatedParticipants });
           } else {
-            await base44.entities.Session.delete(session.id);
+            // Soft-delete: even when no participants remain, keep the
+            // session row for audit. Flip to 'cancelled' instead of
+            // hard-deleting (per the project-wide iron rule that
+            // session rows are never removed).
+            await base44.entities.Session.update(session.id, {
+              status: 'cancelled',
+              status_updated_at: new Date().toISOString(),
+            });
           }
         }
       }
