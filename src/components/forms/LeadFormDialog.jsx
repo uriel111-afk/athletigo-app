@@ -89,40 +89,45 @@ export default function LeadFormDialog({
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
-    if (!leadForm.full_name) {
+    // ONE required field: full_name. Everything else is optional —
+    // a coach can dump a screenshot contact in one tap and fill the
+    // rest later.
+    const fullName = (leadForm.full_name || "").trim();
+    if (!fullName) {
       toast.error("נא למלא שם מלא");
       return;
     }
 
-    // Send only columns we know exist on the `leads` table (legacy
-    // base44 columns + the additions in 20260425_extend_leads_schema).
-    // The form captures rich profile data (age, birth_date, training_
-    // goals, medical_history, parent_name) — those belong on `users`,
-    // not `leads`, so we serialize them into `coach_notes` as a single
-    // labeled block for now. Saves the data without 400'ing the insert.
-    const submissionData = { full_name: leadForm.full_name };
-    if (leadForm.phone) submissionData.phone = leadForm.phone;
-    if (leadForm.email) submissionData.email = leadForm.email;
-    submissionData.status = leadForm.status || "חדש";
-    if (leadForm.source) submissionData.source = leadForm.source;
-    if (leadForm.notes) submissionData.notes = leadForm.notes;
+    // Whitelist of columns the leads table accepts. We send each
+    // populated field as its own column. Anything the live schema
+    // happens not to have is automatically stripped + retried by
+    // base44Client's 42703 retry layer (commit cf9b3a8) — so this
+    // payload is safe even if a column is missing on this install.
+    const submissionData = { full_name: fullName };
 
-    // Build coach_notes from the user-typed coach_notes plus any rich
-    // profile fields. Skips the labels when the field is empty.
-    const richBits = [];
-    if (leadForm.coach_notes) richBits.push(leadForm.coach_notes);
-    if (leadForm.age)               richBits.push(`גיל: ${leadForm.age}`);
-    if (leadForm.birth_date)        richBits.push(`תאריך לידה: ${leadForm.birth_date}`);
-    if (leadForm.training_goals)    richBits.push(`מטרות: ${leadForm.training_goals}`);
-    if (leadForm.medical_history)   richBits.push(`רקע רפואי: ${leadForm.medical_history}`);
-    if (leadForm.parent_name)       richBits.push(`שם הורה: ${leadForm.parent_name}`);
-    if (leadForm.fitness_level)     richBits.push(`רמת כושר: ${leadForm.fitness_level}`);
-    if (leadForm.sport_background)  richBits.push(`רקע ספורטיבי: ${leadForm.sport_background}`);
-    if (leadForm.service_interest)  richBits.push(`התעניינות: ${leadForm.service_interest}`);
-    if (leadForm.specific_interest) richBits.push(`ספציפית: ${leadForm.specific_interest}`);
-    if (leadForm.preferred_time)    richBits.push(`שעה מועדפת: ${leadForm.preferred_time}`);
-    if (leadForm.city)              richBits.push(`עיר: ${leadForm.city}`);
-    if (richBits.length > 0) submissionData.coach_notes = richBits.join('\n');
+    // Always send status + source (defaults guarantee a value).
+    submissionData.status = leadForm.status || "חדש";
+    submissionData.source = leadForm.source || "אחר";
+
+    // Optional fields — included only when populated, so empty
+    // strings don't overwrite existing data on update or violate
+    // any NOT NULL guards on a stricter schema.
+    if (leadForm.phone)             submissionData.phone             = leadForm.phone.trim();
+    if (leadForm.email)             submissionData.email             = leadForm.email.trim();
+    if (leadForm.age)               submissionData.age               = parseInt(leadForm.age, 10);
+    if (leadForm.city)              submissionData.city              = leadForm.city;
+    if (leadForm.notes)             submissionData.notes             = leadForm.notes;
+    if (leadForm.coach_notes)       submissionData.coach_notes       = leadForm.coach_notes;
+    if (leadForm.preferred_time)    submissionData.preferred_time    = leadForm.preferred_time;
+    if (leadForm.birth_date)        submissionData.birth_date        = leadForm.birth_date;
+    if (leadForm.medical_history)   submissionData.medical_history   = leadForm.medical_history;
+    if (leadForm.parent_name)       submissionData.parent_name       = leadForm.parent_name;
+    if (leadForm.main_goal)         submissionData.main_goal         = leadForm.main_goal;
+    if (leadForm.service_interest)  submissionData.service_interest  = leadForm.service_interest;
+    if (leadForm.specific_interest) submissionData.specific_interest = leadForm.specific_interest;
+    if (leadForm.sport_background)  submissionData.sport_background  = leadForm.sport_background;
+    if (leadForm.fitness_level)     submissionData.fitness_level     = leadForm.fitness_level;
+    if (leadForm.training_goals)    submissionData.training_goals    = leadForm.training_goals;
 
     setSaving(true);
     console.log("[LeadForm] Submitting:", submissionData);
@@ -155,9 +160,15 @@ export default function LeadFormDialog({
         onClose();
       }
     }}>
-      {/* onInteractOutside prevents dialog close when interacting with Select portals */}
+      {/* Prevent any outside interaction from closing the dialog —
+          Radix Select renders its options in a separate portal which
+          counts as "outside", so a coach clicking "מתחיל" in the
+          fitness-level dropdown would inadvertently close the form
+          mid-fill. The cancel button + X stay as the only close
+          paths, which makes data loss impossible mid-edit. */}
       <DialogContent className="max-w-3xl"
-        onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-2xl md:text-3xl font-black text-[#222]">
             {editingLead ? '✏️ ערוך ליד' : '➕ הוסף ליד חדש'}
