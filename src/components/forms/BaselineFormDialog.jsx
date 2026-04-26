@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo, useCallback, useEffect } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, Activity, X, Calendar, Clock, ChevronDown, Maximize2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
@@ -383,6 +383,13 @@ export default function BaselineFormDialog({
           style={{ backgroundColor: COLORS.bg, borderRadius: 16, overflow: 'hidden' }}
           onInteractOutside={(e) => { if (saving) e.preventDefault(); }}
         >
+        {/* Radix requires a DialogTitle for accessibility. Visual
+            heading "אתגר Baseline" already exists below — keep this
+            one screen-reader-only so the design stays untouched. */}
+        <DialogTitle className="sr-only">אתגר Baseline</DialogTitle>
+        <DialogDescription className="sr-only">
+          טופס מדידת קפיצות לשנייה (JPS) עם 3 טכניקות ו-3 סיבובים לטכניקה.
+        </DialogDescription>
         <div dir="rtl" style={{ padding: '20px 18px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
@@ -662,7 +669,9 @@ export default function BaselineFormDialog({
           style={{ background: '#FFFFFF', border: `2px solid ${COLORS.danger}`, borderRadius: 14 }}
         >
           <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ color: COLORS.danger, fontWeight: 800, fontSize: 18 }}>מחיקת בייסליין</div>
+            <DialogTitle style={{ color: COLORS.danger, fontWeight: 800, fontSize: 18, margin: 0 }}>
+              מחיקת בייסליין
+            </DialogTitle>
             <div style={{ color: COLORS.textPrimary, fontSize: 14, lineHeight: 1.7 }}>
               האם אתה בטוח שברצונך למחוק את הבייסליין הזה?<br />
               הפעולה תמחק את כל {existingRows?.length || 0} הטכניקות מהסשן
