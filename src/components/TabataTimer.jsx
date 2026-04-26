@@ -457,17 +457,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const twMin = Math.floor(totalWorkoutTime / 60);
   const twSec = totalWorkoutTime % 60;
 
-  // Total exercise length — sum of every phase EXCEPT prep, since
-  // the drain ring on the total-time chip represents the active
-  // workout only. Walking starts from work(1,1); prep doesn't count
-  // toward the bar's progress (the bar stays full during prep, then
-  // starts draining the moment the first work phase begins).
-  // Hoisted ABOVE the early returns at "settings" / "done" so the hook
-  // call order stays stable (React #310 — hooks must run every render).
+  // Total session length — prep + every work/rest/set_rest until done.
+  // Includes prep so the drain ring starts emptying the moment the
+  // countdown begins (the coach asked for a single continuous drain
+  // from the very first warm-up tick to the final work-phase end).
+  // Hoisted ABOVE the early returns at "settings" / "done" so the
+  // hook call order stays stable (React #310).
   const totalExerciseSeconds = useMemo(() => {
     const c = cfgRef.current;
-    let total = c.work || 0;
-    let cur = { type: 'work', round: 1, set: 1, dur: c.work || 0 };
+    let total = c.prep || 0;
+    let cur = { type: 'prep', round: 1, set: 1, dur: c.prep || 0 };
     // Defensive cap so a misconfigured cfg can't infinite-loop.
     for (let i = 0; i < 1000; i++) {
       const nxt = nextPhase(cur, c);
@@ -479,7 +478,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     // Deps reference the actual cfg fields (cfg.rb, NOT cfg.set_rest —
     // that field doesn't exist; nextPhase reads cfg.rb for set rests).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.work, cfg.rest, cfg.rb, cfg.rounds, cfg.sets]);
+  }, [cfg.prep, cfg.work, cfg.rest, cfg.rb, cfg.rounds, cfg.sets]);
 
   // ─── Settings Screen ───
   if (screen === 'settings') {
@@ -582,28 +581,26 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }
 
   // ─── Compute total remaining time ───
-  // Returns FLOAT seconds left until the workout proper finishes.
-  // While in prep, returns the full totalExerciseSeconds so the
-  // drain ring stays at 100% — the bar represents the active
-  // workout, not the warm-up. The moment prep ends and the first
-  // work phase starts, this drops to totalExerciseSeconds and
-  // begins counting down monotonically through every set.
+  // Returns FLOAT seconds left from the current point in the session
+  // (which may be inside prep, work, rest, or set_rest) all the way
+  // to the final work phase ending. Prep IS counted — the ring is
+  // a single continuous drain from the very first countdown tick to
+  // the workout's end.
   //
-  // Float precision is critical here: rounding to integer seconds
-  // would let the ring only update once per second, which combined
-  // with the rAF re-render rate makes the ring feel laggy vs. the
+  // Float precision is critical: rounding to integer seconds would
+  // let the ring only update once per second, which combined with
+  // the rAF re-render rate makes the ring feel laggy vs. the
   // digits. Caller (digits) does its own Math.ceil for display.
   function calcTotalRemaining() {
     const c = cfgRef.current;
     const p = phaseRef.current;
     if (p.type === 'idle' || p.type === 'done') return 0;
-    if (p.type === 'prep') return totalExerciseSeconds;
 
     // Current phase remaining (sub-second precision, no ceil/floor).
     const elapsed = (performance.now() - startAtRef.current) / 1000;
     let total = Math.max(0, p.dur - elapsed);
 
-    // Remaining phases (always non-prep at this point)
+    // Sum every phase still ahead of us until "done".
     let cur = { ...p };
     while (true) {
       const nxt = nextPhase(cur, c);
