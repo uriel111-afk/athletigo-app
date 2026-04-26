@@ -235,8 +235,21 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
         }
       }
 
-      await supabase.from("sessions").delete().eq("id", session.id);
-      toast.success("המפגש נמחק");
+      // Soft-delete: never DELETE a session row. The trainee profile's
+      // attendance tab needs to keep the full history (including
+      // cancelled sessions) so the coach has an audit trail; deleting
+      // would also break package-deduction reconciliation. Flip the
+      // status to 'cancelled' (canonical) instead — same UX from the
+      // user's perspective (the row disappears from "active" filters
+      // and shows up under cancelled).
+      await supabase
+        .from('sessions')
+        .update({
+          status: 'cancelled',
+          status_updated_at: new Date().toISOString(),
+        })
+        .eq('id', session.id);
+      toast.success("המפגש בוטל");
       window.dispatchEvent(new Event("data-changed"));
       onClose();
     } catch (err) {

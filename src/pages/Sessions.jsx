@@ -265,19 +265,27 @@ export default function Sessions() {
   });
 
   const deleteSessionMutation = useMutation({
-    mutationFn: (sessionId) => base44.entities.Session.delete(sessionId),
+    // Soft-delete: never remove a session row. We keep the audit
+    // trail and let the UI filter cancelled rows out by default.
+    // (See TraineeProfile sessions tab — cancelled sessions still
+    // render under a 'בוטל' badge so the coach has full history.)
+    mutationFn: (sessionId) => base44.entities.Session.update(sessionId, {
+      status: 'cancelled',
+      status_updated_at: new Date().toISOString(),
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
       invalidateDashboard(queryClient);
       setShowDeleteDialog(false);
       setDeletingSession(null);
-      toast.success("✅ המפגש נמחק בהצלחה");
+      toast.success("✅ המפגש בוטל");
     },
     onError: (error) => {
-      console.error("[Sessions] Delete error:", error);
-      toast.error("❌ שגיאה במחיקת המפגש");
+      console.error("[Sessions] Cancel error:", error);
+      toast.error("❌ שגיאה בביטול המפגש");
     }
   });
 

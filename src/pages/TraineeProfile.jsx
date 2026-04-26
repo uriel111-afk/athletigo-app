@@ -734,15 +734,17 @@ export default function TraineeProfile() {
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: ['trainee-sessions', user?.id],
     queryFn: async () => {
-      // Sessions can be linked to a trainee in TWO ways depending on
-      // when/how the row was written:
-      //   - direct: sessions.trainee_id = the trainee's user id
-      //   - legacy: sessions.participants is a JSONB array containing
-      //     {trainee_id, ...} entries (used by group sessions and by
-      //     pre-migration data)
-      // We union both so existing rows (e.g. the user's 25 legacy
-      // sessions) and new rows both surface. Dedup by id; sort
-      // by date desc.
+      // Sessions can be linked to a trainee in three ways across the
+      // legacy + current schemas:
+      //   (1) direct: sessions.trainee_id = the trainee's user id
+      //   (2) JSONB:  sessions.participants array contains {trainee_id}
+      //   (3) coach-scan fallback: pull all of THIS coach's sessions
+      //       (limit 1000) and match client-side — catches rows that
+      //       the participants @> [...] containment query doesn't
+      //       handle (extra fields, name-only entries, etc).
+      // Each branch is independent + logged so we can see exactly
+      // why a row didn't surface. Dedup by id; sort by date desc.
+      console.log('[TraineeProfile] sessions query — trainee:', user.id);
       const byId = new Map();
 
       // (1) Direct column
@@ -750,29 +752,65 @@ export default function TraineeProfile() {
         const direct = await base44.entities.Session.filter(
           { trainee_id: user.id }, '-date'
         );
+        console.log('[TraineeProfile] sessions via trainee_id:', direct?.length || 0);
         (direct || []).forEach((s) => byId.set(s.id, s));
       } catch (e) {
         console.warn('[TraineeProfile] sessions by trainee_id failed:', e?.message);
       }
 
-      // (2) participants[] JSONB — best-effort. Some installs have no
-      //     `participants` column at all (the old query 400'd for that
-      //     exact reason); the catch swallows the schema-cache error
-      //     so the direct results still render.
+      // (2) participants[] JSONB containment
       try {
-        const { data: viaParticipants } = await supabase
+        const { data: viaParticipants, error: pErr } = await supabase
           .from('sessions')
           .select('*')
           .contains('participants', [{ trainee_id: user.id }])
           .order('date', { ascending: false });
+        if (pErr) console.warn('[TraineeProfile] participants query error:', pErr.message);
+        console.log('[TraineeProfile] sessions via participants:', viaParticipants?.length || 0);
         (viaParticipants || []).forEach((s) => byId.set(s.id, s));
       } catch (e) {
         console.warn('[TraineeProfile] sessions by participants failed:', e?.message);
       }
 
-      return Array.from(byId.values()).sort(
+      // (3) Coach-scan fallback — only fires when the first two
+      //     branches returned nothing. Pulls every session this coach
+      //     owns (bounded at 1000) and filters client-side against
+      //     every shape we know about (direct id, participants
+      //     {trainee_id}, participants {id}, name match, etc).
+      if (byId.size === 0 && currentUser?.id) {
+        try {
+          const { data: byCoach } = await supabase
+            .from('sessions')
+            .select('*')
+            .eq('coach_id', currentUser.id)
+            .order('date', { ascending: false })
+            .limit(1000);
+          console.log('[TraineeProfile] coach total sessions scanned:', byCoach?.length || 0);
+          const matches = (byCoach || []).filter((s) =>
+            s.trainee_id === user.id ||
+            (Array.isArray(s.participants) && s.participants.some((p) =>
+              (typeof p === 'string' && p === user.id) ||
+              (typeof p === 'object' && p && (
+                p.trainee_id === user.id ||
+                p.id === user.id ||
+                p.user_id === user.id ||
+                (user.full_name && p.trainee_name === user.full_name) ||
+                (user.full_name && p.full_name === user.full_name)
+              ))
+            ))
+          );
+          console.log('[TraineeProfile] coach scan matched:', matches.length);
+          matches.forEach((s) => byId.set(s.id, s));
+        } catch (e) {
+          console.warn('[TraineeProfile] coach-scan fallback failed:', e?.message);
+        }
+      }
+
+      const result = Array.from(byId.values()).sort(
         (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
       );
+      console.log('[TraineeProfile] sessions FINAL count:', result.length);
+      return result;
     },
     enabled: !!user?.id,
     staleTime: 60000,
@@ -2551,7 +2589,28 @@ export default function TraineeProfile() {
               {/* Attendance Tab */}
               <TabsContent value="attendance" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-[#FF6F20]" />מפגשים</h2>
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-[#FF6F20]" />
+                    מפגשים
+                    {/* Total / completed counter — shows the full
+                        history including cancelled rows. "Completed"
+                        accepts every variant we've ever written for
+                        a successful session. */}
+                    {sessions.length > 0 && (() => {
+                      const completedCount = sessions.filter((s) => {
+                        const direct = s.status;
+                        const part = s.participants?.find?.((p) => p.trainee_id === user.id);
+                        const att = part?.attendance_status;
+                        const ok = (v) => v === 'completed' || v === 'הושלם' || v === 'הגיע' || v === 'התקיים';
+                        return ok(direct) || ok(att);
+                      }).length;
+                      return (
+                        <span className="text-xs font-semibold text-gray-500 mr-1">
+                          {sessions.length} מפגשים ({completedCount} הושלמו)
+                        </span>
+                      );
+                    })()}
+                  </h2>
                   {isCoach && (
                     <Button onClick={() => setShowAddSession(true)} size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px] text-white" style={{ background: '#FF6F20' }}>
                       <Plus className="w-3 h-3 ml-1" />הוסף מפגש
@@ -2603,13 +2662,26 @@ export default function TraineeProfile() {
                       const displayStatus = participant?.attendance_status || session.status || 'ממתין';
                       const typeColors = { 'אישי': { bg: '#F3E8FF', border: '#D8B4FE', text: '#7C3AED' }, 'קבוצתי': { bg: '#DBEAFE', border: '#93C5FD', text: '#2563EB' }, 'אונליין': { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' } };
                       const tc = typeColors[session.session_type] || typeColors['אישי'];
+                      // Status palette covers both Hebrew (legacy +
+                      // current coach UI) and English (new canonical
+                      // values from the casual onboarding pipeline).
+                      // 'cancelled' uses gray per the spec — soft-
+                      // deleted sessions stay visible but muted.
                       const statusColors = {
+                        // legacy Hebrew
                         'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800',
-                        'הושלם': 'bg-emerald-100 text-emerald-800',
-                        'מאושר': 'bg-blue-100 text-blue-800',
-                        'בוטל': 'bg-red-100 text-red-800', 'בוטל על ידי מאמן': 'bg-red-100 text-red-800',
-                        'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800',
-                        'ממתין לאישור': 'bg-yellow-100 text-yellow-800',
+                        'הושלם': 'bg-blue-100 text-blue-800',
+                        'מאושר': 'bg-green-100 text-green-800',
+                        'בוטל': 'bg-gray-200 text-gray-700', 'בוטל על ידי מאמן': 'bg-gray-200 text-gray-700',
+                        'בוטל על ידי מתאמן': 'bg-gray-200 text-gray-700',
+                        'לא הגיע': 'bg-red-100 text-red-700', 'ממתין': 'bg-yellow-100 text-yellow-800',
+                        'ממתין לאישור': 'bg-orange-100 text-orange-800',
+                        // English canonical
+                        confirmed:        'bg-green-100 text-green-800',
+                        completed:        'bg-blue-100 text-blue-800',
+                        cancelled:        'bg-gray-200 text-gray-700',
+                        pending_approval: 'bg-orange-100 text-orange-800',
+                        no_show:          'bg-red-100 text-red-700',
                       };
                       return (
                         <div key={session.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4" dir="rtl">
@@ -2657,7 +2729,7 @@ export default function TraineeProfile() {
                                 </Button>
                                 <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-red-500"
                                   onClick={async () => {
-                                    if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
+                                    if (!window.confirm(`לבטל את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
                                     try {
                                       // Restore package unit if session was attended
                                       const wasAttended = participant?.attendance_status === 'הגיע';
@@ -2670,15 +2742,22 @@ export default function TraineeProfile() {
                                           }
                                         } catch {}
                                       }
-                                      await base44.entities.Session.delete(session.id);
+                                      // Soft-delete: flip status to 'cancelled' instead
+                                      // of removing the row, so the attendance tab keeps
+                                      // the audit trail and the trainee's session history
+                                      // stays intact.
+                                      await base44.entities.Session.update(session.id, {
+                                        status: 'cancelled',
+                                        status_updated_at: new Date().toISOString(),
+                                      });
                                       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
                                       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
                                       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
                                       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
                                       invalidateDashboard(queryClient);
-                                      toast.success("המפגש נמחק בהצלחה");
+                                      toast.success("המפגש בוטל");
                                     } catch (err) {
-                                      toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
+                                      toast.error("שגיאה בביטול: " + (err?.message || "נסה שוב"));
                                     }
                                   }}>
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -2743,19 +2822,23 @@ export default function TraineeProfile() {
                                           </Select>
                                           <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-300 hover:text-red-500 flex-shrink-0"
                                             onClick={async () => {
-                                              if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
+                                              if (!window.confirm(`לבטל את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')}?`)) return;
                                               try {
                                                 if (participant?.attendance_status === 'הגיע' && session.service_id) {
                                                   try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) { await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); await syncPackageStatus(svc.id); } } catch {}
                                                 }
-                                                await base44.entities.Session.delete(session.id);
+                                                // Soft-delete (see other delete sites in this file).
+                                                await base44.entities.Session.update(session.id, {
+                                                  status: 'cancelled',
+                                                  status_updated_at: new Date().toISOString(),
+                                                });
                                                 queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
                                                 queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
                                                 queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
                                                 queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
                                                 invalidateDashboard(queryClient);
-                                                toast.success("המפגש נמחק");
-                                              } catch (err) { toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב")); }
+                                                toast.success("המפגש בוטל");
+                                              } catch (err) { toast.error("שגיאה בביטול: " + (err?.message || "נסה שוב")); }
                                             }}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </Button>
