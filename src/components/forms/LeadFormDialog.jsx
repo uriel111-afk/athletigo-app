@@ -94,20 +94,35 @@ export default function LeadFormDialog({
       return;
     }
 
-    // Only send fields the leads table has
+    // Send only columns we know exist on the `leads` table (legacy
+    // base44 columns + the additions in 20260425_extend_leads_schema).
+    // The form captures rich profile data (age, birth_date, training_
+    // goals, medical_history, parent_name) — those belong on `users`,
+    // not `leads`, so we serialize them into `coach_notes` as a single
+    // labeled block for now. Saves the data without 400'ing the insert.
     const submissionData = { full_name: leadForm.full_name };
     if (leadForm.phone) submissionData.phone = leadForm.phone;
     if (leadForm.email) submissionData.email = leadForm.email;
-    if (leadForm.age) submissionData.age = parseInt(leadForm.age);
-    // Always send status — draft persistence may carry old status
     submissionData.status = leadForm.status || "חדש";
     if (leadForm.source) submissionData.source = leadForm.source;
     if (leadForm.notes) submissionData.notes = leadForm.notes;
-    if (leadForm.coach_notes) submissionData.coach_notes = leadForm.coach_notes;
-    if (leadForm.birth_date) submissionData.birth_date = leadForm.birth_date;
-    if (leadForm.medical_history) submissionData.medical_history = leadForm.medical_history;
-    if (leadForm.parent_name) submissionData.parent_name = leadForm.parent_name;
-    if (leadForm.training_goals) submissionData.training_goals = leadForm.training_goals;
+
+    // Build coach_notes from the user-typed coach_notes plus any rich
+    // profile fields. Skips the labels when the field is empty.
+    const richBits = [];
+    if (leadForm.coach_notes) richBits.push(leadForm.coach_notes);
+    if (leadForm.age)               richBits.push(`גיל: ${leadForm.age}`);
+    if (leadForm.birth_date)        richBits.push(`תאריך לידה: ${leadForm.birth_date}`);
+    if (leadForm.training_goals)    richBits.push(`מטרות: ${leadForm.training_goals}`);
+    if (leadForm.medical_history)   richBits.push(`רקע רפואי: ${leadForm.medical_history}`);
+    if (leadForm.parent_name)       richBits.push(`שם הורה: ${leadForm.parent_name}`);
+    if (leadForm.fitness_level)     richBits.push(`רמת כושר: ${leadForm.fitness_level}`);
+    if (leadForm.sport_background)  richBits.push(`רקע ספורטיבי: ${leadForm.sport_background}`);
+    if (leadForm.service_interest)  richBits.push(`התעניינות: ${leadForm.service_interest}`);
+    if (leadForm.specific_interest) richBits.push(`ספציפית: ${leadForm.specific_interest}`);
+    if (leadForm.preferred_time)    richBits.push(`שעה מועדפת: ${leadForm.preferred_time}`);
+    if (leadForm.city)              richBits.push(`עיר: ${leadForm.city}`);
+    if (richBits.length > 0) submissionData.coach_notes = richBits.join('\n');
 
     setSaving(true);
     console.log("[LeadForm] Submitting:", submissionData);
@@ -126,6 +141,7 @@ export default function LeadFormDialog({
       else if (raw.includes("network") || raw.includes("fetch") || raw.includes("Failed to fetch")) msg = "בעיית תקשורת — בדוק חיבור לאינטרנט";
       else if (raw.includes("row-level security") || raw.includes("RLS") || raw.includes("policy")) msg = "אין הרשאה לשמור — בדוק הגדרות גישה";
       else if (raw.includes("violates")) msg = "שדה חובה חסר או ערך לא תקין";
+      else if (/column .* does not exist/i.test(raw)) msg = "עמודה חסרה בטבלה — דווח לתמיכה";
       else if (raw) msg = raw;
       toast.error("שגיאה בשמירת הליד: " + msg);
     } finally {

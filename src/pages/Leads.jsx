@@ -19,6 +19,7 @@ import PageLoader from "@/components/PageLoader";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
 import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
+import { syncLeadConversion } from "@/lib/lifeos/sync-engine";
 
 export default function Leads() {
   const [coach, setCoach] = useState(null);
@@ -150,13 +151,29 @@ export default function Leads() {
         console.warn("Non-critical: failed to update extra profile fields", e);
       }
 
-      // 4. Mark Lead as Converted
+      // 4. Mark Lead as Converted. Send only canonical columns
+      // (status + converted_at). The legacy boolean / id columns
+      // were dropped from the schema; converted state is now derived
+      // from status === 'סגור עסקה' || status === 'converted'.
       await base44.entities.Lead.update(lead.id, {
-        converted_to_client: true,
-        converted_date: new Date().toISOString(),
-        converted_client_id: newClient.id,
-        status: "סגור עסקה"
+        status: "סגור עסקה",
+        converted_at: new Date().toISOString(),
+        last_contact_date: new Date().toISOString(),
       });
+
+      // 4b. Cross-app sync — refresh funnel_tracking + monthly revenue
+      // so the Growth/Financial dashboards reflect the new conversion.
+      // The income row itself comes from the package the coach attaches
+      // next (syncPackageToIncome), so we don't double-insert income here.
+      try {
+        await syncLeadConversion({
+          coach_id: coach.id,
+          status: 'converted',  // normalize for the helper
+          interested_in: lead.interested_in || lead.service_interest || null,
+        });
+      } catch (e) {
+        console.warn('[Leads] syncLeadConversion failed:', e?.message);
+      }
 
       // 5. Migrate Session History — update participant IDs
       try {
@@ -444,7 +461,7 @@ export default function Leads() {
 
                     <div className="flex items-center justify-between text-xs mb-4" style={{ color: '#7D7D7D' }}>
                       <span>נוצר: {lead.created_date && format(new Date(lead.created_date), 'dd/MM/yyyy', { locale: he })}</span>
-                      {lead.converted_to_client && (
+                      {(lead.status === 'סגור עסקה' || lead.status === 'converted' || lead.converted_at) && (
                         <span className="px-2 py-1 rounded-full font-bold" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32' }}>
                           ✅ הומר
                         </span>
@@ -465,7 +482,7 @@ export default function Leads() {
                         ערוך
                       </Button>
 
-                      {!lead.converted_to_client && lead.status !== "לא מעוניין" && (
+                      {!(lead.status === 'סגור עסקה' || lead.status === 'converted' || lead.converted_at) && lead.status !== "לא מעוניין" && (
                         <div className="flex gap-1">
                             <Button
                               onClick={() => handleConvert(lead, 'לקוח משלם')}

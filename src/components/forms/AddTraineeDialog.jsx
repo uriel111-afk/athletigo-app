@@ -30,17 +30,21 @@ const INITIAL_DATA = {
   clientType: "regular",
 };
 
-export default function AddTraineeDialog({ open, onClose }) {
+export default function AddTraineeDialog({ open, onClose, initialData = null }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(true);
   const [coach, setCoach] = useState(null);
 
+  // Prefill (e.g. from a lead) overrides the blank defaults but is
+  // shallow-merged so any field the caller didn't set stays empty.
+  const seedData = initialData ? { ...INITIAL_DATA, ...initialData } : INITIAL_DATA;
+
   const {
     data: formData, setData: setFormData,
     hasDraft, keepDraft, discardDraft, clearDraft,
-  } = useFormDraft('AddTrainee', coach?.id, open, INITIAL_DATA);
+  } = useFormDraft('AddTrainee', coach?.id, open, seedData);
 
   useKeepScreenAwake(open);
 

@@ -21,17 +21,21 @@ export const syncSaleToIncome      = syncPackageToIncome;
 export const syncNewTraineeToLead  = syncTraineeToLead;
 export const syncIncomeToBusinessPlan = syncCurrentMonthlyRevenue;
 
-// Lead → income happens automatically inside updateLead() when status
-// flips to 'converted'. Expose a callable here for places that mutate
-// the row directly without going through updateLead.
+// Lead → cross-app sync. Pro app uses Hebrew status "סגור עסקה",
+// Growth app uses English "converted" — treat both as the same
+// canonical state so a conversion in either app refreshes the funnel
+// + monthly revenue rollup.
 //
-// NOTE: the legacy leads table is keyed on coach_id (not user_id), so
-// callers should pass a row with coach_id populated. We keep the
-// user_id fallback for compatibility but warn in the console if it's
-// the only field available.
+// The lifeos-api `updateLead()` already handles the income insert
+// path when the row carries `revenue_if_converted`. This helper is
+// for places (Pro convert flow, raw supabase updates) that bypass
+// that and need the funnel / monthly recalc to still fire.
+const isLeadConverted = (status) =>
+  status === 'converted' || status === 'סגור עסקה';
+
 export async function syncLeadConversion(lead) {
   const ownerId = lead?.coach_id || lead?.user_id;
-  if (!ownerId || lead.status !== "converted") return;
+  if (!ownerId || !isLeadConverted(lead?.status)) return;
   await syncFunnelOnConversion(ownerId, lead.interested_in);
   await syncCurrentMonthlyRevenue(ownerId);
 }
