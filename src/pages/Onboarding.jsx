@@ -203,17 +203,19 @@ const Step1_PersonalInfo = ({ formData, setFormData }) => (
 
       <div className="space-y-2">
         <Label className="text-right block text-sm text-gray-600">ניסיון ספורטיבי קודם <OptionalTag /></Label>
-        <select
+        <input
+          type="text"
           value={formData.fitness_level}
-          onChange={(e) => setFormData({...formData, fitness_level: e.target.value})}
-          style={ONB_NATIVE_SELECT_STYLE}
-        >
-          <option value="">— בחר —</option>
-          <option value="ללא ניסיון">ללא ניסיון</option>
-          <option value="מתחיל">🌱 מתחיל</option>
-          <option value="בינוני">🌿 בינוני</option>
-          <option value="מתקדם">🌳 מתקדם</option>
-        </select>
+          onChange={(e) => setFormData({ ...formData, fitness_level: e.target.value })}
+          placeholder="למשל: שחייה 3 שנים, ריצה חצי שנה..."
+          style={{
+            width: '100%', padding: '10px 12px', borderRadius: 12,
+            border: '1px solid #F0E4D0', background: '#FFFFFF',
+            fontSize: 14, direction: 'rtl', color: '#1A1A1A',
+            outline: 'none', boxSizing: 'border-box',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
+          }}
+        />
       </div>
 
       <div className="space-y-2">
