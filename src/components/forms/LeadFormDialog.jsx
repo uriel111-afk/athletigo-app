@@ -8,7 +8,7 @@ import { Loader2, UserPlus, Edit2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
-import { DraftBanner } from "@/components/DraftBanner";
+import DraftPrompt from "@/components/DraftPrompt";
 
 // Shared style for the three native dropdowns (fitness_level,
 // source, status). Native <select> is intentional — Radix Selects
@@ -174,6 +174,15 @@ export default function LeadFormDialog({
   };
 
   return (
+    <>
+      {isOpen && hasDraft && (
+        <DraftPrompt
+          formLabel="טופס ליד"
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={discardDraft}
+        />
+      )}
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open && !saving) {
         onClose();
@@ -197,9 +206,6 @@ export default function LeadFormDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-2">
-          {hasDraft && (
-            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
-          )}
           {/* 1-4: Basic Info */}
           <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
             <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2">
@@ -446,5 +452,6 @@ export default function LeadFormDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import SignatureCanvas from '@/components/SignatureCanvas';
 import { useFormDraft } from '@/hooks/useFormDraft';
 import { useKeepScreenAwake } from '@/hooks/useKeepScreenAwake';
-import { DraftBanner } from '@/components/DraftBanner';
+import DraftPrompt from '@/components/DraftPrompt';
 import { DOCUMENT_TEMPLATES, renderTemplateBody } from '@/lib/documentTemplates';
 
 // ── Brand tokens (match HealthDeclarationForm) ────────────────────────
@@ -236,6 +236,15 @@ export default function AgreementFlowDialog({
   }
 
   return (
+    <>
+      {open && hasDraft && step === 'fields' && (
+        <DraftPrompt
+          formLabel={`טופס הסכם — ${template?.title || ''}`}
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={discardDraft}
+        />
+      )}
     <Dialog open={open} onOpenChange={(o) => { if (!o && !saving) onClose(); }}>
       <DialogContent className="max-w-2xl" onInteractOutside={(e) => { if (saving) e.preventDefault(); }}>
         <DialogHeader>
@@ -245,9 +254,6 @@ export default function AgreementFlowDialog({
         </DialogHeader>
 
         <div dir="rtl" style={{ ...containerStyle, padding: 4, maxHeight: '70vh', overflowY: 'auto' }}>
-          {hasDraft && step === 'fields' && (
-            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
-          )}
 
           {step === 'fields' && (
             <div style={cardStyle}>
@@ -373,5 +379,6 @@ export default function AgreementFlowDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

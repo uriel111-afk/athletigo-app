@@ -11,7 +11,6 @@ import { invalidateDashboard } from "@/components/utils/queryKeys";
 import { base44 } from "@/api/base44Client";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
-import { DraftBanner } from "@/components/DraftBanner";
 import DraftPrompt from "@/components/DraftPrompt";
 
 const INITIAL_DATA = {
@@ -135,9 +134,6 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
         </DialogHeader>
 
         <div className="space-y-6">
-          {hasDraft && (
-            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
-          )}
           <div>
             <Label className="text-base font-bold mb-3 block" style={{ color: '#000000' }}>תאריך המדידה</Label>
             <Input

@@ -14,7 +14,6 @@ import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { syncPackageToIncome } from "@/lib/lifeos/lifeos-api";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
-import { DraftBanner } from "@/components/DraftBanner";
 import DraftPrompt from "@/components/DraftPrompt";
 
 const TYPES = [
@@ -293,10 +292,6 @@ export default function PackageFormDialog({
               {traineeName && <span className="text-sm font-normal text-gray-500">— {traineeName}</span>}
             </DialogTitle>
           </DialogHeader>
-
-        {hasDraft && (
-          <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
-        )}
 
         {/* ── Step 1: Choose type ─────────────────────────── */}
         {step === 1 && (

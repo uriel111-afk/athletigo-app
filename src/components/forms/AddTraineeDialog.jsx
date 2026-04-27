@@ -3,8 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFormDraft } from "@/hooks/useFormDraft";
+import DraftPrompt from "@/components/DraftPrompt";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
-import { DraftBanner } from "@/components/DraftBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -243,6 +243,15 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
   };
 
   return (
+    <>
+      {open && hasDraft && (
+        <DraftPrompt
+          formLabel="טופס יצירת מתאמן"
+          onResume={keepDraft}
+          onNew={discardDraft}
+          onDiscard={discardDraft}
+        />
+      )}
     <Dialog open={open} onOpenChange={(isOpen) => !loading && onClose(isOpen)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -252,9 +261,6 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {hasDraft && (
-            <DraftBanner onContinue={keepDraft} onDiscard={discardDraft} />
-          )}
           {/* Type picker */}
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={() => handleChange('clientType', 'regular')}
@@ -415,5 +421,6 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
