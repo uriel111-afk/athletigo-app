@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { base44 } from "@/api/base44Client";
 import { AuthContext } from "@/lib/AuthContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -312,21 +313,21 @@ export default function PlanBuilder() {
     };
     console.log('[PlanBuilder] addExercise SAVE PAYLOAD:', payload);
     try {
-      const { data, error } = await supabase.from("exercises").insert(payload).select().single();
-      console.log('[PlanBuilder] addExercise SAVE RESULT:', data, error);
-      if (error) {
-        console.error('[PlanBuilder] addExercise supabase error:', error, { payload });
-        toast.error('שגיאה בשמירת תרגיל: ' + (error.message || 'נסה שוב'));
-        return;
-      }
+      // Use the base44 entity wrapper instead of raw supabase.insert
+      // — the wrapper carries a 42703 column-retry, so when the live
+      // exercises schema is missing a column the payload knows about
+      // (e.g. "children" / "tabata_preview" on older installs)
+      // the offending column gets stripped and the rest still saves.
+      const data = await base44.entities.Exercise.create(payload);
+      console.log('[PlanBuilder] addExercise SAVE RESULT:', data);
       setSections(prev => prev.map((s, i) =>
         i === sectionIndex ? { ...s, exercises: [...(s.exercises || []), data] } : s
       ));
       setEditingExercise(null);
       toast.success('התרגיל נוסף');
     } catch (err) {
-      console.error('[PlanBuilder] addExercise unexpected:', err);
-      toast.error('שגיאה לא צפויה: ' + (err?.message || 'נסה שוב'));
+      console.error('[PlanBuilder] addExercise failed:', err, { payload });
+      toast.error('שגיאה בשמירת תרגיל: ' + (err?.message || 'נסה שוב'));
     }
   };
 
@@ -372,19 +373,15 @@ export default function PlanBuilder() {
       return;
     }
     console.log('[PlanBuilder] updateExercise SAVE PAYLOAD:', { id: ex.id, ...payload });
-    let error;
     try {
-      const res = await supabase.from("exercises").update(payload).eq("id", ex.id).select();
-      console.log('[PlanBuilder] updateExercise SAVE RESULT:', res.data, res.error);
-      error = res.error;
+      // Same column-retry rationale as addExercise above — base44
+      // entity wrapper drops unknown columns (e.g. "children" before
+      // its migration) and retries instead of failing the whole save.
+      await base44.entities.Exercise.update(ex.id, payload);
+      console.log('[PlanBuilder] updateExercise SAVE OK');
     } catch (err) {
-      console.error('[PlanBuilder] updateExercise unexpected:', err);
-      toast.error('שגיאה לא צפויה: ' + (err?.message || 'נסה שוב'));
-      return;
-    }
-    if (error) {
-      console.error('[PlanBuilder] updateExercise supabase error:', error, { payload });
-      toast.error('שגיאה בעדכון: ' + (error.message || 'נסה שוב'));
+      console.error('[PlanBuilder] updateExercise failed:', err, { payload });
+      toast.error('שגיאה בעדכון: ' + (err?.message || 'נסה שוב'));
       return;
     }
     toast.success('התרגיל עודכן');
