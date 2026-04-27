@@ -281,7 +281,7 @@ export default function PackageFormDialog({
           formLabel="טופס חבילה"
           onResume={keepDraft}
           onNew={discardDraft}
-          onDiscard={() => { clearDraft(); onClose(); }}
+          onDiscard={discardDraft}
         />
       )}
       <Dialog open={isOpen} onOpenChange={onClose}>

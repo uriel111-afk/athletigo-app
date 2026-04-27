@@ -180,7 +180,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
           formLabel="טופס שיא"
           onResume={keepDraft}
           onNew={discardDraft}
-          onDiscard={() => { clearDraft(); onClose(); }}
+          onDiscard={discardDraft}
         />
       )}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>

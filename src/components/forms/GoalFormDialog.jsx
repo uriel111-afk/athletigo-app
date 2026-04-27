@@ -181,7 +181,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
           formLabel="טופס יעד"
           onResume={keepDraft}
           onNew={discardDraft}
-          onDiscard={() => { clearDraft(); onClose(); }}
+          onDiscard={discardDraft}
         />
       )}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) confirmClose(); }}>

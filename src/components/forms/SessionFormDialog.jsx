@@ -278,7 +278,7 @@ export default function SessionFormDialog({
           formLabel="טופס מפגש"
           onResume={keepDraft}
           onNew={discardDraft}
-          onDiscard={() => { clearDraft(); onClose(); }}
+          onDiscard={discardDraft}
         />
       )}
       <Dialog open={isOpen} onOpenChange={(open) => {

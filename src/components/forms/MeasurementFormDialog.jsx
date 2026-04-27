@@ -123,7 +123,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
           formLabel="טופס מדידה"
           onResume={keepDraft}
           onNew={discardDraft}
-          onDiscard={() => { clearDraft(); onClose(); }}
+          onDiscard={discardDraft}
         />
       )}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
