@@ -628,6 +628,37 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     ? Math.max(0, Math.min(1, totalLeftPrecise / totalExerciseSeconds))
     : 0;
 
+  // Measure the total-time row so the SVG drain stroke uses a real
+  // numeric perimeter — pathLength="100" on <rect> is unreliable on
+  // Safari, and `width="calc(100% - 4px)"` is not valid SVG (the
+  // rect was rendering with NaN dims, which is why the ring looked
+  // broken / out of sync). ResizeObserver keeps the perimeter in
+  // step with the actual rendered box across font-size + viewport
+  // changes; the rAF render loop already covers the per-tick drain.
+  const totalRowRef = useRef(null);
+  const [totalRowBox, setTotalRowBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = totalRowRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setTotalRowBox({ w: Math.round(r.width), h: Math.round(r.height) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const TOTAL_RING_INSET = 2;
+  const TOTAL_RING_R = 14;
+  const totalRingW = Math.max(0, totalRowBox.w - TOTAL_RING_INSET * 2);
+  const totalRingH = Math.max(0, totalRowBox.h - TOTAL_RING_INSET * 2);
+  // Rounded-rect perimeter: straight sides + 4 quarter-arcs.
+  const totalRingPerim = (totalRingW > 0 && totalRingH > 0)
+    ? 2 * (totalRingW + totalRingH) - 8 * TOTAL_RING_R + 2 * Math.PI * TOTAL_RING_R
+    : 0;
+  const totalRingDashOffset = totalRingPerim * (1 - totalBorderProgress);
+
   // Minimize handler — single source of truth (mirrors Clocks.jsx
   // minimizeTimer pattern that already works for Countdown/Stopwatch):
   //   1. Save snapshot to liveTimerTabata so the bar can render it
@@ -865,43 +896,58 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           </div>
         </div>
 
-        {/* ROW 3 — total time, full width. Single empty SVG rect
-            shows total-exercise drain progress as a stroke around
-            the row. pathLength="100" normalizes so dashoffset
-            reads as "% drained": 0 = full, 100 = empty. No track
-            ring on this layout — just the single drain stroke. */}
-        <div style={{
-          position: 'relative',
-          marginTop: 12,
-          width: '100%',
-          background: isWork ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
-          borderRadius: 16,
-          padding: 14,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-          overflow: 'visible',
-        }}>
-          <svg
-            aria-hidden
-            style={{
-              position: 'absolute', top: 0, left: 0,
-              width: '100%', height: '100%',
-              pointerEvents: 'none', overflow: 'visible',
-            }}
-          >
-            <rect
-              x="2" y="2"
-              width="calc(100% - 4px)" height="calc(100% - 4px)"
-              rx="14" ry="14"
-              fill="none"
-              stroke={isWork ? '#FFFFFF' : '#FF6F20'}
-              strokeWidth="3" strokeLinecap="round"
-              pathLength="100" strokeDasharray="100"
-              strokeDashoffset={100 * (1 - totalBorderProgress)}
-              // No transition on dashoffset — value is recomputed
-              // every rAF tick so it already animates smoothly.
-              style={{ transition: 'stroke 0.3s ease' }}
-            />
-          </svg>
+        {/* ROW 3 — total time, full width. Empty SVG rect drains
+            around the row using a measured perimeter so the stroke
+            hits exactly 0 when the digits hit 00:00. SVG <rect>
+            doesn't accept CSS calc() for width/height and Safari
+            ignores pathLength on rectangles, so we measure the
+            real box (ResizeObserver) and use the geometric
+            perimeter directly: 2(w+h) − 8r + 2πr. */}
+        <div
+          ref={totalRowRef}
+          style={{
+            position: 'relative',
+            marginTop: 12,
+            width: '100%',
+            background: isWork ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+            borderRadius: 16,
+            padding: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 12, textAlign: 'center',
+            overflow: 'visible',
+            boxSizing: 'border-box',
+          }}
+        >
+          {totalRingPerim > 0 && (
+            <svg
+              aria-hidden
+              width={totalRowBox.w}
+              height={totalRowBox.h}
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                pointerEvents: 'none', overflow: 'visible',
+              }}
+            >
+              <rect
+                x={TOTAL_RING_INSET}
+                y={TOTAL_RING_INSET}
+                width={totalRingW}
+                height={totalRingH}
+                rx={TOTAL_RING_R}
+                ry={TOTAL_RING_R}
+                fill="none"
+                stroke={isWork ? '#FFFFFF' : '#FF6F20'}
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={totalRingPerim}
+                strokeDashoffset={totalRingDashOffset}
+                // No transition on dashoffset — value is recomputed
+                // every rAF tick so it already animates smoothly.
+                // Color swap (work↔rest) keeps its 0.3s ease.
+                style={{ transition: 'stroke 0.3s ease' }}
+              />
+            </svg>
+          )}
           <span style={{
             fontSize: 22, fontWeight: 600,
             color: isWork ? 'rgba(255,255,255,0.8)' : '#FF6F20',
