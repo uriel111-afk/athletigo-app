@@ -947,7 +947,7 @@ function IntroSection({ title, children, last }) {
       paddingBlock: 12,
       borderBottom: last ? 'none' : '1px solid #F0E4D0',
     }}>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 600 }}>{title}</div>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 4, fontWeight: 600 }}>{title}</div>
       <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.5 }}>{children}</div>
     </div>
   );
@@ -957,7 +957,10 @@ function IntroTab({ user }) {
   const goals       = parseList(user?.training_goals);
   const challenges  = parseList(user?.current_challenges);
   const preferences = parseList(user?.training_preferences);
-  const fitness     = user?.fitness_level || null;
+  // Some installs may have written the fitness answer to
+  // `fitness_experience` instead of the canonical `fitness_level`
+  // — accept both so legacy rows still render.
+  const fitness     = user?.fitness_level || user?.fitness_experience || null;
   const frequency   = user?.preferred_frequency || user?.training_frequency || null;
   const notes       = user?.additional_notes || null;
 
@@ -968,10 +971,12 @@ function IntroTab({ user }) {
     return (
       <div style={{
         background: '#FDF8F3', borderRadius: 14,
-        padding: 20, textAlign: 'center', color: '#888',
+        padding: 32, textAlign: 'center', color: '#888',
         fontSize: 14,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
       }}>
-        השאלון טרם מולא
+        <div style={{ fontSize: 36, lineHeight: 1 }} aria-hidden>📋</div>
+        <div>שאלון ההיכרות טרם מולא</div>
       </div>
     );
   }
@@ -997,7 +1002,7 @@ function IntroTab({ user }) {
       border: '1px solid #F0E4D0',
     }} dir="rtl">
       {!!goals.length && (
-        <IntroSection title="מטרות אימון">
+        <IntroSection title="מטרות">
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {goals.map((g, i) => {
               const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
@@ -1023,7 +1028,7 @@ function IntroTab({ user }) {
       )}
 
       {!!challenges.length && (
-        <IntroSection title="אתגרים נוכחיים">
+        <IntroSection title="אתגרים">
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {challenges.map((c, i) => {
               const meta = INTRO_CHALLENGE_LABELS[c] || { emoji: '⚪', label: c };
@@ -1034,7 +1039,7 @@ function IntroTab({ user }) {
       )}
 
       {!!preferences.length && (
-        <IntroSection title="העדפות אימון">
+        <IntroSection title="חשוב באימון">
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {preferences.map((p, i) => {
               const meta = INTRO_PREFERENCE_LABELS[p] || { emoji: '⚪', label: p };
@@ -1045,7 +1050,7 @@ function IntroTab({ user }) {
       )}
 
       {notes && (
-        <IntroSection title="הערות נוספות" last>
+        <IntroSection title="הערות" last>
           <div style={{ whiteSpace: 'pre-wrap' }}>{notes}</div>
         </IntroSection>
       )}
