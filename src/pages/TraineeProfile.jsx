@@ -2445,19 +2445,19 @@ export default function TraineeProfile() {
   // coreDataLoading early return); we just consume traineePerms here.
 
   // Tab order per spec:
-  //   פרטים | היכרות | מפגשים | חבילות | תוכניות | בייסליין | מדידות | מסמכים
-  // Extras (יעדים, שיאים, התראות, הערות, שעונים) tail-stack in their
-  // legacy order so nothing is removed — only re-prioritized.
+  //   פרטים | היכרות | יעדים | מפגשים | חבילות | תוכניות | בייסליין | מדידות | מסמכים
+  // Extras (שיאים, התראות, הערות, שעונים) tail-stack in their legacy
+  // order so nothing is removed — only re-prioritized.
   const ALL_TAB_ITEMS = [
     { id: 'personal',      label: 'פרטים',    emoji: '👤', icon: User,            perm: null },
     { id: 'intro',         label: 'היכרות',   emoji: '🎯', icon: Target,          perm: null },
+    { id: 'goals',         label: 'יעדים',    emoji: '🥇', icon: Target,          perm: 'view_progress' },
     { id: 'attendance',    label: 'מפגשים',   emoji: '📅', icon: Calendar,        perm: null },
     { id: 'services',      label: 'חבילות',   emoji: '🎫', icon: Package,         perm: null },
     { id: 'plans',         label: 'תוכניות',  emoji: '📋', icon: Folder,          perm: 'view_plan' },
     { id: 'baselines',     label: 'בייסליין', emoji: '⚡', icon: Zap,             perm: 'view_baseline' },
     { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity,        perm: 'edit_metrics' },
     { id: 'documents',     label: 'מסמכים',   emoji: '📄', icon: FileText,        perm: 'view_documents' },
-    { id: 'goals',         label: 'יעדים',    emoji: '🥇', icon: Target,          perm: 'view_progress' },
     { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award,           perm: 'view_progress' },
     { id: 'notifications', label: 'התראות',   emoji: '🔔', icon: Bell,            perm: null },
     { id: 'messages',      label: 'הערות',    emoji: '💬', icon: MessageSquare,   perm: 'send_messages' },
@@ -2646,18 +2646,21 @@ export default function TraineeProfile() {
                       } else if (user.age) {
                         birthLabel = `${user.age} שנים`;
                       }
+                      // Personal tab is identity / contact only.
+                      // Onboarding artifacts go elsewhere:
+                      //   • height/weight → "מדידות" tab
+                      //   • training_goals → "יעדים" tab
+                      //   • fitness_level / challenges / preferences /
+                      //     additional_notes → "היכרות" tab
                       const fields = [
                         { label: 'שם מלא',       value: user.full_name },
                         { label: 'טלפון',        value: user.phone },
                         { label: 'אימייל',       value: user.email },
                         { label: 'תאריך לידה',   value: birthLabel },
-                        { label: 'גובה',         value: user.height_cm ? `${user.height_cm} ס״מ` : null },
-                        { label: 'משקל',         value: user.weight_kg ? `${user.weight_kg} ק״ג` : null },
                         { label: 'מקור הגעה',    value: user.referral_source },
                         { label: 'מין',          value: user.gender },
                         { label: 'עיר',          value: user.city },
                         { label: 'כתובת',        value: user.address },
-                        { label: 'מטרה עיקרית',  value: user.main_goal },
                       ];
                       return fields.map((item, i) => (
                         <div key={i} className="text-right text-sm py-1">
@@ -2746,6 +2749,39 @@ export default function TraineeProfile() {
                     <Plus className="w-3 h-3 ml-1" />הוסף יעד
                   </Button>
                 </div>
+
+                {/* Onboarding goals — read-only snapshot from
+                    users.training_goals. Coach can convert any of
+                    these into a tracked goal via "+ הוסף יעד". */}
+                {(() => {
+                  const onboardingGoals = parseList(user?.training_goals);
+                  if (!onboardingGoals.length) return null;
+                  return (
+                    <div style={{ background: '#FDF8F3', borderRadius: 14, padding: 16, border: '1px solid #F0E4D0' }}>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 600 }}>
+                        מטרות מהאונבורדינג
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {onboardingGoals.map((g, i) => {
+                          const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
+                          return (
+                            <div key={`${g}-${i}`} style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              padding: 10, borderRadius: 12,
+                              border: '1px solid #F0E4D0', background: '#FFFFFF',
+                            }}>
+                              <span style={{ fontSize: 20 }} aria-hidden>{meta.emoji}</span>
+                              <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{meta.label}</span>
+                              <span style={{ marginInlineStart: 'auto', fontSize: 11, color: '#888' }}>
+                                מאונבורדינג
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-3 gap-3 w-full">
                   {[
                     { icon: <Target className="w-5 h-5 mx-auto mb-1 text-[#FF6F20]" />, val: activeGoals.length, label: 'פעילים' },

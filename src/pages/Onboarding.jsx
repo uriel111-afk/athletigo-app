@@ -765,6 +765,34 @@ export default function Onboarding() {
       try {
         await updateUserMutation.mutateAsync(updateData);
         console.log("[Onboarding] updateUserMutation completed successfully");
+
+        // Seed the measurements table with the trainee's first
+        // height/weight reading so the coach has a baseline to track
+        // progress against. Best-effort — failure here doesn't block
+        // onboarding completion. Both column-name shapes are written
+        // (height/weight + height_cm/weight_kg) so the row lands
+        // regardless of which schema this install uses; base44's
+        // 42703 retry layer drops missing columns silently.
+        const heightNum = formData.height_cm ? parseInt(formData.height_cm, 10) : null;
+        const weightNum = formData.weight_kg ? parseFloat(formData.weight_kg) : null;
+        if (user?.id && (heightNum || weightNum)) {
+          try {
+            await base44.entities.Measurement.create({
+              trainee_id: user.id,
+              user_id: user.coach_id || null,
+              date: new Date().toISOString().split('T')[0],
+              source: 'onboarding',
+              notes: 'מדידה ראשונה — אונבורדינג',
+              height: heightNum,
+              weight: weightNum,
+              height_cm: heightNum,
+              weight_kg: weightNum,
+            });
+            console.log("[Onboarding] seeded baseline measurement row");
+          } catch (mErr) {
+            console.warn("[Onboarding] measurement seed failed (non-critical):", mErr?.message);
+          }
+        }
       } catch (updateError) {
         console.error("[Onboarding] updateUserMutation error:", updateError);
         // Try with only critical fields if full update fails
