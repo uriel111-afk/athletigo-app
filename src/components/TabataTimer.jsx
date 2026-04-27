@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
   unlock as unlockAudio, now, playBeep, playClick, playWhistle, playBell,
   playLongBeep, playDoubleBell, playVictory, playGong,
@@ -151,15 +151,22 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // re-run the moment the row enters the DOM.
   const totalRowRef = useRef(null);
   const [totalRowBox, setTotalRowBox] = useState({ w: 0, h: 0 });
-  useEffect(() => {
+  // useLayoutEffect (NOT useEffect) — runs synchronously AFTER the
+  // DOM update but BEFORE the browser paints, so the first paint
+  // already has real width/height. With useEffect, the first frame
+  // shipped with 0×0 (perimeter=0, SVG conditional false), and by
+  // the time the next render computed perimeter the timer had
+  // already advanced a few hundred ms — the drain ring appeared
+  // mid-progress instead of starting at full. Synchronously
+  // measuring fixes the "doesn't start at 100%" symptom.
+  useLayoutEffect(() => {
     const el = totalRowRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+    if (!el) return;
     const measure = () => {
-      // offsetWidth/offsetHeight are integer-pixel and avoid the
-      // sub-pixel jitter that getBoundingClientRect can introduce.
       setTotalRowBox({ w: el.offsetWidth, h: el.offsetHeight });
     };
     measure();
+    if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
@@ -670,10 +677,19 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const TOTAL_RING_R = 14;
   const totalRingW = Math.max(0, totalRowBox.w - TOTAL_RING_INSET * 2);
   const totalRingH = Math.max(0, totalRowBox.h - TOTAL_RING_INSET * 2);
-  // Rounded-rect perimeter: straight sides + 4 quarter-arcs.
+  // Simple rectangle perimeter — 2(w+h). The actual stroke length on
+  // a rounded rect is slightly less (corners are quarter-arcs not
+  // square) but the dash math still terminates correctly: at
+  // progress=1, dashoffset=0 → full stroke. At progress=0,
+  // dashoffset=perimeter (≥ actual stroke length) → empty stroke.
+  // The slight pacing difference at intermediate points is invisible
+  // and avoids the geometric formula misbehaving in edge cases.
   const totalRingPerim = (totalRingW > 0 && totalRingH > 0)
-    ? 2 * (totalRingW + totalRingH) - 8 * TOTAL_RING_R + 2 * Math.PI * TOTAL_RING_R
+    ? 2 * (totalRingW + totalRingH)
     : 0;
+  // dashoffset = perimeter * (1 - progress)
+  //   progress 1.0 (timer just started) → offset 0          → ring full
+  //   progress 0.0 (digits hit 00:00)   → offset perimeter  → ring empty
   const totalRingDashOffset = totalRingPerim * (1 - totalBorderProgress);
 
   // Minimize handler — single source of truth (mirrors Clocks.jsx
