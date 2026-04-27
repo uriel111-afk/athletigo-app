@@ -912,8 +912,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             background: isWork ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
             borderRadius: 16,
             padding: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 12, textAlign: 'center',
+            // RTL container → flex-start = visual right edge.
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+            gap: 12, textAlign: 'right',
             overflow: 'visible',
             boxSizing: 'border-box',
           }}
