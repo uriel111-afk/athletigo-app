@@ -19,6 +19,7 @@ import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
 import PaymentResultModal from "@/components/PaymentResultModal";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
+import PreHealthScreen from "@/components/PreHealthScreen";
 
 const DAILY_MESSAGES = [
   "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
@@ -82,6 +83,7 @@ export default function TraineeHome() {
   // approval banner that opens the health declaration. After signing,
   // a one-shot welcome popup fires.
   const [showHealthForm, setShowHealthForm] = useState(false);
+  const [showPreHealth, setShowPreHealth] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [pendingSessionId, setPendingSessionId] = useState(null);
   // Tracks whether we've already auto-opened the health form on this
@@ -396,10 +398,10 @@ export default function TraineeHome() {
     // freshly-onboarded (covers casual returnees).
     const needsSign = user?.onboarding_completed === true || !!pendingApprovalSession;
     if (!needsSign) return;
-    console.log('[Onboarding] step → health_declaration (auto-open)');
+    console.log('[Onboarding] step → pre_health (auto-open before health_declaration)');
     autoHealthShownRef.current = true;
     setPendingSessionId(pendingApprovalSession?.id || null);
-    setShowHealthForm(true);
+    setShowPreHealth(true);
   }, [user?.id, user?.onboarding_completed, hasSignedHealth, pendingApprovalSession?.id]);
 
   // Diagnostic: which banner button should the trainee see right now?
@@ -799,6 +801,21 @@ export default function TraineeHome() {
           casual onboarding flow that pay-gating split into two halves. */}
       <PaymentResultModal onSuccessClose={() => setShowWelcome(true)} />
 
+      {/* Soft "before-we-begin" screen — captures pre_health_note
+          and hands off to the formal health declaration. Mounted at
+          root so it lives above any other dialog and can run before
+          HealthDeclarationForm regardless of how the trainee got
+          here (auto-open after questionnaire, or banner button). */}
+      <PreHealthScreen
+        isOpen={showPreHealth}
+        traineeId={user?.id}
+        onClose={() => setShowPreHealth(false)}
+        onContinue={() => {
+          setShowPreHealth(false);
+          setShowHealthForm(true);
+        }}
+      />
+
       {/* Unread notifications modal — large, clear, professional */}
       <Dialog open={showUnreadModal} onOpenChange={setShowUnreadModal}>
         <DialogContent className="max-w-lg">
@@ -915,7 +932,7 @@ export default function TraineeHome() {
                 type="button"
                 onClick={() => {
                   setPendingSessionId(pendingApprovalSession.id);
-                  setShowHealthForm(true);
+                  setShowPreHealth(true);
                 }}
                 style={primaryApprovalBtnStyle}
               >

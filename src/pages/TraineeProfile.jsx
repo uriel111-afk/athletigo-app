@@ -774,12 +774,15 @@ function IntroTab({ user }) {
   // Injuries / medical limits — `health_issues` is the legacy name,
   // accept either for compatibility.
   const injuries    = (user?.health_issues || user?.injuries || '').trim();
+  // Pre-health note — captured on the soft-handoff screen before
+  // the formal health declaration. Free-text from the trainee.
+  const preHealth   = (user?.pre_health_note || '').trim();
   // training_goals is intentionally NOT shown here — it belongs to
   // the יעדים tab. Avoiding the duplicate keeps the source of
   // truth single per the spec.
 
   const hasAnything = challenges.length || preferences.length
-                      || fitness || frequency || notes || injuries;
+                      || fitness || frequency || notes || injuries || preHealth;
 
   if (!hasAnything) {
     return (
@@ -848,6 +851,19 @@ function IntroTab({ user }) {
               const meta = INTRO_PREFERENCE_LABELS[p] || { emoji: '⚪', label: p };
               return <IntroChip key={`${p}-${i}`} emoji={meta.emoji} label={meta.label} />;
             })}
+          </div>
+        </IntroSection>
+      )}
+
+      {preHealth && (
+        <IntroSection title="הערות בריאות (מאונבורדינג)">
+          <div style={{
+            padding: 10, borderRadius: 12,
+            background: '#FFFFFF', border: '1px solid #F0E4D0',
+            fontSize: 14, color: '#1A1A1A',
+            lineHeight: 1.6, whiteSpace: 'pre-wrap',
+          }}>
+            {preHealth}
           </div>
         </IntroSection>
       )}

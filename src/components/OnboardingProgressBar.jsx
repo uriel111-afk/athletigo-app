@@ -14,8 +14,9 @@ import React from "react";
 export const ONBOARDING_STEPS = [
   { id: 'details',       label: 'פרטים' },
   { id: 'questionnaire', label: 'היכרות' },
-  { id: 'health',        label: 'הצהרת בריאות' },
-  { id: 'payment',       label: 'תשלום ואישור' },
+  { id: 'pre_health',    label: 'בריאות' },
+  { id: 'health',        label: 'הצהרה' },
+  { id: 'payment',       label: 'אישור' },
 ];
 
 export default function OnboardingProgressBar({ currentStep }) {
