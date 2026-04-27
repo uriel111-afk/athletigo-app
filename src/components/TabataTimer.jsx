@@ -135,6 +135,27 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // they read fresh state without depending on render-time closures.
   const pausedRef = useRef(false);
 
+  // Total-time row measurement. Lives ABOVE every conditional return
+  // (settings / done early gates further down) so the hook count is
+  // identical whether the timer is in settings, running, or done —
+  // putting these after those gates triggered React #310 when the
+  // user pressed "הפעל" and the screen flipped from 'settings' to
+  // 'running'. The geometry math stays where it's used (below).
+  const totalRowRef = useRef(null);
+  const [totalRowBox, setTotalRowBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = totalRowRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setTotalRowBox({ w: Math.round(r.width), h: Math.round(r.height) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { cfgRef.current = cfg; localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }, [cfg]);
   useEffect(() => { screenRef.current = screen; }, [screen]);
@@ -628,27 +649,14 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     ? Math.max(0, Math.min(1, totalLeftPrecise / totalExerciseSeconds))
     : 0;
 
-  // Measure the total-time row so the SVG drain stroke uses a real
-  // numeric perimeter — pathLength="100" on <rect> is unreliable on
-  // Safari, and `width="calc(100% - 4px)"` is not valid SVG (the
-  // rect was rendering with NaN dims, which is why the ring looked
-  // broken / out of sync). ResizeObserver keeps the perimeter in
-  // step with the actual rendered box across font-size + viewport
-  // changes; the rAF render loop already covers the per-tick drain.
-  const totalRowRef = useRef(null);
-  const [totalRowBox, setTotalRowBox] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    const el = totalRowRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      setTotalRowBox({ w: Math.round(r.width), h: Math.round(r.height) });
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  // Total-row geometry (perimeter + insets). The ref + state + effect
+  // for measuring the row live HIGHER UP in the component body —
+  // before the `if (screen === 'settings') return` and
+  // `if (screen === 'done') return` early gates — so the hook count
+  // stays stable when the screen flips from 'settings' → 'running'.
+  // (Putting them here, after the gates, triggered React #310:
+  // "rendered more hooks than during the previous render".) This
+  // block is now just plain math against state declared above.
   const TOTAL_RING_INSET = 2;
   const TOTAL_RING_R = 14;
   const totalRingW = Math.max(0, totalRowBox.w - TOTAL_RING_INSET * 2);
