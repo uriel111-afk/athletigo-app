@@ -34,6 +34,21 @@ const INITIAL_DATA = {
   payment_status: "ממתין לתשלום",
   payment_method: "credit",
   notes_internal: "",
+  status: "active",
+};
+
+// Normalize legacy Hebrew status values from existing rows so the
+// edit form's <select> shows the right option pre-selected. Anything
+// we don't recognize is preserved as-is so the coach can still see
+// it; saving will overwrite with the canonical English value they
+// pick.
+const normalizePackageStatus = (raw) => {
+  if (!raw) return 'active';
+  if (raw === 'פעיל')      return 'active';
+  if (raw === 'מוקפא' || raw === 'הוקפא') return 'frozen';
+  if (raw === 'בוטל')      return 'cancelled';
+  if (raw === 'הסתיים')    return 'completed';
+  return raw;
 };
 
 const NumPicker = ({ value, onChange, min = 1, max = 99, label }) => {
@@ -78,6 +93,7 @@ export default function PackageFormDialog({
     payment_status: editingPackage.payment_status || "ממתין לתשלום",
     payment_method: editingPackage.payment_method || "credit",
     notes_internal: editingPackage.notes_internal || "",
+    status: normalizePackageStatus(editingPackage.status),
   } : { ...INITIAL_DATA, start_date: new Date().toISOString().split("T")[0] };
 
   const scopeKey = `${traineeId ?? 'no-trainee'}_${editingPackage?.id ?? 'new'}`;
@@ -145,9 +161,11 @@ export default function PackageFormDialog({
       auto_deduct_enabled: !isGroup,
       unit_type: isGroup ? "months" : "sessions",
       notes_internal: form.notes_internal || null,
-      // Preserve existing status when editing (so coach editing a completed/expired
-      // package doesn't silently reactivate it). Default new packages to active.
-      status: editingPackage?.status ?? "פעיל",
+      // Coach picks the status explicitly from the form. New packages
+      // default to 'active'; editing loads the existing value
+      // (normalized from any legacy Hebrew variants) so the coach can
+      // freeze / cancel / complete a package directly from this form.
+      status: form.status || 'active',
     };
 
     setSaving(true);
@@ -401,6 +419,37 @@ export default function PackageFormDialog({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Package status — native <select> (not Radix Select)
+                because Radix's portaled options don't always reach
+                inside a stacked dialog. Coach can flip a package
+                between active / frozen / cancelled / completed at
+                any point — no constraint based on trainee status. */}
+            <div>
+              <Label className="text-xs text-gray-500 mb-1 block">סטטוס חבילה</Label>
+              <select
+                value={form.status}
+                onChange={(e) => set('status', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '1px solid #F0E4D0',
+                  background: '#FFFFFF',
+                  fontSize: 14,
+                  direction: 'rtl',
+                  color: '#1A1A1A',
+                  outline: 'none',
+                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="active">פעיל ✓</option>
+                <option value="frozen">מוקפא ❄️</option>
+                <option value="cancelled">מבוטל ✕</option>
+                <option value="completed">הסתיים ✓</option>
+              </select>
             </div>
 
             {/* Notes — coach-only (stored in client_services.notes_internal; RLS masks from trainee) */}
