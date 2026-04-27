@@ -84,6 +84,7 @@ import { FOCUS_LABELS } from "@/lib/sectionTypes";
 import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 import TraineeReceiptsList from "@/components/TraineeReceiptsList";
+import LinkSessionToPackageDialog from "@/components/LinkSessionToPackageDialog";
 
 const PAYMENT_METHODS = [
   { value: 'cash',        label: 'מזומן',          icon: '💵' },
@@ -659,212 +660,20 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
         </div>
       )}
 
-      {/* Two-tab "+ הוסף מפגש" dialog. Tab 1 picks from existing
-          unlinked sessions; tab 2 creates a brand-new session
-          already linked to this package. Either path decrements
-          one slot from the package (was_deducted=true on the
-          session row prevents double-count later). */}
-      <Dialog open={showLinkDialog} onOpenChange={(o) => { if (!o && !linkSaving) setShowLinkDialog(false); }}>
-        <DialogContent className="max-w-md" onInteractOutside={(e) => { if (linkSaving) e.preventDefault(); }}>
-          <DialogHeader>
-            <DialogTitle style={{ textAlign: 'right', fontSize: 18, fontWeight: 800 }}>
-              הוסף מפגש לחבילה
-            </DialogTitle>
-          </DialogHeader>
-
-          {/* Tabs */}
-          <div dir="rtl" style={{ display: 'flex', gap: 4, marginBottom: 8, padding: 4, background: '#F3F4F6', borderRadius: 10 }}>
-            {[
-              { id: 'existing', label: 'בחר מפגש קיים' },
-              { id: 'new',      label: 'צור מפגש חדש' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setLinkTab(t.id)}
-                style={{
-                  flex: 1, padding: '8px 10px', borderRadius: 8,
-                  border: 'none', cursor: 'pointer',
-                  background: linkTab === t.id ? '#FFFFFF' : 'transparent',
-                  color: linkTab === t.id ? '#FF6F20' : '#6B7280',
-                  fontSize: 13, fontWeight: 700,
-                  boxShadow: linkTab === t.id ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                }}
-              >{t.label}</button>
-            ))}
-          </div>
-
-          {/* Tab body */}
-          {linkTab === 'existing' ? (
-            <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '50vh', overflowY: 'auto', paddingTop: 4 }}>
-              {linkCandidates.length === 0 ? (
-                <div style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
-                  אין מפגשים זמינים לשיוך
-                </div>
-              ) : (
-                linkCandidates.map((s) => {
-                  const dateStr = s.date ? format(new Date(s.date), 'dd/MM/yy') : '—';
-                  const timeStr = (s.time || s.start_time || '').slice(0, 5);
-                  const typeLbl = sessionTypeLabel(s.session_type) || 'אישי';
-                  const isCompleted = ['completed','הושלם','הגיע','התקיים'].includes(s.status);
-                  const badgeBg = isCompleted ? '#E8F5E9' : '#FFF3E0';
-                  const badgeFg = isCompleted ? '#2E7D32' : '#E65100';
-                  const badgeLbl = isCompleted ? 'הושלם' : 'מתוכנן';
-                  return (
-                    <div
-                      key={s.id}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: 12, borderRadius: 12,
-                        border: '1px solid #F0E4D0',
-                        background: '#FFFFFF',
-                        direction: 'rtl',
-                      }}
-                    >
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: '#1A1A1A' }}>{dateStr}</div>
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                          {timeStr ? `${timeStr} · ` : ''}{typeLbl}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <span style={{
-                          padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                          background: badgeBg, color: badgeFg,
-                        }}>{badgeLbl}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleLinkOne(s.id)}
-                          disabled={linkSaving}
-                          style={{
-                            background: '#FF6F20', color: '#FFFFFF', border: 'none',
-                            borderRadius: 10, padding: '6px 14px',
-                            fontSize: 13, fontWeight: 700,
-                            cursor: linkSaving ? 'wait' : 'pointer',
-                            opacity: linkSaving ? 0.7 : 1,
-                            fontFamily: "'Heebo', 'Assistant', sans-serif",
-                          }}
-                        >שייך</button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          ) : (
-            <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
-              {/* New-session form. min/max NOT set on date input — past
-                  dates are intentional so the coach can log retroactively. */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>תאריך</label>
-                  <input
-                    type="date"
-                    value={newSession.date}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      // When the coach picks a past date and the
-                      // status is still the default "מאושר", auto-
-                      // flip to "הושלם". They can still pick any
-                      // status manually from the dropdown below.
-                      const today = new Date(); today.setHours(0, 0, 0, 0);
-                      const picked = next ? new Date(`${next}T00:00:00`) : null;
-                      const isPast = picked && !Number.isNaN(picked.getTime()) && picked < today;
-                      setNewSession((prev) => ({
-                        ...prev,
-                        date: next,
-                        status: isPast && prev.status === 'מאושר' ? 'הושלם' : prev.status,
-                      }));
-                    }}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>שעה</label>
-                  <input
-                    type="time"
-                    value={newSession.time}
-                    onChange={(e) => setNewSession({ ...newSession, time: e.target.value })}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>סוג</label>
-                  <select
-                    value={newSession.session_type}
-                    onChange={(e) => setNewSession({ ...newSession, session_type: e.target.value })}
-                    style={{ width: '100%', padding: '10px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
-                  >
-                    <option value="אישי">אישי</option>
-                    <option value="קבוצתי">קבוצתי</option>
-                    <option value="אונליין">אונליין</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>סטטוס</label>
-                  <select
-                    value={newSession.status}
-                    onChange={(e) => setNewSession({ ...newSession, status: e.target.value })}
-                    style={{ width: '100%', padding: '10px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
-                  >
-                    <option value="מאושר">מתוכנן</option>
-                    <option value="הושלם">הושלם</option>
-                    <option value="לא הגיע">לא הגיע</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1A1A1A', marginBottom: 4, display: 'block' }}>הערות (אופציונלי)</label>
-                <textarea
-                  value={newSession.notes}
-                  onChange={(e) => setNewSession({ ...newSession, notes: e.target.value })}
-                  rows={2}
-                  placeholder="פרטים נוספים על המפגש..."
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 13, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box', resize: 'vertical', minHeight: 50 }}
-                />
-              </div>
-              <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'right', marginTop: 2 }}>
-                ⓘ אפשר לבחור גם תאריך בעבר — לתיעוד מפגש שכבר התקיים. השמירה תקזז מפגש אחד מהחבילה.
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, paddingTop: 10 }}>
-            <button
-              type="button"
-              onClick={() => setShowLinkDialog(false)}
-              disabled={linkSaving}
-              style={{
-                flex: 1, padding: '10px 14px', borderRadius: 10,
-                border: '1px solid #E5E7EB', background: '#FFFFFF',
-                color: '#374151', fontSize: 14, fontWeight: 700,
-                cursor: linkSaving ? 'wait' : 'pointer',
-              }}
-            >{linkTab === 'existing' ? 'סגור' : 'ביטול'}</button>
-            {/* Existing-tab uses per-row "שייך" buttons → no bulk
-                save button needed. New-tab still needs the
-                "צור ושייך" footer action. */}
-            {linkTab === 'new' && (
-              <button
-                type="button"
-                onClick={handleCreateAndLink}
-                disabled={linkSaving || !newSession.date}
-                style={{
-                  flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
-                  background: '#FF6F20', color: '#FFFFFF',
-                  fontSize: 14, fontWeight: 800,
-                  cursor: linkSaving ? 'not-allowed' : 'pointer',
-                  opacity: linkSaving ? 0.6 : 1,
-                }}
-              >
-                {linkSaving ? 'שומר...' : 'צור ושייך'}
-              </button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* "+ הוסף מפגש לחבילה" — extracted to a standalone component
+          with a custom (non-Radix) overlay. The previous Radix
+          Dialog rendered inside expanded package cards interacted
+          badly with nested overflow + pointer-events scopes,
+          producing the "broken page" symptom. The new dialog
+          portals to body and uses its own backdrop, so it always
+          renders cleanly regardless of where it's mounted. */}
+      <LinkSessionToPackageDialog
+        isOpen={showLinkDialog}
+        onClose={() => setShowLinkDialog(false)}
+        pkg={pkg}
+        traineeId={pkg?.trainee_id}
+        onSuccess={refresh}
+      />
     </div>
   );
 }
