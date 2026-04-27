@@ -1,14 +1,19 @@
 import React from "react";
 
-// Unified loading indicator — same brand mark + cream background as
-// the boot splash in index.html and AppLoader. Keeps the API stable
-// for every consumer (just <PageLoader /> or <PageLoader fullHeight />)
-// so we don't have to touch the dozens of pages that use it.
+// Unified page-level loading screen. Every page-scope loading state
+// in the app (Layout boot, ProtectedCoachPage gate, individual
+// page-level data hydration) routes through this — same brand
+// treatment as the boot splash in index.html and AppLoader.
 //
-// Visual: solid-black logoR via filter:brightness(0) on the brand
-// cream, with a soft pulse so the user sees motion. No competing
-// pulsing-triangle / wordmark assets — the splash is the single
-// source of truth for the brand treatment.
+// Visual:
+//   - cream #FDF8F3 background (transparent when used inline so it
+//     doesn't fight a parent's bg)
+//   - solid-black logoR via filter:brightness(0)
+//   - indeterminate orange progress bar that loops, on a beige rail
+//
+// Inline button spinners (Loader2 in save buttons etc.) are NOT
+// page-level loaders and intentionally stay as-is — full-screen
+// splash treatment for a save-click would be terrible UX.
 export default function PageLoader({ size = 80, fullHeight = false, message = "" }) {
   return (
     <div
@@ -18,10 +23,10 @@ export default function PageLoader({ size = 80, fullHeight = false, message = ""
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        height: fullHeight ? "100vh" : "60vh",
+        minHeight: fullHeight ? "100vh" : "60vh",
         width: "100%",
         background: fullHeight ? "#FDF8F3" : "transparent",
-        gap: 12,
+        gap: 0,
       }}
     >
       <img
@@ -32,22 +37,41 @@ export default function PageLoader({ size = 80, fullHeight = false, message = ""
           height: "auto",
           objectFit: "contain",
           filter: "brightness(0)",
-          animation: "athletigo-page-loader-pulse 1.5s ease-in-out infinite",
+          marginBottom: 24,
         }}
         onError={(e) => { e.currentTarget.style.display = "none"; }}
       />
+
+      <div style={{
+        width: 200, height: 3,
+        background: "#F0E4D0",
+        borderRadius: 2,
+        overflow: "hidden",
+        position: "relative",
+      }}>
+        <div style={{
+          position: "absolute", top: 0, height: "100%",
+          background: "#FF6F20",
+          borderRadius: 2,
+          animation: "athletigo-loading-bar 1.5s ease-in-out infinite",
+        }} />
+      </div>
+
       {message && (
         <div style={{
           fontSize: 13, color: "#888",
+          marginTop: 16,
           fontFamily: "'Heebo', 'Assistant', sans-serif",
         }}>
           {message}
         </div>
       )}
+
       <style>{`
-        @keyframes athletigo-page-loader-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%      { opacity: 0.6; transform: scale(0.95); }
+        @keyframes athletigo-loading-bar {
+          0%   { left: 0;    width: 20%; }
+          50%  { left: 20%;  width: 60%; }
+          100% { left: 80%;  width: 20%; }
         }
       `}</style>
     </div>
