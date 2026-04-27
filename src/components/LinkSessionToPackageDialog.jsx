@@ -76,8 +76,8 @@ export default function LinkSessionToPackageDialog({
             .contains('participants', [{ trainee_id: traineeId }]),
         ]);
 
-        console.log('[LinkSession] direct:', { count: direct.data?.length, error: direct.error });
-        console.log('[LinkSession] participants[]:', { count: contained.data?.length, error: contained.error });
+        console.log('[LinkSession] direct query result:', direct);
+        console.log('[LinkSession] participants query result:', contained);
 
         if (cancelled) return;
 
@@ -92,6 +92,7 @@ export default function LinkSessionToPackageDialog({
           .filter(s => s.status !== 'deleted' && !s.deleted_at)
           .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
+        console.log('[LinkSession] merged available:', filtered);
         console.log('[LinkSession] available sessions:', filtered.length, '/', all.length, 'total');
         setCandidates(filtered);
       } catch (e) {

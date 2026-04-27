@@ -227,6 +227,13 @@ export default function SessionFormDialog({
     const priceNumber = sessionForm.price === "" || sessionForm.price == null
       ? null
       : Number(sessionForm.price);
+    // Mirror the first participant onto a top-level trainee_id so
+    // every consumer that filters by sessions.trainee_id (e.g. the
+    // package link-dialog, the trainee profile sessions query)
+    // finds the row without needing the participants JSONB
+    // contains() filter. participants[] is preserved as the source
+    // of truth — this is just a denormalized convenience column.
+    const firstTraineeId = sessionForm.participants?.[0]?.trainee_id || null;
     const sessionDataWithStatus = {
       date: sessionForm.date,
       time: sessionForm.time,
@@ -235,6 +242,7 @@ export default function SessionFormDialog({
       duration: sessionForm.duration || 60,
       coach_notes: sessionForm.coach_notes || null,
       coach_id: currentCoach?.id || null,
+      trainee_id: firstTraineeId,
       participants: sessionForm.participants || [],
       // null = free / no price; positive number → unpaid until the
       // trainee runs payment-create. Coach can mark paid manually.
