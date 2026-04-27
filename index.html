@@ -52,21 +52,53 @@
       document.addEventListener('touchmove', function(e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
     </script>
   </head>
-  <body style="margin:0;padding:0;background:#FFF9F0;">
-    <div id="root">
-      <!-- First-paint loader — shown while the JS bundle downloads.
-           React mounts into this div and replaces the markup. -->
-      <style>
-        @keyframes athletigo-boot-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%      { opacity: 0.6; transform: scale(0.95); }
-        }
-      </style>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#FFF9F0;">
-        <img src="/logo-transparent.png" alt="" style="width:120px;height:120px;object-fit:contain;animation:athletigo-boot-pulse 1.5s ease-in-out infinite;" />
-        <img src="/athletigo-text.png" alt="ATHLETIGO" style="height:22px;object-fit:contain;margin-top:8px;" />
+  <body style="margin:0;padding:0;background:#FDF8F3;">
+    <div id="root"></div>
+
+    <!-- Branded boot splash — sits OUTSIDE #root so React's first
+         render doesn't blow it away. main.jsx finishes the bar to
+         100% and fades it out once the app has painted. -->
+    <div id="splash" style="
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: #FDF8F3;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 99999;
+      transition: opacity 0.4s ease;
+      font-family: 'Barlow', 'Heebo', 'Assistant', sans-serif;
+    ">
+      <img src="/logo-transparent.png" alt="AthletiGo"
+           style="width: 80px; height: 80px; margin-bottom: 16px; object-fit: contain;"
+           onerror="this.style.display='none'" />
+      <div style="
+        font-size: 24px; font-weight: 700; color: #1A1A1A;
+        letter-spacing: 0.15em; margin-bottom: 24px;
+      ">ATHLETIGO</div>
+      <div style="
+        width: 200px; height: 3px;
+        background: #F0E4D0; border-radius: 2px;
+        overflow: hidden;
+      ">
+        <div id="splash-bar" style="
+          height: 100%; width: 0%;
+          background: #FF6F20; border-radius: 2px;
+          transition: width 0.3s ease;
+        "></div>
       </div>
     </div>
+    <script>
+      (function () {
+        var bar = document.getElementById('splash-bar');
+        if (!bar) return;
+        // Stage the bar so the user sees motion while React boots.
+        // main.jsx finishes the run with 100% + fade-out as soon as
+        // the app's first commit lands.
+        setTimeout(function () { bar.style.width = '30%'; }, 100);
+        setTimeout(function () { bar.style.width = '60%'; }, 400);
+        setTimeout(function () { bar.style.width = '85%'; }, 800);
+      })();
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
