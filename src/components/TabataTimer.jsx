@@ -827,16 +827,18 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               phase.type === 'rest'     ? 'מנוחה' :
               phase.type === 'set_rest' ? 'מנוחה בין סטים' :
               phase.type === 'prep'     ? 'הכנה' : '';
-            // "מנוחה בין סטים" (13 chars) wraps onto a smaller font
-            // so it never collides with the minimize button.
-            const big = phaseLabel.length <= 6;
+            // Short labels (עבודה / מנוחה / הכנה) get the 64px headline.
+            // The long "מנוחה בין סטים" (13 chars) shrinks to 42px AND
+            // gets reserved padding on the visual-left so it never
+            // crosses under the minimize button at top:0 left:0.
+            const titleSize = phaseLabel.length > 6 ? 42 : 64;
             return (
               <div style={{
                 textAlign: 'right',
-                paddingInlineStart: 96, // reserve room for the floating minimize button
+                paddingLeft: 100, // reserve room for the minimize button on the visual left
                 paddingTop: 4,
                 direction: 'rtl',
-                fontSize: big ? 64 : 36,
+                fontSize: titleSize,
                 fontWeight: 800,
                 lineHeight: 0.9,
                 letterSpacing: '-2px',
