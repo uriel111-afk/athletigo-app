@@ -757,152 +757,165 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   return (
     <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease' }}>
 
-      {/* ROW 1: Centered full-width phase title with minimize as small floating button */}
-      {/* Minimize button is rendered for EVERY phase (prep, work, rest, set_rest).
-          IDENTICAL handler shape to Countdown/Stopwatch in Clocks.jsx — bare
-          onClick, no onPointerDown. (onPointerDown stopPropagation was
-          intercepting the click event on touch devices.) */}
-      <div style={{ width: '100%', position: 'relative', flexShrink: 0 }}>
-        <button
-          type="button"
-          onClick={doMinimize}
-          style={{
-            position: 'absolute', top: 8, left: 0,
-            background: isWork ? 'rgba(255,255,255,0.95)' : '#FF6F20',
-            color: isWork ? '#FF6F20' : '#FFFFFF',
-            border: 'none', borderRadius: 12,
-            padding: '8px 14px',
-            fontSize: 14, fontWeight: 800,
-            cursor: 'pointer', touchAction: 'manipulation',
-            zIndex: 5,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-            minHeight: 36, minWidth: 76,
-          }}
-          aria-label="מזער טיימר"
-        >
-          מזער ↗
-        </button>
-        {(() => {
-          const phaseLabel =
-            phase.type === 'work'     ? 'עבודה' :
-            phase.type === 'rest'     ? 'מנוחה' :
-            phase.type === 'set_rest' ? 'מנוחה בין סטים' :
-            phase.type === 'prep'     ? 'הכנה' : '';
-          // "מנוחה בין סטים" (13 chars) shrinks so it never wraps; the
-          // short labels stay big and bold.
-          const big = phaseLabel.length <= 6;
-          return (
-            <div style={{
-              textAlign: 'right', width: '100%',
-              // Long titles get top padding so they sit BELOW the
-              // floating מזער button (top: 8, h: 36 → ~48px clear).
-              padding: big ? '8px 16px 2px' : '48px 16px 2px',
-              direction: 'rtl',
-              fontSize: big ? 72 : 36,
-              fontWeight: 900,
+      {/* ─── TOP SECTION (3 rows) ──────────────────────────────────
+          Top-only redesign per spec. Logic, sounds, the central
+          ring + digit, and the bottom controls below remain
+          untouched — only the JSX/styling above the central ring
+          was changed. */}
+      <div style={{ width: '100%', maxWidth: 460, flexShrink: 0 }}>
+
+        {/* ROW 1 — phase title + minimize button. Title fills the
+            row right-aligned (RTL), minimize floats top-left. */}
+        <div style={{ position: 'relative', width: '100%', minHeight: 64 }}>
+          <button
+            type="button"
+            onClick={doMinimize}
+            aria-label="מזער טיימר"
+            style={{
+              position: 'absolute', top: 0, left: 0,
+              background: isWork ? 'rgba(255,255,255,0.2)' : 'rgba(255,111,32,0.1)',
               color: isWork ? '#FFFFFF' : '#FF6F20',
-              letterSpacing: big ? '8px' : '2px',
-              textTransform: 'uppercase',
-              textShadow: '0 4px 16px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15)',
-              WebkitTextStroke: isWork ? '1px rgba(255,255,255,0.3)' : '1px rgba(255,111,32,0.3)',
-              whiteSpace: 'nowrap',
+              border: 'none', borderRadius: 10,
+              padding: '8px 14px',
+              fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', touchAction: 'manipulation',
+              zIndex: 5, minHeight: 36,
+            }}
+          >מזער ↗</button>
+          {(() => {
+            const phaseLabel =
+              phase.type === 'work'     ? 'עבודה' :
+              phase.type === 'rest'     ? 'מנוחה' :
+              phase.type === 'set_rest' ? 'מנוחה בין סטים' :
+              phase.type === 'prep'     ? 'הכנה' : '';
+            // "מנוחה בין סטים" (13 chars) wraps onto a smaller font
+            // so it never collides with the minimize button.
+            const big = phaseLabel.length <= 6;
+            return (
+              <div style={{
+                textAlign: 'right',
+                paddingInlineStart: 96, // reserve room for the floating minimize button
+                paddingTop: 4,
+                direction: 'rtl',
+                fontSize: big ? 64 : 36,
+                fontWeight: 800,
+                lineHeight: 0.9,
+                letterSpacing: '-2px',
+                color: isWork ? '#FFFFFF' : '#FF6F20',
+                whiteSpace: 'nowrap',
+              }}>
+                {phaseLabel}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* ROW 2 — round + set, side by side. Round chip stays
+            tappable (opens the round-picker) so the existing
+            jump-to-round flow is preserved. */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => setRoundPickerOpen(true)}
+            style={{
+              flex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: isWork ? 'rgba(255,255,255,0.15)' : 'rgba(255,111,32,0.08)',
+              border: 'none', borderRadius: 12,
+              padding: '10px 12px',
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+              fontFamily: 'inherit',
+            }}
+          >
+            <span style={{
+              pointerEvents: 'none',
+              fontSize: 24, fontWeight: 600,
+              color: isWork ? 'rgba(255,255,255,0.75)' : '#888',
+            }}>סבב</span>
+            <span style={{
+              pointerEvents: 'none',
+              fontSize: 36, fontWeight: 700,
+              fontVariantNumeric: 'tabular-nums',
+              color: isWork ? '#FFFFFF' : '#1A1A1A',
+              lineHeight: 1,
             }}>
-              {phaseLabel}
-            </div>
-          );
-        })()}
-      </div>
+              {Math.max(1, phase.round)}/{cfg.rounds}
+            </span>
+          </button>
+          <div style={{
+            flex: 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            background: isWork ? 'rgba(255,255,255,0.15)' : 'rgba(255,111,32,0.08)',
+            borderRadius: 12,
+            padding: '10px 12px',
+          }}>
+            <span style={{
+              fontSize: 24, fontWeight: 600,
+              color: isWork ? 'rgba(255,255,255,0.75)' : '#888',
+            }}>סט</span>
+            <span style={{
+              fontSize: 36, fontWeight: 700,
+              fontVariantNumeric: 'tabular-nums',
+              color: isWork ? '#FFFFFF' : '#1A1A1A',
+              lineHeight: 1,
+            }}>
+              {Math.max(1, phase.set)}/{cfg.sets}
+            </span>
+          </div>
+        </div>
 
-      {/* ROW 2: Stats — total time anchored to the RIGHT edge, then
-          set + round filling the rest. In an RTL flex row (direction:
-          rtl + flex-direction:row), the FIRST DOM child sits at the
-          main-start which is the RIGHT edge — so Total chip first =
-          rightmost.
-
-          Sizing rules:
-            - container has 12px side padding so chips never sit at
-              the screen edge (the total-chip's drain-ring stroke
-              also gets a 1.5px overhang on the outside that needed
-              the breathing room)
-            - gap is 6px so 3 chips + 2 gaps fit on a 360px screen
-            - chip internal padding 8px so the wider numbers (10/12)
-              still fit with whiteSpace:nowrap + minWidth:0
-            - number font is 20px (was 38–40px which clipped) and
-              labels are 12px per spec; readable but not greedy */}
-      <div style={{ display: 'flex', gap: 6, padding: '0 12px', width: '100%', maxWidth: 420, flexShrink: 0, marginBottom: 12 }}>
+        {/* ROW 3 — total time, full width. Single empty SVG rect
+            shows total-exercise drain progress as a stroke around
+            the row. pathLength="100" normalizes so dashoffset
+            reads as "% drained": 0 = full, 100 = empty. No track
+            ring on this layout — just the single drain stroke. */}
         <div style={{
-          // Total chip = flex 1.5 (≈43% of the row vs 28% each for
-          // set/round). Stays the largest of the three but no longer
-          // dominates the row — leaves more room for the set/round
-          // numbers to sit at a comfortable size on narrow screens.
-          flex: 1.5, position: 'relative',
-          background: chipDarkBg, borderRadius: 12,
-          padding: '8px 10px', textAlign: 'center', color: textPrimary,
+          position: 'relative',
+          marginTop: 12,
+          width: '100%',
+          background: isWork ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+          borderRadius: 16,
+          padding: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
           overflow: 'visible',
-          minWidth: 0,
         }}>
-          {/* Total-exercise drain ring — SVG overlay sized to the
-              chip via 100% percentages. pathLength=100 normalizes
-              the perimeter so dashoffset reads as "% drained":
-              0 = full, 100 = empty. Stroke + track flip per phase
-              so the drain is visible against either background:
-                work (orange bg) → white stroke + white-30% track
-                rest/prep (cream bg) → orange stroke + orange-20% track
-              overflow:visible on the SVG + the parent lets the
-              half-stroke peek out as a real border around the chip.
-              Container padding (12px on the row) reserves space for
-              that overhang so the ring never gets clipped at the
-              screen edge. */}
           <svg
             aria-hidden
             style={{
-              position: 'absolute', inset: 0,
+              position: 'absolute', top: 0, left: 0,
               width: '100%', height: '100%',
-              overflow: 'visible', pointerEvents: 'none',
+              pointerEvents: 'none', overflow: 'visible',
             }}
           >
-            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
-              fill="none"
-              stroke={isWork ? 'rgba(255,255,255,0.3)' : 'rgba(255,111,32,0.2)'}
-              strokeWidth="2"
-              style={{ transition: 'stroke 0.3s ease' }}
-            />
-            <rect x="0" y="0" width="100%" height="100%" rx="12" ry="12"
+            <rect
+              x="2" y="2"
+              width="calc(100% - 4px)" height="calc(100% - 4px)"
+              rx="14" ry="14"
               fill="none"
               stroke={isWork ? '#FFFFFF' : '#FF6F20'}
               strokeWidth="3" strokeLinecap="round"
               pathLength="100" strokeDasharray="100"
               strokeDashoffset={100 * (1 - totalBorderProgress)}
-              // No transition on stroke-dashoffset on purpose — the
-              // value is recomputed every rAF frame from the precise
-              // performance.now() elapsed, so it already animates
-              // smoothly (~60fps). A CSS transition would chase
-              // each new value over 1s and lag visibly behind the
-              // digits. Color swap (work↔rest) keeps its 0.3s ease.
+              // No transition on dashoffset — value is recomputed
+              // every rAF tick so it already animates smoothly.
               style={{ transition: 'stroke 0.3s ease' }}
             />
           </svg>
-          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, lineHeight: 1.1 }}>⏱ זמן כולל</div>
-          <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed', sans-serif", lineHeight: 1.1, marginTop: 2 }}>
+          <span style={{
+            fontSize: 22, fontWeight: 600,
+            color: isWork ? 'rgba(255,255,255,0.8)' : '#FF6F20',
+          }}>⏱ זמן כולל</span>
+          <span style={{
+            fontSize: 52, fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            fontFamily: "'Barlow Condensed', sans-serif",
+            lineHeight: 1,
+            color: isWork ? '#FFFFFF' : '#FF6F20',
+          }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
-          </div>
+          </span>
         </div>
-        <div style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 6px', textAlign: 'center', color: textPrimary, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, lineHeight: 1.1 }}>סט</div>
-          <div style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
-            {Math.max(1, phase.set)}/{cfg.sets}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setRoundPickerOpen(true)}
-          style={{ flex: 1, background: chipBg, borderRadius: 12, padding: '8px 6px', textAlign: 'center', cursor: 'pointer', color: textPrimary, border: 'none', WebkitTapHighlightColor: 'transparent', minWidth: 0 }}
-        >
-          <div style={{ pointerEvents: 'none', fontSize: 11, fontWeight: 600, opacity: 0.8, lineHeight: 1.1 }}>סבב</div>
-          <div style={{ pointerEvents: 'none', fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', lineHeight: 1.1, marginTop: 2 }}>
-            {Math.max(1, phase.round)}/{cfg.rounds}
-          </div>
-        </button>
       </div>
 
       {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
