@@ -741,10 +741,19 @@ export default function Onboarding() {
         current_challenges:   formData.questionnaire?.current_challenges?.length    ? formData.questionnaire.current_challenges    : null,
         training_preferences: formData.questionnaire?.training_preferences?.length  ? formData.questionnaire.training_preferences  : null,
         additional_notes:     formData.questionnaire?.additional_notes     || null,
-        // Free-text expansion on the goals screen — written when
-        // present, null otherwise. base44's 42703 retry drops the
-        // column silently if the migration hasn't been run yet.
-        goals_description:    formData.questionnaire?.goals_description?.trim() || null,
+        // Free-text expansions across the three multi-select screens.
+        // Written when present, null otherwise; base44's 42703 retry
+        // drops any column the live schema is missing without breaking
+        // the rest of the save.
+        goals_description:       formData.questionnaire?.goals_description?.trim()       || null,
+        challenges_description:  formData.questionnaire?.challenges_description?.trim()  || null,
+        preferences_description: formData.questionnaire?.preferences_description?.trim() || null,
+        // Alias columns — different installs use different names for
+        // the same answers. We write to BOTH so a coach reading via
+        // the alias still sees the value; the retry layer drops the
+        // alias the live schema doesn't have.
+        fitness_experience:   formData.questionnaire?.fitness_level || formData.fitness_level || null,
+        fitness_background:   formData.sport_background || formData.fitness_level || null,
       };
 
       // Merge the questionnaire's chosen goals (now multi-select)
@@ -770,7 +779,24 @@ export default function Onboarding() {
       console.log("[Onboarding] Calling updateUserMutation with fault-tolerance...");
 
       try {
-        await updateUserMutation.mutateAsync(updateData);
+        console.log('[Onboarding] saving questionnaire data:', {
+          training_goals:           updateData.training_goals,
+          fitness_experience:       updateData.fitness_experience,
+          fitness_level:            updateData.fitness_level,
+          fitness_background:       updateData.fitness_background,
+          preferred_frequency:      updateData.preferred_frequency,
+          current_challenges:       updateData.current_challenges,
+          training_preferences:     updateData.training_preferences,
+          additional_notes:         updateData.additional_notes,
+          goals_description:        updateData.goals_description,
+          challenges_description:   updateData.challenges_description,
+          preferences_description:  updateData.preferences_description,
+          height_cm:                updateData.height_cm,
+          weight_kg:                updateData.weight_kg,
+          referral_source:          updateData.referral_source,
+        });
+        const saveResult = await updateUserMutation.mutateAsync(updateData);
+        console.log('[Onboarding] save result:', saveResult);
         console.log("[Onboarding] updateUserMutation completed successfully");
 
         // Seed the measurements table with the trainee's first

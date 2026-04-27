@@ -765,24 +765,26 @@ function IntroSection({ title, children, last }) {
 function IntroTab({ user }) {
   const challenges  = parseList(user?.current_challenges);
   const preferences = parseList(user?.training_preferences);
-  // Some installs may have written the fitness answer to
-  // `fitness_experience` instead of the canonical `fitness_level`
-  // — accept both so legacy rows still render.
+  // Accept both column-name aliases — different installs use
+  // different names for the same answers.
   const fitness     = user?.fitness_level || user?.fitness_experience || null;
   const frequency   = user?.preferred_frequency || user?.training_frequency || null;
   const notes       = user?.additional_notes || null;
-  // Injuries / medical limits — `health_issues` is the legacy name,
-  // accept either for compatibility.
   const injuries    = (user?.health_issues || user?.injuries || '').trim();
-  // Pre-health note — captured on the soft-handoff screen before
-  // the formal health declaration. Free-text from the trainee.
   const preHealth   = (user?.pre_health_note || '').trim();
+  // Free-text expansions captured next to each multi-select on the
+  // questionnaire screens.
+  const challengesDesc  = (user?.challenges_description || '').trim();
+  const preferencesDesc = (user?.preferences_description || '').trim();
+  // Sport / fitness background — accept both alias columns.
+  const fitnessBackground = (user?.sport_background || user?.fitness_background || '').trim();
   // training_goals is intentionally NOT shown here — it belongs to
   // the יעדים tab. Avoiding the duplicate keeps the source of
   // truth single per the spec.
 
   const hasAnything = challenges.length || preferences.length
-                      || fitness || frequency || notes || injuries || preHealth;
+                      || fitness || frequency || notes || injuries || preHealth
+                      || challengesDesc || preferencesDesc || fitnessBackground;
 
   if (!hasAnything) {
     return (
@@ -833,25 +835,57 @@ function IntroTab({ user }) {
         </IntroSection>
       )}
 
-      {!!challenges.length && (
+      {(!!challenges.length || challengesDesc) && (
         <IntroSection title="אתגרים">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {challenges.map((c, i) => {
-              const meta = INTRO_CHALLENGE_LABELS[c] || { emoji: '⚪', label: c };
-              return <IntroChip key={`${c}-${i}`} emoji={meta.emoji} label={meta.label} />;
-            })}
-          </div>
+          {!!challenges.length && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {challenges.map((c, i) => {
+                const meta = INTRO_CHALLENGE_LABELS[c] || { emoji: '⚪', label: c };
+                return <IntroChip key={`${c}-${i}`} emoji={meta.emoji} label={meta.label} />;
+              })}
+            </div>
+          )}
+          {challengesDesc && (
+            <div style={{
+              padding: 10, borderRadius: 12,
+              background: '#FFFFFF', border: '1px solid #F0E4D0',
+              fontSize: 14, color: '#1A1A1A',
+              lineHeight: 1.6, whiteSpace: 'pre-wrap',
+              marginTop: challenges.length ? 8 : 0,
+            }}>
+              {challengesDesc}
+            </div>
+          )}
         </IntroSection>
       )}
 
-      {!!preferences.length && (
+      {(!!preferences.length || preferencesDesc) && (
         <IntroSection title="חשוב באימון">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {preferences.map((p, i) => {
-              const meta = INTRO_PREFERENCE_LABELS[p] || { emoji: '⚪', label: p };
-              return <IntroChip key={`${p}-${i}`} emoji={meta.emoji} label={meta.label} />;
-            })}
-          </div>
+          {!!preferences.length && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {preferences.map((p, i) => {
+                const meta = INTRO_PREFERENCE_LABELS[p] || { emoji: '⚪', label: p };
+                return <IntroChip key={`${p}-${i}`} emoji={meta.emoji} label={meta.label} />;
+              })}
+            </div>
+          )}
+          {preferencesDesc && (
+            <div style={{
+              padding: 10, borderRadius: 12,
+              background: '#FFFFFF', border: '1px solid #F0E4D0',
+              fontSize: 14, color: '#1A1A1A',
+              lineHeight: 1.6, whiteSpace: 'pre-wrap',
+              marginTop: preferences.length ? 8 : 0,
+            }}>
+              {preferencesDesc}
+            </div>
+          )}
+        </IntroSection>
+      )}
+
+      {fitnessBackground && (
+        <IntroSection title="ניסיון ספורטיבי">
+          <div style={{ whiteSpace: 'pre-wrap' }}>{fitnessBackground}</div>
         </IntroSection>
       )}
 

@@ -141,7 +141,7 @@ export default function OnboardingQuestionnaire({ value, onChange, onComplete, o
       <div key={screen} style={{ animation: 'ob-slide-in 0.3s ease-out' }}>
         {screen === 1 && <Screen1 value={value} set={set} toggleInArray={toggleInArray} />}
         {screen === 2 && <Screen2 value={value} set={set} />}
-        {screen === 3 && <Screen3 value={value} toggleInArray={toggleInArray} />}
+        {screen === 3 && <Screen3 value={value} set={set} toggleInArray={toggleInArray} />}
         {screen === 4 && <Screen4 value={value} set={set} onSkip={onSkip} />}
       </div>
 
@@ -333,9 +333,11 @@ function Screen2({ value, set }) {
   );
 }
 
-function Screen3({ value, toggleInArray }) {
+function Screen3({ value, set, toggleInArray }) {
   const challenges    = Array.isArray(value?.current_challenges)    ? value.current_challenges    : [];
   const preferences   = Array.isArray(value?.training_preferences) ? value.training_preferences : [];
+  const challengesDesc  = value?.challenges_description  || '';
+  const preferencesDesc = value?.preferences_description || '';
   return (
     <>
       <Header
@@ -353,6 +355,23 @@ function Screen3({ value, toggleInArray }) {
           />
         ))}
       </div>
+      {challenges.length > 0 && (
+        <textarea
+          value={challengesDesc}
+          onChange={(e) => set({ challenges_description: e.target.value })}
+          placeholder="רוצה להרחיב על האתגרים? (לא חובה)"
+          style={{
+            width: '100%', padding: '10px 12px', borderRadius: 12,
+            border: `1px solid ${COLORS.border}`, background: COLORS.card,
+            fontSize: 13, color: COLORS.text,
+            direction: 'rtl', textAlign: 'right',
+            minHeight: 60, resize: 'vertical', marginTop: 10,
+            outline: 'none', boxSizing: 'border-box',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
+          }}
+        />
+      )}
+
       <SectionLabel>מה הדבר הכי חשוב באימון?</SectionLabel>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {SCREEN_3_PREFERENCES.map((p) => (
@@ -364,6 +383,22 @@ function Screen3({ value, toggleInArray }) {
           />
         ))}
       </div>
+      {preferences.length > 0 && (
+        <textarea
+          value={preferencesDesc}
+          onChange={(e) => set({ preferences_description: e.target.value })}
+          placeholder="רוצה להרחיב על ההעדפות? (לא חובה)"
+          style={{
+            width: '100%', padding: '10px 12px', borderRadius: 12,
+            border: `1px solid ${COLORS.border}`, background: COLORS.card,
+            fontSize: 13, color: COLORS.text,
+            direction: 'rtl', textAlign: 'right',
+            minHeight: 60, resize: 'vertical', marginTop: 10,
+            outline: 'none', boxSizing: 'border-box',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
+          }}
+        />
+      )}
     </>
   );
 }
