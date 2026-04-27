@@ -763,7 +763,6 @@ function IntroSection({ title, children, last }) {
 }
 
 function IntroTab({ user }) {
-  const goals       = parseList(user?.training_goals);
   const challenges  = parseList(user?.current_challenges);
   const preferences = parseList(user?.training_preferences);
   // Some installs may have written the fitness answer to
@@ -772,9 +771,15 @@ function IntroTab({ user }) {
   const fitness     = user?.fitness_level || user?.fitness_experience || null;
   const frequency   = user?.preferred_frequency || user?.training_frequency || null;
   const notes       = user?.additional_notes || null;
+  // Injuries / medical limits — `health_issues` is the legacy name,
+  // accept either for compatibility.
+  const injuries    = (user?.health_issues || user?.injuries || '').trim();
+  // training_goals is intentionally NOT shown here — it belongs to
+  // the יעדים tab. Avoiding the duplicate keeps the source of
+  // truth single per the spec.
 
-  const hasAnything = goals.length || challenges.length || preferences.length
-                      || fitness || frequency || notes;
+  const hasAnything = challenges.length || preferences.length
+                      || fitness || frequency || notes || injuries;
 
   if (!hasAnything) {
     return (
@@ -810,17 +815,6 @@ function IntroTab({ user }) {
       background: '#FDF8F3', borderRadius: 14, padding: 16,
       border: '1px solid #F0E4D0',
     }} dir="rtl">
-      {!!goals.length && (
-        <IntroSection title="מטרות">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {goals.map((g, i) => {
-              const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
-              return <IntroChip key={`${g}-${i}`} emoji={meta.emoji} label={meta.label} />;
-            })}
-          </div>
-        </IntroSection>
-      )}
-
       {fitnessMeta && (
         <IntroSection title="רמת כושר">
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -855,6 +849,12 @@ function IntroTab({ user }) {
               return <IntroChip key={`${p}-${i}`} emoji={meta.emoji} label={meta.label} />;
             })}
           </div>
+        </IntroSection>
+      )}
+
+      {injuries && (
+        <IntroSection title="פציעות / מגבלות" last={!notes}>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{injuries}</div>
         </IntroSection>
       )}
 
@@ -2841,6 +2841,47 @@ export default function TraineeProfile() {
               {/* Metrics Tab */}
               <TabsContent value="metrics" className="space-y-4 w-full" dir="rtl">
                 <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#FF6F20]" />מדדים פיזיים</h2>
+
+                {/* "מדידה ראשונה" snapshot — read directly from the
+                    users row. Surfaces the height/weight the trainee
+                    typed during onboarding even if the measurements
+                    table didn't get the seeded row (older accounts,
+                    column missing, RLS, etc). */}
+                {(user?.height_cm || user?.weight_kg) && (
+                  <div style={{
+                    padding: 12, borderRadius: 12,
+                    border: '1px solid #F0E4D0', background: '#FDF8F3',
+                    marginBottom: 8,
+                  }}>
+                    <div style={{ fontSize: 12, color: '#888', marginBottom: 4, fontWeight: 600 }}>
+                      מדידה ראשונה (אונבורדינג)
+                    </div>
+                    {user.height_cm && (
+                      <div style={{ fontSize: 14, color: '#1a1a1a' }}>
+                        גובה: <strong>{user.height_cm} ס״מ</strong>
+                      </div>
+                    )}
+                    {user.weight_kg && (
+                      <div style={{ fontSize: 14, color: '#1a1a1a' }}>
+                        משקל: <strong>{user.weight_kg} ק״ג</strong>
+                      </div>
+                    )}
+                    {(() => {
+                      // BMI when both numbers are present.
+                      const h = Number(user.height_cm);
+                      const w = Number(user.weight_kg);
+                      if (!h || !w) return null;
+                      const bmi = w / Math.pow(h / 100, 2);
+                      if (!Number.isFinite(bmi)) return null;
+                      return (
+                        <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+                          BMI: <strong style={{ color: '#1a1a1a' }}>{bmi.toFixed(1)}</strong>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המדדים נכשלה. נסה לרענן את הדף.</div>}>
                   <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} currentUser={currentUser} goals={goals} />
                 </ErrorBoundary>
