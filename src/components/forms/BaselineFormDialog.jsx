@@ -1,4 +1,5 @@
 import React, { useState, useContext, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, Activity, X, Calendar, Clock, ChevronDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -833,17 +834,26 @@ export default function BaselineFormDialog({
 }
 
 // Persistent restore-draft prompt. Two explicit choices, no timer —
-// the coach controls when (and how) it goes away. Lives outside the
-// Dialog so it isn't constrained by the dialog's portal stacking
-// context.
+// the coach controls when (and how) it goes away.
+//
+// Portaled to document.body so it sits outside the Radix Dialog
+// subtree. Without the portal, react-remove-scroll (used by Radix
+// Dialog in modal mode) plus the dialog's
+// onPointerDownOutside={e => e.preventDefault()} can swallow clicks
+// on this toast — the buttons would visually highlight but neither
+// onRestore nor onDiscard would fire. Portaling + pointerEvents:auto
+// keeps the toast in its own pointer-events scope.
 function DraftToast({ onRestore, onDiscard }) {
-  return (
+  const node = (
     <div
       dir="rtl"
+      onPointerDownCapture={(e) => e.stopPropagation()}
+      onMouseDownCapture={(e) => e.stopPropagation()}
       style={{
         position: 'fixed',
         top: 20, left: '50%', transform: 'translateX(-50%)',
         zIndex: 12001,
+        pointerEvents: 'auto',
         display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 10,
         padding: 12,
         borderRadius: 12,
@@ -866,19 +876,32 @@ function DraftToast({ onRestore, onDiscard }) {
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <button
-          onClick={onRestore}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[Baseline] draft: restoring');
+            onRestore?.();
+          }}
           style={{
             flex: 1,
             padding: '10px 12px', borderRadius: 10, border: 'none',
             backgroundColor: '#FF6F20', color: '#FFFFFF',
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            pointerEvents: 'auto',
             fontFamily: "'Heebo', 'Assistant', sans-serif",
           }}
         >
           המשך מאיפה שהפסקתי
         </button>
         <button
-          onClick={onDiscard}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[Baseline] draft: discarding');
+            onDiscard?.();
+          }}
           style={{
             flex: 1,
             padding: '10px 12px', borderRadius: 10,
@@ -886,6 +909,7 @@ function DraftToast({ onRestore, onDiscard }) {
             color: '#6B7280',
             border: '1px solid #E5E7EB',
             fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            pointerEvents: 'auto',
             fontFamily: "'Heebo', 'Assistant', sans-serif",
           }}
         >
@@ -894,6 +918,10 @@ function DraftToast({ onRestore, onDiscard }) {
       </div>
     </div>
   );
+  // Portal to body so the toast escapes the Radix Dialog's modality
+  // scope. Guard for SSR / detached envs where document is unavailable.
+  if (typeof document === 'undefined' || !document.body) return null;
+  return createPortal(node, document.body);
 }
 
 // ─── Sub-components ──────────────────────────────────────────────
