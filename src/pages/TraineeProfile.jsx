@@ -873,6 +873,217 @@ function IntroTab({ user }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Personal Tab — identity card + emergency-contact card + account-
+// management card. Pure presentational component; all mutations are
+// handled by callbacks the parent passes in.
+// ─────────────────────────────────────────────────────────────────
+function PersonalTab({
+  user,
+  isCoach,
+  userIdParam,
+  currentStatusOpt,
+  onEdit,
+  onResetPassword,
+  onChangePassword,
+  onChangeStatus,
+  onArchive,
+}) {
+  const initials = (user?.full_name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || 'U';
+
+  let birthLabel = null;
+  if (user?.birth_date) {
+    try {
+      const d = new Date(user.birth_date);
+      if (!Number.isNaN(d.getTime())) {
+        const dateStr = format(d, 'dd/MM/yyyy');
+        const ageNow = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        birthLabel = `${dateStr} • ${ageNow} שנים`;
+      }
+    } catch {}
+  } else if (user?.age) {
+    birthLabel = `${user.age} שנים`;
+  }
+
+  const hasEmergency = !!(user?.emergency_contact_name || user?.emergency_contact_phone || user?.emergency_contact_relation);
+
+  return (
+    <>
+      {/* ── Card 1 — פרטים אישיים ─────────────────────────────── */}
+      <div style={cardStyle} dir="rtl">
+        <CardEditButton onClick={onEdit} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <div style={{
+            width: 60, height: 60, borderRadius: '50%',
+            background: '#FF6F20', color: '#FFFFFF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, fontWeight: 800, flexShrink: 0,
+            overflow: 'hidden',
+          }}>
+            {user?.profile_image
+              ? <img src={user.profile_image} alt={user.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : initials}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: '#1A1A1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {user?.full_name || 'מתאמן/ת'}
+            </div>
+            {currentStatusOpt && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                marginTop: 4,
+                padding: '2px 10px', borderRadius: 999,
+                background: currentStatusOpt.badgeBg,
+                color: currentStatusOpt.badgeFg,
+                border: `1px solid ${currentStatusOpt.borderColor}`,
+                fontSize: 11, fontWeight: 700,
+              }}>
+                <span aria-hidden>{currentStatusOpt.icon}</span>
+                {currentStatusOpt.label}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>
+          פרטי התקשרות
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <FieldCell label="טלפון"        value={user?.phone} />
+          <FieldCell label="אימייל"       value={user?.email} />
+          <FieldCell label="תאריך לידה"   value={birthLabel} />
+          <FieldCell label="מקור הגעה"    value={user?.referral_source} />
+          <FieldCell label="כתובת"        value={user?.address} />
+          <FieldCell label="עיר"          value={user?.city} />
+        </div>
+      </div>
+
+      {/* ── Card 2 — איש קשר לחירום ───────────────────────────── */}
+      <div style={cardStyle} dir="rtl">
+        <CardEditButton onClick={onEdit} />
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>
+          איש קשר לחירום
+        </div>
+        {hasEmergency ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <FieldCell label="שם"     value={user?.emergency_contact_name} />
+            <FieldCell label="טלפון"  value={user?.emergency_contact_phone} />
+            <FieldCell label="קרבה"   value={user?.emergency_contact_relation} />
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 8 }}>
+            <div style={{ fontSize: 13, color: '#888' }}>לא הוגדר איש קשר לחירום</div>
+            <button
+              type="button"
+              onClick={onEdit}
+              style={{
+                padding: '8px 16px', borderRadius: 12,
+                background: '#FFFFFF', color: '#FF6F20',
+                border: '1px solid #FF6F20',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+              }}
+            >+ הוסף</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Card 3 — ניהול חשבון ──────────────────────────────── */}
+      <div style={cardStyle} dir="rtl">
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 12 }}>
+          ניהול חשבון
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Reset / change password — coach viewing trainee gets the
+              "reset" flow; everyone else gets the standard change flow. */}
+          {isCoach && userIdParam ? (
+            <AccountActionRow icon="🔑" label="איפוס סיסמה למתאמן" onClick={onResetPassword} />
+          ) : (
+            <AccountActionRow icon="🔑" label="שינוי סיסמה" onClick={onChangePassword} />
+          )}
+
+          {/* Status changer — coach-only when viewing a trainee. */}
+          {isCoach && userIdParam && (
+            <AccountActionRow icon="📱" label="שינוי סטטוס" onClick={onChangeStatus} />
+          )}
+
+          {/* Archive (soft-delete to former). Coach-only. */}
+          {isCoach && userIdParam && (
+            <AccountActionRow icon="🗑️" label="העברה לארכיון" onClick={onArchive} danger />
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+const cardStyle = {
+  position: 'relative',
+  background: '#FFFFFF',
+  borderRadius: 14,
+  border: '1px solid #F0E4D0',
+  padding: 16,
+  fontFamily: "'Heebo', 'Assistant', sans-serif",
+};
+
+function CardEditButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="ערוך"
+      title="ערוך"
+      style={{
+        position: 'absolute', top: 10, insetInlineStart: 10,
+        background: 'transparent', border: 'none',
+        cursor: 'pointer', fontSize: 16, padding: 4,
+        color: '#FF6F20', lineHeight: 1,
+      }}
+    >✏️</button>
+  );
+}
+
+function FieldCell({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 2 }}>{label}</div>
+      <div style={{
+        fontSize: 14,
+        color: value ? '#1A1A1A' : '#aaa',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        {value || 'לא הוזן'}
+      </div>
+    </div>
+  );
+}
+
+function AccountActionRow({ icon, label, onClick, danger }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        padding: '12px 16px', borderRadius: 12,
+        border: '1px solid #F0E4D0', background: '#FFFFFF',
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+        gap: 10,
+        fontSize: 14,
+        color: danger ? '#B91C1C' : '#1A1A1A',
+        cursor: 'pointer',
+        fontFamily: "'Heebo', 'Assistant', sans-serif",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = '#FDF8F3'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
+    >
+      <span aria-hidden style={{ fontSize: 18 }}>{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
 export default function TraineeProfile() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
@@ -946,7 +1157,8 @@ export default function TraineeProfile() {
     full_name: "", email: "", phone: "", birth_date: "", age: "", gender: "",
     address: "", city: "", main_goal: "", current_status: "", future_vision: "",
     health_issues: "", medical_history: "", emergency_contact_name: "",
-    emergency_contact_phone: "", profile_image: "", sport_background: "",
+    emergency_contact_phone: "", emergency_contact_relation: "",
+    profile_image: "", sport_background: "",
     fitness_level: "", training_goals: "", training_frequency: "",
     preferred_training_style: "", notes: "", coach_notes: "", bio: "",
     status: "",
@@ -1067,6 +1279,7 @@ export default function TraineeProfile() {
         medical_history: effectiveUser.medical_history || "",
         emergency_contact_name: effectiveUser.emergency_contact_name || "",
         emergency_contact_phone: effectiveUser.emergency_contact_phone || "",
+        emergency_contact_relation: effectiveUser.emergency_contact_relation || "",
         profile_image: effectiveUser.profile_image || "",
         sport_background: effectiveUser.sport_background || "",
         fitness_level: effectiveUser.fitness_level || "",
@@ -1797,6 +2010,7 @@ export default function TraineeProfile() {
       status: formData.status || null,
       emergency_contact_name: formData.emergency_contact_name || null,
       emergency_contact_phone: formData.emergency_contact_phone || null,
+      emergency_contact_relation: formData.emergency_contact_relation || null,
     };
 
     try {
@@ -2619,118 +2833,18 @@ export default function TraineeProfile() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir="rtl">
 
               {/* Personal Details Tab */}
-              <TabsContent value="personal" className="space-y-4 w-full" dir="rtl">
-                {/* Info Card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
-                    <h2 className="text-lg font-bold flex items-center gap-2"><User className="w-5 h-5 text-[#FF6F20]" />פרטים אישיים</h2>
-                    <Button onClick={() => setShowEdit(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
-                      <Edit2 className="w-3 h-3 ml-1" />ערוך
-                    </Button>
-                  </div>
-                  <div className="p-4 space-y-2.5">
-                    {(() => {
-                      // Build a "birthDate + age" composite when birth_date
-                      // is present; otherwise fall back to the legacy age
-                      // column written by older onboarding flows.
-                      let birthLabel = null;
-                      if (user.birth_date) {
-                        try {
-                          const d = new Date(user.birth_date);
-                          if (!Number.isNaN(d.getTime())) {
-                            const dateStr = format(d, 'dd/MM/yyyy');
-                            const ageNow = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-                            birthLabel = `${dateStr} • ${ageNow} שנים`;
-                          }
-                        } catch {}
-                      } else if (user.age) {
-                        birthLabel = `${user.age} שנים`;
-                      }
-                      // Personal tab is identity / contact only.
-                      // Onboarding artifacts go elsewhere:
-                      //   • height/weight → "מדידות" tab
-                      //   • training_goals → "יעדים" tab
-                      //   • fitness_level / challenges / preferences /
-                      //     additional_notes → "היכרות" tab
-                      const fields = [
-                        { label: 'שם מלא',       value: user.full_name },
-                        { label: 'טלפון',        value: user.phone },
-                        { label: 'אימייל',       value: user.email },
-                        { label: 'תאריך לידה',   value: birthLabel },
-                        { label: 'מקור הגעה',    value: user.referral_source },
-                        { label: 'מין',          value: user.gender },
-                        { label: 'עיר',          value: user.city },
-                        { label: 'כתובת',        value: user.address },
-                      ];
-                      return fields.map((item, i) => (
-                        <div key={i} className="text-right text-sm py-1">
-                          <span className="text-gray-500 font-medium">{item.label}: </span>
-                          <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא הוזן'}</span>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-
-                {/* Health Card removed — duplicates the Health Declaration form
-                    in the Documents tab. The health_issues/medical_history fields
-                    remain in the DB and the edit dialog (showHealthUpdate) is still
-                    available from the Documents tab's health declaration flow. */}
-
-                {/* Emergency Contact Card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-gray-50 bg-gray-50/30">
-                    <h2 className="text-lg font-bold flex items-center gap-2"><Phone className="w-5 h-5 text-[#FF6F20]" />איש קשר לחירום</h2>
-                  </div>
-                  <div className="p-4 space-y-2.5">
-                    {[
-                      { label: 'שם', value: user.emergency_contact_name },
-                      { label: 'טלפון', value: user.emergency_contact_phone },
-                    ].map((item, i) => (
-                      <div key={i} className="text-right text-sm py-1">
-                        <span className="text-gray-500 font-medium">{item.label}: </span>
-                        <span className={item.value ? 'text-gray-900' : 'text-gray-300'}>{item.value || 'לא מולא'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Password actions:
-                    - Coach viewing OWN profile (no userIdParam): can change own password
-                    - Coach viewing TRAINEE profile (userIdParam set): can reset trainee's password
-                    - Trainee viewing OWN profile: shown a hint to contact coach */}
-                {isCoach && !userIdParam && (
-                  <button onClick={() => setShowPasswordChange(true)} className="w-full bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
-                    <div className="font-bold text-xs text-white">שינוי סיסמא</div>
-                  </button>
-                )}
-                {isCoach && userIdParam && (
-                  <button onClick={() => setShowResetPw(true)} className="w-full rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform" style={{ background: '#FFF0E4', border: '1.5px solid #FF6F20' }}>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#FF6F20' }}>
-                      <Lock className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="font-bold text-xs" style={{ color: '#FF6F20' }}>🔑 אפס סיסמה למתאמן</div>
-                  </button>
-                )}
-                {!isCoach && (
-                  <button onClick={() => setShowPasswordChange(true)} className="w-full bg-gray-900 rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform">
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"><Lock className="w-4 h-4 text-white" /></div>
-                    <div className="font-bold text-xs text-white">שינוי סיסמא</div>
-                  </button>
-                )}
-
-                {/* Delete Trainee — coach only */}
-                {isCoach && userIdParam && (
-                  <div className="mt-6 pt-4 border-t border-gray-100">
-                    <p className="text-[10px] text-gray-400 font-medium mb-2 text-right">אזור מסוכן</p>
-                    <button onClick={() => setShowDeleteConfirm(true)}
-                      className="w-full rounded-xl p-3 flex items-center gap-2 active:scale-[0.97] transition-transform border border-red-300 bg-white hover:bg-red-50">
-                      <Trash2 className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      <span className="font-bold text-sm text-red-600">מחק מתאמן</span>
-                    </button>
-                  </div>
-                )}
+              <TabsContent value="personal" className="space-y-3 w-full" dir="rtl">
+                <PersonalTab
+                  user={user}
+                  isCoach={isCoach}
+                  userIdParam={userIdParam}
+                  currentStatusOpt={currentStatusOpt}
+                  onEdit={() => setShowEdit(true)}
+                  onResetPassword={() => setShowResetPw(true)}
+                  onChangePassword={() => setShowPasswordChange(true)}
+                  onChangeStatus={() => setStatusMenuOpen(true)}
+                  onArchive={() => setShowDeleteConfirm(true)}
+                />
               </TabsContent>
 
               {/* Intro Tab — answers from the casual onboarding
@@ -3699,6 +3813,27 @@ export default function TraineeProfile() {
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label className="text-xs text-gray-500 mb-1 block">שם</Label><Input value={formData.emergency_contact_name} onChange={e => setFormData({ ...formData, emergency_contact_name: e.target.value })} className="rounded-lg" /></div>
                   <div><Label className="text-xs text-gray-500 mb-1 block">טלפון</Label><Input value={formData.emergency_contact_phone} onChange={e => setFormData({ ...formData, emergency_contact_phone: e.target.value })} className="rounded-lg" /></div>
+                  <div className="col-span-2">
+                    <Label className="text-xs text-gray-500 mb-1 block">קרבה</Label>
+                    <select
+                      value={formData.emergency_contact_relation || ''}
+                      onChange={e => setFormData({ ...formData, emergency_contact_relation: e.target.value })}
+                      style={{
+                        width: '100%', padding: '10px 12px', borderRadius: 12,
+                        border: '1px solid #F0E4D0', background: '#FFFFFF',
+                        fontSize: 14, direction: 'rtl', color: '#1A1A1A',
+                        outline: 'none', boxSizing: 'border-box',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      <option value="">בחר/י</option>
+                      <option value="הורה">הורה</option>
+                      <option value="בן זוג">בן/בת זוג</option>
+                      <option value="אח/אחות">אח/אחות</option>
+                      <option value="חבר">חבר/ה</option>
+                      <option value="אחר">אחר</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
