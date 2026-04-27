@@ -945,7 +945,10 @@ function PersonalTab({
             <div style={{ fontSize: 18, fontWeight: 600, color: '#1A1A1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.full_name || 'מתאמן/ת'}
             </div>
-            {currentStatusOpt && (
+            {/* Status pill is coach-only metadata — the trainee
+                shouldn't see "אונבורדינג / מזדמן / פעיל / מושהה /
+                לשעבר" classifications about themselves. */}
+            {isCoach && currentStatusOpt && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 marginTop: 4,
