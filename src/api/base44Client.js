@@ -221,15 +221,34 @@ const auth = {
       if (authErr) throw authErr;
     }
 
-    // Update the profile row
-    const { data: profile, error: profileErr } = await supabase
-      .from('users')
-      .update(data)
-      .eq('id', user.id)
-      .select()
-      .single();
-    if (profileErr) throw profileErr;
-    return profile;
+    // Update the profile row WITH the same 42703 column-retry that
+    // createEntity('users').update has. Without it, a single
+    // unknown column in the payload (e.g. a brand-new questionnaire
+    // field whose migration hasn't been deployed yet) bricks the
+    // entire UPDATE and every field is dropped silently — that's
+    // exactly the "nothing saved" symptom we hit on onboarding.
+    let payload = { ...data };
+    delete payload.password; // never persist the auth password to the profile row
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { data: profile, error: profileErr } = await supabase
+        .from('users')
+        .update(payload)
+        .eq('id', user.id)
+        .select()
+        .single();
+      if (!profileErr) {
+        if (attempt > 0) console.warn(`[base44.updateMe] succeeded after ${attempt} column drop(s)`);
+        return profile;
+      }
+      const missing = extractMissingColumn(profileErr);
+      const next = missing ? dropColumn(payload, missing) : null;
+      if (!next) {
+        console.error('[base44.updateMe] update failed:', profileErr);
+        throw profileErr;
+      }
+      payload = next;
+    }
+    throw new Error('[base44.updateMe] exhausted column-retry budget');
   },
 
   logout(redirectUrl) {
