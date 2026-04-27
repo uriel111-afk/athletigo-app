@@ -111,7 +111,7 @@ export default function Login() {
           <img
             src="/logoR-black.png"
             alt="AthletiGo"
-            style={{ width: 200, height: 'auto', objectFit: 'contain' }}
+            style={{ width: 80, height: 'auto', objectFit: 'contain' }}
           />
           <div style={{ fontSize: 14, color: '#888', marginTop: 16, fontWeight: 500 }}>
             כניסה למערכת מאמנים ומתאמנים
