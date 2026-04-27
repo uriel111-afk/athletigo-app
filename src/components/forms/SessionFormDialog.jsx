@@ -148,8 +148,12 @@ export default function SessionFormDialog({
 
     setCreatingGuest(true);
     try {
+      // Canonical leads schema: user_id + name. The legacy
+      // coach_id + full_name pair doesn't exist on the live table
+      // — RLS uses (auth.uid() = user_id), so an owner-less row is
+      // rejected. Single-write the canonical fields.
       const lead = await base44.entities.Lead.create({
-        full_name: guestForm.full_name,
+        name: guestForm.full_name,
         phone: guestForm.phone || null,
         email: guestForm.email || null,
         birth_date: guestForm.birth_date || null,
@@ -158,7 +162,7 @@ export default function SessionFormDialog({
         coach_notes: guestForm.notes || null,
         status: "חדש",
         source: "אחר",
-        coach_id: currentCoach?.id || null,
+        user_id: currentCoach?.id || null,
       });
 
       setSessionForm(prev => ({

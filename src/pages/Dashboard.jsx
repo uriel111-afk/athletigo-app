@@ -671,7 +671,11 @@ export default function Dashboard() {
       <AddTraineeDialog open={isAddTraineeOpen} onClose={() => { setIsAddTraineeOpen(false); refreshAll(); }} />
       <LeadFormDialog isOpen={isLeadDialogOpen} onClose={() => setIsLeadDialogOpen(false)}
         onSubmit={async (data) => {
-          await createLeadMutation.mutateAsync({ ...data, coach_id: coach?.id || null });
+          // Canonical leads schema is user_id + name (not coach_id +
+          // full_name). RLS rejects owner-less rows with WITH CHECK
+          // (auth.uid() = user_id), so the legacy coach_id alias
+          // would silently fail.
+          await createLeadMutation.mutateAsync({ ...data, user_id: coach?.id || null });
         }}
         isLoading={createLeadMutation.isPending} />
       <SessionFormDialog isOpen={isSessionDialogOpen} onClose={() => setIsSessionDialogOpen(false)}

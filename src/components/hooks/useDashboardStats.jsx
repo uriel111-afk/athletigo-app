@@ -78,8 +78,10 @@ export function useDashboardStats() {
     // Filter sessions by coach
     const coachSessions = allSessions.filter(s => s.coach_id === coachId);
 
-    // Filter leads by coach
-    const coachLeads = allLeads.filter(l => l.coach_id === coachId);
+    // Filter leads by coach. Canonical owner column is user_id;
+    // accept the legacy coach_id alias as a defensive fallback for
+    // any old rows that still carry it.
+    const coachLeads = allLeads.filter(l => l.user_id === coachId || l.coach_id === coachId);
 
     // Filter plans by coach
     const coachPlans = allPlans.filter(p => p.created_by === coachId);
