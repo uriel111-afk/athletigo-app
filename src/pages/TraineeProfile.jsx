@@ -782,9 +782,16 @@ function IntroTab({ user }) {
   // the יעדים tab. Avoiding the duplicate keeps the source of
   // truth single per the spec.
 
+  // Coach-facing narrative summary captured at onboarding-completion.
+  // Same string the TraineeOnboardingAlert popup renders — surfaces
+  // here so the coach can revisit it any time.
+  const onboardingSummary  = (user?.onboarding_summary || '').trim();
+  const onboardingFinishedAt = user?.onboarding_completed_at || null;
+
   const hasAnything = challenges.length || preferences.length
                       || fitness || frequency || notes || injuries || preHealth
-                      || challengesDesc || preferencesDesc || fitnessBackground;
+                      || challengesDesc || preferencesDesc || fitnessBackground
+                      || onboardingSummary;
 
   if (!hasAnything) {
     return (
@@ -815,7 +822,52 @@ function IntroTab({ user }) {
   const fitnessMeta = fitness ? (INTRO_FITNESS_LABELS[fitness] || { emoji: '', label: fitness }) : null;
   const freqLabel = frequency ? (INTRO_FREQUENCY_LABELS[frequency] || frequency) : null;
 
+  // Format the completion date once so the header pill is cheap.
+  let summaryDateLabel = null;
+  if (onboardingFinishedAt) {
+    try {
+      const d = new Date(onboardingFinishedAt);
+      if (!Number.isNaN(d.getTime())) summaryDateLabel = format(d, 'dd/MM/yyyy', { locale: he });
+    } catch {}
+  }
+
   return (
+    <>
+      {/* Coach-facing onboarding summary — the same narrative the
+          TraineeOnboardingAlert popup shows when a trainee completes
+          onboarding. Persisted to users.onboarding_summary so it's
+          always reachable from this tab afterwards. */}
+      {onboardingSummary && (
+        <div style={{
+          background: '#FFF5EE',
+          borderRadius: 14,
+          padding: 16,
+          border: '1px solid #FFD9C0',
+          marginBottom: 16,
+          direction: 'rtl',
+        }}>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: 8,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#FF6F20' }}>
+              תקציר היכרות
+            </div>
+            {summaryDateLabel && (
+              <div style={{ fontSize: 11, color: '#888' }}>
+                {summaryDateLabel}
+              </div>
+            )}
+          </div>
+          <div style={{
+            fontSize: 14, color: '#1A1A1A', lineHeight: 1.8,
+            whiteSpace: 'pre-line',
+          }}>
+            {onboardingSummary}
+          </div>
+        </div>
+      )}
+
     <div style={{
       background: '#FDF8F3', borderRadius: 14, padding: 16,
       border: '1px solid #F0E4D0',
@@ -920,6 +972,7 @@ function IntroTab({ user }) {
         </div>
       )}
     </div>
+    </>
   );
 }
 

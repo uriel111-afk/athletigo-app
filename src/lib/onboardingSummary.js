@@ -88,35 +88,46 @@ export function generateTraineeSummary(trainee) {
   if (!trainee) return '';
   const lines = [];
 
-  // Headline — name (+ age) + primary goal
+  // Headline — name (+ age)
   const name = trainee.full_name || 'מתאמן/ת חדש/ה';
   const age = calcAge(trainee.birth_date);
-  const goal = trainee.training_goal
-    || (Array.isArray(trainee.training_goals) ? trainee.training_goals[0] : null);
   let headline = `מתאמן/ת חדש/ה: ${name}`;
   if (age != null) headline += ` (${age})`;
-  if (goal) headline += `, מעוניין/ת ב${labelize(GOAL_LABELS, goal)}`;
   headline += '.';
   lines.push(headline);
 
-  // Background row
+  // ALL goals (not just the first) + free-text expansion
+  const goalsRaw = Array.isArray(trainee.training_goals)
+    ? trainee.training_goals
+    : (trainee.training_goal ? [trainee.training_goal] : asArray(trainee.training_goals));
+  const goals = goalsRaw.map(v => labelize(GOAL_LABELS, v));
+  if (goals.length) lines.push(`מטרות: ${goals.join(', ')}.`);
+  if (trainee.goals_description && trainee.goals_description.trim()) {
+    lines.push(`"${trainee.goals_description.trim()}"`);
+  }
+
+  // Background row — fitness level / preferred frequency. Accept
+  // both column-name aliases (fitness_level | fitness_experience).
+  const fitness = trainee.fitness_level || trainee.fitness_experience;
   const bgParts = [];
-  if (trainee.fitness_level) bgParts.push(`רמת כושר: ${labelize(FITNESS_LABELS, trainee.fitness_level)}`);
+  if (fitness) bgParts.push(`רמת כושר: ${labelize(FITNESS_LABELS, fitness)}`);
   if (trainee.preferred_frequency) bgParts.push(`רוצה להתאמן ${labelize(FREQUENCY_LABELS, trainee.preferred_frequency)} פעמים בשבוע`);
   if (bgParts.length) lines.push(bgParts.join('. ') + '.');
 
-  // Challenges + preferences (multi-select arrays)
+  // Challenges + their description
   const challenges = asArray(trainee.current_challenges)
     .map(v => labelize(CHALLENGE_LABELS, v));
   if (challenges.length) lines.push(`האתגרים: ${challenges.join(', ')}.`);
+  if (trainee.challenges_description && trainee.challenges_description.trim()) {
+    lines.push(`"${trainee.challenges_description.trim()}"`);
+  }
 
+  // Preferences + their description
   const prefs = asArray(trainee.training_preferences)
     .map(v => labelize(PREFERENCE_LABELS, v));
   if (prefs.length) lines.push(`חשוב: ${prefs.join(', ')}.`);
-
-  // Free-form notes — quoted to read as the trainee's own words.
-  if (trainee.additional_notes && trainee.additional_notes.trim()) {
-    lines.push(`הערות: "${trainee.additional_notes.trim()}"`);
+  if (trainee.preferences_description && trainee.preferences_description.trim()) {
+    lines.push(`"${trainee.preferences_description.trim()}"`);
   }
 
   // Body metrics
@@ -124,6 +135,21 @@ export function generateTraineeSummary(trainee) {
   if (trainee.height_cm) bodyParts.push(`גובה: ${trainee.height_cm} ס״מ`);
   if (trainee.weight_kg) bodyParts.push(`משקל: ${trainee.weight_kg} ק״ג`);
   if (bodyParts.length) lines.push(bodyParts.join(', ') + '.');
+
+  // Sport / fitness background — free text. Accept both alias columns.
+  const sportBg = (trainee.fitness_background || trainee.sport_background || '').trim();
+  if (sportBg) lines.push(`ניסיון ספורטיבי: ${sportBg}`);
+
+  // Pre-health soft-handoff note — what the trainee told us before
+  // the formal PAR-Q form.
+  if (trainee.pre_health_note && trainee.pre_health_note.trim()) {
+    lines.push(`בריאות: ${trainee.pre_health_note.trim()}`);
+  }
+
+  // Free-form questionnaire notes
+  if (trainee.additional_notes && trainee.additional_notes.trim()) {
+    lines.push(`הערות: "${trainee.additional_notes.trim()}"`);
+  }
 
   // Funnel
   if (trainee.referral_source) {

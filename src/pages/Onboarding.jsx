@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import InstallPrompt from "@/components/InstallPrompt";
 import OnboardingQuestionnaire from "@/components/forms/OnboardingQuestionnaire";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
+import { generateTraineeSummary } from "@/lib/onboardingSummary";
 
 const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
 
@@ -774,6 +775,23 @@ export default function Onboarding() {
 
       // Combine data with critical fields taking precedence
       const updateData = { ...optionalData, ...criticalData };
+
+      // Generate the coach-facing narrative summary from the merged
+      // payload (so it sees every just-typed answer, not the stale
+      // user row) and persist it alongside the timestamp. Both
+      // columns are written through the same column-retry mutation
+      // — if either is missing on this install, the rest of the save
+      // still completes.
+      try {
+        const summary = generateTraineeSummary({ ...user, ...updateData });
+        if (summary) {
+          updateData.onboarding_summary = summary;
+          updateData.onboarding_completed_at = new Date().toISOString();
+          console.log('[Onboarding] generated summary for popup + intro tab:', summary);
+        }
+      } catch (e) {
+        console.warn('[Onboarding] summary generation failed (non-blocking):', e?.message);
+      }
 
       console.log("[Onboarding] Update data prepared:", updateData);
       console.log("[Onboarding] Calling updateUserMutation with fault-tolerance...");
