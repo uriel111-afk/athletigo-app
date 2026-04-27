@@ -141,20 +141,29 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // putting these after those gates triggered React #310 when the
   // user pressed "הפעל" and the screen flipped from 'settings' to
   // 'running'. The geometry math stays where it's used (below).
+  //
+  // Critical: the effect's dep is [screen], not []. The total-time
+  // row only renders on the running screen, so on first mount
+  // (screen='settings') totalRowRef.current is null and an empty
+  // dep array would never re-run the effect when screen flips to
+  // 'running' — the box would stay 0×0 forever and the SVG drain
+  // border would never appear. Keying on `screen` makes the effect
+  // re-run the moment the row enters the DOM.
   const totalRowRef = useRef(null);
   const [totalRowBox, setTotalRowBox] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = totalRowRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const measure = () => {
-      const r = el.getBoundingClientRect();
-      setTotalRowBox({ w: Math.round(r.width), h: Math.round(r.height) });
+      // offsetWidth/offsetHeight are integer-pixel and avoid the
+      // sub-pixel jitter that getBoundingClientRect can introduce.
+      setTotalRowBox({ w: el.offsetWidth, h: el.offsetHeight });
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [screen]);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { cfgRef.current = cfg; localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }, [cfg]);
