@@ -378,14 +378,18 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
   }, [pkg?.id, allSessions]);
 
   // Sessions that exist for this trainee but aren't tied to ANY
-  // package yet — candidates for "+ הוסף מפגש". Sessions linked to a
-  // different package are shown disabled (with the other package's
-  // hint) so the coach knows why they can't pick them.
+  // package yet — candidates for "+ הוסף מפגש". Sessions already
+  // linked to a different package OR soft-deleted are filtered OUT
+  // entirely (no point showing rows the coach can't pick).
   const linkCandidates = useMemo(() => {
     if (!Array.isArray(allSessions)) return [];
-    return allSessions
+    const out = allSessions
+      .filter(s => !s.service_id)
+      .filter(s => s.status !== 'deleted' && !s.deleted_at)
       .slice()
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    console.log('[LinkSession] candidates:', out.length, '/', allSessions.length, 'total');
+    return out;
   }, [allSessions]);
 
   // Total session capacity for the package — used in the counter.
@@ -436,6 +440,33 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
     if (total > 0 && newUsed >= total) update.status = 'completed';
     if (delta < 0 && pkg.status === 'completed' && newUsed < total) update.status = 'active';
     await supabase.from('client_services').update(update).eq('id', pkg.id);
+  };
+
+  // Per-row link — invoked by each session's own "שייך" button. The
+  // bulk multi-select checkbox UI was replaced because coaches kept
+  // missing the trailing "שייך (N)" footer button. One click per row,
+  // immediate feedback, dialog stays open in case there are more.
+  const handleLinkOne = async (sessionId) => {
+    if (!sessionId || linkSaving) return;
+    setLinkSaving(true);
+    try {
+      console.log('[LinkSession] linking', sessionId, 'to package', pkg.id);
+      const { error: linkErr } = await supabase
+        .from('sessions')
+        .update({ service_id: pkg.id, was_deducted: true })
+        .eq('id', sessionId);
+      if (linkErr) throw linkErr;
+      try { await bumpPackageUsage(1); } catch (e) {
+        console.warn('[Link] package usage bump failed:', e?.message);
+      }
+      toast.success('מפגש שויך לחבילה ✓');
+      refresh();
+    } catch (err) {
+      console.error('[LinkSession] failed:', err);
+      toast.error('שגיאה בשיוך מפגש: ' + (err?.message || 'נסה/י שוב'));
+    } finally {
+      setLinkSaving(false);
+    }
   };
 
   const handleLinkConfirm = async () => {
@@ -666,47 +697,56 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
           {/* Tab body */}
           {linkTab === 'existing' ? (
             <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '50vh', overflowY: 'auto', paddingTop: 4 }}>
-              {linkCandidates.filter(s => !s.service_id).length === 0 ? (
-                <div style={{ padding: 24, textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
-                  אין מפגשים זמינים לשיוך.
+              {linkCandidates.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
+                  אין מפגשים זמינים לשיוך
                 </div>
               ) : (
                 linkCandidates.map((s) => {
-                  const isLinkedHere  = s.service_id === pkg.id;
-                  const isLinkedOther = !!s.service_id && s.service_id !== pkg.id;
                   const dateStr = s.date ? format(new Date(s.date), 'dd/MM/yy') : '—';
                   const timeStr = (s.time || s.start_time || '').slice(0, 5);
-                  const checked = selectedToLink.has(s.id);
+                  const typeLbl = sessionTypeLabel(s.session_type) || 'אישי';
+                  const isCompleted = ['completed','הושלם','הגיע','התקיים'].includes(s.status);
+                  const badgeBg = isCompleted ? '#E8F5E9' : '#FFF3E0';
+                  const badgeFg = isCompleted ? '#2E7D32' : '#E65100';
+                  const badgeLbl = isCompleted ? 'הושלם' : 'מתוכנן';
                   return (
-                    <label
+                    <div
                       key={s.id}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '8px 10px', borderRadius: 10,
-                        background: isLinkedHere ? '#FFF3E5' : (isLinkedOther ? '#F3F4F6' : '#FFFFFF'),
-                        border: `1px solid ${isLinkedHere ? '#FCD9B6' : (isLinkedOther ? '#E5E7EB' : '#F0E4D0')}`,
-                        cursor: (isLinkedHere || isLinkedOther) ? 'not-allowed' : 'pointer',
-                        opacity: isLinkedOther ? 0.7 : 1,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: 12, borderRadius: 12,
+                        border: '1px solid #F0E4D0',
+                        background: '#FFFFFF',
+                        direction: 'rtl',
                       }}
                     >
-                      <input
-                        type="checkbox"
-                        disabled={isLinkedHere || isLinkedOther}
-                        checked={checked || isLinkedHere}
-                        onChange={() => toggleSelected(s.id)}
-                        style={{ width: 16, height: 16, accentColor: '#FF6F20' }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
-                          {dateStr}{timeStr && <> · {timeStr}</>}{s.session_type && <> · {sessionTypeLabel(s.session_type)}</>}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
-                          {isLinkedHere    && 'כבר משויך לחבילה זו'}
-                          {isLinkedOther   && 'משויך לחבילה אחרת'}
-                          {!isLinkedHere && !isLinkedOther && (s.status || 'מתוכנן')}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#1A1A1A' }}>{dateStr}</div>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                          {timeStr ? `${timeStr} · ` : ''}{typeLbl}
                         </div>
                       </div>
-                    </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                          background: badgeBg, color: badgeFg,
+                        }}>{badgeLbl}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleLinkOne(s.id)}
+                          disabled={linkSaving}
+                          style={{
+                            background: '#FF6F20', color: '#FFFFFF', border: 'none',
+                            borderRadius: 10, padding: '6px 14px',
+                            fontSize: 13, fontWeight: 700,
+                            cursor: linkSaving ? 'wait' : 'pointer',
+                            opacity: linkSaving ? 0.7 : 1,
+                            fontFamily: "'Heebo', 'Assistant', sans-serif",
+                          }}
+                        >שייך</button>
+                      </div>
+                    </div>
                   );
                 })
               )}
@@ -788,25 +828,26 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
                 color: '#374151', fontSize: 14, fontWeight: 700,
                 cursor: linkSaving ? 'wait' : 'pointer',
               }}
-            >ביטול</button>
-            <button
-              type="button"
-              onClick={linkTab === 'existing' ? handleLinkConfirm : handleCreateAndLink}
-              disabled={linkSaving || (linkTab === 'existing' && selectedToLink.size === 0) || (linkTab === 'new' && !newSession.date)}
-              style={{
-                flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
-                background: '#FF6F20', color: '#FFFFFF',
-                fontSize: 14, fontWeight: 800,
-                cursor: linkSaving ? 'not-allowed' : 'pointer',
-                opacity: linkSaving ? 0.6 : 1,
-              }}
-            >
-              {linkSaving
-                ? 'שומר...'
-                : linkTab === 'existing'
-                  ? `שייך ${selectedToLink.size > 0 ? `(${selectedToLink.size})` : ''}`
-                  : 'צור ושייך'}
-            </button>
+            >{linkTab === 'existing' ? 'סגור' : 'ביטול'}</button>
+            {/* Existing-tab uses per-row "שייך" buttons → no bulk
+                save button needed. New-tab still needs the
+                "צור ושייך" footer action. */}
+            {linkTab === 'new' && (
+              <button
+                type="button"
+                onClick={handleCreateAndLink}
+                disabled={linkSaving || !newSession.date}
+                style={{
+                  flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
+                  background: '#FF6F20', color: '#FFFFFF',
+                  fontSize: 14, fontWeight: 800,
+                  cursor: linkSaving ? 'not-allowed' : 'pointer',
+                  opacity: linkSaving ? 0.6 : 1,
+                }}
+              >
+                {linkSaving ? 'שומר...' : 'צור ושייך'}
+              </button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
