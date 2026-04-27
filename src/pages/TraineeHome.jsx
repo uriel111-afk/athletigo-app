@@ -84,6 +84,11 @@ export default function TraineeHome() {
   const [showHealthForm, setShowHealthForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [pendingSessionId, setPendingSessionId] = useState(null);
+  // Tracks whether we've already auto-opened the health form on this
+  // mount. Prevents the form from popping up again after the trainee
+  // dismisses it without signing — they can re-open from the banner
+  // any time they tap "חתום על הצהרת בריאות".
+  const autoHealthShownRef = useRef(false);
   // Per-trainee gate. ANY signed health declaration (current session
   // or any prior one) marks the trainee as "signed". Used by the
   // approval banner so a returning casual trainee doesn't have to
@@ -374,6 +379,28 @@ export default function TraineeHome() {
   const pendingPrice = Number(pendingApprovalSession?.price || 0);
   const pendingPaymentStatus = pendingApprovalSession?.payment_status || null;
   const pendingRequiresPayment = pendingPrice > 0 && pendingPaymentStatus !== 'paid';
+
+  // Auto-open the health declaration form once the trainee lands on
+  // TraineeHome after completing the onboarding questionnaire. The
+  // gate is per-trainee (any prior signature counts) so returning
+  // casuals don't get re-prompted, and the auto-open only fires
+  // ONCE per mount via autoHealthShownRef — if the trainee dismisses
+  // the dialog they can still re-open it from the banner button.
+  useEffect(() => {
+    if (autoHealthShownRef.current) return;
+    if (!user?.id) return;
+    if (hasSignedHealth !== false) return; // null=loading, true=already signed
+    // Two surfaces require the form: anyone who finished the
+    // questionnaire (onboarding_completed) AND anyone with a
+    // pending_approval session even if they're not flagged as
+    // freshly-onboarded (covers casual returnees).
+    const needsSign = user?.onboarding_completed === true || !!pendingApprovalSession;
+    if (!needsSign) return;
+    console.log('[Onboarding] step → health_declaration (auto-open)');
+    autoHealthShownRef.current = true;
+    setPendingSessionId(pendingApprovalSession?.id || null);
+    setShowHealthForm(true);
+  }, [user?.id, user?.onboarding_completed, hasSignedHealth, pendingApprovalSession?.id]);
 
   // Diagnostic: which banner button should the trainee see right now?
   // Useful when debugging "why didn't the pay screen open" — the
@@ -735,6 +762,7 @@ export default function TraineeHome() {
         sessionId={pendingSessionId}
         autoConfirmSession={!(Number(pendingApprovalSession?.price || 0) > 0)}
         onSigned={async () => {
+          console.log('[Onboarding] step → health_declaration signed, advancing');
           setShowHealthForm(false);
           // The trainee just signed → flip the per-trainee gate now
           // so the banner re-renders into its next state on the

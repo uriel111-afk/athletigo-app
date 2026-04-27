@@ -662,6 +662,7 @@ export default function Onboarding() {
   };
 
   const handleComplete = async () => {
+    console.log("[Onboarding] step → questionnaire complete; saving + redirecting to TraineeHome for health-declaration step");
     console.log("[Onboarding] handleComplete called");
     console.log("[Onboarding] formData:", formData);
     console.log("[Onboarding] user:", user);
