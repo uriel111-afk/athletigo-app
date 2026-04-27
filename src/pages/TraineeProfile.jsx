@@ -761,7 +761,21 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
                   <input
                     type="date"
                     value={newSession.date}
-                    onChange={(e) => setNewSession({ ...newSession, date: e.target.value })}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      // When the coach picks a past date and the
+                      // status is still the default "מאושר", auto-
+                      // flip to "הושלם". They can still pick any
+                      // status manually from the dropdown below.
+                      const today = new Date(); today.setHours(0, 0, 0, 0);
+                      const picked = next ? new Date(`${next}T00:00:00`) : null;
+                      const isPast = picked && !Number.isNaN(picked.getTime()) && picked < today;
+                      setNewSession((prev) => ({
+                        ...prev,
+                        date: next,
+                        status: isPast && prev.status === 'מאושר' ? 'הושלם' : prev.status,
+                      }));
+                    }}
                     style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box' }}
                   />
                 </div>

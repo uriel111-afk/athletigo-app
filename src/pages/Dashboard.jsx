@@ -676,7 +676,16 @@ export default function Dashboard() {
         isLoading={createLeadMutation.isPending} />
       <SessionFormDialog isOpen={isSessionDialogOpen} onClose={() => setIsSessionDialogOpen(false)}
         onSubmit={async (data) => {
-          await createSessionMutation.mutateAsync({ ...data, location: data.location || "לא צוין", duration: data.duration || 60, coach_id: coach?.id, status: "ממתין לאישור" });
+          // Honor 'הושלם' from the form (past-date heuristic in
+          // SessionFormDialog) so retroactive sessions don't get
+          // forced back into "ממתין לאישור".
+          await createSessionMutation.mutateAsync({
+            ...data,
+            location: data.location || "לא צוין",
+            duration: data.duration || 60,
+            coach_id: coach?.id,
+            status: data.status === 'הושלם' ? 'הושלם' : 'ממתין לאישור',
+          });
         }}
         trainees={allTrainees} isLoading={createSessionMutation.isPending} />
       <PlanFormDialog isOpen={isPlanDialogOpen} onClose={() => setIsPlanDialogOpen(false)}

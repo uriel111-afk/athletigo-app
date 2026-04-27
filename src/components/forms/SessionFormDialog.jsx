@@ -16,6 +16,17 @@ import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
 import DraftPrompt from "@/components/DraftPrompt";
 
+// Strict past-date check at day granularity. Today counts as "not
+// past" so a same-day session still defaults to "ממתין לאישור".
+// Exported so downstream callers (Sessions.jsx, Dashboard.jsx)
+// can apply the same rule when post-processing the form payload.
+export const isPastDate = (dateStr) => {
+  if (!dateStr) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(`${dateStr}T00:00:00`);
+  return !Number.isNaN(d.getTime()) && d < today;
+};
+
 const INITIAL_DATA = {
   date: "",
   time: "10:00",
@@ -229,7 +240,14 @@ export default function SessionFormDialog({
       // trainee runs payment-create. Coach can mark paid manually.
       price: Number.isFinite(priceNumber) && priceNumber > 0 ? priceNumber : null,
       payment_status: Number.isFinite(priceNumber) && priceNumber > 0 ? 'unpaid' : null,
-      status: editingSession ? sessionForm.status : 'ממתין לאישור',
+      // Past-date heuristic: a coach logging a session whose date
+      // already passed is almost always recording history, so the
+      // default flips from "waiting for approval" to "הושלם". The
+      // parent caller in Sessions.jsx / Dashboard.jsx is wired to
+      // honor this exact value (rather than always overwriting).
+      status: editingSession
+        ? sessionForm.status
+        : (isPastDate(sessionForm.date) ? 'הושלם' : 'ממתין לאישור'),
     };
     // Only include service_id if a package was selected
     if (sessionForm.service_id) {
@@ -286,7 +304,10 @@ export default function SessionFormDialog({
               type="date"
               value={sessionForm.date || new Date().toISOString().split('T')[0]}
               onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
-              min={new Date().toISOString().split('T')[0]}
+              // No min — past dates intentional. Coaches need to log
+              // sessions that already happened (retroactive entry,
+              // imports, etc.). The submit handler defaults a
+              // past-date session's status to 'הושלם' automatically.
               className="rounded-xl text-base h-12 w-full"
               style={{ border: '2px solid #E0E0E0', fontSize: '16px' }}
             />

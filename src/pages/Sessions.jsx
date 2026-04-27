@@ -355,12 +355,19 @@ export default function Sessions() {
       }
     }
 
+    // Status precedence:
+    //   1) sessionData.status === 'הושלם' (coach logged a past
+    //      session — keep as completed, no approval needed)
+    //   2) casual trainee → 'pending_approval' (needs trainee gate)
+    //   3) default → 'ממתין לאישור'
     const fullSessionData = {
       ...sessionData,
       location: sessionData.location || "לא צוין",
       duration: sessionData.duration || 60,
       coach_id: coach.id,
-      status: traineeStatus === 'casual' ? 'pending_approval' : 'ממתין לאישור',
+      status: sessionData.status === 'הושלם'
+        ? 'הושלם'
+        : (traineeStatus === 'casual' ? 'pending_approval' : 'ממתין לאישור'),
     };
 
     if (editingSession) {
