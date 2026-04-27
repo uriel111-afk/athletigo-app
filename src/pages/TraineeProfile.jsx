@@ -2866,33 +2866,52 @@ export default function TraineeProfile() {
 
                 {/* Onboarding goals — read-only snapshot from
                     users.training_goals. Coach can convert any of
-                    these into a tracked goal via "+ הוסף יעד". */}
+                    these into a tracked goal via "+ הוסף יעד".
+                    The free-text expansion (goals_description)
+                    written on the goals screen renders below the
+                    chip list when present. */}
                 {(() => {
                   const onboardingGoals = parseList(user?.training_goals);
-                  if (!onboardingGoals.length) return null;
+                  const goalsDescription = (user?.goals_description || '').trim();
+                  if (!onboardingGoals.length && !goalsDescription) return null;
                   return (
                     <div style={{ background: '#FDF8F3', borderRadius: 14, padding: 16, border: '1px solid #F0E4D0' }}>
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 600 }}>
                         מטרות מהאונבורדינג
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {onboardingGoals.map((g, i) => {
-                          const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
-                          return (
-                            <div key={`${g}-${i}`} style={{
-                              display: 'flex', alignItems: 'center', gap: 10,
-                              padding: 10, borderRadius: 12,
-                              border: '1px solid #F0E4D0', background: '#FFFFFF',
-                            }}>
-                              <span style={{ fontSize: 20 }} aria-hidden>{meta.emoji}</span>
-                              <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{meta.label}</span>
-                              <span style={{ marginInlineStart: 'auto', fontSize: 11, color: '#888' }}>
-                                מאונבורדינג
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {!!onboardingGoals.length && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {onboardingGoals.map((g, i) => {
+                            const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
+                            return (
+                              <div key={`${g}-${i}`} style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                padding: 10, borderRadius: 12,
+                                border: '1px solid #F0E4D0', background: '#FFFFFF',
+                              }}>
+                                <span style={{ fontSize: 20 }} aria-hidden>{meta.emoji}</span>
+                                <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{meta.label}</span>
+                                <span style={{ marginInlineStart: 'auto', fontSize: 11, color: '#888' }}>
+                                  מאונבורדינג
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {goalsDescription && (
+                        <div style={{
+                          padding: 12, borderRadius: 12,
+                          background: '#FFFFFF',
+                          border: '1px solid #F0E4D0',
+                          marginTop: onboardingGoals.length ? 8 : 0,
+                          fontSize: 14, color: '#1A1A1A',
+                          direction: 'rtl', lineHeight: 1.6,
+                          whiteSpace: 'pre-wrap',
+                        }}>
+                          {goalsDescription}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}

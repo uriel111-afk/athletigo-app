@@ -740,6 +740,10 @@ export default function Onboarding() {
         current_challenges:   formData.questionnaire?.current_challenges?.length    ? formData.questionnaire.current_challenges    : null,
         training_preferences: formData.questionnaire?.training_preferences?.length  ? formData.questionnaire.training_preferences  : null,
         additional_notes:     formData.questionnaire?.additional_notes     || null,
+        // Free-text expansion on the goals screen — written when
+        // present, null otherwise. base44's 42703 retry drops the
+        // column silently if the migration hasn't been run yet.
+        goals_description:    formData.questionnaire?.goals_description?.trim() || null,
       };
 
       // Merge the questionnaire's chosen goals (now multi-select)

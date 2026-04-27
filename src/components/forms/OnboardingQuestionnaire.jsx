@@ -139,7 +139,7 @@ export default function OnboardingQuestionnaire({ value, onChange, onComplete, o
       `}</style>
 
       <div key={screen} style={{ animation: 'ob-slide-in 0.3s ease-out' }}>
-        {screen === 1 && <Screen1 value={value} toggleInArray={toggleInArray} />}
+        {screen === 1 && <Screen1 value={value} set={set} toggleInArray={toggleInArray} />}
         {screen === 2 && <Screen2 value={value} set={set} />}
         {screen === 3 && <Screen3 value={value} toggleInArray={toggleInArray} />}
         {screen === 4 && <Screen4 value={value} set={set} onSkip={onSkip} />}
@@ -253,12 +253,13 @@ function Pill({ active, onClick, emoji, label }) {
 
 // ─── Individual screens ────────────────────────────────────────
 
-function Screen1({ value, toggleInArray }) {
+function Screen1({ value, set, toggleInArray }) {
   // Goals are now multi-select. Be lenient about how the value is
   // shaped on disk — older drafts may have a single string.
   const goals = Array.isArray(value?.training_goal)
     ? value.training_goal
     : (value?.training_goal ? [value.training_goal] : []);
+  const description = value?.goals_description || '';
   return (
     <>
       <Header
@@ -276,6 +277,34 @@ function Screen1({ value, toggleInArray }) {
           />
         ))}
       </div>
+
+      {/* Free-text expansion — appears once at least one goal is
+          picked. Not required: the trainee can leave it blank and
+          still advance. */}
+      {goals.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{
+            fontSize: 13, color: '#888',
+            marginBottom: 4, direction: 'rtl', textAlign: 'right',
+          }}>
+            רוצה להרחיב על המטרות שבחרת? (לא חובה)
+          </div>
+          <textarea
+            value={description}
+            onChange={(e) => set({ goals_description: e.target.value })}
+            placeholder="למשל: רוצה להגיע ל-Muscle Up תוך חצי שנה, לחזק את הכתפיים בגלל פציעה ישנה..."
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 12,
+              border: `1px solid ${COLORS.border}`, background: COLORS.card,
+              fontSize: 14, color: COLORS.text,
+              direction: 'rtl', textAlign: 'right',
+              minHeight: 80, resize: 'vertical',
+              outline: 'none', boxSizing: 'border-box',
+              fontFamily: "'Heebo', 'Assistant', sans-serif",
+            }}
+          />
+        </div>
+      )}
     </>
   );
 }
