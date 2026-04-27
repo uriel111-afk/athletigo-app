@@ -49,29 +49,51 @@ export default function LinkSessionToPackageDialog({
     notes: '',
   });
 
-  // Load candidates when the dialog opens. Filtered to: this trainee,
-  // not soft-deleted, NOT already linked to any package. Newest-first.
+  // Load candidates when the dialog opens. Sessions can be tied to a
+  // trainee in TWO different ways across the schema:
+  //   (1) direct  — sessions.trainee_id = trainee id
+  //   (2) JSONB   — sessions.participants @> [{ trainee_id: id }]
+  // The standard SessionFormDialog only writes shape (2), so a query
+  // that only filters on trainee_id misses every session created the
+  // normal way. Run both branches in parallel, union by id, then drop
+  // anything already linked / soft-deleted.
   useEffect(() => {
     if (!isOpen || !traineeId) return;
     let cancelled = false;
     setLoading(true);
+    console.log('[LinkSession] traineeId:', traineeId);
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('sessions')
-          .select('id, date, time, session_type, status, service_id, deleted_at')
-          .eq('trainee_id', traineeId)
-          .is('service_id', null)
-          .order('date', { ascending: false });
+        const cols = 'id, date, time, session_type, status, service_id, deleted_at, trainee_id, participants';
+        const [direct, contained] = await Promise.all([
+          supabase
+            .from('sessions')
+            .select(cols)
+            .eq('trainee_id', traineeId),
+          supabase
+            .from('sessions')
+            .select(cols)
+            .contains('participants', [{ trainee_id: traineeId }]),
+        ]);
+
+        console.log('[LinkSession] direct:', { count: direct.data?.length, error: direct.error });
+        console.log('[LinkSession] participants[]:', { count: contained.data?.length, error: contained.error });
+
         if (cancelled) return;
-        if (error) {
-          console.error('[LinkSession] fetch failed:', error.message);
-          setCandidates([]);
-        } else {
-          const filtered = (data || []).filter(s => s.status !== 'deleted' && !s.deleted_at);
-          console.log('[LinkSession] candidates:', filtered.length, '/', data?.length || 0);
-          setCandidates(filtered);
-        }
+
+        // Union by id (one trainee may be both direct + in participants).
+        const byId = new Map();
+        for (const s of (direct.data || [])) byId.set(s.id, s);
+        for (const s of (contained.data || [])) byId.set(s.id, s);
+
+        const all = Array.from(byId.values());
+        const filtered = all
+          .filter(s => !s.service_id)
+          .filter(s => s.status !== 'deleted' && !s.deleted_at)
+          .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+        console.log('[LinkSession] available sessions:', filtered.length, '/', all.length, 'total');
+        setCandidates(filtered);
       } catch (e) {
         console.error('[LinkSession] fetch threw:', e?.message);
         if (!cancelled) setCandidates([]);
