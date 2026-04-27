@@ -1,43 +1,56 @@
 import React from "react";
 
-// Unified first-paint loader — same design as index.html's boot loader
-// and PageLoader. No progress bar, no "טוען..." text — just the
-// triangle logo + ATHLETIGO wordmark with a soft pulse.
-// `progress` and `label` props are accepted for backward compatibility
-// but ignored on purpose (the visual is intentionally minimal).
-// eslint-disable-next-line no-unused-vars
+// In-app loader — visually identical to the boot splash defined in
+// index.html, so the hand-off from the static splash to React's
+// auth/data hydration is seamless. Single logo + progress bar on
+// the cream brand background. No text wordmark, no pulsing logo
+// (those competed with the new boot splash).
+//
+// `progress` (0-100) drives the orange fill width; `label` is
+// accepted for backward compatibility but rendered as a small
+// muted line below the bar when present.
 export default function AppLoader({ progress, label }) {
+  const pct = Math.max(0, Math.min(100, Number(progress) || 0));
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center z-[9999]"
+      style={{
+        position: 'fixed', inset: 0,
+        background: '#FDF8F3',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        zIndex: 9999,
+        fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+      }}
       dir="rtl"
-      style={{ backgroundColor: "#FFF9F0" }}
     >
-      <style>{`
-        @keyframes athletigo-app-loader-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%      { opacity: 0.6; transform: scale(0.95); }
-        }
-      `}</style>
       <img
-        src="/logo-transparent.png"
-        alt=""
+        src="/logoR.png"
+        alt="AthletiGo"
         style={{
-          width: 120,
-          height: 120,
-          objectFit: "contain",
-          animation: "athletigo-app-loader-pulse 1.5s ease-in-out infinite",
+          width: 100, height: 'auto', objectFit: 'contain',
+          marginBottom: 24,
         }}
+        onError={(e) => { e.currentTarget.style.display = 'none'; }}
       />
-      <img
-        src="/athletigo-text.png"
-        alt="ATHLETIGO"
-        style={{
-          height: 22,
-          objectFit: "contain",
-          marginTop: 8,
-        }}
-      />
+      <div style={{
+        width: 200, height: 3,
+        background: '#F0E4D0', borderRadius: 2,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%',
+          width: `${pct}%`,
+          background: '#FF6F20',
+          borderRadius: 2,
+          transition: 'width 0.3s ease',
+        }} />
+      </div>
+      {label && (
+        <div style={{
+          fontSize: 12, color: '#888',
+          marginTop: 12, textAlign: 'center',
+        }}>{label}</div>
+      )}
     </div>
   );
 }
