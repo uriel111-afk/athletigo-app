@@ -50,41 +50,76 @@ export default function LinkSessionToPackageDialog({
   });
 
   // Load candidates when the dialog opens. Sessions can be tied to a
-  // trainee in TWO different ways across the schema:
-  //   (1) direct  — sessions.trainee_id = trainee id
-  //   (2) JSONB   — sessions.participants @> [{ trainee_id: id }]
-  // The standard SessionFormDialog only writes shape (2), so a query
-  // that only filters on trainee_id misses every session created the
-  // normal way. Run both branches in parallel, union by id, then drop
-  // anything already linked / soft-deleted.
+  // trainee in THREE different ways across the schema, and we need
+  // all three branches because legacy rows (created before the root
+  // fix in SessionFormDialog) have NULL trainee_id and only carry
+  // the trainee inside the participants JSONB:
+  //   (1) direct       — sessions.trainee_id = trainee id (new
+  //                      rows from SessionFormDialog after the
+  //                      root fix populate this).
+  //   (2) JSONB cs     — sessions.participants @> [{trainee_id}].
+  //                      Works only when participants is real
+  //                      JSONB, not JSON; some installs have it
+  //                      as JSON which makes @> a no-op.
+  //   (3) coach-scan   — pull up to 500 of the coach's recent
+  //                      sessions and filter client-side by
+  //                      walking participants[]. This is the
+  //                      same fallback TraineeProfile.jsx uses;
+  //                      catches every shape including stringified
+  //                      JSON, extra wrapping arrays, etc.
+  // Union by id, then drop anything already linked / soft-deleted.
+  const coachId = pkg?.coach_id || null;
   useEffect(() => {
     if (!isOpen || !traineeId) return;
     let cancelled = false;
     setLoading(true);
-    console.log('[LinkSession] traineeId:', traineeId);
+    console.log('[LinkSession] traineeId:', traineeId, 'coachId:', coachId);
     (async () => {
       try {
-        const cols = 'id, date, time, session_type, status, service_id, deleted_at, trainee_id, participants';
-        const [direct, contained] = await Promise.all([
-          supabase
-            .from('sessions')
-            .select(cols)
-            .eq('trainee_id', traineeId),
-          supabase
-            .from('sessions')
-            .select(cols)
-            .contains('participants', [{ trainee_id: traineeId }]),
-        ]);
+        const cols = 'id, date, time, session_type, status, service_id, deleted_at, trainee_id, participants, coach_id';
+        const queries = [
+          supabase.from('sessions').select(cols).eq('trainee_id', traineeId),
+          supabase.from('sessions').select(cols).contains('participants', [{ trainee_id: traineeId }]),
+        ];
+        // Branch (3) only runs when we know the package's coach so
+        // the scan stays scoped (RLS already does this, but the
+        // explicit filter shaves the row count too).
+        if (coachId) {
+          queries.push(
+            supabase.from('sessions').select(cols).eq('coach_id', coachId).limit(500)
+          );
+        }
+
+        const [direct, contained, coachScan] = await Promise.all(queries);
 
         console.log('[LinkSession] direct query result:', direct);
         console.log('[LinkSession] participants query result:', contained);
+        console.log('[LinkSession] coach-scan query result:', coachScan || '(skipped)');
 
         if (cancelled) return;
 
-        // Union by id (one trainee may be both direct + in participants).
+        // Union by id. Coach-scan is post-filtered client-side: any
+        // session whose participants[] (JSON or stringified-JSON)
+        // contains a matching trainee_id qualifies.
         const byId = new Map();
         for (const s of (direct.data || [])) byId.set(s.id, s);
         for (const s of (contained.data || [])) byId.set(s.id, s);
+        if (coachScan?.data) {
+          let scanHits = 0;
+          for (const s of coachScan.data) {
+            let parts = s.participants;
+            if (typeof parts === 'string') {
+              try { parts = JSON.parse(parts); } catch { parts = []; }
+            }
+            if (!Array.isArray(parts)) continue;
+            const hit = parts.some(p => p && p.trainee_id === traineeId);
+            if (hit) {
+              byId.set(s.id, s);
+              scanHits++;
+            }
+          }
+          console.log('[LinkSession] coach-scan added rows:', scanHits);
+        }
 
         const all = Array.from(byId.values());
         const filtered = all
@@ -103,7 +138,7 @@ export default function LinkSessionToPackageDialog({
       }
     })();
     return () => { cancelled = true; };
-  }, [isOpen, traineeId]);
+  }, [isOpen, traineeId, coachId]);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
