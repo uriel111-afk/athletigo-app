@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import HealthDeclarationForm from "@/components/forms/HealthDeclarationForm";
 import WelcomeBlessingPopup from "@/components/WelcomeBlessingPopup";
 import PageLoader from "@/components/PageLoader";
 import { generateTraineeSummary } from "@/lib/onboardingSummary";
+import { AuthContext } from "@/lib/AuthContext";
 
 // 6-step onboarding wizard. Replaces the legacy 2-step flow.
 //
@@ -187,6 +188,7 @@ function Chip({ active, onClick, children }) {
 // ── Main ──
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { checkAppState } = useContext(AuthContext) || {};
   const [user, setUser] = useState(null);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [step, setStep] = useState('details');
@@ -490,13 +492,28 @@ export default function Onboarding() {
           console.warn('[Onboarding] notification failed:', e?.message);
         }
       }
+      // Refresh AuthContext so the in-memory user picks up the new
+      // client_status/onboarding_completed_at BEFORE we navigate. Without
+      // this, AuthContext's stale userProfile triggers a full-page reload
+      // back to /onboarding → bootstrap sees casual → SPA-navigates to
+      // /trainee-home → AuthContext fires again → infinite loop.
+      try {
+        await checkAppState?.();
+        console.log('[Onboarding] auth context refreshed after completion');
+      } catch (e) {
+        console.warn('[Onboarding] checkAppState failed:', e?.message);
+      }
       setShowWelcome(true);
     } finally { setSavingStep(false); }
   };
 
   const handleFinishWelcome = () => {
     setShowWelcome(false);
-    navigate('/trainee-home', { replace: true });
+    // Small delay so AuthContext routing logic settles before navigation —
+    // closes the last race window where stale state could cause a redirect.
+    setTimeout(() => {
+      navigate('/trainee-home', { replace: true });
+    }, 500);
   };
 
   // ── Render ──

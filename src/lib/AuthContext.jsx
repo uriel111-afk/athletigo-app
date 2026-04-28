@@ -93,22 +93,29 @@ export const AuthProvider = ({ children }) => {
       
       setUser(userProfile);
       setIsAuthenticated(true);
-      
+
       // EXPLICIT ROUTING LOGIC:
-      // If onboarding_completed === true, they can go anywhere (will go to dashboard from home)
-      // If onboarding_completed === false or null/undefined, MUST go to /onboarding
-      const isOnboardingComplete = userProfile?.onboarding_completed === true;
+      // The casual-onboarding flow writes `client_status` + `onboarding_completed_at`,
+      // not the legacy `onboarding_completed` boolean. Treat any of the three as
+      // "complete" so we don't loop back to /onboarding right after the user
+      // finishes — that was the redirect loop that page-reloaded forever.
+      const isOnboardingComplete =
+        userProfile?.onboarding_completed === true
+        || userProfile?.onboarding_completed_at != null
+        || (userProfile?.client_status && userProfile.client_status !== 'onboarding');
       const isCurrentlyOnOnboarding = window.location.pathname === '/onboarding';
       const isCurrentlyOnLogin = window.location.pathname === '/login';
       const isCurrentlyOnRoot = window.location.pathname === '/' || window.location.pathname === '';
-      
+
       console.log('[AuthContext] Routing check:', {
+        clientStatus: userProfile?.client_status,
+        onboardingCompletedAt: userProfile?.onboarding_completed_at,
         isOnboardingComplete,
         currentPath: window.location.pathname,
         isCurrentlyOnOnboarding,
-        isCurrentlyOnLogin
+        isCurrentlyOnLogin,
       });
-      
+
       // Coaches NEVER get redirected to onboarding
       const isCoachUser = userProfile?.is_coach === true || userProfile?.role === 'coach' || userProfile?.role === 'admin';
 
@@ -116,10 +123,32 @@ export const AuthProvider = ({ children }) => {
       const isLifeOSCoach = userProfile?.id === LIFE_OS_COACH_ID;
 
       if (!isCoachUser && !isOnboardingComplete && !isCurrentlyOnOnboarding && !isCurrentlyOnLogin && !isCurrentlyOnRoot) {
-        console.log('[AuthContext] Trainee needs onboarding, redirecting to /onboarding');
-        setTimeout(() => {
-          window.location.href = '/onboarding';
-        }, 300);
+        // Defensive recheck — the in-memory userProfile might be stale if
+        // onboarding just wrote client_status in another tab/render. Re-read
+        // the live row before triggering a full-page redirect.
+        try {
+          const { data: freshUser } = await supabase
+            .from('users')
+            .select('client_status, onboarding_completed, onboarding_completed_at')
+            .eq('id', userProfile.id)
+            .maybeSingle();
+          const stillNeedsOnboarding =
+            freshUser?.onboarding_completed !== true
+            && freshUser?.onboarding_completed_at == null
+            && (!freshUser?.client_status || freshUser.client_status === 'onboarding');
+          if (stillNeedsOnboarding) {
+            console.log('[AuthContext] Trainee needs onboarding, redirecting to /onboarding');
+            setTimeout(() => {
+              window.location.href = '/onboarding';
+            }, 300);
+          } else {
+            console.log('[AuthContext] DB recheck shows onboarding complete — skipping redirect');
+            setUser({ ...userProfile, ...freshUser });
+          }
+        } catch (e) {
+          console.warn('[AuthContext] fresh-user recheck failed, falling through to redirect:', e?.message);
+          setTimeout(() => { window.location.href = '/onboarding'; }, 300);
+        }
       } else if (isOnboardingComplete && isCurrentlyOnOnboarding) {
         console.log('[AuthContext] User already completed onboarding, redirecting away');
         const coachHome = isLifeOSCoach ? '/hub' : '/dashboard';
