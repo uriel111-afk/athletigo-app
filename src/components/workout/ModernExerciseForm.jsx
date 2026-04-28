@@ -130,7 +130,7 @@ const TimeWheel = ({ value, max, onChange, label }) => {
       </button>
       <input type="text" inputMode="numeric" value={pad(value)}
         onChange={(e) => { const n = parseInt(e.target.value) || 0; onChange(Math.min(max, Math.max(0, n))); }}
-        className="w-14 h-11 text-center text-xl font-black border-2 border-gray-200 rounded-xl bg-white focus:border-[#FF6F20] focus:outline-none select-all" />
+        className="w-14 h-11 text-center text-2xl font-black border-2 border-gray-200 rounded-xl bg-white focus:border-[#FF6F20] focus:outline-none select-all" />
       <button type="button" onClick={dec} className="w-10 h-7 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
         <Minus size={14} strokeWidth={3} />
       </button>
