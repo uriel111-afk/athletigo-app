@@ -556,22 +556,11 @@ export default function BaselineFormDialog({
             disabled={viewOnly}
             style={cardSelect}
           >
-            <option value="">— הזנה ידנית —</option>
+            <option value="">— בחר מתאמן —</option>
             {trainees.map(t => (
               <option key={t.id} value={t.id}>{t.full_name}</option>
             ))}
           </select>
-          {!selectedTraineeId && (
-            <input
-              type="text"
-              value={manualName}
-              onChange={viewOnly ? undefined : (e) => setManualName(e.target.value)}
-              readOnly={viewOnly}
-              disabled={viewOnly}
-              placeholder="שם מלא"
-              style={{ ...cardSelect, textAlign: 'right' }}
-            />
-          )}
 
           {/* Time + Date row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -644,7 +633,7 @@ export default function BaselineFormDialog({
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>מנוחה בין טכניקות</div>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 4, whiteSpace: 'nowrap' }}>מנוחה בין טכניקות</div>
               <select
                 value={techRestTime}
                 onChange={(e) => setTechRestTime(Number(e.target.value))}
