@@ -546,21 +546,9 @@ export default function BaselineFormDialog({
               <DraftToast /> below the Dialog. Inline banner used to
               push content out of the viewport and force scroll. */}
 
-          {/* Single participant — pick from the system list, or
-              choose "הזנה ידנית" to type a one-off name. The manual
-              name input only appears in that case (no double-name
-              confusion). */}
-          <select
-            value={selectedTraineeId}
-            onChange={viewOnly ? undefined : (e) => setSelectedTraineeId(e.target.value)}
-            disabled={viewOnly}
-            style={cardSelect}
-          >
-            <option value="">— בחר מתאמן —</option>
-            {trainees.map(t => (
-              <option key={t.id} value={t.id}>{t.full_name}</option>
-            ))}
-          </select>
+          {/* Trainee selector removed — the trainee is always preselected
+              before the form opens, passed in as the traineeId prop, and
+              consumed downstream via effectiveTraineeId. */}
 
           {/* Time + Date row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
