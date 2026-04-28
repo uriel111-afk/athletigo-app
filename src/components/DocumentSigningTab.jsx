@@ -183,6 +183,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         .from('signed_documents')
         .select('*')
         .eq('trainee_id', user.id)
+        .or('status.is.null,status.neq.deleted')
         .order('created_at', { ascending: true });
       if (error) console.error("[DocumentSigning] Fetch error:", error);
       setSignedDocs(data || []);
@@ -306,7 +307,13 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       if (!confirmed) return;
     }
     try {
-      const { error } = await supabase.from('signed_documents').delete().eq('id', docId);
+      // Soft-delete — legal/audit trail. The fetch query filters
+      // status='deleted' so the row vanishes from the UI but stays in
+      // the DB for compliance / accidental-undo recovery.
+      const { error } = await supabase
+        .from('signed_documents')
+        .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+        .eq('id', docId);
       if (error) throw error;
       toast.success("המסמך נמחק");
       await fetchDocs();
@@ -357,10 +364,11 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
       // Clean up any pending placeholder rows for this trainee+docType so the
       // list doesn't show "ממתין לחתימה" alongside the freshly signed entry.
+      // Soft-delete to preserve the original send/created timestamp for audit.
       try {
         await supabase
           .from('signed_documents')
-          .delete()
+          .update({ status: 'deleted', deleted_at: new Date().toISOString() })
           .eq('trainee_id', user.id)
           .eq('document_type', docType)
           .eq('status', 'pending');

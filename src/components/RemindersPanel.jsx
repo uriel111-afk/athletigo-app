@@ -22,6 +22,7 @@ export default function RemindersPanel({ isOpen, onClose, userId, onChange }) {
       .select("*")
       .eq("user_id", userId)
       .eq("type", "coach_reminder")
+      .or("status.is.null,status.neq.deleted")
       .order("created_at", { ascending: false });
     setLoading(false);
     if (error) {
@@ -50,7 +51,13 @@ export default function RemindersPanel({ isOpen, onClose, userId, onChange }) {
   };
 
   const deleteReminder = async (id) => {
-    const { error } = await supabase.from("notifications").delete().eq("id", id);
+    // Soft-delete — consistent with TraineeNotificationsTab. The fetch
+    // query filters status='deleted' so the row drops out of the UI
+    // but stays in the DB for accidental-undo / audit.
+    const { error } = await supabase
+      .from("notifications")
+      .update({ status: "deleted", deleted_at: new Date().toISOString() })
+      .eq("id", id);
     if (error) { toast.error("שגיאה: " + error.message); return; }
     toast.success("נמחק");
     fetchReminders();
