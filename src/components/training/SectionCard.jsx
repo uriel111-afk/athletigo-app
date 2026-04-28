@@ -15,11 +15,16 @@ export default function SectionCard({
   onEditSection,
   onDeleteSection,
   onDuplicateSection,
+  onMoveSection,
+  isFirstSection = false,
+  isLastSection = false,
+  onMoveExercise,
+  onDuplicateExercise,
   onDeleteExercise,
   onOpenExecution,
-  showEditButtons = false, 
-  isCoach = false, 
-  plan 
+  showEditButtons = false,
+  isCoach = false,
+  plan
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
 
@@ -90,6 +95,32 @@ export default function SectionCard({
             {/* Edit Buttons (Coach only) */}
             {showEditButtons && (
               <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                {onMoveSection && (
+                  <>
+                    <Button
+                      onClick={() => onMoveSection(-1)}
+                      disabled={isFirstSection}
+                      size="icon"
+                      variant="ghost"
+                      title="העלה סקשן"
+                      className="h-8 w-8 rounded-full hover:bg-gray-100 disabled:opacity-30"
+                      style={{ color: style.subText }}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      onClick={() => onMoveSection(1)}
+                      disabled={isLastSection}
+                      size="icon"
+                      variant="ghost"
+                      title="הורד סקשן"
+                      className="h-8 w-8 rounded-full hover:bg-gray-100 disabled:opacity-30"
+                      style={{ color: style.subText }}
+                    >
+                      ↓
+                    </Button>
+                  </>
+                )}
                 <Button
                   onClick={() => onEditSection(section)}
                   size="icon"
@@ -151,15 +182,19 @@ export default function SectionCard({
                 </div>
               ) : (
                 <div className="space-y-3 mb-4">
-                  {exercises.filter(Boolean).map((exercise, idx) => (
+                  {exercises.filter(Boolean).map((exercise, idx, arr) => (
                     <ExerciseCard
-                    key={exercise.id || Math.random()} 
+                    key={exercise.id || Math.random()}
                     index={idx}
                     exercise={exercise}
                     onToggleComplete={onToggleComplete}
-                    onRowClick={() => onEditExercise(exercise)} 
-                    onEdit={() => onEditExercise(exercise)}     
-                    onDelete={() => onDeleteExercise(exercise.id)} 
+                    onRowClick={() => onEditExercise(exercise)}
+                    onEdit={() => onEditExercise(exercise)}
+                    onDelete={() => onDeleteExercise(exercise.id)}
+                    onMove={onMoveExercise ? (dir) => onMoveExercise(exercise, dir) : undefined}
+                    isFirst={idx === 0}
+                    isLast={idx === arr.length - 1}
+                    onDuplicate={onDuplicateExercise ? () => onDuplicateExercise(exercise) : undefined}
                     onOpenExecution={onOpenExecution}
                     showEditButton={showEditButtons}
                     isCoach={isCoach}

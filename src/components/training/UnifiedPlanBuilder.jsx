@@ -194,6 +194,77 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
   });
 
+  // Reorder helpers — swap the `order` value with an immediate
+  // neighbor (one step up or down). Cheaper than rewriting every
+  // sibling's order, and matches what the up/down arrow UX implies
+  // (one nudge per click). Drag-and-drop reorder in PlanBuilder still
+  // wins for big rearrangements.
+  const moveSectionMutation = useMutation({
+    mutationFn: async ({ section, direction }) => {
+      const sorted = [...sections]
+        .filter(Boolean)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+      const idx = sorted.findIndex((s) => s.id === section.id);
+      const targetIdx = idx + direction;
+      if (idx < 0 || targetIdx < 0 || targetIdx >= sorted.length) return;
+      const a = sorted[idx];
+      const b = sorted[targetIdx];
+      await Promise.all([
+        base44.entities.TrainingSection.update(a.id, { order: b.order || 0 }),
+        base44.entities.TrainingSection.update(b.id, { order: a.order || 0 }),
+      ]);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['training-sections', plan.id] });
+    },
+    onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
+  });
+
+  const moveExerciseMutation = useMutation({
+    mutationFn: async ({ exercise, direction }) => {
+      const same = exercises
+        .filter((e) => e && e.training_section_id === exercise.training_section_id)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+      const idx = same.findIndex((e) => e.id === exercise.id);
+      const targetIdx = idx + direction;
+      if (idx < 0 || targetIdx < 0 || targetIdx >= same.length) return;
+      const a = same[idx];
+      const b = same[targetIdx];
+      await Promise.all([
+        base44.entities.Exercise.update(a.id, { order: b.order || 0 }),
+        base44.entities.Exercise.update(b.id, { order: a.order || 0 }),
+      ]);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
+    },
+    onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
+  });
+
+  // Duplicate an exercise in place — clone lands at the bottom of its
+  // section's order list so the coach sees it appear at the end and
+  // can drag it into position. id/created_at stripped so the row is a
+  // fresh insert, not an upsert.
+  const duplicateExerciseMutation = useMutation({
+    mutationFn: async (originalExercise) => {
+      if (!originalExercise) return;
+      const { id: _exId, created_at: _exCa, ...exFields } = originalExercise;
+      const same = exercises.filter(
+        (e) => e && e.training_section_id === originalExercise.training_section_id
+      );
+      const maxOrder = Math.max(0, ...same.map((e) => Number(e.order) || 0));
+      return await base44.entities.Exercise.create({
+        ...exFields,
+        order: maxOrder + 1,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
+      toast.success('✅ תרגיל שוכפל');
+    },
+    onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
+  });
+
   const prepareExerciseData = (formData) => {
     const data = { ...formData };
     Object.keys(data).forEach((key) => {
@@ -679,6 +750,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   if (confirm('למחוק סקשן זה?')) deleteSectionMutation.mutate(sectionId);
                 }}
                 onDuplicateSection={(s) => duplicateSectionMutation.mutate(s)}
+                onMoveSection={(direction) => moveSectionMutation.mutate({ section, direction })}
+                isFirstSection={index === 0}
+                isLastSection={index === sections.filter(Boolean).length - 1}
+                onMoveExercise={(exercise, direction) => moveExerciseMutation.mutate({ exercise, direction })}
+                onDuplicateExercise={(exercise) => duplicateExerciseMutation.mutate(exercise)}
                 onDeleteExercise={(exerciseId) => {
                   if (confirm('למחוק תרגיל זה?')) deleteExerciseMutation.mutate(exerciseId);
                 }}

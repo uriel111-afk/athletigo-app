@@ -135,6 +135,7 @@ const getContainerLabel = (ex) => {
 
 export default function ExerciseCard({
   exercise, index = 0, onToggleComplete, onRowClick, onEdit, onDelete,
+  onMove, isFirst = false, isLast = false, onDuplicate,
   onOpenExecution, showEditButton = false, isCoach = false,
   sectionColor = "#FF6F20", plan,
 }) {
@@ -192,9 +193,38 @@ export default function ExerciseCard({
               </div>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
+              {onMove && (
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMove(-1); }}
+                    disabled={isFirst}
+                    title="העלה תרגיל"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors disabled:opacity-30 disabled:cursor-default text-xs leading-none"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMove(1); }}
+                    disabled={isLast}
+                    title="הורד תרגיל"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors disabled:opacity-30 disabled:cursor-default text-xs leading-none"
+                  >
+                    ↓
+                  </button>
+                </>
+              )}
               <button onClick={handleEdit} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors" title="ערוך">
                 <Edit2 size={13} />
               </button>
+              {onDuplicate && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+                  title="שכפל תרגיל"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors text-xs leading-none"
+                >
+                  📋
+                </button>
+              )}
               <button onClick={handleDelete} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="מחק">
                 <Trash2 size={13} />
               </button>
