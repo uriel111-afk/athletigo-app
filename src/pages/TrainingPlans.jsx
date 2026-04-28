@@ -80,40 +80,12 @@ export default function TrainingPlans() {
   const exercises = [];
   const getPlanSections = (planId) => [];
 
-  // Bulk fetch sections + exercises for every non-deleted plan so the
-  // closed expandable card can show "X סקשנים • Y תרגילים" without
-  // a per-card lazy fetch on render. Re-runs only when the underlying
-  // plans list changes (search/filter changes don't invalidate).
-  const allLivePlanIds = (plans || [])
-    .filter(p => p.status !== 'deleted' && !p.deleted_at)
-    .map(p => p.id)
-    .sort();
+  // Bulk-content query (sections + exercises per plan) is declared
+  // AFTER `plans` is destructured from useProgramStats — the
+  // const-from-later-let TDZ bug previously crashed this page on
+  // first render with "Cannot access 'ce' before initialization".
+  // See block right after `useProgramStats()` below.
 
-  const { data: planContents = {} } = useQuery({
-    queryKey: ['plan-contents-bulk', allLivePlanIds.join(',')],
-    queryFn: async () => {
-      if (!allLivePlanIds.length) return {};
-      // base44 doesn't expose an .in() filter; iterate per plan in
-      // parallel. For typical coach scale (10–30 plans) this is fine.
-      const results = await Promise.all(
-        allLivePlanIds.map(async (planId) => {
-          const [sec, ex] = await Promise.all([
-            base44.entities.TrainingSection.filter({ training_plan_id: planId }, 'order').catch(() => []),
-            base44.entities.Exercise.filter({ training_plan_id: planId }).catch(() => []),
-          ]);
-          return { planId, sections: sec || [], exercises: ex || [] };
-        })
-      );
-      const byPlan = {};
-      for (const r of results) {
-        byPlan[r.planId] = { sections: r.sections, exercises: r.exercises };
-      }
-      return byPlan;
-    },
-    enabled: allLivePlanIds.length > 0,
-    staleTime: 30_000,
-  });
-  
   // Mutations for Series
   const createSeriesMutation = useMutation({
     mutationFn: async (data) => {
@@ -179,6 +151,42 @@ export default function TrainingPlans() {
   });
 
   const { plans, isLoading: plansLoading } = useProgramStats();
+
+  // Bulk fetch sections + exercises for every non-deleted plan so the
+  // closed expandable card can show "X סקשנים • Y תרגילים" without
+  // a per-card lazy fetch on render. Re-runs only when the underlying
+  // plans list changes (search/filter changes don't invalidate). Must
+  // sit AFTER the useProgramStats destructure — referencing `plans`
+  // before its initializer triggered a TDZ crash on first render.
+  const allLivePlanIds = (plans || [])
+    .filter(p => p.status !== 'deleted' && !p.deleted_at)
+    .map(p => p.id)
+    .sort();
+
+  const { data: planContents = {} } = useQuery({
+    queryKey: ['plan-contents-bulk', allLivePlanIds.join(',')],
+    queryFn: async () => {
+      if (!allLivePlanIds.length) return {};
+      // base44 doesn't expose an .in() filter; iterate per plan in
+      // parallel. For typical coach scale (10–30 plans) this is fine.
+      const results = await Promise.all(
+        allLivePlanIds.map(async (planId) => {
+          const [sec, ex] = await Promise.all([
+            base44.entities.TrainingSection.filter({ training_plan_id: planId }, 'order').catch(() => []),
+            base44.entities.Exercise.filter({ training_plan_id: planId }).catch(() => []),
+          ]);
+          return { planId, sections: sec || [], exercises: ex || [] };
+        })
+      );
+      const byPlan = {};
+      for (const r of results) {
+        byPlan[r.planId] = { sections: r.sections, exercises: r.exercises };
+      }
+      return byPlan;
+    },
+    enabled: allLivePlanIds.length > 0,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     if (urlPlanId && plans.length > 0 && !selectedPlan) {
