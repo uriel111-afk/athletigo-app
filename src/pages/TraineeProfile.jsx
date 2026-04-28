@@ -993,29 +993,119 @@ function PersonalTab({
   onChangeStatus,
   onArchive,
 }) {
+  const queryClient = useQueryClient();
   const initials = (user?.full_name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || 'U';
 
+  // Inline edit mode — coach toggles a pencil and every FieldCell
+  // turns into an input. One save commits all changes to the users
+  // row in one shot. Replaces the dialog flow on this tab.
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [editFields, setEditFields] = useState({});
+  const [savingDetails, setSavingDetails] = useState(false);
+
   let birthLabel = null;
+  let ageNow = null;
   if (user?.birth_date) {
     try {
       const d = new Date(user.birth_date);
       if (!Number.isNaN(d.getTime())) {
         const dateStr = format(d, 'dd/MM/yyyy');
-        const ageNow = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-        birthLabel = `${dateStr} • ${ageNow} שנים`;
+        const today = new Date();
+        let a = today.getFullYear() - d.getFullYear();
+        const m = today.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < d.getDate())) a--;
+        ageNow = a;
+        birthLabel = `${dateStr} • ${a} שנים`;
       }
     } catch {}
   } else if (user?.age) {
     birthLabel = `${user.age} שנים`;
+    ageNow = Number(user.age) || null;
   }
 
+  const isMinor = ageNow !== null && ageNow < 18;
   const hasEmergency = !!(user?.emergency_contact_name || user?.emergency_contact_phone || user?.emergency_contact_relation);
+
+  const startEditDetails = () => {
+    setEditFields({
+      full_name: user?.full_name || '',
+      phone: user?.phone || '',
+      email: user?.email || '',
+      birth_date: user?.birth_date ? String(user.birth_date).slice(0, 10) : '',
+      address: user?.address || '',
+      city: user?.city || '',
+      referral_source: user?.referral_source || '',
+      emergency_contact_name: user?.emergency_contact_name || '',
+      emergency_contact_phone: user?.emergency_contact_phone || '',
+      emergency_contact_relation: user?.emergency_contact_relation || '',
+    });
+    setEditingDetails(true);
+  };
+
+  const cancelEditDetails = () => {
+    setEditingDetails(false);
+    setEditFields({});
+  };
+
+  const saveDetails = async () => {
+    if (!user?.id) return;
+    setSavingDetails(true);
+    // Per-field fallback so a missing column (e.g. address /
+    // emergency_contact_*) doesn't block the rest from landing.
+    const present = Object.fromEntries(
+      Object.entries(editFields).filter(([, v]) => v !== undefined)
+    );
+    const { error } = await supabase.from('users').update(present).eq('id', user.id);
+    if (error) {
+      console.warn('[PersonalTab] bulk update failed:', error.message, '— retrying per-field');
+      const failed = [];
+      for (const [k, v] of Object.entries(present)) {
+        const { error: e } = await supabase.from('users').update({ [k]: v }).eq('id', user.id);
+        if (e) { console.warn(`[PersonalTab] ${k} failed:`, e.message); failed.push(k); }
+      }
+      if (failed.length === Object.keys(present).length) {
+        toast.error('שגיאה בשמירה');
+        setSavingDetails(false);
+        return;
+      }
+      if (failed.length) toast.warning(`חלק מהשדות לא נשמרו (${failed.join(', ')})`);
+      else toast.success('פרטים עודכנו ✓');
+    } else {
+      toast.success('פרטים עודכנו ✓');
+    }
+    queryClient.invalidateQueries({ queryKey: ['target-user-profile'] });
+    queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+    setEditingDetails(false);
+    setEditFields({});
+    setSavingDetails(false);
+  };
+
+  // EditableField — renders FieldCell when not editing, or an input
+  // bound to editFields[fieldKey] when editing.
+  const EditableField = ({ label, value, fieldKey, type = 'text' }) => {
+    if (!editingDetails) return <FieldCell label={label} value={value} />;
+    return (
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{label}</div>
+        <input
+          type={type}
+          value={editFields[fieldKey] ?? ''}
+          onChange={(e) => setEditFields(prev => ({ ...prev, [fieldKey]: e.target.value }))}
+          style={{
+            width: '100%', padding: '8px 10px', borderRadius: 12,
+            border: '1px solid #FF6F20', fontSize: 14, direction: 'rtl',
+            background: '#FFF5EE', boxSizing: 'border-box', outline: 'none',
+          }}
+        />
+      </div>
+    );
+  };
 
   return (
     <>
       {/* ── Card 1 — פרטים אישיים ─────────────────────────────── */}
       <div style={cardStyle} dir="rtl">
-        <CardEditButton onClick={onEdit} />
+        {isCoach && !editingDetails && <CardEditButton onClick={startEditDetails} />}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <div style={{
@@ -1030,13 +1120,28 @@ function PersonalTab({
               : initials}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 600, color: '#1A1A1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user?.full_name || 'מתאמן/ת'}
-            </div>
+            {editingDetails ? (
+              <input
+                type="text"
+                value={editFields.full_name ?? ''}
+                onChange={(e) => setEditFields(prev => ({ ...prev, full_name: e.target.value }))}
+                placeholder="שם מלא"
+                style={{
+                  width: '100%', padding: '8px 10px', borderRadius: 12,
+                  border: '1px solid #FF6F20', fontSize: 16, fontWeight: 600,
+                  direction: 'rtl', background: '#FFF5EE', outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            ) : (
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#1A1A1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user?.full_name || 'מתאמן/ת'}
+              </div>
+            )}
             {/* Status pill is coach-only metadata — the trainee
                 shouldn't see "אונבורדינג / מזדמן / פעיל / מושהה /
                 לשעבר" classifications about themselves. */}
-            {isCoach && currentStatusOpt && (
+            {isCoach && currentStatusOpt && !editingDetails && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 marginTop: 4,
@@ -1057,33 +1162,104 @@ function PersonalTab({
           פרטי התקשרות
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <FieldCell label="טלפון"        value={user?.phone} />
-          <FieldCell label="אימייל"       value={user?.email} />
-          <FieldCell label="תאריך לידה"   value={birthLabel} />
-          <FieldCell label="מקור הגעה"    value={user?.referral_source} />
-          <FieldCell label="כתובת"        value={user?.address} />
-          <FieldCell label="עיר"          value={user?.city} />
+          <EditableField label="טלפון"        value={user?.phone}            fieldKey="phone"            type="tel" />
+          <EditableField label="אימייל"       value={user?.email}            fieldKey="email"            type="email" />
+          {editingDetails ? (
+            <EditableField label="תאריך לידה" value={null} fieldKey="birth_date" type="date" />
+          ) : (
+            <FieldCell label="תאריך לידה" value={birthLabel} />
+          )}
+          <EditableField label="מקור הגעה"    value={user?.referral_source}  fieldKey="referral_source" />
+          <EditableField label="כתובת"        value={user?.address}          fieldKey="address" />
+          <EditableField label="עיר"          value={user?.city}             fieldKey="city" />
         </div>
-      </div>
 
-      {/* ── Card 2 — איש קשר לחירום ───────────────────────────── */}
-      <div style={cardStyle} dir="rtl">
-        <CardEditButton onClick={onEdit} />
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>
-          איש קשר לחירום
-        </div>
-        {hasEmergency ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <FieldCell label="שם"     value={user?.emergency_contact_name} />
-            <FieldCell label="טלפון"  value={user?.emergency_contact_phone} />
-            <FieldCell label="קרבה"   value={user?.emergency_contact_relation} />
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 8 }}>
-            <div style={{ fontSize: 13, color: '#888' }}>לא הוגדר איש קשר לחירום</div>
+        {editingDetails && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button
               type="button"
-              onClick={onEdit}
+              onClick={saveDetails}
+              disabled={savingDetails}
+              style={{
+                flex: 1, padding: 12, borderRadius: 12, border: 'none',
+                background: savingDetails ? '#ccc' : '#FF6F20', color: 'white',
+                fontSize: 14, fontWeight: 600,
+                cursor: savingDetails ? 'default' : 'pointer',
+              }}
+            >
+              {savingDetails ? '...שומר' : '💾 שמור'}
+            </button>
+            <button
+              type="button"
+              onClick={cancelEditDetails}
+              disabled={savingDetails}
+              style={{
+                flex: 1, padding: 12, borderRadius: 12,
+                border: '1px solid #F0E4D0', background: 'white',
+                fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              ביטול
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Card 2 — איש קשר אחראי (מינור → "נדרש אישור הורים") ─ */}
+      <div style={cardStyle} dir="rtl">
+        {isCoach && !editingDetails && <CardEditButton onClick={startEditDetails} />}
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>
+          {isMinor ? '👨‍👩‍👧 איש קשר אחראי (נדרש אישור הורים)' : '📞 איש קשר אחראי'}
+        </div>
+
+        {isMinor && (
+          <div style={{
+            background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 12,
+            fontSize: 12, color: '#E65100', direction: 'rtl', lineHeight: 1.5,
+          }}>
+            ⚠️ מכיוון שהגיל מתחת ל-18, נדרש פרטי הורה או אפוטרופוס לצורך אישור פעילות
+          </div>
+        )}
+
+        {hasEmergency || editingDetails ? (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <EditableField label="שם"    value={user?.emergency_contact_name}  fieldKey="emergency_contact_name" />
+              <EditableField label="טלפון" value={user?.emergency_contact_phone} fieldKey="emergency_contact_phone" type="tel" />
+            </div>
+            <div style={{ marginTop: 10 }}>
+              {editingDetails ? (
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>קרבה</div>
+                  <select
+                    value={editFields.emergency_contact_relation ?? ''}
+                    onChange={(e) => setEditFields(prev => ({ ...prev, emergency_contact_relation: e.target.value }))}
+                    style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 12,
+                      border: '1px solid #FF6F20', fontSize: 14, direction: 'rtl',
+                      background: '#FFF5EE', appearance: 'auto',
+                    }}
+                  >
+                    <option value="">בחר קרבה...</option>
+                    <option value="הורה">הורה</option>
+                    <option value="אפוטרופוס">אפוטרופוס</option>
+                    <option value="בן/בת זוג">בן/בת זוג</option>
+                    <option value="אח/ות">אח/ות</option>
+                    <option value="חבר/ה">חבר/ה</option>
+                    <option value="אחר">אחר</option>
+                  </select>
+                </div>
+              ) : (
+                <FieldCell label="קרבה" value={user?.emergency_contact_relation} />
+              )}
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 8 }}>
+            <div style={{ fontSize: 13, color: '#888' }}>לא הוגדר איש קשר אחראי</div>
+            <button
+              type="button"
+              onClick={startEditDetails}
               style={{
                 padding: '8px 16px', borderRadius: 12,
                 background: '#FFFFFF', color: '#FF6F20',

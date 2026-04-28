@@ -60,7 +60,7 @@ const REFERRAL_OPTIONS = [
   { id: 'google',    label: 'גוגל' },
   { id: 'other',     label: 'אחר' },
 ];
-const RELATION_OPTIONS = ['הורה', 'בן/בת זוג', 'אח/ות', 'חבר', 'אחר'];
+const RELATION_OPTIONS = ['הורה', 'אפוטרופוס', 'בן/בת זוג', 'אח/ות', 'חבר', 'אחר'];
 
 // ── Styles ──
 const COLORS = {
@@ -306,9 +306,27 @@ export default function Onboarding() {
     if (prev) setStep(prev.id);
   };
 
-  // Step-1 validation: shutting down "המשך" until the four required
-  // identity fields are populated.
-  const step1Valid = !!(fullName.trim() && phone.trim() && email.trim() && birthDate);
+  // Derive minor status from the typed birth date so the emergency
+  // contact section can switch from "responsible contact (optional)"
+  // to "guardian contact (required)" inline.
+  const isMinor = (() => {
+    if (!birthDate) return false;
+    const d = new Date(birthDate);
+    if (Number.isNaN(d.getTime())) return false;
+    const today = new Date();
+    let a = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) a--;
+    return a < 18;
+  })();
+
+  // Step-1 validation: the four core identity fields are always
+  // required. When the trainee is a minor, the emergency contact
+  // name + phone become required too — no playing without a guardian
+  // on file.
+  const minorEmergencyValid = !isMinor || !!(emergencyName.trim() && emergencyPhone.trim());
+  const step1Valid = !!(fullName.trim() && phone.trim() && email.trim() && birthDate)
+    && minorEmergencyValid;
 
   // ── Per-step save handlers ──
   const saveStep1 = async () => {
@@ -541,12 +559,24 @@ export default function Onboarding() {
             </div>
 
             <div style={{ ...cardStyle, background: COLORS.bg }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.accent, marginBottom: 10 }}>איש קשר לחירום</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.accent, marginBottom: 10 }}>
+                {isMinor ? '👨‍👩‍👧 איש קשר אחראי (נדרש אישור הורים)' : '📞 איש קשר אחראי'}
+              </div>
+              {isMinor && (
+                <div style={{
+                  background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 10,
+                  fontSize: 12, color: '#E65100', lineHeight: 1.5,
+                }}>
+                  ⚠️ מכיוון שהגיל מתחת ל-18, נדרש פרטי הורה או אפוטרופוס לצורך אישור פעילות
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <input value={emergencyName} onChange={e => setEmergencyName(e.target.value)}
-                  placeholder="שם איש הקשר" style={inputStyle} />
+                  placeholder={isMinor ? 'שם הורה / אפוטרופוס *' : 'שם איש הקשר'}
+                  style={inputStyle} />
                 <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)}
-                  placeholder="טלפון" inputMode="tel" style={inputStyle} />
+                  placeholder={isMinor ? 'טלפון *' : 'טלפון'}
+                  inputMode="tel" style={inputStyle} />
                 <select value={emergencyRelation} onChange={e => setEmergencyRelation(e.target.value)}
                   style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
                   <option value="">קרבה...</option>
