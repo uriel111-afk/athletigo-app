@@ -28,6 +28,7 @@ export default function AppLoader({ progress, label }) {
         alt="AthletiGo"
         style={{
           width: 100, height: 'auto', objectFit: 'contain',
+          filter: 'brightness(0)',
           marginBottom: 24,
         }}
         onError={(e) => { e.currentTarget.style.display = 'none'; }}
