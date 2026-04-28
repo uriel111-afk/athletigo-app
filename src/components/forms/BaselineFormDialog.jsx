@@ -188,6 +188,9 @@ export default function BaselineFormDialog({
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // 'work' | 'rest' | 'techRest' | null — drives the bottom-sheet
+  // time picker that replaced the old +/− buttons on the timer cards.
+  const [showTimePicker, setShowTimePicker] = useState(null);
   // Drag offset for the dialog (relative to its centered position).
   // Initial offset is staggered by stackIndex so multiple parallel
   // forms don't perfectly overlap when first opened. The user can
@@ -596,11 +599,12 @@ export default function BaselineFormDialog({
 
           {/* Three timer config cards. RTL flow: first JSX child sits
               visually right-most. Order: זמן עבודה (R) | זמן מנוחה
-              (M) | מנוחה בין טכניקות (L). */}
+              (M) | מנוחה בין טכניקות (L). Tapping any card opens
+              the bottom-sheet TimePicker for scroll-selection. */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            <TimerCard label='זמן עבודה'         seconds={workTime}     onChange={viewOnly ? null : setWorkTime} />
-            <TimerCard label='זמן מנוחה'         seconds={restTime}     onChange={viewOnly ? null : setRestTime} />
-            <TimerCard label='מנוחה בין טכניקות' seconds={techRestTime} onChange={viewOnly ? null : setTechRestTime} />
+            <TimerCard label='זמן עבודה'         seconds={workTime}     onPick={viewOnly ? null : () => setShowTimePicker('work')} />
+            <TimerCard label='זמן מנוחה'         seconds={restTime}     onPick={viewOnly ? null : () => setShowTimePicker('rest')} />
+            <TimerCard label='מנוחה בין טכניקות' seconds={techRestTime} onPick={viewOnly ? null : () => setShowTimePicker('techRest')} />
           </div>
 
           {/* Pill tabs — orange divider between buttons. Switched to
@@ -836,6 +840,27 @@ export default function BaselineFormDialog({
     {isOpen && !viewOnly && hasDraft && (
       <DraftToast onRestore={keepDraft} onDiscard={discardDraft} />
     )}
+
+    {/* Bottom-sheet time picker for the three TimerCard fields.
+        Mounted at component root so it sits above the dialog and
+        scroll-selects 1..90 seconds. */}
+    {showTimePicker && (
+      <TimePickerSheet
+        which={showTimePicker}
+        currentValue={
+          showTimePicker === 'work'      ? workTime :
+          showTimePicker === 'rest'      ? restTime :
+                                            techRestTime
+        }
+        onPick={(secs) => {
+          if (showTimePicker === 'work')      setWorkTime(secs);
+          else if (showTimePicker === 'rest') setRestTime(secs);
+          else                                setTechRestTime(secs);
+          setShowTimePicker(null);
+        }}
+        onClose={() => setShowTimePicker(null)}
+      />
+    )}
     </>
   );
 }
@@ -975,76 +1000,131 @@ function DateTimeCard({ icon, displayValue, type, value, onChange, disabled, max
   );
 }
 
-// Compact MM:SS card. In edit mode (onChange provided) tapping it
-// pops a tiny ± control underneath via toggle. To keep this minimal
-// we reuse a hidden numeric input that nudges by 5 seconds — the
-// label shows the formatted value either way.
-function TimerCard({ label, seconds, onChange }) {
-  const editable = typeof onChange === 'function';
-  const handleStep = (delta) => {
-    if (!editable) return;
-    // 5-second step, floor at 5 seconds (per spec — going below
-    // makes the JPS calc misleading and the timer ergonomics weird).
-    onChange(Math.max(5, (Number(seconds) || 0) + delta));
-  };
-  // The previous version split the card into TWO INVISIBLE buttons
-  // (left half −5, right half +5). Coaches kept reporting the field
-  // as "uneditable" because the affordance was hidden — fix is the
-  // same handler with visible round +/− buttons either side of the
-  // digits.
-  const stepBtnStyle = {
-    width: 28, height: 28, borderRadius: '50%',
-    border: `1px solid ${COLORS.border}`,
-    background: '#FFFFFF',
-    color: COLORS.primary,
-    fontSize: 16, fontWeight: 700, lineHeight: 1,
-    cursor: editable ? 'pointer' : 'default',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: 0,
-    fontFamily: 'inherit',
-  };
+// Bottom-sheet time picker — 1..90 seconds, scroll-select. Opened
+// when the coach taps any TimerCard. Clicking the dim backdrop
+// closes without changing the value; clicking a row selects + closes.
+const PICKER_TITLES = {
+  work:     'זמן עבודה',
+  rest:     'מנוחה סבבים',
+  techRest: 'מנוחה טכניקות',
+};
+function TimePickerSheet({ which, currentValue, onPick, onClose }) {
+  // Auto-scroll to the currently-selected row when the sheet opens
+  // so the coach lands on their existing pick instead of at 00:01.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const el = document.getElementById(`time-option-${currentValue}`);
+      if (el) {
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        catch { el.scrollIntoView(); }
+      }
+    }, 100);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [which]);
+
+  const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
   return (
-    <div style={{
-      backgroundColor: COLORS.bg,
-      border: `1px solid ${COLORS.borderSoft}`,
-      borderRadius: 10,
-      padding: '6px 4px',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-    }}>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,0.4)',
+        zIndex: 12010,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        fontFamily: "'Heebo', 'Assistant', sans-serif",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF',
+          borderRadius: '14px 14px 0 0',
+          padding: 16,
+          width: '100%',
+          maxWidth: 400,
+          maxHeight: '50vh',
+          display: 'flex', flexDirection: 'column',
+          direction: 'rtl',
+        }}
+      >
+        <div style={{
+          fontSize: 16, fontWeight: 600, textAlign: 'center',
+          marginBottom: 12, color: '#1A1A1A',
+        }}>
+          {PICKER_TITLES[which] || ''}
+        </div>
+        <div style={{ overflowY: 'auto', maxHeight: '40vh', paddingInline: 4 }}>
+          {Array.from({ length: 90 }, (_, i) => i + 1).map((seconds) => {
+            const selected = currentValue === seconds;
+            return (
+              <div
+                id={`time-option-${seconds}`}
+                key={seconds}
+                onClick={() => onPick(seconds)}
+                style={{
+                  padding: '14px 16px',
+                  textAlign: 'center',
+                  fontSize: 18,
+                  fontWeight: selected ? 600 : 400,
+                  color: selected ? '#FF6F20' : '#1A1A1A',
+                  background: selected ? '#FFF5EE' : '#FFFFFF',
+                  borderRadius: 10,
+                  marginBottom: 4,
+                  cursor: 'pointer',
+                  border: selected ? '1px solid #FF6F20' : '1px solid transparent',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmt(seconds)}
+                <span style={{ fontSize: 13, color: '#888', marginRight: 8 }}>
+                  ({seconds} שניות)
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Compact MM:SS card. In edit mode tapping anywhere on the card
+// fires the onPick callback — the parent opens a bottom-sheet
+// picker (1..90 seconds) so the coach can scroll-select instead
+// of nudging in 5s steps. read-only (onPick null) hides the cursor
+// and the click handler.
+function TimerCard({ label, seconds, onPick }) {
+  const editable = typeof onPick === 'function';
+  return (
+    <div
+      role={editable ? 'button' : undefined}
+      tabIndex={editable ? 0 : undefined}
+      onClick={editable ? onPick : undefined}
+      style={{
+        backgroundColor: COLORS.bg,
+        border: `1px solid ${COLORS.borderSoft}`,
+        borderRadius: 10,
+        padding: '6px 4px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+        cursor: editable ? 'pointer' : 'default',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
       <span style={{
         fontSize: 10, fontWeight: 600, color: COLORS.textSecondary,
       }}>
         {label}
       </span>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 6,
+      <span style={{
+        fontSize: 15, fontWeight: 800,
+        color: COLORS.textPrimary,
+        fontVariantNumeric: 'tabular-nums',
+        letterSpacing: 0.5,
       }}>
-        {editable && (
-          <button
-            type="button"
-            onClick={() => handleStep(-5)}
-            aria-label="הפחת 5 שניות"
-            style={stepBtnStyle}
-          >−</button>
-        )}
-        <span style={{
-          fontSize: 15, fontWeight: 800,
-          color: COLORS.textPrimary,
-          fontVariantNumeric: 'tabular-nums',
-          letterSpacing: 0.5,
-          minWidth: 42, textAlign: 'center',
-        }}>
-          {fmtMMSS(seconds)}
-        </span>
-        {editable && (
-          <button
-            type="button"
-            onClick={() => handleStep(+5)}
-            aria-label="הוסף 5 שניות"
-            style={stepBtnStyle}
-          >+</button>
-        )}
-      </div>
+        {fmtMMSS(seconds)}
+      </span>
     </div>
   );
 }
