@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 const O = '#FF6F20';
 const W = '#FFFFFF';
 const WD = 'rgba(255,255,255,0.2)';
-const R = 155, S = 8, SIZE = 360, CX = SIZE / 2, CY = SIZE / 2;
+const R = 138, S = 8, SIZE = 320, CX = SIZE / 2, CY = SIZE / 2;
 const CIRC = 2 * Math.PI * R;
 
 const PHASE_LABEL = { prep: 'הכנה', work: 'עבודה', rest: 'מנוחה', set_rest: 'מנוחה בין סטים', done: 'סיום' };
@@ -1025,7 +1025,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
       {/* CENTER: Ring + number — fixed compact size so nothing overflows */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, width: '100%' }}>
-        <div style={{ position: 'relative', width: 'min(92vw, 360px)', height: 'min(92vw, 360px)', margin: '0 auto', display: 'block' }}>
+        <div style={{ position: 'relative', width: 'min(82vw, 320px)', height: 'min(82vw, 320px)', margin: '0 auto', display: 'block' }}>
           <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: 'block' }}>
             <circle cx={CX} cy={CY} r={R} stroke={ringTrack} strokeWidth={S} fill="none" />
             <circle cx={CX} cy={CY} r={R} stroke={ringFill} strokeWidth={S} strokeLinecap="round" fill="none"
