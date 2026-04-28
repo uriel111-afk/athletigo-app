@@ -120,6 +120,42 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
+  // Duplicate a section and every exercise inside it. The clone lands
+  // at the bottom of the order list — coaches reorder via drag-and-drop
+  // (the existing dnd-kit handler in PlanBuilder.jsx). Exercises inside
+  // the section copy verbatim minus id/created_at.
+  const duplicateSectionMutation = useMutation({
+    mutationFn: async (originalSection) => {
+      if (!originalSection) return;
+      const maxOrder = Math.max(0, ...sections.map((s) => Number(s.order) || 0));
+      // 1) Create the new section row
+      const { id: _omitId, created_at: _omitCa, ...sectionFields } = originalSection;
+      const newSection = await base44.entities.TrainingSection.create({
+        ...sectionFields,
+        name: (originalSection.name || 'סקשן') + ' (עותק)',
+        order: maxOrder + 1,
+      });
+      // 2) Clone every exercise that belonged to the original section
+      const originalExercises = exercises.filter(
+        (e) => e.training_section_id === originalSection.id
+      );
+      for (const ex of originalExercises) {
+        const { id: _exId, created_at: _exCa, training_section_id: _ts, ...exFields } = ex;
+        await base44.entities.Exercise.create({
+          ...exFields,
+          training_section_id: newSection.id,
+        });
+      }
+      return newSection;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['training-sections', plan.id] });
+      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
+      toast.success('✅ סקשן שוכפל');
+    },
+    onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
+  });
+
   const prepareExerciseData = (formData) => {
     const data = { ...formData };
     Object.keys(data).forEach((key) => {
@@ -604,6 +640,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 onDeleteSection={(sectionId) => {
                   if (confirm('למחוק סקשן זה?')) deleteSectionMutation.mutate(sectionId);
                 }}
+                onDuplicateSection={(s) => duplicateSectionMutation.mutate(s)}
                 onDeleteExercise={(exerciseId) => {
                   if (confirm('למחוק תרגיל זה?')) deleteExerciseMutation.mutate(exerciseId);
                 }}

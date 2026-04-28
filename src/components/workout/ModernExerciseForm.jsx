@@ -292,7 +292,7 @@ function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom 
 // SUB-EXERCISE EDITOR
 // ══════════════════════════════════════════════════════════════════════
 
-function SubExerciseEditor({ subEx, index, onChange, onRemove, getOptions, onAddCustom }) {
+function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getOptions, onAddCustom }) {
   const [editingParam, setEditingParam] = useState(null);
   const [confirmed, setConfirmed] = useState(() => {
     if (!subEx) return new Set();
@@ -338,6 +338,13 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, getOptions, onAdd
             <div className="text-[10px] text-gray-400 truncate mt-0.5">{confirmedChips.join(" · ")}</div>
           )}
         </div>
+        {onDuplicate && (
+          <button onClick={(e) => { e.stopPropagation(); onDuplicate(index); }}
+            title="שכפל"
+            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 flex-shrink-0 text-sm leading-none">
+            📋
+          </button>
+        )}
         <button onClick={(e) => { e.stopPropagation(); onRemove(index); }}
           className="p-1.5 text-red-300 hover:text-red-500 rounded-lg hover:bg-red-50 flex-shrink-0">
           <Trash2 size={14} />
@@ -524,8 +531,22 @@ export default function ModernExerciseForm({ exercise, onChange }) {
       const field = getDbField(p.id);
       if (hasVal(exercise[field])) conf.add(p.id);
     });
-    // Detect container from existing data
-    if (exercise.sub_exercises?.length > 0) {
+    // Detect container from existing data. The DB column for children
+    // exercises is `children` (canonical) but legacy/migration data
+    // may live under `sub_exercises` or `exercise_list` — check all
+    // shapes so the edit form hydrates regardless of where the row's
+    // children are stored.
+    const existingChildren =
+      exercise.sub_exercises ||
+      exercise.children ||
+      exercise.exercise_list ||
+      null;
+    if (Array.isArray(existingChildren) && existingChildren.length > 0) {
+      // Mirror onto sub_exercises so the rest of the form can read a
+      // single canonical key without further branching.
+      if (existingChildren !== exercise.sub_exercises) {
+        onChange({ ...exercise, sub_exercises: existingChildren });
+      }
       if (exercise.mode === "טבטה") conf.add("tabata");
       else conf.add("exercise_list");
     } else if (exercise.tabata_data) {
@@ -567,7 +588,15 @@ export default function ModernExerciseForm({ exercise, onChange }) {
 
   const isContainer = confirmedParams.has("exercise_list") || confirmedParams.has("tabata");
   const containerType = confirmedParams.has("tabata") ? "tabata" : confirmedParams.has("exercise_list") ? "list" : null;
-  const subExercises = exercise.sub_exercises || [];
+  // Read through every legacy shape so the editor never lands on []
+  // when the row was saved with `children` (current DB column) or
+  // `exercise_list` (older). The hydration effect above also mirrors
+  // these onto sub_exercises so writes go through one canonical path.
+  const subExercises =
+    exercise.sub_exercises ||
+    exercise.children ||
+    exercise.exercise_list ||
+    [];
 
   // Auto-set mode based on container
   useEffect(() => {
@@ -645,6 +674,21 @@ export default function ModernExerciseForm({ exercise, onChange }) {
 
   const removeSubExercise = (i) => {
     updateEx("sub_exercises", subExercises.filter((_, idx) => idx !== i));
+  };
+
+  const duplicateSubExercise = (i) => {
+    const original = subExercises[i];
+    if (!original) return;
+    const clone = {
+      ...original,
+      id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
+      exercise_name: (original.exercise_name || "") + " (עותק)",
+    };
+    updateEx("sub_exercises", [
+      ...subExercises.slice(0, i + 1),
+      clone,
+      ...subExercises.slice(i + 1),
+    ]);
   };
 
   const editDef = editingParam ? ALL_PARAMETERS.find((p) => p.id === editingParam) : null;
@@ -752,6 +796,7 @@ export default function ModernExerciseForm({ exercise, onChange }) {
               <SubExerciseEditor key={sub.id || i}
                 subEx={sub} index={i}
                 onChange={updateSubExercise} onRemove={removeSubExercise}
+                onDuplicate={duplicateSubExercise}
                 getOptions={getOptions} onAddCustom={handleAddCustom} />
             ))}
             {subExercises.length === 0 && (

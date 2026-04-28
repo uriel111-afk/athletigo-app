@@ -12,9 +12,10 @@ export default function SectionCard({
   onToggleComplete, 
   onEditExercise, 
   onAddExercise, 
-  onEditSection, 
-  onDeleteSection, 
-  onDeleteExercise, 
+  onEditSection,
+  onDeleteSection,
+  onDuplicateSection,
+  onDeleteExercise,
   onOpenExecution,
   showEditButtons = false, 
   isCoach = false, 
@@ -98,6 +99,18 @@ export default function SectionCard({
                 >
                   <Edit2 size={16} />
                 </Button>
+                {onDuplicateSection && (
+                  <Button
+                    onClick={() => onDuplicateSection(section)}
+                    size="icon"
+                    variant="ghost"
+                    title="שכפל סקשן"
+                    className="h-8 w-8 rounded-full hover:bg-gray-100 text-base leading-none"
+                    style={{ color: style.subText }}
+                  >
+                    📋
+                  </Button>
+                )}
                 <Button
                   onClick={() => onDeleteSection(section.id)}
                   size="icon"
