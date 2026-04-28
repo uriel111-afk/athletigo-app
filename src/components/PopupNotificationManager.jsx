@@ -36,7 +36,7 @@ export default function PopupNotificationManager() {
       try {
         const { data: notifs } = await supabase
           .from('notifications')
-          .select('id, type, title, message, link, data, created_at')
+          .select('id, type, title, message, created_at')
           .eq('user_id', user.id)
           .in('type', POPUP_TYPES)
           .eq('is_read', false)

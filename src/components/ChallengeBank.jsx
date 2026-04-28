@@ -121,7 +121,7 @@ export default function ChallengeBank({ isOpen, onClose, coach, trainees }) {
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
     const { data, error } = await supabase
       .from("notifications")
-      .select("id, user_id, type, message, is_read, data, created_at")
+      .select("id, user_id, type, message, is_read, created_at")
       .in("user_id", ids)
       .eq("type", "daily_challenge")
       .gte("created_at", since)

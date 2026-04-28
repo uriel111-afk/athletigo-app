@@ -125,7 +125,7 @@ export default function Challenges() {
       const today = todayISO();
       const { data: tc } = await supabase
         .from("notifications")
-        .select("id, user_id, type, message, is_read, data")
+        .select("id, user_id, type, message, is_read")
         .eq("type", "daily_challenge")
         .gte("created_at", today + "T00:00:00");
       setTodayChallenges(tc || []);

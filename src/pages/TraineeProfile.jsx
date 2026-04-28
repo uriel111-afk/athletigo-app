@@ -1733,84 +1733,25 @@ export default function TraineeProfile() {
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: ['trainee-sessions', user?.id],
     queryFn: async () => {
-      // Sessions can be linked to a trainee in three ways across the
-      // legacy + current schemas:
-      //   (1) direct: sessions.trainee_id = the trainee's user id
-      //   (2) JSONB:  sessions.participants array contains {trainee_id}
-      //   (3) coach-scan fallback: pull all of THIS coach's sessions
-      //       (limit 1000) and match client-side — catches rows that
-      //       the participants @> [...] containment query doesn't
-      //       handle (extra fields, name-only entries, etc).
-      // Each branch is independent + logged so we can see exactly
-      // why a row didn't surface. Dedup by id; sort by date desc.
+      // Direct trainee_id query — the legacy participants[] @> [...]
+      // fallback was hard-400'ing because supabase serialised the JS
+      // object as `[object Object]` in the URL. Every active session
+      // already has a top-level `trainee_id`, so the fallback was
+      // redundant on top of broken.
       console.log('[TraineeProfile] sessions query — trainee:', user.id);
-      const byId = new Map();
-
-      // (1) Direct column
-      try {
-        const direct = await base44.entities.Session.filter(
-          { trainee_id: user.id }, '-date'
-        );
-        console.log('[TraineeProfile] sessions via trainee_id:', direct?.length || 0);
-        (direct || []).forEach((s) => byId.set(s.id, s));
-      } catch (e) {
-        console.warn('[TraineeProfile] sessions by trainee_id failed:', e?.message);
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('trainee_id', user.id)
+        .order('date', { ascending: false });
+      if (error) {
+        console.warn('[TraineeProfile] sessions query failed:', error.message);
+        return [];
       }
-
-      // (2) participants[] JSONB containment
-      try {
-        const { data: viaParticipants, error: pErr } = await supabase
-          .from('sessions')
-          .select('*')
-          .contains('participants', [{ trainee_id: user.id }])
-          .order('date', { ascending: false });
-        if (pErr) console.warn('[TraineeProfile] participants query error:', pErr.message);
-        console.log('[TraineeProfile] sessions via participants:', viaParticipants?.length || 0);
-        (viaParticipants || []).forEach((s) => byId.set(s.id, s));
-      } catch (e) {
-        console.warn('[TraineeProfile] sessions by participants failed:', e?.message);
-      }
-
-      // (3) Coach-scan fallback — only fires when the first two
-      //     branches returned nothing. Pulls every session this coach
-      //     owns (bounded at 1000) and filters client-side against
-      //     every shape we know about (direct id, participants
-      //     {trainee_id}, participants {id}, name match, etc).
-      if (byId.size === 0 && currentUser?.id) {
-        try {
-          const { data: byCoach } = await supabase
-            .from('sessions')
-            .select('*')
-            .eq('coach_id', currentUser.id)
-            .order('date', { ascending: false })
-            .limit(1000);
-          console.log('[TraineeProfile] coach total sessions scanned:', byCoach?.length || 0);
-          const matches = (byCoach || []).filter((s) =>
-            s.trainee_id === user.id ||
-            (Array.isArray(s.participants) && s.participants.some((p) =>
-              (typeof p === 'string' && p === user.id) ||
-              (typeof p === 'object' && p && (
-                p.trainee_id === user.id ||
-                p.id === user.id ||
-                p.user_id === user.id ||
-                (user.full_name && p.trainee_name === user.full_name) ||
-                (user.full_name && p.full_name === user.full_name)
-              ))
-            ))
-          );
-          console.log('[TraineeProfile] coach scan matched:', matches.length);
-          matches.forEach((s) => byId.set(s.id, s));
-        } catch (e) {
-          console.warn('[TraineeProfile] coach-scan fallback failed:', e?.message);
-        }
-      }
-
       // Soft-deleted sessions are hidden from every list. status
       // 'deleted' or a populated deleted_at both qualify so we
       // handle older rows that may carry only one signal.
-      const result = Array.from(byId.values())
-        .filter(s => s.status !== 'deleted' && !s.deleted_at)
-        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+      const result = (data || []).filter(s => s.status !== 'deleted' && !s.deleted_at);
       console.log('[TraineeProfile] sessions FINAL count:', result.length);
       return result;
     },
