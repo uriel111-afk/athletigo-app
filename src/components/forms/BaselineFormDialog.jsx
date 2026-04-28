@@ -976,7 +976,25 @@ function TimerCard({ label, seconds, onChange }) {
   const editable = typeof onChange === 'function';
   const handleStep = (delta) => {
     if (!editable) return;
-    onChange(Math.max(0, (Number(seconds) || 0) + delta));
+    // 5-second step, floor at 5 seconds (per spec — going below
+    // makes the JPS calc misleading and the timer ergonomics weird).
+    onChange(Math.max(5, (Number(seconds) || 0) + delta));
+  };
+  // The previous version split the card into TWO INVISIBLE buttons
+  // (left half −5, right half +5). Coaches kept reporting the field
+  // as "uneditable" because the affordance was hidden — fix is the
+  // same handler with visible round +/− buttons either side of the
+  // digits.
+  const stepBtnStyle = {
+    width: 22, height: 22, borderRadius: '50%',
+    border: `1px solid ${COLORS.border}`,
+    background: '#FFFFFF',
+    color: COLORS.primary,
+    fontSize: 14, fontWeight: 700, lineHeight: 1,
+    cursor: editable ? 'pointer' : 'default',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 0,
+    fontFamily: 'inherit',
   };
   return (
     <div style={{
@@ -984,45 +1002,42 @@ function TimerCard({ label, seconds, onChange }) {
       border: `1px solid ${COLORS.borderSoft}`,
       borderRadius: 10,
       padding: '6px 4px',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-      position: 'relative',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
     }}>
       <span style={{
         fontSize: 10, fontWeight: 600, color: COLORS.textSecondary,
       }}>
         {label}
       </span>
-      <span style={{
-        fontSize: 15, fontWeight: 800,
-        color: COLORS.textPrimary,
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: 0.5,
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
       }}>
-        {fmtMMSS(seconds)}
-      </span>
-      {editable && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex',
-        }}>
+        {editable && (
           <button
+            type="button"
             onClick={() => handleStep(-5)}
             aria-label="הפחת 5 שניות"
-            style={{
-              flex: 1, border: 'none', background: 'transparent',
-              cursor: 'pointer', borderRadius: 14,
-            }}
-          />
+            style={stepBtnStyle}
+          >−</button>
+        )}
+        <span style={{
+          fontSize: 15, fontWeight: 800,
+          color: COLORS.textPrimary,
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: 0.5,
+          minWidth: 42, textAlign: 'center',
+        }}>
+          {fmtMMSS(seconds)}
+        </span>
+        {editable && (
           <button
+            type="button"
             onClick={() => handleStep(+5)}
             aria-label="הוסף 5 שניות"
-            style={{
-              flex: 1, border: 'none', background: 'transparent',
-              cursor: 'pointer', borderRadius: 14,
-            }}
-          />
-        </div>
-      )}
+            style={stepBtnStyle}
+          >+</button>
+        )}
+      </div>
     </div>
   );
 }
