@@ -757,7 +757,13 @@ export default function UnifiedClientCard({
                 {currentClient.birth_date ? (() => {
                   const d = new Date(currentClient.birth_date);
                   if (Number.isNaN(d.getTime())) return <span>הוסף תאריך לידה</span>;
-                  const age = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                  // Year-delta with month/day adjustment so the age flips
+                  // on the actual birthday (the prior 365.25-day formula
+                  // could be off by ±1 day around the birthday).
+                  const today = new Date();
+                  let age = today.getFullYear() - d.getFullYear();
+                  const m = today.getMonth() - d.getMonth();
+                  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
                   return <span>{format(d, 'dd/MM/yyyy')} ({age})</span>;
                 })() : (
                   <span>הוסף תאריך לידה</span>
