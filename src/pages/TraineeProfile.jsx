@@ -833,25 +833,24 @@ function IntroTab({ user }) {
 
   return (
     <>
-      {/* Coach-facing onboarding summary — the same narrative the
-          TraineeOnboardingAlert popup shows when a trainee completes
-          onboarding. Persisted to users.onboarding_summary so it's
-          always reachable from this tab afterwards. */}
+      {/* Storytelling onboarding summary — same 2nd-person narrative
+          the TraineeOnboardingAlert popup renders, persisted to
+          users.onboarding_summary. Always reachable from this tab. */}
       {onboardingSummary && (
         <div style={{
           background: '#FFF5EE',
           borderRadius: 14,
-          padding: 16,
+          padding: 20,
           border: '1px solid #FFD9C0',
-          marginBottom: 16,
+          marginBottom: 20,
           direction: 'rtl',
         }}>
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginBottom: 8,
+            marginBottom: 12,
           }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#FF6F20' }}>
-              תקציר היכרות
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#FF6F20' }}>
+              📋 סיכום היכרות
             </div>
             {summaryDateLabel && (
               <div style={{ fontSize: 11, color: '#888' }}>
@@ -860,8 +859,9 @@ function IntroTab({ user }) {
             )}
           </div>
           <div style={{
-            fontSize: 14, color: '#1A1A1A', lineHeight: 1.8,
+            fontSize: 14, color: '#1A1A1A', lineHeight: 1.9,
             whiteSpace: 'pre-line',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
           }}>
             {onboardingSummary}
           </div>

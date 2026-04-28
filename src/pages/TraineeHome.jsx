@@ -1346,6 +1346,36 @@ export default function TraineeHome() {
 
         <div style={{padding:'0 14px'}}>
 
+        {/* "הסיפור שלי" — same storytelling summary the coach sees in
+            the popup, persisted to users.onboarding_summary. The
+            trainee can revisit it any time from the home screen.
+            Casual + active + onboarding all get it; the gate is
+            purely whether the summary text exists on the row. */}
+        {user?.onboarding_summary && (
+          <div style={{
+            background: '#FFF5EE',
+            borderRadius: 14,
+            padding: 16,
+            border: '1px solid #FFD9C0',
+            marginBottom: 12,
+            direction: 'rtl',
+          }}>
+            <div style={{
+              fontSize: 14, fontWeight: 600, color: '#FF6F20',
+              marginBottom: 8,
+            }}>
+              📋 הסיפור שלי
+            </div>
+            <div style={{
+              fontSize: 14, color: '#1A1A1A', lineHeight: 1.9,
+              whiteSpace: 'pre-line',
+              fontFamily: "'Heebo', 'Assistant', sans-serif",
+            }}>
+              {user.onboarding_summary}
+            </div>
+          </div>
+        )}
+
         {/* Streak / Progress Card — hidden for casual (no completed
             sessions yet, and no plan to track progress against). */}
         {!isCasual && completedCount > 0 && (

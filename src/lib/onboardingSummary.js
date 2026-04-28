@@ -84,89 +84,128 @@ const calcAge = (birthDate) => {
   return age;
 };
 
+// Storytelling phrasing for each fitness level — used for the
+// 2nd-person narrative summary. Two versions per level: the short
+// "with-age" tail and the standalone sentence when age is missing.
+const FITNESS_LEVEL_STORY = {
+  'מתחיל/ה':     { tail: 'רוצה להתחיל את המסע',           solo: 'כל מסע מתחיל בצעד ראשון — ואת/ה כבר כאן.' },
+  'בינוני/ת':    { tail: 'כבר מכיר/ה את עולם האימונים',   solo: 'יש לך בסיס טוב — בוא/י נקח את זה לשלב הבא.' },
+  'מתקדם/ת':     { tail: 'בדרך להגיע לשיא חדש',           solo: 'את/ה כבר יודע/ת מה זה אימון — עכשיו נדייק.' },
+  'ספורטאי/ת':   { tail: 'מחפש/ת את האתגר הבא',           solo: 'את/ה מגיע/ה עם רקע רציני — נבנה ביחד משהו חזק.' },
+};
+
+// Categorize the picked goals so we can pick the closing line that
+// matches the dominant intent. Hebrew label match — keys in
+// GOAL_LABELS are mapped before this check.
+const goalCategory = (goals) => {
+  if (goals.includes('שיקום')) return 'rehab';
+  if (goals.some(g => g.includes('חיזוק') || g.includes('כוח'))) return 'strength';
+  if (goals.includes('ירידה במשקל')) return 'weight';
+  if (goals.some(g => g.includes('מיומנות') || g.includes('קליסטניקס'))) return 'skill';
+  return null;
+};
+const GOAL_CATEGORY_TAILS = {
+  rehab:    'נדאג לבנות תוכנית שמחזקת ומשקמת בבטחה.',
+  strength: 'נבנה ביחד כוח אמיתי, צעד אחרי צעד.',
+  weight:   'נשלב אימון חכם עם גישה בריאה לתהליך.',
+  skill:    'נעבוד על מיומנויות שידהימו אותך.',
+};
+
 export function generateTraineeSummary(trainee) {
   if (!trainee) return '';
-  const lines = [];
 
-  // Headline — name (+ age)
-  const name = trainee.full_name || 'מתאמן/ת חדש/ה';
+  // Resolve all the inputs through the same label maps the IntroTab
+  // uses, so the narrative renders proper Hebrew for every taxonomy
+  // value regardless of whether it's stored as English keys
+  // (questionnaire output) or already-Hebrew strings (legacy rows).
+  const firstName = (trainee.full_name || '').split(/\s+/).filter(Boolean)[0] || 'שם';
   const age = calcAge(trainee.birth_date);
-  let headline = `מתאמן/ת חדש/ה: ${name}`;
-  if (age != null) headline += ` (${age})`;
-  headline += '.';
-  lines.push(headline);
 
-  // ALL goals (not just the first) + free-text expansion
   const goalsRaw = Array.isArray(trainee.training_goals)
     ? trainee.training_goals
     : (trainee.training_goal ? [trainee.training_goal] : asArray(trainee.training_goals));
   const goals = goalsRaw.map(v => labelize(GOAL_LABELS, v));
-  if (goals.length) lines.push(`מטרות: ${goals.join(', ')}.`);
+
+  const challenges  = asArray(trainee.current_challenges).map(v => labelize(CHALLENGE_LABELS, v));
+  const preferences = asArray(trainee.training_preferences).map(v => labelize(PREFERENCE_LABELS, v));
+
+  const fitnessRaw = trainee.fitness_level || trainee.fitness_experience;
+  const fitness = fitnessRaw ? labelize(FITNESS_LABELS, fitnessRaw) : null;
+
+  const lines = [];
+  // ── Greeting ─────────────────────────────────────────────────
+  lines.push(`היי ${firstName}, איזה כיף שהצטרפת אלינו! 😊`);
+
+  // ── Age + experience ────────────────────────────────────────
+  const story = FITNESS_LEVEL_STORY[fitness];
+  if (age && story?.tail) {
+    lines.push(`את/ה בן/בת ${age}, ו${story.tail}.`);
+  } else if (age) {
+    lines.push(`את/ה בן/בת ${age}, וזה הזמן המושלם להתחיל.`);
+  } else if (story?.solo) {
+    lines.push(story.solo);
+  }
+
+  // ── Goals + free-text ──────────────────────────────────────
+  if (goals.length === 1) {
+    lines.push(`המטרה שלך ברורה: ${goals[0]}. ${GOAL_CATEGORY_TAILS[goalCategory(goals)] || 'נבנה תוכנית שמתאימה בדיוק לזה.'}`);
+  } else if (goals.length > 1) {
+    lines.push(`המטרות שלך: ${goals.slice(0, -1).join(', ')} ו${goals[goals.length - 1]}. ${GOAL_CATEGORY_TAILS[goalCategory(goals)] || 'נבנה תוכנית שמתאימה בדיוק לזה.'}`);
+  }
   if (trainee.goals_description && trainee.goals_description.trim()) {
     lines.push(`"${trainee.goals_description.trim()}"`);
   }
 
-  // Background row — fitness level / preferred frequency. Accept
-  // both column-name aliases (fitness_level | fitness_experience).
-  const fitness = trainee.fitness_level || trainee.fitness_experience;
-  const bgParts = [];
-  if (fitness) bgParts.push(`רמת כושר: ${labelize(FITNESS_LABELS, fitness)}`);
-  if (trainee.preferred_frequency) bgParts.push(`רוצה להתאמן ${labelize(FREQUENCY_LABELS, trainee.preferred_frequency)} פעמים בשבוע`);
-  if (bgParts.length) lines.push(bgParts.join('. ') + '.');
+  // ── Frequency ──────────────────────────────────────────────
+  if (trainee.preferred_frequency) {
+    const freq = labelize(FREQUENCY_LABELS, trainee.preferred_frequency);
+    lines.push(`את/ה רוצה להתאמן ${freq} פעמים בשבוע — מעולה, נתאים את הקצב.`);
+  }
 
-  // Challenges + their description
-  const challenges = asArray(trainee.current_challenges)
-    .map(v => labelize(CHALLENGE_LABELS, v));
-  if (challenges.length) lines.push(`האתגרים: ${challenges.join(', ')}.`);
+  // ── Challenges + free-text ─────────────────────────────────
+  if (challenges.length) {
+    let line = `\nהאתגרים שציינת — ${challenges.join(', ')} — זה בדיוק מה שנעבוד עליו ביחד. `;
+    if (challenges.includes('חוסר מוטיבציה'))      line += 'כשיש מאמן לצד, המוטיבציה מגיעה מהתוצאות.';
+    else if (challenges.includes('כאבים או פציעות')) line += 'נבנה תוכנית שמכבדת את הגוף ומחזקת אותו.';
+    else                                              line += 'אנחנו כאן כדי להפוך את האתגר להישג.';
+    lines.push(line);
+  }
   if (trainee.challenges_description && trainee.challenges_description.trim()) {
     lines.push(`"${trainee.challenges_description.trim()}"`);
   }
 
-  // Preferences + their description
-  const prefs = asArray(trainee.training_preferences)
-    .map(v => labelize(PREFERENCE_LABELS, v));
-  if (prefs.length) lines.push(`חשוב: ${prefs.join(', ')}.`);
+  // ── Preferences + free-text ────────────────────────────────
+  if (preferences.length) {
+    lines.push(`\nחשוב לך: ${preferences.join(', ')}. נדאג לזה.`);
+  }
   if (trainee.preferences_description && trainee.preferences_description.trim()) {
     lines.push(`"${trainee.preferences_description.trim()}"`);
   }
 
-  // Body metrics
-  const bodyParts = [];
-  if (trainee.height_cm) bodyParts.push(`גובה: ${trainee.height_cm} ס״מ`);
-  if (trainee.weight_kg) bodyParts.push(`משקל: ${trainee.weight_kg} ק״ג`);
-  if (bodyParts.length) lines.push(bodyParts.join(', ') + '.');
-
-  // Sport / fitness background — free text. Accept both alias columns.
+  // ── Sport background ───────────────────────────────────────
   const sportBg = (trainee.fitness_background || trainee.sport_background || '').trim();
-  if (sportBg) lines.push(`ניסיון ספורטיבי: ${sportBg}`);
-
-  // Pre-health soft-handoff note — what the trainee told us before
-  // the formal PAR-Q form.
-  if (trainee.pre_health_note && trainee.pre_health_note.trim()) {
-    lines.push(`בריאות: ${trainee.pre_health_note.trim()}`);
+  if (sportBg) {
+    lines.push(`\nרקע ספורטיבי: ${sportBg}.`);
   }
 
-  // Free-form questionnaire notes
-  if (trainee.additional_notes && trainee.additional_notes.trim()) {
-    lines.push(`הערות: "${trainee.additional_notes.trim()}"`);
+  // ── Pre-health note ────────────────────────────────────────
+  const ph = (trainee.pre_health_note || '').trim();
+  if (ph && ph !== 'הכל תקין') {
+    lines.push(`\nלגבי הבריאות — "${ph}". נלקח בחשבון בכל תוכנית שנבנה.`);
   }
 
-  // Funnel
-  if (trainee.referral_source) {
-    lines.push(`הגיע/ה דרך: ${labelize(REFERRAL_LABELS, trainee.referral_source)}.`);
+  // ── Body metrics ───────────────────────────────────────────
+  if (trainee.height_cm || trainee.weight_kg) {
+    let line = '\nנקודת התחלה: ';
+    if (trainee.height_cm) line += `גובה ${trainee.height_cm} ס״מ`;
+    if (trainee.height_cm && trainee.weight_kg) line += ', ';
+    if (trainee.weight_kg) line += `משקל ${trainee.weight_kg} ק״ג`;
+    line += '.';
+    lines.push(line);
   }
 
-  // Always include the health-declaration line if it was signed
-  // (caller passes health_declaration_signed=true when applicable).
-  if (trainee.health_declaration_signed !== false) {
-    lines.push('הצהרת בריאות: חתומה ✓');
-  }
-
-  // Optional first-session line — caller can attach session date+time
-  // pre-formatted as `first_session_label`.
-  if (trainee.first_session_label) {
-    lines.push(`מפגש ראשון: ${trainee.first_session_label}`);
-  }
+  // ── Closer ─────────────────────────────────────────────────
+  lines.push('\nהמסע מתחיל עכשיו — ואנחנו כאן איתך בכל צעד. 💪');
 
   return lines.join('\n');
 }
