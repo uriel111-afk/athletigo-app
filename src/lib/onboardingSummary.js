@@ -159,11 +159,12 @@ export function generateTraineeSummary(trainee) {
   lines.push(`היי ${firstName}, איזה כיף שהצטרפת אלינו! 😊`);
 
   // ── Age + experience ────────────────────────────────────────
+  // Gender-neutral phrasing: "בגיל N" instead of "את/ה בן/בת N".
   const story = FITNESS_LEVEL_STORY[fitness];
   if (age && story?.tail) {
-    lines.push(`את/ה בן/בת ${age}, ו${story.tail}.`);
+    lines.push(`בגיל ${age}, ${story.tail}.`);
   } else if (age) {
-    lines.push(`את/ה בן/בת ${age}, וזה הזמן המושלם להתחיל.`);
+    lines.push(`בגיל ${age}, זה הזמן המושלם להתחיל.`);
   } else if (story?.solo) {
     lines.push(story.solo);
   }

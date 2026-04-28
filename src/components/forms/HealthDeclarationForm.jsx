@@ -261,21 +261,28 @@ export default function HealthDeclarationForm({
       }
 
       // Mirror into documents so the coach finds the signed
-      // declaration in the trainee's "מסמכים" tab too. No registered
-      // Document entity → use raw supabase. Best-effort; failures
-      // don't block the main save.
-      try {
-        await supabase.from('documents').insert({
-          user_id: coachId || null,
+      // declaration in the trainee's "מסמכים" tab too. Supabase
+      // returns { error } on a 400 instead of throwing — so the
+      // try/catch alone wouldn't catch a column-mismatch. Bulk
+      // insert first, retry with the minimum row if it fails.
+      const docFullRow = {
+        user_id: coachId || null,
+        trainee_id: trainee?.id || null,
+        name: `הצהרת בריאות — ${trainee?.full_name || ''}`.trim(),
+        type: 'health_declaration',
+        category: 'medical',
+        file_url: signatureUrl,
+        health_declaration_id: inserted?.id || null,
+      };
+      const { error: docErr } = await supabase.from('documents').insert(docFullRow);
+      if (docErr) {
+        console.warn('[HealthDeclaration] documents full insert failed:', docErr.message, '— retrying minimal');
+        const { error: docErr2 } = await supabase.from('documents').insert({
           trainee_id: trainee?.id || null,
           name: `הצהרת בריאות — ${trainee?.full_name || ''}`.trim(),
           type: 'health_declaration',
-          category: 'medical',
-          file_url: signatureUrl,
-          health_declaration_id: inserted?.id || null,
         });
-      } catch (e) {
-        console.warn('[HealthDeclaration] documents mirror failed:', e?.message);
+        if (docErr2) console.warn('[HealthDeclaration] documents minimal insert also failed:', docErr2.message);
       }
 
       // Mirror into signed_documents so DocumentSigningTab in the
@@ -477,21 +484,22 @@ export default function HealthDeclarationForm({
               ref={confirmRef}
               data-error={!confirmed || undefined}
               style={{
-                background: '#FFFFFF',
-                border: `${!confirmed ? '2px' : '1px'} solid ${!confirmed ? 'transparent' : '#F0E4D0'}`,
-                borderRadius: 12, padding: 12,
-                display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                background: '#FDF8F3',
+                border: `1px solid ${!confirmed ? '#FF6F20' : '#F0E4D0'}`,
+                borderRadius: 14, padding: 16,
+                display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer',
               }}
             >
               <input
                 type="checkbox"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
-                style={{ marginTop: 3, width: 18, height: 18, accentColor: '#FF6F20' }}
+                style={{ marginTop: 2, width: 24, height: 24, accentColor: '#FF6F20', flexShrink: 0 }}
               />
-              <span style={{ fontSize: 12, color: '#1A1A1A', lineHeight: 1.5 }}>
-                אני מצהיר/ה כי כל הפרטים שמסרתי נכונים ומדויקים. אני לוקח/ת
-                אחריות מלאה על מצבי הבריאותי.
+              <span style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6 }}>
+                אני מצהיר/ה כי כל הפרטים שנמסרו נכונים ומדויקים. אני לוקח/ת
+                אחריות מלאה על מצבי הבריאותי ומאשר/ת כי קראתי והבנתי את תוכן
+                הצהרה זו.
               </span>
             </label>
 

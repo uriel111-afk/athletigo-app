@@ -278,11 +278,18 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
                 </div>
               )}
 
-              {/* Declaration confirmed line — quotes the exact wording
-                  shown above the signature canvas during signing. */}
+              {/* Declaration confirmed line — quotes the full wording
+                  shown next to the signing checkbox so the viewer
+                  matches the form. Bigger card on cream so the
+                  acknowledgement is visually anchored at the bottom. */}
               {merged.declaration_confirmed && (
-                <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#888' }}>
-                  ✓ "כל הפרטים שנמסרו נכונים ומדויקים"
+                <div style={{
+                  marginTop: 16, padding: 14, background: '#FDF8F3',
+                  borderRadius: 14, border: '1px solid #F0E4D0',
+                  fontSize: 13, color: '#1A1A1A', lineHeight: 1.6,
+                }}>
+                  ✓ "אני מצהיר/ה כי כל הפרטים שנמסרו נכונים ומדויקים. אני
+                  לוקח/ת אחריות מלאה על מצבי הבריאותי."
                 </div>
               )}
             </>

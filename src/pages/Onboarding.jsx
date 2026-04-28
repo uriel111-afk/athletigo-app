@@ -380,19 +380,34 @@ export default function Onboarding() {
         goal_body_type: goalBodyType,
       }));
       // Seed measurements with the trainee's onboarding height/weight
-      // so the metrics tab chart starts from this point.
+      // so the metrics tab chart starts from this point. Supabase
+      // returns { error } on a column-mismatch 400 instead of
+      // throwing — so a try/catch alone misses the failure. First
+      // try the rich row; if that errors, retry with just the four
+      // columns the measurements table is guaranteed to have.
       if (heightNum || weightNum) {
-        try {
-          await supabase.from('measurements').insert({
-            trainee_id: userId,
-            user_id: coachId || null,
-            date: new Date().toISOString().split('T')[0],
-            source: 'onboarding',
-            notes: 'מדידה ראשונה — אונבורדינג',
-            height_cm: heightNum,
-            weight_kg: weightNum,
+        const today = new Date().toISOString().split('T')[0];
+        const fullRow = {
+          trainee_id: userId,
+          user_id: coachId || null,
+          date: today,
+          source: 'onboarding',
+          notes: 'מדידה ראשונה — אונבורדינג',
+          height_cm: heightNum,
+          weight_kg: weightNum,
+        };
+        const { error: mErr } = await supabase.from('measurements').insert(fullRow);
+        if (mErr) {
+          console.warn('[Onboarding] measurements full insert failed:', mErr.message, '— retrying minimal');
+          const { error: mErr2 } = await supabase.from('measurements').insert({
+            trainee_id: userId, date: today,
+            height_cm: heightNum, weight_kg: weightNum,
           });
-        } catch (e) { console.warn('[Onboarding] measurements seed failed:', e?.message); }
+          if (mErr2) console.warn('[Onboarding] measurements minimal insert also failed:', mErr2.message);
+          else console.log('[Onboarding] measurements saved with minimal columns');
+        } else {
+          console.log('[Onboarding] measurements saved');
+        }
       }
       goNext();
     } finally { setSavingStep(false); }
@@ -463,19 +478,35 @@ export default function Onboarding() {
         client_status: 'casual',
       });
       console.log('[Onboarding] summary written:', summary);
-      // Notify coach
+      // Notify coach. Same supabase-returns-{error} story as
+      // measurements — try the rich row first, retry with minimal
+      // columns if any of {link, data} aren't on the live schema.
       if (coachId) {
-        try {
-          await supabase.from('notifications').insert({
+        const message = (summary || `${fullName} סיימו את האונבורדינג`).slice(0, 1000);
+        const fullRow = {
+          user_id: coachId,
+          type: 'onboarding_complete',
+          title: '🎉 הושלם תהליך הרשמה',
+          message,
+          link: `/traineeprofile?userId=${userId}`,
+          is_read: false,
+          data: { trainee_id: userId, trainee_name: fullName },
+        };
+        const { error: nErr } = await supabase.from('notifications').insert(fullRow);
+        if (nErr) {
+          console.warn('[Onboarding] notification full insert failed:', nErr.message, '— retrying minimal');
+          const { error: nErr2 } = await supabase.from('notifications').insert({
             user_id: coachId,
             type: 'onboarding_complete',
             title: '🎉 הושלם תהליך הרשמה',
-            message: summary || `${fullName} סיימו את האונבורדינג`,
-            link: `/traineeprofile?userId=${userId}`,
+            message,
             is_read: false,
-            data: { trainee_id: userId, trainee_name: fullName },
           });
-        } catch (e) { console.warn('[Onboarding] coach notify failed:', e?.message); }
+          if (nErr2) console.warn('[Onboarding] notification minimal insert also failed:', nErr2.message);
+          else console.log('[Onboarding] notification sent with minimal columns');
+        } else {
+          console.log('[Onboarding] notification sent');
+        }
       }
       setShowWelcome(true);
     } finally { setSavingStep(false); }
@@ -532,9 +563,10 @@ export default function Onboarding() {
         {/* ───────────────────────────────────────────────────── */}
         {step === 'details' && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>נעים להכיר 😊</div>
-              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>נשמח לקבל כמה פרטים בסיסיים</div>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>👋</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>נעים להכיר</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>נשמח לקבל כמה פרטים בסיסיים</div>
             </div>
 
             <div style={cardStyle}>
@@ -622,9 +654,10 @@ export default function Onboarding() {
         {/* ───────────────────────────────────────────────────── */}
         {step === 'measurements' && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>נקודת ההתחלה 📏</div>
-              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4, lineHeight: 1.5 }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📏</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>נקודת ההתחלה</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.5 }}>
                 הנתונים האלה יעזרו לעקוב אחרי ההתקדמות.<br />הכל אופציונלי — נשמח לקבל מה שנוח.
               </div>
             </div>
@@ -680,9 +713,10 @@ export default function Onboarding() {
         {/* ───────────────────────────────────────────────────── */}
         {step === 'goals' && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>מה המטרה? 🎯</div>
-              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>מה המטרה?</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>
                 אפשר לבחור כמה שרוצים — או לדלג ולהגדיר אחר כך.
               </div>
             </div>
@@ -722,9 +756,10 @@ export default function Onboarding() {
         {/* ───────────────────────────────────────────────────── */}
         {step === 'about' && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>עוד קצת עלייך 💬</div>
-              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4, lineHeight: 1.5 }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>עוד קצת עלייך</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.5 }}>
                 ככל שנכיר יותר, נוכל להתאים תוכנית טובה יותר.<br />הכל אופציונלי.
               </div>
             </div>
@@ -812,9 +847,10 @@ export default function Onboarding() {
         {/* ───────────────────────────────────────────────────── */}
         {step === 'health' && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>לפני שמתחילים 🤝</div>
-              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4, lineHeight: 1.6 }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>🤝</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>לפני שמתחילים</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.6 }}>
                 הבריאות חשובה מעל הכל. נרצה לוודא שהגוף במצב שמאפשר פעילות גופנית — כדי לבנות תוכנית בטוחה שמותאמת בדיוק.
               </div>
             </div>
@@ -859,9 +895,10 @@ export default function Onboarding() {
         {/* ───────────────────────────────────────────────────── */}
         {step === 'confirm' && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>כמעט סיימנו 🎉</div>
-              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>כמעט סיימנו</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>
                 {healthSigned ? 'הצהרת הבריאות נשמרה. תכף סוגרים.' : 'נדרשת חתימה על הצהרת בריאות לפני הסיום.'}
               </div>
             </div>

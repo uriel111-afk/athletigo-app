@@ -64,7 +64,7 @@ export default function WelcomeBlessingPopup({ isOpen, onClose }) {
             color: 'rgba(255,255,255,0.8)',
             marginBottom: 4,
           }}>
-            סיימת את ההרשמה
+            ההרשמה הושלמה בהצלחה
           </div>
 
           <div style={{
@@ -87,17 +87,9 @@ export default function WelcomeBlessingPopup({ isOpen, onClose }) {
             fontSize: 15,
             color: 'rgba(255,255,255,0.9)',
             lineHeight: 1.6,
-            marginBottom: 4,
-          }}>
-            המאמן שלך קיבל את כל הפרטים.
-          </div>
-          <div style={{
-            fontSize: 15,
-            color: 'rgba(255,255,255,0.9)',
-            lineHeight: 1.6,
             marginBottom: 24,
           }}>
-            הדבר היחיד שנשאר — להגיע לאימון.
+            הכל מוכן — הדבר היחיד שנשאר הוא להוציא את האימון לפועל.
           </div>
 
           <button
