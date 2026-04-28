@@ -1213,8 +1213,8 @@ export default function TraineeProfile() {
   // Coach-only: reset trainee password via Edge Function
   const [showResetPw, setShowResetPw] = useState(false);
   const [resetPwInput, setResetPwInput] = useState('');
-  const [resetPwGenerated, setResetPwGenerated] = useState('');
   const [resetPwSaving, setResetPwSaving] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ currentPass: "", newPass: "", confirm: "" });
   const [passwordLoading, setPasswordLoading] = useState(false);
 
@@ -2417,35 +2417,66 @@ export default function TraineeProfile() {
     });
   };
 
-  // Coach-only: reset a trainee's password via the reset-password
-  // Edge Function (uses service role server-side; never exposed to
-  // the client). Mirrors the existing delete-trainee invocation
-  // pattern used at line ~2895.
-  const generateRandomPw = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let pass = '';
-    for (let i = 0; i < 8; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    setResetPwInput(pass);
-  };
+  // Coach-only: reset a trainee's password. Tries admin-reset-password
+  // first (the spec's function name with trainee_id/new_password body),
+  // then falls back to the existing reset-password function (older
+  // deployment, userId/newPassword body) so this works whether the new
+  // function is deployed yet or not. Last-resort fallback is sending
+  // an email reset link via supabase.auth.resetPasswordForEmail —
+  // wired separately to the dialog's secondary action.
   const handleResetTraineePassword = async () => {
     if (!resetPwInput || resetPwInput.length < 6) {
-      toast.error('סיסמה חייבת להיות לפחות 6 תווים');
+      toast.error('סיסמה חייבת להכיל לפחות 6 תווים');
       return;
     }
     if (!user?.id) { toast.error('לא נטען מתאמן'); return; }
     setResetPwSaving(true);
     try {
-      const { error } = await supabase.functions.invoke('reset-password', {
-        body: { userId: user.id, newPassword: resetPwInput },
+      // Preferred: spec function name + payload shape.
+      let { error } = await supabase.functions.invoke('admin-reset-password', {
+        body: { trainee_id: user.id, new_password: resetPwInput },
       });
-      if (error) throw error;
-      setResetPwGenerated(resetPwInput);
-      toast.success('הסיסמה אופסה בהצלחה');
+      if (error) {
+        // Compatibility: existing deployed function uses different
+        // names. If the new one isn't deployed yet, this still works.
+        const legacy = await supabase.functions.invoke('reset-password', {
+          body: { userId: user.id, newPassword: resetPwInput },
+        });
+        if (legacy.error) throw legacy.error;
+      }
+      toast.success('סיסמה עודכנה בהצלחה ✓');
+      setResetPwInput('');
+      setShowPw(false);
+      setShowResetPw(false);
     } catch (err) {
       console.error('[ResetPassword] failed:', err);
-      toast.error('שגיאה: ' + (err?.message || 'נסה שוב'));
+      // Last-resort fallback — email the trainee a reset link.
+      if (user?.email) {
+        const { error: mailErr } = await supabase.auth.resetPasswordForEmail(user.email);
+        if (mailErr) {
+          toast.error('שגיאה באיפוס סיסמה');
+        } else {
+          toast.success('נשלח מייל איפוס ל-' + user.email);
+          setShowResetPw(false);
+        }
+      } else {
+        toast.error('שגיאה: ' + (err?.message || 'נסה שוב'));
+      }
     } finally {
       setResetPwSaving(false);
+    }
+  };
+
+  // Secondary action — email a reset link instead of typing a new
+  // password. Used by the "או שלח מייל איפוס" link in the dialog.
+  const handleEmailResetLink = async () => {
+    if (!user?.email) { toast.error('לא נמצאה כתובת מייל למתאמן'); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email);
+    if (error) {
+      toast.error('שגיאה בשליחת מייל');
+    } else {
+      toast.success('נשלח מייל איפוס ל-' + user.email);
+      setShowResetPw(false);
     }
   };
 
@@ -4213,66 +4244,101 @@ export default function TraineeProfile() {
           </DialogContent>
         </Dialog>
 
-        {/* Coach: Reset trainee password */}
+        {/* Coach: Reset trainee password — backdrop click closes,
+            X button closes, eye toggle on input, and a secondary
+            "send email reset link" link beneath the main button. */}
         {showResetPw && (
           <div
-            // Backdrop NO-OP — close only via the "סגור" button below.
-            onClick={(e) => { e.stopPropagation(); }}
-            onPointerDown={(e) => { e.stopPropagation(); }}
-            onTouchStart={(e) => { e.stopPropagation(); }}
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11000, padding: 20 }}
+            onClick={() => { setShowResetPw(false); setResetPwInput(''); setShowPw(false); }}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.4)', zIndex: 10000,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 16,
+            }}
           >
-            <div dir="rtl" style={{ background: '#FFF9F0', borderRadius: 24, padding: 24, width: '100%', maxWidth: 340, textAlign: 'right', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
-              <MiniTimerBar />
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'white', borderRadius: 14, padding: 24,
+                maxWidth: 360, width: '90%', direction: 'rtl', position: 'relative',
+              }}
+            >
+              <button
+                onClick={() => { setShowResetPw(false); setResetPwInput(''); setShowPw(false); }}
+                aria-label="סגור"
+                style={{
+                  position: 'absolute', top: 10, left: 10,
+                  background: 'none', border: 'none', fontSize: 22,
+                  cursor: 'pointer', color: '#888',
+                }}
+              >✕</button>
+
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>🔑</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>איפוס סיסמה</div>
-                <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>ל{user?.full_name}</div>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🔑</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>איפוס סיסמה</div>
+                <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+                  {user?.full_name}
+                </div>
               </div>
-              {!resetPwGenerated ? (
-                <>
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={{ fontSize: 14, fontWeight: 600, display: 'block', marginBottom: 6 }}>סיסמה חדשה</label>
-                    <input
-                      type="text"
-                      value={resetPwInput}
-                      onChange={e => setResetPwInput(e.target.value)}
-                      placeholder="לפחות 6 תווים..."
-                      style={{ width: '100%', padding: 12, borderRadius: 14, border: '1.5px solid #F0E4D0', fontSize: 16, direction: 'ltr', textAlign: 'left', boxSizing: 'border-box', outline: 'none' }}
-                    />
-                  </div>
-                  <button type="button" onClick={generateRandomPw}
-                    style={{ width: '100%', padding: 8, background: 'transparent', border: 'none', color: '#FF6F20', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12 }}>
-                    🎲 ייצר סיסמה אוטומטית
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>סיסמה חדשה</div>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={resetPwInput}
+                    onChange={(e) => setResetPwInput(e.target.value)}
+                    placeholder="לפחות 6 תווים"
+                    style={{
+                      width: '100%', padding: '10px 40px 10px 12px',
+                      borderRadius: 12, border: '1px solid #F0E4D0',
+                      fontSize: 14, direction: 'rtl', boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(!showPw)}
+                    aria-label={showPw ? 'הסתר סיסמה' : 'הצג סיסמה'}
+                    style={{
+                      position: 'absolute', left: 10, top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none', border: 'none',
+                      cursor: 'pointer', fontSize: 16,
+                    }}
+                  >
+                    {showPw ? '🙈' : '👁️'}
                   </button>
-                  <button type="button" onClick={handleResetTraineePassword}
-                    disabled={!resetPwInput || resetPwInput.length < 6 || resetPwSaving}
-                    style={{ width: '100%', padding: 12, borderRadius: 14, border: 'none', background: resetPwInput?.length >= 6 && !resetPwSaving ? '#FF6F20' : '#ccc', color: 'white', fontSize: 14, fontWeight: 600, cursor: resetPwInput?.length >= 6 && !resetPwSaving ? 'pointer' : 'default' }}>
-                    {resetPwSaving ? '...מאפס' : '🔑 אפס סיסמה'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div style={{ background: 'white', borderRadius: 14, padding: 16, textAlign: 'center', marginBottom: 12 }}>
-                    <div style={{ fontSize: 13, color: '#16a34a', fontWeight: 600, marginBottom: 8 }}>✅ הסיסמה אופסה בהצלחה</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הסיסמה החדשה:</div>
-                    <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', letterSpacing: 3, fontFamily: 'monospace', direction: 'ltr' }}>
-                      {resetPwGenerated}
-                    </div>
-                  </div>
-                  <button type="button"
-                    onClick={() => { try { navigator.clipboard.writeText(resetPwGenerated); toast.success('הסיסמה הועתקה'); } catch { toast.error('לא ניתן להעתיק'); } }}
-                    style={{ width: '100%', padding: 12, borderRadius: 14, border: 'none', background: '#FF6F20', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>
-                    📋 העתק סיסמה
-                  </button>
-                  <div style={{ fontSize: 12, color: '#888', textAlign: 'center' }}>שלח את הסיסמה למתאמן בוואטסאפ או בטלפון</div>
-                </>
-              )}
-              <button type="button"
-                onClick={() => { setShowResetPw(false); setResetPwInput(''); setResetPwGenerated(''); }}
-                style={{ width: '100%', padding: 8, background: 'transparent', border: 'none', color: '#888', fontSize: 13, cursor: 'pointer', marginTop: 10 }}>
-                סגור
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleResetTraineePassword}
+                disabled={resetPwInput.length < 6 || resetPwSaving}
+                style={{
+                  width: '100%', padding: 14, borderRadius: 14, border: 'none',
+                  background: resetPwInput.length >= 6 && !resetPwSaving ? '#FF6F20' : '#ccc',
+                  color: 'white', fontSize: 16, fontWeight: 600,
+                  cursor: resetPwInput.length >= 6 && !resetPwSaving ? 'pointer' : 'default',
+                }}
+              >
+                {resetPwSaving ? '...מעדכן' : 'עדכן סיסמה'}
               </button>
+
+              <div style={{ textAlign: 'center', marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={handleEmailResetLink}
+                  style={{
+                    background: 'none', border: 'none', color: '#888',
+                    fontSize: 13, cursor: 'pointer', textDecoration: 'underline',
+                  }}
+                >
+                  או שלח מייל איפוס למתאמן/ת
+                </button>
+              </div>
             </div>
           </div>
         )}
