@@ -1,104 +1,59 @@
 import React, { useState, useMemo, useContext, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Plus, Trash2, Award, Zap, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
+} from 'recharts';
 import { toast } from 'sonner';
-import { RECORD_TYPES, getTypeByKey } from '@/lib/personalRecordTypes';
-import { openBaselineDialog } from '@/components/forms/BaselineFormDialog';
-import { groupRecordsByName } from '@/lib/recordGrouping';
-import { RecordFolderCard } from './RecordFolderCard';
-import { RecordFlatCard } from './RecordFlatCard';
-import { BaselinesFolderCard } from './BaselinesFolderCard';
-import { PersonalRecordViewer } from './PersonalRecordViewer';
+import {
+  DEFAULT_EXERCISES, RECORD_UNITS, RECORD_TYPE_OPTIONS,
+  exerciseInfoFor, unitLabel,
+} from '@/lib/recordExercises';
 
-const TECHNIQUE_LABELS = { basic: 'קפיצה בסיס', foot_switch: 'החלפת רגליים', high_knees: 'הרמת ברכיים' };
 const O = '#FF6F20';
-const HEB_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const CARD_BG = '#FFFFFF';
+const BORDER = '#F0E4D0';
 
-function formatHebrewDate(isoString) {
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  if (isNaN(d.getTime())) return '';
-  return `${HEB_DAYS[d.getDay()]}, ${d.toLocaleDateString('he-IL')}`;
-}
+const fmtDate = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('he-IL');
+};
 
-// (BaselineSessionCard removed — replaced by BaselinesFolderCard which
-// wraps all sessions in a single folder per spec)
-
+// Personal-records tab — folder view per exercise + detail view with
+// Recharts line chart of progression. The DB column for the exercise
+// label is `name`, value is `value`, unit is `unit` (legacy from
+// personal_records schema). Spec field names map to those at I/O time.
 export default function ProgressTab({ traineeId }) {
   const { user: currentUser } = useContext(AuthContext);
-  const isCoach = currentUser?.is_coach || currentUser?.role === 'coach' || currentUser?.role === 'admin';
+  const isCoach =
+    currentUser?.is_coach || currentUser?.role === 'coach' || currentUser?.role === 'admin';
   const queryClient = useQueryClient();
-  const [showAddRecord, setShowAddRecord] = useState(false);
-  // BaselineFormDialog mounts globally in App.jsx — fire openBaselineDialog
-  // with viewOnly + existingRows when the user taps a session in the folder.
-  const [viewingRecord, setViewingRecord] = useState(null);
-  // null = adding a new record. Truthy = editing existing row.
-  const [editingRecord, setEditingRecord] = useState(null);
 
-  // ── Baselines ──
-  const { data: baselines = [] } = useQuery({
-    queryKey: ['baselines-progress', traineeId],
-    queryFn: () => base44.entities.Baseline.filter({ trainee_id: traineeId }, 'created_at').catch(() => []),
-    enabled: !!traineeId,
-  });
+  // null = list of folders, string = name of currently-open folder
+  const [openFolder, setOpenFolder] = useState(null);
+  const [showNewRecord, setShowNewRecord] = useState(false);
 
-  // Group rows into sessions by created_at-to-the-minute. Rows from the same
-  // BaselineFormDialog submission share an identical created_at (set in code).
-  const baselineSessions = useMemo(() => {
-    const map = new Map();
-    for (const row of baselines) {
-      if (!row?.created_at) continue;
-      const key = String(row.created_at).slice(0, 16); // YYYY-MM-DDTHH:MM
-      if (!map.has(key)) map.set(key, { sessionKey: key, sessionDate: row.created_at, techniques: [] });
-      map.get(key).techniques.push(row);
-    }
-    // newest first
-    const sessions = Array.from(map.values()).sort((a, b) =>
-      String(b.sessionDate).localeCompare(String(a.sessionDate))
-    );
-    // Diagnostic: lets us see in DevTools whether the grouping found multiple
-    // techniques per session. If a session shows 1 technique here but the user
-    // saved 3, the bug is upstream (DB, RLS, or save handler).
-    if (baselines.length > 0) {
-      console.log('[ProgressTab] baseline grouping', {
-        rowCount: baselines.length,
-        sessionCount: sessions.length,
-        perSession: sessions.map(s => ({
-          key: s.sessionKey,
-          techniques: s.techniques.map(t => t.technique),
-        })),
-      });
-    }
-    return sessions;
-  }, [baselines]);
-
-  // (handleViewSession inlined into BaselinesFolderCard's onSessionClick prop)
-
-  // ── Personal Records ──
+  // ── Data ───────────────────────────────────────────────────────
   const { data: records = [] } = useQuery({
     queryKey: ['personal-records', traineeId],
     queryFn: async () => {
       if (!traineeId) return [];
-      try {
-        const { data, error } = await supabase.from('personal_records')
-          .select('*').eq('trainee_id', traineeId).order('date', { ascending: true });
-        if (error) { console.warn('personal_records query failed:', error.message); return []; }
-        console.log('[Records] fetched:', data?.length || 0, data);
-        return data || [];
-      } catch (e) { console.warn('personal_records table may not exist:', e.message); return []; }
+      const { data, error } = await supabase
+        .from('personal_records')
+        .select('*')
+        .eq('trainee_id', traineeId)
+        .order('date', { ascending: true });
+      if (error) {
+        console.warn('[Records] query failed:', error.message);
+        return [];
+      }
+      return data || [];
     },
     enabled: !!traineeId,
   });
-
-  // Folder-based grouping by normalized name (spec: single record = flat,
-  // 2+ = folder). Baselines get their own dedicated folder rendered above.
-  const recordGroups = useMemo(() => groupRecordsByName(records), [records]);
 
   // Realtime — coach adds a record on laptop → trainee phone refreshes live.
   useEffect(() => {
@@ -107,209 +62,670 @@ export default function ProgressTab({ traineeId }) {
       .channel(`personal-records-${traineeId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'personal_records',
-        filter: `trainee_id=eq.${traineeId}`
+        filter: `trainee_id=eq.${traineeId}`,
       }, () => queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] }))
       .subscribe();
     return () => supabase.removeChannel(ch);
   }, [traineeId, queryClient]);
 
-  // ── Add Record ──
-  const [recForm, setRecForm] = useState({ record_type: '', name: '', unit: '', value: '', date: new Date().toISOString().split('T')[0], notes: '' });
+  // Group by exercise name → { records, best, latest }
+  const folders = useMemo(() => {
+    const map = new Map();
+    for (const r of records) {
+      const key = (r.name || '').trim();
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, { records: [] });
+      map.get(key).records.push(r);
+    }
+    // Per-folder best (max value) + latest (last by date) + sort folders by latest
+    const arr = [];
+    for (const [name, f] of map.entries()) {
+      const sorted = [...f.records].sort(
+        (a, b) => String(a.date || '').localeCompare(String(b.date || ''))
+      );
+      const best = sorted.reduce(
+        (mx, r) => (Number(r.value) > Number(mx?.value || -Infinity) ? r : mx),
+        sorted[0]
+      );
+      const latest = sorted[sorted.length - 1];
+      arr.push({ name, records: sorted, best, latest });
+    }
+    arr.sort((a, b) =>
+      String(b.latest?.date || '').localeCompare(String(a.latest?.date || ''))
+    );
+    return arr;
+  }, [records]);
 
-  const handleTypeSelect = (key) => {
-    const t = getTypeByKey(key);
-    setRecForm(f => ({ ...f, record_type: key, name: t.name, unit: t.defaultUnit }));
+  const currentFolder = useMemo(
+    () => folders.find(f => f.name === openFolder) || null,
+    [folders, openFolder]
+  );
+
+  // ── New-record form state ──────────────────────────────────────
+  const today = new Date().toISOString().split('T')[0];
+  const initialForm = {
+    exercise: '',          // either an existing DEFAULT_EXERCISES name, '__custom__', or any string
+    customName: '',
+    type: 'max_reps',
+    value: '',
+    unit: 'reps',
+    date: today,
+    techniqueName: '',
+    rpe: 7,
+    quality: 7,
+    notes: '',
+    videoUrl: '',
   };
+  const [form, setForm] = useState(initialForm);
+  const setField = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
-  const resetRecordForm = () => {
-    setRecForm({ record_type: '', name: '', unit: '', value: '', date: new Date().toISOString().split('T')[0], notes: '' });
-    setEditingRecord(null);
-  };
+  const resolvedExerciseName = form.exercise === '__custom__'
+    ? form.customName.trim()
+    : (form.exercise || '').trim();
 
-  const openAddRecord = () => {
-    resetRecordForm();
-    setShowAddRecord(true);
-  };
+  const canSave = !!resolvedExerciseName && form.value !== '' && !Number.isNaN(Number(form.value));
 
-  const openEditRecord = (record) => {
-    setEditingRecord(record);
-    setRecForm({
-      record_type: record.record_type || '',
-      name: record.name || '',
-      unit: record.unit || '',
-      value: record.value != null ? String(record.value) : '',
-      date: record.date ? String(record.date).split('T')[0] : new Date().toISOString().split('T')[0],
-      notes: record.notes || '',
+  const openNewRecordSheet = (presetName = '') => {
+    const preset = presetName ? exerciseInfoFor(presetName) : null;
+    setForm({
+      ...initialForm,
+      exercise: presetName && DEFAULT_EXERCISES.some(e => e.name === presetName)
+        ? presetName
+        : (presetName ? '__custom__' : ''),
+      customName: presetName && !DEFAULT_EXERCISES.some(e => e.name === presetName)
+        ? presetName : '',
+      unit: preset?.units?.[0] || 'reps',
+      date: today,
     });
-    setViewingRecord(null);
-    setShowAddRecord(true);
+    setShowNewRecord(true);
+  };
+
+  const closeSheet = () => {
+    setShowNewRecord(false);
+    setForm(initialForm);
   };
 
   const handleSaveRecord = async () => {
-    if (!recForm.name?.trim()) { toast.error('יש להזין שם לשיא'); return; }
-    if (recForm.value === '' || recForm.value == null) { toast.error('יש להזין ערך'); return; }
-    const numericValue = Number(recForm.value);
-    if (Number.isNaN(numericValue)) { toast.error('הערך חייב להיות מספר'); return; }
+    if (!canSave) return;
+    const numericValue = Number(form.value);
+    const exerciseName = resolvedExerciseName;
+    const exerciseInfo = exerciseInfoFor(exerciseName);
+
+    // Pull existing records for this exercise to compute previous_value,
+    // improvement, and is_personal_best.
+    const { data: prior, error: priorErr } = await supabase
+      .from('personal_records')
+      .select('id, value, date, is_personal_best')
+      .eq('trainee_id', traineeId)
+      .eq('name', exerciseName);
+    if (priorErr) {
+      console.error('[Records] prior fetch failed:', priorErr);
+    }
+
+    let previousValue = null;
+    let maxPrev = -Infinity;
+    let priorPbId = null;
+    if (Array.isArray(prior) && prior.length) {
+      // previous_value = chronologically most recent prior entry
+      const byDateDesc = [...prior].sort(
+        (a, b) => String(b.date || '').localeCompare(String(a.date || ''))
+      );
+      previousValue = Number(byDateDesc[0]?.value);
+      // current PB row (if any) — to flip when this entry beats it
+      for (const r of prior) {
+        const v = Number(r.value);
+        if (v > maxPrev) maxPrev = v;
+        if (r.is_personal_best) priorPbId = r.id;
+      }
+    }
+
+    const isPersonalBest = !Number.isFinite(maxPrev) || numericValue > maxPrev;
+    const improvement = Number.isFinite(previousValue)
+      ? +(numericValue - previousValue).toFixed(2)
+      : null;
+
+    // If this is a new PB, demote the previously-flagged PB row first
+    // so only one row per (trainee, exercise) carries is_personal_best=true.
+    if (isPersonalBest && priorPbId) {
+      await supabase
+        .from('personal_records')
+        .update({ is_personal_best: false })
+        .eq('id', priorPbId);
+    }
+
     const payload = {
       trainee_id: traineeId,
-      coach_id: isCoach ? currentUser.id : null,
-      record_type: recForm.record_type || 'other',
-      name: recForm.name.trim(),
-      unit: recForm.unit?.trim() || '',
+      coach_id: isCoach ? currentUser?.id || null : null,
+      record_type: form.type || 'max_reps',
+      name: exerciseName,
+      unit: form.unit || 'reps',
       value: numericValue,
-      date: recForm.date || new Date().toISOString().split('T')[0],
-      notes: recForm.notes?.trim() || null,
+      date: form.date || today,
+      notes: form.notes?.trim() || null,
+      // Extended fields (added via ALTER):
+      exercise_category: exerciseInfo?.category || 'general',
+      previous_value: Number.isFinite(previousValue) ? previousValue : null,
+      improvement,
+      video_url: form.videoUrl?.trim() || null,
+      rpe: form.rpe ? Number(form.rpe) : null,
+      quality_rating: form.quality ? Number(form.quality) : null,
+      technique_acquired: form.type === 'technique',
+      technique_name: form.type === 'technique' ? (form.techniqueName?.trim() || null) : null,
+      is_personal_best: isPersonalBest,
+      created_by_role: isCoach ? 'coach' : 'trainee',
+      created_by_user_id: currentUser?.id || null,
     };
-    console.log('[Records] save payload:', payload, 'editing?', editingRecord?.id || null);
-    try {
-      if (editingRecord?.id) {
-        const { error } = await supabase.from('personal_records').update(payload).eq('id', editingRecord.id);
-        if (error) { console.error('[Records] update error:', error); toast.error('שגיאה: ' + error.message); return; }
-        toast.success('שיא עודכן');
-      } else {
-        const insertPayload = {
-          ...payload,
-          created_by_role: isCoach ? 'coach' : 'trainee',
-          created_by_user_id: currentUser.id,
-        };
-        const { error } = await supabase.from('personal_records').insert(insertPayload);
-        if (error) { console.error('[Records] insert error:', error); toast.error('שגיאה: ' + error.message); return; }
-        toast.success('שיא נשמר!');
-      }
-      queryClient.invalidateQueries({ queryKey: ['personal-records'] });
-      setShowAddRecord(false);
-      resetRecordForm();
-    } catch (e) {
-      console.error('[Records] save error:', e);
-      toast.error('שגיאה בשמירה: ' + (e?.message || 'נסה שוב'));
+
+    const { error: insertErr } = await supabase
+      .from('personal_records')
+      .insert(payload);
+    if (insertErr) {
+      console.error('[Records] insert error:', insertErr);
+      toast.error('שגיאה בשמירה: ' + insertErr.message);
+      return;
     }
+
+    // Notify the trainee on a new PB. Coach-saved records would otherwise
+    // need a refresh for the trainee to see the celebration.
+    if (isPersonalBest && traineeId) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: traineeId,
+          type: 'new_record',
+          title: '🏆 שיא אישי חדש!',
+          message: `${exerciseName}: ${numericValue} ${unitLabel(form.unit)}`,
+          is_read: false,
+        });
+      } catch (e) {
+        console.warn('[Records] notification failed:', e?.message);
+      }
+    }
+
+    toast.success(isPersonalBest ? '🏆 שיא אישי חדש!' : '✓ שיא נשמר');
+    queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] });
+    closeSheet();
   };
 
-  const deleteRecord = async (record) => {
-    const id = record?.id || record;
+  const deleteRecord = async (id) => {
     if (!id) return;
     if (!window.confirm('למחוק שיא זה?')) return;
-    try {
-      const { error } = await supabase.from('personal_records').delete().eq('id', id);
-      if (error) { console.error('[Records] delete error:', error); toast.error('שגיאה: ' + error.message); return; }
-      queryClient.invalidateQueries({ queryKey: ['personal-records'] });
-      setViewingRecord(null);
-      toast.success('נמחק');
-    } catch (e) {
-      console.error('[Records] delete error:', e);
-      toast.error('שגיאה במחיקה: ' + (e?.message || ''));
+    const { error } = await supabase.from('personal_records').delete().eq('id', id);
+    if (error) {
+      toast.error('שגיאה במחיקה: ' + error.message);
+      return;
     }
+    queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] });
+    toast.success('נמחק');
   };
 
   if (!traineeId) return null;
 
+  // ── Render ─────────────────────────────────────────────────────
   return (
-    <div className="space-y-6" dir="rtl">
-
-      {/* Baselines — single dedicated folder, always first if any sessions exist */}
-      {baselineSessions.length > 0 && (
-        <BaselinesFolderCard
-          sessions={baselineSessions}
-          onSessionClick={(s) => openBaselineDialog({ traineeId, viewOnly: true, existingRows: s.techniques })}
-        />
+    <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* "+ שיא חדש" CTA — always visible at the top of the list view */}
+      {!currentFolder && (
+        <button
+          onClick={() => openNewRecordSheet('')}
+          style={{
+            width: '100%', padding: 14, borderRadius: 14, border: 'none',
+            background: O, color: '#fff', fontSize: 16, fontWeight: 600,
+            cursor: 'pointer', marginBottom: 16,
+          }}
+        >
+          🏆 שיא חדש
+        </button>
       )}
 
-      {/* BaselineFormDialog mounted globally in App.jsx — opened
-          via openBaselineDialog() in onSessionClick above. */}
+      {/* List view — one folder card per exercise that has records */}
+      {!currentFolder && folders.length > 0 && folders.map((f) => {
+        const info = exerciseInfoFor(f.name);
+        return (
+          <div
+            key={f.name}
+            onClick={() => setOpenFolder(f.name)}
+            style={{
+              background: CARD_BG, borderRadius: 14, border: `1px solid ${BORDER}`,
+              padding: 14, marginBottom: 10, cursor: 'pointer',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <span style={{ fontSize: 26 }}>{info?.icon || '🎯'}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{
+                  fontSize: 16, fontWeight: 600, color: '#1A1A1A',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {f.name}
+                </div>
+                <div style={{ fontSize: 12, color: '#888' }}>
+                  {f.records.length} שיאים • אחרון: {fmtDate(f.latest?.date)}
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'left', flexShrink: 0 }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: O }}>
+                {f.best?.value ?? '—'}
+              </div>
+              <div style={{ fontSize: 11, color: '#888' }}>
+                {unitLabel(f.best?.unit)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
-      {/* Add-record button row (header) */}
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="text-base font-bold flex items-center gap-2">
-          <Award className="w-5 h-5 text-yellow-500" />שיאים ובייסליינים
-        </h3>
-        <Button onClick={openAddRecord} size="sm" className="rounded-xl font-bold text-white text-xs h-9" style={{ backgroundColor: O }}>
-          <Plus className="w-3 h-3 ml-1" />הוסף שיא
-        </Button>
-      </div>
-
-      {/* Personal records — folders (2+) and flat cards (1) by normalized name */}
-      {recordGroups.map((g) => (
-        g.isFolder ? (
-          <RecordFolderCard
-            key={g.key}
-            group={g}
-            onRecordClick={setViewingRecord}
-          />
-        ) : (
-          <RecordFlatCard
-            key={g.key}
-            record={g.latestRecord}
-            onClick={setViewingRecord}
-          />
-        )
-      ))}
-
-      {/* Empty state — only when there's nothing at all */}
-      {baselineSessions.length === 0 && recordGroups.length === 0 && (
-        <div style={{ padding: 24, textAlign: 'center', color: '#6b7280', background: '#FFF9F0', borderRadius: 12 }}>
-          אין שיאים או בייסליינים עדיין
+      {/* Empty state */}
+      {!currentFolder && folders.length === 0 && (
+        <div style={{
+          padding: 40, textAlign: 'center', background: '#FFF9F0',
+          border: `1px solid ${BORDER}`, borderRadius: 14, color: '#888',
+        }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>🏆</div>
+          <div style={{ fontSize: 15 }}>אין שיאים עדיין</div>
         </div>
       )}
 
-      {/* Record viewer — coach gets edit/delete actions */}
-      {viewingRecord && (
-        <PersonalRecordViewer
-          record={viewingRecord}
-          onClose={() => setViewingRecord(null)}
-          onEdit={isCoach ? openEditRecord : undefined}
-          onDelete={isCoach ? deleteRecord : undefined}
-        />
+      {/* Detail view — chart + list of records for the open folder */}
+      {currentFolder && (
+        <div>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: 12,
+          }}>
+            <button
+              onClick={() => setOpenFolder(null)}
+              style={{
+                background: 'none', border: 'none', fontSize: 15, cursor: 'pointer',
+                color: O, fontWeight: 600,
+              }}
+            >
+              ← חזרה
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 22 }}>
+                {exerciseInfoFor(currentFolder.name)?.icon || '🎯'}
+              </span>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{currentFolder.name}</div>
+            </div>
+          </div>
+
+          {/* Recharts progression line — points highlighted when PB */}
+          <div style={{
+            background: CARD_BG, borderRadius: 14, border: `1px solid ${BORDER}`,
+            padding: 12, marginBottom: 14, height: 220,
+          }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={currentFolder.records.map(r => ({
+                  date: fmtDate(r.date),
+                  value: Number(r.value),
+                  pb: !!r.is_personal_best,
+                }))}
+                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid stroke={BORDER} strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#888' }} />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: 10, border: `1px solid ${BORDER}`,
+                    background: '#fff', fontSize: 12,
+                  }}
+                  labelStyle={{ color: '#888' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke={O}
+                  strokeWidth={2}
+                  fill="rgba(255,111,32,0.1)"
+                  dot={(props) => {
+                    const { cx, cy, payload, index } = props;
+                    return (
+                      <circle
+                        key={`dot-${index}`}
+                        cx={cx} cy={cy} r={5}
+                        fill={payload.pb ? O : '#FDF8F3'}
+                        stroke={O} strokeWidth={2}
+                      />
+                    );
+                  }}
+                  activeDot={{ r: 7, fill: O, stroke: '#fff', strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Per-record list */}
+          {[...currentFolder.records].reverse().map((r) => (
+            <div
+              key={r.id}
+              style={{
+                background: CARD_BG, borderRadius: 12, border: `1px solid ${BORDER}`,
+                padding: 12, marginBottom: 8,
+              }}
+            >
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{fmtDate(r.date)}</div>
+                  {r.notes && (
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{r.notes}</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {r.is_personal_best && <span style={{ fontSize: 16 }}>🏆</span>}
+                  <div style={{
+                    fontSize: 18, fontWeight: 700,
+                    color: r.is_personal_best ? O : '#1A1A1A',
+                  }}>
+                    {r.value} <span style={{ fontSize: 13, fontWeight: 500 }}>{unitLabel(r.unit)}</span>
+                  </div>
+                  {Number(r.improvement) > 0 && (
+                    <span style={{
+                      fontSize: 12, color: '#2E7D32',
+                      background: '#E8F5E9', padding: '2px 6px', borderRadius: 8,
+                    }}>
+                      +{r.improvement}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {(r.video_url || r.rpe || r.quality_rating) && (
+                <div style={{ marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {r.video_url && (
+                    <a
+                      href={r.video_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 12, color: O }}
+                    >
+                      🎥 צפה בוידאו
+                    </a>
+                  )}
+                  {r.rpe && (
+                    <span style={{ fontSize: 12, color: '#888' }}>RPE: {r.rpe}/10</span>
+                  )}
+                  {r.quality_rating && (
+                    <span style={{ fontSize: 12, color: '#888' }}>איכות: {r.quality_rating}/10</span>
+                  )}
+                </div>
+              )}
+              {isCoach && (
+                <div style={{ marginTop: 8, textAlign: 'left' }}>
+                  <button
+                    onClick={() => deleteRecord(r.id)}
+                    style={{
+                      background: 'none', border: 'none', color: '#C62828',
+                      fontSize: 12, cursor: 'pointer',
+                    }}
+                  >
+                    🗑️ מחק
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <button
+            onClick={() => openNewRecordSheet(currentFolder.name)}
+            style={{
+              width: '100%', padding: 14, borderRadius: 14, border: 'none',
+              background: O, color: '#fff', fontSize: 16, fontWeight: 600,
+              cursor: 'pointer', marginTop: 12,
+            }}
+          >
+            🏆 שיא חדש ל{currentFolder.name}
+          </button>
+        </div>
       )}
 
-      {/* ── Add / Edit Record Dialog ── */}
-      <Dialog open={showAddRecord} onOpenChange={(open) => { if (!open) { setShowAddRecord(false); resetRecordForm(); } else { setShowAddRecord(true); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="text-lg font-black">{editingRecord ? 'עריכת שיא' : 'הוסף שיא חדש'}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2" dir="rtl">
-            <div>
-              <label className="text-sm font-bold text-gray-700 block mb-2">סוג השיא</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {RECORD_TYPES.map(t => (
-                  <button key={t.key} onClick={() => handleTypeSelect(t.key)}
-                    style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                      border: recForm.record_type === t.key ? '2px solid #FF6F20' : '1.5px solid #eee',
-                      background: recForm.record_type === t.key ? '#FFF0E8' : 'white',
-                      color: recForm.record_type === t.key ? '#FF6F20' : '#555', cursor: 'pointer' }}>
-                    {t.name}
-                  </button>
+      {/* Bottom-sheet — new/edit record form */}
+      {showNewRecord && (
+        <div
+          onClick={closeSheet}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+            zIndex: 10000, display: 'flex', alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: '14px 14px 0 0', padding: 20,
+              width: '100%', maxWidth: 400, maxHeight: '85vh', overflowY: 'auto',
+              direction: 'rtl', WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              alignItems: 'center', marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>🏆 שיא חדש</div>
+              <button
+                onClick={closeSheet}
+                aria-label="סגור"
+                style={{
+                  background: 'none', border: 'none', fontSize: 22,
+                  cursor: 'pointer', color: '#888',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Exercise picker */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם התרגיל *</div>
+              <select
+                value={form.exercise}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const info = exerciseInfoFor(next);
+                  setForm(prev => ({
+                    ...prev,
+                    exercise: next,
+                    unit: info?.units?.[0] || prev.unit,
+                  }));
+                }}
+                style={{
+                  width: '100%', padding: 10, borderRadius: 12,
+                  border: `1px solid ${BORDER}`, fontSize: 14, direction: 'rtl',
+                  background: '#fff', appearance: 'auto',
+                }}
+              >
+                <option value="">בחר תרגיל...</option>
+                {DEFAULT_EXERCISES.map(ex => (
+                  <option key={ex.name} value={ex.name}>{ex.icon} {ex.name}</option>
                 ))}
-              </div>
+                <option value="__custom__">➕ תרגיל חדש...</option>
+              </select>
+              {form.exercise === '__custom__' && (
+                <input
+                  type="text"
+                  value={form.customName}
+                  onChange={(e) => setField('customName', e.target.value)}
+                  placeholder="שם התרגיל החדש"
+                  style={{
+                    width: '100%', padding: 10, borderRadius: 12,
+                    border: `1px solid ${BORDER}`, fontSize: 14, direction: 'rtl',
+                    marginTop: 6, boxSizing: 'border-box', outline: 'none',
+                  }}
+                />
+              )}
             </div>
-            <div>
-              <label className="text-sm font-bold text-gray-700 block mb-1">שם השיא</label>
-              <input value={recForm.name} onChange={e => setRecForm(f => ({ ...f, name: e.target.value }))} placeholder="לדוגמה: עליות מתח רחבות"
-                style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1.5px solid #ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none' }} />
+
+            {/* Record type */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>סוג שיא</div>
+              <select
+                value={form.type}
+                onChange={(e) => setField('type', e.target.value)}
+                style={{
+                  width: '100%', padding: 10, borderRadius: 12,
+                  border: `1px solid ${BORDER}`, fontSize: 14, direction: 'rtl',
+                  background: '#fff', appearance: 'auto',
+                }}
+              >
+                {RECORD_TYPE_OPTIONS.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
             </div>
-            <div className="flex gap-3">
+
+            {/* Value + unit */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               <div style={{ flex: 2 }}>
-                <label className="text-sm font-bold text-gray-700 block mb-1">ערך</label>
-                <input type="number" value={recForm.value} onChange={e => setRecForm(f => ({ ...f, value: e.target.value }))} placeholder="12"
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 18, fontWeight: 700, border: '1.5px solid #ddd', borderRadius: 10, boxSizing: 'border-box', textAlign: 'center', outline: 'none' }} />
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך השיא *</div>
+                <input
+                  type="number"
+                  value={form.value}
+                  onChange={(e) => setField('value', e.target.value)}
+                  placeholder="0"
+                  style={{
+                    width: '100%', padding: 10, borderRadius: 12,
+                    border: `1px solid ${BORDER}`, fontSize: 18, fontWeight: 600,
+                    textAlign: 'center', boxSizing: 'border-box', outline: 'none',
+                  }}
+                />
               </div>
               <div style={{ flex: 1 }}>
-                <label className="text-sm font-bold text-gray-700 block mb-1">יחידה</label>
-                <input value={recForm.unit} onChange={e => setRecForm(f => ({ ...f, unit: e.target.value }))} placeholder="חזרות"
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, border: '1.5px solid #ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none' }} />
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>יחידה</div>
+                <select
+                  value={form.unit}
+                  onChange={(e) => setField('unit', e.target.value)}
+                  style={{
+                    width: '100%', padding: 10, borderRadius: 12,
+                    border: `1px solid ${BORDER}`, fontSize: 14,
+                    background: '#fff', appearance: 'auto',
+                  }}
+                >
+                  {RECORD_UNITS.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                </select>
               </div>
             </div>
-            <div>
-              <label className="text-sm font-bold text-gray-700 block mb-1">תאריך</label>
-              <input type="date" value={recForm.date} onChange={e => setRecForm(f => ({ ...f, date: e.target.value }))}
-                style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1.5px solid #ddd', borderRadius: 10, boxSizing: 'border-box', outline: 'none' }} />
+
+            {/* Date */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>תאריך</div>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setField('date', e.target.value)}
+                style={{
+                  width: '100%', padding: 10, borderRadius: 12,
+                  border: `1px solid ${BORDER}`, fontSize: 14,
+                  boxSizing: 'border-box', outline: 'none',
+                }}
+              />
             </div>
-            <input value={recForm.notes} onChange={e => setRecForm(f => ({ ...f, notes: e.target.value }))} placeholder="הערות (אופציונלי)"
-              style={{ width: '100%', padding: '10px 12px', fontSize: 14, border: '1.5px solid #ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none' }} />
-            <Button onClick={handleSaveRecord} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: O }}>
-              {editingRecord ? '💾 עדכן שיא' : '🏆 שמור שיא'}
-            </Button>
+
+            {/* Technique name — only for record_type === 'technique' */}
+            {form.type === 'technique' && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+                  שם הטכניקה שנרכשה
+                </div>
+                <input
+                  type="text"
+                  value={form.techniqueName}
+                  onChange={(e) => setField('techniqueName', e.target.value)}
+                  placeholder="למשל: Double Under, Muscle-Up..."
+                  style={{
+                    width: '100%', padding: 10, borderRadius: 12,
+                    border: `1px solid ${BORDER}`, fontSize: 14, direction: 'rtl',
+                    boxSizing: 'border-box', outline: 'none',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* RPE slider */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+                RPE — דירוג קושי (1-10)
+              </div>
+              <input
+                type="range" min="1" max="10"
+                value={form.rpe}
+                onChange={(e) => setField('rpe', Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+              <div style={{ textAlign: 'center', fontSize: 16, fontWeight: 600, color: O }}>
+                {form.rpe}/10
+              </div>
+            </div>
+
+            {/* Quality slider */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+                דירוג איכות ביצוע (1-10)
+              </div>
+              <input
+                type="range" min="1" max="10"
+                value={form.quality}
+                onChange={(e) => setField('quality', Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+              <div style={{ textAlign: 'center', fontSize: 16, fontWeight: 600, color: O }}>
+                {form.quality}/10
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הערות</div>
+              <textarea
+                value={form.notes}
+                onChange={(e) => setField('notes', e.target.value)}
+                placeholder="תיאור, תחושות, הערות..."
+                style={{
+                  width: '100%', padding: 10, borderRadius: 12,
+                  border: `1px solid ${BORDER}`, fontSize: 14, direction: 'rtl',
+                  minHeight: 60, resize: 'vertical', boxSizing: 'border-box',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            {/* Video URL */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+                לינק לוידאו (לא חובה)
+              </div>
+              <input
+                type="url"
+                value={form.videoUrl}
+                onChange={(e) => setField('videoUrl', e.target.value)}
+                placeholder="https://..."
+                style={{
+                  width: '100%', padding: 10, borderRadius: 12,
+                  border: `1px solid ${BORDER}`, fontSize: 14,
+                  boxSizing: 'border-box', outline: 'none',
+                }}
+              />
+            </div>
+
+            {/* Save */}
+            <button
+              onClick={handleSaveRecord}
+              disabled={!canSave}
+              style={{
+                width: '100%', padding: 14, borderRadius: 14, border: 'none',
+                background: canSave ? O : '#ccc', color: '#fff',
+                fontSize: 16, fontWeight: 600,
+                cursor: canSave ? 'pointer' : 'default',
+              }}
+            >
+              💾 שמור שיא
+            </button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   );
 }

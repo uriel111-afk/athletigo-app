@@ -21,6 +21,86 @@ import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 import PreHealthScreen from "@/components/PreHealthScreen";
 
+// "השיאים שלי" surface for the trainee home — pulls the latest
+// personal_records row + total PB count for this trainee. Renders
+// nothing while loading or when no records exist. Click navigates
+// to the achievements tab in the trainee profile.
+function RecordsHomeCard({ userId }) {
+  const [latest, setLatest] = useState(null);
+  const [pbCount, setPbCount] = useState(0);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ data: latestRow }, { count }] = await Promise.all([
+          supabase
+            .from('personal_records')
+            .select('*')
+            .eq('trainee_id', userId)
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from('personal_records')
+            .select('id', { count: 'exact', head: true })
+            .eq('trainee_id', userId)
+            .eq('is_personal_best', true),
+        ]);
+        if (cancelled) return;
+        setLatest(latestRow || null);
+        setPbCount(count || 0);
+      } catch (e) {
+        console.warn('[RecordsHomeCard] load failed:', e?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  if (!latest) return null;
+
+  const fmt = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('he-IL');
+  };
+
+  return (
+    <Link
+      to={createPageUrl("TraineeProfile") + "?tab=achievements"}
+      className="no-underline"
+    >
+      <div style={{
+        background: '#FFFFFF', borderRadius: 14,
+        border: '1px solid #F0E4D0', padding: 14, marginBottom: 12,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        cursor: 'pointer', direction: 'rtl',
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: '#FF6F20',
+            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
+          }}>
+            🏆 השיאים שלי
+          </div>
+          <div style={{
+            fontSize: 13, color: '#1A1A1A',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {latest.name} — {latest.value}{latest.unit ? ` ${latest.unit}` : ''}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+            אחרון: {fmt(latest.date)} • {pbCount} שיאים אישיים
+          </div>
+        </div>
+        <span style={{ color: '#ccc', fontSize: 16, flexShrink: 0 }}>←</span>
+      </div>
+    </Link>
+  );
+}
+
 const DAILY_MESSAGES = [
   "הגוף זוכר כל מאמץ — כל חזרה בונה אותך מחדש",
   "כל אימון הוא הוכחה שאפשר — וכבר עושים את זה",
@@ -1375,6 +1455,12 @@ export default function TraineeHome() {
             </div>
           </div>
         )}
+
+        {/* "השיאים שלי" — surfaces the latest personal record + total PB
+            count from the achievements tab. Renders only when at least
+            one record exists; click → opens the achievements tab in
+            the trainee profile. */}
+        <RecordsHomeCard userId={user?.id} />
 
         {/* Streak / Progress Card — hidden for casual (no completed
             sessions yet, and no plan to track progress against). */}
