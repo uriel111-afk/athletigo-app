@@ -139,6 +139,10 @@ const AuthenticatedApp = () => {
 
   // ── Realtime notification popup (coach only) ──────────────────────
   const [popupNotif, setPopupNotif] = useState(null);
+  // Currently-firing reminder — set when the polling loop finds a row
+  // with status='reminder' whose reminder_at <= now and is_read=false.
+  // Cleared when the user dismisses the popup.
+  const [activeReminder, setActiveReminder] = useState(null);
   const isCoachUser = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const showNotificationPopup = useCallback((n) => {
@@ -206,6 +210,45 @@ const AuthenticatedApp = () => {
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user?.id, isCoachUser, showNotificationPopup]);
+
+  // Reminder polling — every 30 seconds, scan for notifications this
+  // user set a reminder on whose reminder_at is now in the past.
+  // The dedicated index notifications_reminder_due_idx (partial on
+  // status='reminder') keeps this query cheap. Marks the row read on
+  // pop so the same reminder doesn't fire twice — re-scheduling a
+  // reminder explicitly resets is_read=false in the dialog handler.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    const checkReminders = async () => {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'reminder')
+        .lte('reminder_at', now)
+        .eq('is_read', false)
+        .order('reminder_at', { ascending: true })
+        .limit(1);
+      if (cancelled || error) return;
+      if (data?.length > 0) {
+        const due = data[0];
+        setActiveReminder(due);
+        try {
+          await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('id', due.id);
+        } catch {}
+      }
+    };
+    // Fire once on mount so a reminder due during a backgrounded tab
+    // surfaces the moment the user returns, instead of waiting 30s.
+    checkReminders();
+    const interval = setInterval(checkReminders, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [user?.id]);
 
   // Show branded loading screen while auth is initializing. The thin
   // top progress bar sits on top of the splash so the user sees the
@@ -294,6 +337,77 @@ const AuthenticatedApp = () => {
       onDismiss={() => setPopupNotif(null)}
       onTap={() => navigate('/notifications')}
     />
+    {/* Reminder popup — surfaces a notification whose reminder_at has
+        passed. Distinct from popupNotif (which fires on any unread
+        INSERT) because reminders need a stronger UI: the user
+        explicitly asked to be re-pinged about THIS row, so the popup
+        is full-screen and modal until acknowledged. */}
+    {activeReminder && (
+      <div
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          zIndex: 99999, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', padding: 16,
+        }}
+      >
+        <style>{`@keyframes reminder-pop {
+          0% { transform: scale(0.8); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }`}</style>
+        <div
+          dir="rtl"
+          style={{
+            background: 'white', borderRadius: 14, padding: 24,
+            maxWidth: 340, width: '100%', textAlign: 'center',
+            animation: 'reminder-pop 0.3s ease',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔔</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>תזכורת!</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#FF6F20', marginBottom: 6 }}>
+            {activeReminder.title}
+          </div>
+          {activeReminder.message && (
+            <div style={{ fontSize: 14, color: '#555', marginBottom: 20, lineHeight: 1.6 }}>
+              {activeReminder.message}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              const link = activeReminder.link;
+              setActiveReminder(null);
+              if (link) {
+                try {
+                  navigate(String(link).startsWith('/') ? link : `/${link}`);
+                } catch (e) {
+                  console.warn('[Reminder] navigation failed:', e);
+                }
+              }
+            }}
+            style={{
+              width: '100%', padding: 12, borderRadius: 12, border: 'none',
+              background: '#FF6F20', color: 'white', fontSize: 14,
+              fontWeight: 600, cursor: 'pointer', marginBottom: 8,
+            }}
+          >
+            {activeReminder.link ? 'פתח' : 'הבנתי'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveReminder(null)}
+            style={{
+              width: '100%', padding: 12, borderRadius: 12,
+              border: '1px solid #F0E4D0', background: 'white',
+              fontSize: 14, cursor: 'pointer',
+            }}
+          >
+            סגור
+          </button>
+        </div>
+      </div>
+    )}
     {/* Single global mentor sheet — opened from any header's
         <MentorChatIconButton /> via the MENTOR_CHAT_OPEN_EVENT
         window event. Mounting it once here means no double-renders

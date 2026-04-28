@@ -110,6 +110,69 @@ export default function Notifications() {
     initialData: [],
   });
 
+  // Reminder dialog target — id of the notification a reminder is
+  // currently being scheduled for. null = dialog closed.
+  const [reminderTarget, setReminderTarget] = useState(null);
+  const [customReminderInput, setCustomReminderInput] = useState('');
+
+  // Per-row lifecycle actions. All updates write to the supabase row
+  // directly (the columns: status / handled_at / reminder_at /
+  // deleted_at were added via the recent ALTER) and rely on the
+  // realtime channel above to invalidate the query. Optimistic
+  // invalidation here keeps the UI snappy when realtime is slow.
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ['notifications', user?.id] });
+
+  const markHandled = async (id) => {
+    const { error } = await supabase.from('notifications')
+      .update({ status: 'handled', handled_at: new Date().toISOString(), is_read: true })
+      .eq('id', id);
+    if (error) { toast.error('שגיאה: ' + error.message); return; }
+    refresh();
+    toast.success('סומן כטופל ✓');
+  };
+
+  const markDeferred = async (id) => {
+    const { error } = await supabase.from('notifications')
+      .update({ status: 'deferred' })
+      .eq('id', id);
+    if (error) { toast.error('שגיאה: ' + error.message); return; }
+    refresh();
+    toast.success('נדחה למאוחר יותר ⏳');
+  };
+
+  const softDelete = async (id) => {
+    const { error } = await supabase.from('notifications')
+      .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) { toast.error('שגיאה: ' + error.message); return; }
+    refresh();
+    toast.success('התראה נמחקה');
+  };
+
+  const setReminderAt = async (id, date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      toast.error('תאריך לא תקין'); return;
+    }
+    if (date <= new Date()) {
+      toast.error('בחר זמן עתידי'); return;
+    }
+    const { error } = await supabase.from('notifications')
+      .update({
+        status: 'reminder',
+        reminder_at: date.toISOString(),
+        is_read: false, // make sure it pops back up when due
+      })
+      .eq('id', id);
+    if (error) { toast.error('שגיאה: ' + error.message); return; }
+    refresh();
+    const dateLabel = date.toLocaleDateString('he-IL');
+    const timeLabel = date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    toast.success(`תזכורת הוגדרה ל-${dateLabel} ${timeLabel}`);
+    setReminderTarget(null);
+    setCustomReminderInput('');
+  };
+
   // Mutations
   const markAsRead = async (id) => {
     try {
@@ -204,19 +267,29 @@ export default function Notifications() {
     navigateToRelevant(n);
   };
 
-  const unreadCount = useMemo(
-    () => notifications.filter(n => !n.is_read).length,
+  // Soft-deleted rows never show in this list. The header counter
+  // also ignores rows the coach already handled — only the genuinely
+  // unread items inflate the badge.
+  const visibleNotifications = useMemo(
+    () => notifications.filter(n => n.status !== 'deleted'),
     [notifications]
   );
 
+  const unreadCount = useMemo(
+    () => visibleNotifications.filter(n => !n.is_read && n.status !== 'handled').length,
+    [visibleNotifications]
+  );
+
   const filteredNotifications = useMemo(() => {
-    return notifications.filter(n => {
-      if (filter === 'all') return true;
-      if (filter === 'unread') return !n.is_read;
-      if (filter === 'sessions') return getFilterCategory(n.type) === 'sessions';
+    return visibleNotifications.filter(n => {
+      if (filter === 'all')      return true;
+      if (filter === 'unread')   return !n.is_read && n.status !== 'handled';
+      if (filter === 'deferred') return n.status === 'deferred';
+      if (filter === 'reminder') return n.status === 'reminder';
+      if (filter === 'handled')  return n.status === 'handled';
       return true;
     });
-  }, [notifications, filter]);
+  }, [visibleNotifications, filter]);
 
   // Send dialog (coach)
   const { data: trainees = [] } = useQuery({
@@ -304,16 +377,22 @@ export default function Notifications() {
         </div>
       </div>
 
-      {/* B. Filter — single row of small chips */}
+      {/* B. Filter — chip row. Five lifecycle states now: everything,
+          fresh unread, deferred ("ill handle this later"), reminders,
+          handled. status==='deleted' rows are filtered out at the
+          source so they never appear in any tab. */}
       <div style={{
         display: 'flex', gap: '6px',
         padding: '12px 16px',
         direction: 'rtl',
+        overflowX: 'auto',
       }}>
         {[
-          { id: 'all', label: 'הכל' },
-          { id: 'unread', label: 'לא נקראו' },
-          { id: 'sessions', label: 'מפגשים' },
+          { id: 'all',      label: 'הכל' },
+          { id: 'unread',   label: 'חדשות' },
+          { id: 'deferred', label: 'נדחו' },
+          { id: 'reminder', label: 'תזכורות' },
+          { id: 'handled',  label: 'טופלו' },
         ].map(f => (
           <div
             key={f.id}
@@ -322,7 +401,7 @@ export default function Notifications() {
               padding: '6px 14px',
               borderRadius: '20px',
               fontSize: '12px', fontWeight: 600,
-              cursor: 'pointer',
+              cursor: 'pointer', whiteSpace: 'nowrap',
               background: filter === f.id ? '#FF6F20' : 'white',
               color: filter === f.id ? 'white' : '#888',
               border: filter === f.id ? 'none' : '0.5px solid #F0E4D0',
@@ -379,8 +458,80 @@ export default function Notifications() {
               <div style={{
                 fontSize: '11px', color: '#888',
                 marginTop: '4px',
+                display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
               }}>
-                {formatRelativeTime(n.created_at)}
+                <span>{formatRelativeTime(n.created_at)}</span>
+                {n.status === 'handled' && (
+                  <span style={{ color: '#2E7D32' }}>• טופל</span>
+                )}
+                {n.status === 'deferred' && (
+                  <span style={{ color: '#E65100' }}>• נדחה</span>
+                )}
+                {n.status === 'reminder' && n.reminder_at && (
+                  <span style={{ color: '#FF6F20' }}>
+                    • תזכורת ל-
+                    {new Date(n.reminder_at).toLocaleDateString('he-IL')}
+                    {' '}
+                    {new Date(n.reminder_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
+
+              {/* Per-row lifecycle actions. stopPropagation so the
+                  card click (navigateToRelevant) doesn't also fire. */}
+              <div style={{
+                display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8,
+              }}>
+                {n.status !== 'handled' && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); markHandled(n.id); }}
+                    style={{
+                      padding: '4px 10px', borderRadius: 10, fontSize: 12,
+                      cursor: 'pointer', border: '1px solid #F0E4D0',
+                      background: 'white', color: '#2E7D32',
+                    }}
+                  >
+                    ✓ טופל
+                  </button>
+                )}
+                {n.status !== 'deferred' && n.status !== 'handled' && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); markDeferred(n.id); }}
+                    style={{
+                      padding: '4px 10px', borderRadius: 10, fontSize: 12,
+                      cursor: 'pointer', border: '1px solid #F0E4D0',
+                      background: 'white', color: '#E65100',
+                    }}
+                  >
+                    ⏳ מאוחר יותר
+                  </button>
+                )}
+                {n.status !== 'handled' && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setReminderTarget(n.id); }}
+                    style={{
+                      padding: '4px 10px', borderRadius: 10, fontSize: 12,
+                      cursor: 'pointer', border: '1px solid #F0E4D0',
+                      background: 'white', color: '#FF6F20',
+                    }}
+                  >
+                    🔔 תזכורת
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); softDelete(n.id); }}
+                  style={{
+                    padding: '4px 10px', borderRadius: 10, fontSize: 12,
+                    cursor: 'pointer', border: '1px solid #F0E4D0',
+                    background: 'white', color: '#C62828',
+                  }}
+                >
+                  🗑️ מחק
+                </button>
               </div>
             </div>
           </div>
@@ -397,6 +548,115 @@ export default function Notifications() {
           </div>
         )}
       </div>
+
+      {/* Reminder picker — opens when "🔔 תזכורת" is clicked on any
+          row. Quick-pick buttons + manual datetime-local. Backdrop tap
+          closes; saving wires the row to status='reminder' +
+          reminder_at + is_read=false so the App.jsx polling loop will
+          surface it as a popup when the time arrives. */}
+      {reminderTarget && (
+        <div
+          onClick={() => { setReminderTarget(null); setCustomReminderInput(''); }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+            zIndex: 10000, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: 16, direction: 'rtl',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white', borderRadius: 14, padding: 20,
+              maxWidth: 340, width: '100%', position: 'relative',
+              maxHeight: '85vh', overflowY: 'auto',
+            }}
+          >
+            <button
+              onClick={() => { setReminderTarget(null); setCustomReminderInput(''); }}
+              aria-label="סגור"
+              style={{
+                position: 'absolute', top: 10, left: 10, background: 'none',
+                border: 'none', fontSize: 22, cursor: 'pointer', color: '#888',
+              }}
+            >
+              ✕
+            </button>
+
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🔔</div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>הגדר תזכורת</div>
+            </div>
+
+            {[
+              { label: 'עוד 30 דקות',          minutes: 30 },
+              { label: 'עוד שעה',              minutes: 60 },
+              { label: 'עוד 3 שעות',           minutes: 180 },
+              { label: 'מחר בבוקר (08:00)',     preset: 'tomorrow_morning' },
+              { label: 'מחר בערב (18:00)',      preset: 'tomorrow_evening' },
+              { label: 'בעוד יומיים',           minutes: 2880 },
+              { label: 'בעוד שבוע',             minutes: 10080 },
+            ].map(opt => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => {
+                  let when;
+                  if (opt.preset === 'tomorrow_morning') {
+                    when = new Date();
+                    when.setDate(when.getDate() + 1);
+                    when.setHours(8, 0, 0, 0);
+                  } else if (opt.preset === 'tomorrow_evening') {
+                    when = new Date();
+                    when.setDate(when.getDate() + 1);
+                    when.setHours(18, 0, 0, 0);
+                  } else {
+                    when = new Date(Date.now() + opt.minutes * 60 * 1000);
+                  }
+                  setReminderAt(reminderTarget, when);
+                }}
+                style={{
+                  width: '100%', padding: 12, borderRadius: 12,
+                  border: '1px solid #F0E4D0', background: 'white',
+                  fontSize: 14, cursor: 'pointer', marginBottom: 6,
+                  textAlign: 'center',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+                או בחר תאריך ושעה:
+              </div>
+              <input
+                type="datetime-local"
+                value={customReminderInput}
+                onChange={(e) => setCustomReminderInput(e.target.value)}
+                style={{
+                  width: '100%', padding: 10, borderRadius: 12,
+                  border: '1px solid #F0E4D0', fontSize: 14,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!customReminderInput) { toast.error('בחר תאריך ושעה'); return; }
+                  setReminderAt(reminderTarget, new Date(customReminderInput));
+                }}
+                style={{
+                  width: '100%', padding: 12, borderRadius: 12, border: 'none',
+                  background: '#FF6F20', color: 'white', fontSize: 14,
+                  fontWeight: 600, cursor: 'pointer', marginTop: 6,
+                }}
+              >
+                הגדר תזכורת
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Send dialog (coach) — unchanged */}
       {isCoach && (

@@ -18,7 +18,13 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
     enabled: !!userId
   });
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  // Counter logic: live unread rows only. A reminder waiting to fire
+  // sits as is_read=false until App.jsx's polling loop pops it (which
+  // sets is_read=true), so reminders due naturally appear in this
+  // count without extra plumbing. handled / deleted rows are excluded.
+  const unreadCount = notifications.filter(
+    n => !n.is_read && n.status !== 'deleted' && n.status !== 'handled'
+  ).length;
 
   if (inline) {
     return unreadCount > 0 ? (
