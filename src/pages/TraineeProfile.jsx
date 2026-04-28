@@ -52,7 +52,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye, Clock, Bell } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -1441,6 +1441,29 @@ export default function TraineeProfile() {
     staleTime: 60000,
   });
 
+  // Coach-driven progress checkpoints for the free-text onboarding
+  // goals (training_goals on the users row). One row per update,
+  // 0..100 stored on `progress`. Latest-by-date drives both the radar
+  // and the per-goal progress bar in the goals tab.
+  const { data: goalProgress = [] } = useQuery({
+    queryKey: ['goal-progress', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('goal_progress')
+        .select('*')
+        .eq('trainee_id', user.id)
+        .order('date', { ascending: true });
+      if (error) {
+        console.warn('[goal_progress] query failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 60000,
+  });
+
   const { data: measurements = [], isLoading: measurementsLoading } = useQuery({
     queryKey: ['my-measurements', user?.id],
     queryFn: () => base44.entities.Measurement.filter({ trainee_id: user.id }, '-date').catch(() => []),
@@ -2011,6 +2034,38 @@ export default function TraineeProfile() {
     },
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
+
+  // Coach updates the progress of a free-text onboarding goal. Each
+  // call writes a fresh goal_progress row (we keep history rather than
+  // upserting so the radar always reflects the latest checkpoint and a
+  // future line chart can show movement over time). `goalKey` is the
+  // raw value stored in users.training_goals; `goalLabel` is the
+  // already-translated Hebrew label shown in the prompt.
+  const handleUpdateGoalProgress = async (goalKey, goalLabel) => {
+    const latest = (goalProgress || [])
+      .filter(gp => gp.goal_name === goalKey)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+    const seed = latest?.progress != null ? String(latest.progress) : '0';
+    const raw = window.prompt(`אחוז התקדמות ל-"${goalLabel}" (0-100):`, seed);
+    if (raw === null) return;
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) { toast.error('ערך לא תקין'); return; }
+    const clamped = Math.min(100, Math.max(0, Math.round(numeric)));
+    const { error } = await supabase.from('goal_progress').insert({
+      user_id: currentUser?.id || null,
+      trainee_id: user?.id,
+      goal_name: goalKey,
+      progress: clamped,
+      date: new Date().toISOString().split('T')[0],
+    });
+    if (error) {
+      console.error('[goal_progress] insert failed:', error);
+      toast.error('שגיאה: ' + error.message);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ['goal-progress', user?.id] });
+    toast.success(`${goalLabel}: ${clamped}% ✓`);
+  };
 
   const createResultMutation = useMutation({
     mutationFn: (data) => base44.entities.ResultsLog.create(data),
@@ -3001,55 +3056,139 @@ export default function TraineeProfile() {
                   </Button>
                 </div>
 
-                {/* Onboarding goals — read-only snapshot from
-                    users.training_goals. Coach can convert any of
-                    these into a tracked goal via "+ הוסף יעד".
-                    The free-text expansion (goals_description)
-                    written on the goals screen renders below the
-                    chip list when present. */}
+                {/* Build a "latest progress per onboarding goal" map
+                    once and reuse for both the radar chart and the
+                    per-goal cards below. Keys are the raw values
+                    stored in users.training_goals (so the coach can
+                    write back to goal_progress with the same key). */}
                 {(() => {
                   const onboardingGoals = parseList(user?.training_goals);
                   const goalsDescription = (user?.goals_description || '').trim();
                   if (!onboardingGoals.length && !goalsDescription) return null;
+
+                  // Latest progress per goal_name
+                  const latestByGoal = {};
+                  for (const gp of (goalProgress || [])) {
+                    const cur = latestByGoal[gp.goal_name];
+                    if (!cur || String(gp.date).localeCompare(String(cur.date)) > 0) {
+                      latestByGoal[gp.goal_name] = gp;
+                    }
+                  }
+
+                  const radarData = onboardingGoals.map(g => {
+                    const meta = INTRO_GOAL_LABELS[g] || { label: g };
+                    const label = meta.label || g;
+                    const short = label.length > 14 ? label.slice(0, 14) + '…' : label;
+                    return {
+                      key: g,
+                      goal: short,
+                      fullName: label,
+                      progress: Number(latestByGoal[g]?.progress) || 0,
+                    };
+                  });
+
                   return (
-                    <div style={{ background: '#FDF8F3', borderRadius: 14, padding: 16, border: '1px solid #F0E4D0' }}>
-                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 600 }}>
-                        מטרות מהאונבורדינג
-                      </div>
-                      {!!onboardingGoals.length && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {onboardingGoals.map((g, i) => {
-                            const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
-                            return (
-                              <div key={`${g}-${i}`} style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                padding: 10, borderRadius: 12,
-                                border: '1px solid #F0E4D0', background: '#FFFFFF',
-                              }}>
-                                <span style={{ fontSize: 20 }} aria-hidden>{meta.emoji}</span>
-                                <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{meta.label}</span>
-                                <span style={{ marginInlineStart: 'auto', fontSize: 11, color: '#888' }}>
-                                  מאונבורדינג
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {goalsDescription && (
+                    <>
+                      {/* Radar chart — only useful with 3+ axes (a
+                          radar with 1-2 spokes degenerates into a
+                          line). For 1-2 goals we skip the chart and
+                          let the per-goal cards below carry the
+                          progress display alone. */}
+                      {radarData.length >= 3 && (
                         <div style={{
-                          padding: 12, borderRadius: 12,
-                          background: '#FFFFFF',
-                          border: '1px solid #F0E4D0',
-                          marginTop: onboardingGoals.length ? 8 : 0,
-                          fontSize: 14, color: '#1A1A1A',
-                          direction: 'rtl', lineHeight: 1.6,
-                          whiteSpace: 'pre-wrap',
+                          background: 'white', borderRadius: 14,
+                          border: '1px solid #F0E4D0', padding: 16,
                         }}>
-                          {goalsDescription}
+                          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                            🎯 התקדמות ליעדים
+                          </div>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <RadarChart data={radarData}>
+                              <PolarGrid stroke="#F0E4D0" />
+                              <PolarAngleAxis dataKey="goal" tick={{ fontSize: 11, fill: '#1A1A1A' }} />
+                              <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#888' }} />
+                              <Radar dataKey="progress" stroke="#FF6F20" fill="#FF6F20" fillOpacity={0.2} strokeWidth={2} />
+                              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12 }} formatter={(v) => `${v}%`} />
+                            </RadarChart>
+                          </ResponsiveContainer>
                         </div>
                       )}
-                    </div>
+
+                      {/* Onboarding goals snapshot — read-only labels
+                          from users.training_goals + a progress bar
+                          per goal driven by the latest goal_progress
+                          row. Coach gets an "עדכן התקדמות" button on
+                          each row that opens a 0-100 prompt. */}
+                      <div style={{ background: '#FDF8F3', borderRadius: 14, padding: 16, border: '1px solid #F0E4D0' }}>
+                        <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 600 }}>
+                          מטרות מהאונבורדינג
+                        </div>
+                        {!!onboardingGoals.length && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {onboardingGoals.map((g, i) => {
+                              const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
+                              const progress = Number(latestByGoal[g]?.progress) || 0;
+                              return (
+                                <div key={`${g}-${i}`} style={{
+                                  padding: 10, borderRadius: 12,
+                                  border: '1px solid #F0E4D0', background: '#FFFFFF',
+                                  display: 'flex', flexDirection: 'column', gap: 8,
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <span style={{ fontSize: 20 }} aria-hidden>{meta.emoji}</span>
+                                    <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{meta.label}</span>
+                                    <span style={{
+                                      marginInlineStart: 'auto', fontSize: 13,
+                                      fontWeight: 700, color: '#FF6F20',
+                                    }}>
+                                      {progress}%
+                                    </span>
+                                  </div>
+                                  <div style={{
+                                    height: 6, background: '#F0E4D0',
+                                    borderRadius: 3, overflow: 'hidden',
+                                  }}>
+                                    <div style={{
+                                      height: '100%', background: '#FF6F20',
+                                      width: `${progress}%`, borderRadius: 3,
+                                      transition: 'width 0.3s',
+                                    }} />
+                                  </div>
+                                  {isCoach && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateGoalProgress(g, meta.label)}
+                                      style={{
+                                        alignSelf: 'flex-start',
+                                        background: 'none', border: 'none',
+                                        color: '#FF6F20', fontSize: 12,
+                                        cursor: 'pointer', padding: 0,
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      עדכן התקדמות
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {goalsDescription && (
+                          <div style={{
+                            padding: 12, borderRadius: 12,
+                            background: '#FFFFFF',
+                            border: '1px solid #F0E4D0',
+                            marginTop: onboardingGoals.length ? 8 : 0,
+                            fontSize: 14, color: '#1A1A1A',
+                            direction: 'rtl', lineHeight: 1.6,
+                            whiteSpace: 'pre-wrap',
+                          }}>
+                            {goalsDescription}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   );
                 })()}
                 <div className="grid grid-cols-3 gap-3 w-full">
