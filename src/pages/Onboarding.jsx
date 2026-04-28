@@ -815,8 +815,15 @@ export default function Onboarding() {
           weight_kg:                updateData.weight_kg,
           referral_source:          updateData.referral_source,
         });
+        // Explicit before/after logging so the diagnosis on a "fields
+        // are NULL" report is one DevTools open away. The existing
+        // partial log above shows a curated subset; this one shows
+        // the entire payload + the row the server returned.
+        console.log('[Onboarding] === SAVE START ===');
+        console.log('[Onboarding] full payload:', updateData);
         const saveResult = await updateUserMutation.mutateAsync(updateData);
         console.log('[Onboarding] save result:', saveResult);
+        console.log('[Onboarding] === SAVE END ===');
         console.log("[Onboarding] updateUserMutation completed successfully");
 
         // Seed the measurements table with the trainee's first
@@ -848,15 +855,46 @@ export default function Onboarding() {
         }
       } catch (updateError) {
         console.error("[Onboarding] updateUserMutation error:", updateError);
-        // Try with only critical fields if full update fails
-        console.log("[Onboarding] Retrying with critical fields only:", criticalData);
-        try {
-          await updateUserMutation.mutateAsync(criticalData);
-          console.log("[Onboarding] Retry with critical fields succeeded");
-          toast.warning("חלק מהשדות לא נשמרו, אך תהליך האונבורדינג הושלם");
-        } catch (criticalError) {
-          console.error("[Onboarding] Critical update failed:", criticalError);
-          throw criticalError; // Re-throw if critical fields fail
+        // The bulk update threw — usually because the column-retry
+        // budget (8 attempts) exhausted on a payload with too many
+        // unknown columns, OR a non-42703 error fired (RLS, type
+        // mismatch, etc.). Before falling back to the
+        // critical-fields-only path that loses all the answers, try
+        // each field on its own. A bad column kills only itself
+        // instead of the whole save.
+        console.warn('[Onboarding] bulk save failed — attempting per-field fallback');
+        let okCount = 0;
+        const failedFields = [];
+        for (const [key, value] of Object.entries(updateData)) {
+          if (value === undefined) continue;
+          try {
+            await base44.auth.updateMe({ [key]: value });
+            okCount++;
+            console.log(`[Onboarding] per-field OK: ${key}`);
+          } catch (fieldErr) {
+            failedFields.push(key);
+            console.warn(`[Onboarding] per-field FAILED: ${key} →`, fieldErr?.message);
+          }
+        }
+        console.log(`[Onboarding] per-field summary: ${okCount} saved, ${failedFields.length} failed`);
+        if (failedFields.length) console.log('[Onboarding] failed fields:', failedFields);
+
+        // If even per-field saved nothing, fall back to critical-only
+        // so onboarding at least flips the role + client_status flags.
+        if (okCount === 0) {
+          console.log("[Onboarding] Per-field saved nothing — retrying with critical fields only:", criticalData);
+          try {
+            await updateUserMutation.mutateAsync(criticalData);
+            console.log("[Onboarding] Retry with critical fields succeeded");
+            toast.warning("חלק מהשדות לא נשמרו, אך תהליך האונבורדינג הושלם");
+          } catch (criticalError) {
+            console.error("[Onboarding] Critical update failed:", criticalError);
+            throw criticalError;
+          }
+        } else if (failedFields.length > 0) {
+          // Partial success — every field that landed is in DB; surface
+          // the failures so the user knows something didn't make it.
+          toast.warning(`נשמרו ${okCount} שדות; ${failedFields.length} נכשלו (ראה Console)`);
         }
       }
 
