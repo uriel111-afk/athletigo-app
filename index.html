@@ -31,35 +31,28 @@
     <meta name="twitter:title" content="AthletiGo — אפליקציית אימונים" />
     <meta name="twitter:description" content="ניהול מתאמנים, תוכניות אימון, מעקב התקדמות ושעוני אימון מבוססי מיומנות" />
     <meta name="twitter:image" content="/icon-512.png" />
-    <!-- One-shot SW + cache cleanup. Runs at most ONCE per browser
-         session (sessionStorage flag) so it can't loop with the
-         vite-plugin-pwa registerSW.js that re-registers on load.
-         If the user reports a stuck cache, bumping this key (e.g.
-         sw-cleanup-v2) forces a fresh sweep on next visit. -->
+    <!-- Unconditional SW + cache kill on every load. Heavy-handed but
+         this is the loop-breaker: any stale Workbox cache that was
+         serving an old chunk graph gets nuked before the new bundle
+         even tries to load. Runs FIRST in <head>, before fonts/PWA
+         registration scripts. -->
     <script>
-      (function () {
-        try {
-          var KEY = 'sw-cleanup-v1';
-          if (sessionStorage.getItem(KEY)) return;
-          sessionStorage.setItem(KEY, '1');
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (regs) {
-              for (var i = 0; i < regs.length; i++) {
-                regs[i].unregister();
-                console.log('[BOOT] Unregistered service worker:', regs[i].scope);
-              }
-            });
-            if (window.caches) {
-              caches.keys().then(function (names) {
-                for (var i = 0; i < names.length; i++) {
-                  caches.delete(names[i]);
-                  console.log('[BOOT] Deleted cache:', names[i]);
-                }
-              });
-            }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          for (var i = 0; i < regs.length; i++) {
+            regs[i].unregister();
+            console.log('[SW] Unregistered service worker:', regs[i].scope);
           }
-        } catch (e) { console.warn('[BOOT] cleanup failed:', e); }
-      })();
+        });
+      }
+      if (typeof caches !== 'undefined') {
+        caches.keys().then(function (names) {
+          for (var i = 0; i < names.length; i++) {
+            caches.delete(names[i]);
+            console.log('[SW] Deleted cache:', names[i]);
+          }
+        });
+      }
     </script>
 
     <!-- Fonts -->

@@ -51,62 +51,8 @@ import { supabase } from '@/lib/supabaseClient';
 
 console.log('[APP] App module loaded', new Date().toISOString());
 
-// RoutingGate — single source of truth for who goes where. Lives INSIDE
-// <Router> so it can call useNavigate() directly · all decisions are
-// SPA-style (no window.location, no full reloads). Reacts to a small,
-// well-defined dependency set: as long as nothing in that set changes,
-// the effect doesn't re-fire, so back-to-back navigates can't create
-// a loop. The previous safeQueueRedirect/pendingRedirect/redirectingRef
-// machinery is gone — react-router's own routing is the only mechanism.
-function RoutingGate() {
-  const { user, isAuthenticated, isLoadingAuth, isOnboardingComplete } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const path = location.pathname;
-
-  useEffect(() => {
-    if (isLoadingAuth) return;          // wait for auth to settle
-    if (!isAuthenticated || !user) return; // anonymous → /login is reached via routes
-    if (path === '/login') return;       // login route handles its own redirect
-
-    const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
-    const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
-    const isLifeOSCoach = user?.id === LIFE_OS_COACH_ID;
-
-    console.log('[RoutingGate] Route check:', {
-      path,
-      isCoach,
-      isLifeOSCoach,
-      isOnboardingComplete,
-      clientStatus: user?.client_status,
-      onboardingCompletedAt: user?.onboarding_completed_at,
-    });
-
-    // Trainee w/o complete onboarding, not on /onboarding → send to /onboarding
-    if (!isCoach && !isOnboardingComplete && path !== '/onboarding') {
-      console.log('[RoutingGate] trainee needs onboarding → /onboarding');
-      navigate('/onboarding', { replace: true });
-      return;
-    }
-
-    // Trainee w/ complete onboarding currently on /onboarding → send home
-    if (!isCoach && isOnboardingComplete && path === '/onboarding') {
-      console.log('[RoutingGate] trainee already onboarded → /trainee-home');
-      navigate('/trainee-home', { replace: true });
-      return;
-    }
-
-    // Life OS coach landing at root → /hub
-    if (isLifeOSCoach && (path === '/' || path === '')) {
-      console.log('[RoutingGate] Life OS coach at root → /hub');
-      navigate('/hub', { replace: true });
-      return;
-    }
-    // Otherwise — leave the user where they are.
-  }, [user, isAuthenticated, isLoadingAuth, isOnboardingComplete, path, navigate]);
-
-  return null;
-}
+// RoutingGate removed — AuthProvider now lives INSIDE <Router>, so the
+// routing decision is a single useEffect inside AuthContext itself.
 
 // Global TabataTimer — always mounted, never unmounts
 function GlobalTabata() {
@@ -550,27 +496,29 @@ const AuthenticatedApp = () => {
 function App() {
   console.log('[APP] App component mounting...', new Date().toISOString());
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <ClockProvider>
-        <ActiveTimerProvider>
-          <Router>
-            <RoutingGate />
+    <QueryClientProvider client={queryClientInstance}>
+      <ClockProvider>
+      <ActiveTimerProvider>
+        <Router>
+          {/* AuthProvider is INSIDE Router so its routing useEffect can
+              call useNavigate() directly — no more pendingRedirect /
+              window.location.href bridges. */}
+          <AuthProvider>
             <NavigationTracker />
             <GlobalTabata />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>
-          </Router>
-          <Toaster />
-          <LastSessionAlert />
-          <BirthdayBlessingPopup />
-          <VisualEditAgent />
-        </ActiveTimerProvider>
-        </ClockProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+          </AuthProvider>
+        </Router>
+        <Toaster />
+        <LastSessionAlert />
+        <BirthdayBlessingPopup />
+        <VisualEditAgent />
+      </ActiveTimerProvider>
+      </ClockProvider>
+    </QueryClientProvider>
   )
 }
 

@@ -1,27 +1,28 @@
-import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useContext, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 
 console.log('[AUTH] AuthContext module loaded', new Date().toISOString());
 
 export const AuthContext = createContext();
 
-// AuthProvider sits OUTSIDE <Router>, so it CAN'T call useNavigate().
-// Responsibilities are deliberately narrow: keep the auth session +
-// users-row in state, expose them + a derived isOnboardingComplete
-// flag, and offer a checkAppState() refresh hook. ALL routing
-// decisions live in <RoutingGate /> (App.jsx), which is inside Router
-// and can call navigate() directly. That separation is what keeps the
-// onboarding flow from looping — the previous design used
-// window.location.href / pendingRedirect to bridge the gap, and any
-// stale state on either side restarted the cycle.
+// AuthProvider lives INSIDE <Router> (see App.jsx) so it can call
+// useNavigate() directly. The routing decision is a SINGLE useEffect
+// gated by routingDoneRef — fires AT MOST ONCE per provider mount.
+// No pendingRedirect, no window.location, no counters/cooldowns.
 export const AuthProvider = ({ children }) => {
   console.log('[AUTH] AuthProvider mounting...', new Date().toISOString());
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
+  // One-shot guard: once the routing useEffect navigates, it never
+  // navigates again from this provider mount. Subsequent moves are
+  // handled by individual pages calling navigate() themselves.
+  const routingDoneRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -69,7 +70,6 @@ export const AuthProvider = ({ children }) => {
         if (byEmail) {
           userProfile = byEmail;
         } else {
-          // No profile at all — create a minimal one so the user isn't stuck
           const { data: created, error: createErr } = await supabase
             .from('users')
             .insert({
@@ -114,9 +114,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Three signals, any one is enough — kept in a single source of truth
-  // so RoutingGate, Onboarding bootstrap, and any consumer can read the
-  // same answer without re-deriving it.
   const isOnboardingComplete = useMemo(() => {
     if (!user) return false;
     if (user.onboarding_completed === true) return true;
@@ -125,9 +122,57 @@ export const AuthProvider = ({ children }) => {
     return false;
   }, [user?.onboarding_completed, user?.onboarding_completed_at, user?.client_status]);
 
+  // Single routing effect — fires at most once per provider mount.
+  useEffect(() => {
+    if (isLoadingAuth) return;
+    if (!user || !isAuthenticated) return;
+    if (routingDoneRef.current) return;
+
+    const path = window.location.pathname;
+    const isCoach = user.role === 'coach' || user.is_coach === true || user.role === 'admin';
+    const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
+    const isLifeOSCoach = user.id === LIFE_OS_COACH_ID;
+
+    console.log('[AuthContext] ONE-TIME route:', {
+      path, isCoach, isLifeOSCoach,
+      onboardingDone: isOnboardingComplete,
+      clientStatus: user.client_status,
+      onboardingCompletedAt: user.onboarding_completed_at,
+    });
+
+    if (path === '/login') {
+      routingDoneRef.current = true;
+      const dest = isCoach
+        ? (isLifeOSCoach ? '/hub' : '/dashboard')
+        : (isOnboardingComplete ? '/trainee-home' : '/onboarding');
+      navigate(dest, { replace: true });
+      return;
+    }
+
+    if (!isCoach && !isOnboardingComplete && path !== '/onboarding') {
+      routingDoneRef.current = true;
+      navigate('/onboarding', { replace: true });
+      return;
+    }
+
+    if (!isCoach && isOnboardingComplete && path === '/onboarding') {
+      routingDoneRef.current = true;
+      navigate('/trainee-home', { replace: true });
+      return;
+    }
+
+    if (isLifeOSCoach && (path === '/' || path === '')) {
+      routingDoneRef.current = true;
+      navigate('/hub', { replace: true });
+      return;
+    }
+  }, [user, isAuthenticated, isLoadingAuth, isOnboardingComplete, navigate]);
+
   const checkAppState = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
+      // Reset the one-shot so a post-onboarding refresh CAN re-route.
+      routingDoneRef.current = false;
       await loadUserProfile(session.user);
     } else {
       setUser(null);
@@ -140,8 +185,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setIsAuthenticated(false);
       // Logout intentionally uses a full reload so query caches +
-      // route-only state (zustand stores etc.) don't leak across
-      // accounts. NEVER convert this to navigate().
+      // route-only state don't leak across accounts.
       if (shouldRedirect) {
         window.location.href = '/login';
       }
@@ -152,8 +196,6 @@ export const AuthProvider = ({ children }) => {
     const dest = redirectUrl
       ? `/login?redirect=${encodeURIComponent(redirectUrl)}`
       : '/login';
-    // Same intentional full-reload semantics as logout — preserves the
-    // ?redirect= query param for the post-login bounceback.
     window.location.href = dest;
   };
 
