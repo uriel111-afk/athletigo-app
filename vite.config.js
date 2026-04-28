@@ -15,7 +15,12 @@ export default defineConfig({
         theme_color: '#FF6F20',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/login',
+        // start_url '/' lets RoutingGate decide where the user lands.
+        // Was '/login' before — that forced the PWA shortcut to always
+        // open at /login, where Login.jsx then auto-redirected logged-in
+        // users; combined with stale SW caches it produced an apparent
+        // "loop" before React finished booting.
+        start_url: '/',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

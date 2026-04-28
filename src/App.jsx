@@ -49,6 +49,8 @@ import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 import NotificationPopup from './components/NotificationPopup';
 import { supabase } from '@/lib/supabaseClient';
 
+console.log('[APP] App module loaded', new Date().toISOString());
+
 // RoutingGate — single source of truth for who goes where. Lives INSIDE
 // <Router> so it can call useNavigate() directly · all decisions are
 // SPA-style (no window.location, no full reloads). Reacts to a small,
@@ -546,6 +548,7 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  console.log('[APP] App component mounting...', new Date().toISOString());
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>

@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
+console.log('[AUTH] AuthContext module loaded', new Date().toISOString());
+
 export const AuthContext = createContext();
 
 // AuthProvider sits OUTSIDE <Router>, so it CAN'T call useNavigate().
@@ -13,6 +15,7 @@ export const AuthContext = createContext();
 // window.location.href / pendingRedirect to bridge the gap, and any
 // stale state on either side restarted the cycle.
 export const AuthProvider = ({ children }) => {
+  console.log('[AUTH] AuthProvider mounting...', new Date().toISOString());
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
