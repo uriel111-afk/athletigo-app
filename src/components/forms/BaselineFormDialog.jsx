@@ -188,9 +188,6 @@ export default function BaselineFormDialog({
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // 'work' | 'rest' | 'techRest' | null — drives the bottom-sheet
-  // time picker that replaced the old +/− buttons on the timer cards.
-  const [showTimePicker, setShowTimePicker] = useState(null);
   // Drag offset for the dialog (relative to its centered position).
   // Initial offset is staggered by stackIndex so multiple parallel
   // forms don't perfectly overlap when first opened. The user can
@@ -597,14 +594,76 @@ export default function BaselineFormDialog({
             />
           </div>
 
-          {/* Three timer config cards. RTL flow: first JSX child sits
-              visually right-most. Order: זמן עבודה (R) | זמן מנוחה
-              (M) | מנוחה בין טכניקות (L). Tapping any card opens
-              the bottom-sheet TimePicker for scroll-selection. */}
+          {/* Three timer config controls — native <select>. The previous
+              bottom-sheet picker fought Radix Dialog's react-remove-scroll
+              and stuck on touch; native selects always work because the
+              browser/OS owns the scroll. RTL flow: first child = rightmost. */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            <TimerCard label='זמן עבודה'         seconds={workTime}     onPick={viewOnly ? null : () => setShowTimePicker('work')} />
-            <TimerCard label='זמן מנוחה'         seconds={restTime}     onPick={viewOnly ? null : () => setShowTimePicker('rest')} />
-            <TimerCard label='מנוחה בין טכניקות' seconds={techRestTime} onPick={viewOnly ? null : () => setShowTimePicker('techRest')} />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>זמן עבודה</div>
+              <select
+                value={workTime}
+                onChange={(e) => setWorkTime(Number(e.target.value))}
+                disabled={viewOnly}
+                style={{
+                  width: '100%', padding: '8px', borderRadius: 12,
+                  border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
+                  textAlign: 'center', textAlignLast: 'center',
+                  direction: 'rtl', background: 'white', appearance: 'auto',
+                  cursor: viewOnly ? 'default' : 'pointer',
+                }}
+              >
+                {Array.from({ length: 90 }, (_, i) => i + 1).map((s) => (
+                  <option key={s} value={s}>
+                    {String(Math.floor(s / 60)).padStart(2, '0')}:{String(s % 60).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>זמן מנוחה</div>
+              <select
+                value={restTime}
+                onChange={(e) => setRestTime(Number(e.target.value))}
+                disabled={viewOnly}
+                style={{
+                  width: '100%', padding: '8px', borderRadius: 12,
+                  border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
+                  textAlign: 'center', textAlignLast: 'center',
+                  direction: 'rtl', background: 'white', appearance: 'auto',
+                  cursor: viewOnly ? 'default' : 'pointer',
+                }}
+              >
+                {Array.from({ length: 90 }, (_, i) => i + 1).map((s) => (
+                  <option key={s} value={s}>
+                    {String(Math.floor(s / 60)).padStart(2, '0')}:{String(s % 60).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>מנוחה בין טכניקות</div>
+              <select
+                value={techRestTime}
+                onChange={(e) => setTechRestTime(Number(e.target.value))}
+                disabled={viewOnly}
+                style={{
+                  width: '100%', padding: '8px', borderRadius: 12,
+                  border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
+                  textAlign: 'center', textAlignLast: 'center',
+                  direction: 'rtl', background: 'white', appearance: 'auto',
+                  cursor: viewOnly ? 'default' : 'pointer',
+                }}
+              >
+                {Array.from({ length: 90 }, (_, i) => i + 1).map((s) => (
+                  <option key={s} value={s}>
+                    {String(Math.floor(s / 60)).padStart(2, '0')}:{String(s % 60).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Pill tabs — orange divider between buttons. Switched to
@@ -841,26 +900,6 @@ export default function BaselineFormDialog({
       <DraftToast onRestore={keepDraft} onDiscard={discardDraft} />
     )}
 
-    {/* Bottom-sheet time picker for the three TimerCard fields.
-        Mounted at component root so it sits above the dialog and
-        scroll-selects 1..90 seconds. */}
-    {showTimePicker && (
-      <TimePickerSheet
-        which={showTimePicker}
-        currentValue={
-          showTimePicker === 'work'      ? workTime :
-          showTimePicker === 'rest'      ? restTime :
-                                            techRestTime
-        }
-        onPick={(secs) => {
-          if (showTimePicker === 'work')      setWorkTime(secs);
-          else if (showTimePicker === 'rest') setRestTime(secs);
-          else                                setTechRestTime(secs);
-          setShowTimePicker(null);
-        }}
-        onClose={() => setShowTimePicker(null)}
-      />
-    )}
     </>
   );
 }
@@ -998,119 +1037,6 @@ function DateTimeCard({ icon, displayValue, type, value, onChange, disabled, max
       />
     </label>
   );
-}
-
-// Bottom-sheet time picker — 1..90 seconds, scroll-select. Opened
-// when the coach taps any TimerCard. Clicking the dim backdrop
-// closes without changing the value; clicking a row selects + closes.
-const PICKER_TITLES = {
-  work:     'זמן עבודה',
-  rest:     'מנוחה סבבים',
-  techRest: 'מנוחה טכניקות',
-};
-function TimePickerSheet({ which, currentValue, onPick, onClose }) {
-  // Auto-scroll to the currently-selected row when the sheet opens
-  // so the coach lands on their existing pick instead of at 00:01.
-  useEffect(() => {
-    const id = setTimeout(() => {
-      const el = document.getElementById(`time-option-${currentValue}`);
-      if (el) {
-        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
-        catch { el.scrollIntoView(); }
-      }
-    }, 100);
-    return () => clearTimeout(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [which]);
-
-  const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-
-  // The picker is portaled to document.body so it escapes the
-  // Radix Dialog's react-remove-scroll wrapper — without the portal,
-  // the inner list couldn't scroll on mobile (the dialog's scroll-
-  // lock blocked touch-scroll inside any descendant), and the
-  // sheet appeared "stuck / unresponsive". Now lives at body level
-  // alongside the dialog overlay; touch + click work natively.
-  if (typeof document === 'undefined' || !document.body) return null;
-
-  const node = (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        zIndex: 12010,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#FFFFFF',
-          borderRadius: '14px 14px 0 0',
-          padding: 16,
-          width: '100%',
-          maxWidth: 400,
-          maxHeight: '50vh',
-          display: 'flex', flexDirection: 'column',
-          direction: 'rtl',
-        }}
-      >
-        <div style={{
-          fontSize: 16, fontWeight: 600, textAlign: 'center',
-          marginBottom: 12, color: '#1A1A1A',
-        }}>
-          {PICKER_TITLES[which] || ''}
-        </div>
-        <div style={{
-          overflowY: 'auto',
-          maxHeight: '40vh',
-          paddingInline: 4,
-          // Explicit touch-scroll hints — needed on iOS Safari and
-          // any wrapper that disables scroll on its descendants.
-          WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-y',
-          overscrollBehavior: 'contain',
-        }}>
-          {Array.from({ length: 90 }, (_, i) => i + 1).map((seconds) => {
-            const selected = currentValue === seconds;
-            return (
-              <div
-                id={`time-option-${seconds}`}
-                key={seconds}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPick(seconds);
-                }}
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'center',
-                  fontSize: 18,
-                  fontWeight: selected ? 600 : 400,
-                  color: selected ? '#FF6F20' : '#1A1A1A',
-                  background: selected ? '#FFF5EE' : '#FFFFFF',
-                  borderRadius: 10,
-                  marginBottom: 4,
-                  cursor: 'pointer',
-                  border: selected ? '1px solid #FF6F20' : '1px solid transparent',
-                  fontVariantNumeric: 'tabular-nums',
-                  userSelect: 'none',
-                }}
-              >
-                {fmt(seconds)}
-                <span style={{ fontSize: 13, color: '#888', marginRight: 8 }}>
-                  ({seconds} שניות)
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-
-  return createPortal(node, document.body);
 }
 
 // Compact MM:SS card. In edit mode tapping anywhere on the card
