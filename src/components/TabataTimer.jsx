@@ -134,6 +134,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // Mirror of `paused` state — used by tick() and the window listener so
   // they read fresh state without depending on render-time closures.
   const pausedRef = useRef(false);
+  // Mirror of the memoised totalExerciseSeconds so the rAF tick can log
+  // the same total the render uses without re-running the loop.
+  const totalExerciseSecondsRef = useRef(0);
+  // Throttle the per-tick diagnostic log to once per integer second so
+  // the console doesn't flood at the rAF frame rate (~60Hz).
+  const lastLogSecRef = useRef(-1);
 
   // Total-time row measurement. Lives ABOVE every conditional return
   // (settings / done early gates further down) so the hook count is
@@ -333,6 +339,34 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       vibrate(VIBRATION.tick);
     }
 
+    // Diagnostic — fires once per integer second. Lets us watch the
+    // perimeter drain math (totalLeftPrecise / totalExerciseSeconds)
+    // tick down through every phase including 'prep'. If progress
+    // stays at 1.0 during prep, totalExerciseSeconds is wrong; if it
+    // jumps, calcTotalRemaining is wrong.
+    if (secs !== lastLogSecRef.current) {
+      lastLogSecRef.current = secs;
+      try {
+        const c = cfgRef.current;
+        let totalLeft = Math.max(0, p.dur - elapsed);
+        let cur = { ...p };
+        while (true) {
+          const nxt = nextPhase(cur, c);
+          if (nxt.type === 'done') break;
+          totalLeft += nxt.dur;
+          cur = nxt;
+        }
+        const totalAll = totalExerciseSecondsRef.current;
+        const prog = totalAll > 0 ? totalLeft / totalAll : 0;
+        console.log('[Tabata] tick:', {
+          phase: p.type,
+          totalTimeRemaining: totalLeft.toFixed(2),
+          totalExerciseTime: totalAll,
+          progress: prog.toFixed(3),
+        });
+      } catch (e) { /* never let logging kill the timer */ }
+    }
+
     if (remaining <= 0) {
       // Transition
       const nxt = nextPhase(p, cfgRef.current);
@@ -389,9 +423,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     pausedRef.current = false;
     setPaused(false);
     setScreen('running');
+    lastLogSecRef.current = -1;
     const first = cfg.prep > 0
       ? { type: 'prep', round: 0, set: 0, dur: cfg.prep }
       : { type: 'work', round: 1, set: 1, dur: cfg.work };
+    console.log('[Tabata] handleStart — total session:', totalExerciseSecondsRef.current,
+      'first phase:', first.type, 'dur:', first.dur);
     beginPhase(first);
     // When prep is skipped (cfg.prep === 0), the first phase IS the
     // first work phase. Run the same transition helper that fires on
@@ -539,6 +576,10 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     // that field doesn't exist; nextPhase reads cfg.rb for set rests).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg.prep, cfg.work, cfg.rest, cfg.rb, cfg.rounds, cfg.sets]);
+
+  // Mirror to ref so tick() / handleStart can log the value without
+  // calling the loop a second time.
+  useEffect(() => { totalExerciseSecondsRef.current = totalExerciseSeconds; }, [totalExerciseSeconds]);
 
   // ─── Settings Screen ───
   if (screen === 'settings') {
