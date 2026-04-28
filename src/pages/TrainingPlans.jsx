@@ -57,6 +57,10 @@ export default function TrainingPlans() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterDate, setFilterDate] = useState({ from: undefined, to: undefined });
 
+  // Which plan card is currently expanded (only one open at a time).
+  // null = list view with all cards collapsed.
+  const [expandedPlanId, setExpandedPlanId] = useState(null);
+
   const queryClient = useQueryClient();
 
   const { data: allSeries = [] } = useQuery({
@@ -75,6 +79,40 @@ export default function TrainingPlans() {
   const sections = [];
   const exercises = [];
   const getPlanSections = (planId) => [];
+
+  // Bulk fetch sections + exercises for every non-deleted plan so the
+  // closed expandable card can show "X סקשנים • Y תרגילים" without
+  // a per-card lazy fetch on render. Re-runs only when the underlying
+  // plans list changes (search/filter changes don't invalidate).
+  const allLivePlanIds = (plans || [])
+    .filter(p => p.status !== 'deleted' && !p.deleted_at)
+    .map(p => p.id)
+    .sort();
+
+  const { data: planContents = {} } = useQuery({
+    queryKey: ['plan-contents-bulk', allLivePlanIds.join(',')],
+    queryFn: async () => {
+      if (!allLivePlanIds.length) return {};
+      // base44 doesn't expose an .in() filter; iterate per plan in
+      // parallel. For typical coach scale (10–30 plans) this is fine.
+      const results = await Promise.all(
+        allLivePlanIds.map(async (planId) => {
+          const [sec, ex] = await Promise.all([
+            base44.entities.TrainingSection.filter({ training_plan_id: planId }, 'order').catch(() => []),
+            base44.entities.Exercise.filter({ training_plan_id: planId }).catch(() => []),
+          ]);
+          return { planId, sections: sec || [], exercises: ex || [] };
+        })
+      );
+      const byPlan = {};
+      for (const r of results) {
+        byPlan[r.planId] = { sections: r.sections, exercises: r.exercises };
+      }
+      return byPlan;
+    },
+    enabled: allLivePlanIds.length > 0,
+    staleTime: 30_000,
+  });
   
   // Mutations for Series
   const createSeriesMutation = useMutation({
@@ -671,41 +709,22 @@ export default function TrainingPlans() {
                           <p className="text-gray-500 max-w-xs mx-auto mt-1">נסה לשנות את סינון החיפוש או צור תוכנית חדשה</p>
                        </div>
                   ) : (
-                      <>
-                       {Object.entries(
-                          filteredPlans.reduce((groups, plan) => {
-                             // Group Logic
-                             const key = plan.is_template ? ' תבניות מערכת' : (plan.assigned_to_name || 'תוכניות ללא שיוך');
-                             if (!groups[key]) groups[key] = [];
-                             groups[key].push(plan);
-                             return groups;
-                          }, {})
-                       ).sort((a, b) => {
-                          if (a[0].includes('תבניות')) return -1; 
-                          if (b[0].includes('תבניות')) return 1;
-                          return a[0].localeCompare(b[0]);
-                       }).map(([groupName, groupPlans]) => (
-                          <TraineePlanGroup 
-                          key={groupName}
-                          traineeName={groupName}
-                          plans={groupPlans}
-                          exercises={exercises}
-                          seriesList={allSeries.filter(s => {
-                               if (groupName.includes('תבניות')) return s.is_template;
-                               return s.assigned_to_name === groupName;
-                          })}
-                          isTemplateGroup={groupName.includes('תבניות')}
-                          actions={{
-                             onSelect: setSelectedPlan,
-                             onEdit: (p) => { setEditingPlan(p); setShowPlanDialog(true); },
-                             onDuplicate: handleDuplicatePlan,
-                             onShare: (p) => { setSharingPlan(p); setShowSharePlanDialog(true); },
-                             onDelete: (p) => { setDeletingPlan(p); setShowDeleteDialog(true); },
-                             onSeriesEdit: (s) => { setEditingSeries(s); setShowSeriesDialog(true); }
-                          }}
-                          />
-                       ))}
-                      </>
+                      /* Flat list of expandable cards. Closed: name +
+                         trainee + date + counts + status. Open: each
+                         section listed with its exercises and key
+                         params, plus an "ערוך תוכנית" CTA that drops
+                         into the existing UnifiedPlanBuilder via
+                         setSelectedPlan (no /training-plans/:id route
+                         exists — the editor mounts in-place). */
+                      <ExpandablePlansList
+                        plans={[...filteredPlans].sort(
+                          (a, b) => new Date(b.created_at) - new Date(a.created_at)
+                        )}
+                        planContents={planContents}
+                        expandedPlanId={expandedPlanId}
+                        onToggle={(id) => setExpandedPlanId(prev => prev === id ? null : id)}
+                        onEdit={(plan) => setSelectedPlan(plan)}
+                      />
                   )}
               </div>
               </div>
@@ -968,5 +987,208 @@ export default function TrainingPlans() {
         </Dialog>
         </div>
     </ProtectedCoachPage>
+  );
+}
+
+// ── Expandable plan cards ─────────────────────────────────────────────
+// Flat list of minimal cards. Click anywhere on the closed header to
+// expand and reveal sections + exercises. Click "ערוך תוכנית" to drop
+// into UnifiedPlanBuilder in-place (no separate route).
+function ExpandablePlansList({ plans, planContents, expandedPlanId, onToggle, onEdit }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {plans.map(plan => (
+        <PlanCard
+          key={plan.id}
+          plan={plan}
+          contents={planContents[plan.id] || { sections: [], exercises: [] }}
+          isExpanded={expandedPlanId === plan.id}
+          onToggle={() => onToggle(plan.id)}
+          onEdit={() => onEdit(plan)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Map the Hebrew status values in the DB to a display label + chip
+// colors. Templates surface as a separate tag so the coach can tell
+// at-a-glance which rows are reusable.
+function statusBadge(plan) {
+  if (plan.is_template) {
+    return { label: 'תבנית', bg: '#FFF5EE', fg: '#FF6F20' };
+  }
+  switch (plan.status) {
+    case 'פעילה':   return { label: 'פעיל',   bg: '#E8F5E9', fg: '#2E7D32' };
+    case 'טיוטה':   return { label: 'טיוטה',  bg: '#FFF3E0', fg: '#E65100' };
+    case 'הושלמה':  return { label: 'הושלם',  bg: '#F5F5F5', fg: '#888888' };
+    case 'ארכיון':  return { label: 'ארכיון', bg: '#F5F5F5', fg: '#888888' };
+    default:        return { label: 'פעיל',   bg: '#E8F5E9', fg: '#2E7D32' };
+  }
+}
+
+function PlanCard({ plan, contents, isExpanded, onToggle, onEdit }) {
+  const sections = contents.sections || [];
+  const exercises = contents.exercises || [];
+  const totalExercises = exercises.length;
+  const trainee = plan.assigned_to_name || 'לא משויך';
+  const dateStr = plan.created_at
+    ? new Date(plan.created_at).toLocaleDateString('he-IL')
+    : '';
+  const badge = statusBadge(plan);
+
+  // Group exercises by their training_section_id for the open view.
+  const exercisesBySection = sections.reduce((map, s) => {
+    map[s.id] = exercises
+      .filter(e => e.training_section_id === s.id)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    return map;
+  }, {});
+
+  // Sections may have either `order` or `sort_order` depending on
+  // schema age — use whichever is present.
+  const sortedSections = [...sections].sort(
+    (a, b) => (a.order ?? a.sort_order ?? 0) - (b.order ?? b.sort_order ?? 0)
+  );
+
+  return (
+    <div style={{
+      background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+      overflow: 'hidden', direction: 'rtl',
+    }}>
+      {/* Closed header — always visible */}
+      <div
+        onClick={onToggle}
+        style={{
+          padding: 14, cursor: 'pointer', display: 'flex',
+          justifyContent: 'space-between', alignItems: 'center', gap: 10,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 16, fontWeight: 600, marginBottom: 4, color: '#1A1A1A',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {plan.plan_name || plan.name || 'תוכנית ללא שם'}
+          </div>
+          <div style={{
+            fontSize: 13, color: '#888',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {trainee}{dateStr ? ` • ${dateStr}` : ''}
+          </div>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+            {sections.length} סקשנים • {totalExercises} תרגילים
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{
+            padding: '3px 10px', borderRadius: 10,
+            fontSize: 11, fontWeight: 600,
+            background: badge.bg, color: badge.fg,
+          }}>
+            {badge.label}
+          </span>
+          <span style={{
+            fontSize: 14, color: '#888',
+            transition: 'transform 0.2s',
+            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            display: 'inline-block',
+          }}>
+            ▼
+          </span>
+        </div>
+      </div>
+
+      {/* Open body */}
+      {isExpanded && (
+        <div style={{ padding: '0 14px 14px', borderTop: '1px solid #F0E4D0' }}>
+          {sortedSections.length === 0 ? (
+            <div style={{ padding: 16, textAlign: 'center', color: '#888', fontSize: 14 }}>
+              אין סקשנים בתוכנית
+            </div>
+          ) : sortedSections.map(section => {
+            const sectionExercises = exercisesBySection[section.id] || [];
+            return (
+              <div key={section.id} style={{ marginTop: 12 }}>
+                <div style={{
+                  fontSize: 14, fontWeight: 600, color: '#FF6F20',
+                  marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  📂 {section.name || section.title || 'סקשן'}
+                  <span style={{ fontSize: 12, color: '#888', fontWeight: 400 }}>
+                    ({sectionExercises.length} תרגילים)
+                  </span>
+                </div>
+
+                {sectionExercises.map(ex => {
+                  const params = [];
+                  if (ex.sets)        params.push(`${ex.sets} סטים`);
+                  if (ex.reps)        params.push(`${ex.reps} חזרות`);
+                  if (ex.weight)      params.push(`${ex.weight} ק"ג`);
+                  if (ex.work_time)   params.push(`עבודה ${ex.work_time}״`);
+                  if (ex.rest_time)   params.push(`מנוחה ${ex.rest_time}״`);
+                  if (ex.rpe)         params.push(`RPE ${ex.rpe}`);
+                  if (ex.tempo)       params.push(`טמפו ${ex.tempo}`);
+                  if (ex.static_hold_time) params.push(`החזקה ${ex.static_hold_time}״`);
+
+                  // Sub-exercises live under children (canonical),
+                  // exercise_list, or sub_exercises depending on
+                  // when the row was saved.
+                  const rawSubs = ex.children || ex.exercise_list || ex.sub_exercises || [];
+                  const subList = typeof rawSubs === 'string'
+                    ? (() => { try { return JSON.parse(rawSubs) || []; } catch { return []; } })()
+                    : (Array.isArray(rawSubs) ? rawSubs : []);
+
+                  return (
+                    <div
+                      key={ex.id}
+                      style={{
+                        padding: '8px 12px', marginBottom: 4,
+                        borderRadius: 10, background: '#FDF8F3', fontSize: 13,
+                      }}
+                    >
+                      <div style={{ fontWeight: 500, marginBottom: 2, color: '#1A1A1A' }}>
+                        {ex.exercise_name || ex.name || 'תרגיל'}
+                      </div>
+                      {params.length > 0 && (
+                        <div style={{ color: '#888', fontSize: 12 }}>
+                          {params.join(' • ')}
+                        </div>
+                      )}
+                      {subList.length > 0 && (
+                        <div style={{
+                          marginTop: 4, paddingRight: 12,
+                          fontSize: 12, color: '#888',
+                        }}>
+                          {subList.map((s, i) => (
+                            <div key={s.id || i}>
+                              • {s.exercise_name || s.name || ''}
+                              {s.reps ? ` ×${s.reps}` : ''}
+                              {s.sets ? ` ${s.sets}S` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            style={{
+              width: '100%', padding: 12, borderRadius: 12, border: 'none',
+              background: '#FF6F20', color: 'white', fontSize: 14,
+              fontWeight: 600, cursor: 'pointer', marginTop: 12,
+            }}
+          >
+            ✏️ ערוך תוכנית
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
