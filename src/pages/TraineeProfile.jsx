@@ -3347,24 +3347,30 @@ export default function TraineeProfile() {
 
                   // Radar — only when 3+ folders exist (radar
                   // degenerates into a line below that).
+                  // Names are truncated to 10 chars + '...' to fit
+                  // around the chart without clipping; cap at 8 slices
+                  // so the axis labels stay legible (any beyond drop
+                  // out of the radar — they still show in the folder
+                  // cards below).
                   const radarData = folderNames.map(name => {
                     const entries = goalFolders[name];
                     const latest = entries.length ? entries[entries.length - 1] : null;
                     const meta = INTRO_GOAL_LABELS[name];
                     const label = meta?.label || name;
-                    const short = label.length > 12 ? label.slice(0, 12) + '…' : label;
+                    const short = label.length > 10 ? label.substring(0, 10) + '...' : label;
                     return { goal: short, progress: Number(latest?.progress) || 0 };
                   });
+                  const radarDataLimited = radarData.slice(0, 8);
 
                   return (
                     <>
-                      {radarData.length >= 3 && (
+                      {radarDataLimited.length >= 3 && (
                         <div style={{ background: 'white', borderRadius: 14, border: '1px solid #F0E4D0', padding: 16 }}>
                           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🎯 סקירת יעדים</div>
-                          <ResponsiveContainer width="100%" height={220}>
-                            <RadarChart data={radarData}>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <RadarChart data={radarDataLimited} cx="50%" cy="50%" outerRadius="65%">
                               <PolarGrid stroke="#F0E4D0" />
-                              <PolarAngleAxis dataKey="goal" tick={{ fontSize: 10, fill: '#1A1A1A' }} />
+                              <PolarAngleAxis dataKey="goal" fontSize={9} tick={{ fontSize: 9, fill: '#1A1A1A' }} />
                               <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#888' }} />
                               <Radar dataKey="progress" stroke="#FF6F20" fill="#FF6F20" fillOpacity={0.15} strokeWidth={2}
                                 dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
