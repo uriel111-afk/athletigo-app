@@ -124,7 +124,11 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
   })();
   const merged = record || docData?.answers || docData || null;
   const signedAt = merged?.signed_at || merged?.created_at || record?.created_at;
-  const signatureUrl = record?.signature_url || docFallback?.file_url || merged?.signature_url;
+  // signature_data (new canonical, base64 data URL) takes precedence
+  // over the legacy signature_url. Both render the same way in <img>.
+  const signatureUrl = record?.signature_data || record?.signature_url
+    || merged?.signature_data || merged?.signature_url
+    || docFallback?.file_url;
 
   const overlay = (
     <div

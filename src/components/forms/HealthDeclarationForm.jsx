@@ -5,23 +5,17 @@ import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 
-// data URL → Blob converter so the canvas PNG can be uploaded to
-// Supabase Storage. Inline implementation keeps the form
-// self-contained — no extra utility import.
-function dataUrlToBlob(dataUrl) {
-  const [header, base64] = dataUrl.split(',');
-  const mime = (header.match(/:(.*?);/) || [, 'image/png'])[1];
-  const bin = atob(base64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return new Blob([arr], { type: mime });
-}
-
 // Standard PAR-Q-style screening, 8 yes/no questions per the casual
 // onboarding spec. Trainee must tick the confirmation checkbox AND
 // sign on the canvas before "חתום ואשר" enables. On save, inserts
 // into `health_declarations` and (if a session id was passed) flips
 // that session from pending_approval → confirmed.
+//
+// Signature is saved as a base64 data URL in `health_declarations.signature_data`
+// — no Supabase Storage upload. The data URL renders directly in <img src=...>,
+// so consumers (HealthDeclarationViewer, SignedDocumentViewer) don't care
+// whether it's a hosted file or inline base64. Sidesteps "bucket not found"
+// failures and missing-RLS issues entirely.
 
 const QUESTIONS = [
   { key: 'heart_disease',       label: 'האם אובחנת אי פעם עם מחלת לב?' },
@@ -143,51 +137,41 @@ export default function HealthDeclarationForm({
     }
     setSaving(true);
     try {
+      // Capture the signature as a data URL — written straight to the DB
+      // in `signature_data`. No Storage upload (no bucket dependency, no
+      // RLS surface). Same string is reused for the signed_documents mirror.
       const signatureDataUrl = canvasRef.current.toDataURL('image/png');
-
-      // Try to upload the PNG to Supabase Storage so we can store a
-      // short URL in signature_url (and reuse it from the documents
-      // mirror). If the upload fails for any reason — bucket missing,
-      // RLS deny, network — fall back to inlining the data URL so
-      // the form still saves the signature on this attempt.
-      let signatureUrl = signatureDataUrl;
-      try {
-        const blob = dataUrlToBlob(signatureDataUrl);
-        const path = `${trainee?.id || 'unknown'}/signatures/health_declaration_${Date.now()}.png`;
-        const tryBucket = async (bucket) => {
-          const { error: upErr } = await supabase.storage
-            .from(bucket)
-            .upload(path, blob, { upsert: true, contentType: 'image/png' });
-          if (upErr) throw upErr;
-          const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
-          return urlData?.publicUrl;
-        };
-        try {
-          signatureUrl = await tryBucket('lifeos-files');
-        } catch {
-          signatureUrl = await tryBucket('media');
-        }
-      } catch (e) {
-        console.warn('[HealthDeclaration] storage upload failed, falling back to inline data URL:', e?.message);
-      }
+      console.log('[HealthDec] signature captured, length:', signatureDataUrl.length);
 
       const payload = {
         user_id: coachId || null,
         trainee_id: trainee?.id || null,
         full_name: trainee?.full_name || '',
         birth_date: trainee?.birth_date || null,
-        ...answers,
+        heart_disease: !!answers.heart_disease,
+        blood_pressure: !!answers.blood_pressure,
+        joint_issues: !!answers.joint_issues,
+        asthma: !!answers.asthma,
+        medications: !!answers.medications,
+        medical_limitations: !!answers.medical_limitations,
+        recent_surgery: !!answers.recent_surgery,
+        feels_healthy: answers.feels_healthy ?? true,
         additional_notes: additionalNotes || null,
         declaration_confirmed: true,
-        signature_url: signatureUrl,
+        signature_data: signatureDataUrl,
         signed_at: new Date().toISOString(),
       };
+      console.log('[HealthDec] inserting declaration with keys:', Object.keys(payload));
       const { data: inserted, error } = await supabase
         .from('health_declarations')
         .insert(payload)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error('[HealthDec] declaration insert failed:', error.message);
+        throw error;
+      }
+      console.log('[HealthDec] declaration saved OK, id:', inserted?.id);
 
       // Link the declaration to the session. When autoConfirmSession
       // is true (legacy/no-price flow), also flip status to 'confirmed'
@@ -245,44 +229,39 @@ export default function HealthDeclarationForm({
               : '';
             const timeLabel = (srow?.time || '').slice(0, 5);
             const traineeName = trainee?.full_name || 'המתאמן/ת';
+            // Minimal columns only — if `link`/`data` are missing on the
+            // live notifications schema the insert silently 400'd before.
             await supabase.from('notifications').insert({
               user_id: coachId,
               type: 'session_confirmed',
               title: '✅ מפגש אושר',
               message: `${traineeName} אישר/ה את המפגש${dateLabel ? ` ב-${dateLabel}` : ''}${timeLabel ? ` בשעה ${timeLabel}` : ''}`,
-              link: trainee?.id ? `/TraineeProfile?userId=${trainee.id}` : null,
               is_read: false,
-              data: { trainee_id: trainee?.id || null, session_id: sessionId },
             });
+            console.log('[HealthDec] coach notification sent OK');
           } catch (e) {
-            console.warn('[HealthDeclaration] coach notification failed:', e?.message);
+            console.warn('[HealthDec] coach notification failed:', e?.message);
           }
         }
       }
 
-      // Mirror into documents so the coach finds the signed
-      // declaration in the trainee's "מסמכים" tab too. Supabase
-      // returns { error } on a 400 instead of throwing — so the
-      // try/catch alone wouldn't catch a column-mismatch. Bulk
-      // insert first, retry with the minimum row if it fails.
-      const docFullRow = {
-        user_id: coachId || null,
-        trainee_id: trainee?.id || null,
-        name: `הצהרת בריאות — ${trainee?.full_name || ''}`.trim(),
-        type: 'health_declaration',
-        category: 'medical',
-        file_url: signatureUrl,
-        health_declaration_id: inserted?.id || null,
-      };
-      const { error: docErr } = await supabase.from('documents').insert(docFullRow);
-      if (docErr) {
-        console.warn('[HealthDeclaration] documents full insert failed:', docErr.message, '— retrying minimal');
-        const { error: docErr2 } = await supabase.from('documents').insert({
+      // Mirror into documents so the coach finds the signed declaration
+      // in the trainee's "מסמכים" tab too. Minimal columns only — older
+      // installs may not have document_data / file_url / health_declaration_id,
+      // which silently 400'd the insert before. The signed_documents row
+      // below carries the rich payload (signature, answers).
+      try {
+        const { error: docErr } = await supabase.from('documents').insert({
           trainee_id: trainee?.id || null,
+          user_id: coachId || null,
           name: `הצהרת בריאות — ${trainee?.full_name || ''}`.trim(),
           type: 'health_declaration',
+          category: 'medical',
         });
-        if (docErr2) console.warn('[HealthDeclaration] documents minimal insert also failed:', docErr2.message);
+        if (docErr) throw docErr;
+        console.log('[HealthDec] document saved OK');
+      } catch (e) {
+        console.warn('[HealthDec] document insert failed:', e?.message);
       }
 
       // Mirror into signed_documents so DocumentSigningTab in the
@@ -305,14 +284,14 @@ export default function HealthDeclarationForm({
             declaration_confirmed: true,
             signed_name: trainee?.full_name || '',
           },
-          signature_data: signatureUrl,
+          signature_data: signatureDataUrl,
           signed_at: new Date().toISOString(),
           status: 'signed',
           is_locked: true,
-          file_url: signatureUrl,
         });
+        console.log('[HealthDec] signed_documents mirror OK');
       } catch (e) {
-        console.warn('[HealthDeclaration] signed_documents mirror failed:', e?.message);
+        console.warn('[HealthDec] signed_documents mirror failed:', e?.message);
       }
 
       toast.success('הצהרת הבריאות נחתמה בהצלחה');

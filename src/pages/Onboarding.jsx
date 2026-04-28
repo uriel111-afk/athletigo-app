@@ -380,33 +380,25 @@ export default function Onboarding() {
         goal_body_type: goalBodyType,
       }));
       // Seed measurements with the trainee's onboarding height/weight
-      // so the metrics tab chart starts from this point. Supabase
-      // returns { error } on a column-mismatch 400 instead of
-      // throwing — so a try/catch alone misses the failure. First
-      // try the rich row; if that errors, retry with just the four
-      // columns the measurements table is guaranteed to have.
+      // so the metrics tab chart starts from this point. Build payload
+      // conditionally — only include fields we have a value for, so a
+      // null `height_cm` doesn't NOT NULL-violate, and we never send
+      // `source` / `notes` (those columns may not exist on older installs).
       if (heightNum || weightNum) {
-        const today = new Date().toISOString().split('T')[0];
-        const fullRow = {
-          trainee_id: userId,
-          user_id: coachId || null,
-          date: today,
-          source: 'onboarding',
-          notes: 'מדידה ראשונה — אונבורדינג',
-          height_cm: heightNum,
-          weight_kg: weightNum,
-        };
-        const { error: mErr } = await supabase.from('measurements').insert(fullRow);
-        if (mErr) {
-          console.warn('[Onboarding] measurements full insert failed:', mErr.message, '— retrying minimal');
-          const { error: mErr2 } = await supabase.from('measurements').insert({
-            trainee_id: userId, date: today,
-            height_cm: heightNum, weight_kg: weightNum,
-          });
-          if (mErr2) console.warn('[Onboarding] measurements minimal insert also failed:', mErr2.message);
-          else console.log('[Onboarding] measurements saved with minimal columns');
-        } else {
-          console.log('[Onboarding] measurements saved');
+        try {
+          const today = new Date().toISOString().split('T')[0];
+          const measurePayload = { trainee_id: userId, date: today };
+          if (Number.isFinite(heightNum)) measurePayload.height_cm = heightNum;
+          if (Number.isFinite(weightNum)) measurePayload.weight_kg = weightNum;
+          console.log('[Onboarding] measurements payload keys:', Object.keys(measurePayload));
+          const { error: mErr } = await supabase.from('measurements').insert(measurePayload);
+          if (mErr) {
+            console.warn('[Onboarding] measurements insert failed:', mErr.message);
+          } else {
+            console.log('[Onboarding] measurements saved OK');
+          }
+        } catch (e) {
+          console.warn('[Onboarding] measurements error:', e?.message);
         }
       }
       goNext();
@@ -478,34 +470,24 @@ export default function Onboarding() {
         client_status: 'casual',
       });
       console.log('[Onboarding] summary written:', summary);
-      // Notify coach. Same supabase-returns-{error} story as
-      // measurements — try the rich row first, retry with minimal
-      // columns if any of {link, data} aren't on the live schema.
+      // Notify the coach — minimal columns only. `link` / `data` /
+      // `status` may not exist on older installs and silently 400'd
+      // the insert before. user_id + type + title + message + is_read
+      // are the universal columns on every notifications schema.
       if (coachId) {
-        const message = (summary || `${fullName} סיימו את האונבורדינג`).slice(0, 1000);
-        const fullRow = {
-          user_id: coachId,
-          type: 'onboarding_complete',
-          title: '🎉 הושלם תהליך הרשמה',
-          message,
-          link: `/traineeprofile?userId=${userId}`,
-          is_read: false,
-          data: { trainee_id: userId, trainee_name: fullName },
-        };
-        const { error: nErr } = await supabase.from('notifications').insert(fullRow);
-        if (nErr) {
-          console.warn('[Onboarding] notification full insert failed:', nErr.message, '— retrying minimal');
-          const { error: nErr2 } = await supabase.from('notifications').insert({
+        try {
+          const message = (summary || `${fullName} סיימו את האונבורדינג`).slice(0, 500);
+          const { error: nErr } = await supabase.from('notifications').insert({
             user_id: coachId,
             type: 'onboarding_complete',
             title: '🎉 הושלם תהליך הרשמה',
             message,
             is_read: false,
           });
-          if (nErr2) console.warn('[Onboarding] notification minimal insert also failed:', nErr2.message);
-          else console.log('[Onboarding] notification sent with minimal columns');
-        } else {
-          console.log('[Onboarding] notification sent');
+          if (nErr) throw nErr;
+          console.log('[Onboarding] notification sent OK');
+        } catch (e) {
+          console.warn('[Onboarding] notification failed:', e?.message);
         }
       }
       setShowWelcome(true);
