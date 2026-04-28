@@ -493,14 +493,26 @@ export default function Onboarding() {
       // `status` may not exist on older installs and silently 400'd
       // the insert before. user_id + type + title + message + is_read
       // are the universal columns on every notifications schema.
+      // The trainee_id is encoded into the title as [uuid] so the
+      // popup can parse it back out for the "צפה בפרופיל" button —
+      // works on every schema, no `link` column required.
       if (coachId) {
+        let traineeName = (fresh?.full_name || fullName || '').trim();
+        if (!traineeName) {
+          const { data } = await supabase.from('users').select('full_name').eq('id', userId).maybeSingle();
+          traineeName = (data?.full_name || '').trim();
+        }
+        console.log('[Onboarding] notification — trainee name:', traineeName);
         try {
-          const message = (summary || `${fullName} סיימו את האונבורדינג`).slice(0, 500);
+          const titleText = `🎉 ${traineeName || 'מתאמן חדש'} השלים את תהליך ההרשמה [${userId}]`;
+          const messageText = summary
+            ? summary.substring(0, 300)
+            : `${traineeName || 'המתאמן'} השלים את ההרשמה בהצלחה.`;
           const { error: nErr } = await supabase.from('notifications').insert({
             user_id: coachId,
             type: 'onboarding_complete',
-            title: '🎉 הושלם תהליך הרשמה',
-            message,
+            title: titleText,
+            message: messageText,
             is_read: false,
           });
           if (nErr) throw nErr;
