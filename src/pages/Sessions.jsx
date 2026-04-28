@@ -1082,6 +1082,18 @@ export default function Sessions() {
 
   };
 
+  // Page-level loading gate — render the unified loader instead of a
+  // partial shell. Both the sessions list and the coach row are
+  // primary data; without coach the header would render with empty
+  // strings and the filter chips would render before counts arrive.
+  if (isLoading || coachLoading) {
+    return (
+      <ProtectedCoachPage>
+        <PageLoader fullHeight />
+      </ProtectedCoachPage>
+    );
+  }
+
   return (
     <ProtectedCoachPage>
       <div className="min-h-screen overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF', maxWidth: '100vw' }}>

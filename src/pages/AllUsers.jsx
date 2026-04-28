@@ -219,6 +219,19 @@ export default function AllUsers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTrainees, allServices, searchTerm, filterType, sortMode, showFormer]);
 
+  // Page-level loading gate — render the unified loader instead of a
+  // partial shell with empty filter chips and a "loading…" stub list.
+  // `traineesLoading` is initial-load only (it flips false once on
+  // first fetch). Realtime refetches keep allTrainees populated, so
+  // this won't flash on every supabase invalidate.
+  if (traineesLoading) {
+    return (
+      <ProtectedCoachPage>
+        <PageLoader fullHeight />
+      </ProtectedCoachPage>
+    );
+  }
+
   return (
     <ProtectedCoachPage>
       <div style={{ minHeight: '100vh', background: '#FFF9F0', paddingBottom: 100, direction: 'rtl' }}>

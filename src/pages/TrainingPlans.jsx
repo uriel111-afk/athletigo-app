@@ -516,8 +516,12 @@ export default function TrainingPlans() {
   const completedPlans = plans.filter(p => p.status === 'הושלמה');
   const draftPlans = plans.filter(p => p.status === 'טיוטה');
 
-  if (coachLoading || !coach) {
-    return <PageLoader />;
+  // Page-level loading gate — wait for the coach row AND the plans
+  // list before rendering. plansLoading is initial-load only (won't
+  // flash on realtime invalidates), so the page stays put after first
+  // paint even when the coach edits a plan elsewhere.
+  if (coachLoading || !coach || plansLoading) {
+    return <PageLoader fullHeight />;
   }
 
   return (

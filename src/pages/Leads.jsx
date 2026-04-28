@@ -269,8 +269,12 @@ export default function Leads() {
   const converted = leads.filter(l => l.status === 'סגור עסקה').length;
   const notInterested = leads.filter(l => l.status === 'לא מעוניין').length;
 
-  if (!coach) {
-    return <PageLoader />;
+  // Page-level loading gate — wait for both the coach row AND the
+  // initial leads load. The inline `{isLoading ? <PageLoader>}`
+  // below the filter chips would otherwise paint header + filters
+  // first, then flash a spinner where the list will appear.
+  if (!coach || isLoading) {
+    return <PageLoader fullHeight />;
   }
 
   return (
