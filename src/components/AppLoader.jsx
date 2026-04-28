@@ -27,7 +27,7 @@ export default function AppLoader({ progress, label }) {
         src="/logoR.png"
         alt="AthletiGo"
         style={{
-          width: 100, height: 'auto', objectFit: 'contain',
+          width: 110, height: 'auto', objectFit: 'contain',
           filter: 'brightness(0)',
           marginBottom: 24,
         }}

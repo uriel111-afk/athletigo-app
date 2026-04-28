@@ -15,7 +15,7 @@ import React, { useEffect, useState } from "react";
 // Inline button spinners (Loader2 in save buttons etc.) are NOT
 // page-level loaders and intentionally stay as-is — full-screen
 // splash treatment for a save-click would be terrible UX.
-export default function PageLoader({ size = 80, fullHeight = false, message = "" }) {
+export default function PageLoader({ size = 110, fullHeight = false, message = "" }) {
   const [progress, setProgress] = useState(0);
   useEffect(() => {
     const t1 = setTimeout(() => setProgress(30), 100);

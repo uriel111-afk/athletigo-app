@@ -34,7 +34,7 @@ export default function AppLoading() {
         src="/logoR.png"
         alt="AthletiGo"
         style={{
-          width: 80,
+          width: 110,
           height: "auto",
           objectFit: "contain",
           filter: "brightness(0)",
