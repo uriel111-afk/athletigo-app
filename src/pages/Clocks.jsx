@@ -318,7 +318,11 @@ export default function Clocks() {
   // the previous version. The handler re-pushes only after the first
   // tap so the second tap has something to consume.
   useEffect(() => {
-    const hasActiveTimer = (activeTimers?.length || 0) > 0 || !!clock?.activeClock || !!showTabata;
+    // Double-tap protection only when a timer is actually RUNNING. A
+    // visible tabata overlay sitting on the settings screen is handled
+    // inside TabataTimer.jsx (single-tap closes; cfg is auto-saved),
+    // so we deliberately exclude !!showTabata from the gate here.
+    const hasActiveTimer = (activeTimers?.length || 0) > 0 || !!clock?.activeClock;
     if (!hasActiveTimer) return;
 
     let lastBackTime = 0;

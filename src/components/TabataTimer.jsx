@@ -90,7 +90,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // Defensive context access — guarantees minimize works even if a parent
   // forgets to pass onMinimize / setLiveTimer.
   const navigate = useNavigate();
-  const { setLiveTimerTabata, setShowTabata, setIsMinimized } = useActiveTimer();
+  const { setLiveTimerTabata, setShowTabata, setIsMinimized, showTabata } = useActiveTimer();
   // Role-aware destination — coach to /dashboard, trainee to /trainee-home
   let _user = null;
   try { _user = useAuth()?.user; } catch {}
@@ -176,6 +176,20 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   useEffect(() => { cfgRef.current = cfg; localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }, [cfg]);
   useEffect(() => { screenRef.current = screen; }, [screen]);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
+
+  // Phone back-button: when the tabata is on the settings screen
+  // (no timer running yet), a single press should close the overlay
+  // — the cfg is auto-persisted on every change via the effect above,
+  // so the user never loses their parameters. Running and done
+  // screens keep the existing Clocks.jsx double-tap behavior so a
+  // stray back press can't accidentally kill an active workout.
+  useEffect(() => {
+    if (!showTabata || screen !== 'settings') return;
+    window.history.pushState({ tabataSettings: true }, '');
+    const onPop = () => { setShowTabata(false); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [showTabata, screen, setShowTabata]);
 
   // Cleanup on unmount
   useEffect(() => () => { cancelAnimationFrame(rafRef.current); cancelScheduled(); }, []);
