@@ -350,6 +350,13 @@ export default function BaselineFormDialog({
           technique: techId,
           work_time_seconds: workTime,
           rest_time_seconds: restTime,
+          // Between-techniques pause — save under both the canonical
+          // *_seconds suffix and the shorter alias the spec asks for.
+          // base44.entities.Baseline's column-retry drops whichever
+          // name the live schema is missing, so this is safe regardless
+          // of which migration ran.
+          tech_rest_seconds: techRestTime,
+          tech_rest_time: techRestTime,
           rounds_count: filled.length,
           rounds_data: roundsData,
           total_jumps: totalJumps,
@@ -986,11 +993,11 @@ function TimerCard({ label, seconds, onChange }) {
   // same handler with visible round +/− buttons either side of the
   // digits.
   const stepBtnStyle = {
-    width: 22, height: 22, borderRadius: '50%',
+    width: 28, height: 28, borderRadius: '50%',
     border: `1px solid ${COLORS.border}`,
     background: '#FFFFFF',
     color: COLORS.primary,
-    fontSize: 14, fontWeight: 700, lineHeight: 1,
+    fontSize: 16, fontWeight: 700, lineHeight: 1,
     cursor: editable ? 'pointer' : 'default',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: 0,
