@@ -13,6 +13,21 @@ import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { normalizeStatus, isActivePackage } from "@/lib/enums";
 
+// Integer age from a birth_date (ISO string or Date). Returns null
+// when the date is missing/unparseable. Adjusts for whether the
+// birthday has occurred this year — more accurate than dividing
+// the elapsed ms by 365.25 days.
+const calcAge = (birthDate) => {
+  if (!birthDate) return null;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+};
+
 export default function AllUsers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
@@ -479,16 +494,19 @@ export default function AllUsers() {
                       whiteSpace: 'nowrap',
                     }}>
                       {(() => {
-                        if (!birthDate) return 'לא הוזן';
+                        if (!birthDate) return '—';
                         const d = new Date(birthDate);
-                        if (Number.isNaN(d.getTime())) return 'לא הוזן';
+                        if (Number.isNaN(d.getTime())) return '—';
                         const dd = String(d.getDate()).padStart(2, '0');
                         const mm = String(d.getMonth() + 1).padStart(2, '0');
                         const yyyy = d.getFullYear();
-                        const age = Math.floor(
-                          (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-                        );
-                        return `${dd}/${mm}/${yyyy} (${age})`;
+                        const age = calcAge(birthDate);
+                        return age !== null ? (
+                          <>
+                            {`${dd}/${mm}/${yyyy}`}
+                            <span style={{ color: '#888', marginRight: 4 }}>({age})</span>
+                          </>
+                        ) : `${dd}/${mm}/${yyyy}`;
                       })()}
                     </div>
                     <div style={{ fontSize: 8, color: '#888' }}>יום הולדת</div>
