@@ -81,17 +81,19 @@
           transition: width 0.3s ease;
         "></div>
       </div>
+      <div id="splash-percent" style="margin-top: 8px; font-size: 13px; color: #888; text-align: center;">0%</div>
     </div>
     <script>
       (function () {
         var bar = document.getElementById('splash-bar');
-        if (!bar) return;
+        var pct = document.getElementById('splash-percent');
+        if (!bar || !pct) return;
         // Stage the bar so the user sees motion while React boots.
         // main.jsx finishes the run with 100% + fade-out as soon as
         // the app's first commit lands.
-        setTimeout(function () { bar.style.width = '30%'; }, 100);
-        setTimeout(function () { bar.style.width = '60%'; }, 400);
-        setTimeout(function () { bar.style.width = '85%'; }, 800);
+        setTimeout(function () { bar.style.width = '30%'; pct.textContent = '30%'; }, 100);
+        setTimeout(function () { bar.style.width = '60%'; pct.textContent = '60%'; }, 400);
+        setTimeout(function () { bar.style.width = '85%'; pct.textContent = '85%'; }, 800);
       })();
     </script>
 

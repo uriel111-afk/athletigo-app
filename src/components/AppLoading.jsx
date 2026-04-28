@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 // Full-screen loading splash — same brand treatment as the boot
 // splash in index.html, AppLoader (auth/data hydration), and
@@ -6,9 +6,18 @@ import React from "react";
 // 100vh "the app is working" screen.
 //
 // Visual: cream #FDF8F3 bg, solid-black logoR via filter:brightness(0),
-// 200×3 progress bar with an indeterminate orange strip looping
-// 0% → 50% → 100% over 1.5s. No wordmark, no spinner, no caption.
+// 200×3 progress bar staged 0 → 30 → 60 → 85 with a numeric percent
+// line beneath, matching the boot-splash choreography. No wordmark,
+// no spinner, no caption.
 export default function AppLoading() {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setProgress(30), 100);
+    const t2 = setTimeout(() => setProgress(60), 400);
+    const t3 = setTimeout(() => setProgress(85), 800);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []);
+
   return (
     <div
       style={{
@@ -38,22 +47,20 @@ export default function AppLoading() {
         background: "#F0E4D0",
         borderRadius: 2,
         overflow: "hidden",
-        position: "relative",
       }}>
         <div style={{
-          position: "absolute", top: 0, height: "100%",
+          height: "100%",
+          width: `${progress}%`,
           background: "#FF6F20",
           borderRadius: 2,
-          animation: "athletigo-loading-bar 1.5s ease-in-out infinite",
+          transition: "width 0.3s ease",
         }} />
       </div>
-      <style>{`
-        @keyframes athletigo-loading-bar {
-          0%   { left: 0;    width: 20%; }
-          50%  { left: 20%;  width: 60%; }
-          100% { left: 80%;  width: 20%; }
-        }
-      `}</style>
+      <div style={{
+        marginTop: 8, fontSize: 13, color: "#888", textAlign: "center",
+      }}>
+        {progress}%
+      </div>
     </div>
   );
 }

@@ -19,7 +19,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     const splash = document.getElementById('splash');
     if (!splash) return;
     const bar = document.getElementById('splash-bar');
+    const pct = document.getElementById('splash-percent');
     if (bar) bar.style.width = '100%';
+    if (pct) pct.textContent = '100%';
     setTimeout(() => {
       splash.style.opacity = '0';
       setTimeout(() => splash.remove(), 400);

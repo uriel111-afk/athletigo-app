@@ -46,6 +46,11 @@ export default function AppLoader({ progress, label }) {
           transition: 'width 0.3s ease',
         }} />
       </div>
+      <div style={{
+        marginTop: 8, fontSize: 13, color: '#888', textAlign: 'center',
+      }}>
+        {Math.round(pct)}%
+      </div>
       {label && (
         <div style={{
           fontSize: 12, color: '#888',
