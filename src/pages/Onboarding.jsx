@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -236,7 +236,13 @@ export default function Onboarding() {
 
   // Bootstrap — load the auth user + existing row, prefill any prior
   // answers so a refresh mid-flow doesn't wipe progress.
+  // bootstrapDoneRef belt-and-suspenders: even if the effect were to
+  // re-fire (e.g. StrictMode double-invoke in dev, navigate-induced
+  // remount), the body executes exactly once per mount cycle.
+  const bootstrapDoneRef = useRef(false);
   useEffect(() => {
+    if (bootstrapDoneRef.current) return;
+    bootstrapDoneRef.current = true;
     let cancelled = false;
     (async () => {
       try {

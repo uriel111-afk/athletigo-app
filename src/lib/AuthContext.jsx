@@ -1,70 +1,26 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { base44 } from '@/api/base44Client';
 
 export const AuthContext = createContext();
 
+// AuthProvider sits OUTSIDE <Router>, so it CAN'T call useNavigate().
+// Responsibilities are deliberately narrow: keep the auth session +
+// users-row in state, expose them + a derived isOnboardingComplete
+// flag, and offer a checkAppState() refresh hook. ALL routing
+// decisions live in <RoutingGate /> (App.jsx), which is inside Router
+// and can call navigate() directly. That separation is what keeps the
+// onboarding flow from looping — the previous design used
+// window.location.href / pendingRedirect to bridge the gap, and any
+// stale state on either side restarted the cycle.
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
-  // Kept for API compatibility with consumers that read appPublicSettings
   const [appPublicSettings, setAppPublicSettings] = useState(null);
-  // SPA-style redirect target. AuthProvider sits OUTSIDE <Router>, so it
-  // can't call useNavigate(); instead we publish a path through this state
-  // and a child component inside Router (AuthRedirector) consumes it.
-  // Using window.location.href forced a full page reload which restarted
-  // the AuthContext from scratch — that was the engine of the redirect
-  // loop after onboarding completed.
-  const [pendingRedirect, setPendingRedirect] = useState(null);
-  // De-dupe guard so a single auth tick can't queue the same redirect twice.
-  const redirectingRef = useRef(false);
-  // Brute-force loop breakers — even if every other guard slips, these
-  // make a runaway impossible:
-  //  - hasRedirectedToOnboardingRef: /onboarding is queued AT MOST ONCE
-  //    per page load. Subsequent attempts log + bail out.
-  //  - lastRedirectTimeRef: any two redirects must be ≥3s apart.
-  //  - redirectCountRef: hard cap of 3 redirects per page load. After that
-  //    the AuthContext refuses to queue anything until the page reloads.
-  const hasRedirectedToOnboardingRef = useRef(false);
-  const lastRedirectTimeRef = useRef(0);
-  const redirectCountRef = useRef(0);
-
-  // Single chokepoint for every redirect this context wants to fire.
-  // Returns true if the redirect was queued, false if it was blocked.
-  const safeQueueRedirect = (path) => {
-    const now = Date.now();
-    if (redirectCountRef.current >= 3) {
-      console.error('[AuthContext] LOOP DETECTED — blocked redirect to', path,
-        '· already at', redirectCountRef.current, 'redirects this page load');
-      return false;
-    }
-    if (now - lastRedirectTimeRef.current < 3000) {
-      console.warn('[AuthContext] BLOCKED redirect to', path,
-        '— only', now - lastRedirectTimeRef.current, 'ms since the last one (need ≥3000)');
-      return false;
-    }
-    if (path === '/onboarding' && hasRedirectedToOnboardingRef.current) {
-      console.warn('[AuthContext] BLOCKED redirect to /onboarding — already redirected once this page load');
-      return false;
-    }
-    if (window.location.pathname === path) {
-      console.log('[AuthContext] already on', path, '— skipping redirect');
-      return false;
-    }
-    lastRedirectTimeRef.current = now;
-    redirectCountRef.current += 1;
-    if (path === '/onboarding') hasRedirectedToOnboardingRef.current = true;
-    console.log('[AuthContext] SAFE QUEUE redirect →', path,
-      '(count=' + redirectCountRef.current + ')');
-    setPendingRedirect(path);
-    return true;
-  };
 
   useEffect(() => {
-    // Initialise auth state from the current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         loadUserProfile(session.user);
@@ -74,7 +30,6 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    // Keep state in sync when the session changes (login / logout / token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         loadUserProfile(session.user);
@@ -92,7 +47,6 @@ export const AuthProvider = ({ children }) => {
     setIsLoadingAuth(true);
     setAuthError(null);
     try {
-      // Fetch the full profile from the users table
       const { data: profile } = await supabase
         .from('users')
         .select('*')
@@ -103,7 +57,6 @@ export const AuthProvider = ({ children }) => {
       if (profile) {
         userProfile = profile;
       } else {
-        // Fallback: try matching by email
         const { data: byEmail } = await supabase
           .from('users')
           .select('*')
@@ -135,109 +88,39 @@ export const AuthProvider = ({ children }) => {
             setIsLoadingAuth(false);
             return;
           }
-
           console.log('[AuthContext] Created fallback profile for', authUser.email);
           userProfile = created;
         }
       }
-      
-      setUser(userProfile);
-      setIsAuthenticated(true);
 
-      // EXPLICIT ROUTING LOGIC:
-      // The casual-onboarding flow writes `client_status` + `onboarding_completed_at`,
-      // not the legacy `onboarding_completed` boolean. Treat any of the three as
-      // "complete" so we don't loop back to /onboarding right after the user
-      // finishes — that was the redirect loop that page-reloaded forever.
-      const isOnboardingComplete =
-        userProfile?.onboarding_completed === true
-        || userProfile?.onboarding_completed_at != null
-        || (userProfile?.client_status && userProfile.client_status !== 'onboarding');
-      console.log('[AuthContext] isOnboardingComplete calculation:', {
+      console.log('[AuthContext] Loaded profile:', {
+        id: userProfile?.id,
+        role: userProfile?.role,
+        client_status: userProfile?.client_status,
         onboarding_completed: userProfile?.onboarding_completed,
         onboarding_completed_at: userProfile?.onboarding_completed_at,
-        client_status: userProfile?.client_status,
-        result: isOnboardingComplete,
       });
-      const currentPath = window.location.pathname;
-      const isCurrentlyOnOnboarding = currentPath === '/onboarding';
-      const isCurrentlyOnLogin = currentPath === '/login';
-      const isCurrentlyOnRoot = currentPath === '/' || currentPath === '';
-
-      // Coaches NEVER get redirected to onboarding
-      const isCoachUser = userProfile?.is_coach === true || userProfile?.role === 'coach' || userProfile?.role === 'admin';
-      const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
-      const isLifeOSCoach = userProfile?.id === LIFE_OS_COACH_ID;
-
-      const willRedirectTrainee =
-        !isCoachUser && !isOnboardingComplete
-        && !isCurrentlyOnOnboarding && !isCurrentlyOnLogin && !isCurrentlyOnRoot;
-      const willRedirectAwayFromOnboarding = isOnboardingComplete && isCurrentlyOnOnboarding;
-      const willRedirectCoachToHub = isLifeOSCoach && isOnboardingComplete && isCurrentlyOnRoot;
-
-      console.log('[AuthContext] FULL CHECK:', {
-        userId: userProfile?.id,
-        clientStatus: userProfile?.client_status,
-        onboardingCompletedAt: userProfile?.onboarding_completed_at,
-        onboardingCompleted: userProfile?.onboarding_completed,
-        isOnboardingComplete,
-        isCoachUser,
-        isLifeOSCoach,
-        currentPath,
-        willRedirectTrainee,
-        willRedirectAwayFromOnboarding,
-        willRedirectCoachToHub,
-        redirectingRef: redirectingRef.current,
-      });
-
-      if (willRedirectTrainee) {
-        // Defensive recheck — the in-memory userProfile might be stale if
-        // onboarding just wrote client_status in another tab/render. Re-read
-        // the live row BEFORE queueing a redirect to /onboarding so the
-        // already-complete user can't get bounced back into the wizard.
-        if (redirectingRef.current) {
-          console.log('[AuthContext] redirect already pending, skipping');
-        } else {
-          redirectingRef.current = true;
-          try {
-            const { data: freshUser } = await supabase
-              .from('users')
-              .select('client_status, onboarding_completed, onboarding_completed_at')
-              .eq('id', userProfile.id)
-              .maybeSingle();
-            const stillNeedsOnboarding =
-              freshUser?.onboarding_completed !== true
-              && freshUser?.onboarding_completed_at == null
-              && (!freshUser?.client_status || freshUser.client_status === 'onboarding');
-            console.log('[AuthContext] DB recheck:', { freshUser, stillNeedsOnboarding });
-            if (stillNeedsOnboarding) {
-              safeQueueRedirect('/onboarding');
-            } else {
-              console.log('[AuthContext] DB confirms complete — NOT redirecting');
-              setUser({ ...userProfile, ...freshUser });
-            }
-          } catch (e) {
-            console.warn('[AuthContext] DB recheck failed:', e?.message);
-          } finally {
-            // Reset the guard on the next tick — pendingRedirect is one-shot,
-            // and resetting here lets a later genuine state change re-redirect.
-            setTimeout(() => { redirectingRef.current = false; }, 600);
-          }
-        }
-      } else if (willRedirectAwayFromOnboarding) {
-        const dest = isCoachUser ? (isLifeOSCoach ? '/hub' : '/dashboard') : '/trainee-home';
-        safeQueueRedirect(dest);
-      } else if (willRedirectCoachToHub) {
-        safeQueueRedirect('/hub');
-      }
+      setUser(userProfile);
+      setIsAuthenticated(true);
     } catch (error) {
-      console.error('Failed to load user profile:', error);
+      console.error('[AuthContext] Failed to load user profile:', error);
       setAuthError({ type: 'unknown', message: error.message || 'Failed to load profile' });
       setIsAuthenticated(false);
     } finally {
       setIsLoadingAuth(false);
     }
   };
+
+  // Three signals, any one is enough — kept in a single source of truth
+  // so RoutingGate, Onboarding bootstrap, and any consumer can read the
+  // same answer without re-deriving it.
+  const isOnboardingComplete = useMemo(() => {
+    if (!user) return false;
+    if (user.onboarding_completed === true) return true;
+    if (user.onboarding_completed_at) return true;
+    if (user.client_status && user.client_status !== 'onboarding') return true;
+    return false;
+  }, [user?.onboarding_completed, user?.onboarding_completed_at, user?.client_status]);
 
   const checkAppState = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -253,6 +136,9 @@ export const AuthProvider = ({ children }) => {
     supabase.auth.signOut().then(() => {
       setUser(null);
       setIsAuthenticated(false);
+      // Logout intentionally uses a full reload so query caches +
+      // route-only state (zustand stores etc.) don't leak across
+      // accounts. NEVER convert this to navigate().
       if (shouldRedirect) {
         window.location.href = '/login';
       }
@@ -263,10 +149,10 @@ export const AuthProvider = ({ children }) => {
     const dest = redirectUrl
       ? `/login?redirect=${encodeURIComponent(redirectUrl)}`
       : '/login';
+    // Same intentional full-reload semantics as logout — preserves the
+    // ?redirect= query param for the post-login bounceback.
     window.location.href = dest;
   };
-
-  const clearPendingRedirect = () => setPendingRedirect(null);
 
   return (
     <AuthContext.Provider value={{
@@ -276,11 +162,10 @@ export const AuthProvider = ({ children }) => {
       isLoadingPublicSettings,
       authError,
       appPublicSettings,
+      isOnboardingComplete,
       logout,
       navigateToLogin,
       checkAppState,
-      pendingRedirect,
-      clearPendingRedirect,
     }}>
       {children}
     </AuthContext.Provider>

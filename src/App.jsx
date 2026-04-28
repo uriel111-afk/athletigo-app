@@ -49,27 +49,60 @@ import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 import NotificationPopup from './components/NotificationPopup';
 import { supabase } from '@/lib/supabaseClient';
 
-// AuthRedirector — bridges AuthContext (which lives ABOVE <Router>) to
-// react-router's SPA navigation. AuthContext can't call useNavigate()
-// itself; instead it sets `pendingRedirect`, and this child consumes
-// the path with `navigate(..., { replace: true })`. Killing the previous
-// `window.location.href` reload-redirects is what breaks the onboarding
-// loop — full reloads restarted AuthContext, which re-fired the redirect.
-function AuthRedirector() {
-  const { pendingRedirect, clearPendingRedirect } = useAuth();
+// RoutingGate — single source of truth for who goes where. Lives INSIDE
+// <Router> so it can call useNavigate() directly · all decisions are
+// SPA-style (no window.location, no full reloads). Reacts to a small,
+// well-defined dependency set: as long as nothing in that set changes,
+// the effect doesn't re-fire, so back-to-back navigates can't create
+// a loop. The previous safeQueueRedirect/pendingRedirect/redirectingRef
+// machinery is gone — react-router's own routing is the only mechanism.
+function RoutingGate() {
+  const { user, isAuthenticated, isLoadingAuth, isOnboardingComplete } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const path = location.pathname;
+
   useEffect(() => {
-    if (!pendingRedirect) return;
-    if (pendingRedirect === location.pathname) {
-      // Already there — clear the pending target without re-navigating.
-      clearPendingRedirect();
+    if (isLoadingAuth) return;          // wait for auth to settle
+    if (!isAuthenticated || !user) return; // anonymous → /login is reached via routes
+    if (path === '/login') return;       // login route handles its own redirect
+
+    const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
+    const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
+    const isLifeOSCoach = user?.id === LIFE_OS_COACH_ID;
+
+    console.log('[RoutingGate] Route check:', {
+      path,
+      isCoach,
+      isLifeOSCoach,
+      isOnboardingComplete,
+      clientStatus: user?.client_status,
+      onboardingCompletedAt: user?.onboarding_completed_at,
+    });
+
+    // Trainee w/o complete onboarding, not on /onboarding → send to /onboarding
+    if (!isCoach && !isOnboardingComplete && path !== '/onboarding') {
+      console.log('[RoutingGate] trainee needs onboarding → /onboarding');
+      navigate('/onboarding', { replace: true });
       return;
     }
-    console.log('[AuthRedirector] navigating SPA →', pendingRedirect, '(from', location.pathname, ')');
-    navigate(pendingRedirect, { replace: true });
-    clearPendingRedirect();
-  }, [pendingRedirect, location.pathname, navigate, clearPendingRedirect]);
+
+    // Trainee w/ complete onboarding currently on /onboarding → send home
+    if (!isCoach && isOnboardingComplete && path === '/onboarding') {
+      console.log('[RoutingGate] trainee already onboarded → /trainee-home');
+      navigate('/trainee-home', { replace: true });
+      return;
+    }
+
+    // Life OS coach landing at root → /hub
+    if (isLifeOSCoach && (path === '/' || path === '')) {
+      console.log('[RoutingGate] Life OS coach at root → /hub');
+      navigate('/hub', { replace: true });
+      return;
+    }
+    // Otherwise — leave the user where they are.
+  }, [user, isAuthenticated, isLoadingAuth, isOnboardingComplete, path, navigate]);
+
   return null;
 }
 
@@ -519,7 +552,7 @@ function App() {
         <ClockProvider>
         <ActiveTimerProvider>
           <Router>
-            <AuthRedirector />
+            <RoutingGate />
             <NavigationTracker />
             <GlobalTabata />
             <Routes>
