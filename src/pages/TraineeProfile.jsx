@@ -52,7 +52,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye, Clock, Bell } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ReferenceLine } from "recharts";
+import { DEFAULT_EXERCISES, RECORD_UNITS } from "@/lib/recordExercises";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -1202,6 +1203,19 @@ export default function TraineeProfile() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
+  // Goals-tab folder system (goal_progress driven). Each goal_name is
+  // a folder; clicking a folder card expands it to show the chart +
+  // history + linked records + update CTA.
+  const [openGoalFolder, setOpenGoalFolder] = useState(null);
+  const [showNewGoalProgress, setShowNewGoalProgress] = useState(false);
+  const [newGoalForm, setNewGoalForm] = useState({
+    goalName: '', category: 'general', exerciseName: '', customExerciseName: '',
+    targetValue: '', targetUnit: 'reps', currentValue: '', notes: '',
+  });
+  const [updatingGoalProgress, setUpdatingGoalProgress] = useState(null); // { goalName, latest } | null
+  const [updateValue, setUpdateValue] = useState('');
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [updateNotes, setUpdateNotes] = useState('');
   const [showAddResult, setShowAddResult] = useState(false);
   const [editingResult, setEditingResult] = useState(null);
   // BaselineFormDialog mounts globally in App.jsx — opened via
@@ -1456,6 +1470,28 @@ export default function TraineeProfile() {
         .order('date', { ascending: true });
       if (error) {
         console.warn('[goal_progress] query failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 60000,
+  });
+
+  // Personal records — needed by the goals tab to surface linked
+  // records inside an open goal folder when goal.exercise_name
+  // matches a record's name.
+  const { data: traineeRecords = [] } = useQuery({
+    queryKey: ['personal-records', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('personal_records')
+        .select('*')
+        .eq('trainee_id', user.id)
+        .order('date', { ascending: true });
+      if (error) {
+        console.warn('[personal_records] query failed:', error.message);
         return [];
       }
       return data || [];
@@ -2065,6 +2101,108 @@ export default function TraineeProfile() {
     }
     queryClient.invalidateQueries({ queryKey: ['goal-progress', user?.id] });
     toast.success(`${goalLabel}: ${clamped}% ✓`);
+  };
+
+  // Bulk-then-per-field insert into goal_progress. The bulk path lands
+  // when every column on the row exists in DB; if not, retries each
+  // column on its own so a missing extension column (target_value,
+  // exercise_name, etc.) kills only itself instead of the whole row.
+  const safeInsertGoalProgress = async (row) => {
+    const present = Object.fromEntries(
+      Object.entries(row).filter(([, v]) => v !== undefined)
+    );
+    const { error } = await supabase.from('goal_progress').insert(present);
+    if (!error) return { ok: true, failed: [] };
+    console.warn('[goal_progress] bulk insert failed:', error.message, '— retrying minimum row');
+    // Retry with the legacy minimum that's guaranteed to exist
+    const minimal = {
+      user_id: present.user_id, trainee_id: present.trainee_id,
+      goal_name: present.goal_name, progress: present.progress,
+      date: present.date, notes: present.notes,
+    };
+    const { error: minErr } = await supabase.from('goal_progress').insert(minimal);
+    if (minErr) {
+      console.error('[goal_progress] minimal insert failed:', minErr.message);
+      return { ok: false, failed: Object.keys(present) };
+    }
+    const dropped = Object.keys(present).filter(k => !(k in minimal));
+    console.warn('[goal_progress] minimal saved; dropped:', dropped);
+    return { ok: true, failed: dropped };
+  };
+
+  // Open the update-progress modal seeded with the current values for
+  // a folder. setUpdate* hold the mid-edit state so the slider can
+  // be auto-driven from the typed value.
+  const openUpdateGoalProgress = (goalName, latest) => {
+    setUpdatingGoalProgress({ goalName, latest });
+    setUpdateValue(latest?.current_value != null ? String(latest.current_value) : '');
+    setUpdateProgress(latest?.progress || 0);
+    setUpdateNotes('');
+  };
+
+  const commitGoalProgressUpdate = async () => {
+    if (!updatingGoalProgress) return;
+    const { goalName, latest } = updatingGoalProgress;
+    const target = latest?.target_value;
+    let progress = updateProgress;
+    // If the user typed a current value but didn't drag the slider,
+    // derive the percentage from value/target.
+    if ((!progress || progress === 0) && updateValue && target) {
+      progress = Math.round((Number(updateValue) / Number(target)) * 100);
+    }
+    progress = Math.min(100, Math.max(0, progress || 0));
+    const result = await safeInsertGoalProgress({
+      user_id: currentUser?.id || null,
+      trainee_id: user?.id,
+      goal_name: goalName,
+      current_value: updateValue ? Number(updateValue) : null,
+      target_value: latest?.target_value ?? null,
+      target_unit: latest?.target_unit ?? null,
+      exercise_name: latest?.exercise_name ?? null,
+      category: latest?.category ?? 'general',
+      progress,
+      date: new Date().toISOString().split('T')[0],
+      notes: updateNotes.trim() || null,
+    });
+    if (!result.ok) { toast.error('שגיאה בשמירה'); return; }
+    queryClient.invalidateQueries({ queryKey: ['goal-progress', user?.id] });
+    toast.success(progress >= 100 ? '🎉 יעד הושג!' : '📈 התקדמות עודכנה ✓');
+    setUpdatingGoalProgress(null);
+    setUpdateValue(''); setUpdateProgress(0); setUpdateNotes('');
+  };
+
+  const saveNewGoalProgress = async () => {
+    const goalName = newGoalForm.goalName.trim();
+    if (!goalName) { toast.error('נא להזין שם יעד'); return; }
+    const exerciseName = newGoalForm.exerciseName === '__custom__'
+      ? newGoalForm.customExerciseName.trim()
+      : newGoalForm.exerciseName;
+    const targetValue = newGoalForm.targetValue ? Number(newGoalForm.targetValue) : null;
+    const currentValue = newGoalForm.currentValue ? Number(newGoalForm.currentValue) : null;
+    const initialProgress = (targetValue && currentValue)
+      ? Math.min(100, Math.max(0, Math.round((currentValue / targetValue) * 100)))
+      : 0;
+    const result = await safeInsertGoalProgress({
+      user_id: currentUser?.id || null,
+      trainee_id: user?.id,
+      goal_name: goalName,
+      category: newGoalForm.category || 'general',
+      exercise_name: exerciseName || null,
+      target_value: targetValue,
+      target_unit: newGoalForm.targetUnit || null,
+      current_value: currentValue,
+      progress: initialProgress,
+      date: new Date().toISOString().split('T')[0],
+      notes: newGoalForm.notes.trim() || null,
+    });
+    if (!result.ok) { toast.error('שגיאה בשמירה'); return; }
+    queryClient.invalidateQueries({ queryKey: ['goal-progress', user?.id] });
+    toast.success('יעד נוסף ✓');
+    setShowNewGoalProgress(false);
+    setNewGoalForm({
+      goalName: '', category: 'general', exerciseName: '', customExerciseName: '',
+      targetValue: '', targetUnit: 'reps', currentValue: '', notes: '',
+    });
   };
 
   const createResultMutation = useMutation({
@@ -3056,140 +3194,257 @@ export default function TraineeProfile() {
                   </Button>
                 </div>
 
-                {/* Build a "latest progress per onboarding goal" map
-                    once and reuse for both the radar chart and the
-                    per-goal cards below. Keys are the raw values
-                    stored in users.training_goals (so the coach can
-                    write back to goal_progress with the same key). */}
+                {/* Folder-card layout. Each goal_name is a folder.
+                    Sources: users.training_goals (onboarding picks)
+                    + every goal_progress row keyed by goal_name. The
+                    folder header shows the latest progress + linked
+                    exercise; opening it reveals a chart with a target
+                    line, linked records (if exercise_name matches),
+                    history, and the update CTA. */}
                 {(() => {
+                  const GOAL_EMOJIS = {
+                    'חיזוק והתחשלות': '💪', 'ירידה במשקל': '⚖️', 'גמישות ותנועתיות': '🤸',
+                    'סיבולת וכושר': '🏃', 'מיומנות ספציפית': '🎯', 'הנאה ותחושה טובה': '😊',
+                    'שיקום מפציעה': '🩹', 'עליית מסת שריר': '⬆️', 'קליסטניקס ושליטה בגוף': '🤾',
+                    'שיפור יציבה': '🧘', 'כוח פונקציונלי': '🏋️', 'שיפור ביצועים ספורטיביים': '🏆',
+                  };
                   const onboardingGoals = parseList(user?.training_goals);
                   const goalsDescription = (user?.goals_description || '').trim();
-                  if (!onboardingGoals.length && !goalsDescription) return null;
 
-                  // Latest progress per goal_name
-                  const latestByGoal = {};
+                  // Group goal_progress by goal_name; ensure every
+                  // onboarding goal also appears as an empty folder.
+                  const goalFolders = {};
                   for (const gp of (goalProgress || [])) {
-                    const cur = latestByGoal[gp.goal_name];
-                    if (!cur || String(gp.date).localeCompare(String(cur.date)) > 0) {
-                      latestByGoal[gp.goal_name] = gp;
-                    }
+                    const k = gp.goal_name;
+                    if (!k) continue;
+                    if (!goalFolders[k]) goalFolders[k] = [];
+                    goalFolders[k].push(gp);
+                  }
+                  for (const g of onboardingGoals) {
+                    if (!goalFolders[g]) goalFolders[g] = [];
                   }
 
-                  const radarData = onboardingGoals.map(g => {
-                    const meta = INTRO_GOAL_LABELS[g] || { label: g };
-                    const label = meta.label || g;
-                    const short = label.length > 14 ? label.slice(0, 14) + '…' : label;
-                    return {
-                      key: g,
-                      goal: short,
-                      fullName: label,
-                      progress: Number(latestByGoal[g]?.progress) || 0,
-                    };
+                  const folderNames = Object.keys(goalFolders);
+                  if (!folderNames.length && !goalsDescription) return null;
+
+                  // Radar — only when 3+ folders exist (radar
+                  // degenerates into a line below that).
+                  const radarData = folderNames.map(name => {
+                    const entries = goalFolders[name];
+                    const latest = entries.length ? entries[entries.length - 1] : null;
+                    const meta = INTRO_GOAL_LABELS[name];
+                    const label = meta?.label || name;
+                    const short = label.length > 12 ? label.slice(0, 12) + '…' : label;
+                    return { goal: short, progress: Number(latest?.progress) || 0 };
                   });
 
                   return (
                     <>
-                      {/* Radar chart — only useful with 3+ axes (a
-                          radar with 1-2 spokes degenerates into a
-                          line). For 1-2 goals we skip the chart and
-                          let the per-goal cards below carry the
-                          progress display alone. */}
                       {radarData.length >= 3 && (
-                        <div style={{
-                          background: 'white', borderRadius: 14,
-                          border: '1px solid #F0E4D0', padding: 16,
-                        }}>
-                          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
-                            🎯 התקדמות ליעדים
-                          </div>
-                          <ResponsiveContainer width="100%" height={260}>
+                        <div style={{ background: 'white', borderRadius: 14, border: '1px solid #F0E4D0', padding: 16 }}>
+                          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🎯 סקירת יעדים</div>
+                          <ResponsiveContainer width="100%" height={220}>
                             <RadarChart data={radarData}>
                               <PolarGrid stroke="#F0E4D0" />
-                              <PolarAngleAxis dataKey="goal" tick={{ fontSize: 11, fill: '#1A1A1A' }} />
+                              <PolarAngleAxis dataKey="goal" tick={{ fontSize: 10, fill: '#1A1A1A' }} />
                               <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#888' }} />
                               <Radar dataKey="progress" stroke="#FF6F20" fill="#FF6F20" fillOpacity={0.15} strokeWidth={2}
                                 dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
                                 activeDot={{ r: 7, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
-                              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} formatter={(v) => `${v}%`} />
+                              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} formatter={(v) => `${v}%`} />
                             </RadarChart>
                           </ResponsiveContainer>
                         </div>
                       )}
 
-                      {/* Onboarding goals snapshot — read-only labels
-                          from users.training_goals + a progress bar
-                          per goal driven by the latest goal_progress
-                          row. Coach gets an "עדכן התקדמות" button on
-                          each row that opens a 0-100 prompt. */}
-                      <div style={{ background: '#FDF8F3', borderRadius: 14, padding: 16, border: '1px solid #F0E4D0' }}>
-                        <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 600 }}>
-                          מטרות מהאונבורדינג
-                        </div>
-                        {!!onboardingGoals.length && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {onboardingGoals.map((g, i) => {
-                              const meta = INTRO_GOAL_LABELS[g] || { emoji: '✨', label: g };
-                              const progress = Number(latestByGoal[g]?.progress) || 0;
-                              return (
-                                <div key={`${g}-${i}`} style={{
-                                  padding: 10, borderRadius: 12,
-                                  border: '1px solid #F0E4D0', background: '#FFFFFF',
-                                  display: 'flex', flexDirection: 'column', gap: 8,
-                                }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <span style={{ fontSize: 20 }} aria-hidden>{meta.emoji}</span>
-                                    <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{meta.label}</span>
-                                    <span style={{
-                                      marginInlineStart: 'auto', fontSize: 13,
-                                      fontWeight: 700, color: '#FF6F20',
-                                    }}>
-                                      {progress}%
-                                    </span>
-                                  </div>
-                                  <div style={{
-                                    height: 6, background: '#F0E4D0',
-                                    borderRadius: 3, overflow: 'hidden',
-                                  }}>
+                      {isCoach && (
+                        <button
+                          type="button"
+                          onClick={() => setShowNewGoalProgress(true)}
+                          style={{
+                            width: '100%', padding: 14, borderRadius: 14, border: 'none',
+                            background: '#FF6F20', color: '#fff',
+                            fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                          }}
+                        >
+                          🎯 יעד חדש
+                        </button>
+                      )}
+
+                      {folderNames.map(name => {
+                        const entries = goalFolders[name];
+                        const latest = entries.length ? entries[entries.length - 1] : null;
+                        const progress = Number(latest?.progress) || 0;
+                        const target = latest?.target_value;
+                        const exerciseName = latest?.exercise_name;
+                        const meta = INTRO_GOAL_LABELS[name];
+                        const label = meta?.label || name;
+                        const emoji = meta?.emoji || GOAL_EMOJIS[name] || '🎯';
+                        const isOpen = openGoalFolder === name;
+                        const linkedRecords = exerciseName
+                          ? (traineeRecords || []).filter(r => r.name === exerciseName)
+                          : [];
+
+                        return (
+                          <div key={name} style={{
+                            background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+                            overflow: 'hidden',
+                          }}>
+                            {/* Closed header */}
+                            <div
+                              onClick={() => setOpenGoalFolder(isOpen ? null : name)}
+                              style={{ padding: 14, cursor: 'pointer', direction: 'rtl' }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                                  <span style={{ fontSize: 24 }}>{emoji}</span>
+                                  <div style={{ minWidth: 0 }}>
                                     <div style={{
-                                      height: '100%', background: '#FF6F20',
-                                      width: `${progress}%`, borderRadius: 3,
-                                      transition: 'width 0.3s',
-                                    }} />
+                                      fontSize: 15, fontWeight: 600, color: '#1A1A1A',
+                                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    }}>
+                                      {label}
+                                    </div>
+                                    {exerciseName && (
+                                      <div style={{ fontSize: 12, color: '#888' }}>🔗 {exerciseName}</div>
+                                    )}
                                   </div>
-                                  {isCoach && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateGoalProgress(g, meta.label)}
-                                      style={{
-                                        alignSelf: 'flex-start',
-                                        background: 'none', border: 'none',
-                                        color: '#FF6F20', fontSize: 12,
-                                        cursor: 'pointer', padding: 0,
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      עדכן התקדמות
-                                    </button>
+                                </div>
+                                <div style={{ textAlign: 'left', flexShrink: 0 }}>
+                                  <div style={{
+                                    fontSize: 20, fontWeight: 700,
+                                    color: progress >= 100 ? '#1D9E75' : '#FF6F20',
+                                  }}>
+                                    {progress}%
+                                  </div>
+                                  {target && (
+                                    <div style={{ fontSize: 11, color: '#888' }}>
+                                      יעד: {target} {latest?.target_unit || ''}
+                                    </div>
                                   )}
                                 </div>
-                              );
-                            })}
+                              </div>
+
+                              {/* Progress bar */}
+                              <div style={{ height: 6, background: '#F0E4D0', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{
+                                  height: '100%',
+                                  background: progress >= 100 ? '#1D9E75' : '#FF6F20',
+                                  width: `${Math.min(progress, 100)}%`,
+                                  borderRadius: 3, transition: 'width 0.3s',
+                                }} />
+                              </div>
+                            </div>
+
+                            {isOpen && (
+                              <div style={{ padding: '0 14px 14px', borderTop: '1px solid #F0E4D0' }}>
+                                {entries.length === 0 ? (
+                                  <div style={{ padding: 16, textAlign: 'center', color: '#888', fontSize: 13 }}>
+                                    אין עדיין עדכוני התקדמות. לחץ "עדכן התקדמות" כדי להתחיל.
+                                  </div>
+                                ) : (
+                                  <div style={{ marginTop: 12, marginBottom: 12 }}>
+                                    <ResponsiveContainer width="100%" height={200}>
+                                      <LineChart data={entries.map(e => ({
+                                        date: new Date(e.date).toLocaleDateString('he-IL'),
+                                        progress: Number(e.progress) || 0,
+                                        value: Number(e.current_value) || 0,
+                                      }))}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
+                                        <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
+                                        <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} />
+                                        {/* Primary series — chart switches to current_value when there's a numeric target, else falls back to progress %. */}
+                                        {target ? (
+                                          <Line type="monotone" dataKey="value" name="ערך נוכחי" stroke="#FF6F20" strokeWidth={2.5}
+                                            dot={{ r: 6, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
+                                            activeDot={{ r: 8, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                                        ) : (
+                                          <Line type="monotone" dataKey="progress" name="התקדמות (%)" stroke="#FF6F20" strokeWidth={2.5}
+                                            dot={{ r: 6, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
+                                            activeDot={{ r: 8, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                                        )}
+                                        {target && (
+                                          <ReferenceLine y={Number(target)} stroke="#1D9E75" strokeDasharray="5 5"
+                                            label={{ value: `יעד: ${target}`, position: 'right', fill: '#1D9E75', fontSize: 11 }} />
+                                        )}
+                                      </LineChart>
+                                    </ResponsiveContainer>
+                                  </div>
+                                )}
+
+                                {linkedRecords.length > 0 && (
+                                  <div style={{ marginBottom: 12 }}>
+                                    <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>
+                                      🔗 שיאים מקושרים ({exerciseName})
+                                    </div>
+                                    {linkedRecords.map(r => (
+                                      <div key={r.id} style={{
+                                        display: 'flex', justifyContent: 'space-between',
+                                        padding: '6px 0', borderBottom: '1px solid #F0E4D0', fontSize: 13,
+                                      }}>
+                                        <span>{new Date(r.date).toLocaleDateString('he-IL')}</span>
+                                        <span style={{ fontWeight: 600, color: r.is_personal_best ? '#FF6F20' : '#1A1A1A' }}>
+                                          {r.is_personal_best && '🏆 '}{r.value} {r.unit || ''}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {entries.length > 0 && (
+                                  <>
+                                    <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>היסטוריית התקדמות</div>
+                                    {[...entries].reverse().map(e => (
+                                      <div key={e.id} style={{
+                                        display: 'flex', justifyContent: 'space-between',
+                                        padding: '8px 0', borderBottom: '1px solid #F0E4D0', fontSize: 13, direction: 'rtl',
+                                      }}>
+                                        <span>{new Date(e.date).toLocaleDateString('he-IL')}</span>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                          {e.current_value != null && (
+                                            <span style={{ fontWeight: 500 }}>
+                                              {e.current_value} {e.target_unit || ''}
+                                            </span>
+                                          )}
+                                          <span style={{ color: '#FF6F20', fontWeight: 600 }}>{e.progress || 0}%</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
+
+                                {isCoach && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openUpdateGoalProgress(name, latest)}
+                                    style={{
+                                      width: '100%', padding: 12, borderRadius: 12, border: 'none',
+                                      background: '#FF6F20', color: 'white', fontSize: 14,
+                                      fontWeight: 600, cursor: 'pointer', marginTop: 12,
+                                    }}
+                                  >
+                                    📈 עדכן התקדמות
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {goalsDescription && (
-                          <div style={{
-                            padding: 12, borderRadius: 12,
-                            background: '#FFFFFF',
-                            border: '1px solid #F0E4D0',
-                            marginTop: onboardingGoals.length ? 8 : 0,
-                            fontSize: 14, color: '#1A1A1A',
-                            direction: 'rtl', lineHeight: 1.6,
-                            whiteSpace: 'pre-wrap',
-                          }}>
-                            {goalsDescription}
+                        );
+                      })}
+
+                      {goalsDescription && (
+                        <div style={{
+                          padding: 12, borderRadius: 12, background: '#FDF8F3',
+                          border: '1px solid #F0E4D0', fontSize: 14, color: '#1A1A1A',
+                          direction: 'rtl', lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                        }}>
+                          <div style={{ fontSize: 12, color: '#888', marginBottom: 4, fontWeight: 600 }}>
+                            תיאור מהאונבורדינג
                           </div>
-                        )}
-                      </div>
+                          {goalsDescription}
+                        </div>
+                      )}
                     </>
                   );
                 })()}
@@ -4166,6 +4421,243 @@ export default function TraineeProfile() {
         </div>
 
         {/* ===== DIALOGS ===== */}
+
+        {/* New goal-progress goal — writes a fresh goal_progress row.
+            Closes when clicking the backdrop or the X. safeInsertGoalProgress
+            handles missing extension columns gracefully. */}
+        {showNewGoalProgress && (
+          <div
+            onClick={() => setShowNewGoalProgress(false)}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+              zIndex: 10000, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', padding: 16, direction: 'rtl',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'white', borderRadius: 14, padding: 20,
+                maxWidth: 400, width: '100%',
+                maxHeight: '85vh', overflowY: 'auto', position: 'relative',
+              }}
+            >
+              <button
+                onClick={() => setShowNewGoalProgress(false)}
+                aria-label="סגור"
+                style={{
+                  position: 'absolute', top: 10, left: 10, background: 'none',
+                  border: 'none', fontSize: 22, cursor: 'pointer', color: '#888',
+                }}
+              >✕</button>
+
+              <div style={{ textAlign: 'center', marginBottom: 16, paddingLeft: 36 }}>
+                <div style={{ fontSize: 28, marginBottom: 6 }}>🎯</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>יעד חדש</div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם היעד *</div>
+                <input
+                  value={newGoalForm.goalName}
+                  onChange={(e) => setNewGoalForm(f => ({ ...f, goalName: e.target.value }))}
+                  placeholder="למשל: 10 עליות מתח, לרדת 5 קילו..."
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>קטגוריה</div>
+                <select
+                  value={newGoalForm.category}
+                  onChange={(e) => setNewGoalForm(f => ({ ...f, category: e.target.value }))}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: 'white', appearance: 'auto' }}
+                >
+                  <option value="strength">כוח</option>
+                  <option value="skill">מיומנות</option>
+                  <option value="weight">משקל</option>
+                  <option value="endurance">סיבולת</option>
+                  <option value="flexibility">גמישות</option>
+                  <option value="general">כללי</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>קישור לתרגיל (אופציונלי)</div>
+                <select
+                  value={newGoalForm.exerciseName}
+                  onChange={(e) => setNewGoalForm(f => ({ ...f, exerciseName: e.target.value }))}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: 'white', appearance: 'auto' }}
+                >
+                  <option value="">ללא קישור לתרגיל</option>
+                  {DEFAULT_EXERCISES.map(ex => (
+                    <option key={ex.name} value={ex.name}>{ex.icon} {ex.name}</option>
+                  ))}
+                  <option value="__custom__">➕ תרגיל אחר...</option>
+                </select>
+                {newGoalForm.exerciseName === '__custom__' && (
+                  <input
+                    type="text"
+                    value={newGoalForm.customExerciseName}
+                    onChange={(e) => setNewGoalForm(f => ({ ...f, customExerciseName: e.target.value }))}
+                    placeholder="שם התרגיל"
+                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', marginTop: 6, boxSizing: 'border-box', outline: 'none' }}
+                  />
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <div style={{ flex: 2 }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך מטרה</div>
+                  <input
+                    type="number"
+                    value={newGoalForm.targetValue}
+                    onChange={(e) => setNewGoalForm(f => ({ ...f, targetValue: e.target.value }))}
+                    placeholder="10"
+                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 16, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>יחידה</div>
+                  <select
+                    value={newGoalForm.targetUnit}
+                    onChange={(e) => setNewGoalForm(f => ({ ...f, targetUnit: e.target.value }))}
+                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, background: 'white', appearance: 'auto' }}
+                  >
+                    {RECORD_UNITS.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                    <option value="percent">אחוזים</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך נוכחי</div>
+                <input
+                  type="number"
+                  value={newGoalForm.currentValue}
+                  onChange={(e) => setNewGoalForm(f => ({ ...f, currentValue: e.target.value }))}
+                  placeholder="מאיפה מתחילים?"
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 16, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הערות</div>
+                <textarea
+                  value={newGoalForm.notes}
+                  onChange={(e) => setNewGoalForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="פרטים נוספים..."
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', minHeight: 60, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={saveNewGoalProgress}
+                disabled={!newGoalForm.goalName.trim()}
+                style={{
+                  width: '100%', padding: 14, borderRadius: 14, border: 'none',
+                  background: newGoalForm.goalName.trim() ? '#FF6F20' : '#ccc',
+                  color: 'white', fontSize: 16, fontWeight: 600,
+                  cursor: newGoalForm.goalName.trim() ? 'pointer' : 'default',
+                }}
+              >
+                💾 שמור יעד
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Update goal progress — opens from a folder's "📈 עדכן
+            התקדמות" CTA. Pre-seeded with the latest values for the
+            folder; saves a fresh goal_progress row preserving
+            history. */}
+        {updatingGoalProgress && (
+          <div
+            onClick={() => setUpdatingGoalProgress(null)}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+              zIndex: 10000, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', padding: 16, direction: 'rtl',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'white', borderRadius: 14, padding: 20,
+                maxWidth: 360, width: '100%', position: 'relative',
+              }}
+            >
+              <button
+                onClick={() => setUpdatingGoalProgress(null)}
+                aria-label="סגור"
+                style={{
+                  position: 'absolute', top: 10, left: 10, background: 'none',
+                  border: 'none', fontSize: 22, cursor: 'pointer', color: '#888',
+                }}
+              >✕</button>
+
+              <div style={{ textAlign: 'center', marginBottom: 16, paddingLeft: 36 }}>
+                <div style={{ fontSize: 28, marginBottom: 6 }}>📈</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>
+                  {INTRO_GOAL_LABELS[updatingGoalProgress.goalName]?.label || updatingGoalProgress.goalName}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך נוכחי</div>
+                <input
+                  type="number"
+                  value={updateValue}
+                  onChange={(e) => {
+                    setUpdateValue(e.target.value);
+                    const t = updatingGoalProgress.latest?.target_value;
+                    if (t && e.target.value) {
+                      const pct = Math.round((Number(e.target.value) / Number(t)) * 100);
+                      setUpdateProgress(Math.min(100, Math.max(0, pct)));
+                    }
+                  }}
+                  placeholder={updatingGoalProgress.latest?.current_value != null ? String(updatingGoalProgress.latest.current_value) : '0'}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>אחוז התקדמות (0-100)</div>
+                <input
+                  type="range" min="0" max="100"
+                  value={updateProgress}
+                  onChange={(e) => setUpdateProgress(Number(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+                <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 600, color: '#FF6F20' }}>
+                  {updateProgress}%
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הערות</div>
+                <textarea
+                  value={updateNotes}
+                  onChange={(e) => setUpdateNotes(e.target.value)}
+                  placeholder="מה השתנה? איך ההרגשה?"
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', minHeight: 60, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={commitGoalProgressUpdate}
+                style={{
+                  width: '100%', padding: 14, borderRadius: 14, border: 'none',
+                  background: '#FF6F20', color: 'white', fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                💾 שמור עדכון
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Edit Profile Dialog */}
         <Dialog open={showEdit} onOpenChange={setShowEdit}>
