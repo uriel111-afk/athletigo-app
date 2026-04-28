@@ -21,6 +21,47 @@ export const AuthProvider = ({ children }) => {
   const [pendingRedirect, setPendingRedirect] = useState(null);
   // De-dupe guard so a single auth tick can't queue the same redirect twice.
   const redirectingRef = useRef(false);
+  // Brute-force loop breakers — even if every other guard slips, these
+  // make a runaway impossible:
+  //  - hasRedirectedToOnboardingRef: /onboarding is queued AT MOST ONCE
+  //    per page load. Subsequent attempts log + bail out.
+  //  - lastRedirectTimeRef: any two redirects must be ≥3s apart.
+  //  - redirectCountRef: hard cap of 3 redirects per page load. After that
+  //    the AuthContext refuses to queue anything until the page reloads.
+  const hasRedirectedToOnboardingRef = useRef(false);
+  const lastRedirectTimeRef = useRef(0);
+  const redirectCountRef = useRef(0);
+
+  // Single chokepoint for every redirect this context wants to fire.
+  // Returns true if the redirect was queued, false if it was blocked.
+  const safeQueueRedirect = (path) => {
+    const now = Date.now();
+    if (redirectCountRef.current >= 3) {
+      console.error('[AuthContext] LOOP DETECTED — blocked redirect to', path,
+        '· already at', redirectCountRef.current, 'redirects this page load');
+      return false;
+    }
+    if (now - lastRedirectTimeRef.current < 3000) {
+      console.warn('[AuthContext] BLOCKED redirect to', path,
+        '— only', now - lastRedirectTimeRef.current, 'ms since the last one (need ≥3000)');
+      return false;
+    }
+    if (path === '/onboarding' && hasRedirectedToOnboardingRef.current) {
+      console.warn('[AuthContext] BLOCKED redirect to /onboarding — already redirected once this page load');
+      return false;
+    }
+    if (window.location.pathname === path) {
+      console.log('[AuthContext] already on', path, '— skipping redirect');
+      return false;
+    }
+    lastRedirectTimeRef.current = now;
+    redirectCountRef.current += 1;
+    if (path === '/onboarding') hasRedirectedToOnboardingRef.current = true;
+    console.log('[AuthContext] SAFE QUEUE redirect →', path,
+      '(count=' + redirectCountRef.current + ')');
+    setPendingRedirect(path);
+    return true;
+  };
 
   useEffect(() => {
     // Initialise auth state from the current session
@@ -112,6 +153,12 @@ export const AuthProvider = ({ children }) => {
         userProfile?.onboarding_completed === true
         || userProfile?.onboarding_completed_at != null
         || (userProfile?.client_status && userProfile.client_status !== 'onboarding');
+      console.log('[AuthContext] isOnboardingComplete calculation:', {
+        onboarding_completed: userProfile?.onboarding_completed,
+        onboarding_completed_at: userProfile?.onboarding_completed_at,
+        client_status: userProfile?.client_status,
+        result: isOnboardingComplete,
+      });
       const currentPath = window.location.pathname;
       const isCurrentlyOnOnboarding = currentPath === '/onboarding';
       const isCurrentlyOnLogin = currentPath === '/login';
@@ -164,8 +211,7 @@ export const AuthProvider = ({ children }) => {
               && (!freshUser?.client_status || freshUser.client_status === 'onboarding');
             console.log('[AuthContext] DB recheck:', { freshUser, stillNeedsOnboarding });
             if (stillNeedsOnboarding) {
-              console.log('[AuthContext] queueing SPA redirect → /onboarding');
-              setPendingRedirect('/onboarding');
+              safeQueueRedirect('/onboarding');
             } else {
               console.log('[AuthContext] DB confirms complete — NOT redirecting');
               setUser({ ...userProfile, ...freshUser });
@@ -179,12 +225,10 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else if (willRedirectAwayFromOnboarding) {
-        console.log('[AuthContext] queueing SPA redirect away from /onboarding');
         const dest = isCoachUser ? (isLifeOSCoach ? '/hub' : '/dashboard') : '/trainee-home';
-        setPendingRedirect(dest);
+        safeQueueRedirect(dest);
       } else if (willRedirectCoachToHub) {
-        console.log('[AuthContext] queueing SPA redirect → /hub (Life OS coach at root)');
-        setPendingRedirect('/hub');
+        safeQueueRedirect('/hub');
       }
     } catch (error) {
       console.error('Failed to load user profile:', error);
