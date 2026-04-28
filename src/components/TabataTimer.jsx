@@ -515,7 +515,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // Hoisted ABOVE the early returns at "settings" / "done" so the
   // hook call order stays stable (React #310).
   const totalExerciseSeconds = useMemo(() => {
-    const c = cfgRef.current;
+    // Read directly from `cfg`, not cfgRef.current. cfgRef is synced
+    // in a [cfg]-keyed useEffect that runs AFTER the render commits;
+    // useMemo runs DURING render, so on the render where cfg changes
+    // cfgRef still holds the previous value. Reading cfgRef here
+    // computed the wrong total whenever the user adjusted any field
+    // — most visibly with sets: bumping sets 1→3 made totalExerciseSeconds
+    // stay at the 1-set value, so the perimeter ring sat at progress=1
+    // (clamped) all through set 1 and only began draining once
+    // totalLeftPrecise dipped below the stale total partway into set 2.
+    const c = cfg;
     let total = c.prep || 0;
     let cur = { type: 'prep', round: 1, set: 1, dur: c.prep || 0 };
     // Defensive cap so a misconfigured cfg can't infinite-loop.
