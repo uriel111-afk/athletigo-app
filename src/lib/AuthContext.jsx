@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { base44 } from '@/api/base44Client';
 
@@ -12,6 +12,15 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   // Kept for API compatibility with consumers that read appPublicSettings
   const [appPublicSettings, setAppPublicSettings] = useState(null);
+  // SPA-style redirect target. AuthProvider sits OUTSIDE <Router>, so it
+  // can't call useNavigate(); instead we publish a path through this state
+  // and a child component inside Router (AuthRedirector) consumes it.
+  // Using window.location.href forced a full page reload which restarted
+  // the AuthContext from scratch — that was the engine of the redirect
+  // loop after onboarding completed.
+  const [pendingRedirect, setPendingRedirect] = useState(null);
+  // De-dupe guard so a single auth tick can't queue the same redirect twice.
+  const redirectingRef = useRef(false);
 
   useEffect(() => {
     // Initialise auth state from the current session
@@ -103,66 +112,79 @@ export const AuthProvider = ({ children }) => {
         userProfile?.onboarding_completed === true
         || userProfile?.onboarding_completed_at != null
         || (userProfile?.client_status && userProfile.client_status !== 'onboarding');
-      const isCurrentlyOnOnboarding = window.location.pathname === '/onboarding';
-      const isCurrentlyOnLogin = window.location.pathname === '/login';
-      const isCurrentlyOnRoot = window.location.pathname === '/' || window.location.pathname === '';
-
-      console.log('[AuthContext] Routing check:', {
-        clientStatus: userProfile?.client_status,
-        onboardingCompletedAt: userProfile?.onboarding_completed_at,
-        isOnboardingComplete,
-        currentPath: window.location.pathname,
-        isCurrentlyOnOnboarding,
-        isCurrentlyOnLogin,
-      });
+      const currentPath = window.location.pathname;
+      const isCurrentlyOnOnboarding = currentPath === '/onboarding';
+      const isCurrentlyOnLogin = currentPath === '/login';
+      const isCurrentlyOnRoot = currentPath === '/' || currentPath === '';
 
       // Coaches NEVER get redirected to onboarding
       const isCoachUser = userProfile?.is_coach === true || userProfile?.role === 'coach' || userProfile?.role === 'admin';
-
       const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
       const isLifeOSCoach = userProfile?.id === LIFE_OS_COACH_ID;
 
-      if (!isCoachUser && !isOnboardingComplete && !isCurrentlyOnOnboarding && !isCurrentlyOnLogin && !isCurrentlyOnRoot) {
+      const willRedirectTrainee =
+        !isCoachUser && !isOnboardingComplete
+        && !isCurrentlyOnOnboarding && !isCurrentlyOnLogin && !isCurrentlyOnRoot;
+      const willRedirectAwayFromOnboarding = isOnboardingComplete && isCurrentlyOnOnboarding;
+      const willRedirectCoachToHub = isLifeOSCoach && isOnboardingComplete && isCurrentlyOnRoot;
+
+      console.log('[AuthContext] FULL CHECK:', {
+        userId: userProfile?.id,
+        clientStatus: userProfile?.client_status,
+        onboardingCompletedAt: userProfile?.onboarding_completed_at,
+        onboardingCompleted: userProfile?.onboarding_completed,
+        isOnboardingComplete,
+        isCoachUser,
+        isLifeOSCoach,
+        currentPath,
+        willRedirectTrainee,
+        willRedirectAwayFromOnboarding,
+        willRedirectCoachToHub,
+        redirectingRef: redirectingRef.current,
+      });
+
+      if (willRedirectTrainee) {
         // Defensive recheck — the in-memory userProfile might be stale if
         // onboarding just wrote client_status in another tab/render. Re-read
-        // the live row before triggering a full-page redirect.
-        try {
-          const { data: freshUser } = await supabase
-            .from('users')
-            .select('client_status, onboarding_completed, onboarding_completed_at')
-            .eq('id', userProfile.id)
-            .maybeSingle();
-          const stillNeedsOnboarding =
-            freshUser?.onboarding_completed !== true
-            && freshUser?.onboarding_completed_at == null
-            && (!freshUser?.client_status || freshUser.client_status === 'onboarding');
-          if (stillNeedsOnboarding) {
-            console.log('[AuthContext] Trainee needs onboarding, redirecting to /onboarding');
-            setTimeout(() => {
-              window.location.href = '/onboarding';
-            }, 300);
-          } else {
-            console.log('[AuthContext] DB recheck shows onboarding complete — skipping redirect');
-            setUser({ ...userProfile, ...freshUser });
+        // the live row BEFORE queueing a redirect to /onboarding so the
+        // already-complete user can't get bounced back into the wizard.
+        if (redirectingRef.current) {
+          console.log('[AuthContext] redirect already pending, skipping');
+        } else {
+          redirectingRef.current = true;
+          try {
+            const { data: freshUser } = await supabase
+              .from('users')
+              .select('client_status, onboarding_completed, onboarding_completed_at')
+              .eq('id', userProfile.id)
+              .maybeSingle();
+            const stillNeedsOnboarding =
+              freshUser?.onboarding_completed !== true
+              && freshUser?.onboarding_completed_at == null
+              && (!freshUser?.client_status || freshUser.client_status === 'onboarding');
+            console.log('[AuthContext] DB recheck:', { freshUser, stillNeedsOnboarding });
+            if (stillNeedsOnboarding) {
+              console.log('[AuthContext] queueing SPA redirect → /onboarding');
+              setPendingRedirect('/onboarding');
+            } else {
+              console.log('[AuthContext] DB confirms complete — NOT redirecting');
+              setUser({ ...userProfile, ...freshUser });
+            }
+          } catch (e) {
+            console.warn('[AuthContext] DB recheck failed:', e?.message);
+          } finally {
+            // Reset the guard on the next tick — pendingRedirect is one-shot,
+            // and resetting here lets a later genuine state change re-redirect.
+            setTimeout(() => { redirectingRef.current = false; }, 600);
           }
-        } catch (e) {
-          console.warn('[AuthContext] fresh-user recheck failed, falling through to redirect:', e?.message);
-          setTimeout(() => { window.location.href = '/onboarding'; }, 300);
         }
-      } else if (isOnboardingComplete && isCurrentlyOnOnboarding) {
-        console.log('[AuthContext] User already completed onboarding, redirecting away');
-        const coachHome = isLifeOSCoach ? '/hub' : '/dashboard';
-        setTimeout(() => {
-          window.location.href = isCoachUser ? coachHome : '/trainee-home';
-        }, 300);
-      } else if (isLifeOSCoach && isOnboardingComplete && isCurrentlyOnRoot) {
-        // The Life OS coach lands on /hub when arriving at the root,
-        // bypassing the generic onboarding landing. This is the common
-        // case when visiting athletigo-coach.com with a live session.
-        console.log('[AuthContext] Life OS coach at root → /hub');
-        setTimeout(() => {
-          window.location.href = '/hub';
-        }, 300);
+      } else if (willRedirectAwayFromOnboarding) {
+        console.log('[AuthContext] queueing SPA redirect away from /onboarding');
+        const dest = isCoachUser ? (isLifeOSCoach ? '/hub' : '/dashboard') : '/trainee-home';
+        setPendingRedirect(dest);
+      } else if (willRedirectCoachToHub) {
+        console.log('[AuthContext] queueing SPA redirect → /hub (Life OS coach at root)');
+        setPendingRedirect('/hub');
       }
     } catch (error) {
       console.error('Failed to load user profile:', error);
@@ -200,6 +222,8 @@ export const AuthProvider = ({ children }) => {
     window.location.href = dest;
   };
 
+  const clearPendingRedirect = () => setPendingRedirect(null);
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -211,6 +235,8 @@ export const AuthProvider = ({ children }) => {
       logout,
       navigateToLogin,
       checkAppState,
+      pendingRedirect,
+      clearPendingRedirect,
     }}>
       {children}
     </AuthContext.Provider>

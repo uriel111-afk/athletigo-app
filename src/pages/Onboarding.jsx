@@ -254,8 +254,19 @@ export default function Onboarding() {
         const u = row || { id: authUser.id, email: authUser.email };
         setUser(u);
 
-        // If they already finished onboarding, kick them home.
-        if (u.client_status && u.client_status !== 'onboarding') {
+        // If they already finished onboarding, kick them home. Two
+        // independent signals — `client_status` flipped off 'onboarding',
+        // OR `onboarding_completed_at` is populated. Either is enough.
+        const alreadyDone =
+          (u.client_status && u.client_status !== 'onboarding')
+          || u.onboarding_completed_at != null
+          || u.onboarding_completed === true;
+        if (alreadyDone) {
+          console.log('[Onboarding] bootstrap: already complete', {
+            clientStatus: u.client_status,
+            onboardingCompletedAt: u.onboarding_completed_at,
+            onboardingCompleted: u.onboarding_completed,
+          });
           navigate('/trainee-home', { replace: true });
           return;
         }

@@ -49,6 +49,30 @@ import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 import NotificationPopup from './components/NotificationPopup';
 import { supabase } from '@/lib/supabaseClient';
 
+// AuthRedirector — bridges AuthContext (which lives ABOVE <Router>) to
+// react-router's SPA navigation. AuthContext can't call useNavigate()
+// itself; instead it sets `pendingRedirect`, and this child consumes
+// the path with `navigate(..., { replace: true })`. Killing the previous
+// `window.location.href` reload-redirects is what breaks the onboarding
+// loop — full reloads restarted AuthContext, which re-fired the redirect.
+function AuthRedirector() {
+  const { pendingRedirect, clearPendingRedirect } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    if (!pendingRedirect) return;
+    if (pendingRedirect === location.pathname) {
+      // Already there — clear the pending target without re-navigating.
+      clearPendingRedirect();
+      return;
+    }
+    console.log('[AuthRedirector] navigating SPA →', pendingRedirect, '(from', location.pathname, ')');
+    navigate(pendingRedirect, { replace: true });
+    clearPendingRedirect();
+  }, [pendingRedirect, location.pathname, navigate, clearPendingRedirect]);
+  return null;
+}
+
 // Global TabataTimer — always mounted, never unmounts
 function GlobalTabata() {
   const { showTabata, setShowTabata, setLiveTimer, setIsMinimized } = useActiveTimer();
@@ -495,6 +519,7 @@ function App() {
         <ClockProvider>
         <ActiveTimerProvider>
           <Router>
+            <AuthRedirector />
             <NavigationTracker />
             <GlobalTabata />
             <Routes>
