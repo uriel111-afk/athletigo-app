@@ -40,39 +40,77 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   const queryClient = useQueryClient();
 
-  const { data: sections = [] } = useQuery({
+  // Identity log — fires on every mount with the plan id we received.
+  // Lets the coach (with DevTools open) confirm whether the prop
+  // actually carries an id when "ערוך תוכנית" is clicked.
+  React.useEffect(() => {
+    console.log('[UPB] mount — plan id:', plan?.id, 'name:', plan?.plan_name || plan?.name);
+  }, [plan?.id]);
+
+  const { data: sections = [], isLoading: sectionsLoading, error: sectionsError } = useQuery({
     queryKey: ['training-sections', plan.id],
     queryFn: async () => {
       try {
-        return await base44.entities.TrainingSection.filter({ training_plan_id: plan.id }, 'order');
+        const rows = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id }, 'order');
+        console.log('[UPB] sections query OK:', rows?.length, 'rows for plan', plan.id);
+        return rows;
       } catch (e) {
         console.warn('[UPB] sections query with order failed, retrying without sort:', e?.message);
         try {
           const data = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id });
-          return data.sort((a, b) => (a.order || 0) - (b.order || 0));
-        } catch { return []; }
+          const sorted = data.sort((a, b) => (a.order || 0) - (b.order || 0));
+          console.log('[UPB] sections retry OK:', sorted?.length, 'rows');
+          return sorted;
+        } catch (err) {
+          console.error('[UPB] sections retry FAILED:', err?.message);
+          return [];
+        }
       }
     },
     initialData: [],
     enabled: !!plan.id
   });
 
-  const { data: exercises = [] } = useQuery({
+  const { data: exercises = [], isLoading: exercisesLoading, error: exercisesError } = useQuery({
     queryKey: ['exercises', plan.id],
     queryFn: async () => {
       try {
-        return await base44.entities.Exercise.filter({ training_plan_id: plan.id }, 'order');
+        const rows = await base44.entities.Exercise.filter({ training_plan_id: plan.id }, 'order');
+        console.log('[UPB] exercises query OK:', rows?.length, 'rows for plan', plan.id);
+        return rows;
       } catch (e) {
         console.warn('[UPB] exercises query with order failed, retrying without sort:', e?.message);
         try {
           const data = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
-          return data.sort((a, b) => (a.order || 0) - (b.order || 0));
-        } catch { return []; }
+          const sorted = data.sort((a, b) => (a.order || 0) - (b.order || 0));
+          console.log('[UPB] exercises retry OK:', sorted?.length, 'rows');
+          return sorted;
+        } catch (err) {
+          console.error('[UPB] exercises retry FAILED:', err?.message);
+          return [];
+        }
       }
     },
     initialData: [],
     enabled: !!plan.id
   });
+
+  // Summary log on every data change — surfaces the query state at a
+  // glance: how many sections / exercises landed, whether the queries
+  // are still running, and whether either one errored. With these
+  // logs in place, an "editor opens empty" report is one console paste
+  // away from a diagnosis.
+  React.useEffect(() => {
+    console.log('[UPB] data state:', {
+      planId: plan?.id,
+      sectionsCount: sections?.length || 0,
+      exercisesCount: exercises?.length || 0,
+      sectionsLoading,
+      exercisesLoading,
+      sectionsError: sectionsError?.message,
+      exercisesError: exercisesError?.message,
+    });
+  }, [plan?.id, sections, exercises, sectionsLoading, exercisesLoading, sectionsError, exercisesError]);
 
   const updatePlanMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.TrainingPlan.update(id, data),
