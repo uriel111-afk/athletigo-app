@@ -42,6 +42,12 @@ export default function AllUsers() {
   // default and surfaced via this toggle. casual / active / suspended
   // always show; only 'former' is gated.
   const [showFormer, setShowFormer] = useState(false);
+  // Inline status-edit dropdown — holds the trainee id whose menu is
+  // open, or null when no menu is showing. One-at-a-time by design.
+  const [statusMenuOpen, setStatusMenuOpen] = useState(null);
+  // Order of choices in the dropdown — uses the same STATUS_BADGES
+  // map (defined below) for the visual label/colors.
+  const STATUS_OPTIONS = ['onboarding', 'casual', 'active', 'suspended', 'former'];
 
   // Status badge config — mirrors the canonical statuses on the
   // trainee profile page so the visual language is consistent
@@ -91,6 +97,39 @@ export default function AllUsers() {
     window.addEventListener('data-changed', refresh);
     return () => { supabase.removeChannel(ch); window.removeEventListener('data-changed', refresh); };
   }, [queryClient]);
+
+  // Close the status dropdown on any click outside it. The badge and
+  // dropdown items stopPropagation so this only fires for clicks
+  // anywhere else on the page.
+  useEffect(() => {
+    if (!statusMenuOpen) return;
+    const handleClickOutside = () => setStatusMenuOpen(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [statusMenuOpen]);
+
+  // Persist a status change to users.client_status, then refresh the
+  // shared caches so the badge + filter chips update without a manual
+  // reload. Defensive try/catch so a transient network error doesn't
+  // leave the dropdown open with no feedback.
+  const updateClientStatus = async (traineeId, newStatus) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ client_status: newStatus })
+        .eq('id', traineeId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['users-list'] });
+      const label = STATUS_BADGES[newStatus]?.label || newStatus;
+      toast.success(`סטטוס עודכן ל-${label}`);
+    } catch (e) {
+      console.warn('[AllUsers] status update failed:', e?.message);
+      toast.error('שגיאה בעדכון הסטטוס');
+    } finally {
+      setStatusMenuOpen(null);
+    }
+  };
 
   // 2. Fetch Sessions (Shared Hook)
   const { sessions: allSessions } = useSessionStats();
@@ -422,23 +461,93 @@ export default function AllUsers() {
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       maxWidth: '100%',
                     }}>{t.full_name || 'מתאמן'}</span>
-                    {/* client_status badge — only renders for the
-                        four canonical statuses; legacy Hebrew values
-                        (לקוח פעיל/לא פעיל) are skipped to avoid
-                        cluttering the row with a redundant chip. */}
-                    {STATUS_BADGES[t.client_status] && (
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 3,
-                        padding: '1px 7px', borderRadius: 999,
-                        background: STATUS_BADGES[t.client_status].bg,
-                        color: STATUS_BADGES[t.client_status].fg,
-                        border: `1px solid ${STATUS_BADGES[t.client_status].border}`,
-                        fontSize: 10, fontWeight: 700, flexShrink: 0,
-                      }}>
-                        <span aria-hidden>{STATUS_BADGES[t.client_status].icon}</span>
-                        {STATUS_BADGES[t.client_status].label}
-                      </span>
-                    )}
+                    {/* Clickable client_status badge — opens a small
+                        dropdown to switch the status inline. Always
+                        renders even for legacy/null status so the
+                        coach can fix it from the list. The badge +
+                        dropdown stopPropagation so the surrounding
+                        card click (→ navigate to profile) doesn't
+                        fire while the menu is open. */}
+                    {(() => {
+                      const cur = STATUS_BADGES[t.client_status];
+                      const buttonBg = cur?.bg || '#F5F5F5';
+                      const buttonFg = cur?.fg || '#888';
+                      const buttonBorder = cur?.border || '#E5E7EB';
+                      const buttonLabel = cur?.label || t.client_status || 'לא מוגדר';
+                      const menuOpen = statusMenuOpen === t.id;
+                      return (
+                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setStatusMenuOpen(menuOpen ? null : t.id);
+                            }}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 3,
+                              padding: '1px 7px', borderRadius: 999,
+                              background: buttonBg, color: buttonFg,
+                              border: `1px solid ${buttonBorder}`,
+                              fontSize: 10, fontWeight: 700,
+                              cursor: 'pointer',
+                              fontFamily: "'Heebo', 'Assistant', sans-serif",
+                            }}
+                          >
+                            {cur?.icon && <span aria-hidden>{cur.icon}</span>}
+                            <span>{buttonLabel}</span>
+                            <span aria-hidden style={{ fontSize: 9, marginRight: 1 }}>▾</span>
+                          </button>
+                          {menuOpen && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                                background: 'white', borderRadius: 12,
+                                border: '1px solid #F0E4D0',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                zIndex: 100, overflow: 'hidden',
+                                minWidth: 140, direction: 'rtl',
+                              }}
+                            >
+                              {STATUS_OPTIONS.map((s, idx) => {
+                                const opt = STATUS_BADGES[s];
+                                const selected = t.client_status === s;
+                                return (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateClientStatus(t.id, s);
+                                    }}
+                                    style={{
+                                      width: '100%', padding: '10px 14px',
+                                      border: 'none',
+                                      background: selected ? '#FFF5EE' : 'white',
+                                      color: selected ? '#FF6F20' : '#1A1A1A',
+                                      fontSize: 13, cursor: 'pointer',
+                                      textAlign: 'right',
+                                      borderBottom: idx < STATUS_OPTIONS.length - 1
+                                        ? '1px solid #F0E4D0' : 'none',
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center', gap: 8,
+                                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                                    }}
+                                  >
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                      {opt?.icon && <span aria-hidden>{opt.icon}</span>}
+                                      <span>{opt?.label || s}</span>
+                                    </span>
+                                    {selected && <span aria-hidden>✓</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div style={{
                     fontSize: 11, color: '#888', marginTop: 1,
