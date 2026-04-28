@@ -50,10 +50,11 @@ export default function WelcomeBlessingPopup({ isOpen, onClose }) {
 
           <img
             src="/logoR.png"
-            alt=""
+            alt="AthletiGo"
             style={{
-              width: 80, height: 'auto', objectFit: 'contain',
-              marginBottom: 16,
+              width: 100,
+              display: 'block',
+              margin: '0 auto 16px',
               filter: 'brightness(0)',
             }}
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
