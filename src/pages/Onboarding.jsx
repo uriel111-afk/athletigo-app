@@ -1,1019 +1,863 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Loader2, Check, ArrowRight, ArrowLeft } from "lucide-react";
-import { createPageUrl } from "@/utils";
+import { supabase } from "@/lib/supabaseClient";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import HealthDeclarationForm from "@/components/forms/HealthDeclarationForm";
+import WelcomeBlessingPopup from "@/components/WelcomeBlessingPopup";
 import PageLoader from "@/components/PageLoader";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import InstallPrompt from "@/components/InstallPrompt";
-import OnboardingQuestionnaire from "@/components/forms/OnboardingQuestionnaire";
-import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 import { generateTraineeSummary } from "@/lib/onboardingSummary";
 
-// Legacy LOGO_MAIN constant retired — onboarding now uses
-// /logoR.png + filter:brightness(0) inline so it matches every
-// other surface (boot splash, AppLoader, PageLoader, Login).
+// 6-step onboarding wizard. Replaces the legacy 2-step flow.
+//
+// Language rule: every user-facing string is gender-neutral. No
+// /ה /י suffixes, no "מתאמן" — talks in 1st-person plural ("נשמח",
+// "אפשר") or 2nd-person without gender markers ("שלך", "לך").
+//
+// Save strategy: per-field fallback via safeUpdate(). The bulk
+// supabase.from('users').update() either succeeds outright or, on
+// failure, retries each field on its own so a missing column kills
+// only itself instead of the whole step's save. Non-existent columns
+// (body_type / goal_body_type / address / emergency_contact_*) will
+// warn in console; every other field still lands.
 
-// Constants moved outside
-const GOAL_OPTIONS = [
-  "חיטוב הגוף",
-  "ירידה במשקל",
-  "עלייה במסת שריר",
-  "שיפור הכושר הגופני",
-  "פיתוח מיומנויות (קליסטניקס / גמישות / כוח)",
-  "שיקום פציעות",
-  "שיפור תנועה כללית",
-  "התמדה ואורח חיים בריא"
+const STEPS = [
+  { id: 'details',      label: 'פרטים' },
+  { id: 'measurements', label: 'מדידות' },
+  { id: 'goals',        label: 'יעדים' },
+  { id: 'about',        label: 'היכרות' },
+  { id: 'health',       label: 'בריאות' },
+  { id: 'confirm',      label: 'אישור' },
 ];
 
-const FITNESS_LEVELS = ["מתחיל", "בינוני", "מתקדם"];
-const TRAINING_STYLES = ["אישי", "קבוצה", "אונליין", "תוכנית עצמאית"];
-
-// Structured medical questionnaire — each item gets a yes/no choice
-// + a free-text follow-up that only appears after "כן". Keys are
-// stored in formData.medical_answers and serialized into the
-// `health_issues` field on submit so the existing schema is honored.
-const MEDICAL_QUESTIONS = [
-  { key: 'back_neck_pain',      label: 'כאבי גב או צוואר' },
-  { key: 'prior_injuries',      label: 'פציעות קודמות' },
-  { key: 'chronic_conditions',  label: 'מחלות כרוניות' },
-  { key: 'regular_medications', label: 'תרופות קבועות' },
-  { key: 'surgeries',           label: 'ניתוחים בעבר' },
+const BODY_TYPES_NOW = [
+  { id: 'thin',       label: 'רזה',           emoji: '🏃' },
+  { id: 'average',    label: 'ממוצע',         emoji: '🧍' },
+  { id: 'athletic',   label: 'אתלטי',         emoji: '💪' },
+  { id: 'overweight', label: 'עם עודף משקל',  emoji: '🐻' },
 ];
 
-// Renders one yes/no medical row + an animated details Textarea.
-// Stateless — parent owns the {answer, details} object via `value`
-// and `onChange`. Hoisted to module scope so it doesn't remount on
-// every parent re-render (which would lose focus mid-typing).
-function MedicalQuestion({ label, value, onChange }) {
-  const answer  = value?.answer ?? null;
-  const details = value?.details ?? '';
+const BODY_TYPES_GOAL = [
+  { id: 'lean',      label: 'רזה ומוגדר',  emoji: '🏊' },
+  { id: 'athletic',  label: 'אתלטי וחזק',  emoji: '💪' },
+  { id: 'muscular',  label: 'שרירי',       emoji: '🏋️' },
+  { id: 'healthy',   label: 'בריא ומאוזן',  emoji: '🧘' },
+];
 
-  const setAnswer = (next) => {
-    // Clearing details when switching back to "לא" mirrors the
-    // existing has_limitations toggle behavior — old text shouldn't
-    // linger as a hidden ghost answer the coach can't see.
-    onChange({ answer: next, details: next ? details : '' });
-  };
-  const setDetails = (next) => onChange({ answer, details: next });
+const ALL_GOALS = [
+  'חיזוק והתחשלות', 'ירידה במשקל', 'גמישות ותנועתיות',
+  'סיבולת וכושר', 'מיומנות ספציפית', 'הנאה ותחושה טובה',
+  'שיקום מפציעה', 'עליית מסת שריר', 'קליסטניקס ושליטה בגוף',
+  'שיפור יציבה', 'כוח פונקציונלי', 'שיפור ביצועים ספורטיביים',
+];
 
+const FITNESS_LEVELS  = ['מתחילים', 'בינוני', 'מתקדם', 'ספורטיבי'];
+const FREQUENCIES     = ['1-2', '3-4', '5-6', 'כל יום'];
+const ALL_CHALLENGES  = ['חוסר זמן', 'חוסר מוטיבציה', 'חוסר ידע', 'כאבים או פציעות', 'חוסר ביטחון', 'אין ציוד'];
+const ALL_PREFERENCES = ['אווירה טובה', 'תוצאות מדידות', 'למידת מיומנויות', 'אתגר גופני', 'הנאה', 'ליווי צמוד', 'גמישות בשעות'];
+const REFERRAL_OPTIONS = [
+  { id: 'friend',    label: 'חבר' },
+  { id: 'instagram', label: 'אינסטגרם' },
+  { id: 'google',    label: 'גוגל' },
+  { id: 'other',     label: 'אחר' },
+];
+const RELATION_OPTIONS = ['הורה', 'בן/בת זוג', 'אח/ות', 'חבר', 'אחר'];
+
+// ── Styles ──
+const COLORS = {
+  bg:       '#FDF8F3',
+  card:     '#FFFFFF',
+  accent:   '#FF6F20',
+  border:   '#F0E4D0',
+  chipBg:   '#FFF5EE',
+  chipBorder: '#FFD9C0',
+  text:     '#1A1A1A',
+  muted:    '#888',
+};
+
+const inputStyle = {
+  width: '100%', padding: 10, borderRadius: 12,
+  border: `1px solid ${COLORS.border}`, fontSize: 14,
+  direction: 'rtl', boxSizing: 'border-box', outline: 'none',
+};
+
+const cardStyle = {
+  background: COLORS.card, borderRadius: 14,
+  border: `1px solid ${COLORS.border}`, padding: 16,
+  marginBottom: 12,
+};
+
+// ── Helpers ──
+const calcAge = (birthDate) => {
+  if (!birthDate) return null;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+};
+
+const safeUpdate = async (userId, fields) => {
+  const presentFields = Object.fromEntries(
+    Object.entries(fields).filter(([, v]) => v !== undefined)
+  );
+  console.log('[Onboarding] saving fields:', Object.keys(presentFields));
+  const { error } = await supabase.from('users').update(presentFields).eq('id', userId);
+  if (!error) {
+    console.log('[Onboarding] all fields saved OK');
+    return { ok: true, failed: [] };
+  }
+  console.warn('[Onboarding] bulk failed:', error.message, '— trying field by field');
+  const failed = [];
+  for (const [key, value] of Object.entries(presentFields)) {
+    const { error: e } = await supabase.from('users').update({ [key]: value }).eq('id', userId);
+    if (e) {
+      console.warn(`[Onboarding] ${key} failed:`, e.message);
+      failed.push(key);
+    } else {
+      console.log(`[Onboarding] ${key} saved OK`);
+    }
+  }
+  return { ok: failed.length === 0, failed };
+};
+
+// ── Toggle button ──
+function ChoiceButton({ active, onClick, children, fullWidth = false, emoji }) {
   return (
-    <div className="space-y-2 p-3 rounded-xl border border-gray-100 bg-white">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-bold text-gray-900 text-right">{label}</span>
-        <div className="flex gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setAnswer(false)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              answer === false
-                ? 'bg-[#4CAF50] text-white border-2 border-[#4CAF50]'
-                : 'bg-white text-gray-500 border-2 border-gray-200'
-            }`}
-          >
-            לא
-          </button>
-          <button
-            type="button"
-            onClick={() => setAnswer(true)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              answer === true
-                ? 'bg-[#f44336] text-white border-2 border-[#f44336]'
-                : 'bg-white text-gray-500 border-2 border-gray-200'
-            }`}
-          >
-            כן
-          </button>
-        </div>
-      </div>
-      {answer === true && (
-        <Textarea
-          value={details}
-          onChange={(e) => setDetails(e.target.value)}
-          className="bg-white border-red-100 focus:border-red-300 min-h-[60px] text-right resize-none text-sm animate-in fade-in slide-in-from-top-2 duration-300"
-          placeholder="אילו כאבים/מגבלות את/ה חווה? פרט/י..."
-          autoFocus
-        />
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: emoji ? '12px 16px' : '10px 16px',
+        borderRadius: 14,
+        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+        background: active ? COLORS.chipBg : COLORS.card,
+        color: active ? COLORS.accent : COLORS.text,
+        fontSize: 13, fontWeight: 500,
+        cursor: 'pointer', textAlign: 'center',
+        flex: fullWidth ? 1 : undefined, minWidth: emoji ? 75 : undefined,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 4,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {emoji && <span style={{ fontSize: 24 }}>{emoji}</span>}
+      <span>{children}</span>
+    </button>
   );
 }
 
-// Step Components defined outside to prevent re-renders losing focus
-// Native-select style — same palette as the rest of the form.
-// Native selects (vs Radix) avoid portal-vs-dialog focus issues
-// and "just work" on every device.
-const ONB_NATIVE_SELECT_STYLE = {
-  width: '100%', padding: '10px 12px', borderRadius: 12,
-  border: '1px solid #F0E4D0', background: '#FFFFFF',
-  fontSize: 14, direction: 'rtl', color: '#1A1A1A',
-  outline: 'none', boxSizing: 'border-box', height: 48,
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
-};
-// Subtle "אופציונלי" tag next to optional labels.
-const OptionalTag = () => (
-  <span className="text-xs font-normal text-gray-400 mr-1">(אופציונלי)</span>
-);
+function Chip({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '8px 16px',
+        borderRadius: 20,
+        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+        background: active ? COLORS.chipBg : COLORS.card,
+        color: active ? COLORS.accent : COLORS.text,
+        fontSize: 13, fontWeight: 500,
+        cursor: 'pointer', whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
-const Step1_PersonalInfo = ({ formData, setFormData }) => (
-  <div className="space-y-6">
-    <div className="text-center space-y-2">
-      <h2 className="text-2xl font-bold text-gray-900">בואו נכיר אותך! 👋</h2>
-      <p className="text-gray-500">רק שם וטלפון חובה — שאר הפרטים אופציונליים וניתן להשלים בכל רגע.</p>
-    </div>
-
-    {/* Required */}
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">שם מלא *</Label>
-        <Input
-          value={formData.full_name}
-          onChange={e => setFormData({...formData, full_name: e.target.value})}
-          className="bg-white border-gray-200 h-12 text-right"
-          placeholder="ישראל ישראלי"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">טלפון *</Label>
-        <Input
-          value={formData.phone}
-          onChange={e => setFormData({...formData, phone: e.target.value})}
-          className="bg-white border-gray-200 h-12 text-right"
-          placeholder="050-0000000"
-          type="tel"
-        />
-      </div>
-    </div>
-
-    {/* Optional section — collapsible visually via the heading + */}
-    <div className="space-y-4 pt-2 border-t border-gray-100">
-      <div className="text-right text-sm font-bold text-gray-700">פרטים נוספים <OptionalTag /></div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-right block text-sm text-gray-600">אימייל <OptionalTag /></Label>
-          <Input
-            value={formData.email}
-            onChange={e => setFormData({...formData, email: e.target.value})}
-            className="bg-white border-gray-100 h-12 text-right"
-            placeholder="email@example.com"
-            type="email"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-right block text-sm text-gray-600">תאריך לידה <OptionalTag /></Label>
-          <Input
-            value={formData.birth_date}
-            onChange={e => setFormData({...formData, birth_date: e.target.value})}
-            className="bg-white border-gray-100 h-12 text-right"
-            type="date"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-right block text-sm text-gray-600">גובה (ס״מ) <OptionalTag /></Label>
-          <Input
-            value={formData.height_cm}
-            onChange={e => setFormData({...formData, height_cm: e.target.value})}
-            className="bg-white border-gray-100 h-12 text-right"
-            placeholder="170"
-            type="number"
-            min={50} max={250}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-right block text-sm text-gray-600">משקל (ק״ג) <OptionalTag /></Label>
-          <Input
-            value={formData.weight_kg}
-            onChange={e => setFormData({...formData, weight_kg: e.target.value})}
-            className="bg-white border-gray-100 h-12 text-right"
-            placeholder="75"
-            type="number"
-            min={20} max={300}
-            step="0.1"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block text-sm text-gray-600">ניסיון ספורטיבי קודם <OptionalTag /></Label>
-        <input
-          type="text"
-          value={formData.fitness_level}
-          onChange={(e) => setFormData({ ...formData, fitness_level: e.target.value })}
-          placeholder="למשל: שחייה 3 שנים, ריצה חצי שנה..."
-          style={{
-            width: '100%', padding: '10px 12px', borderRadius: 12,
-            border: '1px solid #F0E4D0', background: '#FFFFFF',
-            fontSize: 14, direction: 'rtl', color: '#1A1A1A',
-            outline: 'none', boxSizing: 'border-box',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
-          }}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block text-sm text-gray-600">איך הגעת אלינו? <OptionalTag /></Label>
-        <select
-          value={formData.referral_source}
-          onChange={(e) => setFormData({...formData, referral_source: e.target.value})}
-          style={ONB_NATIVE_SELECT_STYLE}
-        >
-          <option value="">— בחר —</option>
-          <option value="instagram">📸 אינסטגרם</option>
-          <option value="facebook">📘 פייסבוק</option>
-          <option value="friend">🤝 חבר/ה</option>
-          <option value="google">🔍 גוגל</option>
-          <option value="other">✨ אחר</option>
-        </select>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block text-sm text-gray-600">פציעות או מגבלות <OptionalTag /></Label>
-        <Textarea
-          value={formData.medical_history}
-          onChange={e => setFormData({...formData, medical_history: e.target.value})}
-          className="bg-white border-gray-100 min-h-[70px] text-right resize-none"
-          placeholder="ספר/י על פציעות או מגבלות שחשוב שהמאמן ידע..."
-        />
-      </div>
-
-      <p className="text-xs text-gray-500 text-right pt-1">
-        ניתן להשלים פרטים נוספים בכל שלב מתוך הפרופיל שלך.
-      </p>
-    </div>
-  </div>
-);
-
-const Step2_Goals = ({ formData, setFormData, handleGoalToggle }) => (
-  <div className="space-y-6">
-    <div className="text-center space-y-2">
-      <h2 className="text-2xl font-bold text-gray-900">המטרות שלך 🎯</h2>
-      <p className="text-gray-500">בחר/י את כל המטרות שרלוונטיות אליך</p>
-    </div>
-
-    <div className="grid grid-cols-1 gap-3">
-      {GOAL_OPTIONS.map(goal => (
-        <div 
-          key={goal}
-          onClick={() => handleGoalToggle(goal)}
-          className={`
-            p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between
-            ${formData.training_goals.includes(goal) 
-              ? 'border-[#FF6F20] bg-orange-50' 
-              : 'border-gray-100 bg-white hover:border-gray-200'}
-          `}
-        >
-          <span className={`font-medium ${formData.training_goals.includes(goal) ? 'text-[#FF6F20]' : 'text-gray-700'}`}>
-            {goal}
-          </span>
-          {formData.training_goals.includes(goal) && (
-            <div className="bg-[#FF6F20] rounded-full p-1">
-              <Check className="w-3 h-3 text-white" />
-            </div>
-          )}
-        </div>
-      ))}
-      
-      <div className="space-y-2 mt-2">
-        <Label className="text-right block font-bold text-gray-700">אחר</Label>
-        <Input 
-          value={formData.other_goal}
-          onChange={e => setFormData({...formData, other_goal: e.target.value})}
-          className="bg-white border-gray-200 h-12 text-right"
-          placeholder="מטרה אחרת..."
-        />
-      </div>
-    </div>
-  </div>
-);
-
-const Step3_Profile = ({ formData, setFormData }) => (
-  <div className="space-y-6">
-    <div className="text-center space-y-2">
-      <h2 className="text-2xl font-bold text-gray-900">הפרופיל שלך 💪</h2>
-      <p className="text-gray-500">עזור לי להכיר את הגוף והיכולות שלך</p>
-    </div>
-
-    <div className="space-y-5">
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">מה הרקע הספורטיבי שלך?</Label>
-        <Textarea 
-          value={formData.sport_background}
-          onChange={e => setFormData({...formData, sport_background: e.target.value})}
-          className="bg-white border-gray-200 min-h-[80px] text-right resize-none"
-          placeholder="התאמנתי בעבר ב..."
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">רמת כושר נוכחית</Label>
-        <Select 
-          value={formData.fitness_level} 
-          onValueChange={val => setFormData({...formData, fitness_level: val})}
-        >
-          <SelectTrigger className="w-full h-12 bg-white border-gray-200 text-right" dir="rtl">
-            <SelectValue placeholder="בחר רמה" />
-          </SelectTrigger>
-          <SelectContent dir="rtl">
-            {FITNESS_LEVELS.map(level => (
-              <SelectItem key={level} value={level}>{level}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-4">
-        <Label className="text-right block font-bold text-gray-900">מצב בריאותי כללי *</Label>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button
-            onClick={() => setFormData({ ...formData, has_limitations: false, health_issues: "" })}
-            className={`p-3 rounded-xl border-2 font-bold text-sm transition-all ${
-              formData.has_limitations === false
-                ? "border-[#4CAF50] bg-green-50 text-[#2E7D32]"
-                : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-            }`}
-          >
-            כשיר לפעילות / אין מגבלות
-          </button>
-          <button
-            onClick={() => setFormData({ ...formData, has_limitations: true })}
-            className={`p-3 rounded-xl border-2 font-bold text-sm transition-all ${
-              formData.has_limitations === true
-                ? "border-[#f44336] bg-red-50 text-[#c62828]"
-                : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-            }`}
-          >
-            יש לי מגבלה / פציעה
-          </button>
-        </div>
-
-        {formData.has_limitations === false && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-            <Label className="text-right block text-xs text-gray-400">הערה (לא חובה)</Label>
-            <Input
-              value={formData.health_issues}
-              onChange={(e) => setFormData({ ...formData, health_issues: e.target.value })}
-              className="bg-white border-gray-200 text-right h-10 text-sm"
-              placeholder="הכל תקין..."
-            />
-          </div>
-        )}
-
-        {formData.has_limitations === true && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-            <Label className="text-right block font-bold text-[#c62828]">פרטי המגבלה / הפציעה *</Label>
-            <Textarea
-              value={formData.health_issues}
-              onChange={(e) => setFormData({ ...formData, health_issues: e.target.value })}
-              className="bg-white border-red-100 focus:border-red-300 min-h-[80px] text-right resize-none"
-              placeholder="אנא פרט/י כאן..."
-            />
-          </div>
-        )}
-
-        {/* Structured medical questionnaire — five yes/no questions
-            with conditional details fields. Each "כן" reveals a
-            text input that fades in (animation lives inside the
-            MedicalQuestion component). The answers are merged into
-            `health_issues` on submit. */}
-        <div className="space-y-2 pt-2 mt-2 border-t border-gray-100">
-          <Label className="text-right block font-bold text-gray-900">שאלון רפואי מפורט</Label>
-          <p className="text-xs text-gray-500 text-right mb-2">
-            מענה לכל אחת מהשאלות עוזר לי לבנות לך תוכנית בטוחה ומותאמת.
-          </p>
-          {MEDICAL_QUESTIONS.map((q) => (
-            <MedicalQuestion
-              key={q.key}
-              label={q.label}
-              value={formData.medical_answers?.[q.key]}
-              onChange={(next) => setFormData({
-                ...formData,
-                medical_answers: {
-                  ...(formData.medical_answers || {}),
-                  [q.key]: next,
-                },
-              })}
-            />
-          ))}
-        </div>
-
-        <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
-          <Checkbox 
-            id="health-declare" 
-            checked={formData.health_declaration_approved}
-            onCheckedChange={(checked) => setFormData({ ...formData, health_declaration_approved: checked })}
-            className="mt-1 data-[state=checked]:bg-[#FF6F20] data-[state=checked]:border-[#FF6F20]"
-          />
-          <label htmlFor="health-declare" className="text-xs text-gray-600 leading-relaxed cursor-pointer select-none">
-            אני מאשר/ת שהמידע שמסרתי מדויק, ומבין/ה את הסיכונים הכרוכים בפעילות גופנית. הצהרה זו מהווה אישור רפואי להשתתפות.
-          </label>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const Step4_Preferences = ({ formData, setFormData }) => (
-  <div className="space-y-6">
-    <div className="text-center space-y-2">
-      <h2 className="text-2xl font-bold text-gray-900">העדפות אימון 📅</h2>
-      <p className="text-gray-500">בוא נתאים את המסגרת הנכונה עבורך</p>
-    </div>
-
-    <div className="space-y-5">
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">כמה פעמים בשבוע תרצה/י להתאמן?</Label>
-        <Input 
-          value={formData.training_frequency}
-          onChange={e => setFormData({...formData, training_frequency: e.target.value})}
-          className="bg-white border-gray-200 h-12 text-right"
-          placeholder="למשל: 3 פעמים"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">סגנון אימון מועדף</Label>
-        <Select 
-          value={formData.preferred_training_style} 
-          onValueChange={val => setFormData({...formData, preferred_training_style: val})}
-        >
-          <SelectTrigger className="w-full h-12 bg-white border-gray-200 text-right" dir="rtl">
-            <SelectValue placeholder="בחר סגנון" />
-          </SelectTrigger>
-          <SelectContent dir="rtl">
-            {TRAINING_STYLES.map(style => (
-              <SelectItem key={style} value={style}>{style}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">מה הכי מניע אותך להתחיל עכשיו?</Label>
-        <Textarea 
-          value={formData.motivation}
-          onChange={e => setFormData({...formData, motivation: e.target.value})}
-          className="bg-white border-gray-200 min-h-[80px] text-right resize-none"
-          placeholder="אני רוצה להרגיש..."
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-right block font-bold">הערות נוספות</Label>
-        <Textarea 
-          value={formData.onboarding_notes}
-          onChange={e => setFormData({...formData, onboarding_notes: e.target.value})}
-          className="bg-white border-gray-200 min-h-[80px] text-right resize-none"
-          placeholder="כל דבר אחר שחשוב לדעת..."
-        />
-      </div>
-    </div>
-  </div>
-);
-
+// ── Main ──
 export default function Onboarding() {
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const queryClient = useQueryClient();
+  const [bootstrapping, setBootstrapping] = useState(true);
+  const [step, setStep] = useState('details');
+  const [showHealthForm, setShowHealthForm] = useState(false);
+  const [healthSigned, setHealthSigned] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [savingStep, setSavingStep] = useState(false);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    full_name: "",
-    phone: "",
-    email: "",
-    birth_date: "",
-    training_goals: [],
-    other_goal: "",
-    sport_background: "",
-    fitness_level: "",
-    health_issues: "",
-    training_frequency: "",
-    motivation: "",
-    preferred_training_style: "",
-    onboarding_notes: "",
-    has_limitations: null,
-    health_declaration_approved: false,
-    // Optional profile fields surfaced in Step1 (NEW columns added
-    // by 20260427_users_optional_profile.sql + reuse of existing
-    // medical_history / fitness_level columns).
-    height_cm: "",
-    weight_kg: "",
-    medical_history: "",
-    referral_source: "",
-    // OnboardingQuestionnaire (Step 2) — single object so the
-    // wizard's controlled value/onChange API is one prop.
-    questionnaire: {
-      training_goal:        '',
-      fitness_level:        '',
-      preferred_frequency:  '',
-      current_challenges:   [],
-      training_preferences: [],
-      additional_notes:     '',
-    },
-    // Structured medical questionnaire — { answer: bool|null, details: string }
-    // per question key. Defaults to all-null so nothing is implicitly
-    // claimed before the trainee actually answers.
-    medical_answers: {
-      back_neck_pain:      { answer: null, details: '' },
-      prior_injuries:      { answer: null, details: '' },
-      chronic_conditions:  { answer: null, details: '' },
-      regular_medications: { answer: null, details: '' },
-      surgeries:           { answer: null, details: '' },
-    },
-  });
+  // Step 1: details
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [address, setAddress] = useState('');
+  const [referralSource, setReferralSource] = useState('');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [emergencyRelation, setEmergencyRelation] = useState('');
 
+  // Step 2: measurements
+  const [heightCm, setHeightCm] = useState('');
+  const [weightKg, setWeightKg] = useState('');
+  const [bodyType, setBodyType] = useState('');
+  const [goalBodyType, setGoalBodyType] = useState('');
+
+  // Step 3: goals
+  const [selectedGoals, setSelectedGoals] = useState([]);
+  const [goalsDescription, setGoalsDescription] = useState('');
+
+  // Step 4: about
+  const [sportsExperience, setSportsExperience] = useState('');
+  const [fitnessLevel, setFitnessLevel] = useState('');
+  const [frequency, setFrequency] = useState('');
+  const [selectedChallenges, setSelectedChallenges] = useState([]);
+  const [challengesDescription, setChallengesDescription] = useState('');
+  const [selectedPreferences, setSelectedPreferences] = useState([]);
+  const [preferencesDescription, setPreferencesDescription] = useState('');
+  const [additionalNotes, setAdditionalNotes] = useState('');
+
+  // Step 5: health
+  const [preHealthNote, setPreHealthNote] = useState('');
+
+  // Step 6: pending session (auto-confirmed once paid)
+  const [pendingSession, setPendingSession] = useState(null);
+
+  // Bootstrap — load the auth user + existing row, prefill any prior
+  // answers so a refresh mid-flow doesn't wipe progress.
   useEffect(() => {
-    const loadUser = async () => {
+    let cancelled = false;
+    (async () => {
       try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
+          navigate('/login', { replace: true });
+          return;
+        }
+        const { data: row } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        if (cancelled) return;
+        const u = row || { id: authUser.id, email: authUser.email };
+        setUser(u);
 
-        if (currentUser?.onboarding_completed) {
-          window.location.href = createPageUrl("TraineeHome");
+        // If they already finished onboarding, kick them home.
+        if (u.client_status && u.client_status !== 'onboarding') {
+          navigate('/trainee-home', { replace: true });
           return;
         }
 
-        if (currentUser) {
-          setFormData(prev => ({
-            ...prev,
-            full_name: currentUser.full_name || "",
-            phone: currentUser.phone || "",
-            email: currentUser.email || "",
-            birth_date: currentUser.birth_date ? currentUser.birth_date.split('T')[0] : "",
-            training_goals: currentUser.training_goals || [],
-            // other fields
-          }));
-        }
-      } catch (error) {
-        console.error("[Onboarding] Error loading user:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadUser();
-  }, []);
-
-  const updateUserMutation = useMutation({
-    mutationFn: async (data) => {
-      console.log("[Onboarding] updateUserMutation called with data:", data);
-      const result = await base44.auth.updateMe(data);
-      console.log("[Onboarding] updateUserMutation result:", result);
-      return result;
-    },
-    onSuccess: (result) => {
-      console.log("[Onboarding] updateUserMutation onSuccess:", result);
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
-    },
-    onError: (error) => {
-      console.error("[Onboarding] updateUserMutation onError:", error);
-    }
-  });
-
-  const notifyCoachMutation = useMutation({
-    mutationFn: async () => {
-      console.log("[Onboarding] notifyCoachMutation called");
-      // Find the coach (admin) to notify
-      let coachId = user?.created_by;
-      console.log("[Onboarding] Initial coachId from user.created_by:", coachId);
-
-      // If created_by is self or null, find the main coach
-      if (!coachId || coachId === user.id) {
-        console.log("[Onboarding] Finding coach from users list...");
-        try {
-          const users = await base44.entities.User.list(); // Assuming coach is visible
-          const coach = users.find(u => u.role === 'coach' || u.role === 'admin');
-          if (coach) {
-            coachId = coach.id;
-            console.log("[Onboarding] Found coach:", coach.full_name, coachId);
-          } else {
-            console.log("[Onboarding] No coach found in users list");
-          }
-        } catch (err) {
-          console.error("[Onboarding] Error finding coach for notification:", err);
-        }
-      }
-
-      if (coachId) {
-        console.log("[Onboarding] Creating notification for coach:", coachId);
-        const traineeName = formData.full_name || user.full_name || 'המתאמן/ת';
-        await base44.entities.Notification.create({
-          user_id: coachId,
-          type: 'onboarding_complete',
-          title: '🎉 מתאמן/ת חדש/ה סיים/ה הרשמה',
-          message: `${traineeName} השלים/ה את תהליך ההרשמה — לצפייה בפרטים`,
-          link: `/TraineeProfile?userId=${user.id}`,
-          is_read: false,
-          data: { trainee_id: user.id, trainee_name: traineeName },
-        });
-        console.log("[Onboarding] Notification created successfully");
-      } else {
-        console.log("[Onboarding] No coachId found, skipping notification");
-      }
-    }
-  });
-
-  const handleNext = () => {
-    if (!isStepValid()) {
-      toast.error("נא למלא את כל שדות החובה");
-      return;
-    }
-    setStep(prev => prev + 1);
-    window.scrollTo(0, 0);
-  };
-
-  const handleBack = () => {
-    setStep(prev => prev - 1);
-    window.scrollTo(0, 0);
-  };
-
-  const isStepValid = () => {
-    switch (step) {
-      case 1: // Mandatory: name + phone only. Email / birth_date /
-              // height / weight / fitness_level / medical_history /
-              // referral_source are all optional and can be filled
-              // later from the trainee profile.
-        return !!(formData.full_name && formData.phone);
-      case 2: // Goals
-        return true;
-      default:
-        return true;
-    }
-  };
-
-  const handleGoalToggle = (goal) => {
-    setFormData(prev => {
-      const goals = prev.training_goals || [];
-      if (goals.includes(goal)) {
-        return { ...prev, training_goals: goals.filter(g => g !== goal) };
-      } else {
-        return { ...prev, training_goals: [...goals, goal] };
-      }
-    });
-  };
-
-  const handleComplete = async () => {
-    console.log("[Onboarding] step → questionnaire complete; saving + redirecting to TraineeHome for health-declaration step");
-    console.log("[Onboarding] handleComplete called");
-    console.log("[Onboarding] formData:", formData);
-    console.log("[Onboarding] user:", user);
-
-    if (updateUserMutation.isPending) {
-      console.log("[Onboarding] Mutation already pending, returning");
-      return;
-    }
-
-    try {
-      console.log("[Onboarding] Starting fault-tolerant completion process");
-
-      // Merge other_goal into training_goals
-      let finalGoals = [...formData.training_goals];
-      if (formData.other_goal) {
-        finalGoals.push(formData.other_goal);
-      }
-
-      console.log("[Onboarding] Final goals:", finalGoals);
-
-      // CRITICAL: These fields MUST be updated to mark onboarding as
-      // complete. client_status flips onboarding → casual so the
-      // trainee's TraineeHome shows the casual experience (sessions
-      // + messages only) until the coach sells a package and bumps
-      // them to active. The coach can also flip to 'active' manually
-      // from the profile badge if they want the full app immediately.
-      const criticalData = {
-        onboarding_completed: true,
-        role: "trainee",
-        client_status: "casual",
-      };
-
-      // Fold the structured medical answers into health_issues so
-      // the existing `users.health_issues` column captures both the
-      // free-form text and the questionnaire details. Each "כן"
-      // answer becomes one labeled line; "לא" rows are skipped.
-      const medicalLines = MEDICAL_QUESTIONS
-        .filter((q) => formData.medical_answers?.[q.key]?.answer === true)
-        .map((q) => {
-          const details = (formData.medical_answers[q.key].details || '').trim();
-          return details ? `${q.label}: ${details}` : `${q.label}: כן`;
-        });
-      const fullHealthIssues = [formData.health_issues?.trim(), ...medicalLines]
-        .filter(Boolean)
-        .join('\n');
-
-      // OPTIONAL: These fields are nice-to-have but shouldn't block
-      // completion. Numbers are parsed only when the user actually
-      // entered something so we don't write a stray 0.
-      const optionalData = {
-        full_name: formData.full_name,
-        phone: formData.phone,
-        birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : null,
-        training_goals: finalGoals,
-        sport_background: formData.sport_background,
-        fitness_level: formData.fitness_level,
-        health_issues: fullHealthIssues,
-        health_declaration_accepted: true,
-        training_frequency: formData.training_frequency,
-        motivation: formData.motivation,
-        preferred_training_style: formData.preferred_training_style,
-        onboarding_notes: formData.onboarding_notes,
-        // New optional profile columns (per
-        // 20260427_users_optional_profile.sql migration). The
-        // base44Client 42703 retry layer drops these silently if the
-        // migration hasn't been run yet, so the save still succeeds.
-        height_cm: formData.height_cm ? parseInt(formData.height_cm, 10) : null,
-        weight_kg: formData.weight_kg ? parseFloat(formData.weight_kg)   : null,
-        medical_history: formData.medical_history || null,
-        referral_source: formData.referral_source || null,
-        // OnboardingQuestionnaire (Step 2) results — added by
-        // 20260427_onboarding_questionnaire.sql. JSONB columns
-        // accept null for "not answered". The retry layer drops
-        // any column the live schema is missing.
-        preferred_frequency:  formData.questionnaire?.preferred_frequency  || null,
-        current_challenges:   formData.questionnaire?.current_challenges?.length    ? formData.questionnaire.current_challenges    : null,
-        training_preferences: formData.questionnaire?.training_preferences?.length  ? formData.questionnaire.training_preferences  : null,
-        additional_notes:     formData.questionnaire?.additional_notes     || null,
-        // Free-text expansions across the three multi-select screens.
-        // Written when present, null otherwise; base44's 42703 retry
-        // drops any column the live schema is missing without breaking
-        // the rest of the save.
-        goals_description:       formData.questionnaire?.goals_description?.trim()       || null,
-        challenges_description:  formData.questionnaire?.challenges_description?.trim()  || null,
-        preferences_description: formData.questionnaire?.preferences_description?.trim() || null,
-        // Alias columns — different installs use different names for
-        // the same answers. We write to BOTH so a coach reading via
-        // the alias still sees the value; the retry layer drops the
-        // alias the live schema doesn't have.
-        fitness_experience:   formData.questionnaire?.fitness_level || formData.fitness_level || null,
-        fitness_background:   formData.sport_background || formData.fitness_level || null,
-      };
-
-      // Merge the questionnaire's chosen goals (now multi-select)
-      // into the canonical training_goals[] column. Be lenient about
-      // legacy single-string values from older drafts.
-      const qGoalRaw = formData.questionnaire?.training_goal;
-      const qGoals = Array.isArray(qGoalRaw) ? qGoalRaw : (qGoalRaw ? [qGoalRaw] : []);
-      if (qGoals.length) {
-        const existing = Array.isArray(optionalData.training_goals) ? optionalData.training_goals : [];
-        const merged = [...qGoals, ...existing.filter(g => !qGoals.includes(g))];
-        optionalData.training_goals = merged;
-      }
-      // Same for fitness_level — questionnaire wins over Step1's
-      // optional native select if both were filled.
-      if (formData.questionnaire?.fitness_level) {
-        optionalData.fitness_level = formData.questionnaire.fitness_level;
-      }
-
-      // Combine data with critical fields taking precedence
-      const updateData = { ...optionalData, ...criticalData };
-
-      // Generate the coach-facing narrative summary from the merged
-      // payload (so it sees every just-typed answer, not the stale
-      // user row) and persist it alongside the timestamp. Both
-      // columns are written through the same column-retry mutation
-      // — if either is missing on this install, the rest of the save
-      // still completes.
-      try {
-        const summary = generateTraineeSummary({ ...user, ...updateData });
-        if (summary) {
-          updateData.onboarding_summary = summary;
-          updateData.onboarding_completed_at = new Date().toISOString();
-          console.log('[Onboarding] generated summary for popup + intro tab:', summary);
-        }
+        // Prefill
+        setFullName(u.full_name || '');
+        setPhone(u.phone || '');
+        setEmail(u.email || authUser.email || '');
+        setBirthDate(u.birth_date ? String(u.birth_date).slice(0, 10) : '');
+        setAddress(u.address || '');
+        setReferralSource(u.referral_source || '');
+        setEmergencyName(u.emergency_contact_name || '');
+        setEmergencyPhone(u.emergency_contact_phone || '');
+        setEmergencyRelation(u.emergency_contact_relation || '');
+        setHeightCm(u.height_cm ? String(u.height_cm) : '');
+        setWeightKg(u.weight_kg ? String(u.weight_kg) : '');
+        setBodyType(u.body_type || '');
+        setGoalBodyType(u.goal_body_type || '');
+        const tgRaw = u.training_goals;
+        const tg = Array.isArray(tgRaw)
+          ? tgRaw
+          : (typeof tgRaw === 'string' && tgRaw.trim().startsWith('[')
+              ? (() => { try { return JSON.parse(tgRaw); } catch { return []; } })()
+              : []);
+        setSelectedGoals(tg);
+        setGoalsDescription(u.goals_description || '');
+        setSportsExperience(u.fitness_background || '');
+        setFitnessLevel(u.fitness_experience || '');
+        setFrequency(u.preferred_frequency || '');
+        const ch = Array.isArray(u.current_challenges) ? u.current_challenges
+          : (typeof u.current_challenges === 'string' && u.current_challenges.trim().startsWith('[')
+              ? (() => { try { return JSON.parse(u.current_challenges); } catch { return []; } })()
+              : []);
+        setSelectedChallenges(ch);
+        setChallengesDescription(u.challenges_description || '');
+        const pr = Array.isArray(u.training_preferences) ? u.training_preferences
+          : (typeof u.training_preferences === 'string' && u.training_preferences.trim().startsWith('[')
+              ? (() => { try { return JSON.parse(u.training_preferences); } catch { return []; } })()
+              : []);
+        setSelectedPreferences(pr);
+        setPreferencesDescription(u.preferences_description || '');
+        setAdditionalNotes(u.additional_notes || '');
+        setPreHealthNote(u.pre_health_note || '');
+        if (u.health_declaration_signed_at || u.health_declaration_id) setHealthSigned(true);
       } catch (e) {
-        console.warn('[Onboarding] summary generation failed (non-blocking):', e?.message);
+        console.error('[Onboarding] bootstrap failed:', e);
+      } finally {
+        if (!cancelled) setBootstrapping(false);
       }
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
 
-      console.log("[Onboarding] Update data prepared:", updateData);
-      console.log("[Onboarding] Calling updateUserMutation with fault-tolerance...");
+  if (bootstrapping || !user) return <PageLoader fullHeight />;
 
-      try {
-        console.log('[Onboarding] saving questionnaire data:', {
-          training_goals:           updateData.training_goals,
-          fitness_experience:       updateData.fitness_experience,
-          fitness_level:            updateData.fitness_level,
-          fitness_background:       updateData.fitness_background,
-          preferred_frequency:      updateData.preferred_frequency,
-          current_challenges:       updateData.current_challenges,
-          training_preferences:     updateData.training_preferences,
-          additional_notes:         updateData.additional_notes,
-          goals_description:        updateData.goals_description,
-          challenges_description:   updateData.challenges_description,
-          preferences_description:  updateData.preferences_description,
-          height_cm:                updateData.height_cm,
-          weight_kg:                updateData.weight_kg,
-          referral_source:          updateData.referral_source,
-        });
-        // Explicit before/after logging so the diagnosis on a "fields
-        // are NULL" report is one DevTools open away. The existing
-        // partial log above shows a curated subset; this one shows
-        // the entire payload + the row the server returned.
-        console.log('[Onboarding] === SAVE START ===');
-        console.log('[Onboarding] full payload:', updateData);
-        const saveResult = await updateUserMutation.mutateAsync(updateData);
-        console.log('[Onboarding] save result:', saveResult);
-        console.log('[Onboarding] === SAVE END ===');
-        console.log("[Onboarding] updateUserMutation completed successfully");
+  const userId = user.id;
+  const coachId = user.coach_id || null;
+  const currentStepIndex = STEPS.findIndex(s => s.id === step);
 
-        // Seed the measurements table with the trainee's first
-        // height/weight reading so the coach has a baseline to track
-        // progress against. Best-effort — failure here doesn't block
-        // onboarding completion. Both column-name shapes are written
-        // (height/weight + height_cm/weight_kg) so the row lands
-        // regardless of which schema this install uses; base44's
-        // 42703 retry layer drops missing columns silently.
-        const heightNum = formData.height_cm ? parseInt(formData.height_cm, 10) : null;
-        const weightNum = formData.weight_kg ? parseFloat(formData.weight_kg) : null;
-        if (user?.id && (heightNum || weightNum)) {
-          try {
-            await base44.entities.Measurement.create({
-              trainee_id: user.id,
-              user_id: user.coach_id || null,
-              date: new Date().toISOString().split('T')[0],
-              source: 'onboarding',
-              notes: 'מדידה ראשונה — אונבורדינג',
-              height: heightNum,
-              weight: weightNum,
-              height_cm: heightNum,
-              weight_kg: weightNum,
-            });
-            console.log("[Onboarding] seeded baseline measurement row");
-          } catch (mErr) {
-            console.warn("[Onboarding] measurement seed failed (non-critical):", mErr?.message);
-          }
-        }
-      } catch (updateError) {
-        console.error("[Onboarding] updateUserMutation error:", updateError);
-        // The bulk update threw — usually because the column-retry
-        // budget (8 attempts) exhausted on a payload with too many
-        // unknown columns, OR a non-42703 error fired (RLS, type
-        // mismatch, etc.). Before falling back to the
-        // critical-fields-only path that loses all the answers, try
-        // each field on its own. A bad column kills only itself
-        // instead of the whole save.
-        console.warn('[Onboarding] bulk save failed — attempting per-field fallback');
-        let okCount = 0;
-        const failedFields = [];
-        for (const [key, value] of Object.entries(updateData)) {
-          if (value === undefined) continue;
-          try {
-            await base44.auth.updateMe({ [key]: value });
-            okCount++;
-            console.log(`[Onboarding] per-field OK: ${key}`);
-          } catch (fieldErr) {
-            failedFields.push(key);
-            console.warn(`[Onboarding] per-field FAILED: ${key} →`, fieldErr?.message);
-          }
-        }
-        console.log(`[Onboarding] per-field summary: ${okCount} saved, ${failedFields.length} failed`);
-        if (failedFields.length) console.log('[Onboarding] failed fields:', failedFields);
-
-        // If even per-field saved nothing, fall back to critical-only
-        // so onboarding at least flips the role + client_status flags.
-        if (okCount === 0) {
-          console.log("[Onboarding] Per-field saved nothing — retrying with critical fields only:", criticalData);
-          try {
-            await updateUserMutation.mutateAsync(criticalData);
-            console.log("[Onboarding] Retry with critical fields succeeded");
-            toast.warning("חלק מהשדות לא נשמרו, אך תהליך האונבורדינג הושלם");
-          } catch (criticalError) {
-            console.error("[Onboarding] Critical update failed:", criticalError);
-            throw criticalError;
-          }
-        } else if (failedFields.length > 0) {
-          // Partial success — every field that landed is in DB; surface
-          // the failures so the user knows something didn't make it.
-          toast.warning(`נשמרו ${okCount} שדות; ${failedFields.length} נכשלו (ראה Console)`);
-        }
-      }
-
-      // Notify coach - but don't fail the whole process if it fails
-      console.log("[Onboarding] Attempting coach notification (optional)...");
-      try {
-        await notifyCoachMutation.mutateAsync();
-        console.log("[Onboarding] notifyCoachMutation completed successfully");
-      } catch (notifyError) {
-        console.warn("[Onboarding] Coach notification failed (non-critical):", notifyError);
-        // Don't block completion if notification fails
-      }
-
-      console.log("[Onboarding] Onboarding completion successful!");
-      toast.success("תהליך האונבורדינג הושלם בהצלחה!");
-
-      // Show install prompt if not shown before, then redirect
-      if (localStorage.getItem('install_prompt_shown') !== 'true') {
-        setShowInstallPrompt(true);
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        window.location.href = createPageUrl("TraineeHome");
-      }
-      
-    } catch (error) {
-      console.error("[Onboarding] Completion error:", error);
-      console.error("[Onboarding] Error details:", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      toast.error("שגיאה בשמירת הנתונים. נסה שוב.");
-    }
+  const goNext = () => {
+    const next = STEPS[currentStepIndex + 1];
+    if (next) setStep(next.id);
+  };
+  const goBack = () => {
+    const prev = STEPS[currentStepIndex - 1];
+    if (prev) setStep(prev.id);
   };
 
-  if (loading) {
-    return <PageLoader />;
-  }
+  // Step-1 validation: shutting down "המשך" until the four required
+  // identity fields are populated.
+  const step1Valid = !!(fullName.trim() && phone.trim() && email.trim() && birthDate);
 
+  // ── Per-step save handlers ──
+  const saveStep1 = async () => {
+    setSavingStep(true);
+    try {
+      // Sync email change to auth.users so the user can log in with
+      // their new address. password isn't touched here.
+      if (email && email !== user.email) {
+        try { await supabase.auth.updateUser({ email }); } catch (e) { console.warn('[Onboarding] auth email update failed:', e?.message); }
+      }
+      await safeUpdate(userId, {
+        full_name: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        birth_date: birthDate || null,
+        address: address.trim() || null,
+        referral_source: referralSource || null,
+        emergency_contact_name: emergencyName.trim() || null,
+        emergency_contact_phone: emergencyPhone.trim() || null,
+        emergency_contact_relation: emergencyRelation || null,
+      });
+      goNext();
+    } finally { setSavingStep(false); }
+  };
+
+  const saveStep2 = async () => {
+    setSavingStep(true);
+    try {
+      const heightNum = heightCm ? parseInt(heightCm, 10) : null;
+      const weightNum = weightKg ? parseFloat(weightKg) : null;
+      await safeUpdate(userId, {
+        height_cm: Number.isFinite(heightNum) ? heightNum : null,
+        weight_kg: Number.isFinite(weightNum) ? weightNum : null,
+        body_type: bodyType || null,
+        goal_body_type: goalBodyType || null,
+      });
+      // Seed measurements with the trainee's onboarding height/weight
+      // so the metrics tab chart starts from this point.
+      if (heightNum || weightNum) {
+        try {
+          await supabase.from('measurements').insert({
+            trainee_id: userId,
+            user_id: coachId || null,
+            date: new Date().toISOString().split('T')[0],
+            source: 'onboarding',
+            notes: 'מדידה ראשונה — אונבורדינג',
+            height_cm: heightNum,
+            weight_kg: weightNum,
+          });
+        } catch (e) { console.warn('[Onboarding] measurements seed failed:', e?.message); }
+      }
+      goNext();
+    } finally { setSavingStep(false); }
+  };
+
+  const saveStep3 = async () => {
+    setSavingStep(true);
+    try {
+      await safeUpdate(userId, {
+        training_goals: selectedGoals,
+        goals_description: goalsDescription.trim() || null,
+      });
+      goNext();
+    } finally { setSavingStep(false); }
+  };
+
+  const saveStep4 = async () => {
+    setSavingStep(true);
+    try {
+      await safeUpdate(userId, {
+        fitness_background: sportsExperience.trim() || null,
+        fitness_experience: fitnessLevel || null,
+        preferred_frequency: frequency || null,
+        current_challenges: selectedChallenges,
+        challenges_description: challengesDescription.trim() || null,
+        training_preferences: selectedPreferences,
+        preferences_description: preferencesDescription.trim() || null,
+        additional_notes: additionalNotes.trim() || null,
+      });
+      goNext();
+    } finally { setSavingStep(false); }
+  };
+
+  const saveStep5PreHealth = async () => {
+    setSavingStep(true);
+    try {
+      await safeUpdate(userId, {
+        pre_health_note: preHealthNote.trim() || null,
+      });
+      // Open the formal HealthDeclarationForm. Step 5 only advances
+      // to step 6 after the form's onSigned fires — there is no skip.
+      setShowHealthForm(true);
+    } finally { setSavingStep(false); }
+  };
+
+  const completeOnboarding = async () => {
+    setSavingStep(true);
+    try {
+      // Pull the freshest row so generateTraineeSummary sees every
+      // answer that landed (some columns might have failed earlier
+      // and need to be excluded from the summary, but that's
+      // automatic — empty fields generate empty narrative lines).
+      const { data: fresh } = await supabase
+        .from('users').select('*').eq('id', userId).maybeSingle();
+      const summary = generateTraineeSummary(fresh || user);
+      await safeUpdate(userId, {
+        onboarding_summary: summary || null,
+        onboarding_completed_at: new Date().toISOString(),
+        client_status: 'casual',
+      });
+      console.log('[Onboarding] summary written:', summary);
+      // Notify coach
+      if (coachId) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: coachId,
+            type: 'onboarding_complete',
+            title: '🎉 הושלם תהליך הרשמה',
+            message: summary || `${fullName} סיימו את האונבורדינג`,
+            link: `/traineeprofile?userId=${userId}`,
+            is_read: false,
+            data: { trainee_id: userId, trainee_name: fullName },
+          });
+        } catch (e) { console.warn('[Onboarding] coach notify failed:', e?.message); }
+      }
+      setShowWelcome(true);
+    } finally { setSavingStep(false); }
+  };
+
+  const handleFinishWelcome = () => {
+    setShowWelcome(false);
+    navigate('/trainee-home', { replace: true });
+  };
+
+  // ── Render ──
   return (
-    // Wrapper: no vertical centering so tall content flows from the
-    // top and the page itself scrolls naturally. `items-start` keeps
-    // the card pinned to the top of the viewport, `py-6` adds breathing
-    // room above + below. Card no longer uses overflow-hidden — that
-    // was clipping the medical questionnaire and trapping scroll.
-    <div className="min-h-screen bg-[#F8F8F8] flex flex-col items-center py-6 px-4" dir="rtl">
-      {/* Install prompt — shown once after onboarding completes */}
-      {showInstallPrompt && (
-        <InstallPrompt onDismiss={() => {
-          setShowInstallPrompt(false);
-          setTimeout(() => { window.location.href = createPageUrl("TraineeHome"); }, 300);
-        }} />
-      )}
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-6 md:p-8 relative">
-        {/* Outer onboarding progress bar — covers the full 4-step
-            casual flow (פרטים → היכרות → הצהרת בריאות → תשלום ואישור).
-            The questionnaire keeps its own inner 4-dot indicator for
-            its sub-screens, so the trainee sees both layers. */}
-        <OnboardingProgressBar currentStep={step === 1 ? 'details' : 'questionnaire'} />
-
-        {/* Logo — same brand mark as the boot splash + every loader.
-            Solid black via filter:brightness(0) on the cream onboarding
-            card, so the trainee never sees a non-black logo flash
-            between login and the first questionnaire screen. */}
-        <div className="flex justify-center mb-6 mt-2">
-          <img
-            src="/logoR.png"
-            alt="AthletiGo"
-            style={{ height: 48, width: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          />
+    <div dir="rtl" style={{ minHeight: '100vh', background: COLORS.bg, paddingBottom: 80 }}>
+      {/* Progress bar */}
+      <div style={{ padding: '16px 16px 8px' }}>
+        <div style={{ height: 3, background: COLORS.border, borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+          <div style={{
+            height: '100%', background: COLORS.accent,
+            width: `${((currentStepIndex + 1) / STEPS.length) * 100}%`,
+            transition: 'width 0.3s',
+          }} />
         </div>
-
-        {/* Content — Step 1 = personal info, Step 2 = the new
-            OnboardingQuestionnaire (replaces the legacy Step2_Goals
-            / Step3_Profile / Step4_Preferences trio). */}
-        <div className="min-h-[400px]">
-          {step === 1 && (
-            <Step1_PersonalInfo formData={formData} setFormData={setFormData} />
-          )}
-          {step === 2 && (
-            <OnboardingQuestionnaire
-              value={formData.questionnaire}
-              onChange={(next) => setFormData(prev => ({ ...prev, questionnaire: next }))}
-              onComplete={handleComplete}
-              onSkip={handleComplete}
-            />
-          )}
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {STEPS.map((s, i) => {
+            const reached = i <= currentStepIndex;
+            const completed = i < currentStepIndex;
+            return (
+              <div key={s.id} style={{ textAlign: 'center', flex: 1 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%', margin: '0 auto 3px',
+                  background: reached ? COLORS.accent : COLORS.border,
+                  color: reached ? '#fff' : COLORS.muted,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 700,
+                }}>
+                  {completed ? '✓' : i + 1}
+                </div>
+                <div style={{
+                  fontSize: 10, fontWeight: 600,
+                  color: reached ? COLORS.accent : COLORS.muted,
+                }}>
+                  {s.label}
+                </div>
+              </div>
+            );
+          })}
         </div>
-
-        {/* Navigation */}
-        <div className="mt-8 flex gap-3">
-          {/* Outer nav. Step 1: just "המשך" → Step 2 (questionnaire).
-              Step 2: only the "← חזור" affordance, since the
-              questionnaire renders its own next + back + complete
-              buttons internally and calls handleComplete via
-              onComplete prop. */}
-          {step === 1 && (
-            <Button
-              onClick={handleNext}
-              className="flex-1 h-12 rounded-xl bg-[#FF6F20] hover:bg-[#E65100] text-white font-bold shadow-md hover:shadow-lg transition-all"
-            >
-              המשך
-              <ArrowLeft className="w-4 h-4 mr-2" />
-            </Button>
-          )}
-          {step === 2 && (
-            <Button
-              onClick={handleBack}
-              variant="outline"
-              className="flex-1 h-12 rounded-xl border-gray-200 font-bold text-gray-600 hover:bg-gray-50"
-            >
-              <ArrowRight className="w-4 h-4 ml-2" />
-              חזור לפרטים
-            </Button>
-          )}
-        </div>
-
       </div>
+
+      <div style={{ padding: '8px 16px' }}>
+
+        {/* ───────────────────────────────────────────────────── */}
+        {/* STEP 1 — DETAILS                                     */}
+        {/* ───────────────────────────────────────────────────── */}
+        {step === 'details' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>נעים להכיר 😊</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>נשמח לקבל כמה פרטים בסיסיים</div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>שם מלא *</div>
+                  <input value={fullName} onChange={e => setFullName(e.target.value)}
+                    placeholder="השם המלא" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>טלפון *</div>
+                  <input value={phone} onChange={e => setPhone(e.target.value)}
+                    placeholder="מספר טלפון" inputMode="tel" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>אימייל *</div>
+                  <input value={email} onChange={e => setEmail(e.target.value)}
+                    placeholder="כתובת אימייל" type="email" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>תאריך לידה *</div>
+                  <input value={birthDate} onChange={e => setBirthDate(e.target.value)}
+                    type="date" style={inputStyle} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: COLORS.border, margin: '16px 0' }} />
+            <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.muted, marginBottom: 8 }}>פרטים נוספים (לא חובה)</div>
+
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>כתובת</div>
+                  <input value={address} onChange={e => setAddress(e.target.value)}
+                    placeholder="עיר / רחוב" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>איך הגעת אלינו?</div>
+                  <select value={referralSource} onChange={e => setReferralSource(e.target.value)}
+                    style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
+                    <option value="">בחר...</option>
+                    {REFERRAL_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ ...cardStyle, background: COLORS.bg }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.accent, marginBottom: 10 }}>איש קשר לחירום</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input value={emergencyName} onChange={e => setEmergencyName(e.target.value)}
+                  placeholder="שם איש הקשר" style={inputStyle} />
+                <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)}
+                  placeholder="טלפון" inputMode="tel" style={inputStyle} />
+                <select value={emergencyRelation} onChange={e => setEmergencyRelation(e.target.value)}
+                  style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
+                  <option value="">קרבה...</option>
+                  {RELATION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <button onClick={saveStep1} disabled={!step1Valid || savingStep}
+              style={primaryBtn(step1Valid && !savingStep)}>
+              {savingStep ? 'שומר...' : 'המשך'}
+            </button>
+          </>
+        )}
+
+        {/* ───────────────────────────────────────────────────── */}
+        {/* STEP 2 — MEASUREMENTS                                */}
+        {/* ───────────────────────────────────────────────────── */}
+        {step === 'measurements' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>נקודת ההתחלה 📏</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4, lineHeight: 1.5 }}>
+                הנתונים האלה יעזרו לעקוב אחרי ההתקדמות.<br />הכל אופציונלי — נשמח לקבל מה שנוח.
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>גובה (ס״מ)</div>
+                  <input value={heightCm} onChange={e => setHeightCm(e.target.value.replace(/\D/g, ''))}
+                    placeholder="170" inputMode="numeric" style={inputStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>משקל (ק״ג)</div>
+                  <input value={weightKg} onChange={e => setWeightKg(e.target.value.replace(/[^\d.]/g, ''))}
+                    placeholder="70" inputMode="decimal" style={inputStyle} />
+                </div>
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>איך הגוף מרגיש היום?</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {BODY_TYPES_NOW.map(b => (
+                  <ChoiceButton key={b.id} active={bodyType === b.id} emoji={b.emoji}
+                    onClick={() => setBodyType(b.id)}>
+                    {b.label}
+                  </ChoiceButton>
+                ))}
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>לאן שואפים להגיע?</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {BODY_TYPES_GOAL.map(b => (
+                  <ChoiceButton key={b.id} active={goalBodyType === b.id} emoji={b.emoji}
+                    onClick={() => setGoalBodyType(b.id)}>
+                    {b.label}
+                  </ChoiceButton>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={saveStep2} disabled={savingStep} style={primaryBtn(!savingStep)}>
+              {savingStep ? 'שומר...' : 'המשך'}
+            </button>
+            <button onClick={goNext} style={skipBtn}>דלג</button>
+          </>
+        )}
+
+        {/* ───────────────────────────────────────────────────── */}
+        {/* STEP 3 — GOALS                                       */}
+        {/* ───────────────────────────────────────────────────── */}
+        {step === 'goals' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>מה המטרה? 🎯</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>
+                אפשר לבחור כמה שרוצים — או לדלג ולהגדיר אחר כך.
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {ALL_GOALS.map(g => (
+                  <Chip key={g}
+                    active={selectedGoals.includes(g)}
+                    onClick={() => setSelectedGoals(prev =>
+                      prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]
+                    )}>
+                    {g}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+
+            {selectedGoals.length > 0 && (
+              <div style={cardStyle}>
+                <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>רוצים לפרט עוד?</div>
+                <textarea value={goalsDescription} onChange={e => setGoalsDescription(e.target.value)}
+                  placeholder="למשל: להגיע ל-10 עליות מתח, לרדת 5 קילו..."
+                  rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 70 }} />
+              </div>
+            )}
+
+            <button onClick={saveStep3} disabled={savingStep} style={primaryBtn(!savingStep)}>
+              {savingStep ? 'שומר...' : 'המשך'}
+            </button>
+            <button onClick={goNext} style={skipBtn}>דלג</button>
+          </>
+        )}
+
+        {/* ───────────────────────────────────────────────────── */}
+        {/* STEP 4 — ABOUT                                       */}
+        {/* ───────────────────────────────────────────────────── */}
+        {step === 'about' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>עוד קצת עלייך 💬</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4, lineHeight: 1.5 }}>
+                ככל שנכיר יותר, נוכל להתאים תוכנית טובה יותר.<br />הכל אופציונלי.
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>ניסיון ספורטיבי קודם</div>
+              <input value={sportsExperience} onChange={e => setSportsExperience(e.target.value)}
+                placeholder="למשל: שחייה 3 שנים, ריצה, חדר כושר..." style={inputStyle} />
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>רמת הכושר הנוכחית</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {FITNESS_LEVELS.map(l => (
+                  <ChoiceButton key={l} active={fitnessLevel === l} fullWidth
+                    onClick={() => setFitnessLevel(l)}>
+                    {l}
+                  </ChoiceButton>
+                ))}
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>כמה פעמים בשבוע?</div>
+              <select value={frequency} onChange={e => setFrequency(e.target.value)}
+                style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
+                <option value="">בחר...</option>
+                {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>מה האתגר הכי גדול כרגע?</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {ALL_CHALLENGES.map(c => (
+                  <Chip key={c}
+                    active={selectedChallenges.includes(c)}
+                    onClick={() => setSelectedChallenges(prev =>
+                      prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
+                    )}>
+                    {c}
+                  </Chip>
+                ))}
+              </div>
+              <textarea value={challengesDescription} onChange={e => setChallengesDescription(e.target.value)}
+                placeholder="נשמח לשמוע עוד..." rows={2}
+                style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>מה הדבר הכי חשוב באימון?</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {ALL_PREFERENCES.map(p => (
+                  <Chip key={p}
+                    active={selectedPreferences.includes(p)}
+                    onClick={() => setSelectedPreferences(prev =>
+                      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+                    )}>
+                    {p}
+                  </Chip>
+                ))}
+              </div>
+              <textarea value={preferencesDescription} onChange={e => setPreferencesDescription(e.target.value)}
+                placeholder="נשמח לשמוע עוד..." rows={2}
+                style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>הערות</div>
+              <textarea value={additionalNotes} onChange={e => setAdditionalNotes(e.target.value)}
+                placeholder="משהו נוסף שחשוב לדעת?" rows={2}
+                style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+            </div>
+
+            <button onClick={saveStep4} disabled={savingStep} style={primaryBtn(!savingStep)}>
+              {savingStep ? 'שומר...' : 'המשך'}
+            </button>
+            <button onClick={goNext} style={skipBtn}>דלג</button>
+          </>
+        )}
+
+        {/* ───────────────────────────────────────────────────── */}
+        {/* STEP 5 — HEALTH                                      */}
+        {/* No skip button — health declaration is mandatory.    */}
+        {/* ───────────────────────────────────────────────────── */}
+        {step === 'health' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>לפני שמתחילים 🤝</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4, lineHeight: 1.6 }}>
+                הבריאות חשובה מעל הכל. נרצה לוודא שהגוף במצב שמאפשר פעילות גופנית — כדי לבנות תוכנית בטוחה שמותאמת בדיוק.
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>
+                יש כאב, פציעה או מגבלה שחשוב לדעת?
+              </div>
+              <textarea value={preHealthNote} onChange={e => setPreHealthNote(e.target.value)}
+                placeholder="למשל: כאבי גב תחתון, פציעת ברך ישנה... או פשוט 'הכל תקין' 😊"
+                rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }} />
+            </div>
+
+            <button onClick={saveStep5PreHealth} disabled={savingStep} style={primaryBtn(!savingStep)}>
+              {savingStep ? 'שומר...' : 'המשך להצהרת בריאות 📋'}
+            </button>
+            <div style={{ textAlign: 'center', fontSize: 12, color: COLORS.muted, marginTop: 8 }}>
+              טופס קצר — פחות מדקה
+            </div>
+
+            {/* HealthDeclarationForm: same component coach + trainee
+                share. onSigned advances to step 6. */}
+            {showHealthForm && (
+              <HealthDeclarationForm
+                isOpen={showHealthForm}
+                onClose={() => setShowHealthForm(false)}
+                trainee={{ id: userId, full_name: fullName, birth_date: birthDate }}
+                coachId={coachId}
+                autoConfirmSession={false}
+                onSigned={() => {
+                  setHealthSigned(true);
+                  setShowHealthForm(false);
+                  setStep('confirm');
+                }}
+              />
+            )}
+          </>
+        )}
+
+        {/* ───────────────────────────────────────────────────── */}
+        {/* STEP 6 — CONFIRM                                     */}
+        {/* ───────────────────────────────────────────────────── */}
+        {step === 'confirm' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.text }}>כמעט סיימנו 🎉</div>
+              <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>
+                {healthSigned ? 'הצהרת הבריאות נשמרה. תכף סוגרים.' : 'נדרשת חתימה על הצהרת בריאות לפני הסיום.'}
+              </div>
+            </div>
+
+            {!healthSigned && (
+              <button onClick={() => setStep('health')} style={primaryBtn(true)}>
+                חזרה להצהרת בריאות
+              </button>
+            )}
+
+            {healthSigned && (
+              <button onClick={completeOnboarding} disabled={savingStep} style={primaryBtn(!savingStep)}>
+                {savingStep ? 'שומר...' : 'סיום ✓'}
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Back button — visible from step 2 onward, hidden during
+            health-form modal so it doesn't compete with the modal's
+            own close. */}
+        {currentStepIndex > 0 && step !== 'health' && step !== 'confirm' && (
+          <button onClick={goBack} style={{
+            background: 'none', border: 'none', color: COLORS.muted,
+            fontSize: 13, cursor: 'pointer', marginTop: 8,
+            padding: '8px 16px', display: 'block', margin: '8px auto 0',
+          }}>
+            ← חזרה
+          </button>
+        )}
+      </div>
+
+      {/* Welcome popup — fires after the final save lands. */}
+      <WelcomeBlessingPopup
+        isOpen={showWelcome}
+        onClose={handleFinishWelcome}
+      />
     </div>
   );
 }
+
+const primaryBtn = (enabled) => ({
+  width: '100%', padding: 14, borderRadius: 14, border: 'none',
+  background: enabled ? COLORS.accent : '#ccc',
+  color: '#fff', fontSize: 16, fontWeight: 600,
+  cursor: enabled ? 'pointer' : 'default',
+  marginTop: 12,
+});
+
+const skipBtn = {
+  background: 'none', border: 'none', color: COLORS.muted,
+  fontSize: 13, cursor: 'pointer', marginTop: 4,
+  padding: '8px 16px', display: 'block', margin: '4px auto 0',
+};
