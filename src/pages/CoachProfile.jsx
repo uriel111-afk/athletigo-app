@@ -335,81 +335,10 @@ export default function CoachProfile() {
           </div>
         </div>
 
-        {/* My apps — quick links to the three apps */}
-        <div style={{
-          margin: "0 12px 12px", background: "white",
-          borderRadius: 16, padding: 14,
-          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📱 האפליקציות שלי</div>
-          {[
-            { label: "מקצועי", emoji: "💼", to: "/dashboard",     active: true,  color: "#FF6F20" },
-            { label: "פיננסי", emoji: "💰", to: "/lifeos",         active: false, color: "#1a1a1a" },
-            { label: "צמיחה",  emoji: "📈", to: "/lifeos/leads",   active: false, color: "#FF6F20" },
-            { label: "אישי",   emoji: "❤️", to: "/personal",       active: false, color: "#FF6F20" },
-          ].map(app => (
-            <div
-              key={app.label}
-              onClick={() => { if (app.to) navigate(app.to); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: 12, marginBottom: 6,
-                background: "#FFF9F0", borderRadius: 12,
-                cursor: app.to ? "pointer" : "default",
-                opacity: app.soon ? 0.5 : 1,
-                border: "0.5px solid #F0E4D0",
-              }}
-            >
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: "white",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 18,
-              }}>{app.emoji}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: app.color }}>{app.label}</div>
-              </div>
-              {app.soon ? (
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  background: "#FFF0E4", color: "#FF6F20",
-                  padding: "2px 8px", borderRadius: 8,
-                }}>בקרוב</span>
-              ) : (
-                <span style={{ color: "#ccc", fontSize: 14 }}>←</span>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* View mode toggle */}
-        <div style={{
-          margin: "0 12px 12px", background: "white",
-          borderRadius: 16, padding: 14,
-          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>🔄 מצב תצוגה</div>
-          <div style={{
-            display: "flex", gap: 6,
-            background: "#FFF9F0", borderRadius: 12, padding: 4,
-          }}>
-            {[
-              { id: "professional", label: "🏋️ מקצועי" },
-              { id: "financial",    label: "💰 פיננסי" },
-            ].map(m => {
-              const active = viewMode === m.id;
-              return (
-                <div key={m.id} onClick={() => handleChangeViewMode(m.id)} style={{
-                  flex: 1, padding: 10, borderRadius: 10,
-                  textAlign: "center", fontSize: 14, fontWeight: 600,
-                  cursor: "pointer",
-                  background: active ? "#FF6F20" : "transparent",
-                  color: active ? "white" : "#888",
-                }}>{m.label}</div>
-              );
-            })}
-          </div>
-        </div>
+        {/* "האפליקציות שלי" + "מצב תצוגה" rubrics removed —
+            the app-switcher tabs already live in the header above
+            this page, so duplicating them here added clutter
+            without surfacing anything new. */}
 
         {/* Trainee permissions */}
         <div style={{
