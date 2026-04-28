@@ -87,11 +87,33 @@ const calcAge = (birthDate) => {
 // Storytelling phrasing for each fitness level — used for the
 // 2nd-person narrative summary. Two versions per level: the short
 // "with-age" tail and the standalone sentence when age is missing.
+// Both legacy gender-inflected keys ('מתחיל/ה') and the new
+// gender-neutral plurals ('מתחילים') the rebuilt Onboarding.jsx
+// writes are listed so every existing row keeps its tailored line.
 const FITNESS_LEVEL_STORY = {
   'מתחיל/ה':     { tail: 'רוצה להתחיל את המסע',           solo: 'כל מסע מתחיל בצעד ראשון — ואת/ה כבר כאן.' },
   'בינוני/ת':    { tail: 'כבר מכיר/ה את עולם האימונים',   solo: 'יש לך בסיס טוב — בוא/י נקח את זה לשלב הבא.' },
   'מתקדם/ת':     { tail: 'בדרך להגיע לשיא חדש',           solo: 'את/ה כבר יודע/ת מה זה אימון — עכשיו נדייק.' },
   'ספורטאי/ת':   { tail: 'מחפש/ת את האתגר הבא',           solo: 'את/ה מגיע/ה עם רקע רציני — נבנה ביחד משהו חזק.' },
+  'מתחילים':     { tail: 'זאת ההתחלה של מסע חדש',         solo: 'כל זמן הוא הזמן הנכון להתחיל — וזה הזמן.' },
+  'בינוני':      { tail: 'כבר יש בסיס טוב לבנות עליו',    solo: 'יש לך בסיס טוב — בוא נקח את זה לשלב הבא.' },
+  'מתקדם':       { tail: 'הדרך לשיא הבא מתחילה כאן',      solo: 'את/ה כבר יודע/ת מה זה אימון — עכשיו נדייק.' },
+  'ספורטיבי':    { tail: 'האתגר הבא כבר מחכה',            solo: 'מגיעים עם רקע רציני — נבנה ביחד משהו חזק.' },
+};
+
+// Body-type label maps — the rebuilt Onboarding.jsx (step 2) writes
+// English ids; render them as Hebrew nouns in the narrative line.
+const BODY_TYPE_LABELS = {
+  thin:       'רזה',
+  average:    'ממוצע',
+  athletic:   'אתלטי',
+  overweight: 'עם עודף משקל',
+};
+const GOAL_BODY_TYPE_LABELS = {
+  lean:     'רזה ומוגדר',
+  athletic: 'אתלטי וחזק',
+  muscular: 'שרירי',
+  healthy:  'בריא ומאוזן',
 };
 
 // Categorize the picked goals so we can pick the closing line that
@@ -201,6 +223,20 @@ export function generateTraineeSummary(trainee) {
     if (trainee.height_cm && trainee.weight_kg) line += ', ';
     if (trainee.weight_kg) line += `משקל ${trainee.weight_kg} ק״ג`;
     line += '.';
+    lines.push(line);
+  }
+
+  // ── Body-type self-assessment + goal ───────────────────────
+  // Rendered as a single combined line when both fields are
+  // present so the narrative reads as one beat ("currently X,
+  // aiming for Y") instead of two stacked sentences.
+  const currentBody = trainee.body_type ? labelize(BODY_TYPE_LABELS, trainee.body_type) : null;
+  const targetBody  = trainee.goal_body_type ? labelize(GOAL_BODY_TYPE_LABELS, trainee.goal_body_type) : null;
+  if (currentBody || targetBody) {
+    let line = '';
+    if (currentBody) line += `מבנה גוף נוכחי: ${currentBody}.`;
+    if (currentBody && targetBody) line += ' ';
+    if (targetBody) line += `שואפים ל${targetBody}.`;
     lines.push(line);
   }
 
