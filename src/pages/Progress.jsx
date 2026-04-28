@@ -1,1027 +1,368 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Activity, Award, TrendingUp, TrendingDown, Plus, Edit2, Trash2, Loader2, CheckCircle, Target } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { useQuery } from "@tanstack/react-query";
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+} from "recharts";
 import PageLoader from "@/components/PageLoader";
 import PermGate from "@/components/PermGate";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
-import { toast } from "sonner";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-import { Home, Dumbbell, FileText, User } from "lucide-react";
-import GoalFormDialog from "../components/forms/GoalFormDialog";
-import ResultFormDialog from "../components/forms/ResultFormDialog";
-import BaselineSection from "../components/progress/BaselineSection";
-import { openBaselineDialog } from "../components/forms/BaselineFormDialog";
+
+// Visual progress dashboard for the trainee.
+// 4 stat cards on top → baseline JPS chart → personal records bar →
+// weight line → goals radar → monthly sessions bar. Read-only;
+// adding/editing happens in TraineeProfile (coach) or via the
+// dedicated CTAs on TraineeHome (trainee).
 
 function ProgressInner() {
-  const [user, setUser] = useState(null);
-  const [showAddMeasurement, setShowAddMeasurement] = useState(false);
-  const [showAddResult, setShowAddResult] = useState(false);
-  const [showAddGoal, setShowAddGoal] = useState(false);
-  const [editingGoal, setEditingGoal] = useState(null);
-  const [editingMeasurement, setEditingMeasurement] = useState(null);
-  const [editingResult, setEditingResult] = useState(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deletingItem, setDeletingItem] = useState(null);
-  // BaselineFormDialog is mounted globally in App.jsx — opened via
-  // openBaselineDialog({ traineeId, traineeName }).
-
-  const [measurementForm, setMeasurementForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    weight_kg: "",
-    body_fat_percent: "",
-    height_cm: "",
-    chest_circumference: "",
-    waist_circumference: "",
-    hips_circumference: "",
-    notes: ""
-  });
-
-  const [resultForm, setResultForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    title: "",
-    description: ""
-  });
-
-  const [goalForm, setGoalForm] = useState({
-    goal_name: "",
-    description: "",
-    target_value: "",
-    current_value: "",
-    unit: "",
-    target_date: "",
-    status: "בתהליך"
-  });
-
-  const queryClient = useQueryClient();
+  const [trainee, setTrainee] = useState(null);
 
   useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-    loadUser();
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await base44.auth.me();
+        if (!cancelled) setTrainee(me);
+      } catch (e) {
+        console.warn('[Progress] auth.me failed:', e?.message);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const { data: measurements = [], isLoading: measurementsLoading } = useQuery({
-    queryKey: ['my-measurements', user?.id],
-    queryFn: () => base44.entities.Measurement.filter({ trainee_id: user.id }, '-date').catch(() => []),
-    enabled: !!user?.id,
-    staleTime: 60000,
-  });
+  const traineeId = trainee?.id;
 
-  const { data: results = [], isLoading: resultsLoading } = useQuery({
-    queryKey: ['my-results', user?.id],
-    queryFn: () => base44.entities.ResultsLog.filter({ trainee_id: user.id }, '-date').catch(() => []),
-    enabled: !!user?.id,
-    staleTime: 60000,
-  });
-
-  const { data: goals = [], isLoading: goalsLoading } = useQuery({
-    queryKey: ['my-goals', user?.id],
-    queryFn: () => base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at').catch(() => []),
-    enabled: !!user?.id,
-    staleTime: 60000,
-  });
-
-  const createMeasurementMutation = useMutation({
-    mutationFn: (data) => base44.entities.Measurement.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      setShowAddMeasurement(false);
-      setEditingMeasurement(null);
-      setMeasurementForm({
-        date: new Date().toISOString().split('T')[0],
-        weight_kg: "",
-        body_fat_percent: "",
-        height_cm: "",
-        chest_circumference: "",
-        waist_circumference: "",
-        hips_circumference: "",
-        notes: ""
-      });
-      toast.success("✅ מדידה נוספה");
+  const { data: baselines } = useQuery({
+    queryKey: ['progress-baselines', traineeId],
+    enabled: !!traineeId,
+    queryFn: async () => {
+      const { data } = await supabase.from('baselines')
+        .select('*').eq('trainee_id', traineeId).order('date', { ascending: true });
+      return data || [];
     },
-    onError: (error) => toast.error("❌ שגיאה בשמירת מדידה: " + (error.message || "נסה שוב")),
   });
 
-  const updateMeasurementMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Measurement.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      setShowAddMeasurement(false);
-      setEditingMeasurement(null);
-      setMeasurementForm({
-        date: new Date().toISOString().split('T')[0],
-        weight_kg: "",
-        body_fat_percent: "",
-        height_cm: "",
-        chest_circumference: "",
-        waist_circumference: "",
-        hips_circumference: "",
-        notes: ""
-      });
-      toast.success("✅ מדידה עודכנה");
+  const { data: records } = useQuery({
+    queryKey: ['progress-records', traineeId],
+    enabled: !!traineeId,
+    queryFn: async () => {
+      const { data } = await supabase.from('personal_records')
+        .select('*').eq('trainee_id', traineeId)
+        .or('status.is.null,status.neq.deleted')
+        .order('date', { ascending: true });
+      return data || [];
     },
-    onError: (error) => toast.error("❌ שגיאה בעדכון מדידה: " + (error.message || "נסה שוב")),
   });
 
-  const deleteMeasurementMutation = useMutation({
-    mutationFn: (id) => base44.entities.Measurement.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      queryClient.invalidateQueries({ queryKey: ['my-measurements'] });
-      setShowDeleteDialog(false);
-      setDeletingItem(null);
-      toast.success("✅ מדידה נמחקה");
+  const { data: measurements } = useQuery({
+    queryKey: ['progress-measurements', traineeId],
+    enabled: !!traineeId,
+    queryFn: async () => {
+      const { data } = await supabase.from('measurements')
+        .select('*').eq('trainee_id', traineeId).order('date', { ascending: true });
+      return data || [];
     },
-    onError: (error) => toast.error("❌ שגיאה במחיקת מדידה: " + (error.message || "נסה שוב")),
   });
 
-  const createResultMutation = useMutation({
-    mutationFn: (data) => base44.entities.ResultsLog.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      setShowAddResult(false);
-      setEditingResult(null);
-      setResultForm({
-        date: new Date().toISOString().split('T')[0],
-        title: "",
-        description: ""
-      });
-      toast.success("✅ הישג נוסף");
+  const { data: goalProgress } = useQuery({
+    queryKey: ['progress-goals', traineeId],
+    enabled: !!traineeId,
+    queryFn: async () => {
+      const { data } = await supabase.from('goal_progress')
+        .select('*').eq('trainee_id', traineeId).order('date', { ascending: true });
+      return data || [];
     },
-    onError: (error) => toast.error("❌ שגיאה בשמירת הישג: " + (error.message || "נסה שוב")),
   });
 
-  const updateResultMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.ResultsLog.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      setShowAddResult(false);
-      setEditingResult(null);
-      setResultForm({
-        date: new Date().toISOString().split('T')[0],
-        title: "",
-        description: ""
-      });
-      toast.success("✅ הישג עודכן");
+  const { data: sessions } = useQuery({
+    queryKey: ['progress-sessions', traineeId],
+    enabled: !!traineeId,
+    queryFn: async () => {
+      const { data } = await supabase.from('sessions')
+        .select('*').eq('trainee_id', traineeId)
+        .neq('status', 'deleted')
+        .order('date', { ascending: true });
+      return data || [];
     },
-    onError: (error) => toast.error("❌ שגיאה בעדכון הישג: " + (error.message || "נסה שוב")),
   });
 
-  const deleteResultMutation = useMutation({
-    mutationFn: (id) => base44.entities.ResultsLog.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-      setShowDeleteDialog(false);
-      setDeletingItem(null);
-      toast.success("✅ הישג נמחק");
-    },
-    onError: (error) => toast.error("❌ שגיאה במחיקת הישג: " + (error.message || "נסה שוב")),
-  });
+  const isLoading = !trainee || !baselines || !records || !measurements || !goalProgress || !sessions;
+  if (isLoading) return <PageLoader fullHeight />;
 
-  const createGoalMutation = useMutation({
-    mutationFn: (data) => base44.entities.Goal.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-goals'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
-      setShowAddGoal(false);
-      setGoalForm({ goal_name: "", description: "", target_value: "", current_value: "", unit: "", target_date: "", status: "בתהליך" });
-      toast.success("✅ יעד נוסף");
-    },
-    onError: (error) => toast.error("❌ שגיאה בהוספת יעד: " + (error.message || "נסה שוב")),
-  });
+  // ── Stat cards ───────────────────────────────────────────────
+  const completedSessions = (sessions || []).filter(s =>
+    s.status === 'completed' || s.status === 'התקיים' || s.status === 'הושלם'
+  );
+  const totalSessions = completedSessions.length;
+  const totalRecords = records?.length || 0;
+  const personalBests = records?.filter(r => r.is_personal_best).length || 0;
 
-  const handleSaveMeasurement = async () => {
-    if (!measurementForm.date) {
-      toast.error("נא לבחור תאריך");
-      return;
+  const baselinesArr = baselines || [];
+  const latestJPS = baselinesArr.length
+    ? Number(baselinesArr[baselinesArr.length - 1].jps ?? baselinesArr[baselinesArr.length - 1].score ?? 0)
+    : null;
+  const firstJPS = baselinesArr.length
+    ? Number(baselinesArr[0].jps ?? baselinesArr[0].score ?? 0)
+    : null;
+  const jpsImprovement = (latestJPS != null && firstJPS != null && firstJPS > 0)
+    ? Math.round(((latestJPS - firstJPS) / firstJPS) * 100)
+    : null;
+
+  const stats = [
+    { label: 'אימונים',        value: totalSessions, icon: '🏋️', color: '#FF6F20' },
+    { label: 'שיאים אישיים',    value: personalBests, icon: '🏆', color: '#1D9E75' },
+    { label: 'שיאים מתועדים',   value: totalRecords,  icon: '📊', color: '#D85A30' },
+    { label: 'שיפור JPS',       value: jpsImprovement != null ? `${jpsImprovement}%` : '—', icon: '📈', color: '#1565C0' },
+  ];
+
+  // ── Baseline JPS chart data ──────────────────────────────────
+  const baselineData = baselinesArr.map(b => ({
+    date: new Date(b.date || b.created_at).toLocaleDateString('he-IL'),
+    jps: Number(b.jps ?? b.score ?? 0),
+    total: Number(b.total_jumps ?? b.total ?? 0),
+  }));
+
+  // ── Records bar (latest record per exercise) ─────────────────
+  const latestRecordPerExercise = {};
+  (records || []).forEach(r => {
+    const name = r.name || r.exercise_name || 'כללי';
+    const cur = latestRecordPerExercise[name];
+    if (!cur || new Date(r.date) > new Date(cur.date)) {
+      latestRecordPerExercise[name] = r;
     }
+  });
+  const barData = Object.entries(latestRecordPerExercise).map(([name, r]) => ({
+    name: name.length > 10 ? name.substring(0, 10) + '...' : name,
+    value: Number(r.value) || 0,
+    fullName: name,
+  })).filter(d => d.value > 0);
 
-    const data = {
-      trainee_id: user.id,
-      date: measurementForm.date,
-      weight: measurementForm.weight_kg ? parseFloat(measurementForm.weight_kg) : null,
-      body_fat: measurementForm.body_fat_percent ? parseFloat(measurementForm.body_fat_percent) : null,
-      height: measurementForm.height_cm ? parseFloat(measurementForm.height_cm) : null,
-      chest: measurementForm.chest_circumference ? parseFloat(measurementForm.chest_circumference) : null,
-      waist: measurementForm.waist_circumference ? parseFloat(measurementForm.waist_circumference) : null,
-      hips: measurementForm.hips_circumference ? parseFloat(measurementForm.hips_circumference) : null,
-      notes: measurementForm.notes || "",
-      created_by: user.id
-    };
-
-    try {
-      if (editingMeasurement) {
-        await updateMeasurementMutation.mutateAsync({ id: editingMeasurement.id, data });
-      } else {
-        await createMeasurementMutation.mutateAsync(data);
-      }
-    } catch (error) {
-      console.error("handleSaveMeasurement error:", error);
-      toast.error("שגיאה בשמירת המדידה: " + (error?.message || "נסה שוב"));
-    }
-  };
-
-  const handleSaveResult = async () => {
-    if (!resultForm.title || !resultForm.date) {
-      toast.error("נא למלא כותרת ותאריך");
-      return;
-    }
-
-    const data = {
-      trainee_id: user.id,
-      date: resultForm.date,
-      title: resultForm.title,
-      description: resultForm.description || null,
-      created_by: user.id,
-    };
-
-    try {
-      if (editingResult) {
-        await updateResultMutation.mutateAsync({ id: editingResult.id, data });
-      } else {
-        await createResultMutation.mutateAsync(data);
-      }
-    } catch (error) {
-      console.error("handleSaveResult error:", error);
-      toast.error("שגיאה בשמירת השיא: " + (error?.message || "נסה שוב"));
-    }
-  };
-
-  const handleAddGoal = async () => {
-    if (!goalForm.goal_name || !goalForm.target_value) {
-      toast.error("נא למלא שם יעד ויעד");
-      return;
-    }
-
-    try {
-      await createGoalMutation.mutateAsync({
-        trainee_id: user.id,
-        title: goalForm.goal_name || goalForm.title,
-        description: goalForm.description || null,
-        target_value: parseFloat(goalForm.target_value),
-        current_value: goalForm.current_value ? parseFloat(goalForm.current_value) : null,
-        target_unit: goalForm.unit || null,
-        target_date: goalForm.target_date ? new Date(goalForm.target_date).toISOString() : null,
-        status: goalForm.status || "בתהליך",
-      });
-    } catch (error) {
-      console.error("handleAddGoal error:", error);
-      toast.error("שגיאה בשמירת היעד: " + (error?.message || "נסה שוב"));
-    }
-  };
-
-  const handleEditMeasurement = (measurement) => {
-    setEditingMeasurement(measurement);
-    setMeasurementForm({
-      date: measurement.date,
-      weight_kg: (measurement.weight ?? "").toString(),
-      body_fat_percent: (measurement.body_fat ?? "").toString(),
-      height_cm: (measurement.height ?? "").toString(),
-      chest_circumference: (measurement.chest ?? "").toString(),
-      waist_circumference: (measurement.waist ?? "").toString(),
-      hips_circumference: (measurement.hips ?? "").toString(),
-      notes: measurement.notes || ""
+  // ── Weight chart — fall back to onboarding height/weight ────
+  const allMeasurements = [...(measurements || [])];
+  if (allMeasurements.length === 0 && (trainee?.height_cm || trainee?.weight_kg)) {
+    allMeasurements.unshift({
+      id: 'onboarding',
+      date: trainee.onboarding_completed_at || trainee.created_at,
+      weight_kg: trainee.weight_kg,
+      height_cm: trainee.height_cm,
     });
-    setShowAddMeasurement(true);
-  };
-
-  const handleEditResult = (result) => {
-    setEditingResult(result);
-    setResultForm({
-      date: result.date,
-      title: result.title,
-      description: result.description || ""
-    });
-    setShowAddResult(true);
-  };
-
-  const handleDeleteClick = (item, type) => {
-    setDeletingItem({ ...item, type });
-    setShowDeleteDialog(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingItem) return;
-    
-    if (deletingItem.type === 'measurement') {
-      await deleteMeasurementMutation.mutateAsync(deletingItem.id);
-    } else if (deletingItem.type === 'result') {
-      await deleteResultMutation.mutateAsync(deletingItem.id);
-    }
-  };
-
-  const latestMeasurement = measurements[0];
-  
-  const getWeightChange = () => {
-    if (measurements.length < 2) return null;
-    const latest = measurements[0]?.weight;
-    const first = measurements[measurements.length - 1]?.weight;
-    if (!latest || !first) return null;
-    return latest - first;
-  };
-
-  const getBodyFatChange = () => {
-    if (measurements.length < 2) return null;
-    const latest = measurements[0]?.body_fat;
-    const first = measurements[measurements.length - 1]?.body_fat;
-    if (!latest || !first) return null;
-    return latest - first;
-  };
-
-  const weightChange = getWeightChange();
-  const bodyFatChange = getBodyFatChange();
-
-  const weightChartData = measurements
-    .slice(0, 10)
-    .reverse()
+  }
+  const weightData = allMeasurements
+    .filter(m => m.weight_kg || m.weight)
     .map(m => ({
-      date: format(new Date(m.date), 'dd/MM'),
-      weight: m.weight || 0
-    }))
-    .filter(d => d.weight > 0);
-
-  const bodyFatChartData = measurements
-    .slice(0, 10)
-    .reverse()
-    .map(m => ({
-      date: format(new Date(m.date), 'dd/MM'),
-      bodyFat: m.body_fat || 0
-    }))
-    .filter(d => d.bodyFat > 0);
-
-  const circumferenceChartData = measurements
-    .slice(0, 10)
-    .reverse()
-    .map(m => ({
-      date: format(new Date(m.date), 'dd/MM'),
-      chest: m.chest || 0,
-      waist: m.waist || 0,
-      hips: m.hips || 0
+      date: new Date(m.date || m.created_at).toLocaleDateString('he-IL'),
+      weight: Number(m.weight_kg ?? m.weight),
     }));
 
-  if (!user || measurementsLoading || resultsLoading || goalsLoading) {
-    return <PageLoader />;
+  // ── Goals radar ──────────────────────────────────────────────
+  let goals = [];
+  if (trainee?.training_goals) {
+    if (typeof trainee.training_goals === 'string') {
+      try { goals = JSON.parse(trainee.training_goals); } catch { goals = []; }
+    } else if (Array.isArray(trainee.training_goals)) {
+      goals = trainee.training_goals;
+    }
   }
+  const radarData = goals.map(goal => {
+    const latest = (goalProgress || [])
+      .filter(gp => gp.goal_name === goal)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    return {
+      goal: goal.length > 10 ? goal.substring(0, 10) + '...' : goal,
+      progress: Number(latest?.progress) || 0,
+    };
+  }).slice(0, 8);
+
+  // ── Sessions per month ───────────────────────────────────────
+  const sessionsByMonth = {};
+  completedSessions.forEach(s => {
+    if (!s.date) return;
+    const d = new Date(s.date);
+    if (Number.isNaN(d.getTime())) return;
+    const key = d.toLocaleDateString('he-IL', { year: 'numeric', month: 'short' });
+    sessionsByMonth[key] = (sessionsByMonth[key] || 0) + 1;
+  });
+  const monthlyData = Object.entries(sessionsByMonth).map(([month, count]) => ({ month, count }));
+
+  // ── Empty state ──────────────────────────────────────────────
+  const noData = baselineData.length === 0
+    && barData.length === 0
+    && weightData.length === 0
+    && totalSessions === 0;
+
+  const card = {
+    background: 'white',
+    borderRadius: 14,
+    border: '1px solid #F0E4D0',
+    padding: 16,
+    marginBottom: 16,
+    direction: 'rtl',
+  };
+  const tooltipStyle = {
+    borderRadius: 12,
+    border: '1px solid #F0E4D0',
+    background: '#fff',
+    fontSize: 12,
+    direction: 'rtl',
+  };
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
-      <div className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-8 w-full">
-        {/* Header */}
-        <div className="mb-8 md:mb-10">
-          <h1 className="text-3xl md:text-5xl font-black mb-2 md:mb-4" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-            התקדמות גופנית
-          </h1>
-          <p className="text-base md:text-2xl mb-2 md:mb-4 font-medium" style={{ color: '#7D7D7D' }}>
-            מעקב אחר המדדים והישגים שלי
-          </p>
-          <div className="w-16 md:w-24 h-1 rounded-full" style={{ backgroundColor: '#FF6F20' }} />
-        </div>
-
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 w-full">
-          <Button
-            onClick={() => {
-              setEditingMeasurement(null);
-              setMeasurementForm({
-                date: new Date().toISOString().split('T')[0],
-                weight_kg: "",
-                body_fat_percent: "",
-                height_cm: "",
-                chest_circumference: "",
-                waist_circumference: "",
-                hips_circumference: "",
-                notes: ""
-              });
-              setShowAddMeasurement(true);
-            }}
-            className="rounded-xl px-4 md:px-6 py-4 md:py-5 font-bold text-white flex items-center justify-center gap-2 w-full"
-            style={{ backgroundColor: '#FF6F20' }}
-          >
-            <Activity className="w-5 h-5" />
-            <span>מדידה חדשה</span>
-          </Button>
-
-          <Button
-            onClick={() => {
-              setEditingResult(null);
-              setShowAddResult(true);
-            }}
-            className="rounded-xl px-4 md:px-6 py-4 md:py-5 font-bold flex items-center justify-center gap-2 w-full"
-            style={{ backgroundColor: '#FFD700', color: '#000' }}
-          >
-            <Award className="w-5 h-5" />
-            <span>הוסף שיא חדש</span>
-          </Button>
-
-          <Button
-            onClick={() => {
-              setEditingGoal(null);
-              setShowAddGoal(true);
-            }}
-            className="rounded-xl px-4 md:px-6 py-4 md:py-5 font-bold text-white flex items-center justify-center gap-2 w-full"
-            style={{ backgroundColor: '#000000' }}
-          >
-            <Target className="w-5 h-5" />
-            <span>הוסף יעד</span>
-          </Button>
-
-          <Button
-            onClick={() => openBaselineDialog({ traineeId: user?.id, traineeName: user?.full_name })}
-            className="rounded-xl px-4 md:px-6 py-4 md:py-5 font-bold text-white flex items-center justify-center gap-2 w-full"
-            style={{ backgroundColor: '#1a1a2e' }}
-          >
-            <Activity className="w-5 h-5" />
-            <span>Baseline</span>
-          </Button>
-        </div>
-
-        {/* Physical Measurements */}
-        <div className="mb-10 w-full">
-          <h2 className="text-2xl md:text-3xl font-black mb-6" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-            מדדים גופניים
-          </h2>
-
-          <div className="athletigo-card p-6 w-full">
-            {/* Current Metrics - Large Cards */}
-            {latestMeasurement && (
-              <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                {latestMeasurement.weight && (
-                  <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#E3F2FD', border: '2px solid #2196F3' }}>
-                    <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#2196F3' }} />
-                    <p className="text-xs md:text-sm mb-2 font-bold" style={{ color: '#7D7D7D' }}>משקל</p>
-                    <p className="text-3xl md:text-5xl font-black mb-1" style={{ color: '#2196F3', fontFamily: 'Montserrat, sans-serif' }}>
-                      {latestMeasurement.weight}
-                    </p>
-                    <p className="text-xs md:text-sm mb-3" style={{ color: '#7D7D7D' }}>ק״ג</p>
-                    {weightChange !== null && (
-                      <div className="flex items-center justify-center gap-1 md:gap-2">
-                        <TrendingUp className={`w-3 h-3 md:w-4 md:h-4 ${weightChange < 0 ? 'rotate-180' : ''}`} 
-                          style={{ color: weightChange < 0 ? '#4CAF50' : '#f44336' }} />
-                        <span className="text-xs md:text-sm font-bold" style={{ color: weightChange < 0 ? '#4CAF50' : '#f44336' }}>
-                          {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {latestMeasurement.body_fat && (
-                  <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
-                    <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#FF6F20' }} />
-                    <p className="text-xs md:text-sm mb-2 font-bold" style={{ color: '#7D7D7D' }}>שומן</p>
-                    <p className="text-3xl md:text-5xl font-black mb-1" style={{ color: '#FF6F20', fontFamily: 'Montserrat, sans-serif' }}>
-                      {latestMeasurement.body_fat}
-                    </p>
-                    <p className="text-xs md:text-sm mb-3" style={{ color: '#7D7D7D' }}>%</p>
-                    {bodyFatChange !== null && (
-                      <div className="flex items-center justify-center gap-1 md:gap-2">
-                        <TrendingUp className={`w-3 h-3 md:w-4 md:h-4 ${bodyFatChange < 0 ? 'rotate-180' : ''}`}
-                          style={{ color: bodyFatChange < 0 ? '#4CAF50' : '#f44336' }} />
-                        <span className="text-xs md:text-sm font-bold" style={{ color: bodyFatChange < 0 ? '#4CAF50' : '#f44336' }}>
-                          {bodyFatChange > 0 ? '+' : ''}{bodyFatChange.toFixed(1)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {latestMeasurement.height && (
-                  <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#F3E5F5', border: '2px solid #9C27B0' }}>
-                    <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#9C27B0' }} />
-                    <p className="text-xs md:text-sm mb-2 font-bold" style={{ color: '#7D7D7D' }}>גובה</p>
-                    <p className="text-3xl md:text-5xl font-black mb-1" style={{ color: '#9C27B0', fontFamily: 'Montserrat, sans-serif' }}>
-                      {latestMeasurement.height}
-                    </p>
-                    <p className="text-xs md:text-sm" style={{ color: '#7D7D7D' }}>ס״מ</p>
-                  </div>
-                )}
-
-                <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#E8F5E9', border: '2px solid #4CAF50' }}>
-                  <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#4CAF50' }} />
-                  <Activity className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-2 md:mb-3" style={{ color: '#4CAF50' }} />
-                  <p className="text-xs md:text-sm mb-2 font-bold" style={{ color: '#7D7D7D' }}>מדידות</p>
-                  <p className="text-3xl md:text-5xl font-black mb-1" style={{ color: '#4CAF50', fontFamily: 'Montserrat, sans-serif' }}>
-                    {measurements.length}
-                  </p>
-                  <p className="text-xs md:text-sm" style={{ color: '#7D7D7D' }}>סה״כ</p>
-                </div>
-              </div>
-            )}
-
-            {/* Weight Chart */}
-            {weightChartData.length > 1 && (
-              <div className="mb-8 p-4 md:p-6 rounded-xl w-full" style={{ backgroundColor: '#FAFAFA' }}>
-                <h3 className="text-lg md:text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#000000' }}>
-                  <TrendingUp className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#2196F3' }} />
-                  גרף משקל
-                </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={weightChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
-                    <XAxis dataKey="date" stroke="#7D7D7D" style={{ fontSize: '12px' }} />
-                    <YAxis stroke="#7D7D7D" style={{ fontSize: '12px' }} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px' }}
-                      labelStyle={{ color: '#000000', fontWeight: 'bold' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="weight" 
-                      stroke="#2196F3" 
-                      strokeWidth={3} 
-                      dot={{ fill: '#2196F3', r: 6 }}
-                      name="משקל (ק״ג)"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Body Fat Chart */}
-            {bodyFatChartData.length > 1 && (
-              <div className="mb-8 p-4 md:p-6 rounded-xl w-full" style={{ backgroundColor: '#FAFAFA' }}>
-                <h3 className="text-lg md:text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#000000' }}>
-                  <TrendingUp className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#FF6F20' }} />
-                  גרף אחוז שומן
-                </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={bodyFatChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
-                    <XAxis dataKey="date" stroke="#7D7D7D" style={{ fontSize: '12px' }} />
-                    <YAxis stroke="#7D7D7D" style={{ fontSize: '12px' }} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px' }}
-                      labelStyle={{ color: '#000000', fontWeight: 'bold' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="bodyFat" 
-                      stroke="#FF6F20" 
-                      strokeWidth={3} 
-                      dot={{ fill: '#FF6F20', r: 6 }}
-                      name="אחוז שומן (%)"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Circumferences Chart */}
-            {circumferenceChartData.some(d => d.chest || d.waist || d.hips) && (
-              <div className="mb-8 p-4 md:p-6 rounded-xl w-full" style={{ backgroundColor: '#FAFAFA' }}>
-                <h3 className="text-lg md:text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#000000' }}>
-                  <Activity className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#9C27B0' }} />
-                  היקפי גוף
-                </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={circumferenceChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
-                    <XAxis dataKey="date" stroke="#7D7D7D" style={{ fontSize: '12px' }} />
-                    <YAxis stroke="#7D7D7D" style={{ fontSize: '12px' }} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px' }}
-                      labelStyle={{ color: '#000000', fontWeight: 'bold' }}
-                    />
-                    <Line type="monotone" dataKey="chest" stroke="#2196F3" strokeWidth={2} name="חזה (ס״מ)" />
-                    <Line type="monotone" dataKey="waist" stroke="#FF6F20" strokeWidth={2} name="מותניים (ס״מ)" />
-                    <Line type="monotone" dataKey="hips" stroke="#9C27B0" strokeWidth={2} name="ירכיים (ס״מ)" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Measurements Table */}
-            {measurements.length > 0 && (
-              <div>
-                <h3 className="text-lg md:text-xl font-bold mb-4" style={{ color: '#000000' }}>
-                  היסטוריית מדידות
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #E0E0E0' }}>
-                        <th className="text-right p-3 text-xs md:text-sm font-bold" style={{ color: '#7D7D7D' }}>תאריך</th>
-                        <th className="text-center p-3 text-xs md:text-sm font-bold" style={{ color: '#7D7D7D' }}>משקל</th>
-                        <th className="text-center p-3 text-xs md:text-sm font-bold" style={{ color: '#7D7D7D' }}>שומן</th>
-                        <th className="text-center p-3 text-xs md:text-sm font-bold hidden md:table-cell" style={{ color: '#7D7D7D' }}>גובה</th>
-                        <th className="text-center p-3 text-xs md:text-sm font-bold hidden lg:table-cell" style={{ color: '#7D7D7D' }}>חזה</th>
-                        <th className="text-center p-3 text-xs md:text-sm font-bold hidden lg:table-cell" style={{ color: '#7D7D7D' }}>מותניים</th>
-                        <th className="text-center p-3 text-xs md:text-sm font-bold hidden lg:table-cell" style={{ color: '#7D7D7D' }}>ירכיים</th>
-                        <th className="text-center p-3 text-xs md:text-sm font-bold" style={{ color: '#7D7D7D' }}>פעולות</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {measurements.map((measurement, idx) => (
-                        <tr key={measurement.id} style={{ borderBottom: '1px solid #E0E0E0' }}>
-                          <td className="p-3 text-xs md:text-sm text-right">
-                            <p className="font-bold" style={{ color: '#000000' }}>
-                              {format(new Date(measurement.date), 'dd/MM/yy', { locale: he })}
-                            </p>
-                          </td>
-                          <td className="p-3 text-center font-bold text-xs md:text-base" style={{ color: '#2196F3' }}>
-                            {measurement.weight || '—'}
-                          </td>
-                          <td className="p-3 text-center font-bold text-xs md:text-base" style={{ color: '#FF6F20' }}>
-                            {measurement.body_fat ? `${measurement.body_fat}%` : '—'}
-                          </td>
-                          <td className="p-3 text-center font-bold text-xs md:text-base hidden md:table-cell" style={{ color: '#9C27B0' }}>
-                            {measurement.height || '—'}
-                          </td>
-                          <td className="p-3 text-center text-xs md:text-sm hidden lg:table-cell" style={{ color: '#7D7D7D' }}>
-                            {measurement.chest || '—'}
-                          </td>
-                          <td className="p-3 text-center text-xs md:text-sm hidden lg:table-cell" style={{ color: '#7D7D7D' }}>
-                            {measurement.waist || '—'}
-                          </td>
-                          <td className="p-3 text-center text-xs md:text-sm hidden lg:table-cell" style={{ color: '#7D7D7D' }}>
-                            {measurement.hips || '—'}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center justify-center gap-1 md:gap-2">
-                              <Button
-                                onClick={() => handleEditMeasurement(measurement)}
-                                size="sm"
-                                className="rounded-lg p-1.5 md:p-2"
-                                style={{ backgroundColor: '#FF6F20', color: 'white' }}
-                                title="ערוך"
-                              >
-                                <Edit2 className="w-3 h-3 md:w-4 md:h-4" />
-                              </Button>
-                              <Button
-                                onClick={() => handleDeleteClick(measurement, 'measurement')}
-                                size="sm"
-                                className="rounded-lg p-1.5 md:p-2"
-                                style={{ backgroundColor: '#f44336', color: 'white' }}
-                                title="מחק"
-                              >
-                                <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {measurements.length === 0 && (
-              <div className="p-8 md:p-12 text-center">
-                <Activity className="w-10 h-10 md:w-12 md:h-12 mx-auto mb-4" style={{ color: '#E0E0E0' }} />
-                <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: '#000000' }}>
-                  התחל לעקוב אחר ההתקדמות שלך
-                </h3>
-                <p className="text-sm md:text-base" style={{ color: '#7D7D7D' }}>
-                  הוסף את המדידה הראשונה שלך
-                </p>
-              </div>
-            )}
+    <div dir="rtl" style={{
+      minHeight: '100vh',
+      background: '#FDF8F3',
+      paddingBottom: 100,
+      fontFamily: "'Heebo', 'Assistant', sans-serif",
+    }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: 16 }}>
+        {/* Page heading */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#1A1A1A' }}>
+            📈 ההתקדמות שלי
+          </div>
+          <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+            סקירה ויזואלית של כל המסע שלך
           </div>
         </div>
 
-        {/* Baseline Section */}
-        <BaselineSection results={results} measurements={measurements} />
-
-        {/* Achievements */}
-        <div className="mb-10 w-full">
-          <h2 className="text-2xl md:text-3xl font-black mb-6" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-            ההישגים שלי
-          </h2>
-
-          {results.length > 0 ? (
-            <div className="space-y-4">
-              {results.map((result, idx) => (
-                <div 
-                  key={result.id} 
-                  className="athletigo-card p-4 md:p-6 relative overflow-hidden"
-                  style={{
-                    border: idx === 0 ? '2px solid #FFD700' : '1px solid #E0E0E0',
-                    boxShadow: idx === 0 ? '0 4px 12px rgba(255,215,0,0.2)' : '0 2px 4px rgba(0,0,0,0.06)'
-                  }}
-                >
-                  {idx === 0 && (
-                    <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#FFD700' }} />
-                  )}
-                  <div className="flex flex-col md:flex-row items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 md:gap-4 flex-1">
-                      <div 
-                        className="w-12 h-12 md:w-16 md:h-16 rounded-xl flex items-center justify-center text-2xl md:text-3xl flex-shrink-0"
-                        style={{ 
-                          backgroundColor: idx === 0 ? '#FFFEF7' : '#FFF8F3',
-                          border: `2px solid ${idx === 0 ? '#FFD700' : '#FF6F20'}`
-                        }}
-                      >
-                        {idx === 0 ? '🏆' : '🎖️'}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-base md:text-xl mb-2" style={{ color: '#000000' }}>
-                          {result.title}
-                        </h4>
-                        {result.description && (
-                          <p className="text-sm md:text-base mb-3 leading-relaxed" style={{ color: '#7D7D7D' }}>
-                            {result.description}
-                          </p>
-                        )}
-                        <span className="text-xs md:text-sm" style={{ color: '#7D7D7D' }}>
-                          {format(new Date(result.date), 'dd/MM/yyyy', { locale: he })}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                      <Button
-                        onClick={() => {
-                          setEditingResult(result);
-                          setShowAddResult(true);
-                        }}
-                        size="sm"
-                        className="rounded-lg p-2 flex-1 md:flex-initial"
-                        style={{ backgroundColor: '#FF6F20', color: 'white' }}
-                        title="ערוך"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteClick(result, 'result')}
-                        size="sm"
-                        className="rounded-lg p-2 flex-1 md:flex-initial"
-                        style={{ backgroundColor: '#f44336', color: 'white' }}
-                        title="מחק"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
+        {noData ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+            <div style={{ fontSize: 16, fontWeight: 500 }}>עוד אין נתוני התקדמות</div>
+            <div style={{ fontSize: 13, marginTop: 4 }}>הנתונים יופיעו כאן אחרי האימון הראשון</div>
+          </div>
+        ) : (
+          <>
+            {/* Stat cards */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr',
+              gap: 10, marginBottom: 20,
+            }}>
+              {stats.map((s, i) => (
+                <div key={i} style={{
+                  background: 'white', borderRadius: 14,
+                  border: '1px solid #F0E4D0',
+                  padding: 16, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 12, color: '#888' }}>{s.label}</div>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="athletigo-card p-8 md:p-12 text-center">
-              <Award className="w-10 h-10 md:w-12 md:h-12 mx-auto mb-4" style={{ color: '#E0E0E0' }} />
-              <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: '#000000' }}>
-                הישגים ממתינים לתיעוד!
-              </h3>
-              <p className="text-sm md:text-base" style={{ color: '#7D7D7D' }}>
-                תעד את ההישגים שלך כדי לעקוב אחר ההתקדמות
-              </p>
-            </div>
-          )}
-        </div>
+
+            {/* Baseline JPS line chart */}
+            {baselineData.length > 0 && (
+              <div style={card}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                  📈 התקדמות בייסליין
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={baselineData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                    <XAxis dataKey="date" fontSize={11} />
+                    <YAxis domain={[0, 'auto']} fontSize={11} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Line type="monotone" dataKey="jps" name="JPS"
+                      stroke="#FF6F20" strokeWidth={2.5}
+                      dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
+                      activeDot={{ r: 7, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                    <Line type="monotone" dataKey="total" name="סה״כ"
+                      stroke="#1D9E75" strokeWidth={2}
+                      dot={{ r: 4, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+                <div style={{
+                  display: 'flex', justifyContent: 'center', gap: 16,
+                  marginTop: 8, fontSize: 12, color: '#888',
+                }}>
+                  <span><span style={{ color: '#FF6F20' }}>●</span> JPS</span>
+                  <span><span style={{ color: '#1D9E75' }}>●</span> סה״כ קפיצות</span>
+                </div>
+              </div>
+            )}
+
+            {/* Records bar chart */}
+            {barData.length > 0 && (
+              <div style={card}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                  🏆 שיאים אישיים
+                </div>
+                <ResponsiveContainer width="100%" height={Math.max(200, barData.length * 36)}>
+                  <BarChart data={barData} layout="vertical" margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                    <XAxis type="number" fontSize={11} />
+                    <YAxis type="category" dataKey="name" fontSize={11} width={90} />
+                    <Tooltip contentStyle={tooltipStyle}
+                      formatter={(value, _name, ctx) => [value, ctx?.payload?.fullName || 'שיא']} />
+                    <Bar dataKey="value" fill="#FF6F20" radius={[0, 6, 6, 0]} barSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Weight line chart */}
+            {weightData.length > 0 && (
+              <div style={card}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                  ⚖️ מעקב משקל
+                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={weightData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                    <XAxis dataKey="date" fontSize={11} />
+                    <YAxis domain={['auto', 'auto']} fontSize={11} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Line type="monotone" dataKey="weight" name="משקל (ק״ג)"
+                      stroke="#FF6F20" strokeWidth={2.5}
+                      dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
+                      activeDot={{ r: 7, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Goals radar */}
+            {radarData.length >= 3 && (
+              <div style={card}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                  🎯 יעדים
+                </div>
+                <ResponsiveContainer width="100%" height={230}>
+                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="65%">
+                    <PolarGrid stroke="#F0E4D0" />
+                    <PolarAngleAxis dataKey="goal" fontSize={9} tick={{ fontSize: 9, fill: '#1A1A1A' }} />
+                    <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#888' }} />
+                    <Radar dataKey="progress" stroke="#FF6F20" fill="#FF6F20"
+                      fillOpacity={0.15} strokeWidth={2}
+                      dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}%`} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Monthly sessions bar */}
+            {monthlyData.length > 0 && (
+              <div style={card}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                  📅 אימונים לפי חודש
+                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                    <XAxis dataKey="month" fontSize={11} />
+                    <YAxis fontSize={11} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Bar dataKey="count" name="אימונים" fill="#FF6F20"
+                      radius={[6, 6, 0, 0]} barSize={30} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </>
+        )}
       </div>
-
-      {/* Add/Edit Measurement Dialog */}
-      <Dialog open={showAddMeasurement} onOpenChange={setShowAddMeasurement}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-              {editingMeasurement ? '✏️ ערוך מדידה' : '➕ הוסף מדידה חדשה'}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            <div>
-              <Label className="text-base font-bold mb-3 block" style={{ color: '#000000' }}>תאריך המדידה</Label>
-              <Input
-                type="date"
-                value={measurementForm.date}
-                onChange={(e) => setMeasurementForm({ ...measurementForm, date: e.target.value })}
-                max={new Date().toISOString().split('T')[0]}
-                className="rounded-xl"
-                style={{ border: '1px solid #E0E0E0' }}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-base font-bold mb-3 block" style={{ color: '#000000' }}>משקל (ק״ג)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={measurementForm.weight_kg}
-                  onChange={(e) => setMeasurementForm({ ...measurementForm, weight_kg: e.target.value })}
-                  placeholder="75.5"
-                  className="rounded-xl"
-                  style={{ border: '1px solid #E0E0E0' }}
-                />
-              </div>
-              <div>
-                <Label className="text-base font-bold mb-3 block" style={{ color: '#000000' }}>אחוז שומן (%)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={measurementForm.body_fat_percent}
-                  onChange={(e) => setMeasurementForm({ ...measurementForm, body_fat_percent: e.target.value })}
-                  placeholder="18.5"
-                  className="rounded-xl"
-                  style={{ border: '1px solid #E0E0E0' }}
-                />
-              </div>
-              <div>
-                <Label className="text-base font-bold mb-3 block" style={{ color: '#000000' }}>גובה (ס״מ)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={measurementForm.height_cm}
-                  onChange={(e) => setMeasurementForm({ ...measurementForm, height_cm: e.target.value })}
-                  placeholder="175"
-                  className="rounded-xl"
-                  style={{ border: '1px solid #E0E0E0' }}
-                />
-              </div>
-            </div>
-
-            <div className="p-5 rounded-xl" style={{ backgroundColor: '#FFF8F3', border: '1px solid #FF6F20' }}>
-              <p className="text-sm font-bold mb-4" style={{ color: '#FF6F20' }}>
-                📏 היקפי גוף (אופציונלי)
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>חזה (ס״מ)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={measurementForm.chest_circumference}
-                    onChange={(e) => setMeasurementForm({ ...measurementForm, chest_circumference: e.target.value })}
-                    placeholder="95"
-                    className="rounded-xl"
-                    style={{ border: '1px solid #E0E0E0' }}
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>מותניים (ס״מ)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={measurementForm.waist_circumference}
-                    onChange={(e) => setMeasurementForm({ ...measurementForm, waist_circumference: e.target.value })}
-                    placeholder="80"
-                    className="rounded-xl"
-                    style={{ border: '1px solid #E0E0E0' }}
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>ירכיים (ס״מ)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={measurementForm.hips_circumference}
-                    onChange={(e) => setMeasurementForm({ ...measurementForm, hips_circumference: e.target.value })}
-                    placeholder="95"
-                    className="rounded-xl"
-                    style={{ border: '1px solid #E0E0E0' }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-base font-bold mb-3 block" style={{ color: '#000000' }}>הערות</Label>
-              <Textarea
-                value={measurementForm.notes}
-                onChange={(e) => setMeasurementForm({ ...measurementForm, notes: e.target.value })}
-                placeholder="איך הרגשתי? שינויים שהבחנתי..."
-                className="rounded-xl min-h-[80px]"
-                style={{ border: '1px solid #E0E0E0' }}
-              />
-            </div>
-
-            <div className="flex gap-4">
-              <Button
-                onClick={() => {
-                  setShowAddMeasurement(false);
-                  setEditingMeasurement(null);
-                }}
-                variant="outline"
-                className="flex-1 rounded-xl py-6 font-bold"
-                style={{ border: '1px solid #E0E0E0', color: '#000000' }}
-              >
-                ביטול
-              </Button>
-              <Button
-                onClick={handleSaveMeasurement}
-                disabled={createMeasurementMutation.isPending || updateMeasurementMutation.isPending}
-                className="flex-1 rounded-xl py-6 font-bold text-white"
-                style={{ backgroundColor: '#FF6F20' }}
-              >
-                {(createMeasurementMutation.isPending || updateMeasurementMutation.isPending) ? (
-                  <>
-                    <Loader2 className="w-5 h-5 ml-2 animate-spin" />
-                    שומר...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-5 h-5 ml-2" />
-                    {editingMeasurement ? 'עדכן מדידה' : 'הוסף מדידה'}
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Result Form Dialog */}
-      {user && (
-        <ResultFormDialog
-          isOpen={showAddResult}
-          onClose={() => {
-            setShowAddResult(false);
-            setEditingResult(null);
-          }}
-          traineeId={user.id}
-          traineeName={user.full_name}
-          editingResult={editingResult}
-        />
-      )}
-
-      {/* Goal Form Dialog */}
-      {user && (
-        <GoalFormDialog
-          isOpen={showAddGoal}
-          onClose={() => {
-            setShowAddGoal(false);
-            setEditingGoal(null);
-          }}
-          traineeId={user.id}
-          traineeName={user.full_name}
-          editingGoal={editingGoal}
-        />
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold" style={{ color: '#000000' }}>
-              ⚠️ אישור מחיקה
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            <div className="p-5 rounded-xl" style={{ backgroundColor: '#FFEBEE', border: '2px solid #f44336' }}>
-              <p className="text-base leading-relaxed" style={{ color: '#000000' }}>
-                האם אתה בטוח שברצונך למחוק {deletingItem?.type === 'measurement' ? 'מדידה' : 'הישג'} זה/זו?
-              </p>
-              <p className="text-sm font-bold mt-3" style={{ color: '#f44336' }}>
-                פעולה זו אינה ניתנת לביטול!
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  setShowDeleteDialog(false);
-                  setDeletingItem(null);
-                }}
-                variant="outline"
-                className="flex-1 rounded-xl py-6 font-bold"
-                style={{ border: '1px solid #E0E0E0', color: '#000000' }}
-              >
-                ביטול
-              </Button>
-              <Button
-                onClick={handleConfirmDelete}
-                disabled={deleteMeasurementMutation.isPending || deleteResultMutation.isPending}
-                className="flex-1 rounded-xl py-6 font-bold text-white"
-                style={{ backgroundColor: '#f44336' }}
-              >
-                {(deleteMeasurementMutation.isPending || deleteResultMutation.isPending) ? (
-                  <>
-                    <Loader2 className="w-5 h-5 ml-2 animate-spin" />
-                    מוחק...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-5 h-5 ml-2" />
-                    כן, מחק
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* BaselineFormDialog mounted at App.jsx root — opened via
-          openBaselineDialog() above. */}
-
     </div>
   );
 }
