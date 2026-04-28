@@ -20,6 +20,7 @@ import PaymentResultModal from "@/components/PaymentResultModal";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 import PreHealthScreen from "@/components/PreHealthScreen";
+import NewRecordDialog from "../components/forms/NewRecordDialog";
 
 // "השיאים שלי" surface for the trainee home — pulls the latest
 // personal_records row + total PB count for this trainee. Renders
@@ -163,6 +164,7 @@ export default function TraineeHome() {
   // approval banner that opens the health declaration. After signing,
   // a one-shot welcome popup fires.
   const [showHealthForm, setShowHealthForm] = useState(false);
+  const [showNewRecord, setShowNewRecord] = useState(false);
   const [showPreHealth, setShowPreHealth] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [pendingSessionId, setPendingSessionId] = useState(null);
@@ -874,6 +876,23 @@ export default function TraineeHome() {
         onClose={() => setShowWelcome(false)}
       />
 
+      {/* Trainee-side NewRecordDialog — opens with traineeId locked to
+          the current user, so no picker is rendered. Permission gating
+          happens on the trigger button above. */}
+      <NewRecordDialog
+        isOpen={showNewRecord}
+        onClose={() => setShowNewRecord(false)}
+        traineeId={user?.id}
+        coachId={user?.coach_id || null}
+        currentUserId={user?.id}
+        isCoach={false}
+        onSuccess={() => {
+          // Refresh the home card + the achievements query in profile.
+          // Both keys live under 'personal-records' (TanStack invalidates
+          // by prefix-matching key arrays).
+        }}
+      />
+
       {/* Post-checkout result modal — fires when Meshulam redirects
           back with ?paid=1 (success) or ?paid=0 (cancel/fail).
           Self-mounted at root so the URL param is the only trigger.
@@ -1461,6 +1480,24 @@ export default function TraineeHome() {
             one record exists; click → opens the achievements tab in
             the trainee profile. */}
         <RecordsHomeCard userId={user?.id} />
+
+        {/* Trainee can self-log a record only when the coach has
+            granted view_progress (same gate that exposes the
+            achievements tab). Casual trainees never see this — even
+            with the perm — because their home page is locked down to
+            the onboarding flow. */}
+        {!isCasual && perms.view_progress && (
+          <button
+            onClick={() => setShowNewRecord(true)}
+            style={{
+              width: '100%', padding: 14, borderRadius: 14, border: 'none',
+              background: '#FF6F20', color: '#fff', fontSize: 15, fontWeight: 600,
+              cursor: 'pointer', marginBottom: 12,
+            }}
+          >
+            🏆 הוסף שיא
+          </button>
+        )}
 
         {/* Streak / Progress Card — hidden for casual (no completed
             sessions yet, and no plan to track progress against). */}

@@ -29,6 +29,7 @@ import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
 import PlanFormDialog from "../components/training/PlanFormDialog";
+import NewRecordDialog from "../components/forms/NewRecordDialog";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
 import ResultFormDialog from "../components/forms/ResultFormDialog";
 import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
@@ -114,6 +115,7 @@ export default function Dashboard() {
 
   // Dialog states
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
+  const [showNewRecord, setShowNewRecord] = useState(false);
   const [isLeadDialogOpen, setIsLeadDialogOpen] = useState(false);
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
@@ -438,6 +440,23 @@ export default function Dashboard() {
             ))}
           </div>
 
+          {/* "🏆 שיא חדש" — single shared NewRecordDialog (also used in
+              TraineeProfile › ProgressTab and TraineeHome). Coach is
+              outside any specific trainee profile here, so the dialog
+              renders the trainee picker at the top. */}
+          <div style={{ padding: '0 8px', marginBottom: 14 }}>
+            <button
+              onClick={() => setShowNewRecord(true)}
+              style={{
+                width: '100%', padding: '12px 14px', borderRadius: 14,
+                border: 'none', background: '#FF6F20', color: '#fff',
+                fontSize: 15, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              🏆 שיא חדש
+            </button>
+          </div>
+
           {/* ═══ SECTION — תזכורות מעקב (plan follow-ups, 48h after send) ═══ */}
           {planFollowUps.length > 0 && (
             <div style={{ padding: '0 8px', marginBottom: 10 }}>
@@ -669,6 +688,16 @@ export default function Dashboard() {
 
       {/* ── Dialogs ──────────────────────────────────────────────── */}
       <AddTraineeDialog open={isAddTraineeOpen} onClose={() => { setIsAddTraineeOpen(false); refreshAll(); }} />
+      <NewRecordDialog
+        isOpen={showNewRecord}
+        onClose={() => setShowNewRecord(false)}
+        traineeId={null}
+        coachId={coach?.id}
+        currentUserId={coach?.id}
+        isCoach={true}
+        trainees={trainees}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['personal-records'] })}
+      />
       <LeadFormDialog isOpen={isLeadDialogOpen} onClose={() => setIsLeadDialogOpen(false)}
         onSubmit={async (data) => {
           // Canonical leads schema is user_id + name (not coach_id +
