@@ -152,21 +152,51 @@ export default function Notifications() {
       }
     }
 
+    // Prefer the explicit `link` field set by inserters that already
+    // know the right destination (e.g. session_confirmed writes
+    // /TraineeProfile?userId=...). Fall back to category-based routing
+    // for older rows that don't carry a link.
+    if (notif.link) {
+      const path = String(notif.link).startsWith('/')
+        ? notif.link
+        : `/${notif.link}`;
+      try { navigate(path); return; } catch { /* fall through */ }
+    }
+
     const tid = notif.trainee_id || notif.data?.trainee_id;
     if (tid) {
       const cat = getFilterCategory(notif.type);
-      if (cat === 'sessions') navigate(`/trainee/${tid}?tab=sessions`);
-      else if (cat === 'packages') navigate(`/trainee/${tid}?tab=packages`);
-      else if (cat === 'plans') navigate(`/trainee/${tid}?tab=plans`);
-      else if (cat === 'records') navigate(`/trainee/${tid}?tab=records`);
-      else navigate(`/trainee/${tid}`);
+      // The trainee profile page route is /traineeprofile (lowercased
+      // by pages.config). The /trainee/:id form used here previously
+      // did NOT exist as a route — every notification that hit this
+      // branch landed on the 404 page. Map to the correct route + the
+      // canonical tab ids (attendance / services / plans / achievements).
+      const tabFor = {
+        sessions:  'attendance',
+        packages:  'services',
+        plans:     'plans',
+        records:   'achievements',
+      }[cat];
+      const base = `/traineeprofile?userId=${encodeURIComponent(tid)}`;
+      try {
+        navigate(tabFor ? `${base}&tab=${tabFor}` : base);
+      } catch (e) {
+        console.warn('[Notifications] navigation failed:', e);
+        toast.error('הדף לא נמצא');
+      }
       return;
     }
+
+    // No trainee context — send to the relevant top-level page.
     const cat = getFilterCategory(notif.type);
-    if (cat === 'sessions') navigate('/sessions');
-    else if (cat === 'plans') navigate('/planbuilder');
-    else if (cat === 'packages') navigate('/allusers');
-    else navigate('/dashboard');
+    try {
+      if (cat === 'sessions') navigate('/sessions');
+      else if (cat === 'plans') navigate('/trainingplans');
+      else if (cat === 'packages') navigate('/allusers');
+      else navigate('/dashboard');
+    } catch (e) {
+      console.warn('[Notifications] fallback navigation failed:', e);
+    }
   };
 
   const handleNotificationClick = (n) => {
