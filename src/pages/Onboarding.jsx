@@ -98,6 +98,22 @@ const calcAge = (birthDate) => {
   return age;
 };
 
+// Strip blank values from a field map so re-entering onboarding
+// (coach flips client_status active → onboarding) cannot overwrite
+// existing DB values with empty inputs. Empty string / null /
+// undefined → skipped; arrays kept (chip selectors require explicit
+// deselection — that's intentional). The bootstrap useEffect
+// prefilled every state from the existing row, so a blank field
+// here means the user didn't touch it.
+const buildPayload = (fields) => {
+  const payload = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === '' || value === null || value === undefined) continue;
+    payload[key] = value;
+  }
+  return payload;
+};
+
 const safeUpdate = async (userId, fields) => {
   const presentFields = Object.fromEntries(
     Object.entries(fields).filter(([, v]) => v !== undefined)
@@ -337,17 +353,17 @@ export default function Onboarding() {
       if (email && email !== user.email) {
         try { await supabase.auth.updateUser({ email }); } catch (e) { console.warn('[Onboarding] auth email update failed:', e?.message); }
       }
-      await safeUpdate(userId, {
+      await safeUpdate(userId, buildPayload({
         full_name: fullName.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        birth_date: birthDate || null,
-        address: address.trim() || null,
-        referral_source: referralSource || null,
-        emergency_contact_name: emergencyName.trim() || null,
-        emergency_contact_phone: emergencyPhone.trim() || null,
-        emergency_contact_relation: emergencyRelation || null,
-      });
+        birth_date: birthDate,
+        address: address.trim(),
+        referral_source: referralSource,
+        emergency_contact_name: emergencyName.trim(),
+        emergency_contact_phone: emergencyPhone.trim(),
+        emergency_contact_relation: emergencyRelation,
+      }));
       goNext();
     } finally { setSavingStep(false); }
   };
@@ -357,12 +373,12 @@ export default function Onboarding() {
     try {
       const heightNum = heightCm ? parseInt(heightCm, 10) : null;
       const weightNum = weightKg ? parseFloat(weightKg) : null;
-      await safeUpdate(userId, {
+      await safeUpdate(userId, buildPayload({
         height_cm: Number.isFinite(heightNum) ? heightNum : null,
         weight_kg: Number.isFinite(weightNum) ? weightNum : null,
-        body_type: bodyType || null,
-        goal_body_type: goalBodyType || null,
-      });
+        body_type: bodyType,
+        goal_body_type: goalBodyType,
+      }));
       // Seed measurements with the trainee's onboarding height/weight
       // so the metrics tab chart starts from this point.
       if (heightNum || weightNum) {
@@ -385,10 +401,14 @@ export default function Onboarding() {
   const saveStep3 = async () => {
     setSavingStep(true);
     try {
-      await safeUpdate(userId, {
+      await safeUpdate(userId, buildPayload({
+        // training_goals is an array — buildPayload keeps non-empty
+        // arrays. An empty selection ([]) is also kept so a user
+        // can explicitly clear chips. Same for current_challenges /
+        // training_preferences below.
         training_goals: selectedGoals,
-        goals_description: goalsDescription.trim() || null,
-      });
+        goals_description: goalsDescription.trim(),
+      }));
       goNext();
     } finally { setSavingStep(false); }
   };
@@ -396,16 +416,16 @@ export default function Onboarding() {
   const saveStep4 = async () => {
     setSavingStep(true);
     try {
-      await safeUpdate(userId, {
-        fitness_background: sportsExperience.trim() || null,
-        fitness_experience: fitnessLevel || null,
-        preferred_frequency: frequency || null,
+      await safeUpdate(userId, buildPayload({
+        fitness_background: sportsExperience.trim(),
+        fitness_experience: fitnessLevel,
+        preferred_frequency: frequency,
         current_challenges: selectedChallenges,
-        challenges_description: challengesDescription.trim() || null,
+        challenges_description: challengesDescription.trim(),
         training_preferences: selectedPreferences,
-        preferences_description: preferencesDescription.trim() || null,
-        additional_notes: additionalNotes.trim() || null,
-      });
+        preferences_description: preferencesDescription.trim(),
+        additional_notes: additionalNotes.trim(),
+      }));
       goNext();
     } finally { setSavingStep(false); }
   };
@@ -413,9 +433,9 @@ export default function Onboarding() {
   const saveStep5PreHealth = async () => {
     setSavingStep(true);
     try {
-      await safeUpdate(userId, {
-        pre_health_note: preHealthNote.trim() || null,
-      });
+      await safeUpdate(userId, buildPayload({
+        pre_health_note: preHealthNote.trim(),
+      }));
       // Open the formal HealthDeclarationForm. Step 5 only advances
       // to step 6 after the form's onSigned fires — there is no skip.
       setShowHealthForm(true);
@@ -432,8 +452,13 @@ export default function Onboarding() {
       const { data: fresh } = await supabase
         .from('users').select('*').eq('id', userId).maybeSingle();
       const summary = generateTraineeSummary(fresh || user);
+      // client_status + onboarding_completed_at always need to be
+      // written — they're the lifecycle signals the rest of the app
+      // gates on. Skip buildPayload for those two so they always
+      // land. Summary goes through buildPayload (empty summary
+      // shouldn't overwrite a previous one).
       await safeUpdate(userId, {
-        onboarding_summary: summary || null,
+        ...buildPayload({ onboarding_summary: summary }),
         onboarding_completed_at: new Date().toISOString(),
         client_status: 'casual',
       });
