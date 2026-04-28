@@ -372,7 +372,12 @@ export default function HealthDeclarationForm({
               <X size={18} />
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src="/logo-transparent.png" alt="" style={{ height: 28, width: 'auto' }} />
+              <img
+                src="/logoR.png"
+                alt=""
+                style={{ height: 28, width: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
               <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>הצהרת בריאות</div>
             </div>
             <div style={{ width: 32 }} />
