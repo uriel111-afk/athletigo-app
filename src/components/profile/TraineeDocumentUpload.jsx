@@ -30,6 +30,7 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
         .from('trainee_documents')
         .select('*')
         .eq('trainee_id', traineeId)
+        .or('status.is.null,status.neq.deleted')
         .order('created_at', { ascending: false });
       if (error) {
         console.warn('[TraineeDocs] load failed:', error);
@@ -129,8 +130,14 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
   async function handleDelete(doc) {
     if (!window.confirm(`למחוק את "${doc.file_name}"?`)) return;
     try {
-      await supabase.storage.from(BUCKET).remove([doc.file_path]);
-      const { error } = await supabase.from('trainee_documents').delete().eq('id', doc.id);
+      // Soft-delete the row; the storage object stays so the file is
+      // recoverable if we ever surface an "undo / restore" action.
+      // The fetch query filters status='deleted' so the row is hidden
+      // from the UI immediately.
+      const { error } = await supabase
+        .from('trainee_documents')
+        .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+        .eq('id', doc.id);
       if (error) {
         console.error('[TraineeDocs] delete failed:', error);
         toast.error('המחיקה נכשלה: ' + (error.message || ''));

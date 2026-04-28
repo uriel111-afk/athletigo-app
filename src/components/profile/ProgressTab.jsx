@@ -44,6 +44,7 @@ export default function ProgressTab({ traineeId }) {
         .from('personal_records')
         .select('*')
         .eq('trainee_id', traineeId)
+        .or('status.is.null,status.neq.deleted')
         .order('date', { ascending: true });
       if (error) {
         console.warn('[Records] query failed:', error.message);
@@ -102,7 +103,13 @@ export default function ProgressTab({ traineeId }) {
   const deleteRecord = async (id) => {
     if (!id) return;
     if (!window.confirm('למחוק שיא זה?')) return;
-    const { error } = await supabase.from('personal_records').delete().eq('id', id);
+    // Soft-delete — PB / record history is achievement data with audit
+    // value. The fetch query filters status='deleted' so the row vanishes
+    // from the UI but stays in the DB for accidental-undo recovery.
+    const { error } = await supabase
+      .from('personal_records')
+      .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+      .eq('id', id);
     if (error) {
       toast.error('שגיאה במחיקה: ' + error.message);
       return;

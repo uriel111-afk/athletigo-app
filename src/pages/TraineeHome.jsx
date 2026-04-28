@@ -40,6 +40,7 @@ function RecordsHomeCard({ userId }) {
             .from('personal_records')
             .select('*')
             .eq('trainee_id', userId)
+            .or('status.is.null,status.neq.deleted')
             .order('date', { ascending: false })
             .limit(1)
             .maybeSingle(),
@@ -47,7 +48,8 @@ function RecordsHomeCard({ userId }) {
             .from('personal_records')
             .select('id', { count: 'exact', head: true })
             .eq('trainee_id', userId)
-            .eq('is_personal_best', true),
+            .eq('is_personal_best', true)
+            .or('status.is.null,status.neq.deleted'),
         ]);
         if (cancelled) return;
         setLatest(latestRow || null);

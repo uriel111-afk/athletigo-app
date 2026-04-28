@@ -1665,6 +1665,7 @@ export default function TraineeProfile() {
         .from('personal_records')
         .select('*')
         .eq('trainee_id', user.id)
+        .or('status.is.null,status.neq.deleted')
         .order('date', { ascending: true });
       if (error) {
         console.warn('[personal_records] query failed:', error.message);

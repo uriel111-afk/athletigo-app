@@ -84,7 +84,8 @@ export default function NewRecordDialog({
       .from('personal_records')
       .select('id, value, date, is_personal_best')
       .eq('trainee_id', resolvedTraineeId)
-      .eq('name', exerciseName);
+      .eq('name', exerciseName)
+      .or('status.is.null,status.neq.deleted');
     if (priorErr) {
       console.error('[Records] prior fetch failed:', priorErr);
     }
