@@ -3152,6 +3152,64 @@ export default function TraineeProfile() {
                   </div>
                 )}
 
+                {/* Weight + BMI chart. Onboarding height/weight from
+                    the users row is prepended as the first datapoint
+                    so the line starts where the trainee started, even
+                    before the first proper Measurement was logged. */}
+                {(() => {
+                  const seed = (user?.weight_kg && (user?.onboarding_completed_at || user?.created_at))
+                    ? [{
+                        date: new Date(user.onboarding_completed_at || user.created_at).toLocaleDateString('he-IL'),
+                        weight: Number(user.weight_kg),
+                        bmi: user.height_cm ? Number((Number(user.weight_kg) / Math.pow(Number(user.height_cm) / 100, 2)).toFixed(1)) : null,
+                        source: 'onboarding',
+                        ts: new Date(user.onboarding_completed_at || user.created_at).getTime(),
+                      }]
+                    : [];
+                  const measured = (measurements || [])
+                    .filter(m => m && (m.weight_kg || m.weight))
+                    .map(m => {
+                      const w = Number(m.weight_kg || m.weight);
+                      const h = Number(m.height_cm || user?.height_cm);
+                      const t = new Date(m.date || m.created_at);
+                      return {
+                        date: t.toLocaleDateString('he-IL'),
+                        weight: w,
+                        bmi: h ? Number((w / Math.pow(h / 100, 2)).toFixed(1)) : null,
+                        ts: t.getTime(),
+                      };
+                    });
+                  const chartData = [...seed, ...measured].sort((a, b) => a.ts - b.ts);
+                  if (chartData.length < 1) return null;
+                  const hasBMI = chartData.some(d => d.bmi != null);
+                  return (
+                    <div style={{
+                      background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+                      padding: 16, marginBottom: 8,
+                    }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                        📏 מעקב משקל
+                      </div>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
+                          <YAxis tick={{ fontSize: 11, fill: '#888' }} />
+                          <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12 }} />
+                          <Line type="monotone" dataKey="weight" name="משקל (ק״ג)" stroke="#FF6F20" strokeWidth={2} dot={{ r: 5, fill: '#FF6F20' }} />
+                          {hasBMI && (
+                            <Line type="monotone" dataKey="bmi" name="BMI" stroke="#1D9E75" strokeWidth={2} dot={{ r: 4, fill: '#1D9E75' }} />
+                          )}
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8, fontSize: 12 }}>
+                        <span style={{ color: '#FF6F20' }}>● משקל</span>
+                        {hasBMI && <span style={{ color: '#1D9E75' }}>● BMI</span>}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המדדים נכשלה. נסה לרענן את הדף.</div>}>
                   <PhysicalMetricsManager trainee={user} measurements={measurements} results={results} coach={isCoach ? currentUser : null} currentUser={currentUser} goals={goals} />
                 </ErrorBoundary>
@@ -3178,6 +3236,47 @@ export default function TraineeProfile() {
                     <Plus className="w-3 h-3 ml-1" />הוסף בייסליין
                   </Button>
                 </div>
+
+                {/* JPS progression chart — every saved baseline shows up
+                    here as a fresh point. The cards below stay as the
+                    detail/edit surface; this is just a top-level read. */}
+                {baselines.length >= 1 && (() => {
+                  const chartData = [...baselines]
+                    .sort((a, b) => new Date(a.date || a.created_at) - new Date(b.date || b.created_at))
+                    .map(b => ({
+                      date: new Date(b.date || b.created_at).toLocaleDateString('he-IL'),
+                      jps: Number(b.baseline_score) || 0,
+                      total: Number(b.total_jumps) || 0,
+                      best: Number(b.best_round) || 0,
+                    }));
+                  return (
+                    <div style={{
+                      background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+                      padding: 16, marginBottom: 4,
+                    }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+                        📈 התקדמות בייסליין
+                      </div>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
+                          <YAxis tick={{ fontSize: 11, fill: '#888' }} />
+                          <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12 }} />
+                          <Line type="monotone" dataKey="jps"   name="JPS"  stroke="#FF6F20" strokeWidth={2} dot={{ r: 5, fill: '#FF6F20' }} />
+                          <Line type="monotone" dataKey="total" name="סה״כ" stroke="#1D9E75" strokeWidth={2} dot={{ r: 4, fill: '#1D9E75' }} />
+                          <Line type="monotone" dataKey="best"  name="שיא"  stroke="#D85A30" strokeWidth={2} dot={{ r: 4, fill: '#D85A30' }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8, fontSize: 12 }}>
+                        <span style={{ color: '#FF6F20' }}>● JPS</span>
+                        <span style={{ color: '#1D9E75' }}>● סה״כ</span>
+                        <span style={{ color: '#D85A30' }}>● שיא</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {baselines.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
                 ) : (
