@@ -313,7 +313,7 @@ export default function Layout({ children, currentPageName }) {
                 style={{ width: '40px', height: '40px', objectFit: 'contain' }}
               />
               <div>
-                <h2 className="font-bold text-xl" style={{ color: '#000000' }}>ATHLETIGO</h2>
+                <h2 className="font-bold" style={{ color: '#000000', fontSize: 16 }}>ATHLETIGO</h2>
                 <p className="text-xs font-bold" style={{ color: primaryColor }}>
                   {userRoleLabel}
                 </p>
