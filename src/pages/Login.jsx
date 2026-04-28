@@ -109,9 +109,9 @@ export default function Login() {
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
           <img
-            src="/logoR-black.png"
+            src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 80, height: 'auto', objectFit: 'contain' }}
+            style={{ width: 120, height: 'auto', objectFit: 'contain', marginBottom: 24, filter: 'brightness(0)' }}
           />
           <div style={{ fontSize: 14, color: '#888', marginTop: 16, fontWeight: 500 }}>
             כניסה למערכת מאמנים ומתאמנים
