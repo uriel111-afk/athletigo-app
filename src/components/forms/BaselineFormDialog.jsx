@@ -1025,7 +1025,15 @@ function TimePickerSheet({ which, currentValue, onPick, onClose }) {
 
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-  return (
+  // The picker is portaled to document.body so it escapes the
+  // Radix Dialog's react-remove-scroll wrapper — without the portal,
+  // the inner list couldn't scroll on mobile (the dialog's scroll-
+  // lock blocked touch-scroll inside any descendant), and the
+  // sheet appeared "stuck / unresponsive". Now lives at body level
+  // alongside the dialog overlay; touch + click work natively.
+  if (typeof document === 'undefined' || !document.body) return null;
+
+  const node = (
     <div
       onClick={onClose}
       style={{
@@ -1055,14 +1063,26 @@ function TimePickerSheet({ which, currentValue, onPick, onClose }) {
         }}>
           {PICKER_TITLES[which] || ''}
         </div>
-        <div style={{ overflowY: 'auto', maxHeight: '40vh', paddingInline: 4 }}>
+        <div style={{
+          overflowY: 'auto',
+          maxHeight: '40vh',
+          paddingInline: 4,
+          // Explicit touch-scroll hints — needed on iOS Safari and
+          // any wrapper that disables scroll on its descendants.
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+          overscrollBehavior: 'contain',
+        }}>
           {Array.from({ length: 90 }, (_, i) => i + 1).map((seconds) => {
             const selected = currentValue === seconds;
             return (
               <div
                 id={`time-option-${seconds}`}
                 key={seconds}
-                onClick={() => onPick(seconds)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPick(seconds);
+                }}
                 style={{
                   padding: '14px 16px',
                   textAlign: 'center',
@@ -1075,6 +1095,7 @@ function TimePickerSheet({ which, currentValue, onPick, onClose }) {
                   cursor: 'pointer',
                   border: selected ? '1px solid #FF6F20' : '1px solid transparent',
                   fontVariantNumeric: 'tabular-nums',
+                  userSelect: 'none',
                 }}
               >
                 {fmt(seconds)}
@@ -1088,6 +1109,8 @@ function TimePickerSheet({ which, currentValue, onPick, onClose }) {
       </div>
     </div>
   );
+
+  return createPortal(node, document.body);
 }
 
 // Compact MM:SS card. In edit mode tapping anywhere on the card
