@@ -12,6 +12,8 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { normalizeStatus, isActivePackage } from "@/lib/enums";
+import useMultiSelect from "../hooks/useMultiSelect";
+import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 
 // Integer age from a birth_date (ISO string or Date). Returns null
 // when the date is missing/unparseable. Adjusts for whether the
@@ -48,6 +50,11 @@ export default function AllUsers() {
   // Order of choices in the dropdown — uses the same STATUS_BADGES
   // map (defined below) for the visual label/colors.
   const STATUS_OPTIONS = ['onboarding', 'casual', 'active', 'suspended', 'former'];
+  // Multi-select state — toggled by the "בחירה" header button. When
+  // active, each card gets a checkbox + the floating MultiSelectBar
+  // surfaces bulk actions (status change, archive).
+  const sel = useMultiSelect();
+  const [showBulkStatus, setShowBulkStatus] = useState(false);
 
   // Status badge config — mirrors the canonical statuses on the
   // trainee profile page so the visual language is consistent
@@ -286,15 +293,29 @@ export default function AllUsers() {
               {visibleTrainees.length} מתאמנים · {counts.active} פעילים
             </div>
           </div>
-          <button
-            onClick={() => setIsAddTraineeOpen(true)}
-            style={{
-              background: '#FF6F20', color: 'white',
-              border: 'none', borderRadius: 12,
-              padding: '10px 16px', fontSize: 13,
-              fontWeight: 600, cursor: 'pointer',
-            }}
-          >+ מתאמן חדש</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => sel.isSelecting ? sel.clearSelection() : sel.startSelecting()}
+              style={{
+                padding: '8px 14px', borderRadius: 12,
+                border: '1px solid #F0E4D0',
+                background: sel.isSelecting ? '#FFF5EE' : 'white',
+                color: sel.isSelecting ? '#FF6F20' : '#888',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              {sel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+            </button>
+            <button
+              onClick={() => setIsAddTraineeOpen(true)}
+              style={{
+                background: '#FF6F20', color: 'white',
+                border: 'none', borderRadius: 12,
+                padding: '10px 16px', fontSize: 13,
+                fontWeight: 600, cursor: 'pointer',
+              }}
+            >+ מתאמן חדש</button>
+          </div>
         </div>
 
         {/* B. Search + sort toggle */}
@@ -424,7 +445,10 @@ export default function AllUsers() {
           return (
             <div
               key={t.id}
-              onClick={() => navigate(createPageUrl('TraineeProfile') + `?userId=${encodeURIComponent(t.id)}`)}
+              onClick={() => {
+                if (sel.isSelecting) { sel.toggleSelect(t.id); return; }
+                navigate(createPageUrl('TraineeProfile') + `?userId=${encodeURIComponent(t.id)}`);
+              }}
               style={{
                 background: 'white',
                 borderRadius: 16,
@@ -432,11 +456,13 @@ export default function AllUsers() {
                 margin: '0 12px 8px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                 cursor: 'pointer',
-                border: isExpiring
-                  ? '1.5px solid #EAB308'
-                  : pkg
-                    ? '1.5px solid #FF6F20'
-                    : '0.5px solid #F0E4D0',
+                border: sel.isSelecting && sel.isSelected(t.id)
+                  ? '1.5px solid #FF6F20'
+                  : isExpiring
+                    ? '1.5px solid #EAB308'
+                    : pkg
+                      ? '1.5px solid #FF6F20'
+                      : '0.5px solid #F0E4D0',
               }}
             >
               {/* Top row */}
@@ -444,6 +470,12 @@ export default function AllUsers() {
                 display: 'flex', alignItems: 'center',
                 gap: 10, marginBottom: 10,
               }}>
+                {sel.isSelecting && (
+                  <SelectCheckbox
+                    isSelected={sel.isSelected(t.id)}
+                    onToggle={() => sel.toggleSelect(t.id)}
+                  />
+                )}
                 <div style={{
                   width: 44, height: 44, borderRadius: 14,
                   background: '#FFF0E4',
@@ -638,6 +670,102 @@ export default function AllUsers() {
             </div>
           );
         })}
+
+        {/* Floating multi-select action bar — shows when 1+ trainees
+            are checked. Status changes go through a small dialog so
+            the coach can pick the target status. Archive (former) is
+            a one-tap action behind a confirm. */}
+        <MultiSelectBar
+          count={sel.selectedCount}
+          onCancel={sel.clearSelection}
+          actions={[
+            {
+              icon: '🔄', label: 'שנה סטטוס', primary: true,
+              onClick: () => setShowBulkStatus(true),
+            },
+            {
+              icon: '🗑️', label: 'ארכיון', danger: true,
+              onClick: async () => {
+                if (!window.confirm(`להעביר ${sel.selectedCount} לארכיון?`)) return;
+                const ids = Array.from(sel.selectedIds);
+                try {
+                  for (const id of ids) {
+                    await supabase.from('users').update({ client_status: 'former' }).eq('id', id);
+                  }
+                  queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                  queryClient.invalidateQueries({ queryKey: ['users-list'] });
+                  toast.success(`${ids.length} הועברו לארכיון`);
+                  sel.clearSelection();
+                } catch (e) {
+                  console.warn('[AllUsers] bulk archive failed:', e?.message);
+                  toast.error('שגיאה בהעברה לארכיון');
+                }
+              },
+            },
+          ]}
+        />
+
+        {/* Bulk status picker — opens from the bar's "שנה סטטוס" action */}
+        {showBulkStatus && (
+          <div
+            onClick={() => setShowBulkStatus(false)}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.4)', zIndex: 10000,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'white', borderRadius: 14, padding: 20,
+                maxWidth: 320, width: '90%', direction: 'rtl',
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, textAlign: 'center' }}>
+                שנה סטטוס ל-{sel.selectedCount} נבחרים
+              </div>
+              {STATUS_OPTIONS.map((s) => {
+                const opt = STATUS_BADGES[s];
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={async () => {
+                      const ids = Array.from(sel.selectedIds);
+                      try {
+                        for (const id of ids) {
+                          await supabase.from('users').update({ client_status: s }).eq('id', id);
+                        }
+                        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                        queryClient.invalidateQueries({ queryKey: ['users-list'] });
+                        toast.success(`${ids.length} עודכנו ל-${opt?.label || s}`);
+                        sel.clearSelection();
+                        setShowBulkStatus(false);
+                      } catch (e) {
+                        console.warn('[AllUsers] bulk status failed:', e?.message);
+                        toast.error('שגיאה בעדכון הסטטוס');
+                      }
+                    }}
+                    style={{
+                      width: '100%', padding: 12, borderRadius: 12,
+                      border: '1px solid #F0E4D0', background: 'white',
+                      fontSize: 14, cursor: 'pointer', marginBottom: 6,
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      justifyContent: 'center',
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    {opt?.icon && <span aria-hidden>{opt.icon}</span>}
+                    <span>{opt?.label || s}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <RenameUserDialog
           isOpen={showRenameDialog}

@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import PageLoader from "@/components/PageLoader";
+import useMultiSelect from "../hooks/useMultiSelect";
+import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 
 // Minimal icon set — keyed off notification type
 const getNotifIcon = (type) => {
@@ -87,6 +89,9 @@ export default function Notifications() {
   });
 
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
+
+  // Multi-select for bulk handle/read/soft-delete on notifications.
+  const notifSel = useMultiSelect();
 
   const [filter, setFilter] = useState(() => {
     try { return localStorage.getItem('notifications_filter') || 'all'; } catch { return 'all'; }
@@ -392,6 +397,18 @@ export default function Notifications() {
               סמן הכל כנקרא ✓
             </button>
           )}
+          <button
+            onClick={() => notifSel.isSelecting ? notifSel.clearSelection() : notifSel.startSelecting()}
+            style={{
+              padding: '6px 12px', borderRadius: 10,
+              border: '1px solid #F0E4D0',
+              background: notifSel.isSelecting ? '#FFF5EE' : 'white',
+              color: notifSel.isSelecting ? '#FF6F20' : '#888',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            {notifSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+          </button>
         </div>
       </div>
 
@@ -459,16 +476,27 @@ export default function Notifications() {
         {filteredNotifications.map(n => (
           <div
             key={n.id}
-            onClick={() => handleNotificationClick(n)}
+            onClick={() => {
+              if (notifSel.isSelecting) { notifSel.toggleSelect(n.id); return; }
+              handleNotificationClick(n);
+            }}
             style={{
               display: 'flex', alignItems: 'flex-start',
               gap: '10px', padding: '12px 16px',
-              background: n.is_read ? 'transparent' : '#FFF9F0',
+              background: notifSel.isSelecting && notifSel.isSelected(n.id)
+                ? '#FFF5EE'
+                : (n.is_read ? 'transparent' : '#FFF9F0'),
               borderBottom: '0.5px solid #F8F0E8',
               cursor: 'pointer', direction: 'rtl',
             }}
           >
-            {!n.is_read && (
+            {notifSel.isSelecting && (
+              <SelectCheckbox
+                isSelected={notifSel.isSelected(n.id)}
+                onToggle={() => notifSel.toggleSelect(n.id)}
+              />
+            )}
+            {!n.is_read && !notifSel.isSelecting && (
               <div style={{
                 width: '8px', height: '8px',
                 borderRadius: '50%',
@@ -606,6 +634,64 @@ export default function Notifications() {
           </div>
         )}
       </div>
+
+      {/* Multi-select bar — bulk handle / mark-read / soft-delete */}
+      <MultiSelectBar
+        count={notifSel.selectedCount}
+        onCancel={notifSel.clearSelection}
+        actions={[
+          {
+            icon: '✓', label: 'טופל', primary: true,
+            onClick: async () => {
+              const ids = Array.from(notifSel.selectedIds);
+              try {
+                for (const id of ids) {
+                  await supabase.from('notifications').update({
+                    status: 'handled',
+                    handled_at: new Date().toISOString(),
+                    is_read: true,
+                  }).eq('id', id);
+                }
+                queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                toast.success(`${ids.length} סומנו כטופלו`);
+                notifSel.clearSelection();
+              } catch (e) { toast.error('שגיאה בעדכון'); }
+            },
+          },
+          {
+            icon: '👁', label: 'נקרא',
+            onClick: async () => {
+              const ids = Array.from(notifSel.selectedIds);
+              try {
+                for (const id of ids) {
+                  await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+                }
+                queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                toast.success(`${ids.length} סומנו כנקראו`);
+                notifSel.clearSelection();
+              } catch (e) { toast.error('שגיאה בעדכון'); }
+            },
+          },
+          {
+            icon: '🗑️', label: 'מחק', danger: true,
+            onClick: async () => {
+              const ids = Array.from(notifSel.selectedIds);
+              if (!window.confirm(`למחוק ${ids.length} התראות?`)) return;
+              try {
+                for (const id of ids) {
+                  await supabase.from('notifications').update({
+                    status: 'deleted',
+                    deleted_at: new Date().toISOString(),
+                  }).eq('id', id);
+                }
+                queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                toast.success(`${ids.length} נמחקו`);
+                notifSel.clearSelection();
+              } catch (e) { toast.error('שגיאה במחיקה'); }
+            },
+          },
+        ]}
+      />
 
       {/* Reminder picker — opens when "🔔 תזכורת" is clicked on any
           row. Quick-pick buttons + manual datetime-local. Backdrop tap

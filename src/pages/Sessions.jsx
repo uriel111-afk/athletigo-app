@@ -23,6 +23,8 @@ import SessionFormDialog from "../components/forms/SessionFormDialog";
 import SessionEditModal from "../components/SessionEditModal";
 import { notifySessionScheduled, notifySessionCompleted } from "@/functions/notificationTriggers";
 import { AuthContext } from "@/lib/AuthContext";
+import useMultiSelect from "../hooks/useMultiSelect";
+import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 
 export default function Sessions() {
@@ -45,6 +47,9 @@ export default function Sessions() {
   const [expandedSessions, setExpandedSessions] = useState({});
   const [view, setView] = useViewToggle('sessions_view', 'list');
   const [addingParticipantsTo, setAddingParticipantsTo] = useState(null);
+  // Multi-select for bulk session actions (mark completed / cancel /
+  // soft-delete). Toggled via the "בחירה" button in the header.
+  const sessionSel = useMultiSelect();
 
   // Group Training state
   const [activeView, setActiveView] = useState('sessions'); // 'sessions' | 'groups'
@@ -804,12 +809,16 @@ export default function Sessions() {
 
     const participantNames = session.participants?.map((p) => p.trainee_name).join(', ') || 'אין משתתפים';
 
+    const isSelectedRow = sessionSel.isSelecting && sessionSel.isSelected(session.id);
+
     return (
       <div
         className="rounded-2xl transition-all overflow-hidden cursor-pointer"
         style={{
           backgroundColor: '#FFFFFF',
-          border: priority ? '3px solid #FF6F20' : '2px solid #E0E0E0',
+          border: isSelectedRow
+            ? '3px solid #FF6F20'
+            : priority ? '3px solid #FF6F20' : '2px solid #E0E0E0',
           boxShadow: priority ? '0 8px 24px rgba(255, 111, 32, 0.25)' : isExpanded ? '0 6px 16px rgba(0,0,0,0.12)' : '0 3px 10px rgba(0,0,0,0.06)'
         }}>
 
@@ -819,7 +828,19 @@ export default function Sessions() {
         {/* Collapsed View */}
         <div
           className="p-5 cursor-pointer"
-          onClick={() => toggleSessionExpanded(session.id)}>
+          onClick={() => {
+            if (sessionSel.isSelecting) { sessionSel.toggleSelect(session.id); return; }
+            toggleSessionExpanded(session.id);
+          }}>
+
+          {sessionSel.isSelecting && (
+            <div style={{ marginBottom: 8 }}>
+              <SelectCheckbox
+                isSelected={sessionSel.isSelected(session.id)}
+                onToggle={() => sessionSel.toggleSelect(session.id)}
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -1137,6 +1158,22 @@ export default function Sessions() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {activeView === 'sessions' && (
+                    <button
+                      type="button"
+                      onClick={() => sessionSel.isSelecting ? sessionSel.clearSelection() : sessionSel.startSelecting()}
+                      style={{
+                        height: 44, padding: '0 14px', borderRadius: 14,
+                        border: '1px solid #F0E4D0',
+                        background: sessionSel.isSelecting ? '#FFF5EE' : 'white',
+                        color: sessionSel.isSelecting ? '#FF6F20' : '#888',
+                        fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      {sessionSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+                    </button>
+                  )}
                   <Button
                     onClick={() => setActiveView(activeView === 'sessions' ? 'groups' : 'sessions')}
                     variant="outline"
@@ -1495,6 +1532,64 @@ export default function Sessions() {
             }
             </>
           }
+
+          {/* Floating multi-select action bar — bulk-update sessions */}
+          <MultiSelectBar
+            count={sessionSel.selectedCount}
+            onCancel={sessionSel.clearSelection}
+            actions={[
+              {
+                icon: '✓', label: 'הושלם', primary: true,
+                onClick: async () => {
+                  const ids = Array.from(sessionSel.selectedIds);
+                  try {
+                    for (const id of ids) {
+                      await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+                    queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                    queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
+                    toast.success(`${ids.length} מפגשים עודכנו`);
+                    sessionSel.clearSelection();
+                  } catch (e) { toast.error('שגיאה בעדכון'); }
+                },
+              },
+              {
+                icon: '❌', label: 'בטל',
+                onClick: async () => {
+                  const ids = Array.from(sessionSel.selectedIds);
+                  try {
+                    for (const id of ids) {
+                      await supabase.from('sessions').update({ status: 'cancelled' }).eq('id', id);
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+                    queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                    toast.success(`${ids.length} מפגשים בוטלו`);
+                    sessionSel.clearSelection();
+                  } catch (e) { toast.error('שגיאה בביטול'); }
+                },
+              },
+              {
+                icon: '🗑️', label: 'מחק', danger: true,
+                onClick: async () => {
+                  const ids = Array.from(sessionSel.selectedIds);
+                  if (!window.confirm(`למחוק ${ids.length} מפגשים?`)) return;
+                  try {
+                    for (const id of ids) {
+                      await supabase.from('sessions').update({
+                        status: 'deleted',
+                        deleted_at: new Date().toISOString(),
+                      }).eq('id', id);
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+                    queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+                    toast.success(`${ids.length} מפגשים נמחקו`);
+                    sessionSel.clearSelection();
+                  } catch (e) { toast.error('שגיאה במחיקה'); }
+                },
+              },
+            ]}
+          />
 
           {/* ── Group Create/Edit Dialog ── */}
           <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>

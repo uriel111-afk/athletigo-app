@@ -20,9 +20,12 @@ import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import LeadFormDialog from "../components/forms/LeadFormDialog";
 import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 import { syncLeadConversion } from "@/lib/lifeos/sync-engine";
+import useMultiSelect from "../hooks/useMultiSelect";
+import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 
 export default function Leads() {
   const [coach, setCoach] = useState(null);
+  const leadSel = useMultiSelect();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingLead, setEditingLead] = useState(null);
@@ -282,13 +285,31 @@ export default function Leads() {
       <div className="min-h-screen pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
         <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
           <div className="mb-6 md:mb-10">
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black mb-2 md:mb-4" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
-              🎯 לידים
-            </h1>
-            <p className="text-lg md:text-2xl mb-2 md:mb-4 font-medium" style={{ color: '#7D7D7D' }}>
-              ניהול וליכוד לידים
-            </p>
-            <div className="w-20 md:w-24 h-1 rounded-full" style={{ backgroundColor: '#FF6F20' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <h1 className="text-3xl md:text-5xl lg:text-6xl font-black mb-2 md:mb-4" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+                  🎯 לידים
+                </h1>
+                <p className="text-lg md:text-2xl mb-2 md:mb-4 font-medium" style={{ color: '#7D7D7D' }}>
+                  ניהול וליכוד לידים
+                </p>
+                <div className="w-20 md:w-24 h-1 rounded-full" style={{ backgroundColor: '#FF6F20' }} />
+              </div>
+              <button
+                type="button"
+                onClick={() => leadSel.isSelecting ? leadSel.clearSelection() : leadSel.startSelecting()}
+                style={{
+                  padding: '8px 14px', borderRadius: 12,
+                  border: '1px solid #F0E4D0',
+                  background: leadSel.isSelecting ? '#FFF5EE' : 'white',
+                  color: leadSel.isSelecting ? '#FF6F20' : '#888',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                {leadSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
@@ -393,17 +414,30 @@ export default function Leads() {
                 const config = statusConfig[lead.status] || statusConfig["חדש"];
                 const StatusIcon = config.icon;
 
+                const isLeadSelected = leadSel.isSelecting && leadSel.isSelected(lead.id);
                 return (
                   <div
                     key={lead.id}
+                    onClick={() => {
+                      if (leadSel.isSelecting) leadSel.toggleSelect(lead.id);
+                    }}
                     className="rounded-xl p-4 md:p-6 relative overflow-hidden"
                     style={{
                       backgroundColor: '#FFFFFF',
-                      border: `2px solid ${config.color}`,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                      border: `2px solid ${isLeadSelected ? '#FF6F20' : config.color}`,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      cursor: leadSel.isSelecting ? 'pointer' : 'default',
                     }}
                   >
                     <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: config.color }} />
+                    {leadSel.isSelecting && (
+                      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 2 }}>
+                        <SelectCheckbox
+                          isSelected={leadSel.isSelected(lead.id)}
+                          onToggle={() => leadSel.toggleSelect(lead.id)}
+                        />
+                      </div>
+                    )}
                     
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
@@ -527,6 +561,36 @@ export default function Leads() {
           )}
         </div>
       </div>
+
+      {/* Multi-select bar — soft-delete leads in bulk */}
+      <MultiSelectBar
+        count={leadSel.selectedCount}
+        onCancel={leadSel.clearSelection}
+        actions={[
+          {
+            icon: '🗑️', label: 'מחק', danger: true,
+            onClick: async () => {
+              const ids = Array.from(leadSel.selectedIds);
+              if (!window.confirm(`למחוק ${ids.length} לידים?`)) return;
+              try {
+                for (const id of ids) {
+                  await supabase.from('leads').update({
+                    status: 'deleted',
+                    deleted_at: new Date().toISOString(),
+                  }).eq('id', id);
+                }
+                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LEADS });
+                invalidateDashboard(queryClient);
+                toast.success(`${ids.length} לידים נמחקו`);
+                leadSel.clearSelection();
+              } catch (e) {
+                console.warn('[Leads] bulk delete failed:', e?.message);
+                toast.error('שגיאה במחיקה');
+              }
+            },
+          },
+        ]}
+      />
 
       <LeadFormDialog
         isOpen={showAddDialog}

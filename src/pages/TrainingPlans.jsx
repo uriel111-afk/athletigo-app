@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useProgramStats } from "../components/hooks/useProgramStats";
@@ -23,6 +24,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { notifyPlanCreated } from "@/functions/notificationTriggers";
 import TraineePlanGroup from "../components/training/TraineePlanGroup";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import useMultiSelect from "../hooks/useMultiSelect";
+import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -38,6 +41,8 @@ const COLOR_THEMES = {
 export default function TrainingPlans() {
   const urlParams = new URLSearchParams(window.location.search);
   const urlPlanId = urlParams.get('planId');
+  // Multi-select for bulk plan duplicate / soft-delete.
+  const planSel = useMultiSelect();
   
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
@@ -588,6 +593,20 @@ export default function TrainingPlans() {
                               <p className="text-sm text-gray-500 font-medium">ניהול תוכניות ומעקב למתאמנים</p>
                           </div>
                           <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => planSel.isSelecting ? planSel.clearSelection() : planSel.startSelecting()}
+                                style={{
+                                  padding: '0 14px', height: 40, borderRadius: 12,
+                                  border: '1px solid #F0E4D0',
+                                  background: planSel.isSelecting ? '#FFF5EE' : 'white',
+                                  color: planSel.isSelecting ? '#FF6F20' : '#888',
+                                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                                }}
+                              >
+                                {planSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+                              </button>
                               <Button
                                 onClick={() => {
                                   setEditingPlan(null);
@@ -725,6 +744,9 @@ export default function TrainingPlans() {
                          setSelectedPlan (no /training-plans/:id route
                          exists — the editor mounts in-place). */
                       <ExpandablePlansList
+                        selecting={planSel.isSelecting}
+                        isSelected={planSel.isSelected}
+                        onSelectToggle={planSel.toggleSelect}
                         plans={[...filteredPlans].sort(
                           (a, b) => new Date(b.created_at) - new Date(a.created_at)
                         )}
@@ -993,6 +1015,59 @@ export default function TrainingPlans() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Multi-select bar — duplicate / soft-delete plans in bulk */}
+        <MultiSelectBar
+          count={planSel.selectedCount}
+          onCancel={planSel.clearSelection}
+          actions={[
+            {
+              icon: '📋', label: 'שכפל', primary: true,
+              onClick: async () => {
+                const ids = Array.from(planSel.selectedIds);
+                try {
+                  for (const id of ids) {
+                    const src = plans.find(p => p.id === id);
+                    if (!src) continue;
+                    const { id: _omit, created_at: _omit2, ...rest } = src;
+                    await supabase.from('training_plans').insert({
+                      ...rest,
+                      plan_name: ((src.plan_name || src.name || '') + ' (עותק)').trim(),
+                      name: ((src.name || src.plan_name || '') + ' (עותק)').trim(),
+                      created_at: new Date().toISOString(),
+                    });
+                  }
+                  queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+                  invalidateDashboard(queryClient);
+                  toast.success(`${ids.length} תוכניות שוכפלו`);
+                  planSel.clearSelection();
+                } catch (e) {
+                  console.warn('[TrainingPlans] bulk duplicate failed:', e?.message);
+                  toast.error('שגיאה בשכפול');
+                }
+              },
+            },
+            {
+              icon: '🗑️', label: 'מחק', danger: true,
+              onClick: async () => {
+                const ids = Array.from(planSel.selectedIds);
+                if (!window.confirm(`למחוק ${ids.length} תוכניות?`)) return;
+                try {
+                  for (const id of ids) {
+                    await supabase.from('training_plans').update({ status: 'deleted' }).eq('id', id);
+                  }
+                  queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+                  invalidateDashboard(queryClient);
+                  toast.success(`${ids.length} תוכניות נמחקו`);
+                  planSel.clearSelection();
+                } catch (e) {
+                  console.warn('[TrainingPlans] bulk delete failed:', e?.message);
+                  toast.error('שגיאה במחיקה');
+                }
+              },
+            },
+          ]}
+        />
         </div>
     </ProtectedCoachPage>
   );
@@ -1002,7 +1077,7 @@ export default function TrainingPlans() {
 // Flat list of minimal cards. Click anywhere on the closed header to
 // expand and reveal sections + exercises. Click "ערוך תוכנית" to drop
 // into UnifiedPlanBuilder in-place (no separate route).
-function ExpandablePlansList({ plans, planContents, expandedPlanId, onToggle, onEdit }) {
+function ExpandablePlansList({ plans, planContents, expandedPlanId, onToggle, onEdit, selecting, isSelected, onSelectToggle }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {plans.map(plan => (
@@ -1013,6 +1088,9 @@ function ExpandablePlansList({ plans, planContents, expandedPlanId, onToggle, on
           isExpanded={expandedPlanId === plan.id}
           onToggle={() => onToggle(plan.id)}
           onEdit={() => onEdit(plan)}
+          selecting={selecting}
+          selected={isSelected ? isSelected(plan.id) : false}
+          onSelectToggle={onSelectToggle ? () => onSelectToggle(plan.id) : undefined}
         />
       ))}
     </div>
@@ -1035,7 +1113,7 @@ function statusBadge(plan) {
   }
 }
 
-function PlanCard({ plan, contents, isExpanded, onToggle, onEdit }) {
+function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, selected, onSelectToggle }) {
   const sections = contents.sections || [];
   const exercises = contents.exercises || [];
   const totalExercises = exercises.length;
@@ -1061,17 +1139,21 @@ function PlanCard({ plan, contents, isExpanded, onToggle, onEdit }) {
 
   return (
     <div style={{
-      background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+      background: 'white', borderRadius: 14,
+      border: selecting && selected ? '2px solid #FF6F20' : '1px solid #F0E4D0',
       overflow: 'hidden', direction: 'rtl',
     }}>
       {/* Closed header — always visible */}
       <div
-        onClick={onToggle}
+        onClick={selecting ? onSelectToggle : onToggle}
         style={{
           padding: 14, cursor: 'pointer', display: 'flex',
           justifyContent: 'space-between', alignItems: 'center', gap: 10,
         }}
       >
+        {selecting && (
+          <SelectCheckbox isSelected={!!selected} onToggle={onSelectToggle || (() => {})} />
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 16, fontWeight: 600, marginBottom: 4, color: '#1A1A1A',
