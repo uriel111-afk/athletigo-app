@@ -266,11 +266,14 @@ export default function Layout({ children, currentPageName }) {
     return <PageLoader size={120} fullHeight />;
   }
 
-  // Onboarding only for trainees, never for coaches
-  if (user && !user.onboarding_completed && !isCoach && currentPageName !== "Onboarding") {
-    window.location.href = createPageUrl("Onboarding");
-    return null;
-  }
+  // Onboarding-redirect logic intentionally removed.
+  // Routing decisions live in AuthContext.jsx — Layout's only job is
+  // to render the chrome. The previous block here used the legacy
+  // `user.onboarding_completed` boolean and did a window.location.href
+  // FULL RELOAD, which was the root cause of the post-onboarding
+  // redirect loop: AuthContext (correctly) routed casual trainees to
+  // /trainee-home; Layout (incorrectly) saw onboarding_completed=false
+  // and reloaded back to /Onboarding; AuthContext re-mounted; cycle.
 
   const navigationItems = isCoach ? coachNavItems : traineeNavItems;
   const userRoleLabel = isCoach ? '👨‍💼 מאמן' : (user?.full_name ? `👤 ${user.full_name.split(' ')[0]}` : '👤 מתאמן');

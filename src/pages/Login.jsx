@@ -84,7 +84,13 @@ export default function Login() {
         throw profileError;
       }
 
-      if (!profile.onboarding_completed) {
+      // Three independent completion signals — any one of them is enough.
+      // The legacy `onboarding_completed` boolean is never written by the
+      // casual-onboarding flow, which uses `client_status` + `onboarding_completed_at`.
+      const onboardingDone = profile?.onboarding_completed === true
+        || profile?.onboarding_completed_at != null
+        || (profile?.client_status && profile.client_status !== 'onboarding');
+      if (!onboardingDone) {
         navigate('/onboarding', { replace: true });
         return;
       }
