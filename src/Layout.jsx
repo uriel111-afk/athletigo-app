@@ -43,11 +43,13 @@ import TimerFooterBar from "@/components/TimerFooterBar";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
-// Legacy LOGO_MAIN (Supabase CDN) and LOGO_ICON (logo-transparent)
-// constants retired. Every Layout chrome surface — desktop sidebar
-// + mobile header — now uses the inline canonical /logoR.png with
-// filter:brightness(0), matching every loader and splash so the
-// brand mark never flickers between black and a non-black variant.
+// Legacy LOGO_MAIN (Supabase CDN) constant retired. Layout chrome
+// uses LOGO_ICON for the inline header bug (kept as the cream-tinted
+// transparent variant — that's chrome inside the rendered app, not
+// a loader). Loaders + splashes intentionally use /logoR.png with
+// filter:brightness(0); chrome stays on /logo-transparent.png +
+// /athletigo-text.png so the rendered app keeps its original brand.
+const LOGO_ICON = "/logo-transparent.png";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
@@ -306,10 +308,9 @@ export default function Layout({ children, currentPageName }) {
           }}>
             <div className="flex items-center gap-3 justify-center">
               <img
-                src="/logoR.png"
+                src={LOGO_ICON}
                 alt="AthletiGo"
-                style={{ width: '40px', height: '40px', objectFit: 'contain', filter: 'brightness(0)' }}
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                style={{ width: '40px', height: '40px', objectFit: 'contain' }}
               />
               <div>
                 <h2 className="font-bold text-xl" style={{ color: '#000000' }}>ATHLETIGO</h2>
@@ -413,20 +414,25 @@ export default function Layout({ children, currentPageName }) {
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
 
-              {/* Center: single combined /logoR.png mark — the same
-                  asset every loader / splash / login surface uses,
-                  in solid black via filter:brightness(0). Switching
-                  away from the legacy logo-transparent.png + the
-                  separate athletigo-text.png pair eliminates the
-                  "logo went white" flicker users saw between the
-                  black boot splash and the header chrome. */}
+              {/* Center: triangle + ATHLETIGO wordmark image as two
+                  separate elements, laid out LTR so the triangle sits on
+                  the visual LEFT and the text on the visual RIGHT.
+                  Wrapped in a flex column with alignItems:center so the
+                  brand row's geometric center stacks directly above the
+                  user-role text underneath — no manual offsets. */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <img
-                  src="/logoR.png"
-                  alt="AthletiGo"
-                  style={{ height: 28, width: 'auto', objectFit: 'contain', display: 'block', filter: 'brightness(0)' }}
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, direction: 'ltr' }}>
+                  <img
+                    src="/logo-transparent.png"
+                    alt=""
+                    style={{ width: 24, height: 24, objectFit: 'contain', display: 'block' }}
+                  />
+                  <img
+                    src="/athletigo-text.png"
+                    alt="ATHLETIGO"
+                    style={{ height: 16, objectFit: 'contain', display: 'block' }}
+                  />
+                </div>
                 <div style={{ fontSize: 11, color: primaryColor, fontWeight: 600, marginTop: 1, lineHeight: 1.2 }}>
                   {userRoleLabel}
                 </div>
