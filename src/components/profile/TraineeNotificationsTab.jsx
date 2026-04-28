@@ -232,6 +232,11 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
         .from('notifications')
         .select('*')
         .eq('user_id', traineeId)
+        // Soft-deleted rows never resurface in the list. Both the
+        // coach delete button (below) and the main /notifications
+        // page write status='deleted' instead of hard-deleting, so a
+        // single filter at the source covers both paths.
+        .or('status.is.null,status.neq.deleted')
         .order('created_at', { ascending: false });
       if (error) { console.warn('[Notifications] load failed:', error); return []; }
       return data ?? [];
@@ -297,9 +302,17 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
   async function handleDelete(n) {
     if (!window.confirm('למחוק התראה זו?')) return;
     try {
-      const { error } = await supabase.from('notifications').delete().eq('id', n.id);
+      // Soft-delete via the lifecycle columns so the row is also
+      // hidden from the main /notifications page (which already
+      // filters status==='deleted'). Hard-deleting bypassed every
+      // status filter elsewhere and erased the audit trail.
+      const { error } = await supabase
+        .from('notifications')
+        .update({ status: 'deleted', deleted_at: new Date().toISOString() })
+        .eq('id', n.id);
       if (error) { toast.error('שגיאה במחיקה: ' + error.message); return; }
       queryClient.invalidateQueries({ queryKey: ['trainee-notifications', traineeId] });
+      toast.success('התראה נמחקה');
     } catch {}
   }
 
@@ -333,7 +346,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           color={COLORS.accent} defaultOpen={true}>
           {groups.unread.map(n => (
             <NotificationCard key={n.id} notification={n} variant="unread"
-              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
+              onMarkRead={markRead} onDelete={isCoachView ? handleDelete : undefined} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}
@@ -345,7 +358,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           {groups.today.map(n => (
             <NotificationCard key={n.id} notification={n}
               variant={isCoachView ? 'coach' : 'read'}
-              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
+              onMarkRead={markRead} onDelete={isCoachView ? handleDelete : undefined} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}
@@ -356,7 +369,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           color={COLORS.text} defaultOpen={true}>
           {groups.thisWeek.map(n => (
             <NotificationCard key={n.id} notification={n} variant="coach"
-              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
+              onMarkRead={markRead} onDelete={isCoachView ? handleDelete : undefined} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}
@@ -368,7 +381,7 @@ export default function TraineeNotificationsTab({ traineeId, isCoachView = false
           {groups.older.map(n => (
             <NotificationCard key={n.id} notification={n}
               variant={isCoachView ? 'coach' : 'read'}
-              onMarkRead={markRead} onDelete={handleDelete} onOpenPopup={openPopup} />
+              onMarkRead={markRead} onDelete={isCoachView ? handleDelete : undefined} onOpenPopup={openPopup} />
           ))}
         </SectionBlock>
       )}

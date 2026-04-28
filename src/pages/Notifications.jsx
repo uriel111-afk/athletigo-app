@@ -280,8 +280,26 @@ export default function Notifications() {
     [visibleNotifications]
   );
 
+  // Coach-only filter: limit the list to a single trainee. Reads
+  // trainee id from data.trainee_id (preferred) or parses ?userId=
+  // out of notification.link as a fallback for older rows that didn't
+  // populate the data field.
+  const [filterTrainee, setFilterTrainee] = useState('all');
+  const traineeIdFromNotif = (n) => {
+    if (n.data?.trainee_id) return n.data.trainee_id;
+    if (n.link && typeof n.link === 'string' && n.link.includes('userId=')) {
+      const part = n.link.split('userId=')[1] || '';
+      return decodeURIComponent(part.split('&')[0] || '') || null;
+    }
+    return null;
+  };
+
   const filteredNotifications = useMemo(() => {
     return visibleNotifications.filter(n => {
+      if (filterTrainee !== 'all') {
+        const tid = traineeIdFromNotif(n);
+        if (tid !== filterTrainee) return false;
+      }
       if (filter === 'all')      return true;
       if (filter === 'unread')   return !n.is_read && n.status !== 'handled';
       if (filter === 'deferred') return n.status === 'deferred';
@@ -289,7 +307,7 @@ export default function Notifications() {
       if (filter === 'handled')  return n.status === 'handled';
       return true;
     });
-  }, [visibleNotifications, filter]);
+  }, [visibleNotifications, filter, filterTrainee]);
 
   // Send dialog (coach)
   const { data: trainees = [] } = useQuery({
@@ -377,6 +395,30 @@ export default function Notifications() {
         </div>
       </div>
 
+      {/* B0. Coach-only trainee filter. coachTrainees is already
+          fetched at the top of the component for the birthday popup,
+          so we reuse it here without an extra query. Hidden for
+          trainee accounts (they only see their own notifications). */}
+      {isCoach && coachTrainees.length > 0 && (
+        <div style={{ padding: '0 16px', marginTop: 8, direction: 'rtl' }}>
+          <select
+            value={filterTrainee}
+            onChange={(e) => setFilterTrainee(e.target.value)}
+            style={{
+              width: '100%', padding: 10, borderRadius: 12,
+              border: '1px solid #F0E4D0', fontSize: 14,
+              direction: 'rtl', background: 'white',
+              appearance: 'auto',
+            }}
+          >
+            <option value="all">כל המתאמנים</option>
+            {coachTrainees.map(t => (
+              <option key={t.id} value={t.id}>{t.full_name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* B. Filter — chip row. Five lifecycle states now: everything,
           fresh unread, deferred ("ill handle this later"), reminders,
           handled. status==='deleted' rows are filtered out at the
@@ -447,6 +489,22 @@ export default function Notifications() {
             </div>
 
             <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Coach-side trainee tag: shows whose row this
+                  notification belongs to. Reads data.trainee_name
+                  first; falls back to looking the name up in
+                  coachTrainees by id parsed out of the link. Only
+                  rendered for the coach view. */}
+              {isCoach && (() => {
+                const tid = traineeIdFromNotif(n);
+                const name = n.data?.trainee_name
+                  || (tid ? coachTrainees.find(t => t.id === tid)?.full_name : null);
+                if (!name) return null;
+                return (
+                  <div style={{ fontSize: 12, color: '#FF6F20', fontWeight: 600, marginBottom: 2 }}>
+                    {name}
+                  </div>
+                );
+              })()}
               <div style={{
                 fontSize: '14px',
                 fontWeight: n.is_read ? 400 : 600,
