@@ -43,7 +43,10 @@ import TimerFooterBar from "@/components/TimerFooterBar";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
-const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
+// Legacy LOGO_MAIN (Supabase CDN) constant retired. Layout chrome
+// uses LOGO_ICON for the inline header bug (kept as the cream-tinted
+// transparent variant — that's chrome inside the rendered app, not
+// a loader).
 const LOGO_ICON = "/logo-transparent.png";
 
 export default function Layout({ children, currentPageName }) {

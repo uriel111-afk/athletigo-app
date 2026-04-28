@@ -16,7 +16,9 @@ import OnboardingQuestionnaire from "@/components/forms/OnboardingQuestionnaire"
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 import { generateTraineeSummary } from "@/lib/onboardingSummary";
 
-const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
+// Legacy LOGO_MAIN constant retired — onboarding now uses
+// /logoR.png + filter:brightness(0) inline so it matches every
+// other surface (boot splash, AppLoader, PageLoader, Login).
 
 // Constants moved outside
 const GOAL_OPTIONS = [
@@ -915,9 +917,17 @@ export default function Onboarding() {
             its sub-screens, so the trainee sees both layers. */}
         <OnboardingProgressBar currentStep={step === 1 ? 'details' : 'questionnaire'} />
 
-        {/* Logo */}
+        {/* Logo — same brand mark as the boot splash + every loader.
+            Solid black via filter:brightness(0) on the cream onboarding
+            card, so the trainee never sees a non-black logo flash
+            between login and the first questionnaire screen. */}
         <div className="flex justify-center mb-6 mt-2">
-          <img src={LOGO_MAIN} alt="Logo" className="h-12 object-contain" />
+          <img
+            src="/logoR.png"
+            alt="AthletiGo"
+            style={{ height: 48, width: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
         </div>
 
         {/* Content — Step 1 = personal info, Step 2 = the new

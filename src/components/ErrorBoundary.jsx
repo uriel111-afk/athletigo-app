@@ -2,7 +2,9 @@ import React from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const LOGO_MAIN = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69131bbfcdbb9bf74bf68119/f4582ad21_Untitleddesign1.png";
+// Local /logoR.png + filter:brightness(0) — matches every other
+// brand surface and works offline (the previous Supabase CDN URL
+// fails when the user opens the app without network).
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -67,15 +69,17 @@ export default class ErrorBoundary extends React.Component {
             }}
           >
             {/* Logo */}
-            <img 
-              src={LOGO_MAIN}
+            <img
+              src="/logoR.png"
               alt="AthletiGo"
               style={{
                 width: '150px',
                 height: 'auto',
                 margin: '0 auto 32px',
-                opacity: 0.5
+                filter: 'brightness(0)',
+                opacity: 0.5,
               }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
 
             {/* Error Icon */}
