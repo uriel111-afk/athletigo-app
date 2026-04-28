@@ -143,6 +143,10 @@ export default function PlanBuilder() {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
   }, [planId, planName, focusAreas, weeklyDays, description, selectedTrainees]);
 
+  // Guard so a remount or user-id refresh can't fire the heavy
+  // edit-mode load twice and clobber in-flight edits.
+  const planLoadedRef = useRef(false);
+
   useEffect(() => {
     if (!user?.id) return;
     supabase.from("users").select("id, full_name, email, role, is_coach")
@@ -154,22 +158,72 @@ export default function PlanBuilder() {
   }, [user?.id]);
 
   const loadExistingPlan = async (id) => {
-    const { data: plan } = await supabase.from("training_plans").select("*").eq("id", id).single();
-    if (!plan) return;
-    setPlanName(plan.plan_name || plan.title || "");
+    if (planLoadedRef.current) {
+      console.log('[PlanBuilder] loadExistingPlan: already loaded, skipping');
+      return;
+    }
+    planLoadedRef.current = true;
+    console.log('[PlanBuilder] loadExistingPlan: fetching plan', id);
+
+    // Plan row — maybeSingle so a missing plan logs cleanly instead
+    // of throwing.
+    const { data: plan, error: planErr } = await supabase
+      .from("training_plans").select("*").eq("id", id).maybeSingle();
+    if (planErr) {
+      console.error('[PlanBuilder] plan fetch failed:', planErr.message);
+      planLoadedRef.current = false;
+      return;
+    }
+    if (!plan) {
+      console.warn('[PlanBuilder] plan not found:', id);
+      return;
+    }
+    console.log('[PlanBuilder] plan loaded:', plan.plan_name || plan.title || plan.name);
+    setPlanName(plan.plan_name || plan.title || plan.name || "");
     setFocusAreas(plan.goal_focus || []);
     setWeeklyDays(plan.weekly_days || []);
     setDescription(plan.description || "");
     if (plan.assigned_to) setSelectedTrainees([plan.assigned_to]);
 
-    const { data: secs } = await supabase.from("training_sections")
+    const { data: secs, error: secErr } = await supabase
+      .from("training_sections")
       .select("*").eq("training_plan_id", id).order("order");
+    if (secErr) console.error('[PlanBuilder] sections fetch failed:', secErr.message);
+    console.log('[PlanBuilder] sections loaded:', (secs || []).length);
 
+    // Per-section exercise fetch (canonical path).
     const sectionsWithExercises = await Promise.all((secs || []).map(async sec => {
-      const { data: exs } = await supabase.from("exercises")
-        .select("*").eq("training_section_id", sec.id).order("order");
-      return { ...sec, exercises: exs || [] };
+      const { data: exs, error: exErr } = await supabase
+        .from("exercises").select("*").eq("training_section_id", sec.id).order("order");
+      if (exErr) console.warn('[PlanBuilder] exercises fetch failed for section', sec.id, ':', exErr.message);
+      return {
+        ...sec,
+        section_name: sec.section_name || sec.name || sec.title || 'סקשן',
+        exercises: exs || [],
+      };
     }));
+
+    // Fallback — if every section came back empty but the plan likely
+    // has rows, fetch all exercises by training_plan_id and group on
+    // the client. Catches older rows where training_section_id was
+    // never populated but training_plan_id was.
+    const totalExs = sectionsWithExercises.reduce((sum, s) => sum + s.exercises.length, 0);
+    if (totalExs === 0 && sectionsWithExercises.length > 0) {
+      console.log('[PlanBuilder] no exercises by training_section_id — trying training_plan_id fallback');
+      const { data: planExs } = await supabase
+        .from("exercises").select("*").eq("training_plan_id", id).order("order");
+      console.log('[PlanBuilder] exercises by training_plan_id:', (planExs || []).length);
+      if (planExs?.length) {
+        sectionsWithExercises.forEach(sec => {
+          sec.exercises = planExs.filter(e =>
+            e.training_section_id === sec.id || e.section_id === sec.id
+          );
+        });
+      }
+    }
+
+    const finalCount = sectionsWithExercises.reduce((sum, s) => sum + s.exercises.length, 0);
+    console.log('[PlanBuilder] FINAL:', sectionsWithExercises.length, 'sections /', finalCount, 'exercises');
     setSections(sectionsWithExercises);
     setStep(2);
   };
@@ -679,6 +733,37 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
               {ex.video_url && <span style={{ background: "#DBEAFE", color: "#1D4ED8", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🎥 וידאו</span>}
               {ex.equipment && (Array.isArray(ex.equipment) ? ex.equipment.length > 0 : true) && <span style={{ background: "#F3F4F6", color: "#888", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🛠 {Array.isArray(ex.equipment) ? ex.equipment.join(', ') : ex.equipment}</span>}
             </div>
+            {/* Inline list of sub-exercises ("רשימת תרגילים") — surfaces
+                the children array (or the legacy exercise_list /
+                sub_exercises columns) so circuit/superset rows show
+                the work without opening the param editor. */}
+            {(() => {
+              const raw = ex.children || ex.exercise_list || ex.sub_exercises;
+              let arr = raw;
+              if (typeof arr === 'string') {
+                try { arr = JSON.parse(arr); } catch { return null; }
+              }
+              if (!Array.isArray(arr) || arr.length === 0) return null;
+              return (
+                <div style={{ marginTop: 8, padding: 8, background: '#FDF8F3', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
+                    רשימת תרגילים ({arr.length})
+                  </div>
+                  {arr.map((s, i) => (
+                    <div key={i} style={{
+                      display: 'flex', justifyContent: 'space-between', padding: '4px 0',
+                      borderBottom: i < arr.length - 1 ? '1px solid #F0E4D0' : 'none',
+                      fontSize: 12, direction: 'rtl',
+                    }}>
+                      <span>{i + 1}. {s.name || s.exercise_name || s.label || ''}</span>
+                      <span style={{ color: '#888' }}>
+                        {s.sets ? `${s.sets}S` : ''} {s.reps ? `×${s.reps}` : ''} {s.weight ? `${s.weight}kg` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={() => onEditExercise(ei)} style={{ background: "none", border: "none", color: "#999", fontSize: 16, cursor: "pointer" }}>✏️</button>
