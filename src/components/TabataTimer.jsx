@@ -924,7 +924,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             }}>סבב</span>
             <span style={{
               pointerEvents: 'none',
-              fontSize: 36, fontWeight: 700,
+              fontSize: 42, fontWeight: 800,
               fontVariantNumeric: 'tabular-nums',
               color: isWork ? '#FFFFFF' : '#1A1A1A',
               lineHeight: 1,
@@ -944,7 +944,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               color: isWork ? 'rgba(255,255,255,0.75)' : '#888',
             }}>סט</span>
             <span style={{
-              fontSize: 36, fontWeight: 700,
+              fontSize: 42, fontWeight: 800,
               fontVariantNumeric: 'tabular-nums',
               color: isWork ? '#FFFFFF' : '#1A1A1A',
               lineHeight: 1,
@@ -1012,7 +1012,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             color: isWork ? 'rgba(255,255,255,0.8)' : '#FF6F20',
           }}>⏱ זמן כולל</span>
           <span style={{
-            fontSize: 52, fontWeight: 700,
+            fontSize: 72, fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
             fontFamily: "'Barlow Condensed', sans-serif",
             lineHeight: 1,
