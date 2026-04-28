@@ -3102,13 +3102,15 @@ export default function TraineeProfile() {
                           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
                             🎯 התקדמות ליעדים
                           </div>
-                          <ResponsiveContainer width="100%" height={250}>
+                          <ResponsiveContainer width="100%" height={260}>
                             <RadarChart data={radarData}>
                               <PolarGrid stroke="#F0E4D0" />
                               <PolarAngleAxis dataKey="goal" tick={{ fontSize: 11, fill: '#1A1A1A' }} />
                               <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#888' }} />
-                              <Radar dataKey="progress" stroke="#FF6F20" fill="#FF6F20" fillOpacity={0.2} strokeWidth={2} />
-                              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12 }} formatter={(v) => `${v}%`} />
+                              <Radar dataKey="progress" stroke="#FF6F20" fill="#FF6F20" fillOpacity={0.15} strokeWidth={2}
+                                dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
+                                activeDot={{ r: 7, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} formatter={(v) => `${v}%`} />
                             </RadarChart>
                           </ResponsiveContainer>
                         </div>
@@ -3329,15 +3331,19 @@ export default function TraineeProfile() {
                       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
                         📏 מעקב משקל
                       </div>
-                      <ResponsiveContainer width="100%" height={200}>
+                      <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
                           <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
-                          <YAxis tick={{ fontSize: 11, fill: '#888' }} />
-                          <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12 }} />
-                          <Line type="monotone" dataKey="weight" name="משקל (ק״ג)" stroke="#FF6F20" strokeWidth={2} dot={{ r: 5, fill: '#FF6F20' }} />
+                          <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
+                          <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} />
+                          <Line type="monotone" dataKey="weight" name="משקל (ק״ג)" stroke="#FF6F20" strokeWidth={2.5}
+                            dot={{ r: 6, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
+                            activeDot={{ r: 8, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
                           {hasBMI && (
-                            <Line type="monotone" dataKey="bmi" name="BMI" stroke="#1D9E75" strokeWidth={2} dot={{ r: 4, fill: '#1D9E75' }} />
+                            <Line type="monotone" dataKey="bmi" name="BMI" stroke="#1D9E75" strokeWidth={2}
+                              dot={{ r: 5, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }}
+                              activeDot={{ r: 7, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }} />
                           )}
                         </LineChart>
                       </ResponsiveContainer>
@@ -3396,15 +3402,21 @@ export default function TraineeProfile() {
                       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
                         📈 התקדמות בייסליין
                       </div>
-                      <ResponsiveContainer width="100%" height={200}>
+                      <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
                           <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
-                          <YAxis tick={{ fontSize: 11, fill: '#888' }} />
-                          <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12 }} />
-                          <Line type="monotone" dataKey="jps"   name="JPS"  stroke="#FF6F20" strokeWidth={2} dot={{ r: 5, fill: '#FF6F20' }} />
-                          <Line type="monotone" dataKey="total" name="סה״כ" stroke="#1D9E75" strokeWidth={2} dot={{ r: 4, fill: '#1D9E75' }} />
-                          <Line type="monotone" dataKey="best"  name="שיא"  stroke="#D85A30" strokeWidth={2} dot={{ r: 4, fill: '#D85A30' }} />
+                          <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
+                          <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} />
+                          <Line type="monotone" dataKey="jps"   name="JPS"  stroke="#FF6F20" strokeWidth={2.5}
+                            dot={{ r: 6, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
+                            activeDot={{ r: 8, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                          <Line type="monotone" dataKey="total" name="סה״כ" stroke="#1D9E75" strokeWidth={2}
+                            dot={{ r: 5, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }}
+                            activeDot={{ r: 7, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }} />
+                          <Line type="monotone" dataKey="best"  name="שיא"  stroke="#D85A30" strokeWidth={2}
+                            dot={{ r: 5, fill: '#D85A30', stroke: 'white', strokeWidth: 2 }}
+                            activeDot={{ r: 7, fill: '#D85A30', stroke: 'white', strokeWidth: 2 }} />
                         </LineChart>
                       </ResponsiveContainer>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8, fontSize: 12 }}>

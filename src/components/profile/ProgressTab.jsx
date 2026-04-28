@@ -214,32 +214,36 @@ export default function ProgressTab({ traineeId }) {
               >
                 <CartesianGrid stroke={BORDER} strokeDasharray="3 3" />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#888' }} />
+                <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
                 <Tooltip
                   contentStyle={{
-                    borderRadius: 10, border: `1px solid ${BORDER}`,
-                    background: '#fff', fontSize: 12,
+                    borderRadius: 12, border: `1px solid ${BORDER}`,
+                    background: '#fff', fontSize: 12, direction: 'rtl',
                   }}
-                  labelStyle={{ color: '#888' }}
+                  labelStyle={{ fontWeight: 600 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="value"
                   stroke={O}
-                  strokeWidth={2}
-                  fill="rgba(255,111,32,0.1)"
+                  strokeWidth={2.5}
+                  fill="rgba(255,111,32,0.08)"
                   dot={(props) => {
+                    // PB → bigger solid orange dot. Non-PB → white dot
+                    // with orange border. Both keep an outer white halo
+                    // (stroke="white") so the line passes behind cleanly.
                     const { cx, cy, payload, index } = props;
+                    const isPB = !!payload?.pb;
                     return (
                       <circle
                         key={`dot-${index}`}
-                        cx={cx} cy={cy} r={5}
-                        fill={payload.pb ? O : '#FDF8F3'}
+                        cx={cx} cy={cy} r={isPB ? 8 : 5}
+                        fill={isPB ? O : 'white'}
                         stroke={O} strokeWidth={2}
                       />
                     );
                   }}
-                  activeDot={{ r: 7, fill: O, stroke: '#fff', strokeWidth: 2 }}
+                  activeDot={{ r: 8, fill: O, stroke: 'white', strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
