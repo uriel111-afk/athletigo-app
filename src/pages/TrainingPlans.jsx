@@ -283,20 +283,24 @@ export default function TrainingPlans() {
 
   const deletePlanMutation = useMutation({
     mutationFn: async (planId) => {
-      const planSections = sections.filter(s => s.training_plan_id === planId);
-      for (const section of planSections) {
-        const sectionExercises = exercises.filter(e => e.training_section_id === section.id);
-        for (const exercise of sectionExercises) {
-          await base44.entities.Exercise.delete(exercise.id);
-        }
-        await base44.entities.TrainingSection.delete(section.id);
-      }
-      await base44.entities.TrainingPlan.delete(planId);
+      // Soft-delete: status='deleted' + deleted_at=now. Trainees see
+      // the change immediately because MyPlan filters out deleted
+      // plans, and we don't lose the row + its exercise history.
+      // The previous version cascade-DELETED sections + exercises
+      // too, which was destructive and made the coach's "ביטול
+      // טעות" impossible — we intentionally drop that cascade.
+      await base44.entities.TrainingPlan.update(planId, {
+        status: 'deleted',
+        deleted_at: new Date().toISOString(),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['training-sections'] });
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      // Trainee-side query key — keeps MyPlan in sync the moment
+      // the coach soft-deletes the plan.
+      queryClient.invalidateQueries({ queryKey: ['training-plans', { side: 'trainee' }] });
       invalidateDashboard(queryClient);
       setSelectedPlan(null);
       toast.success("✅ נמחק");

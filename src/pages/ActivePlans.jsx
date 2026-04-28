@@ -146,11 +146,17 @@ export default function ActivePlans() {
       toast.error("❌ שגיאה בעדכון: " + (err.message || "נסה שוב")),
   });
 
-  // ── Delete Mutation ────────────────────────────────────────────────────
+  // ── Delete Mutation (soft) ─────────────────────────────────────
   const deletePlanMutation = useMutation({
-    mutationFn: (id) => base44.entities.TrainingPlan.delete(id),
+    // Soft-delete so trainees and the cascade UI both update without
+    // losing the row + its exercise history.
+    mutationFn: (id) => base44.entities.TrainingPlan.update(id, {
+      status: 'deleted',
+      deleted_at: new Date().toISOString(),
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       toast.success("✅ תוכנית נמחקה");
     },
     onError: (err) =>

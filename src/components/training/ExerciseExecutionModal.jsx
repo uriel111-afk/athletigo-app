@@ -21,8 +21,26 @@ const formatTime = (val) => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
+const asArray = (v) => {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  return [];
+};
 const getSubExercises = (ex) => {
-  // New format: tabata_data JSON with sub_exercises
+  // PlanBuilder writes the "רשימת תרגילים" param to ex.children;
+  // some installs use ex.exercise_list; older formats put it inside
+  // tabata_data.sub_exercises / .blocks. Accept all four shapes so
+  // the sub-exercise list always renders regardless of where it
+  // ended up in the row.
+  const fromChildren     = asArray(ex.children);
+  if (fromChildren.length)     return fromChildren;
+  const fromList         = asArray(ex.exercise_list);
+  if (fromList.length)         return fromList;
   if (ex.tabata_data) {
     try {
       const parsed = typeof ex.tabata_data === "string" ? JSON.parse(ex.tabata_data) : ex.tabata_data;
@@ -39,7 +57,7 @@ const getSubExercises = (ex) => {
     } catch {}
   }
   // Legacy format
-  const legacy = ex.tabata_exercises || ex.combo_exercises || ex.superset_exercises || ex.exercises;
+  const legacy = ex.tabata_exercises || ex.combo_exercises || ex.superset_exercises || ex.exercises || ex.sub_exercises;
   if (Array.isArray(legacy) && legacy.length > 0) return legacy;
   return [];
 };

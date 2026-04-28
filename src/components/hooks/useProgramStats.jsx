@@ -7,7 +7,12 @@ export function useProgramStats() {
     queryKey: QUERY_KEYS.PLANS,
     queryFn: async () => {
       try {
-        return await base44.entities.TrainingPlan.list('-created_at', 1000);
+        const all = await base44.entities.TrainingPlan.list('-created_at', 1000);
+        // Filter soft-deleted plans (status='deleted' / deleted_at
+        // populated) so a coach who deletes a plan stops seeing it
+        // on this list immediately. Old data stays in DB; the list
+        // hides it.
+        return (all || []).filter(p => p.status !== 'deleted' && !p.deleted_at);
       } catch { return []; }
     },
     initialData: [],

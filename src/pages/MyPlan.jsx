@@ -197,12 +197,16 @@ function MyPlanInner() {
     queryKey: ['training-plans', user?.id],
     queryFn: async () => {
       if (!user || isCoach) return [];
+      console.log('[MyPlan] loading plans for trainee:', user.id);
       try {
         const directPlansPromise = base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-start_date').catch(() => []);
         const assignmentsPromise = base44.entities.TrainingPlanAssignment.filter({ trainee_id: user.id }).catch(() => []);
         const createdPlansPromise = base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at').catch(() => []);
 
         const [directPlans, assignments, createdByMe] = await Promise.all([directPlansPromise, assignmentsPromise, createdPlansPromise]);
+        console.log('[MyPlan] plans result:', {
+          direct: directPlans?.length, assignments: assignments?.length, createdByMe: createdByMe?.length,
+        });
 
         let sharedPlans = [];
         if (assignments && assignments.length > 0) {
@@ -215,7 +219,13 @@ function MyPlanInner() {
         }
 
         const combined = [...(directPlans || []), ...(sharedPlans || []), ...(createdByMe || [])];
-        return Array.from(new Map(combined.filter(Boolean).map(item => [item.id, item])).values());
+        const dedup = Array.from(new Map(combined.filter(Boolean).map(item => [item.id, item])).values());
+        // Hide soft-deleted plans (status='deleted' / deleted_at set)
+        // so the coach removing a plan from their side immediately
+        // disappears it from the trainee's view too.
+        const visible = dedup.filter(p => p.status !== 'deleted' && !p.deleted_at);
+        console.log('[MyPlan] plans visible:', visible.length, '/', dedup.length);
+        return visible;
       } catch (error) {
         console.error("[MyPlan] Critical error loading plans:", error);
         return [];
@@ -376,15 +386,15 @@ function MyPlanInner() {
 
   const deletePlanMutation = useMutation({
     mutationFn: async (planId) => {
-      const planSections = await base44.entities.TrainingSection.filter({ training_plan_id: planId }).catch(() => []);
-      for (const section of planSections) {
-        const sectionExercises = await base44.entities.Exercise.filter({ training_section_id: section.id }).catch(() => []);
-        for (const exercise of sectionExercises) {
-          await base44.entities.Exercise.delete(exercise.id).catch(() => {});
-        }
-        await base44.entities.TrainingSection.delete(section.id).catch(() => {});
-      }
-      await base44.entities.TrainingPlan.delete(planId);
+      // Soft-delete only — drop the destructive section/exercise
+      // cascade so the row + its history can be recovered. The
+      // trainee's MyPlan loader filters status='deleted' and the
+      // coach's plan list does too, so the visual effect is the
+      // same: plan disappears.
+      await base44.entities.TrainingPlan.update(planId, {
+        status: 'deleted',
+        deleted_at: new Date().toISOString(),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });

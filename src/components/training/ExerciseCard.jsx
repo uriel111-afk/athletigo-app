@@ -74,11 +74,35 @@ const buildChips = (ex) => {
   return chips;
 };
 
-/**
- * Parse sub-exercises from tabata_data JSON
- */
+// Parse the sub-exercise list from any of the three column shapes
+// the codebase uses interchangeably:
+//   • ex.children      — canonical column per CLAUDE.md (PlanBuilder
+//                         saves the "רשימת תרגילים" param here)
+//   • ex.exercise_list — alternate alias some installs use
+//   • ex.sub_exercises — legacy direct array column
+//   • ex.tabata_data.sub_exercises / .blocks — embedded inside the
+//                         tabata config blob (older format)
+// Each shape may be a parsed array or a JSON string. Normalize.
+const asArray = (v) => {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  return [];
+};
 const getSubExercises = (ex) => {
-  if (ex.sub_exercises?.length > 0) return ex.sub_exercises;
+  // ParamWidgets ListBuilder hands back items shaped { name, sets,
+  // reps, time, weight }. Map onto a stable display shape so the
+  // UI doesn't have to know which column it came from.
+  const fromChildren     = asArray(ex.children);
+  if (fromChildren.length)     return fromChildren;
+  const fromList         = asArray(ex.exercise_list);
+  if (fromList.length)         return fromList;
+  const fromSubExercises = asArray(ex.sub_exercises);
+  if (fromSubExercises.length) return fromSubExercises;
   if (!ex.tabata_data) return [];
   try {
     const parsed = typeof ex.tabata_data === "string" ? JSON.parse(ex.tabata_data) : ex.tabata_data;
