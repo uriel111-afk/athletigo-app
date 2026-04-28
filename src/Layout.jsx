@@ -183,12 +183,12 @@ export default function Layout({ children, currentPageName }) {
     // ── ניהול יומיומי ──
     { title: "דשבורד", url: createPageUrl("Dashboard"), icon: LayoutDashboard, section: "daily" },
     { title: "מתאמנים", url: createPageUrl("AllUsers"), icon: Users, section: "daily" },
-    { title: "תוכניות פעילות", url: createPageUrl("PlanBuilder"), icon: Dumbbell, section: "daily" },
+    { title: "תוכניות פעילות", url: createPageUrl("TrainingPlans"), icon: Dumbbell, section: "daily" },
     { title: "מפגשים", url: createPageUrl("Sessions"), icon: Calendar, section: "daily" },
     { title: "לידים", url: createPageUrl("Leads"), icon: UserPlus, section: "daily" },
     { title: "התראות", url: createPageUrl("Notifications"), icon: Bell, section: "daily", showBadge: true },
     // ── ניהול תוכן ──
-    { title: "כל התוכניות", url: createPageUrl("PlanBuilder"), icon: ClipboardList, section: "content" },
+    { title: "כל התוכניות", url: createPageUrl("TrainingPlans"), icon: ClipboardList, section: "content" },
     { title: "אתגרי אימון", url: createPageUrl("Challenges"), icon: Flame, section: "content" },
     { title: "מסלולים", url: createPageUrl("SkillTracks"), icon: Route, section: "content" },
     { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
@@ -564,7 +564,7 @@ export default function Layout({ children, currentPageName }) {
                 const navItems = isCoach ? [
                   { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
-                  { to: createPageUrl("PlanBuilder"),  emoji: '📋', label: 'תוכניות' },
+                  { to: createPageUrl("TrainingPlans"),emoji: '📋', label: 'תוכניות' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
                   { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
                 ] : traineeNav;

@@ -479,7 +479,7 @@ export default function Dashboard() {
               { label: "לידים חדשים",    value: newLeadsCount,         color: "#dc2626", rgb: "220,38,38",   to: createPageUrl("Leads") + "?filter=new" },
               { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#7F47B5", rgb: "127,71,181",  to: createPageUrl("Sessions") + "?status=upcoming" },
               { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#16a34a", rgb: "22,163,74",   to: createPageUrl("AllUsers") + "?filter=active" },
-              { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", rgb: "255,111,32",  to: createPageUrl("PlanBuilder") },
+              { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", rgb: "255,111,32",  to: createPageUrl("TrainingPlans") },
             ].map((m) => (
               <button key={m.label} onClick={() => navigate(m.to)}
                 className="bg-white flex flex-col items-center cursor-pointer transition-all active:scale-[0.97]"
