@@ -74,6 +74,7 @@ import PlanCard from "@/components/plans/PlanCard";
 import PlanEditorDialog from "@/components/plans/PlanEditorDialog";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
+import ClientStatusPicker from "@/components/users/ClientStatusPicker";
 import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
@@ -997,6 +998,7 @@ function PersonalTab({
   onResetPassword,
   onChangePassword,
   onChangeStatus,
+  onApplyStatusChange,
   onArchive,
 }) {
   const queryClient = useQueryClient();
@@ -1179,6 +1181,34 @@ function PersonalTab({
           <EditableField label="כתובת"        value={user?.address}          fieldKey="address" />
           <EditableField label="עיר"          value={user?.city}             fieldKey="city" />
         </div>
+
+        {/* Coach-only client status picker — pills row.
+            'onboarding' is read-only here per design (the wizard
+            owns that status); the other four statuses flip
+            immediately on tap, routing through the parent's
+            handleStatusChange so trainee_permissions and the
+            package freeze/unfreeze cascade run alongside the
+            simple users.client_status update. */}
+        {isCoach && onApplyStatusChange && (
+          <section style={{ marginTop: 18 }}>
+            <h3 style={{
+              fontSize: 13, color: '#888',
+              marginBottom: 8,
+              fontWeight: 600,
+            }}>
+              סטטוס מתאמן
+            </h3>
+            <ClientStatusPicker
+              variant="pills"
+              value={user?.client_status}
+              onChange={(newStatus) => onApplyStatusChange(newStatus)}
+            />
+            <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+              הסטטוס משפיע על אילו features המתאמן רואה במערכת.
+              {user?.client_status === 'onboarding' && ' מנוהל אוטומטית במהלך האונבורדינג.'}
+            </div>
+          </section>
+        )}
 
         {editingDetails && (
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -3469,6 +3499,7 @@ export default function TraineeProfile() {
                   onResetPassword={() => setShowResetPw(true)}
                   onChangePassword={() => setShowPasswordChange(true)}
                   onChangeStatus={() => setStatusMenuOpen(true)}
+                  onApplyStatusChange={(newStatus) => handleStatusChange(newStatus)}
                   onArchive={() => setShowDeleteConfirm(true)}
                 />
               </TabsContent>
