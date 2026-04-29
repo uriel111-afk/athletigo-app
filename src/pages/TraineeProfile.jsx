@@ -1397,6 +1397,11 @@ export default function TraineeProfile() {
   // BaselineFormDialog mounts globally in App.jsx — opened via
   // openBaselineDialog({ traineeId, traineeName }).
   const [showBaselineDetail, setShowBaselineDetail] = useState(null);
+  // Session-level popup — { date, techniques: [...] }. Set by clicking
+  // a closed baseline card; cleared by the modal's X / backdrop click.
+  // Distinct from showBaselineDetail (which is the legacy single-row
+  // detail modal kept reachable from the per-row edit flow).
+  const [viewBaseline, setViewBaseline] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -3828,10 +3833,9 @@ export default function TraineeProfile() {
                 {baselines.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
                 ) : (() => {
-                  // Group rows by session date so a multi-technique
-                  // baseline shows as ONE card with a row per technique.
-                  // Edit/delete still operate on the per-technique row.
-                  const techColors = { basic: '#FF6F20', foot_switch: '#2196F3', high_knees: '#4CAF50', criss: '#9C27B0' };
+                  // Closed cards: minimal — date header + a row per
+                  // technique (name + JPS). Tap anywhere on the card
+                  // to open the session popup with the full breakdown.
                   const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
                   const groups = {};
                   for (const b of baselines) {
@@ -3844,122 +3848,33 @@ export default function TraineeProfile() {
                       {sortedDates.map(dateKey => {
                         const techniques = groups[dateKey];
                         const dateLabel = new Date(dateKey).toLocaleDateString('he-IL');
-                        const sessionMeta = techniques[0];
                         return (
-                          <div key={dateKey} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                            <div className="flex justify-between items-center mb-3" style={{ direction: 'rtl' }}>
-                              <button onClick={() => setShowBaselineDetail(sessionMeta.id)} className="text-right active:scale-[0.98] transition-transform">
-                                <h4 className="font-bold text-base text-gray-900">📋 בייסליין — {dateLabel}</h4>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  {techniques.length} {techniques.length === 1 ? 'טכניקה' : 'טכניקות'}
-                                  {sessionMeta.rounds_count ? ` · ${sessionMeta.rounds_count} סיבובים × ${sessionMeta.work_time_seconds} שניות` : ''}
-                                </p>
-                              </button>
+                          <div
+                            key={dateKey}
+                            onClick={() => setViewBaseline({ date: dateKey, techniques })}
+                            style={{
+                              background: 'white', borderRadius: 14,
+                              border: '1px solid #F0E4D0',
+                              padding: 14, cursor: 'pointer', direction: 'rtl',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <div style={{ fontSize: 15, fontWeight: 600 }}>📋 בייסליין</div>
+                              <div style={{ fontSize: 13, color: '#888' }}>{dateLabel}</div>
                             </div>
-
-                            {/* Per-technique table */}
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'auto 1fr 1fr 1fr 1fr auto',
-                              columnGap: 12, rowGap: 4,
-                              fontSize: 13, direction: 'rtl', alignItems: 'center',
-                            }}>
-                              <div style={{ fontWeight: 600, color: '#888' }}>טכניקה</div>
-                              <div style={{ fontWeight: 600, color: '#888', textAlign: 'center' }}>סה״כ</div>
-                              <div style={{ fontWeight: 600, color: '#888', textAlign: 'center' }}>ממוצע</div>
-                              <div style={{ fontWeight: 600, color: '#888', textAlign: 'center' }}>שיא</div>
-                              <div style={{ fontWeight: 600, color: '#FF6F20', textAlign: 'center' }}>JPS</div>
-                              <div></div>
-                              {techniques.map(t => {
-                                const techName = techLabels[t.technique] || t.technique || 'בסיס';
-                                const total = t.total_jumps ?? 0;
-                                const avg = t.average_jumps ?? (total && t.rounds_count ? (total / t.rounds_count).toFixed(1) : '—');
-                                const best = t.best_round ?? '—';
-                                const jps = Number(t.baseline_score) || 0;
-                                const color = techColors[t.technique] || '#FF6F20';
-                                return (
-                                  <React.Fragment key={t.id}>
-                                    <button onClick={() => setShowBaselineDetail(t.id)} style={{
-                                      fontWeight: 500, color: color, textAlign: 'right',
-                                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                                    }}>{techName}</button>
-                                    <div style={{ textAlign: 'center' }}>{total}</div>
-                                    <div style={{ textAlign: 'center' }}>{avg}</div>
-                                    <div style={{ textAlign: 'center', color: '#D85A30' }}>{best}</div>
-                                    <div style={{ textAlign: 'center', fontWeight: 700, color }}>{jps}</div>
-                                    <div style={{ display: 'flex', gap: 2 }}>
-                                      {isCoach && (
-                                        <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50"
-                                          onClick={async (e) => {
-                                            e.stopPropagation();
-                                            const newDate = prompt('תאריך (YYYY-MM-DD):', t.date);
-                                            if (newDate === null) return;
-                                            const newScore = prompt('ציון JPS:', t.baseline_score);
-                                            if (newScore === null) return;
-                                            const newNotes = prompt('הערות:', t.notes || '');
-                                            if (newNotes === null) return;
-                                            try {
-                                              const updates = {};
-                                              if (newDate && newDate !== t.date) updates.date = newDate;
-                                              if (newScore && parseFloat(newScore) !== t.baseline_score) updates.baseline_score = parseFloat(newScore);
-                                              if (newNotes !== (t.notes || '')) updates.notes = newNotes || null;
-                                              if (Object.keys(updates).length === 0) return;
-                                              await supabase.from('baselines').update(updates).eq('id', t.id);
-                                              if (updates.date) { try { await supabase.from('results_log').update({ date: updates.date }).eq('baseline_id', t.id); } catch {} }
-                                              if (updates.baseline_score) { try { await supabase.from('results_log').update({ record_value: String(updates.baseline_score) }).eq('baseline_id', t.id); } catch {} }
-                                              toast.success("בייסליין עודכן");
-                                              queryClient.invalidateQueries({ queryKey: ['baselines'] });
-                                              queryClient.invalidateQueries({ queryKey: ['my-results'] });
-                                              invalidateDashboard(queryClient);
-                                            } catch (err) { toast.error("שגיאה: " + (err?.message || '')); }
-                                          }}>
-                                          <Edit2 className="w-3.5 h-3.5" />
-                                        </Button>
-                                      )}
-                                      {isCoach && (
-                                        <Button variant="ghost" size="icon" className="w-7 h-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (!window.confirm(`למחוק את ${techName} מתאריך ${dateLabel}?`)) return;
-                                            (async () => {
-                                              try {
-                                                try { await supabase.from('results_log').delete().eq('baseline_id', t.id); } catch {}
-                                                await base44.entities.Baseline.delete(t.id);
-                                                toast.success("בייסליין נמחק");
-                                                queryClient.invalidateQueries({ queryKey: ['baselines'] });
-                                                queryClient.invalidateQueries({ queryKey: ['my-results'] });
-                                                queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                                                invalidateDashboard(queryClient);
-                                              } catch (err) {
-                                                toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
-                                              }
-                                            })();
-                                          }}>
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </React.Fragment>
-                                );
-                              })}
-                            </div>
-
-                            {/* Per-technique rounds detail */}
-                            <div style={{ marginTop: 10, fontSize: 12, color: '#888', direction: 'rtl' }}>
-                              {techniques.map(t => {
-                                const techName = techLabels[t.technique] || t.technique || 'בסיס';
-                                const rd = Array.isArray(t.rounds_data) ? t.rounds_data : [];
-                                if (rd.length === 0) return null;
-                                return (
-                                  <div key={t.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
-                                    <span style={{ fontWeight: 500, color: techColors[t.technique] || '#FF6F20' }}>{techName}:</span>
-                                    {rd.map((r, i) => (
-                                      <span key={i}>סבב {r.round || i + 1}: {r.jumps ?? '—'}</span>
-                                    ))}
-                                  </div>
-                                );
-                              })}
-                            </div>
+                            {techniques.map(t => {
+                              const techName = techLabels[t.technique] || t.technique || 'בסיס';
+                              const jps = Number(t.baseline_score ?? t.jps ?? t.score ?? 0).toFixed(2);
+                              return (
+                                <div key={t.id} style={{
+                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                  padding: '4px 0', borderTop: '1px solid #F0E4D0', fontSize: 13,
+                                }}>
+                                  <span style={{ color: '#555' }}>{techName}</span>
+                                  <span style={{ fontWeight: 700, color: '#FF6F20' }}>{jps} JPS</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         );
                       })}
@@ -5094,6 +5009,183 @@ export default function TraineeProfile() {
           />
         )}
         <BaselineDetailView isOpen={!!showBaselineDetail} onClose={() => setShowBaselineDetail(null)} baselineId={showBaselineDetail} />
+
+        {/* Session-level baseline popup — shows every technique row
+            from one date with rounds + totals + JPS + work/rest times.
+            Edit/delete still operate per technique (the existing
+            base44/supabase update flow), so the coach can fix a single
+            row without losing the rest of the session. */}
+        {viewBaseline && (() => {
+          const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
+          const techColors = { basic: '#FF6F20', foot_switch: '#2196F3', high_knees: '#4CAF50', criss: '#9C27B0' };
+          const dateLabel = new Date(viewBaseline.date).toLocaleDateString('he-IL');
+          return (
+            <div
+              onClick={() => setViewBaseline(null)}
+              style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0,0,0,0.4)', zIndex: 10000,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 16,
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: 'white', borderRadius: 14, padding: 20,
+                  maxWidth: 420, width: '95%',
+                  maxHeight: '85vh', overflowY: 'auto',
+                  direction: 'rtl', position: 'relative',
+                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewBaseline(null)}
+                  aria-label="סגור"
+                  style={{
+                    position: 'absolute', top: 10, left: 10,
+                    background: 'none', border: 'none',
+                    fontSize: 22, cursor: 'pointer', color: '#888',
+                    padding: 4, lineHeight: 1,
+                  }}
+                >✕</button>
+
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600 }}>📋 בייסליין</div>
+                  <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{dateLabel}</div>
+                </div>
+
+                {viewBaseline.techniques.map(t => {
+                  const techName = techLabels[t.technique] || t.technique || 'בסיס';
+                  const color = techColors[t.technique] || '#FF6F20';
+                  const total = t.total_jumps ?? 0;
+                  const avg = t.average_jumps ?? (total && t.rounds_count ? (total / t.rounds_count).toFixed(1) : '—');
+                  const best = t.best_round ?? '—';
+                  const jps = Number(t.baseline_score ?? t.jps ?? t.score ?? 0).toFixed(2);
+                  const rounds = Array.isArray(t.rounds_data) ? t.rounds_data : [];
+                  const workTime = t.work_time_seconds ?? t.work_time;
+                  const restTime = t.rest_time_seconds ?? t.rest_time;
+                  const techRest = t.tech_rest_seconds ?? t.tech_rest_time;
+                  return (
+                    <div key={t.id} style={{
+                      background: '#FDF8F3', borderRadius: 12, padding: 14,
+                      marginBottom: 12, border: '1px solid #F0E4D0',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color }}>{techName}</div>
+                        {isCoach && (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const newDate = prompt('תאריך (YYYY-MM-DD):', t.date);
+                                if (newDate === null) return;
+                                const newScore = prompt('ציון JPS:', t.baseline_score);
+                                if (newScore === null) return;
+                                const newNotes = prompt('הערות:', t.notes || '');
+                                if (newNotes === null) return;
+                                try {
+                                  const updates = {};
+                                  if (newDate && newDate !== t.date) updates.date = newDate;
+                                  if (newScore && parseFloat(newScore) !== t.baseline_score) updates.baseline_score = parseFloat(newScore);
+                                  if (newNotes !== (t.notes || '')) updates.notes = newNotes || null;
+                                  if (Object.keys(updates).length === 0) return;
+                                  await supabase.from('baselines').update(updates).eq('id', t.id);
+                                  if (updates.date) { try { await supabase.from('results_log').update({ date: updates.date }).eq('baseline_id', t.id); } catch {} }
+                                  if (updates.baseline_score) { try { await supabase.from('results_log').update({ record_value: String(updates.baseline_score) }).eq('baseline_id', t.id); } catch {} }
+                                  toast.success("בייסליין עודכן");
+                                  queryClient.invalidateQueries({ queryKey: ['baselines'] });
+                                  queryClient.invalidateQueries({ queryKey: ['my-results'] });
+                                  invalidateDashboard(queryClient);
+                                  setViewBaseline(null);
+                                } catch (err) { toast.error("שגיאה: " + (err?.message || '')); }
+                              }}>
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="w-7 h-7 text-red-400 hover:text-red-600 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!window.confirm(`למחוק את ${techName} מתאריך ${dateLabel}?`)) return;
+                                (async () => {
+                                  try {
+                                    try { await supabase.from('results_log').delete().eq('baseline_id', t.id); } catch {}
+                                    await base44.entities.Baseline.delete(t.id);
+                                    toast.success("בייסליין נמחק");
+                                    queryClient.invalidateQueries({ queryKey: ['baselines'] });
+                                    queryClient.invalidateQueries({ queryKey: ['my-results'] });
+                                    queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                    invalidateDashboard(queryClient);
+                                    setViewBaseline(null);
+                                  } catch (err) {
+                                    toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
+                                  }
+                                })();
+                              }}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Rounds — one tile per round in rounds_data */}
+                      {rounds.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                          {rounds.map((r, i) => (
+                            <div key={i} style={{
+                              flex: '1 1 70px', textAlign: 'center', background: 'white',
+                              borderRadius: 10, padding: 10, border: '1px solid #F0E4D0',
+                            }}>
+                              <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>סיבוב {r.round || i + 1}</div>
+                              <div style={{ fontSize: 20, fontWeight: 700 }}>{r.jumps ?? 0}</div>
+                              <div style={{ fontSize: 10, color: '#888' }}>קפיצות</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Totals */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: '#888' }}>סה״כ</div>
+                          <div style={{ fontSize: 16, fontWeight: 600 }}>{total}</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: '#888' }}>ממוצע</div>
+                          <div style={{ fontSize: 16, fontWeight: 600 }}>{avg}</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: '#888' }}>שיא</div>
+                          <div style={{ fontSize: 16, fontWeight: 600, color: '#D85A30' }}>{best}</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: '#888' }}>JPS</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color }}>{jps}</div>
+                        </div>
+                      </div>
+
+                      {/* Times */}
+                      {(workTime || restTime || techRest) && (
+                        <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 12, color: '#888', flexWrap: 'wrap' }}>
+                          {workTime ? <span>עבודה: {workTime}״</span> : null}
+                          {restTime ? <span>מנוחה: {restTime}״</span> : null}
+                          {techRest ? <span>מנו׳ טכניקות: {techRest}״</span> : null}
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {t.notes && (
+                        <div style={{ marginTop: 10, padding: 10, background: 'white', borderRadius: 10, fontSize: 13, color: '#1A1A1A', lineHeight: 1.5 }}>
+                          {t.notes}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Plan Form Dialog — pre-selects current trainee */}
         <PlanFormDialog
