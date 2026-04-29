@@ -15,6 +15,7 @@ import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { supabase } from "@/lib/supabaseClient";
 import SessionStatusPicker from "@/components/sessions/SessionStatusPicker";
+import { useQueryClient } from "@tanstack/react-query";
 import { DraftBanner } from "@/components/DraftBanner";
 import DraftPrompt from "@/components/DraftPrompt";
 
@@ -53,6 +54,7 @@ export default function SessionFormDialog({
   isLoading = false
 }) {
   const { user: currentCoach } = useContext(AuthContext);
+  const queryClient = useQueryClient();
 
   const initialData = editingSession ? {
     date: editingSession.date || "",
@@ -179,6 +181,9 @@ export default function SessionFormDialog({
 
       setGuestForm({ full_name: "", phone: "", email: "", birth_date: "", parent_name: "", health_declaration: false, notes: "" });
       setShowGuestForm(false);
+      // Trainee/lead lists pick up the new row on next render.
+      queryClient.invalidateQueries({ queryKey: ['trainees-list'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success("משתתף חדש נוסף בהצלחה");
     } catch (e) {
         console.error("Error creating guest lead:", e);
@@ -347,6 +352,13 @@ export default function SessionFormDialog({
                         console.warn('[SessionForm] status-change notif failed:', e?.message);
                       }
                     }
+                    // Refresh every list that paints session status.
+                    // Both keys are passed in different parts of the
+                    // app (coach Sessions page uses ['sessions'],
+                    // TraineeProfile uses ['trainee-sessions']).
+                    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+                    queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                    queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
                     toast.success(`הסטטוס עודכן ל-${newStatus}`);
                   } catch (e) {
                     console.warn('[SessionForm] status update failed:', e?.message);

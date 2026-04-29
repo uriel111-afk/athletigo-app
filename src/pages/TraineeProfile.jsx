@@ -1789,14 +1789,44 @@ export default function TraineeProfile() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Lightweight cross-tab query: just today's session for the
+  // welcome header. Lets the full `sessions` list stay lazy
+  // (attendance-tab-only) without making the header silently say
+  // "no session today" while the heavy query loads.
+  const { data: todaySessionRow } = useQuery({
+    queryKey: ['trainee-today-session', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, date, time, participants, status, deleted_at')
+        .eq('trainee_id', user.id)
+        .gte('date', today)
+        .lt('date', today + 'T23:59:59')
+        .order('time', { ascending: true })
+        .limit(5);
+      if (error) {
+        console.warn('[TraineeProfile] today-session query failed:', error.message);
+        return null;
+      }
+      const live = (data || []).filter(s => s.status !== 'deleted' && !s.deleted_at);
+      return live[0] || null;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Heavy sessions list — full history with all columns. Used by:
+  //   • the attendance tab (list + per-session detail)
+  //   • the services tab (package usage / link-session dialog)
+  //
+  // Lazy-loads when either of those tabs is open. The welcome
+  // header above uses the dedicated `todaySessionRow` query so it
+  // doesn't depend on this heavy fetch landing.
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: ['trainee-sessions', user?.id],
     queryFn: async () => {
-      // Direct trainee_id query — the legacy participants[] @> [...]
-      // fallback was hard-400'ing because supabase serialised the JS
-      // object as `[object Object]` in the URL. Every active session
-      // already has a top-level `trainee_id`, so the fallback was
-      // redundant on top of broken.
       console.log('[TraineeProfile] sessions query — trainee:', user.id);
       const { data, error } = await supabase
         .from('sessions')
@@ -1807,14 +1837,11 @@ export default function TraineeProfile() {
         console.warn('[TraineeProfile] sessions query failed:', error.message);
         return [];
       }
-      // Soft-deleted sessions are hidden from every list. status
-      // 'deleted' or a populated deleted_at both qualify so we
-      // handle older rows that may carry only one signal.
       const result = (data || []).filter(s => s.status !== 'deleted' && !s.deleted_at);
       console.log('[TraineeProfile] sessions FINAL count:', result.length);
       return result;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (activeTab === 'attendance' || activeTab === 'services'),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -3333,11 +3360,10 @@ export default function TraineeProfile() {
                   </h1>
                   <p className="text-white/60 text-[11px] sm:text-xs mt-1 truncate">
                     {(() => {
-                      const today = new Date().toISOString().split('T')[0];
-                      const todaySession = sessions.find(s =>
-                        s.date?.startsWith(today) && s.participants?.some(p => p.trainee_id === user.id)
-                      );
-                      if (todaySession) return `יש לך אימון היום בשעה ${todaySession.time || '—'}`;
+                      // Reads from the lightweight today-session
+                      // query so this line resolves immediately
+                      // without waiting for the full sessions list.
+                      if (todaySessionRow) return `יש לך אימון היום בשעה ${todaySessionRow.time || '—'}`;
                       if (hasRecentResult) return 'כל הכבוד על השיא החדש!';
                       return 'מוכן לאימון של היום?';
                     })()}
@@ -3405,6 +3431,9 @@ export default function TraineeProfile() {
 
               {/* Goals Tab */}
               <TabsContent value="goals" className="space-y-4 w-full" dir="rtl">
+                {goalsLoading && goals.length === 0 && (
+                  <InlineLoader message="טוען יעדים..." />
+                )}
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Target className="w-5 h-5 text-[#FF6F20]" />יעדים</h2>
                   <Button onClick={() => { setEditingGoal(null); setShowAddGoal(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
@@ -3991,6 +4020,9 @@ export default function TraineeProfile() {
 
               {/* Metrics Tab */}
               <TabsContent value="metrics" className="space-y-4 w-full" dir="rtl">
+                {measurementsLoading && measurements.length === 0 && (
+                  <InlineLoader message="טוען מדידות..." />
+                )}
                 <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#FF6F20]" />מדדים פיזיים</h2>
 
                 {/* "מדידה ראשונה" snapshot — read directly from the
@@ -4100,8 +4132,14 @@ export default function TraineeProfile() {
                 </ErrorBoundary>
               </TabsContent>
 
-              {/* Achievements Tab */}
+              {/* Achievements Tab — workoutHistory is lazy so the
+                  loader fires on first visit. ProgressTab also has
+                  its own internal record/goals queries that show a
+                  skeleton-free state until they resolve. */}
               <TabsContent value="achievements" className="space-y-4 w-full" dir="rtl">
+                {workoutLoading && workoutHistory.length === 0 && (
+                  <InlineLoader message="טוען שיאים..." />
+                )}
                 <div className="flex justify-between items-center mb-3">
                   <div />
                   <Button onClick={() => openBaselineDialog({ traineeId: user.id, traineeName: user.full_name })} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
@@ -4597,6 +4635,9 @@ export default function TraineeProfile() {
 
               {/* Attendance Tab */}
               <TabsContent value="attendance" className="space-y-4 w-full" dir="rtl">
+                {sessionsLoading && sessions.length === 0 && (
+                  <InlineLoader message="טוען מפגשים..." />
+                )}
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-[#FF6F20]" />
