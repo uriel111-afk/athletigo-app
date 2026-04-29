@@ -3782,8 +3782,17 @@ export default function TraineeProfile() {
                   const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
                   const techNames = [...new Set(baselines.map(b => b.technique || 'basic'))];
                   const dates = [...new Set(baselines.map(b => b.date || new Date(b.created_at).toISOString().split('T')[0]))].sort();
+                  // Build a date → techniques lookup so a click on any
+                  // chart point can resolve back to the full session
+                  // and open the L3 popup. Same shape used by the L1
+                  // cards below — the click handler reuses it.
+                  const chartGroups = {};
+                  for (const b of baselines) {
+                    const k = b.date || new Date(b.created_at).toISOString().split('T')[0];
+                    (chartGroups[k] = chartGroups[k] || []).push(b);
+                  }
                   const chartData = dates.map(date => {
-                    const row = { date: new Date(date).toLocaleDateString('he-IL') };
+                    const row = { date: new Date(date).toLocaleDateString('he-IL'), _isoDate: date };
                     techNames.forEach(tech => {
                       const entry = baselines.find(b => {
                         const bDate = b.date || new Date(b.created_at).toISOString().split('T')[0];
@@ -3794,6 +3803,22 @@ export default function TraineeProfile() {
                     });
                     return row;
                   });
+                  // Click anywhere on the plot — Recharts hands us
+                  // activeLabel (the formatted he-IL date string).
+                  // Look it up in chartData by the matching display
+                  // string and open the L3 popup with the session's
+                  // techniques.
+                  const onChartClick = (e) => {
+                    if (!e || !e.activePayload || !e.activePayload.length) return;
+                    const payload = e.activePayload[0]?.payload;
+                    const iso = payload?._isoDate
+                      || dates.find(d => new Date(d).toLocaleDateString('he-IL') === e.activeLabel);
+                    if (!iso) return;
+                    const techs = chartGroups[iso];
+                    if (techs && techs.length) {
+                      setViewBaseline({ date: iso, techniques: techs });
+                    }
+                  };
                   return (
                     <div style={{
                       background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
@@ -3803,7 +3828,7 @@ export default function TraineeProfile() {
                         📈 התקדמות JPS לפי טכניקה
                       </div>
                       <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                        <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }} onClick={onChartClick}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
                           <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
                           <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
@@ -3814,8 +3839,8 @@ export default function TraineeProfile() {
                             return (
                               <Line key={tech} type="monotone" dataKey={label} name={label}
                                 stroke={color} strokeWidth={2.5} connectNulls
-                                dot={{ r: 6, fill: color, stroke: 'white', strokeWidth: 2 }}
-                                activeDot={{ r: 8, fill: color, stroke: 'white', strokeWidth: 2 }} />
+                                dot={{ r: 6, fill: color, stroke: 'white', strokeWidth: 2, cursor: 'pointer' }}
+                                activeDot={{ r: 9, fill: color, stroke: '#FF6F20', strokeWidth: 3, cursor: 'pointer' }} />
                             );
                           })}
                         </LineChart>
