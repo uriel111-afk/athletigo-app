@@ -1276,7 +1276,20 @@ export default function Onboarding() {
               </div>
             )}
 
-            {healthSigned && !pendingSessionLoading && pendingSession && (
+            {healthSigned && !pendingSessionLoading && pendingSession && (() => {
+              // 24-hour cancellation/reschedule gate. Computed here
+              // so both the warning banner and the disabled state of
+              // the "בקש תאריך אחר" button read the same source.
+              const sessionDate = (() => {
+                if (!pendingSession.date) return null;
+                const dateStr = String(pendingSession.date).split('T')[0];
+                const d = new Date(`${dateStr}T${pendingSession.time || '00:00'}`);
+                return Number.isNaN(d.getTime()) ? null : d;
+              })();
+              const lessThan24h = sessionDate
+                ? ((sessionDate - new Date()) / (1000 * 60 * 60)) < 24
+                : false;
+              return (
               <div style={{
                 background: 'white', borderRadius: 14, border: `1px solid ${COLORS.border}`,
                 padding: 16, marginBottom: 16, direction: 'rtl',
@@ -1320,6 +1333,17 @@ export default function Onboarding() {
                       </span>
                     </div>
                   )}
+                </div>
+
+                {/* 24-hour cancellation policy notice — same colour
+                    palette TraineeHome uses for parity. */}
+                <div style={{
+                  background: '#FFF3E0', borderRadius: 10, padding: 10,
+                  fontSize: 12, color: '#E65100', marginBottom: 14,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span aria-hidden>⚠️</span>
+                  <span>שינוי או ביטול המפגש אפשרי עד 24 שעות לפני המועד</span>
                 </div>
 
                 {/* Paid branch — single CTA, navigates to Grow.
@@ -1421,15 +1445,26 @@ export default function Onboarding() {
                     <button
                       type="button"
                       onClick={() => setShowDateRequest(prev => !prev)}
+                      disabled={lessThan24h}
                       style={{
                         width: '100%', padding: 12, borderRadius: 12,
-                        border: `1px solid ${COLORS.border}`, background: 'white',
-                        color: COLORS.muted, fontSize: 14, cursor: 'pointer',
+                        border: `1px solid ${COLORS.border}`,
+                        background: lessThan24h ? '#F5F5F5' : 'white',
+                        color: lessThan24h ? '#bbb' : COLORS.muted,
+                        fontSize: 14,
+                        cursor: lessThan24h ? 'default' : 'pointer',
                         fontFamily: "'Heebo', 'Assistant', sans-serif",
                       }}
                     >
                       📅 בקש תאריך ושעה אחרים
                     </button>
+                    {lessThan24h && (
+                      <div style={{
+                        fontSize: 11, color: '#C62828', textAlign: 'center', marginTop: 4,
+                      }}>
+                        לא ניתן לשנות — פחות מ-24 שעות למפגש
+                      </div>
+                    )}
 
                     {showDateRequest && (
                       <div style={{
@@ -1506,7 +1541,8 @@ export default function Onboarding() {
                   </>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {healthSigned && !pendingSessionLoading && !pendingSession && (
               <div style={{

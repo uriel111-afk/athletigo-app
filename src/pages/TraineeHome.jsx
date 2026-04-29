@@ -24,6 +24,7 @@ import NewRecordDialog from "../components/forms/NewRecordDialog";
 import useEntryFlow from "@/hooks/useEntryFlow";
 import PendingSessionsPopup from "../components/trainee/PendingSessionsPopup";
 import EntryNotificationsPopup from "../components/trainee/EntryNotificationsPopup";
+import { useQueryClient } from "@tanstack/react-query";
 
 // "השיאים שלי" surface for the trainee home — pulls the latest
 // personal_records row + total PB count for this trainee. Renders
@@ -464,10 +465,32 @@ export default function TraineeHome() {
   // No path skips a step — each button only renders for its state and
   // every direct status='confirmed' flip re-checks the same gates.
   const [approvalBusy, setApprovalBusy] = useState(false);
+  const queryClient = useQueryClient();
   const pendingHealthSigned = hasSignedHealth === true;
   const pendingPrice = Number(pendingApprovalSession?.price || 0);
   const pendingPaymentStatus = pendingApprovalSession?.payment_status || null;
   const pendingRequiresPayment = pendingPrice > 0 && pendingPaymentStatus !== 'paid';
+
+  // Reschedule sub-dialog state — opened from the blocking pending-
+  // session modal further down. Inputs reset every time the dialog
+  // closes so a previous attempt doesn't pre-fill the next one.
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+
+  // 24-hour cancellation gate — flips true when the session is
+  // closer than that to "now". Drives both the warning text and the
+  // disabled state of the cancel / reschedule buttons. Returns
+  // false for missing date so the buttons stay clickable in the
+  // (rare) case the row's date column is empty.
+  const isLessThan24h = (session) => {
+    if (!session?.date) return false;
+    const dateStr = String(session.date).split('T')[0];
+    const sessionDate = new Date(`${dateStr}T${session.time || '00:00'}`);
+    if (Number.isNaN(sessionDate.getTime())) return false;
+    const hoursUntil = (sessionDate - new Date()) / (1000 * 60 * 60);
+    return hoursUntil < 24;
+  };
 
   // Auto-open the health declaration form once the trainee lands on
   // TraineeHome after completing the onboarding questionnaire. The
@@ -616,6 +639,14 @@ export default function TraineeHome() {
           .eq('trainee_id', user?.id)
           .order('date', { ascending: true });
         if (data) setMySessions(data);
+      } catch {}
+      // Broadcast: every list of sessions that downstream tabs
+      // (coach view / trainee profile attendance) might be reading.
+      try {
+        queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
+        queryClient.invalidateQueries({ queryKey: ['trainee-pending-session'] });
       } catch {}
       setShowWelcome(true);
     } catch (err) {
@@ -1636,6 +1667,320 @@ export default function TraineeHome() {
       )}
       {entryFlow.showNotifications && !entryFlow.showSessions && (
         <EntryNotificationsPopup trainee={user} onClose={entryFlow.closeNotifications} />
+      )}
+
+      {/* Blocking pending-session modal — renders only after the
+          trainee has signed the health declaration, so the existing
+          health auto-prompt still has the floor when needed. No X
+          button: the trainee resolves the pending row by paying,
+          confirming, requesting a reschedule, or cancelling. The
+          last two are gated to >=24h before the session start. */}
+      {pendingApprovalSession && pendingHealthSigned && !showWelcome && !entryFlow.showSessions && !entryFlow.showNotifications && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 99999,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16, direction: 'rtl',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
+          }}
+        >
+          <div
+            style={{
+              background: 'white', borderRadius: 16, padding: 24,
+              maxWidth: 380, width: '100%',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+              maxHeight: '90vh', overflowY: 'auto',
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1A1A1A' }}>
+                מפגש ממתין לאישור
+              </div>
+            </div>
+
+            {/* Session details — same layout the inline banner uses
+                so the modal feels like a focused drill-in. */}
+            <div style={{
+              background: '#FDF8F3', borderRadius: 12, padding: 14, marginBottom: 12,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: '#888' }}>תאריך</span>
+                <span style={{ fontWeight: 600 }}>
+                  {pendingApprovalSession.date
+                    ? new Date(pendingApprovalSession.date).toLocaleDateString('he-IL')
+                    : '—'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: '#888' }}>שעה</span>
+                <span style={{ fontWeight: 600 }}>{pendingApprovalSession.time || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: '#888' }}>סוג</span>
+                <span style={{ fontWeight: 600 }}>
+                  {pendingApprovalSession.session_type || pendingApprovalSession.type || 'אימון אישי'}
+                </span>
+              </div>
+              {pendingApprovalSession.duration && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ color: '#888' }}>משך</span>
+                  <span style={{ fontWeight: 600 }}>{pendingApprovalSession.duration} דקות</span>
+                </div>
+              )}
+              {Number(pendingApprovalSession.price) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#888' }}>מחיר</span>
+                  <span style={{ fontWeight: 700, color: '#FF6F20', fontSize: 20 }}>
+                    {pendingApprovalSession.price}₪
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 24-hour cancellation policy notice. */}
+            <div style={{
+              background: '#FFF3E0', borderRadius: 10, padding: 10,
+              fontSize: 12, color: '#E65100', marginBottom: 14,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span aria-hidden>⚠️</span>
+              <span>שינוי או ביטול המפגש אפשרי עד 24 שעות לפני המועד</span>
+            </div>
+
+            {/* Primary CTA — pay+confirm OR confirm. Both reuse the
+                existing handlers which already broadcast the right
+                invalidations and toast on success/failure. */}
+            {pendingRequiresPayment ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePayAndConfirm}
+                  disabled={approvalBusy}
+                  style={{
+                    width: '100%', padding: 16, borderRadius: 14, border: 'none',
+                    background: approvalBusy ? '#ccc' : '#FF6F20',
+                    color: 'white', fontSize: 16, fontWeight: 600,
+                    cursor: approvalBusy ? 'default' : 'pointer',
+                    marginBottom: 8,
+                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  }}
+                >
+                  {approvalBusy ? 'מעביר לתשלום...' : `💳 שלם ${pendingPrice}₪ ואשר`}
+                </button>
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#888', marginBottom: 12 }}>
+                  אישור המפגש מותנה בתשלום
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConfirmSession}
+                disabled={approvalBusy}
+                style={{
+                  width: '100%', padding: 14, borderRadius: 14, border: 'none',
+                  background: approvalBusy ? '#ccc' : '#FF6F20',
+                  color: 'white', fontSize: 16, fontWeight: 600,
+                  cursor: approvalBusy ? 'default' : 'pointer',
+                  marginBottom: 8,
+                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                }}
+              >
+                ✓ אישור המפגש
+              </button>
+            )}
+
+            {/* Reschedule + cancel — only available outside the 24h
+                window. Inside the window, an explanatory line shows
+                instead so the trainee understands why the buttons
+                aren't there. */}
+            {!isLessThan24h(pendingApprovalSession) ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowRescheduleDialog(true)}
+                  disabled={approvalBusy}
+                  style={{
+                    width: '100%', padding: 12, borderRadius: 12,
+                    border: '1px solid #F0E4D0', background: 'white',
+                    color: '#888', fontSize: 14,
+                    cursor: approvalBusy ? 'default' : 'pointer',
+                    marginBottom: 8,
+                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  }}
+                >
+                  📅 בקש תאריך ושעה אחרים
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm('לבטל את המפגש?')) return;
+                    setApprovalBusy(true);
+                    try {
+                      const { error } = await supabase
+                        .from('sessions')
+                        .update({ status: 'cancelled' })
+                        .eq('id', pendingApprovalSession.id);
+                      if (error) throw error;
+                      // Refresh local list immediately so the modal
+                      // unmounts; broadcast for any other view.
+                      try {
+                        const { data } = await supabase
+                          .from('sessions').select('*')
+                          .eq('trainee_id', user?.id)
+                          .order('date', { ascending: true });
+                        if (data) setMySessions(data);
+                      } catch {}
+                      try {
+                        queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+                        queryClient.invalidateQueries({ queryKey: ['sessions'] });
+                        queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
+                        queryClient.invalidateQueries({ queryKey: ['trainee-pending-session'] });
+                      } catch {}
+                      // Best-effort coach notification.
+                      if (coach?.id) {
+                        try {
+                          await supabase.from('notifications').insert({
+                            user_id: coach.id,
+                            type: 'session_cancelled',
+                            title: '❌ מפגש בוטל ע״י המתאמן',
+                            message: `${user?.full_name || 'מתאמן/ת'} ביטל/ה את המפגש`,
+                            is_read: false,
+                            data: {
+                              trainee_id: user?.id || null,
+                              session_id: pendingApprovalSession.id,
+                            },
+                          });
+                        } catch (e) { console.warn('[TraineeHome] cancel notify failed:', e?.message); }
+                      }
+                      toast.success('המפגש בוטל');
+                    } catch (e) {
+                      console.error('[TraineeHome] cancel failed:', e);
+                      toast.error('שגיאה בביטול המפגש');
+                    } finally {
+                      setApprovalBusy(false);
+                    }
+                  }}
+                  style={{
+                    width: '100%', padding: 10, borderRadius: 12,
+                    border: 'none', background: 'transparent',
+                    color: '#C62828', fontSize: 13,
+                    cursor: approvalBusy ? 'default' : 'pointer',
+                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  }}
+                >
+                  ✕ ביטול המפגש
+                </button>
+              </>
+            ) : (
+              <div style={{
+                fontSize: 11, color: '#C62828', textAlign: 'center', marginTop: 4,
+              }}>
+                לא ניתן לשנות או לבטל — פחות מ-24 שעות למפגש
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule sub-dialog — sits on top of the blocking modal.
+          Backdrop tap closes since this is a transient ask, not the
+          status decision. */}
+      {showRescheduleDialog && pendingApprovalSession && (
+        <div
+          onClick={() => setShowRescheduleDialog(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100000,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16, direction: 'rtl',
+            fontFamily: "'Heebo', 'Assistant', sans-serif",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white', borderRadius: 14, padding: 20,
+              maxWidth: 340, width: '100%',
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
+              📅 בקש מועד חדש
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>תאריך</div>
+                <input
+                  type="date"
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  style={{
+                    width: '100%', padding: 8, borderRadius: 10,
+                    border: '1px solid #F0E4D0', fontSize: 14,
+                  }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>שעה</div>
+                <input
+                  type="time"
+                  value={rescheduleTime}
+                  onChange={(e) => setRescheduleTime(e.target.value)}
+                  style={{
+                    width: '100%', padding: 8, borderRadius: 10,
+                    border: '1px solid #F0E4D0', fontSize: 14,
+                  }}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={!rescheduleDate || !rescheduleTime || approvalBusy}
+              onClick={async () => {
+                setApprovalBusy(true);
+                try {
+                  const coachUserId = pendingApprovalSession?.coach_id || coach?.id || null;
+                  if (coachUserId) {
+                    await supabase.from('notifications').insert({
+                      user_id: coachUserId,
+                      type: 'reschedule_request',
+                      title: `📅 ${user?.full_name || 'מתאמן'} מבקש לשנות מועד`,
+                      message: `מועד מבוקש: ${new Date(rescheduleDate).toLocaleDateString('he-IL')} בשעה ${rescheduleTime}`,
+                      is_read: false,
+                      data: {
+                        trainee_id: user?.id || null,
+                        session_id: pendingApprovalSession.id,
+                        requested_date: rescheduleDate,
+                        requested_time: rescheduleTime,
+                      },
+                    });
+                  }
+                  toast.success('הבקשה נשלחה למאמן ✓');
+                  setShowRescheduleDialog(false);
+                  setRescheduleDate('');
+                  setRescheduleTime('');
+                } catch (e) {
+                  console.warn('[TraineeHome] reschedule notify failed:', e?.message);
+                  toast.error('שגיאה בשליחת הבקשה');
+                } finally {
+                  setApprovalBusy(false);
+                }
+              }}
+              style={{
+                width: '100%', padding: 12, borderRadius: 12, border: 'none',
+                background: (rescheduleDate && rescheduleTime && !approvalBusy) ? '#FF6F20' : '#ccc',
+                color: 'white', fontSize: 14, fontWeight: 600,
+                cursor: (rescheduleDate && rescheduleTime && !approvalBusy) ? 'pointer' : 'default',
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+              }}
+            >
+              📩 שלח בקשה
+            </button>
+          </div>
+        </div>
       )}
     </div>
     </ErrorBoundary>
