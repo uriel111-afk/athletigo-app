@@ -76,6 +76,9 @@ import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
 import ClientStatusPicker from "@/components/users/ClientStatusPicker";
 import { calculateAge, formatBirthWithAge } from "@/lib/dateHelpers";
+import ChartCard from "@/components/charts/ChartCard";
+import FilledArea from "@/components/charts/FilledArea";
+import { CHART_COLORS } from "@/components/charts/CHART_TOKENS";
 import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
@@ -4167,17 +4170,20 @@ export default function TraineeProfile() {
                   </div>
                 )}
 
-                {/* Weight + BMI chart. Onboarding height/weight from
+                {/* Weight + BMI charts. Onboarding height/weight from
                     the users row is prepended as the first datapoint
                     so the line starts where the trainee started, even
-                    before the first proper Measurement was logged. */}
+                    before the first proper Measurement was logged.
+                    Two separate FilledArea charts (one per metric) so
+                    the y-axis isn't compressed by mixed-scale values
+                    (kg ~50–100 vs BMI ~18–30). BMI category badge sits
+                    next to the latest BMI reading. */}
                 {(() => {
                   const seed = (user?.weight_kg && (user?.onboarding_completed_at || user?.created_at))
                     ? [{
                         date: new Date(user.onboarding_completed_at || user.created_at).toLocaleDateString('he-IL'),
                         weight: Number(user.weight_kg),
                         bmi: user.height_cm ? Number((Number(user.weight_kg) / Math.pow(Number(user.height_cm) / 100, 2)).toFixed(1)) : null,
-                        source: 'onboarding',
                         ts: new Date(user.onboarding_completed_at || user.created_at).getTime(),
                       }]
                     : [];
@@ -4196,35 +4202,63 @@ export default function TraineeProfile() {
                     });
                   const chartData = [...seed, ...measured].sort((a, b) => a.ts - b.ts);
                   if (chartData.length < 1) return null;
-                  const hasBMI = chartData.some(d => d.bmi != null);
+
+                  // Map for FilledArea — one per metric.
+                  const weightSeries = chartData
+                    .filter(d => Number.isFinite(Number(d.weight)))
+                    .map(d => ({ date: d.date, value: Number(d.weight) }));
+                  const bmiSeries = chartData
+                    .filter(d => d.bmi != null && Number.isFinite(Number(d.bmi)))
+                    .map(d => ({ date: d.date, value: Number(d.bmi) }));
+
+                  // BMI category for the latest reading. WHO bands.
+                  const latestBMI = bmiSeries.length ? bmiSeries[bmiSeries.length - 1].value : null;
+                  const bmiBadge = (() => {
+                    if (latestBMI == null) return null;
+                    if (latestBMI < 18.5) return { label: 'תת-משקל',     bg: '#DBEAFE', fg: '#1E40AF' };
+                    if (latestBMI < 25)   return { label: 'תקין',         bg: '#D1FAE5', fg: '#065F46' };
+                    if (latestBMI < 30)   return { label: 'עודף משקל',   bg: '#FEF3C7', fg: '#92400E' };
+                    return                       { label: 'השמנה',        bg: '#FEE2E2', fg: '#991B1B' };
+                  })();
+
                   return (
-                    <div style={{
-                      background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
-                      padding: 16, marginBottom: 8,
-                    }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
-                        📏 מעקב משקל
-                      </div>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
-                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
-                          <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
-                          <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} />
-                          <Line type="monotone" dataKey="weight" name="משקל (ק״ג)" stroke="#FF6F20" strokeWidth={2.5}
-                            dot={{ r: 6, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
-                            activeDot={{ r: 8, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
-                          {hasBMI && (
-                            <Line type="monotone" dataKey="bmi" name="BMI" stroke="#1D9E75" strokeWidth={2}
-                              dot={{ r: 5, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }}
-                              activeDot={{ r: 7, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <ChartCard
+                        title="📏 מעקב משקל"
+                        subtitle={weightSeries.length ? `${weightSeries[weightSeries.length - 1].value} ק״ג` : null}
+                      >
+                        <FilledArea
+                          data={weightSeries}
+                          color={CHART_COLORS.primary}
+                          yLabel="ק״ג"
+                        />
+                      </ChartCard>
+
+                      {bmiSeries.length > 0 && (
+                        <ChartCard
+                          title="BMI"
+                          subtitle={latestBMI != null ? `${latestBMI}` : null}
+                          action={bmiBadge && (
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: 999,
+                              background: bmiBadge.bg,
+                              color: bmiBadge.fg,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {bmiBadge.label}
+                            </span>
                           )}
-                        </LineChart>
-                      </ResponsiveContainer>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8, fontSize: 12 }}>
-                        <span style={{ color: '#FF6F20' }}>● משקל</span>
-                        {hasBMI && <span style={{ color: '#1D9E75' }}>● BMI</span>}
-                      </div>
+                        >
+                          <FilledArea
+                            data={bmiSeries}
+                            color={CHART_COLORS.green}
+                            yLabel="BMI"
+                          />
+                        </ChartCard>
+                      )}
                     </div>
                   );
                 })()}
