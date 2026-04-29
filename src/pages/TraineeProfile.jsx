@@ -1609,7 +1609,12 @@ export default function TraineeProfile() {
     retry: false
   });
 
-  const isCoach = currentUser?.is_coach === true || currentUser?.role === 'coach' || currentUser?.role === 'admin';
+  // is_coach can land as boolean true, string "true", or 1 across
+  // legacy installs — the previous strict `=== true` check missed
+  // those non-canonical truthy values and a coach who looked fine
+  // everywhere else still saw zero coach-only buttons on this page.
+  // Loose equality after Boolean() coerces the lot.
+  const isCoach = Boolean(currentUser?.is_coach) || currentUser?.role === 'coach' || currentUser?.role === 'admin';
 
   const { data: targetUser, isLoading: targetUserLoading, isError: targetUserError } = useQuery({
     queryKey: ['target-user-profile', userIdParam],
@@ -5199,6 +5204,11 @@ export default function TraineeProfile() {
               {/* Documents Tab */}
               <TabsContent value="documents" className="w-full" dir="rtl">
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המסמכים נכשלה. נסה לרענן את הדף.</div>}>
+                  {/* Diagnostic — fires once per render of the docs
+                      tab so production logs can confirm whether the
+                      coach-only branch is taking effect. Cheap; can
+                      be deleted once the regression is triaged. */}
+                  {(() => { console.log('[TraineeProfile][docs] isCoach:', isCoach, 'is_coach raw:', currentUser?.is_coach, 'role:', currentUser?.role); return null; })()}
                   {isCoach && (
                     <button
                       onClick={() => setShowDocPicker(true)}
