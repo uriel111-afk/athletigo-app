@@ -76,7 +76,12 @@ export default function StepMilestones({
   const yMax = maxVal + yPad;
   const yRange = yMax - yMin || 1;
 
-  const allDates = [...new Set(allPoints.map(p => p.date))].sort();
+  // Include projection dates in the x-axis so an endDate that
+  // falls after the last observed record still resolves to a real
+  // x coordinate via xFor(). Without this, projection's future
+  // point lands at NaN and the dashed line never renders.
+  const projectionDates = goalProjection ? goalProjection.map(p => p.date) : [];
+  const allDates = [...new Set([...allPoints.map(p => p.date), ...projectionDates])].sort();
   const dateIndex = new Map(allDates.map((d, i) => [d, i]));
   const dateCount = allDates.length || 1;
 

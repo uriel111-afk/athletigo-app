@@ -429,17 +429,23 @@ export default function ProgressTab({ traineeId }) {
   // Props bundle for <StepMilestones>. Two shapes:
   //   • 'all' filter      → { series: [{name,color,data:[{date,value}]}, ...] }
   //                         one entry per exercise, palette stable per
-  //                         exerciseNames index.
-  //   • single-exercise   → { data: [...], goalTarget? }
-  //                         optional active-goal target draws as a
-  //                         dashed horizontal line. goalProjection is
-  //                         deliberately omitted — see the report.
+  //                         exerciseNames index. No goal overlay
+  //                         here — goals are per-exercise.
+  //   • single-exercise   → { data, goalTarget?, goalProjection? }
+  //                         goalTarget = horizontal dashed line at
+  //                         target_value. goalProjection = a 2-point
+  //                         dashed line from the last record to the
+  //                         goal's target_date / slope-projected end.
   const chartProps = useMemo(() => {
-    const toPoint = (r) => {
-      const d = new Date(r.date);
-      const dd = Number.isNaN(d.getTime()) ? '' : `${d.getDate()}.${d.getMonth() + 1}`;
-      return { date: dd, value: Number(r.value) };
+    // Format an ISO/Date-ish input as 'D.M' (matches the records'
+    // display format so the StepMilestones x-axis sees them as the
+    // same key).
+    const toDDM = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? '' : `${d.getDate()}.${d.getMonth() + 1}`;
     };
+    const toPoint = (r) => ({ date: toDDM(r.date), value: Number(r.value) });
 
     if (filterExercise === 'all') {
       // Bucket records by exercise_name, then turn each bucket into
@@ -480,8 +486,24 @@ export default function ProgressTab({ traineeId }) {
     const targetVal = activeGoal ? parseFloat(activeGoal.target_value) : null;
     const goalTarget = Number.isFinite(targetVal) && targetVal > 0 ? targetVal : null;
 
-    return { data, goalTarget };
-  }, [records, filterExercise, exerciseNames, goalsData]);
+    // Pull the matching projection from the existing useMemo. It's
+    // an array indexed by exercise name; pick the one for the
+    // current chip. Map start/end ISO dates to the same 'D.M'
+    // format records use so dateIndex resolves both ends.
+    const proj = projections.find(p => p.ex === filterExercise);
+    const goalProjection = proj
+      ? [
+          { date: toDDM(proj.startDate), value: Number(proj.startValue) },
+          { date: toDDM(proj.endDate),   value: Number(proj.endValue) },
+        ].filter(p => p.date && Number.isFinite(p.value))
+      : null;
+
+    return {
+      data,
+      goalTarget,
+      goalProjection: goalProjection && goalProjection.length === 2 ? goalProjection : null,
+    };
+  }, [records, filterExercise, exerciseNames, goalsData, projections]);
 
   // y-axis label — empty when 'all' (mixed units), otherwise the
   // unit string from the most recent record of the selected exercise.
