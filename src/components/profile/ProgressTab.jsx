@@ -565,25 +565,26 @@ export default function ProgressTab({ traineeId }) {
       )}
 
       {records.length > 0 && (
-        // Full-width breakout — escapes the parent's horizontal
-        // padding so the chart hits the actual viewport edges on
-        // mobile. The negative margin equals half the leftover
-        // space, the explicit 100vw width fills it. Inner card keeps
-        // a thin 8px gutter so the YAxis ticks aren't flush to the
+        // Full-width breakout — escapes every horizontal padding above
+        // it (TraineeProfile px-4, Tabs gutters, this component) and
+        // pins the chart to the actual viewport edges on mobile. The
+        // outer wrapper has padding:0 + overflow:hidden so nothing
+        // here adds gutters; text-bearing children re-introduce 16px
+        // horizontal padding individually so they never touch the
         // screen edge.
         <div style={{
           marginLeft: 'calc(-50vw + 50%)',
           marginRight: 'calc(-50vw + 50%)',
           width: '100vw',
-          paddingLeft: 8,
-          paddingRight: 8,
+          padding: 0,
+          overflow: 'hidden',
           marginBottom: 16,
         }}>
         <div style={{
           background: CARD_BG, borderRadius: 0,
           borderTop: `1px solid ${BORDER}`,
           borderBottom: `1px solid ${BORDER}`,
-          padding: '16px 4px',
+          padding: '16px 0',
           position: 'relative',
         }}>
         {/* Active-goal progress banner — only when a single exercise
@@ -609,7 +610,7 @@ export default function ProgressTab({ traineeId }) {
           const color = EXERCISE_COLORS[colorIdx >= 0 ? colorIdx % EXERCISE_COLORS.length : 0];
           return (
             <div style={{
-              margin: '0 8px 16px',
+              margin: '0 16px 16px',
               padding: 12,
               background: `${color}15`,
               borderRadius: 12,
@@ -634,10 +635,12 @@ export default function ProgressTab({ traineeId }) {
 
           {/* Header row — title + minimize button. Button sits on the
               left in RTL (visual top-left) so it never collides with
-              the title text. */}
+              the title text. Padding 0 16px because the parent card
+              now has no horizontal padding (full-width chart). */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             marginBottom: 12,
+            padding: '0 16px',
           }}>
             <div style={{ fontSize: 15, fontWeight: 600 }}>📊 סקירת שיאים</div>
             <button
@@ -676,6 +679,8 @@ export default function ProgressTab({ traineeId }) {
             justifyContent: 'flex-start',
             width: '100%',
             marginBottom: 16,
+            padding: '0 16px',
+            boxSizing: 'border-box',
           }}>
             <Chip
               size="sm"
@@ -702,22 +707,18 @@ export default function ProgressTab({ traineeId }) {
               הגרף ממוזער
             </div>
           ) : (
-            // Edge-to-edge wrapper for StepMilestones. The chart sits
-            // inside two existing breakout layers:
-            //   • outer 100vw div with 8px horizontal padding
-            //   • inner card with 4px horizontal padding (`16px 4px`)
-            // Total leftover gutter from the viewport edge = 12px.
-            // marginInline: -12px cancels both, so the SVG actually
-            // touches the screen edges on mobile (380px). Keeps the
-            // top/bottom hairlines in the brand chart border colour.
+            // Edge-to-edge wrapper for StepMilestones. The parent card
+            // now has padding:0 horizontally — this wrapper spans the
+            // full 100vw and the SVG fills its width. Title text is
+            // padded 16px so it doesn't kiss the screen edge.
             <div style={{
               background: '#FFFEFC',
               borderTop: '1px solid #F5E8D5',
               borderBottom: '1px solid #F5E8D5',
-              marginInline: '-12px',
+              margin: 0,
               padding: '14px 0 10px',
             }}>
-              <div style={{ padding: '0 14px 10px', fontSize: 14, fontWeight: 500, color: '#1a1a1a' }}>
+              <div style={{ padding: '0 16px 10px', fontSize: 16, fontWeight: 500, color: '#1a1a1a' }}>
                 התקדמות שיאים
               </div>
               <StepMilestones {...chartProps} yLabel={stepYLabel} />
@@ -729,7 +730,7 @@ export default function ProgressTab({ traineeId }) {
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
             gap: 8,
-            margin: '16px 8px 0',
+            margin: '16px 16px 0',
           }}>
             {[
               { val: stats.total, label: 'שיאים' },
@@ -757,7 +758,7 @@ export default function ProgressTab({ traineeId }) {
               it. Hidden when nothing's selected. */}
           {selectedPoint && (
             <div style={{
-              margin: '12px 8px 0',
+              margin: '12px 16px 0',
               padding: 12,
               background: '#FFF8F2',
               borderRadius: 10,

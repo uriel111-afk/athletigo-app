@@ -178,10 +178,10 @@ export default function StepMilestones({
   }
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
+    <div ref={containerRef} style={{ width: '100%', padding: 0, margin: 0 }}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        style={{ width: '100%', height, display: 'block', maxWidth: '100%' }}
+        style={{ width: '100%', height, display: 'block', maxWidth: 'none' }}
         preserveAspectRatio="xMidYMid meet"
       >
         {[0.25, 0.5, 0.75].map((r, i) => (
