@@ -27,13 +27,13 @@ export default function HeroSparkline({ label, value, unit, trend = 0, trendLabe
       border: `1px solid ${CHART_COLORS.border}`,
       borderRadius: 14,
       boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6), 0 8px 18px -6px rgba(255,111,32,0.14), 0 3px 8px -2px rgba(96,51,17,0.08), 0 1px 2px rgba(96,51,17,0.04)',
-      padding: 16,
+      padding: 20,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, color: CHART_COLORS.textMuted, marginBottom: 4 }}>{label}</div>
+          <div style={{ fontSize: 14, color: CHART_COLORS.textMuted, marginBottom: 4 }}>{label}</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <div style={{ fontSize: 38, fontWeight: 500, color: CHART_COLORS.text, lineHeight: 1 }}>{value}</div>
+            <div style={{ fontSize: 44, fontWeight: 500, color: CHART_COLORS.text, lineHeight: 1 }}>{value}</div>
             {unit && <div style={{ fontSize: 14, color: CHART_COLORS.textMuted }}>{unit}</div>}
           </div>
           {trendLabel && (
@@ -43,9 +43,9 @@ export default function HeroSparkline({ label, value, unit, trend = 0, trendLabe
               gap: 4,
               background: trendChipBg,
               color: trendChipColor,
-              padding: '3px 8px',
+              padding: '5px 12px',
               borderRadius: 999,
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: 500,
               marginTop: 8,
             }}>
@@ -61,10 +61,10 @@ export default function HeroSparkline({ label, value, unit, trend = 0, trendLabe
           )}
         </div>
         {hasSpark && (
-          <svg viewBox="0 0 100 50" style={{ width: 100, height: 50, flexShrink: 0 }}>
-            <path d={pathD} fill="none" stroke={CHART_COLORS.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <circle cx={lastX} cy={lastY} r="6" fill={CHART_COLORS.primary} opacity="0.2"/>
-            <circle cx={lastX} cy={lastY} r="3" fill={CHART_COLORS.primary}/>
+          <svg viewBox="0 0 100 50" style={{ width: 120, height: 60, flexShrink: 0 }}>
+            <path d={pathD} fill="none" stroke={CHART_COLORS.primary} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx={lastX} cy={lastY} r="8" fill={CHART_COLORS.primary} opacity="0.2"/>
+            <circle cx={lastX} cy={lastY} r="5" fill={CHART_COLORS.primary}/>
           </svg>
         )}
       </div>

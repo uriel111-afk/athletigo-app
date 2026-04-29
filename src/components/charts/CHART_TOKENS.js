@@ -19,10 +19,10 @@ export const CHART_SHADOW = 'inset 0 1px 0 rgba(255,255,255,0.6), 0 8px 18px -6p
 export const CHART_RADIUS = 14;
 
 export const CHART_HEIGHTS = {
-  hero: { mobile: 50, desktop: 60 },
-  area: { mobile: 180, desktop: 240 },
-  step: { mobile: 200, desktop: 260 },
-  ring: { mobile: 110, desktop: 140 },
+  hero: { mobile: 60, desktop: 60 },
+  area: { mobile: 280, desktop: 260 },
+  step: { mobile: 280, desktop: 280 },
+  ring: { mobile: 130, desktop: 140 },
 };
 
 export const RTL_DEFAULTS = {

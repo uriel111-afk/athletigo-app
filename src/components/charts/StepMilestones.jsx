@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useWindowSize } from '../../hooks/useWindowSize';
 import { CHART_COLORS, CHART_HEIGHTS } from './CHART_TOKENS';
 
@@ -21,7 +22,27 @@ export default function StepMilestones({
 }) {
   const { width: winWidth } = useWindowSize();
   const isMobile = winWidth < 480;
-  const height = isMobile ? CHART_HEIGHTS.step.mobile : CHART_HEIGHTS.step.desktop;
+  const height = isMobile
+    ? Math.max(280, CHART_HEIGHTS.step.mobile)
+    : CHART_HEIGHTS.step.desktop;
+
+  // Dynamic SVG width — track the parent's px width so the chart
+  // scales edge-to-edge at any container size without losing absolute
+  // coordinates (we draw in raw px, not viewBox units, so the
+  // padding stays a real 16px instead of stretching with zoom).
+  const containerRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(350);
+  useEffect(() => {
+    if (!containerRef.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        if (w > 0) setContainerWidth(w);
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const normalizedSeries = series && series.length > 0
     ? series
@@ -60,8 +81,10 @@ export default function StepMilestones({
     );
   }
 
-  const W = 350, H = height;
-  const padX = 24, padTop = 30, padBottom = 30;
+  const W = containerWidth, H = height;
+  const padX = isMobile ? 16 : 28;
+  const padTop = 24;
+  const padBottom = 28;
 
   const allValues = [
     ...allPoints.map(p => p.value),
@@ -115,28 +138,28 @@ export default function StepMilestones({
 
     return (
       <g key={seriesIdx}>
-        <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity={isSingleSeries ? 1 : 0.85}/>
+        <path d={pathD} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity={isSingleSeries ? 1 : 0.85}/>
         {enriched.map((p, i) => {
           const isLast = i === enriched.length - 1;
           // PR detection runs per-series, so the star/halo treatment
           // is meaningful in multi-series mode too — each exercise
           // gets its own milestone markers.
           if (!p.isPR) {
-            return <circle key={i} cx={p.x} cy={p.y} r="3" fill={color}/>;
+            return <circle key={i} cx={p.x} cy={p.y} r="5" fill={color}/>;
           }
           if (isLast) {
             return (
               <g key={i} transform={`translate(${p.x},${p.y})`}>
-                <circle r="11" fill={color}/>
-                <path d="M0,-5 L1.5,-1.5 L5,-1.2 L2.2,1.2 L3,5 L0,3.2 L-3,5 L-2.2,1.2 L-5,-1.2 L-1.5,-1.5 Z" fill="white"/>
-                <text x="0" y="-18" textAnchor="middle" fontSize="11" fill={color} fontWeight="500">{p.value}</text>
+                <circle r="14" fill={color}/>
+                <path d="M0,-6.5 L2,-2 L6.5,-1.6 L2.9,1.6 L3.9,6.5 L0,4.2 L-3.9,6.5 L-2.9,1.6 L-6.5,-1.6 L-2,-2 Z" fill="white"/>
+                <text x="0" y="-22" textAnchor="middle" fontSize="14" fill={color} fontWeight="600">{p.value}</text>
               </g>
             );
           }
           return (
             <g key={i} transform={`translate(${p.x},${p.y})`}>
-              <circle r="9" fill={CHART_COLORS.primaryFaint} stroke={color} strokeWidth="1.5"/>
-              <path d="M0,-4 L1.2,-1.2 L4,-1 L1.8,1 L2.4,4 L0,2.5 L-2.4,4 L-1.8,1 L-4,-1 L-1.2,-1.2 Z" fill={color}/>
+              <circle r="12" fill={CHART_COLORS.primaryFaint} stroke={color} strokeWidth="1.5"/>
+              <path d="M0,-5.4 L1.6,-1.6 L5.4,-1.3 L2.4,1.3 L3.2,5.4 L0,3.4 L-3.2,5.4 L-2.4,1.3 L-5.4,-1.3 L-1.6,-1.6 Z" fill={color}/>
             </g>
           );
         })}
@@ -155,30 +178,32 @@ export default function StepMilestones({
   }
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ width: '100%', height, display: 'block', maxWidth: '100%' }}
-      preserveAspectRatio="xMidYMid meet"
-    >
-      {[0.25, 0.5, 0.75].map((r, i) => (
-        <line key={i} x1={padX} y1={padTop + r * (H - padTop - padBottom)} x2={W - padX} y2={padTop + r * (H - padTop - padBottom)} stroke={CHART_COLORS.border} strokeWidth="0.5" strokeDasharray="3 3"/>
-      ))}
+    <div ref={containerRef} style={{ width: '100%' }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height, display: 'block', maxWidth: '100%' }}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {[0.25, 0.5, 0.75].map((r, i) => (
+          <line key={i} x1={padX} y1={padTop + r * (H - padTop - padBottom)} x2={W - padX} y2={padTop + r * (H - padTop - padBottom)} stroke="#E8DCC8" strokeWidth="1" strokeDasharray="3 3"/>
+        ))}
 
-      {goalY != null && (
-        <g>
-          <line x1={padX} y1={goalY} x2={W - padX} y2={goalY} stroke={CHART_COLORS.primary} strokeWidth="1" strokeDasharray="5 4" opacity="0.6"/>
-          <text x={W - padX - 4} y={goalY - 4} textAnchor="end" fontSize="10" fill={CHART_COLORS.primary} fontWeight="500">יעד · {goalTarget}{yLabel ? ` ${yLabel}` : ''}</text>
-        </g>
-      )}
+        {goalY != null && (
+          <g>
+            <line x1={padX} y1={goalY} x2={W - padX} y2={goalY} stroke={CHART_COLORS.primary} strokeWidth="2" strokeDasharray="5 4" opacity="0.6"/>
+            <text x={W - padX - 4} y={goalY - 4} textAnchor="end" fontSize="12" fill={CHART_COLORS.primary} fontWeight="500">יעד · {goalTarget}{yLabel ? ` ${yLabel}` : ''}</text>
+          </g>
+        )}
 
-      {projPath && (
-        <path d={projPath} fill="none" stroke={CHART_COLORS.primary} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.5"/>
-      )}
+        {projPath && (
+          <path d={projPath} fill="none" stroke={CHART_COLORS.primary} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.5"/>
+        )}
 
-      {normalizedSeries.map(renderSeries)}
+        {normalizedSeries.map(renderSeries)}
 
-      <text x={padX} y={H - 10} textAnchor="start" fontSize="9" fill={CHART_COLORS.textMuted}>{allDates[0]}</text>
-      <text x={W - padX} y={H - 10} textAnchor="end" fontSize="9" fill={CHART_COLORS.textMuted}>{allDates[allDates.length - 1]}</text>
-    </svg>
+        <text x={padX} y={H - 6} textAnchor="start" fontSize="12" fill={CHART_COLORS.textMuted}>{allDates[0]}</text>
+        <text x={W - padX} y={H - 6} textAnchor="end" fontSize="12" fill={CHART_COLORS.textMuted}>{allDates[allDates.length - 1]}</text>
+      </svg>
+    </div>
   );
 }

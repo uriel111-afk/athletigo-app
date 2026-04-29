@@ -18,8 +18,8 @@ export default function ChartCard({ title, subtitle, action, children, padding =
           alignItems: 'center',
         }}>
           <div>
-            {title && <div style={{ fontSize: 14, fontWeight: 500, color: CHART_COLORS.text }}>{title}</div>}
-            {subtitle && <div style={{ fontSize: 12, color: CHART_COLORS.textMuted, marginTop: 2 }}>{subtitle}</div>}
+            {title && <div style={{ fontSize: 16, fontWeight: 500, color: CHART_COLORS.text }}>{title}</div>}
+            {subtitle && <div style={{ fontSize: 14, color: CHART_COLORS.textMuted, marginTop: 2 }}>{subtitle}</div>}
           </div>
           {action}
         </div>

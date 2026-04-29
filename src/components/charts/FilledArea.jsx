@@ -5,7 +5,7 @@ import { CHART_COLORS, RTL_DEFAULTS, CHART_HEIGHTS } from './CHART_TOKENS';
 export default function FilledArea({ data = [], color = CHART_COLORS.primary, yLabel, height: customHeight }) {
   const { width } = useWindowSize();
   const isMobile = width < 480;
-  const height = customHeight || (isMobile ? CHART_HEIGHTS.area.mobile : CHART_HEIGHTS.area.desktop);
+  const height = customHeight || (isMobile ? 280 : CHART_HEIGHTS.area.desktop);
 
   if (data.length === 0) {
     return (
@@ -20,7 +20,7 @@ export default function FilledArea({ data = [], color = CHART_COLORS.primary, yL
     return (
       <div style={{ textAlign: 'center', padding: '24px 16px' }}>
         <div style={{ fontSize: 12, color: CHART_COLORS.textMuted, marginBottom: 12 }}>הנקודה הראשונה — המשך לתעד</div>
-        <div style={{ fontSize: 32, fontWeight: 500, color: CHART_COLORS.text }}>{point.value}{yLabel ? ` ${yLabel}` : ''}</div>
+        <div style={{ fontSize: 42, fontWeight: 600, color: CHART_COLORS.text }}>{point.value}{yLabel ? ` ${yLabel}` : ''}</div>
         <div style={{ fontSize: 12, color: CHART_COLORS.textMuted, marginTop: 4 }}>{point.date}</div>
       </div>
     );
@@ -28,9 +28,22 @@ export default function FilledArea({ data = [], color = CHART_COLORS.primary, yL
 
   const gradId = `areaGrad-${Math.random().toString(36).slice(2, 8)}`;
 
+  // Override RTL_DEFAULTS axis tick/padding sizes for mobile-first
+  // legibility — RTL_DEFAULTS keeps the orientation/axisLine flags.
+  const yAxisProps = {
+    ...RTL_DEFAULTS.yAxis,
+    width: isMobile ? 28 : 36,
+    tick: { fontSize: 12, fill: CHART_COLORS.textMuted },
+  };
+  const xAxisProps = {
+    ...RTL_DEFAULTS.xAxis,
+    tick: { fontSize: 12, fill: CHART_COLORS.textMuted },
+    padding: { left: 8, right: 8 },
+  };
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 4 }}>
         <defs>
           <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity={0.3}/>
@@ -38,10 +51,10 @@ export default function FilledArea({ data = [], color = CHART_COLORS.primary, yL
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} vertical={false}/>
-        <YAxis {...RTL_DEFAULTS.yAxis} domain={['auto', 'dataMax + 1']}/>
-        <XAxis {...RTL_DEFAULTS.xAxis} dataKey="date"/>
+        <YAxis {...yAxisProps} domain={['auto', 'dataMax + 1']}/>
+        <XAxis {...xAxisProps} dataKey="date"/>
         <Tooltip {...RTL_DEFAULTS.tooltip}/>
-        <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2.5} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 5, fill: 'white', stroke: color, strokeWidth: 2.5 }}/>
+        <Area type="monotone" dataKey="value" stroke={color} strokeWidth={3} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 7, fill: 'white', stroke: color, strokeWidth: 3 }}/>
       </AreaChart>
     </ResponsiveContainer>
   );
