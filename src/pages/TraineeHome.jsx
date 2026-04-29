@@ -638,6 +638,14 @@ export default function TraineeHome() {
     return lowest;
   }, [activeServices]);
 
+  // Trainee entry flow — pending sessions → notifications → home.
+  // The hook itself bails out for client_status === 'onboarding' and
+  // for null user so the wizard isn't interrupted; throttling per-day
+  // per-user lives inside the hook (localStorage). MUST live above
+  // every early return below so React's hook order stays stable —
+  // moving it below the loading/!user gates causes React #310.
+  const entryFlow = useEntryFlow(user);
+
   const handleCancelSession = async (session) => {
     const sessionStart = new Date(`${session.date}T${session.time}`);
     const now = new Date();
@@ -816,12 +824,9 @@ export default function TraineeHome() {
   };
   const features = STATUS_FEATURES[clientStatus] || STATUS_FEATURES.active;
 
-  // Trainee entry flow — pending sessions → notifications → home.
-  // The hook itself bails out for client_status === 'onboarding' so
-  // the wizard isn't interrupted; throttling per-day per-user lives
-  // inside the hook (localStorage). Hook MUST sit above any early
-  // return below so React's hook order stays stable across renders.
-  const entryFlow = useEntryFlow(user);
+  // entryFlow is populated above the loading/!user gates so the hook
+  // count stays constant across renders (see comment at the call
+  // site). Anything below this point can read entryFlow safely.
 
   // Lock screens for suspended / former — full-screen message,
   // single CTA to contact coach (opens the same chat sheet the
