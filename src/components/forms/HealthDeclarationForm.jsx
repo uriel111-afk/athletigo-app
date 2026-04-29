@@ -25,8 +25,11 @@ const QUESTIONS = [
   { key: 'medications',         label: 'האם אתה נוטל תרופות באופן קבוע?' },
   { key: 'medical_limitations', label: 'האם יש לך מגבלה רפואית כלשהי שהמאמן צריך לדעת עליה?' },
   { key: 'recent_surgery',      label: 'האם עברת ניתוח ב-12 החודשים האחרונים?' },
-  // feels_healthy is the only inverted question — default true,
-  // a "no" answer indicates concern.
+  // feels_healthy is the only inverted question — defaults to false
+  // (red "לא") and the trainee must explicitly tap "כן" (orange) to
+  // unlock the submit button. Other questions paint the same way:
+  // "yes" red = concern, "no" green = reassurance. Inverted swaps
+  // those roles so a positive affirmation matches the brand orange.
   { key: 'feels_healthy',       label: 'האם אתה מרגיש בריא ומסוגל לבצע פעילות גופנית?', inverted: true },
 ];
 
@@ -41,9 +44,13 @@ export default function HealthDeclarationForm({
                              // through a separate path (e.g. payment).
   onSigned,          // optional — fires after a successful save
 }) {
-  // Initial answer map: feels_healthy starts true, everything else false.
+  // Initial answer map — every question defaults to false. The
+  // inverted feels_healthy used to default true, but we now require
+  // the trainee to explicitly tap "כן" so the form can't be sent
+  // with a stale "I'm fine" they never confirmed. The submit gate
+  // below enforces it.
   const initialAnswers = () => Object.fromEntries(
-    QUESTIONS.map((q) => [q.key, q.key === 'feels_healthy'])
+    QUESTIONS.map((q) => [q.key, false])
   );
 
   const [answers, setAnswers] = useState(initialAnswers());
@@ -116,7 +123,11 @@ export default function HealthDeclarationForm({
   const signatureBoxRef = useRef(null);
 
   // ── Save ────────────────────────────────────────────────────────
-  const canSubmit = confirmed && hasSignature && !saving;
+  // Trainee must affirm feels_healthy === true before submission.
+  // The button below is also disabled visually so this is a
+  // belt-and-suspenders gate.
+  const feelsHealthy = answers.feels_healthy === true;
+  const canSubmit = confirmed && hasSignature && feelsHealthy && !saving;
 
   const focusFirstError = () => {
     const target = !confirmed
@@ -130,7 +141,10 @@ export default function HealthDeclarationForm({
 
   const handleSubmit = async () => {
     if (!canSubmit) {
-      if (!confirmed)         toast.error('נא לאשר את הצהרת הבריאות');
+      // feelsHealthy gate runs first — without it the trainee can't
+      // submit at all, so it deserves the most explicit toast.
+      if (!feelsHealthy)      toast.error('יש לאשר שאתה מרגיש בריא ומסוגל לפעילות');
+      else if (!confirmed)    toast.error('נא לאשר את הצהרת הבריאות');
       else if (!hasSignature) toast.error('נא לחתום בתיבת החתימה');
       focusFirstError();
       return;
@@ -155,7 +169,10 @@ export default function HealthDeclarationForm({
         medications: !!answers.medications,
         medical_limitations: !!answers.medical_limitations,
         recent_surgery: !!answers.recent_surgery,
-        feels_healthy: answers.feels_healthy ?? true,
+        // The submit gate guarantees feels_healthy === true here,
+        // but `!== false` is the safest fallback for the rare race
+        // where the answers map is in flight.
+        feels_healthy: answers.feels_healthy === true,
         additional_notes: additionalNotes || null,
         declaration_confirmed: true,
         signature_data: signatureDataUrl,
@@ -392,44 +409,87 @@ export default function HealthDeclarationForm({
               )}
             </div>
 
-            {/* Questions */}
+            {/* Questions
+                Two visual modes per question:
+                  • normal (heart_disease, blood_pressure, ...) —
+                    "yes" is the worrying answer, painted red. "no"
+                    is the reassuring answer, painted green.
+                  • inverted (feels_healthy) — "no" is the worrying
+                    answer, painted red. "yes" is the affirmation,
+                    painted in brand orange. Required to submit, so
+                    a small warning banner appears underneath while
+                    the answer is still "no". */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {QUESTIONS.map((q) => {
                 const value = answers[q.key];
                 const setValue = (next) => setAnswers((prev) => ({ ...prev, [q.key]: next }));
+
+                // Per-mode colour pair. inverted questions swap the
+                // affirmative + concerning roles; the unselected
+                // state stays the same neutral grey for both.
+                const noActive  = q.inverted
+                  ? { border: '2px solid #DC2626', bg: '#DC2626', fg: '#FFFFFF' }
+                  : { border: '2px solid #16a34a', bg: '#16a34a', fg: '#FFFFFF' };
+                const yesActive = q.inverted
+                  ? { border: '2px solid #FF6F20', bg: '#FF6F20', fg: '#FFFFFF' }
+                  : { border: '2px solid #DC2626', bg: '#DC2626', fg: '#FFFFFF' };
+                const inactive  = { border: '2px solid #E5E7EB', bg: '#FFFFFF', fg: '#6B7280' };
+
+                const noStyle  = value === false ? noActive  : inactive;
+                const yesStyle = value === true  ? yesActive : inactive;
+
                 return (
-                  <div key={q.key} style={{
-                    background: '#FFFFFF', border: '1px solid #F0E4D0',
-                    borderRadius: 12, padding: 10,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A', textAlign: 'right', flex: 1 }}>
-                      {q.label}
+                  <div key={q.key}>
+                    <div style={{
+                      background: '#FFFFFF', border: '1px solid #F0E4D0',
+                      borderRadius: 12, padding: 10,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A', textAlign: 'right', flex: 1 }}>
+                        {q.label}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => setValue(false)}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8,
+                            border: noStyle.border,
+                            background: noStyle.bg,
+                            color: noStyle.fg,
+                            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          }}
+                        >לא</button>
+                        <button
+                          type="button"
+                          onClick={() => setValue(true)}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8,
+                            border: yesStyle.border,
+                            background: yesStyle.bg,
+                            color: yesStyle.fg,
+                            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          }}
+                        >כן</button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={() => setValue(false)}
-                        style={{
-                          padding: '6px 14px', borderRadius: 8,
-                          border: value === false ? '2px solid #16a34a' : '2px solid #E5E7EB',
-                          background: value === false ? '#16a34a' : '#FFFFFF',
-                          color: value === false ? '#FFFFFF' : '#6B7280',
-                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        }}
-                      >לא</button>
-                      <button
-                        type="button"
-                        onClick={() => setValue(true)}
-                        style={{
-                          padding: '6px 14px', borderRadius: 8,
-                          border: value === true ? '2px solid #DC2626' : '2px solid #E5E7EB',
-                          background: value === true ? '#DC2626' : '#FFFFFF',
-                          color: value === true ? '#FFFFFF' : '#6B7280',
-                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        }}
-                      >כן</button>
-                    </div>
+
+                    {/* Required-yes warning under feels_healthy when
+                        the trainee is still on the default 'no'. */}
+                    {q.inverted && value === false && (
+                      <div style={{
+                        marginTop: 6,
+                        padding: '8px 12px',
+                        background: '#FEE2E2',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        color: '#991B1B',
+                        lineHeight: 1.5,
+                      }}>
+                        ⚠ חובה לאשר שאתה מרגיש בריא ומסוגל כדי להמשיך.
+                        אם אינך מרגיש בריא — צור קשר עם המאמן לפני המפגש.
+                      </div>
+                    )}
                   </div>
                 );
               })}
