@@ -14,21 +14,7 @@ import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { normalizeStatus, isActivePackage } from "@/lib/enums";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
-
-// Integer age from a birth_date (ISO string or Date). Returns null
-// when the date is missing/unparseable. Adjusts for whether the
-// birthday has occurred this year — more accurate than dividing
-// the elapsed ms by 365.25 days.
-const calcAge = (birthDate) => {
-  if (!birthDate) return null;
-  const today = new Date();
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return null;
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-};
+import { calculateAge as calcAge, formatBirthWithAge } from "@/lib/dateHelpers";
 
 export default function AllUsers() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -581,10 +567,27 @@ export default function AllUsers() {
                       );
                     })()}
                   </div>
-                  <div style={{
-                    fontSize: 11, color: '#888', marginTop: 1,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{t.phone || t.email || ''}</div>
+                  {/* Secondary meta — wraps onto a second row on
+                      narrow screens so a long birth label like
+                      "15/03/1990 (36)" doesn't get clipped with an
+                      ellipsis next to the phone number. Bullet
+                      separator only renders when both halves are
+                      present, so a row with phone-only or birth-
+                      only doesn't get a stray dot. */}
+                  {(() => {
+                    const contact = t.phone || t.email || '';
+                    const birth = formatBirthWithAge(t);
+                    return (
+                      <div style={{
+                        fontSize: 11, color: '#888', marginTop: 1,
+                        display: 'flex', flexWrap: 'wrap', gap: 6,
+                      }}>
+                        {contact && <span>{contact}</span>}
+                        {contact && birth && <span aria-hidden>·</span>}
+                        {birth && <span>{birth}</span>}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div style={{
@@ -645,23 +648,11 @@ export default function AllUsers() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{
                       fontSize: 12, fontWeight: 600, color: '#1a1a1a',
-                      whiteSpace: 'nowrap',
+                      // Allow wrap on narrow screens so a long
+                      // "15/03/1990 (36)" doesn't get cropped.
+                      wordBreak: 'break-word',
                     }}>
-                      {(() => {
-                        if (!birthDate) return '—';
-                        const d = new Date(birthDate);
-                        if (Number.isNaN(d.getTime())) return '—';
-                        const dd = String(d.getDate()).padStart(2, '0');
-                        const mm = String(d.getMonth() + 1).padStart(2, '0');
-                        const yyyy = d.getFullYear();
-                        const age = calcAge(birthDate);
-                        return age !== null ? (
-                          <>
-                            {`${dd}/${mm}/${yyyy}`}
-                            <span style={{ color: '#888', marginRight: 4 }}>({age})</span>
-                          </>
-                        ) : `${dd}/${mm}/${yyyy}`;
-                      })()}
+                      {formatBirthWithAge(t) || '—'}
                     </div>
                     <div style={{ fontSize: 8, color: '#888' }}>יום הולדת</div>
                   </div>

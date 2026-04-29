@@ -75,6 +75,7 @@ import PlanEditorDialog from "@/components/plans/PlanEditorDialog";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
 import ClientStatusPicker from "@/components/users/ClientStatusPicker";
+import { calculateAge, formatBirthWithAge } from "@/lib/dateHelpers";
 import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
@@ -1011,25 +1012,12 @@ function PersonalTab({
   const [editFields, setEditFields] = useState({});
   const [savingDetails, setSavingDetails] = useState(false);
 
-  let birthLabel = null;
-  let ageNow = null;
-  if (user?.birth_date) {
-    try {
-      const d = new Date(user.birth_date);
-      if (!Number.isNaN(d.getTime())) {
-        const dateStr = format(d, 'dd/MM/yyyy');
-        const today = new Date();
-        let a = today.getFullYear() - d.getFullYear();
-        const m = today.getMonth() - d.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < d.getDate())) a--;
-        ageNow = a;
-        birthLabel = `${dateStr} • ${a} שנים`;
-      }
-    } catch {}
-  } else if (user?.age) {
-    birthLabel = `${user.age} שנים`;
-    ageNow = Number(user.age) || null;
-  }
+  // birthLabel: "DD/MM/YYYY (age)" via shared helper. Falls back to
+  // "גיל X" when only the legacy `age` column is set; empty string
+  // when neither field is available.
+  const birthLabel = formatBirthWithAge(user) || null;
+  const ageNow = calculateAge(user?.birth_date)
+    ?? (Number.isFinite(Number(user?.age)) ? Number(user.age) : null);
 
   const isMinor = ageNow !== null && ageNow < 18;
   const hasEmergency = !!(user?.emergency_contact_name || user?.emergency_contact_phone || user?.emergency_contact_relation);
@@ -1173,7 +1161,33 @@ function PersonalTab({
           <EditableField label="טלפון"        value={user?.phone}            fieldKey="phone"            type="tel" />
           <EditableField label="אימייל"       value={user?.email}            fieldKey="email"            type="email" />
           {editingDetails ? (
-            <EditableField label="תאריך לידה" value={null} fieldKey="birth_date" type="date" />
+            // Custom block instead of generic EditableField — gives
+            // us a live "(גיל: X)" hint that updates as the coach
+            // types/picks a date. Native chrome onChange feeds
+            // straight back to editFields.
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
+                תאריך לידה
+                {editFields.birth_date && (() => {
+                  const liveAge = calculateAge(editFields.birth_date);
+                  return liveAge != null ? (
+                    <span style={{ marginInlineStart: 6, color: '#FF6F20' }}>
+                      (גיל: {liveAge})
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+              <input
+                type="date"
+                value={editFields.birth_date ?? ''}
+                onChange={(e) => setEditFields(prev => ({ ...prev, birth_date: e.target.value }))}
+                style={{
+                  width: '100%', padding: '8px 10px', borderRadius: 12,
+                  border: '1px solid #FF6F20', fontSize: 14, direction: 'rtl',
+                  background: '#FFF5EE', boxSizing: 'border-box', outline: 'none',
+                }}
+              />
+            </div>
           ) : (
             <FieldCell label="תאריך לידה" value={birthLabel} />
           )}
