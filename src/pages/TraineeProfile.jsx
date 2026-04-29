@@ -70,6 +70,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageLoader from "@/components/PageLoader";
 import InlineLoader from "@/components/InlineLoader";
+import PlanCard from "@/components/plans/PlanCard";
+import PlanEditorDialog from "@/components/plans/PlanEditorDialog";
+import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
@@ -1396,6 +1399,11 @@ export default function TraineeProfile() {
     achieved: false,
     cancelled: false,
   });
+  // Plans tab: status chip filter ('all' | 'active' | 'archived')
+  // and the in-context editor dialog. editingPlan holds the row
+  // being edited or null when the dialog is closed.
+  const [planStatusFilter, setPlanStatusFilter] = useState('all');
+  const [editingPlan, setEditingPlan] = useState(null);
   // Goals-tab folder system (goal_progress driven). Each goal_name is
   // a folder; clicking a folder card expands it to show the chart +
   // history + linked records + update CTA.
@@ -1777,6 +1785,38 @@ export default function TraineeProfile() {
       return uniquePlans.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
     },
     enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Bulk-load sections + exercises for every visible plan so the
+  // PlanCard's open body can render its structure without a per-card
+  // lazy fetch on each toggle. Mirrors the pattern used by the
+  // coach's TrainingPlans page (see plan-contents-bulk there). Only
+  // hits Supabase when the plans tab is active.
+  const livePlanIds = (trainingPlans || [])
+    .filter(p => p.status !== 'deleted' && !p.deleted_at)
+    .map(p => p.id)
+    .sort();
+  const { data: planContents = {} } = useQuery({
+    queryKey: ['trainee-plan-contents-bulk', user?.id, livePlanIds.join(',')],
+    queryFn: async () => {
+      if (!livePlanIds.length) return {};
+      const results = await Promise.all(
+        livePlanIds.map(async (planId) => {
+          const [sec, ex] = await Promise.all([
+            base44.entities.TrainingSection.filter({ training_plan_id: planId }, 'order').catch(() => []),
+            base44.entities.Exercise.filter({ training_plan_id: planId }).catch(() => []),
+          ]);
+          return { planId, sections: sec || [], exercises: ex || [] };
+        })
+      );
+      const byPlan = {};
+      for (const r of results) {
+        byPlan[r.planId] = { sections: r.sections, exercises: r.exercises };
+      }
+      return byPlan;
+    },
+    enabled: !!user?.id && activeTab === 'plans' && livePlanIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -4955,83 +4995,117 @@ export default function TraineeProfile() {
                 )}
               </TabsContent>
 
-              {/* Plans Tab */}
+              {/* Plans Tab — collapsible PlanCard list with status
+                  filter chips + an in-context PlanEditorDialog. The
+                  legacy PlanBuilder page still exists for any deep
+                  link that lands on it; this tab is the in-profile
+                  experience the coach uses day-to-day. */}
               <TabsContent value="plans" className="space-y-4 w-full" dir="rtl">
+                {plansLoading && trainingPlans.length === 0 && (
+                  <InlineLoader message="טוען תוכניות..." />
+                )}
+
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-[#FF6F20]" />תוכניות אימון</h2>
-                  {isCoach && <Button onClick={() => setShowPlanDialog(true)} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}><Plus className="w-3 h-3 ml-1" />צור תוכנית</Button>}
                 </div>
-                {trainingPlans.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg"><FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין תוכניות אימון</p></div>
-                ) : (
-                  <div className="space-y-4">
-                    {trainingPlans.filter(p => p.created_by !== user?.id).length > 0 && (
-                      <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
-                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#FF6F20]" />תוכניות מהמאמן</h3>
-                        <div className="space-y-3">
-                          {trainingPlans.filter(p => p.created_by !== user?.id).map(plan => {
-                            const progress = getPlanProgress(plan);
-                            return (
-                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer" dir="rtl">
-                                <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-bold text-base text-right">{plan.plan_name}</h4>
-                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs flex-shrink-0">פתח</Button>}
-                                </div>
-                                <div className="flex flex-wrap gap-1 mb-2">
-                                  {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
-                                    <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#FFF9F0', color:'#FF6F20', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
-                                      {FOCUS_LABELS[k] || k}
-                                    </span>
-                                  ))}
-                                </div>
-                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{progress.completed}/{progress.total} תרגילים</span><span>{progress.percent}%</span></div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${progress.percent}%` }} /></div>
-                              </div>
-                            );
-                          })}
-                        </div>
+
+                {/* New-plan CTA (coach only) — opens the existing
+                    PlanFormDialog so the create-flow stays intact;
+                    the new editor takes over for opening existing
+                    plans below. */}
+                {isCoach && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPlanDialog(true)}
+                    style={{
+                      width: '100%',
+                      padding: 14,
+                      background: 'white',
+                      border: '1.5px dashed #FF6F20',
+                      borderRadius: 14,
+                      color: '#FF6F20',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    + תוכנית חדשה למתאמן
+                  </button>
+                )}
+
+                {/* Status filter chips. The two Hebrew aliases
+                    ('פעילה' / 'ארכיון') travel alongside the English
+                    counterparts because legacy rows use either form. */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <Chip size="sm" selected={planStatusFilter === 'all'}
+                        onClick={() => setPlanStatusFilter('all')} label="הכל" />
+                  <Chip size="sm" selected={planStatusFilter === 'active'}
+                        onClick={() => setPlanStatusFilter('active')} label="פעיל" />
+                  <Chip size="sm" selected={planStatusFilter === 'archived'}
+                        onClick={() => setPlanStatusFilter('archived')} label="ארכיון" />
+                </div>
+
+                {(() => {
+                  const livePlans = trainingPlans.filter(p => p.status !== 'deleted' && !p.deleted_at);
+                  const filtered = livePlans.filter(p => {
+                    if (planStatusFilter === 'all') return true;
+                    const s = (p.status || '').toString().toLowerCase();
+                    if (planStatusFilter === 'active')   return s === 'active'   || p.status === 'פעילה' || !p.status;
+                    if (planStatusFilter === 'archived') return s === 'archived' || p.status === 'ארכיון';
+                    return true;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div style={{
+                        textAlign: 'center', padding: 40, color: '#888',
+                        background: '#FAFAFA', borderRadius: 14,
+                        border: '1px solid #F0E4D0',
+                      }}>
+                        אין תוכניות בפילטר הזה
                       </div>
-                    )}
-                    {trainingPlans.filter(p => p.created_by === user?.id).length > 0 && (
-                      <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
-                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-400" />תוכניות עצמאיות</h3>
-                        <div className="space-y-3">
-                          {trainingPlans.filter(p => p.created_by === user?.id).map(plan => {
-                            const progress = getPlanProgress(plan);
-                            return (
-                              <div key={plan.id} onClick={() => isCoach && navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`)} className="p-4 rounded-xl bg-white border border-gray-200 hover:shadow-md cursor-pointer" dir="rtl">
-                                <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-bold text-base text-right">{plan.plan_name}</h4>
-                                  {isCoach && <Button onClick={e => { e.stopPropagation(); navigate(createPageUrl("PlanBuilder") + `?planId=${plan.id}`); }} size="sm" variant="outline" className="h-8 text-xs flex-shrink-0">פתח</Button>}
-                                </div>
-                                <div className="flex flex-wrap gap-1 mb-2">
-                                  {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
-                                    <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#f5f5f5', color:'#666', border:'1px solid #ddd', fontSize:11, fontWeight:600 }}>
-                                      {FOCUS_LABELS[k] || k}
-                                    </span>
-                                  ))}
-                                </div>
-                                <div className="flex justify-between text-xs text-gray-500 mb-2"><span>{progress.completed}/{progress.total} תרגילים</span><span>{progress.percent}%</span></div>
-                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-gray-500" style={{ width: `${progress.percent}%` }} /></div>
-                              </div>
-                            );
-                          })}
+                    );
+                  }
+
+                  return filtered.map(plan => {
+                    const contents = planContents[plan.id] || { sections: [], exercises: [] };
+                    return (
+                      <PlanCard
+                        key={plan.id}
+                        plan={plan}
+                        sections={contents.sections}
+                        exercises={contents.exercises}
+                        onOpenEditor={isCoach ? setEditingPlan : undefined}
+                      />
+                    );
+                  });
+                })()}
+
+                {/* Workout history — independent of plan rows; kept
+                    as its own self-contained block so the trainee
+                    can review past sessions without expanding any
+                    plan card. */}
+                {workoutHistory.length > 0 && (
+                  <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+                    <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      היסטוריית אימונים
+                    </h3>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {workoutHistory.map(entry => (
+                        <div key={entry.id} className="bg-white p-3 rounded-xl border border-blue-100 flex justify-between items-center">
+                          <div>
+                            <h4 className="font-bold text-sm text-blue-900">{entry.planName || "אימון"}</h4>
+                            <span className="text-xs text-gray-500">{new Date(entry.date).toLocaleDateString('he-IL')}</span>
+                          </div>
+                          <div className="text-xs">
+                            <div className="font-bold text-green-600">שליטה: {entry.mastery_avg}</div>
+                            <div className="font-bold text-orange-600">קושי: {entry.difficulty_avg}</div>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {workoutHistory.length > 0 && (
-                      <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-                        <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500" />היסטוריית אימונים</h3>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {workoutHistory.map(entry => (
-                            <div key={entry.id} className="bg-white p-3 rounded-xl border border-blue-100 flex justify-between items-center">
-                              <div><h4 className="font-bold text-sm text-blue-900">{entry.planName || "אימון"}</h4><span className="text-xs text-gray-500">{new Date(entry.date).toLocaleDateString('he-IL')}</span></div>
-                              <div className="text-xs"><div className="font-bold text-green-600">שליטה: {entry.mastery_avg}</div><div className="font-bold text-orange-600">קושי: {entry.difficulty_avg}</div></div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 )}
               </TabsContent>
@@ -5590,6 +5664,21 @@ export default function TraineeProfile() {
           trainees={effectiveUser ? [effectiveUser] : user ? [user] : []}
           isLoading={createPlanForTraineeMutation.isPending}
           hideTraineeSelection
+        />
+
+        {/* In-context plan editor — opens over the trainee profile
+            instead of routing the coach to /PlanBuilder. Closes
+            invalidate the bulk-contents query so the open card
+            picks up any sections/exercises that were just edited. */}
+        <PlanEditorDialog
+          plan={editingPlan}
+          trainee={user}
+          isOpen={!!editingPlan}
+          onClose={() => setEditingPlan(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+            queryClient.invalidateQueries({ queryKey: ['trainee-plan-contents-bulk'] });
+          }}
         />
 
         {/* Add/Edit Service Dialog */}
