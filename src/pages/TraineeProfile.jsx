@@ -1165,7 +1165,7 @@ function PersonalTab({
         <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>
           פרטי התקשרות
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
           <EditableField label="טלפון"        value={user?.phone}            fieldKey="phone"            type="tel" />
           <EditableField label="אימייל"       value={user?.email}            fieldKey="email"            type="email" />
           {editingDetails ? (
@@ -1227,7 +1227,7 @@ function PersonalTab({
 
         {hasEmergency || editingDetails ? (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
               <EditableField label="שם"    value={user?.emergency_contact_name}  fieldKey="emergency_contact_name" />
               <EditableField label="טלפון" value={user?.emergency_contact_phone} fieldKey="emergency_contact_phone" type="tel" />
             </div>
@@ -1333,12 +1333,19 @@ function CardEditButton({ onClick }) {
 
 function FieldCell({ label, value }) {
   return (
-    <div>
+    <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 2 }}>{label}</div>
       <div style={{
         fontSize: 14,
         color: value ? '#1A1A1A' : '#aaa',
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        // Long emails / addresses must wrap onto a new line instead
+        // of being chopped with an ellipsis. `overflowWrap: anywhere`
+        // is the modern keyword that lets the browser break inside a
+        // single token (e.g. an email with no spaces); `wordBreak`
+        // is the Safari-friendly fallback. whiteSpace stays at the
+        // default 'normal' so existing line-breaks still wrap.
+        wordBreak: 'break-word',
+        overflowWrap: 'anywhere',
       }}>
         {value || 'לא הוזן'}
       </div>
