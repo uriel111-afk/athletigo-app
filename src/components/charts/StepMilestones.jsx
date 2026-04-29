@@ -118,9 +118,9 @@ export default function StepMilestones({
         <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity={isSingleSeries ? 1 : 0.85}/>
         {enriched.map((p, i) => {
           const isLast = i === enriched.length - 1;
-          if (!isSingleSeries) {
-            return <circle key={i} cx={p.x} cy={p.y} r="3" fill={color}/>;
-          }
+          // PR detection runs per-series, so the star/halo treatment
+          // is meaningful in multi-series mode too — each exercise
+          // gets its own milestone markers.
           if (!p.isPR) {
             return <circle key={i} cx={p.x} cy={p.y} r="3" fill={color}/>;
           }

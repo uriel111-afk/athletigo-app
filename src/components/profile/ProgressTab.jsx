@@ -702,18 +702,26 @@ export default function ProgressTab({ traineeId }) {
               הגרף ממוזער
             </div>
           ) : (
-            // Replaced the multi-line LineChart (with projection +
-            // milestone overlays) with a single-series StepMilestones
-            // chart. Filter chips above narrow the dataset; the
-            // chart auto-handles 0 / 1 / many data points. The
-            // existing projection / milestone calculations
-            // (`projections`, `milestones`, `targetOnlyGoals`) are
-            // preserved upstream — they're available to other
-            // surfaces that may want them later, but no longer
-            // overlaid on this chart.
-            <ChartCard breakout padding="0">
+            // Edge-to-edge wrapper for StepMilestones. The chart sits
+            // inside two existing breakout layers:
+            //   • outer 100vw div with 8px horizontal padding
+            //   • inner card with 4px horizontal padding (`16px 4px`)
+            // Total leftover gutter from the viewport edge = 12px.
+            // marginInline: -12px cancels both, so the SVG actually
+            // touches the screen edges on mobile (380px). Keeps the
+            // top/bottom hairlines in the brand chart border colour.
+            <div style={{
+              background: '#FFFEFC',
+              borderTop: '1px solid #F5E8D5',
+              borderBottom: '1px solid #F5E8D5',
+              marginInline: '-12px',
+              padding: '14px 0 10px',
+            }}>
+              <div style={{ padding: '0 14px 10px', fontSize: 14, fontWeight: 500, color: '#1a1a1a' }}>
+                התקדמות שיאים
+              </div>
               <StepMilestones {...chartProps} yLabel={stepYLabel} />
-            </ChartCard>
+            </div>
           )}
 
           {/* Stats row — three full-width cards under the chart. */}
