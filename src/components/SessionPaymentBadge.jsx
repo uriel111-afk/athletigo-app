@@ -3,17 +3,22 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
 // Renders the per-session payment status + (when applicable) the
-// "שלם 💳" CTA. Used on every session card the trainee sees so any
-// priced session has a clear path to payment.
+// "שלם 💳" CTA.
 //
-// Modes — driven by props:
+// Modes — driven by `coachView`:
 //   coachView=true  — coach reading a trainee's session card.
 //                     Shows the price + a colored payment-status
 //                     badge (paid green / pending orange / unpaid
 //                     red / null gray "ללא תשלום"). No pay button.
-//   coachView=false — trainee. Shows price + status, plus a
-//                     "שלם" CTA when payment_status is
-//                     'unpaid' or null (and price > 0).
+//   coachView=false — trainee. NEVER shows the status badge —
+//                     a trainee shouldn't see "ממתין לתשלום" /
+//                     "לא שולם" framing on their own sessions.
+//                     Renders one of three things:
+//                       • pay button when price > 0 and unpaid
+//                       • muted "✓ אישרת והוסדר" line when paid
+//                       • nothing when the coach overrode payment
+//                         (the trainee doesn't need to know the
+//                         coach waived it)
 //
 // Pay flow: invokes the Edge Function `payment-create` with the
 // session id + amount + trainee identity. The function should
@@ -37,18 +42,22 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
     );
   }
 
-  const isPaid    = status === 'paid';
-  const isPending = status === 'pending';
-  const isUnpaid  = status === 'unpaid' || status == null;
+  const isPaid       = status === 'paid';
+  const isPending    = status === 'pending';
+  const isOverride   = status === 'override_no_payment';
+  const isUnpaid     = status === 'unpaid' || status == null;
 
   // Visual: badge color follows the status. Orange (#FF6F20) for
   // pending matches the brand primary so the "shelm" CTA below
-  // visually anchors to its own status color.
+  // visually anchors to its own status color. Trainee view never
+  // reads `badge` — the early returns below cover every case.
   const badge = isPaid
     ? { bg: '#E8F5E9', fg: '#15803D', label: `שולם ✓ — ${price}₪` }
     : isPending
       ? { bg: '#FFF1E6', fg: '#FF6F20', label: `ממתין לתשלום — ${price}₪` }
-      : { bg: '#FEE2E2', fg: '#B91C1C', label: `לא שולם — ${price}₪` };
+      : isOverride
+        ? { bg: '#FEE2E2', fg: '#B91C1C', label: 'הושלם ללא תשלום' }
+        : { bg: '#FEE2E2', fg: '#B91C1C', label: `לא שולם — ${price}₪` };
 
   const handlePay = async () => {
     if (!session?.id || price <= 0) return;
@@ -120,31 +129,59 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
     }
   };
 
+  // ─── Trainee view ─────────────────────────────────────────────
+  // The trainee never sees the "שולם / ממתין לתשלום / לא שולם"
+  // labels. Three cases:
+  //   • Coach overrode payment → render nothing. The trainee
+  //     doesn't need to know about the override; their session
+  //     just appears as a normal completed row elsewhere.
+  //   • Already paid           → muted "✓ אישרת והוסדר" line
+  //                              (no price, no "שולם" wording).
+  //   • Otherwise (unpaid / null / pending) → just the pay button.
+  if (!coachView) {
+    if (isOverride) return null;
+    if (isPaid) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          padding: '4px 10px', borderRadius: 12,
+          background: '#F3F4F6', color: '#16a34a',
+          fontSize: 12, fontWeight: 600,
+          fontFamily: "'Heebo', 'Assistant', sans-serif",
+        }}>
+          ✓ אישרת והוסדר
+        </span>
+      );
+    }
+    if (price <= 0) return null;
+    return (
+      <button
+        type="button"
+        onClick={handlePay}
+        disabled={paying}
+        style={{
+          padding: '10px 18px', borderRadius: 14, border: 'none',
+          background: '#FF6F20', color: '#FFFFFF',
+          fontSize: 16, fontWeight: 600,
+          cursor: paying ? 'wait' : 'pointer',
+          opacity: paying ? 0.7 : 1,
+          fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+          boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
+        }}
+      >
+        {paying ? 'פותח תשלום…' : `שלם ${price}₪ 💳`}
+      </button>
+    );
+  }
+
+  // ─── Coach view ───────────────────────────────────────────────
+  // Full status palette + price label. No pay button (coaches
+  // don't pay on behalf of trainees through this badge).
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span style={{
-        display: 'inline-block', padding: '4px 12px', borderRadius: 14,
-        background: badge.bg, color: badge.fg,
-        fontSize: 12, fontWeight: 700,
-      }}>{badge.label}</span>
-      {!coachView && isUnpaid && (
-        <button
-          type="button"
-          onClick={handlePay}
-          disabled={paying}
-          style={{
-            padding: '10px 18px', borderRadius: 14, border: 'none',
-            background: '#FF6F20', color: '#FFFFFF',
-            fontSize: 16, fontWeight: 600,
-            cursor: paying ? 'wait' : 'pointer',
-            opacity: paying ? 0.7 : 1,
-            fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
-            boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
-          }}
-        >
-          {paying ? 'פותח תשלום…' : `שלם ${price}₪ 💳`}
-        </button>
-      )}
-    </div>
+    <span style={{
+      display: 'inline-block', padding: '4px 12px', borderRadius: 14,
+      background: badge.bg, color: badge.fg,
+      fontSize: 12, fontWeight: 700,
+    }}>{badge.label}</span>
   );
 }

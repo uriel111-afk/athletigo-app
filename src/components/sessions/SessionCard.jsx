@@ -207,7 +207,13 @@ export default function SessionCard({
 // Tiny money-state pill. Three states + a hidden state for free
 // rows (price=0/null). Mirrors the colour vocab elsewhere in the
 // app: green=settled, red=skipped/overridden, amber=pending.
-function PaymentBadge({ session }) {
+//
+// viewerRole defaults to 'coach' because every current call site
+// is the coach Sessions page. The trainee surfaces should never
+// render this badge — passing 'trainee' is a defensive null-out
+// that future calls can opt into without re-plumbing each card.
+function PaymentBadge({ session, viewerRole = 'coach' }) {
+  if (viewerRole === 'trainee') return null;
   const price = Number(session?.price);
   if (!Number.isFinite(price) || price <= 0) return null;
   const status = session?.payment_status;
