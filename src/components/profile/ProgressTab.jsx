@@ -6,9 +6,11 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { exerciseInfoFor, unitLabel } from '@/lib/recordExercises';
 import NewRecordDialog from '@/components/forms/NewRecordDialog';
+import { Chip } from '@/components/ui/Chip';
 
 const O = '#FF6F20';
 const CARD_BG = '#FFFFFF';
@@ -39,6 +41,22 @@ export default function ProgressTab({ traineeId }) {
   // Coach-only inline edit — set to a personal_records row to open
   // NewRecordDialog in edit mode (UPDATE instead of INSERT).
   const [editingRecord, setEditingRecord] = useState(null);
+
+  // Master-chart minimize toggle. Persisted per traineeId so the
+  // trainee's preference survives across sessions; the coach gets a
+  // separate key when viewing a specific trainee.
+  const minimizeKey = traineeId ? `records_chart_minimized_${traineeId}` : null;
+  const [chartMinimized, setChartMinimized] = useState(() => {
+    if (!minimizeKey) return false;
+    try { return localStorage.getItem(minimizeKey) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    if (!minimizeKey) return;
+    try {
+      if (chartMinimized) localStorage.setItem(minimizeKey, '1');
+      else localStorage.removeItem(minimizeKey);
+    } catch {}
+  }, [chartMinimized, minimizeKey]);
 
   // ── Data ───────────────────────────────────────────────────────
   const { data: records = [] } = useQuery({
@@ -203,121 +221,167 @@ export default function ProgressTab({ traineeId }) {
       {records.length > 0 && (
         <div style={{
           background: CARD_BG, borderRadius: 14, border: `1px solid ${BORDER}`,
-          padding: 16, marginBottom: 16,
+          padding: '14px 12px', marginBottom: 16,
+          position: 'relative',
         }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>📊 סקירת שיאים</div>
-
-          {/* Filter pills — 'הכל' + one per exercise */}
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 12 }}>
+          {/* Header row — title + minimize button. Button sits on the
+              left in RTL (visual top-left) so it never collides with
+              the title text. */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>📊 סקירת שיאים</div>
             <button
               type="button"
-              onClick={() => setFilterExercise('all')}
+              onClick={() => setChartMinimized(m => !m)}
+              aria-label={chartMinimized ? 'הצג גרף' : 'מזער גרף'}
               style={{
-                padding: '6px 14px', borderRadius: 20, border: 'none',
-                whiteSpace: 'nowrap',
-                background: filterExercise === 'all' ? O : '#F0E4D0',
-                color: filterExercise === 'all' ? 'white' : '#888',
-                fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                width: 28, height: 28, borderRadius: 8,
+                border: '1px solid #F0E4D0', background: '#FFFFFF',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#FFF5EE';
+                e.currentTarget.style.borderColor = '#FF6F20';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#FFFFFF';
+                e.currentTarget.style.borderColor = '#F0E4D0';
               }}
             >
-              הכל
+              {chartMinimized
+                ? <ChevronDown size={16} color="#555" />
+                : <ChevronUp size={16} color="#555" />}
             </button>
+          </div>
+
+          {/* Filter chips — flex-wrap so long names render fully on
+              their own line instead of being truncated. Each Chip
+              keeps whiteSpace:nowrap internally; the row wraps. */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16,
+          }}>
+            <Chip
+              size="sm"
+              selected={filterExercise === 'all'}
+              onClick={() => setFilterExercise('all')}
+              label="הכל"
+            />
             {exerciseNames.map(name => (
-              <button
+              <Chip
                 key={name}
-                type="button"
+                size="sm"
+                selected={filterExercise === name}
                 onClick={() => setFilterExercise(name)}
-                style={{
-                  padding: '6px 14px', borderRadius: 20, border: 'none',
-                  whiteSpace: 'nowrap',
-                  background: filterExercise === name ? O : '#F0E4D0',
-                  color: filterExercise === name ? 'white' : '#888',
-                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                }}
-              >
-                {name.length > 15 ? name.substring(0, 15) + '…' : name}
-              </button>
+                label={name}
+              />
             ))}
           </div>
 
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={masterChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888' }} />
-              <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
-              <Tooltip contentStyle={{
-                borderRadius: 12, border: `1px solid ${BORDER}`,
-                background: '#fff', fontSize: 12, direction: 'rtl',
-              }} />
-              {chartExercises.map((ex, i) => {
-                const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                return (
-                  <Line
-                    key={ex}
-                    type="monotone"
-                    dataKey={ex}
-                    name={ex}
-                    stroke={color}
-                    strokeWidth={2.5}
-                    connectNulls
-                    dot={(props) => {
-                      const { cx, cy, payload, index } = props;
-                      const record = records.find(r =>
-                        r.date === payload._isoDate &&
-                        (r.name || r.exercise_name) === ex
-                      );
-                      const isPB = !!record?.is_personal_best;
-                      return (
-                        <circle
-                          key={`${ex}-${index}`}
-                          cx={cx} cy={cy}
-                          r={isPB ? 8 : 5}
-                          fill={isPB ? color : 'white'}
-                          stroke={color} strokeWidth={2}
-                        />
-                      );
-                    }}
-                    activeDot={{ r: 9, fill: color, stroke: 'white', strokeWidth: 2, cursor: 'pointer' }}
-                  />
-                );
-              })}
-              {filterExercise !== 'all' && (() => {
-                const linkedGoal = linkedGoalFor(filterExercise);
-                if (!linkedGoal?.target_value) return null;
-                return (
-                  <ReferenceLine
-                    y={Number(linkedGoal.target_value)}
-                    stroke="#1D9E75"
-                    strokeDasharray="5 5"
-                    label={{
-                      value: `יעד: ${linkedGoal.target_value}`,
-                      position: 'right', fill: '#1D9E75', fontSize: 11,
-                    }}
-                  />
-                );
-              })()}
-            </LineChart>
-          </ResponsiveContainer>
-
-          {chartExercises.length > 1 && (
+          {chartMinimized ? (
             <div style={{
-              display: 'flex', justifyContent: 'center', gap: 12,
-              marginTop: 8, fontSize: 11, flexWrap: 'wrap',
+              padding: '20px 0 8px',
+              textAlign: 'center', color: '#888', fontSize: 12,
             }}>
-              {chartExercises.map((ex, i) => {
-                const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                return (
-                  <span
-                    key={ex}
-                    onClick={() => setFilterExercise(ex)}
-                    style={{ cursor: 'pointer', color: '#1A1A1A' }}
-                  >
-                    <span style={{ color }}>●</span>{' '}
-                    {ex.length > 12 ? ex.substring(0, 12) + '…' : ex}
-                  </span>
-                );
-              })}
+              הגרף ממוזער
             </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart
+                  data={masterChartData}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: '#888' }}
+                    angle={-25}
+                    textAnchor="end"
+                    height={50}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    domain={[0, 'auto']}
+                    tick={{ fontSize: 11, fill: '#888' }}
+                    width={32}
+                  />
+                  <Tooltip contentStyle={{
+                    borderRadius: 8, border: `1px solid ${BORDER}`,
+                    background: '#fff', fontSize: 12, direction: 'rtl',
+                  }} />
+                  {chartExercises.map((ex, i) => {
+                    const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
+                    return (
+                      <Line
+                        key={ex}
+                        type="monotone"
+                        dataKey={ex}
+                        name={ex}
+                        stroke={color}
+                        strokeWidth={2.5}
+                        connectNulls
+                        dot={(props) => {
+                          const { cx, cy, payload, index } = props;
+                          const record = records.find(r =>
+                            r.date === payload._isoDate &&
+                            (r.name || r.exercise_name) === ex
+                          );
+                          const isPB = !!record?.is_personal_best;
+                          return (
+                            <circle
+                              key={`${ex}-${index}`}
+                              cx={cx} cy={cy}
+                              r={isPB ? 8 : 4}
+                              fill={isPB ? color : '#FFFFFF'}
+                              stroke={color} strokeWidth={2}
+                            />
+                          );
+                        }}
+                        activeDot={{ r: 9, fill: color, stroke: 'white', strokeWidth: 2, cursor: 'pointer' }}
+                      />
+                    );
+                  })}
+                  {filterExercise !== 'all' && (() => {
+                    const linkedGoal = linkedGoalFor(filterExercise);
+                    if (!linkedGoal?.target_value) return null;
+                    return (
+                      <ReferenceLine
+                        y={Number(linkedGoal.target_value)}
+                        stroke="#1D9E75"
+                        strokeDasharray="5 5"
+                        label={{
+                          value: `יעד: ${linkedGoal.target_value}`,
+                          position: 'right', fill: '#1D9E75', fontSize: 11,
+                        }}
+                      />
+                    );
+                  })()}
+                </LineChart>
+              </ResponsiveContainer>
+
+              {chartExercises.length > 1 && (
+                <div style={{
+                  display: 'flex', justifyContent: 'center', gap: 12,
+                  marginTop: 8, fontSize: 11, flexWrap: 'wrap',
+                }}>
+                  {chartExercises.map((ex, i) => {
+                    const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
+                    return (
+                      <span
+                        key={ex}
+                        onClick={() => setFilterExercise(ex)}
+                        style={{ cursor: 'pointer', color: '#1A1A1A' }}
+                      >
+                        <span style={{ color }}>●</span>{' '}{ex}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
 
           {/* Stats row */}
