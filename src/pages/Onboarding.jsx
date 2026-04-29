@@ -281,8 +281,22 @@ export default function Onboarding() {
   const [preHealthChips, setPreHealthChips] = useState([]);
   const [preHealthNote, setPreHealthNote] = useState('');
 
-  // Step 6: pending session (auto-confirmed once paid)
+  // Step 6: pending session (auto-confirmed once paid).
+  // Loads when the user reaches the 'confirm' step. Holds the
+  // earliest pending row if any; null when nothing is waiting.
   const [pendingSession, setPendingSession] = useState(null);
+  const [pendingSessionLoading, setPendingSessionLoading] = useState(false);
+  // Reschedule-request sub-form state — only renders inside the
+  // free-session branch when the trainee taps "בקש תאריך אחר".
+  const [showDateRequest, setShowDateRequest] = useState(false);
+  const [requestedDate, setRequestedDate] = useState('');
+  const [requestedTime, setRequestedTime] = useState('');
+  // Once the trainee resolves the pending session (confirms a free
+  // one OR sends a reschedule request OR cancels into payment) we
+  // unlock the "סיום ✓" CTA. Stays false otherwise so the final
+  // save can't sneak past an unhandled session.
+  const [pendingResolved, setPendingResolved] = useState(false);
+  const [pendingActionBusy, setPendingActionBusy] = useState(false);
 
   // Bootstrap — load the auth user + existing row, prefill any prior
   // answers so a refresh mid-flow doesn't wipe progress.
@@ -401,6 +415,48 @@ export default function Onboarding() {
     })();
     return () => { cancelled = true; };
   }, [navigate]);
+
+  // Pending-session loader — fires on entry to the 'confirm' step.
+  // Reads the earliest pending row for this trainee and parks it on
+  // local state. The status filter accepts both English + Hebrew
+  // values that exist in the wild ('pending_approval', 'pending',
+  // 'ממתין', 'ממתין לאישור').
+  useEffect(() => {
+    if (step !== 'confirm' || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      setPendingSessionLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('sessions')
+          .select('id, date, time, type, session_type, duration, price, payment_status, status, location, notes')
+          .eq('trainee_id', user.id)
+          .in('status', ['pending_approval', 'pending', 'ממתין', 'ממתין לאישור'])
+          .order('date', { ascending: true })
+          .limit(1);
+        if (cancelled) return;
+        if (error) {
+          console.warn('[Onboarding] pending-session query failed:', error.message);
+          setPendingSession(null);
+        } else {
+          const row = (data && data[0]) || null;
+          setPendingSession(row);
+          // No session = nothing to resolve, "סיום ✓" should be
+          // unlocked immediately. Already-paid rows count as
+          // resolved too.
+          if (!row || row.payment_status === 'paid') setPendingResolved(true);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.warn('[Onboarding] pending-session threw:', e?.message);
+          setPendingSession(null);
+        }
+      } finally {
+        if (!cancelled) setPendingSessionLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [step, user?.id]);
 
   if (bootstrapping || !user) return <PageLoader fullHeight />;
 
@@ -1197,11 +1253,11 @@ export default function Onboarding() {
         {/* ───────────────────────────────────────────────────── */}
         {step === 'confirm' && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
               <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>כמעט סיימנו</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>
-                {healthSigned ? 'הצהרת הבריאות נשמרה. תכף סוגרים.' : 'נדרשת חתימה על הצהרת בריאות לפני הסיום.'}
+                {healthSigned ? 'הצהרת הבריאות נשמרה.' : 'נדרשת חתימה על הצהרת בריאות לפני הסיום.'}
               </div>
             </div>
 
@@ -1211,8 +1267,268 @@ export default function Onboarding() {
               </button>
             )}
 
+            {/* Pending-session card — only renders once the trainee
+                signs the health form so the screen reads top-to-
+                bottom: status note → session card → final CTA. */}
+            {healthSigned && pendingSessionLoading && (
+              <div style={{ textAlign: 'center', padding: 16, color: COLORS.muted, fontSize: 14 }}>
+                בודק אם יש מפגש ממתין...
+              </div>
+            )}
+
+            {healthSigned && !pendingSessionLoading && pendingSession && (
+              <div style={{
+                background: 'white', borderRadius: 14, border: `1px solid ${COLORS.border}`,
+                padding: 16, marginBottom: 16, direction: 'rtl',
+              }}>
+                <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📅</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: COLORS.text }}>מפגש ממתין לאישור</div>
+                </div>
+
+                {/* Session details — date / time / type / duration / price */}
+                <div style={{
+                  background: '#FDF8F3', borderRadius: 12, padding: 14, marginBottom: 16,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ color: COLORS.muted }}>תאריך</span>
+                    <span style={{ fontWeight: 600 }}>
+                      {pendingSession.date ? new Date(pendingSession.date).toLocaleDateString('he-IL') : '—'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ color: COLORS.muted }}>שעה</span>
+                    <span style={{ fontWeight: 600 }}>{pendingSession.time || '—'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ color: COLORS.muted }}>סוג</span>
+                    <span style={{ fontWeight: 600 }}>
+                      {pendingSession.session_type || pendingSession.type || 'אימון אישי'}
+                    </span>
+                  </div>
+                  {pendingSession.duration && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ color: COLORS.muted }}>משך</span>
+                      <span style={{ fontWeight: 600 }}>{pendingSession.duration} דקות</span>
+                    </div>
+                  )}
+                  {Number(pendingSession.price) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: COLORS.muted }}>מחיר</span>
+                      <span style={{ fontWeight: 700, color: COLORS.accent, fontSize: 18 }}>
+                        {pendingSession.price}₪
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Paid branch — single CTA, navigates to Grow.
+                    The onboarding row is flipped to 'casual' BEFORE
+                    the redirect so when Grow returns the trainee to
+                    /TraineeHome they don't get bounced back here. */}
+                {Number(pendingSession.price) > 0 && pendingSession.payment_status !== 'paid' ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={pendingActionBusy}
+                      onClick={async () => {
+                        setPendingActionBusy(true);
+                        try {
+                          // Flip onboarding state first so the post-payment
+                          // landing on /TraineeHome doesn't redirect the
+                          // trainee back into the wizard.
+                          await safeUpdate(userId, {
+                            onboarding_completed_at: new Date().toISOString(),
+                            client_status: 'casual',
+                          });
+
+                          const { data, error } = await supabase.functions.invoke('payment-create', {
+                            body: {
+                              amount: pendingSession.price,
+                              description: `אימון — ${pendingSession.session_type || pendingSession.type || 'אישי'}`,
+                              session_id: pendingSession.id,
+                              payment_type: 'single_session',
+                              trainee_name: fullName || '',
+                              trainee_phone: phone || '',
+                              trainee_email: email || '',
+                            },
+                          });
+                          console.log('[Onboarding] payment-create response:', data);
+                          if (data?.url) {
+                            window.location.href = data.url;
+                          } else {
+                            console.error('[Onboarding] payment error:', error || data);
+                            toast.error('שגיאה ביצירת דף תשלום');
+                          }
+                        } catch (e) {
+                          console.error('[Onboarding] payment invoke error:', e);
+                          toast.error('שגיאה בחיבור לתשלום');
+                        } finally {
+                          setPendingActionBusy(false);
+                        }
+                      }}
+                      style={{
+                        width: '100%', padding: 16, borderRadius: 14, border: 'none',
+                        background: pendingActionBusy ? '#ccc' : COLORS.accent,
+                        color: 'white', fontSize: 16, fontWeight: 600,
+                        cursor: pendingActionBusy ? 'default' : 'pointer',
+                        marginBottom: 8,
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      {pendingActionBusy ? 'מעביר לתשלום...' : `💳 שלם ${pendingSession.price}₪ ואשר`}
+                    </button>
+                    <div style={{ textAlign: 'center', fontSize: 12, color: COLORS.muted }}>
+                      אישור המפגש מותנה בתשלום
+                    </div>
+                  </>
+                ) : (
+                  // Free branch — confirm or request a different date.
+                  <>
+                    <button
+                      type="button"
+                      disabled={pendingActionBusy}
+                      onClick={async () => {
+                        setPendingActionBusy(true);
+                        try {
+                          const { error } = await supabase
+                            .from('sessions')
+                            .update({ status: 'confirmed' })
+                            .eq('id', pendingSession.id);
+                          if (error) throw error;
+                          setPendingSession(prev => prev ? { ...prev, status: 'confirmed' } : prev);
+                          setPendingResolved(true);
+                          toast.success('המפגש אושר ✓');
+                        } catch (e) {
+                          console.warn('[Onboarding] confirm session failed:', e?.message);
+                          toast.error('שגיאה באישור המפגש');
+                        } finally {
+                          setPendingActionBusy(false);
+                        }
+                      }}
+                      style={{
+                        width: '100%', padding: 14, borderRadius: 14, border: 'none',
+                        background: pendingActionBusy ? '#ccc' : COLORS.accent,
+                        color: 'white', fontSize: 16, fontWeight: 600,
+                        cursor: pendingActionBusy ? 'default' : 'pointer',
+                        marginBottom: 8,
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      ✓ אישור המפגש
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowDateRequest(prev => !prev)}
+                      style={{
+                        width: '100%', padding: 12, borderRadius: 12,
+                        border: `1px solid ${COLORS.border}`, background: 'white',
+                        color: COLORS.muted, fontSize: 14, cursor: 'pointer',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      📅 בקש תאריך ושעה אחרים
+                    </button>
+
+                    {showDateRequest && (
+                      <div style={{
+                        marginTop: 12, padding: 14, background: '#FDF8F3',
+                        borderRadius: 12, border: `1px solid ${COLORS.border}`,
+                      }}>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 4 }}>
+                              תאריך מבוקש
+                            </div>
+                            <input
+                              type="date"
+                              value={requestedDate}
+                              onChange={(e) => setRequestedDate(e.target.value)}
+                              style={{
+                                width: '100%', padding: 8, borderRadius: 10,
+                                border: `1px solid ${COLORS.border}`, fontSize: 14,
+                              }}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 4 }}>
+                              שעה מבוקשת
+                            </div>
+                            <input
+                              type="time"
+                              value={requestedTime}
+                              onChange={(e) => setRequestedTime(e.target.value)}
+                              style={{
+                                width: '100%', padding: 8, borderRadius: 10,
+                                border: `1px solid ${COLORS.border}`, fontSize: 14,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!requestedDate || !requestedTime || pendingActionBusy}
+                          onClick={async () => {
+                            setPendingActionBusy(true);
+                            try {
+                              if (coachId) {
+                                await supabase.from('notifications').insert({
+                                  user_id: coachId,
+                                  type: 'reschedule_request',
+                                  title: `📅 ${fullName || 'מתאמן'} מבקש לשנות מועד`,
+                                  message: `מועד מבוקש: ${new Date(requestedDate).toLocaleDateString('he-IL')} בשעה ${requestedTime}`,
+                                  is_read: false,
+                                });
+                              }
+                              setPendingResolved(true);
+                              setShowDateRequest(false);
+                              toast.success('הבקשה נשלחה למאמן ✓');
+                            } catch (e) {
+                              console.warn('[Onboarding] reschedule notification error:', e?.message);
+                              toast.error('שגיאה בשליחת הבקשה');
+                            } finally {
+                              setPendingActionBusy(false);
+                            }
+                          }}
+                          style={{
+                            width: '100%', padding: 12, borderRadius: 12, border: 'none',
+                            background: (requestedDate && requestedTime && !pendingActionBusy) ? COLORS.accent : '#ccc',
+                            color: 'white', fontSize: 14, fontWeight: 600,
+                            cursor: (requestedDate && requestedTime && !pendingActionBusy) ? 'pointer' : 'default',
+                            fontFamily: "'Heebo', 'Assistant', sans-serif",
+                          }}
+                        >
+                          📩 שלח בקשה למאמן
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {healthSigned && !pendingSessionLoading && !pendingSession && (
+              <div style={{
+                textAlign: 'center', padding: 20, color: COLORS.muted, fontSize: 14,
+                marginBottom: 16,
+              }}>
+                אין מפגשים ממתינים לאישור
+              </div>
+            )}
+
+            {/* Final CTA — runs the same completeOnboarding the
+                wizard always used. Only enabled once the pending
+                session (if any) was acted on. The paid branch
+                short-circuits this entirely by navigating away to
+                Grow, so it's effectively the unpaid + no-session
+                paths that land here. */}
             {healthSigned && (
-              <button onClick={completeOnboarding} disabled={savingStep} style={primaryBtn(!savingStep)}>
+              <button
+                onClick={completeOnboarding}
+                disabled={savingStep || !pendingResolved}
+                style={primaryBtn(!savingStep && pendingResolved)}
+              >
                 {savingStep ? 'שומר...' : 'סיום ✓'}
               </button>
             )}
