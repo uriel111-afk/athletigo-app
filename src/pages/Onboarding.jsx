@@ -7,6 +7,7 @@ import WelcomeBlessingPopup from "@/components/WelcomeBlessingPopup";
 import PageLoader from "@/components/PageLoader";
 import { generateTraineeSummary } from "@/lib/onboardingSummary";
 import { AuthContext } from "@/lib/AuthContext";
+import { Chip, ChipGroup } from "@/components/ui/Chip";
 
 // 6-step onboarding wizard. Replaces the legacy 2-step flow.
 //
@@ -71,9 +72,31 @@ const FITNESS_LEVEL_OPTIONS = [
 ];
 const FITNESS_LEVELS  = FITNESS_LEVEL_OPTIONS.map(f => f.label);
 
+// Expanded sports list — keep order; first item ("ללא רקע") is the
+// "no background" answer (mutually understood as "אין ניסיון" was
+// before; the new label reads cleaner). Saved order in fitness_background
+// (joined by ', ') stays stable for the summary generator.
 const EXPERIENCE_OPTIONS = [
-  'חדר כושר', 'ריצה', 'שחייה', 'אומנויות לחימה',
-  'כדור', 'יוגה/פילאטיס', 'קרוספיט', 'אין ניסיון', 'אחר',
+  'ללא רקע',
+  'ריצה',
+  'הליכה',
+  'חדר כושר',
+  'קליסטניקס',
+  'קפיצה בחבל',
+  'התעמלות',
+  'יוגה',
+  'פילאטיס',
+  'ריקוד',
+  'שחייה',
+  'אופניים',
+  'כדורגל',
+  'כדורסל',
+  'טניס',
+  'אומנויות לחימה',
+  'קפוארה',
+  'מובמנט / Movement',
+  'טיולים / טרקים',
+  'פעילות אחרת',
 ];
 
 const FREQUENCIES     = ['1-2', '3-4', '5-6', 'כל יום'];
@@ -199,25 +222,8 @@ function ChoiceButton({ active, onClick, children, fullWidth = false, emoji }) {
   );
 }
 
-function Chip({ active, onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: '8px 16px',
-        borderRadius: 20,
-        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
-        background: active ? COLORS.chipBg : COLORS.card,
-        color: active ? COLORS.accent : COLORS.text,
-        fontSize: 13, fontWeight: 500,
-        cursor: 'pointer', whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
+// Local Chip removed — replaced by the shared <Chip /> from
+// @/components/ui/Chip with a gradient + hover/press states.
 
 // ── Main ──
 export default function Onboarding() {
@@ -688,7 +694,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>👋</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>נעים להכיר</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>נעים להכיר</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>נשמח לקבל כמה פרטים בסיסיים</div>
             </div>
 
@@ -750,20 +756,13 @@ export default function Onboarding() {
                         {REFERRAL_OPTIONS.map(o => {
                           const active = referralSource === o.id;
                           return (
-                            <button
+                            <Chip
                               key={o.id}
-                              type="button"
+                              size="sm"
+                              selected={active}
                               onClick={() => setReferralSource(active ? '' : o.id)}
-                              style={{
-                                padding: '6px 14px', borderRadius: 20,
-                                border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
-                                background: active ? COLORS.chipBg : 'white',
-                                color: active ? COLORS.accent : COLORS.muted,
-                                fontSize: 12, cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                fontFamily: "'Heebo', 'Assistant', sans-serif",
-                              }}
-                            >{o.label}</button>
+                              label={o.label}
+                            />
                           );
                         })}
                       </div>
@@ -796,20 +795,13 @@ export default function Onboarding() {
                         {RELATION_OPTIONS.map(r => {
                           const active = emergencyRelation === r;
                           return (
-                            <button
+                            <Chip
                               key={r}
-                              type="button"
+                              size="sm"
+                              selected={active}
                               onClick={() => setEmergencyRelation(active ? '' : r)}
-                              style={{
-                                padding: '6px 14px', borderRadius: 20,
-                                border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
-                                background: active ? COLORS.chipBg : 'white',
-                                color: active ? COLORS.accent : COLORS.muted,
-                                fontSize: 12, cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                fontFamily: "'Heebo', 'Assistant', sans-serif",
-                              }}
-                            >{r}</button>
+                              label={r}
+                            />
                           );
                         })}
                       </div>
@@ -838,7 +830,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>📏</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>נקודת ההתחלה</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>נקודת ההתחלה</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.5 }}>
                 הנתונים האלה יעזרו לעקוב אחרי ההתקדמות.<br />הכל אופציונלי — נשמח לקבל מה שנוח.
               </div>
@@ -897,7 +889,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>מה המטרה?</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>מה המטרה?</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>
                 אפשר לבחור כמה שרוצים — או לדלג ולהגדיר אחר כך.
               </div>
@@ -966,37 +958,30 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>עוד קצת עלייך</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>עוד קצת עלייך</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.5 }}>
                 ככל שנכיר יותר, נוכל להתאים תוכנית טובה יותר.<br />הכל אופציונלי.
               </div>
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>יש ניסיון ספורטיבי?</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>יש ניסיון ספורטיבי?</div>
+              <ChipGroup style={{ marginBottom: 8 }}>
                 {EXPERIENCE_OPTIONS.map(exp => {
                   const active = selectedExperience.includes(exp);
                   return (
-                    <button
+                    <Chip
                       key={exp}
-                      type="button"
+                      size="sm"
+                      selected={active}
                       onClick={() => setSelectedExperience(prev =>
                         prev.includes(exp) ? prev.filter(x => x !== exp) : [...prev, exp]
                       )}
-                      style={{
-                        padding: '6px 14px', borderRadius: 20,
-                        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
-                        background: active ? COLORS.chipBg : 'white',
-                        color: active ? COLORS.accent : COLORS.muted,
-                        fontSize: 12, cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
-                      }}
-                    >{exp}</button>
+                      label={exp}
+                    />
                   );
                 })}
-              </div>
+              </ChipGroup>
               {selectedExperience.length > 0 && (
                 <input
                   value={experienceDetails}
@@ -1061,36 +1046,36 @@ export default function Onboarding() {
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>מה האתגר הכי גדול כרגע?</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>מה האתגר הכי גדול כרגע?</div>
+              <ChipGroup style={{ marginBottom: 8 }}>
                 {ALL_CHALLENGES.map(c => (
                   <Chip key={c}
-                    active={selectedChallenges.includes(c)}
+                    selected={selectedChallenges.includes(c)}
                     onClick={() => setSelectedChallenges(prev =>
                       prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
-                    )}>
-                    {c}
-                  </Chip>
+                    )}
+                    label={c}
+                  />
                 ))}
-              </div>
+              </ChipGroup>
               <textarea value={challengesDescription} onChange={e => setChallengesDescription(e.target.value)}
                 placeholder="נשמח לשמוע עוד..." rows={2}
                 style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>מה הדבר הכי חשוב באימון?</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>מה הדבר הכי חשוב באימון?</div>
+              <ChipGroup style={{ marginBottom: 8 }}>
                 {ALL_PREFERENCES.map(p => (
                   <Chip key={p}
-                    active={selectedPreferences.includes(p)}
+                    selected={selectedPreferences.includes(p)}
                     onClick={() => setSelectedPreferences(prev =>
                       prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-                    )}>
-                    {p}
-                  </Chip>
+                    )}
+                    label={p}
+                  />
                 ))}
-              </div>
+              </ChipGroup>
               <textarea value={preferencesDescription} onChange={e => setPreferencesDescription(e.target.value)}
                 placeholder="נשמח לשמוע עוד..." rows={2}
                 style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
@@ -1118,7 +1103,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>❤️</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>הבריאות חשובה מעל הכל</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>הבריאות חשובה מעל הכל</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.6 }}>
                 נרצה לוודא שהגוף במצב שמאפשר פעילות גופנית — כדי לבנות תוכנית בטוחה שמותאמת בדיוק.
               </div>
@@ -1214,7 +1199,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>כמעט סיימנו</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>כמעט סיימנו</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>
                 {healthSigned ? 'הצהרת הבריאות נשמרה. תכף סוגרים.' : 'נדרשת חתימה על הצהרת בריאות לפני הסיום.'}
               </div>
