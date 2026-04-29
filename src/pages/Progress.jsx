@@ -117,23 +117,34 @@ function ProgressInner() {
   ];
 
   // ── Baseline JPS chart — one line per technique ─────────────
-  // Each baseline row is one technique × one session, so a multi-
-  // technique session shows as parallel points on the same date.
-  // connectNulls keeps a technique's line drawn across sessions
-  // where it wasn't measured.
+  // Sessions are bucketed by created_at within a 60s window so a
+  // multi-technique save (one row per technique sharing a timestamp)
+  // becomes ONE point on the chart. Two distinct saves on the same
+  // day stay separate — each a discrete point with its own time stamp.
   const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
   const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
   const techNames = [...new Set(baselinesArr.map(b => b.technique || 'basic'))];
-  const baselineDates = [...new Set(baselinesArr.map(b =>
-    b.date || new Date(b.created_at).toISOString().split('T')[0]
-  ))].sort();
-  const baselineData = baselineDates.map(date => {
-    const row = { date: new Date(date).toLocaleDateString('he-IL') };
-    techNames.forEach(tech => {
-      const entry = baselinesArr.find(b => {
-        const bDate = b.date || new Date(b.created_at).toISOString().split('T')[0];
-        return bDate === date && (b.technique || 'basic') === tech;
+  const baselineSessions = [];
+  for (const b of [...baselinesArr].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
+    const ts = new Date(b.created_at);
+    if (Number.isNaN(ts.getTime())) continue;
+    const found = baselineSessions.find(s => Math.abs(new Date(s.created_at) - ts) < 60000);
+    if (found) {
+      found.techniques.push(b);
+    } else {
+      baselineSessions.push({
+        key: b.created_at,
+        date: b.date || ts.toISOString().split('T')[0],
+        time: ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+        created_at: b.created_at,
+        techniques: [b],
       });
+    }
+  }
+  const baselineData = baselineSessions.map(s => {
+    const row = { date: `${new Date(s.date).toLocaleDateString('he-IL')} ${s.time}` };
+    techNames.forEach(tech => {
+      const entry = s.techniques.find(t => (t.technique || 'basic') === tech);
       const label = TECH_LABELS[tech] || tech;
       row[label] = entry
         ? Number(entry.baseline_score ?? entry.jps ?? entry.score ?? 0)

@@ -3793,42 +3793,49 @@ export default function TraineeProfile() {
                   const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
                   const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
                   const techNames = [...new Set(baselines.map(b => b.technique || 'basic'))];
-                  const dates = [...new Set(baselines.map(b => b.date || new Date(b.created_at).toISOString().split('T')[0]))].sort();
-                  // Build a date → techniques lookup so a click on any
-                  // chart point can resolve back to the full session
-                  // and open the L3 popup. Same shape used by the L1
-                  // cards below — the click handler reuses it.
-                  const chartGroups = {};
-                  for (const b of baselines) {
-                    const k = b.date || new Date(b.created_at).toISOString().split('T')[0];
-                    (chartGroups[k] = chartGroups[k] || []).push(b);
-                  }
-                  const chartData = dates.map(date => {
-                    const row = { date: new Date(date).toLocaleDateString('he-IL'), _isoDate: date };
-                    techNames.forEach(tech => {
-                      const entry = baselines.find(b => {
-                        const bDate = b.date || new Date(b.created_at).toISOString().split('T')[0];
-                        return bDate === date && (b.technique || 'basic') === tech;
+                  // Group by created_at within a 60s window so a single
+                  // multi-technique save (which writes one row per
+                  // technique with the same created_at) becomes one
+                  // session, but two distinct saves on the same day stay
+                  // separate. Each chart point = one session.
+                  const sessions = [];
+                  for (const b of [...baselines].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
+                    const ts = new Date(b.created_at);
+                    if (Number.isNaN(ts.getTime())) continue;
+                    const found = sessions.find(s => Math.abs(new Date(s.created_at) - ts) < 60000);
+                    if (found) {
+                      found.techniques.push(b);
+                    } else {
+                      sessions.push({
+                        key: b.created_at,
+                        date: b.date || ts.toISOString().split('T')[0],
+                        time: ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+                        created_at: b.created_at,
+                        techniques: [b],
                       });
+                    }
+                  }
+                  const chartData = sessions.map(s => {
+                    const row = {
+                      date: `${new Date(s.date).toLocaleDateString('he-IL')} ${s.time}`,
+                      _key: s.key,
+                    };
+                    techNames.forEach(tech => {
+                      const entry = s.techniques.find(t => (t.technique || 'basic') === tech);
                       const label = TECH_LABELS[tech] || tech;
                       row[label] = entry ? Number(entry.baseline_score) || 0 : null;
                     });
                     return row;
                   });
                   // Click anywhere on the plot — Recharts hands us
-                  // activeLabel (the formatted he-IL date string).
-                  // Look it up in chartData by the matching display
-                  // string and open the L3 popup with the session's
-                  // techniques.
+                  // the active payload; resolve the hidden _key back
+                  // to the session and open the canonical form.
                   const onChartClick = (e) => {
                     if (!e || !e.activePayload || !e.activePayload.length) return;
-                    const payload = e.activePayload[0]?.payload;
-                    const iso = payload?._isoDate
-                      || dates.find(d => new Date(d).toLocaleDateString('he-IL') === e.activeLabel);
-                    if (!iso) return;
-                    const techs = chartGroups[iso];
-                    if (techs && techs.length) {
-                      openBaselineView(techs, 0);
+                    const key = e.activePayload[0]?.payload?._key;
+                    const session = sessions.find(s => s.key === key);
+                    if (session && session.techniques.length) {
+                      openBaselineView(session.techniques, 0);
                     }
                   };
                   return (
@@ -3876,39 +3883,53 @@ export default function TraineeProfile() {
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
                 ) : (() => {
                   // 3-level baseline cards:
-                  //   L1 (closed): date + N techniques + per-technique row
-                  //                (name · total jumps · JPS) + ▼ chevron
-                  //   L2 (expanded): per-technique stat tile, EACH clickable —
-                  //                  opens L3 popup with that tab active
-                  //   L3 (popup): viewBaseline modal with technique tabs at top
+                  //   L1 (closed): date · time · N techniques + per-technique row
+                  //   L2 (expanded): per-technique stat tile, EACH clickable
+                  //   L3: BaselineFormDialog viewOnly — opened via openBaselineView
+                  // Sessions are bucketed by created_at within a 60s window so
+                  // a multi-technique save (one row per technique sharing a
+                  // timestamp) collapses into ONE card, but two distinct
+                  // saves on the same calendar day stay separate.
                   const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
-                  const groups = {};
-                  for (const b of baselines) {
-                    const key = b.date || new Date(b.created_at).toISOString().split('T')[0];
-                    (groups[key] = groups[key] || []).push(b);
+                  const sessions = [];
+                  for (const b of [...baselines].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
+                    const ts = new Date(b.created_at);
+                    if (Number.isNaN(ts.getTime())) continue;
+                    const found = sessions.find(s => Math.abs(new Date(s.created_at) - ts) < 60000);
+                    if (found) {
+                      found.techniques.push(b);
+                    } else {
+                      sessions.push({
+                        key: b.created_at,
+                        date: b.date || ts.toISOString().split('T')[0],
+                        time: ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+                        created_at: b.created_at,
+                        techniques: [b],
+                      });
+                    }
                   }
-                  const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+                  const sortedSessions = [...sessions].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                   return (
                     <div className="space-y-3">
-                      {sortedDates.map(dateKey => {
-                        const techniques = groups[dateKey];
-                        const dateLabel = new Date(dateKey).toLocaleDateString('he-IL');
-                        const isExpanded = expandedBaseline === dateKey;
+                      {sortedSessions.map(session => {
+                        const { key: sessionKey, techniques, date, time } = session;
+                        const dateLabel = new Date(date).toLocaleDateString('he-IL');
+                        const isExpanded = expandedBaseline === sessionKey;
                         return (
-                          <div key={dateKey} style={{
+                          <div key={sessionKey} style={{
                             background: 'white', borderRadius: 14,
                             border: '1px solid #F0E4D0',
                             overflow: 'hidden', direction: 'rtl',
                           }}>
                             {/* L1 — closed view (always visible, click toggles L2) */}
                             <div
-                              onClick={() => setExpandedBaseline(isExpanded ? null : dateKey)}
+                              onClick={() => setExpandedBaseline(isExpanded ? null : sessionKey)}
                               style={{ padding: 14, cursor: 'pointer' }}
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                 <div style={{ fontSize: 15, fontWeight: 600 }}>📋 בייסליין</div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ fontSize: 12, color: '#888' }}>{dateLabel}</span>
+                                  <span style={{ fontSize: 12, color: '#888' }}>{dateLabel} · {time}</span>
                                   <span style={{ fontSize: 12, color: '#888', background: '#FDF8F3', padding: '2px 8px', borderRadius: 8 }}>
                                     {techniques.length} {techniques.length === 1 ? 'טכניקה' : 'טכניקות'}
                                   </span>
