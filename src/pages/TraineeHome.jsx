@@ -21,6 +21,9 @@ import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 import PreHealthScreen from "@/components/PreHealthScreen";
 import NewRecordDialog from "../components/forms/NewRecordDialog";
+import useEntryFlow from "@/hooks/useEntryFlow";
+import PendingSessionsPopup from "../components/trainee/PendingSessionsPopup";
+import EntryNotificationsPopup from "../components/trainee/EntryNotificationsPopup";
 
 // "השיאים שלי" surface for the trainee home — pulls the latest
 // personal_records row + total PB count for this trainee. Renders
@@ -812,6 +815,13 @@ export default function TraineeHome() {
     former:    ['profile'],
   };
   const features = STATUS_FEATURES[clientStatus] || STATUS_FEATURES.active;
+
+  // Trainee entry flow — pending sessions → notifications → home.
+  // The hook itself bails out for client_status === 'onboarding' so
+  // the wizard isn't interrupted; throttling per-day per-user lives
+  // inside the hook (localStorage). Hook MUST sit above any early
+  // return below so React's hook order stays stable across renders.
+  const entryFlow = useEntryFlow(user);
 
   // Lock screens for suspended / former — full-screen message,
   // single CTA to contact coach (opens the same chat sheet the
@@ -1612,6 +1622,16 @@ export default function TraineeHome() {
           />
         )}
       </div>
+
+      {/* Entry flow popups — sessions first, then notifications. Both
+          gated by useEntryFlow so they only render once per day per
+          user and never during onboarding. */}
+      {entryFlow.showSessions && (
+        <PendingSessionsPopup trainee={user} onClose={entryFlow.closeSessions} />
+      )}
+      {entryFlow.showNotifications && !entryFlow.showSessions && (
+        <EntryNotificationsPopup trainee={user} onClose={entryFlow.closeNotifications} />
+      )}
     </div>
     </ErrorBoundary>
   );
