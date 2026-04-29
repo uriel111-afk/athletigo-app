@@ -24,6 +24,7 @@ import NewRecordDialog from "../components/forms/NewRecordDialog";
 import useEntryFlow from "@/hooks/useEntryFlow";
 import PendingSessionsPopup from "../components/trainee/PendingSessionsPopup";
 import EntryNotificationsPopup from "../components/trainee/EntryNotificationsPopup";
+import ActivityHeatmap from "@/components/charts/ActivityHeatmap";
 import { useQueryClient } from "@tanstack/react-query";
 
 // "השיאים שלי" surface for the trainee home — pulls the latest
@@ -164,6 +165,7 @@ export default function TraineeHome() {
   const [showUnreadModal, setShowUnreadModal] = useState(false);
   const [acknowledgingId, setAcknowledgingId] = useState(null);
   const [completedCount, setCompletedCount] = useState(0);
+  const [completedDates, setCompletedDates] = useState([]);
   const [firstSessionDate, setFirstSessionDate] = useState(null);
   // Casual onboarding flow: when the trainee has a session that the
   // coach booked but the trainee hasn't approved yet, we show an
@@ -383,6 +385,13 @@ export default function TraineeHome() {
               (s.status === 'הושלם' || s.status === 'התקיים' || s.status === 'הגיע')
             );
             setCompletedCount(mineCompleted.length);
+            // Date keys (YYYY-MM-DD) for the 28-day activity heatmap.
+            // We store the raw list and bucket downstream so the same
+            // source feeds streak, weeks-active, and the heatmap.
+            const dateKeys = mineCompleted
+              .map(s => (s.date ? String(s.date).slice(0, 10) : null))
+              .filter(Boolean);
+            setCompletedDates(dateKeys);
             if (mineCompleted.length > 0) {
               const dates = mineCompleted.map(s => new Date(s.date)).sort((a, b) => a - b);
               setFirstSessionDate(dates[0]);
@@ -439,6 +448,28 @@ export default function TraineeHome() {
     if (!firstSessionDate) return 0;
     return Math.max(1, Math.ceil((Date.now() - firstSessionDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
   }, [firstSessionDate]);
+
+  // 28-day activity heatmap data. Bucket completedDates by day,
+  // clamp count → intensity (0/1/2/3). The grid walks back from
+  // today so the latest cell is always the current day, matching
+  // the streak/weeks-active framing on the same screen.
+  const { heatmapData, todayKey } = useMemo(() => {
+    const counts = new Map();
+    for (const k of completedDates) counts.set(k, (counts.get(k) || 0) + 1);
+    const days = 28;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const c = counts.get(key) || 0;
+      out.push({ date: key, intensity: Math.min(3, c) });
+    }
+    const tk = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return { heatmapData: out, todayKey: tk };
+  }, [completedDates]);
 
   // First session the coach has booked that the trainee hasn't
   // approved yet. The banner is gated to the canonical
@@ -1647,6 +1678,16 @@ export default function TraineeHome() {
             </div>
           );
         })()}
+
+        {/* 28-day activity heatmap — hidden for casual trainees who
+            haven't completed any session yet. Casual users see only
+            CTAs + onboarding banners on this screen, so a flat grid
+            would clutter without signaling progress. */}
+        {!isCasual && completedCount > 0 && (
+          <div style={{ marginTop: 16, marginBottom: 16 }}>
+            <ActivityHeatmap data={heatmapData} days={28} todayKey={todayKey} />
+          </div>
+        )}
 
         </div>
 
