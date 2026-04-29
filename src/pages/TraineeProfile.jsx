@@ -1379,6 +1379,22 @@ export default function TraineeProfile() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
+  // Prefill bag for the goal form — set by the records-tab achievement
+  // popup so the new-goal flow opens with exercise_name + the just-hit
+  // value already filled in. Cleared on close.
+  const [goalFormPrefill, setGoalFormPrefill] = useState(null);
+  // Inline expansion of an achieved-goal card → reveals a mini-chart
+  // of the linked exercise's records. One card open at a time.
+  const [openAchievedGoal, setOpenAchievedGoal] = useState(null);
+  // Collapsible state for the three goal sections. Active starts
+  // open (the trainee's daily focus); the other two stay collapsed
+  // until tapped so the page doesn't scroll forever on long-running
+  // accounts.
+  const [goalSectionsOpen, setGoalSectionsOpen] = useState({
+    active: true,
+    achieved: false,
+    cancelled: false,
+  });
   // Goals-tab folder system (goal_progress driven). Each goal_name is
   // a folder; clicking a folder card expands it to show the chart +
   // history + linked records + update CTA.
@@ -1555,6 +1571,24 @@ export default function TraineeProfile() {
   // Sync server user to local state — but NEVER while edit dialog is open (would reset form fields)
   const effectiveUserId = effectiveUser?.id;
   const editDraftKey = effectiveUserId ? `athletigo_draft_TraineeDetailsEdit_${effectiveUserId}` : null;
+
+  // Listen for the records-tab achievement-popup CTA. When fired, we
+  // open the goal form prefilled with the just-achieved exercise +
+  // value so the user can immediately set the next milestone.
+  useEffect(() => {
+    const handler = (e) => {
+      const detail = e?.detail || {};
+      if (detail.traineeId && detail.traineeId !== effectiveUserId) return;
+      setEditingGoal(null);
+      setGoalFormPrefill({
+        exerciseName: detail.exerciseName || '',
+        startingValue: detail.startingValue ?? null,
+      });
+      setShowAddGoal(true);
+    };
+    window.addEventListener('athletigo:open-goal-form', handler);
+    return () => window.removeEventListener('athletigo:open-goal-form', handler);
+  }, [effectiveUserId]);
 
   // Restore draft when edit dialog opens — overlays any saved draft over the
   // server-synced defaults so users never lose unsaved edits, even if the
@@ -2883,8 +2917,12 @@ export default function TraineeProfile() {
     }
   };
 
-  const activeGoals = goals.filter(g => g.status === 'בתהליך');
+  // The goals.status column carries Hebrew values; legacy rows used
+  // 'בתהליך' for active before the new flow standardised on 'פעיל'.
+  // Treat both as active so old data still renders correctly.
+  const activeGoals = goals.filter(g => g.status === 'בתהליך' || g.status === 'פעיל');
   const completedGoals = goals.filter(g => g.status === 'הושג');
+  const cancelledGoals = goals.filter(g => g.status === 'בוטל');
 
   // ── Manual balance handlers (auto-reactivate when refunding from a completed pkg) ──
   const adjustPackageBalance = async (pkg, direction) => {
@@ -3634,47 +3672,308 @@ export default function TraineeProfile() {
                 </div>
                 {goals.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Target className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין יעדים מוגדרים</p></div>
-                ) : (
-                  <div className="space-y-3">
-                    {[...goals].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map(goal => (
-                      <div key={goal.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="p-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/30">
-                          <h4 className="font-bold text-base text-gray-900">{goal.goal_name}</h4>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <Button onClick={() => { setEditingGoal(goal); setShowAddGoal(true); }} size="icon" variant="ghost" className="w-8 h-8 text-[#FF6F20]"><Edit2 className="w-3.5 h-3.5" /></Button>
-                            <Button onClick={() => { if (window.confirm(`למחוק "${goal.goal_name}"?`)) deleteGoalMutation.mutate(goal.id); }} size="icon" variant="ghost" className="w-8 h-8 text-red-500"><Trash2 className="w-3.5 h-3.5" /></Button>
+                ) : (() => {
+                  // ── New goals layout (status-based) ──────────────
+                  // Three collapsible sections — active / achieved /
+                  // cancelled — each with a progress bar anchored on
+                  // starting_value (or 0 fallback) and target_value.
+                  // Achieved cards expand inline to show a mini-chart
+                  // of the linked exercise's records up to completed_at.
+                  const PALETTE = [
+                    '#FF6F20', '#3B82F6', '#10B981', '#8B5CF6',
+                    '#F59E0B', '#EF4444', '#06B6D4', '#EC4899',
+                  ];
+                  const norm = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                  // Map exercise_name → stable colour by sorting the
+                  // unique names; that way swapping the goal order
+                  // doesn't repaint the chart.
+                  const allExerciseNames = [...new Set(
+                    goals.map(g => g.exercise_name).filter(Boolean)
+                  )].sort();
+                  const colorFor = (exerciseName) => {
+                    const idx = allExerciseNames.findIndex(n => norm(n) === norm(exerciseName));
+                    return idx >= 0 ? PALETTE[idx % PALETTE.length] : '#FF6F20';
+                  };
+
+                  const cancelGoal = async (goal) => {
+                    if (!window.confirm(`לבטל את היעד "${goal.title || goal.goal_name}"?`)) return;
+                    try {
+                      await base44.entities.Goal.update(goal.id, {
+                        status: 'בוטל',
+                        updated_at: new Date().toISOString(),
+                      });
+                      queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
+                      queryClient.invalidateQueries({ queryKey: ['goals'] });
+                      toast.success('היעד בוטל');
+                    } catch (e) {
+                      console.warn('[Goals] cancel failed:', e?.message);
+                      toast.error('שגיאה בביטול');
+                    }
+                  };
+
+                  const renderGoalCard = (goal, sectionStatus) => {
+                    const startVal = Number(goal.starting_value) || 0;
+                    const currVal = parseFloat(goal.current_value);
+                    const targetVal = parseFloat(goal.target_value);
+                    const safeCurr = Number.isFinite(currVal) ? currVal : startVal;
+                    const safeTarget = Number.isFinite(targetVal) ? targetVal : 0;
+                    const span = Math.max(0, safeTarget - startVal);
+                    const made = Math.max(0, safeCurr - startVal);
+                    const pct = sectionStatus === 'achieved'
+                      ? 100
+                      : (span > 0 ? Math.min(100, Math.round((made / span) * 100)) : 0);
+                    const exName = goal.exercise_name || '';
+                    const linkedRecs = exName
+                      ? (traineeRecords || [])
+                          .filter(r => norm(r.name) === norm(exName))
+                          .filter(r => sectionStatus !== 'achieved' || !goal.completed_at || new Date(r.date) <= new Date(goal.completed_at))
+                          .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+                      : [];
+                    const isOpen = openAchievedGoal === goal.id;
+                    // Active cards get a per-exercise palette colour;
+                    // achieved/cancelled stay on a fixed semantic palette.
+                    const accent = sectionStatus === 'achieved'
+                      ? '#1D9E75'
+                      : sectionStatus === 'cancelled'
+                        ? '#9CA3AF'
+                        : (exName ? colorFor(exName) : '#FF6F20');
+                    const clickable = sectionStatus === 'achieved' && linkedRecs.length > 0;
+                    const isActive = sectionStatus === 'active';
+                    return (
+                      <div
+                        key={goal.id}
+                        className="bg-white rounded-xl shadow-sm overflow-hidden"
+                        style={{
+                          border: isActive ? `1.5px solid ${accent}` : '1px solid #F0E4D0',
+                          opacity: sectionStatus === 'cancelled' ? 0.7 : 1,
+                        }}
+                      >
+                        <div
+                          onClick={clickable ? () => setOpenAchievedGoal(isOpen ? null : goal.id) : undefined}
+                          style={{ padding: isActive ? 16 : 14, cursor: clickable ? 'pointer' : 'default' }}
+                        >
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div
+                                className={isActive ? 'font-bold' : 'font-bold text-base'}
+                                style={{
+                                  color: '#1A1A1A',
+                                  fontSize: isActive ? 17 : 15,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {goal.title || goal.goal_name}
+                              </div>
+                              <div className="text-xs" style={{ color: '#888', marginTop: 2 }}>
+                                {exName ? <>🔗 {exName}</> : null}
+                                {goal.created_at && (
+                                  <>{exName ? ' · ' : ''}הוצב {format(new Date(goal.created_at), 'dd/MM/yy', { locale: he })}</>
+                                )}
+                                {goal.target_date && (
+                                  <> · יעד עד {format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}</>
+                                )}
+                              </div>
+                            </div>
+                            <span style={{
+                              background: `${accent}15`, color: accent,
+                              padding: '4px 10px', borderRadius: 999,
+                              fontSize: 12, fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {sectionStatus === 'active'   ? 'פעיל'   :
+                               sectionStatus === 'achieved' ? 'הושג'   :
+                                                              'בוטל'}
+                            </span>
                           </div>
-                        </div>
-                        <div className="p-4 space-y-2">
-                          {goal.description && (
-                            <div className="text-right text-sm py-1">
-                              <span className="text-gray-500 font-medium">תיאור: </span>
-                              <span className="text-gray-900">{goal.description}</span>
+
+                          {/* Three-anchor row: starting → current → target */}
+                          <div style={{
+                            display: 'flex', justifyContent: 'space-between',
+                            fontSize: 12, color: '#888', marginBottom: 6,
+                          }}>
+                            <span>{startVal}</span>
+                            <span style={{ color: accent, fontWeight: 700, fontSize: 14 }}>
+                              {safeCurr || '—'} ({pct}%)
+                            </span>
+                            <span>{safeTarget || '—'} {goal.target_unit || goal.unit || ''}</span>
+                          </div>
+
+                          <div style={{
+                            position: 'relative',
+                            height: isActive ? 10 : 8,
+                            background: '#F0E4D0',
+                            borderRadius: 999,
+                            overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              position: 'absolute', inset: 0,
+                              width: `${pct}%`,
+                              background: `linear-gradient(90deg, ${accent}, ${accent}dd)`,
+                              borderRadius: 999,
+                              transition: 'width 0.5s',
+                            }} />
+                          </div>
+                          {sectionStatus === 'achieved' && goal.completed_at && (
+                            <div style={{ fontSize: 11, color: '#888', marginTop: 4, textAlign: 'left' }}>
+                              🚩 הושג ב-{format(new Date(goal.completed_at), 'dd/MM/yy', { locale: he })}
                             </div>
                           )}
-                          <div className="text-right text-sm py-1">
-                            <span className="text-gray-500 font-medium">ערך יעד: </span>
-                            <span className="text-gray-900 font-semibold">{goal.target_value} {goal.unit}</span>
-                          </div>
-                          <div className="text-right text-sm py-1">
-                            <span className="text-gray-500 font-medium">התקדמות: </span>
-                            <span className="font-bold text-[#FF6F20]">{goal.current_value || 0} / {goal.target_value} {goal.unit}</span>
-                          </div>
-                          <div className="py-1">
-                            <div className="h-2 rounded-full bg-gray-200 overflow-hidden"><div className="h-full bg-[#FF6F20]" style={{ width: `${goal.progress_percentage || 0}%` }} /></div>
-                            <p className="text-xs text-right mt-1 font-bold text-[#FF6F20]">{goal.progress_percentage || 0}%</p>
-                          </div>
-                          {goal.target_date && (
-                            <div className="text-right text-sm py-1">
-                              <span className="text-gray-500 font-medium">תאריך יעד: </span>
-                              <span className="text-gray-900">{format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}</span>
+
+                          {/* Action buttons — only on active cards.
+                              Achieved/cancelled keep the small icon
+                              row in the title bar via the section
+                              header (edit/delete still available
+                              implicitly through the trash icon). */}
+                          {isActive && (
+                            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setEditingGoal(goal); setShowAddGoal(true); }}
+                                style={{
+                                  flex: 1, padding: 10, borderRadius: 10,
+                                  border: '1px solid #F0E4D0', background: 'white',
+                                  fontSize: 14, cursor: 'pointer',
+                                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                                }}
+                              >ערוך</button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); cancelGoal(goal); }}
+                                style={{
+                                  flex: 1, padding: 10, borderRadius: 10,
+                                  border: '1px solid #FCA5A5', background: 'white',
+                                  color: '#DC2626', fontSize: 14, cursor: 'pointer',
+                                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                                }}
+                              >בטל</button>
+                            </div>
+                          )}
+                          {!isActive && (
+                            <div style={{ display: 'flex', gap: 4, marginTop: 8, justifyContent: 'flex-end' }}>
+                              <Button
+                                onClick={(e) => { e.stopPropagation(); setEditingGoal(goal); setShowAddGoal(true); }}
+                                size="icon" variant="ghost" className="w-8 h-8 text-[#FF6F20]"
+                              ><Edit2 className="w-3.5 h-3.5" /></Button>
+                              <Button
+                                onClick={(e) => { e.stopPropagation(); if (window.confirm(`למחוק "${goal.title || goal.goal_name}"?`)) deleteGoalMutation.mutate(goal.id); }}
+                                size="icon" variant="ghost" className="w-8 h-8 text-red-500"
+                              ><Trash2 className="w-3.5 h-3.5" /></Button>
                             </div>
                           )}
                         </div>
+
+                        {isOpen && linkedRecs.length > 0 && (
+                          <div style={{ padding: '0 14px 14px', borderTop: '1px solid #F0E4D0' }}>
+                            <div style={{ marginTop: 10 }}>
+                              <ResponsiveContainer width="100%" height={160}>
+                                <LineChart
+                                  data={linkedRecs.map(r => ({
+                                    date: new Date(r.date).toLocaleDateString('he-IL'),
+                                    value: Number(r.value) || 0,
+                                  }))}
+                                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888' }} />
+                                  <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: '#888' }} />
+                                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} />
+                                  <Line type="monotone" dataKey="value" stroke={accent} strokeWidth={2.5}
+                                    dot={{ r: 5, fill: accent, stroke: 'white', strokeWidth: 2 }}
+                                    activeDot={{ r: 7, fill: accent, stroke: 'white', strokeWidth: 2 }} />
+                                  {Number.isFinite(safeTarget) && safeTarget > 0 && (
+                                    <ReferenceLine y={safeTarget} stroke={accent} strokeDasharray="5 5"
+                                      label={{ value: `יעד: ${safeTarget}`, position: 'right', fill: accent, fontSize: 11 }} />
+                                  )}
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  };
+
+                  // Collapsible group header with counter + chevron.
+                  // Active opens by default (see goalSectionsOpen
+                  // initial state); the others stay collapsed.
+                  const Section = ({ title, headerBg, headerBorder, headerColor, list, status }) => {
+                    if (!list.length) return null;
+                    const open = !!goalSectionsOpen[status];
+                    return (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setGoalSectionsOpen(prev => ({ ...prev, [status]: !prev[status] }))}
+                          style={{
+                            width: '100%',
+                            padding: 14,
+                            background: headerBg,
+                            border: `1px solid ${headerBorder}`,
+                            borderRadius: 12,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            fontFamily: "'Heebo', 'Assistant', sans-serif",
+                            marginBottom: 8,
+                          }}
+                          aria-expanded={open}
+                        >
+                          <span style={{ fontSize: 15, fontWeight: 600, color: headerColor }}>
+                            {title} ({list.length})
+                          </span>
+                          <ChevronDown
+                            className="w-4 h-4"
+                            style={{
+                              color: headerColor,
+                              transform: open ? 'rotate(180deg)' : 'none',
+                              transition: 'transform 0.2s',
+                            }}
+                          />
+                        </button>
+                        {open && (
+                          <div className="space-y-3">
+                            {list
+                              .slice()
+                              .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+                              .map(g => renderGoalCard(g, status))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <div className="space-y-4">
+                      <Section
+                        title="🎯 יעדים פעילים"
+                        headerBg="#FFF5EE"
+                        headerBorder="#FFD9C0"
+                        headerColor="#FF6F20"
+                        list={activeGoals}
+                        status="active"
+                      />
+                      <Section
+                        title="🏆 יעדים שהושגו"
+                        headerBg="#F0FDF4"
+                        headerBorder="#86EFAC"
+                        headerColor="#065F46"
+                        list={completedGoals}
+                        status="achieved"
+                      />
+                      <Section
+                        title="🚫 יעדים שבוטלו"
+                        headerBg="#F5F5F5"
+                        headerBorder="#E0E0E0"
+                        headerColor="#666666"
+                        list={cancelledGoals}
+                        status="cancelled"
+                      />
+                    </div>
+                  );
+                })()}
               </TabsContent>
 
               {/* Metrics Tab */}
@@ -5102,7 +5401,7 @@ export default function TraineeProfile() {
         <VisionFormDialog isOpen={showVisionDialog} onClose={() => setShowVisionDialog(false)} initialData={user?.vision || {}} onSubmit={data => updateVisionMutation.mutate(data)} isCoach={isCoach} isLoading={updateVisionMutation.isPending} traineeId={user?.id} />
 
         {/* Goal Dialog */}
-        <GoalFormDialog isOpen={showAddGoal} onClose={() => { setShowAddGoal(false); setEditingGoal(null); }} traineeId={user.id} traineeName={user.full_name} editingGoal={editingGoal} />
+        <GoalFormDialog isOpen={showAddGoal} onClose={() => { setShowAddGoal(false); setEditingGoal(null); setGoalFormPrefill(null); }} traineeId={user.id} traineeName={user.full_name} editingGoal={editingGoal} prefill={goalFormPrefill} />
 
         {/* Result Dialog */}
         <ResultFormDialog isOpen={showAddResult} onClose={() => { setShowAddResult(false); setEditingResult(null); }} traineeId={user.id} traineeName={user.full_name} editingResult={editingResult} />

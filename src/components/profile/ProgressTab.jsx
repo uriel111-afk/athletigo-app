@@ -4,24 +4,121 @@ import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  ReferenceLine,
+  ReferenceLine, ReferenceDot, Legend,
 } from 'recharts';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { exerciseInfoFor, unitLabel } from '@/lib/recordExercises';
 import NewRecordDialog from '@/components/forms/NewRecordDialog';
 import { Chip } from '@/components/ui/Chip';
+import { GOAL_STATUS } from '@/lib/goalsApi';
+import GoalAchievedPopup from '@/components/trainee/GoalAchievedPopup';
 
 const O = '#FF6F20';
 const CARD_BG = '#FFFFFF';
 const BORDER = '#F0E4D0';
-const EXERCISE_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0', '#E91E63', '#00BCD4', '#FF9800'];
+// 8-colour palette used wherever a series needs its own colour —
+// master chart line, projection line, target ReferenceLine, milestone
+// ReferenceDot, folder card accent, legend swatch. Index = exercise
+// position in the visible-exercises list, modulo length.
+const EXERCISE_COLORS = [
+  '#FF6F20', // brand orange
+  '#3B82F6', // blue
+  '#10B981', // green
+  '#8B5CF6', // purple
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#06B6D4', // cyan
+  '#EC4899', // pink
+];
 
 const fmtDate = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('he-IL');
+};
+
+// Compact day-month label for the X axis. Recharts struggles to fit a
+// full D.M.YYYY string when 5+ ticks are visible — chopping the year
+// frees enough horizontal space to show 4–6 ticks without rotation.
+const shortDateLabel = (s) => {
+  if (!s) return '';
+  const parts = String(s).split('.');
+  if (parts.length >= 2) return `${parts[0]}.${parts[1]}`;
+  return String(s);
+};
+
+// Custom legend — Recharts' built-in cuts long Hebrew exercise names
+// (e.g. "בייסליין — בס...") because it constrains item width. This
+// version flex-wraps so every name renders in full, breaking onto a
+// new row when the row fills.
+const CustomLegend = ({ payload }) => {
+  if (!Array.isArray(payload) || payload.length === 0) return null;
+  return (
+    <div
+      dir="rtl"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px 16px',
+        justifyContent: 'center',
+        width: '100%',
+        padding: '4px 0 0',
+      }}
+    >
+      {payload.map((entry, i) => (
+        <div
+          key={`legend-${i}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 12,
+            color: '#1A1A1A',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <span style={{
+            width: 10, height: 10, borderRadius: 999,
+            background: entry.color, display: 'inline-block',
+          }} />
+          {entry.value}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Trim + lowercase + collapse whitespace so two strings that "look
+// the same" actually compare equal. Required for goal↔records
+// matching because users can create goals via different forms (the
+// goal dialog, the achievement popup CTA, an old onboarding row) and
+// the casing/spacing isn't always identical to the records.name.
+const normalizeExerciseName = (name) =>
+  (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+// Find the single active goal whose exercise_name normalizes to the
+// passed exerciseName. Returns null when none matches.
+const findGoalForExercise = (goals, exerciseName) => {
+  if (!Array.isArray(goals) || !exerciseName) return null;
+  const target = normalizeExerciseName(exerciseName);
+  return goals.find(
+    (g) => g.status === GOAL_STATUS.ACTIVE && normalizeExerciseName(g.exercise_name) === target
+  ) || null;
+};
+
+// All achieved goals for an exercise — fed into ReferenceDot
+// milestone flags.
+const findAchievedGoalsForExercise = (goals, exerciseName) => {
+  if (!Array.isArray(goals) || !exerciseName) return [];
+  const target = normalizeExerciseName(exerciseName);
+  return goals.filter(
+    (g) =>
+      g.status === GOAL_STATUS.ACHIEVED &&
+      g.completed_at &&
+      normalizeExerciseName(g.exercise_name) === target
+  );
 };
 
 // Personal records tab — master chart with per-exercise filter pills,
@@ -98,6 +195,38 @@ export default function ProgressTab({ traineeId }) {
     enabled: !!traineeId,
   });
 
+  // Goals — used to overlay the projection line + achieved-milestone
+  // dots on the records chart. Active row drives the dashed line;
+  // achieved rows surface as flag dots at their completion timestamp.
+  const { data: goalsData = [] } = useQuery({
+    queryKey: ['goals', traineeId],
+    queryFn: async () => {
+      if (!traineeId) return [];
+      const { data, error } = await supabase
+        .from('goals')
+        .select('*')
+        .eq('trainee_id', traineeId)
+        .order('created_at', { ascending: true });
+      if (error) {
+        console.warn('[Records] goals query failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!traineeId,
+  });
+
+  // Goal-achievement celebration popup state. Set by NewRecordDialog
+  // via the onAchievement callback when a freshly-saved record value
+  // crosses an active goal's target_value.
+  const [achievement, setAchievement] = useState(null);
+
+  // Tap-to-pin point on the chart — Recharts' tooltip is hover-only
+  // and disappears the moment a finger leaves the screen on mobile,
+  // so we mirror activeDot clicks into local state and render a
+  // pinned panel below the chart that the trainee can read at leisure.
+  const [selectedPoint, setSelectedPoint] = useState(null);
+
   // Realtime — coach adds a record on laptop → trainee phone refreshes live.
   useEffect(() => {
     if (!traineeId) return;
@@ -141,28 +270,137 @@ export default function ProgressTab({ traineeId }) {
 
   const exerciseNames = useMemo(() => folders.map(f => f.name), [folders]);
 
+  const chartExercises = filterExercise === 'all' ? exerciseNames : [filterExercise];
+
+  // Build a per-exercise projection segment from "current PB" → target.
+  // End date prefers goal.target_date; falls back to a slope-based
+  // estimate (days needed at current rate of progress) and finally a
+  // 90-day default. Result feeds an extra `${ex}__proj` dataKey.
+  const projections = useMemo(() => {
+    if (!Array.isArray(goalsData) || goalsData.length === 0) return [];
+    const out = [];
+    for (const ex of chartExercises) {
+      const activeGoal = findGoalForExercise(goalsData, ex);
+      if (!activeGoal) continue;
+      const target = parseFloat(activeGoal.target_value);
+      if (!Number.isFinite(target)) continue;
+      const exNorm = normalizeExerciseName(ex);
+      const exRecords = records
+        .filter(r => normalizeExerciseName(r.name || r.exercise_name) === exNorm && r.date)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      if (exRecords.length === 0) continue;
+      const last = exRecords[exRecords.length - 1];
+      const startDate = last.date;
+      const startValue = Number(last.value) || 0;
+      let endDate;
+      if (activeGoal.target_date) {
+        endDate = String(activeGoal.target_date).split('T')[0];
+      } else if (exRecords.length >= 2) {
+        const first = exRecords[0];
+        const dayDiff = (new Date(last.date) - new Date(first.date)) / 86400000;
+        const valDiff = startValue - (Number(first.value) || 0);
+        const slopePerDay = dayDiff > 0 ? valDiff / dayDiff : 0;
+        const remaining = target - startValue;
+        const daysToTarget = slopePerDay > 0 ? remaining / slopePerDay : 90;
+        const future = new Date(last.date);
+        future.setDate(future.getDate() + Math.max(7, Math.min(365, Math.ceil(daysToTarget))));
+        endDate = future.toISOString().split('T')[0];
+      } else {
+        const future = new Date(last.date);
+        future.setDate(future.getDate() + 90);
+        endDate = future.toISOString().split('T')[0];
+      }
+      out.push({
+        ex,
+        startDate,
+        startValue,
+        endDate,
+        endValue: target,
+        goal: activeGoal,
+      });
+    }
+    return out;
+  }, [chartExercises, goalsData, records]);
+
+  // Active goals where the trainee has NO record yet for that
+  // exercise — projection line can't draw without a start point, so
+  // we fall back to a horizontal target ReferenceLine. Disjoint from
+  // `projections` (a goal lands in exactly one of the two arrays).
+  const targetOnlyGoals = useMemo(() => {
+    if (!Array.isArray(goalsData) || goalsData.length === 0) return [];
+    const out = [];
+    for (const ex of chartExercises) {
+      const activeGoal = findGoalForExercise(goalsData, ex);
+      if (!activeGoal) continue;
+      const target = parseFloat(activeGoal.target_value);
+      if (!Number.isFinite(target)) continue;
+      const exNorm = normalizeExerciseName(ex);
+      const hasRecord = records.some(
+        r => normalizeExerciseName(r.name || r.exercise_name) === exNorm && r.date
+      );
+      if (hasRecord) continue;
+      out.push({ ex, target, goal: activeGoal });
+    }
+    return out;
+  }, [chartExercises, goalsData, records]);
+
+  // Achieved-goal milestones — one ReferenceDot per goal with status
+  // 'הושג' that matches a visible exercise via normalised name.
+  const milestones = useMemo(() => {
+    if (!Array.isArray(goalsData)) return [];
+    const visibleNorms = new Set(chartExercises.map(normalizeExerciseName));
+    return goalsData
+      .filter(g => g.status === GOAL_STATUS.ACHIEVED && g.completed_at)
+      .filter(g => visibleNorms.has(normalizeExerciseName(g.exercise_name)))
+      .map(g => {
+        const exNorm = normalizeExerciseName(g.exercise_name);
+        const visibleEx = chartExercises.find(e => normalizeExerciseName(e) === exNorm);
+        return {
+          ex: visibleEx || g.exercise_name,
+          date: fmtDate(g.completed_at),
+          _isoDate: String(g.completed_at).split('T')[0],
+          value: parseFloat(g.target_value) || 0,
+          goal: g,
+        };
+      })
+      .filter(m => Number.isFinite(m.value) && m.value > 0);
+  }, [goalsData, chartExercises]);
+
   // Master chart — one line per exercise (filterable). Each row is a
   // unique date; values come from the matching record on that date.
+  // Projection endpoints + achievement dates are folded in so dashed
+  // lines and milestone dots have x-axis anchors.
   const masterChartData = useMemo(() => {
+    const filterNorm = normalizeExerciseName(filterExercise);
     const filteredRecords = filterExercise === 'all'
       ? records
-      : records.filter(r => (r.name || r.exercise_name) === filterExercise);
+      : records.filter(r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm);
     const dateSet = new Set(filteredRecords.map(r => r.date).filter(Boolean));
+    for (const p of projections) {
+      if (p.startDate) dateSet.add(p.startDate);
+      if (p.endDate) dateSet.add(p.endDate);
+    }
+    for (const m of milestones) {
+      if (m._isoDate) dateSet.add(m._isoDate);
+    }
     const dates = [...dateSet].sort();
-    const chartExercises = filterExercise === 'all' ? exerciseNames : [filterExercise];
     return dates.map(date => {
       const row = { date: fmtDate(date), _isoDate: date };
       chartExercises.forEach(ex => {
+        const exNorm = normalizeExerciseName(ex);
         const entry = filteredRecords.find(r =>
-          r.date === date && (r.name || r.exercise_name) === ex
+          r.date === date && normalizeExerciseName(r.name || r.exercise_name) === exNorm
         );
         if (entry) row[ex] = Number(entry.value) || 0;
+        const proj = projections.find(p => p.ex === ex);
+        if (proj) {
+          if (date === proj.startDate) row[`${ex}__proj`] = proj.startValue;
+          else if (date === proj.endDate) row[`${ex}__proj`] = proj.endValue;
+        }
       });
       return row;
     });
-  }, [records, exerciseNames, filterExercise]);
-
-  const chartExercises = filterExercise === 'all' ? exerciseNames : [filterExercise];
+  }, [records, chartExercises, filterExercise, projections, milestones]);
 
   const stats = {
     total: records.length,
@@ -219,11 +457,73 @@ export default function ProgressTab({ traineeId }) {
       )}
 
       {records.length > 0 && (
+        // Full-width breakout — escapes the parent's horizontal
+        // padding so the chart hits the actual viewport edges on
+        // mobile. The negative margin equals half the leftover
+        // space, the explicit 100vw width fills it. Inner card keeps
+        // a thin 8px gutter so the YAxis ticks aren't flush to the
+        // screen edge.
         <div style={{
-          background: CARD_BG, borderRadius: 14, border: `1px solid ${BORDER}`,
-          padding: '14px 12px', marginBottom: 16,
+          marginLeft: 'calc(-50vw + 50%)',
+          marginRight: 'calc(-50vw + 50%)',
+          width: '100vw',
+          paddingLeft: 8,
+          paddingRight: 8,
+          marginBottom: 16,
+        }}>
+        <div style={{
+          background: CARD_BG, borderRadius: 0,
+          borderTop: `1px solid ${BORDER}`,
+          borderBottom: `1px solid ${BORDER}`,
+          padding: '16px 4px',
           position: 'relative',
         }}>
+        {/* Active-goal progress banner — only when a single exercise
+            is filtered and that exercise has an active goal. Anchors
+            the trainee on starting → current → target. */}
+        {filterExercise !== 'all' && (() => {
+          const goal = findGoalForExercise(goalsData, filterExercise);
+          if (!goal) return null;
+          const target = parseFloat(goal.target_value);
+          const start = Number(goal.starting_value) || 0;
+          if (!Number.isFinite(target)) return null;
+          const filterNorm = normalizeExerciseName(filterExercise);
+          const exRecs = records.filter(
+            r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm
+          );
+          const current = exRecs.length
+            ? Math.max(...exRecs.map(r => Number(r.value) || 0))
+            : start;
+          const span = Math.max(0, target - start);
+          const made = Math.max(0, current - start);
+          const pct = span > 0 ? Math.max(0, Math.min(100, (made / span) * 100)) : 0;
+          const colorIdx = exerciseNames.indexOf(filterExercise);
+          const color = EXERCISE_COLORS[colorIdx >= 0 ? colorIdx % EXERCISE_COLORS.length : 0];
+          return (
+            <div style={{
+              margin: '0 8px 16px',
+              padding: 12,
+              background: `${color}15`,
+              borderRadius: 12,
+              border: `1px solid ${color}33`,
+            }}>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>{filterExercise}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, height: 8, background: '#F0E4D0', borderRadius: 999, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${pct}%`, height: '100%', background: color,
+                    transition: 'width 0.5s',
+                  }} />
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color }}>{Math.round(pct)}%</div>
+              </div>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                {current} מתוך {target} {goal.target_unit ? goal.target_unit : ''} (התחלת ב-{start})
+              </div>
+            </div>
+          );
+        })()}
+
           {/* Header row — title + minimize button. Button sits on the
               left in RTL (visual top-left) so it never collides with
               the title text. */}
@@ -259,9 +559,15 @@ export default function ProgressTab({ traineeId }) {
 
           {/* Filter chips — flex-wrap so long names render fully on
               their own line instead of being truncated. Each Chip
-              keeps whiteSpace:nowrap internally; the row wraps. */}
+              keeps whiteSpace:nowrap internally; the row wraps. No
+              overflow rules so a long chip never gets clipped. */}
           <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            justifyContent: 'flex-start',
+            width: '100%',
+            marginBottom: 16,
           }}>
             <Chip
               size="sm"
@@ -288,120 +594,260 @@ export default function ProgressTab({ traineeId }) {
               הגרף ממוזער
             </div>
           ) : (
-            <>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart
-                  data={masterChartData}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11, fill: '#888' }}
-                    angle={-25}
-                    textAnchor="end"
-                    height={50}
-                    interval="preserveStartEnd"
+            <ResponsiveContainer width="100%" height={360}>
+              <LineChart
+                data={masterChartData}
+                margin={{ top: 20, right: 20, left: 20, bottom: 50 }}
+              >
+                <CartesianGrid
+                  vertical={false}
+                  strokeDasharray="3 3"
+                  stroke={BORDER}
+                />
+                {/* reversed flips the time axis to RTL flow (latest on
+                    the left, earliest on the right) so it matches the
+                    Hebrew reading direction. */}
+                <XAxis
+                  dataKey="date"
+                  reversed
+                  tick={{ fontSize: 11, fill: '#888' }}
+                  tickFormatter={shortDateLabel}
+                  tickMargin={8}
+                  minTickGap={20}
+                  interval={Math.max(0, Math.ceil(masterChartData.length / 6) - 1)}
+                  height={40}
+                />
+                {/* orientation="right" parks the value axis on the
+                    right side of the chart — the side a Hebrew reader
+                    expects to see numbers. */}
+                <YAxis
+                  orientation="right"
+                  domain={[0, 'dataMax + 1']}
+                  tick={{ fontSize: 11, fill: '#888' }}
+                  width={36}
+                />
+                <Tooltip
+                  cursor={{ stroke: '#FF6F20', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  contentStyle={{
+                    background: 'white',
+                    border: '1px solid #F0E4D0',
+                    borderRadius: 10,
+                    padding: '8px 12px',
+                    direction: 'rtl',
+                    fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+                    fontSize: 13,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  }}
+                  labelStyle={{ color: '#888', marginBottom: 4 }}
+                  itemStyle={{ color: '#1A1A1A' }}
+                />
+                {chartExercises.length > 1 && (
+                  <Legend
+                    content={<CustomLegend />}
+                    wrapperStyle={{ paddingTop: 12 }}
+                    verticalAlign="bottom"
                   />
-                  <YAxis
-                    domain={[0, 'auto']}
-                    tick={{ fontSize: 11, fill: '#888' }}
-                    width={32}
-                  />
-                  <Tooltip contentStyle={{
-                    borderRadius: 8, border: `1px solid ${BORDER}`,
-                    background: '#fff', fontSize: 12, direction: 'rtl',
-                  }} />
-                  {chartExercises.map((ex, i) => {
-                    const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                    return (
-                      <Line
-                        key={ex}
-                        type="monotone"
-                        dataKey={ex}
-                        name={ex}
-                        stroke={color}
-                        strokeWidth={2.5}
-                        connectNulls
-                        dot={(props) => {
-                          const { cx, cy, payload, index } = props;
-                          const record = records.find(r =>
-                            r.date === payload._isoDate &&
-                            (r.name || r.exercise_name) === ex
-                          );
-                          const isPB = !!record?.is_personal_best;
-                          return (
-                            <circle
-                              key={`${ex}-${index}`}
-                              cx={cx} cy={cy}
-                              r={isPB ? 8 : 4}
-                              fill={isPB ? color : '#FFFFFF'}
-                              stroke={color} strokeWidth={2}
-                            />
-                          );
-                        }}
-                        activeDot={{ r: 9, fill: color, stroke: 'white', strokeWidth: 2, cursor: 'pointer' }}
-                      />
-                    );
-                  })}
-                  {filterExercise !== 'all' && (() => {
-                    const linkedGoal = linkedGoalFor(filterExercise);
-                    if (!linkedGoal?.target_value) return null;
-                    return (
-                      <ReferenceLine
-                        y={Number(linkedGoal.target_value)}
-                        stroke="#1D9E75"
-                        strokeDasharray="5 5"
-                        label={{
-                          value: `יעד: ${linkedGoal.target_value}`,
-                          position: 'right', fill: '#1D9E75', fontSize: 11,
-                        }}
-                      />
-                    );
-                  })()}
-                </LineChart>
-              </ResponsiveContainer>
-
-              {chartExercises.length > 1 && (
-                <div style={{
-                  display: 'flex', justifyContent: 'center', gap: 12,
-                  marginTop: 8, fontSize: 11, flexWrap: 'wrap',
-                }}>
-                  {chartExercises.map((ex, i) => {
-                    const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                    return (
-                      <span
-                        key={ex}
-                        onClick={() => setFilterExercise(ex)}
-                        style={{ cursor: 'pointer', color: '#1A1A1A' }}
-                      >
-                        <span style={{ color }}>●</span>{' '}{ex}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+                )}
+                {chartExercises.map((ex, i) => {
+                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
+                  return (
+                    <Line
+                      key={ex}
+                      type="monotone"
+                      dataKey={ex}
+                      name={ex}
+                      stroke={color}
+                      strokeWidth={2.5}
+                      connectNulls
+                      dot={(props) => {
+                        const { cx, cy, payload, index } = props;
+                        const record = records.find(r =>
+                          r.date === payload._isoDate &&
+                          (r.name || r.exercise_name) === ex
+                        );
+                        const isPB = !!record?.is_personal_best;
+                        return (
+                          <circle
+                            key={`${ex}-${index}`}
+                            cx={cx} cy={cy}
+                            r={isPB ? 6 : 4}
+                            fill={isPB ? color : '#FFFFFF'}
+                            stroke={color}
+                            strokeWidth={1.5}
+                          />
+                        );
+                      }}
+                      activeDot={{
+                        r: 6, fill: color, stroke: 'white', strokeWidth: 2, cursor: 'pointer',
+                        onClick: (_, payload) => {
+                          if (!payload) return;
+                          setSelectedPoint({
+                            exerciseName: ex,
+                            color,
+                            date: payload.payload?.date,
+                            isoDate: payload.payload?._isoDate,
+                            value: payload.value ?? payload.payload?.[ex],
+                          });
+                        },
+                      }}
+                    />
+                  );
+                })}
+                {/* Dashed projection lines — current PB → target value
+                    at target_date (or slope-based fallback). Hidden
+                    from the legend so it doesn't double the entries. */}
+                {projections.map((p) => {
+                  const i = chartExercises.indexOf(p.ex);
+                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
+                  return (
+                    <Line
+                      key={`${p.ex}__proj`}
+                      type="linear"
+                      dataKey={`${p.ex}__proj`}
+                      name={`${p.ex} (תחזית ליעד)`}
+                      stroke={color}
+                      strokeWidth={1.8}
+                      strokeDasharray="6 4"
+                      dot={false}
+                      activeDot={false}
+                      connectNulls
+                      legendType="none"
+                    />
+                  );
+                })}
+                {/* Horizontal target lines — per visible exercise,
+                    one faint dotted guide at the active goal's
+                    target_value. */}
+                {projections.map((p) => {
+                  const i = chartExercises.indexOf(p.ex);
+                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
+                  return (
+                    <ReferenceLine
+                      key={`${p.ex}__target`}
+                      y={p.endValue}
+                      stroke={color}
+                      strokeDasharray="2 4"
+                      strokeOpacity={0.5}
+                      label={{
+                        value: `יעד ${p.ex}: ${p.endValue}`,
+                        position: 'left', fill: color, fontSize: 10,
+                      }}
+                    />
+                  );
+                })}
+                {/* Target-only goals — exercise has an active goal but
+                    no records yet. We can't draw a slope, so we draw a
+                    bolder dashed horizontal at the target so the
+                    trainee still sees what they're chasing. */}
+                {targetOnlyGoals.map((g) => {
+                  const i = chartExercises.indexOf(g.ex);
+                  const color = EXERCISE_COLORS[i >= 0 ? i % EXERCISE_COLORS.length : 0];
+                  return (
+                    <ReferenceLine
+                      key={`${g.ex}__target_only`}
+                      y={g.target}
+                      stroke={color}
+                      strokeDasharray="6 4"
+                      strokeWidth={1.8}
+                      strokeOpacity={0.8}
+                      label={{
+                        value: `יעד ${g.ex}: ${g.target}`,
+                        position: 'left', fill: color, fontSize: 10,
+                      }}
+                    />
+                  );
+                })}
+                {/* Achieved-goal flag dots — one per past achievement
+                    placed at completed_at / target_value. */}
+                {milestones.map((m, idx) => {
+                  const i = chartExercises.indexOf(m.ex);
+                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
+                  return (
+                    <ReferenceDot
+                      key={`milestone-${m.ex}-${idx}`}
+                      x={m.date}
+                      y={m.value}
+                      r={8}
+                      fill="#FFFFFF"
+                      stroke={color}
+                      strokeWidth={2}
+                      label={{
+                        value: '🏁',
+                        position: 'top',
+                        fontSize: 14,
+                      }}
+                    />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
           )}
 
-          {/* Stats row */}
+          {/* Stats row — three full-width cards under the chart. */}
           <div style={{
-            display: 'flex', justifyContent: 'space-around',
-            marginTop: 12, paddingTop: 10, borderTop: `1px solid ${BORDER}`,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 8,
+            margin: '16px 8px 0',
           }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: O }}>{stats.total}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>שיאים</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#1D9E75' }}>{stats.exercises}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>תרגילים</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#D85A30' }}>{stats.personalBests}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>שיאים אישיים</div>
-            </div>
+            {[
+              { val: stats.total, label: 'שיאים' },
+              { val: stats.exercises, label: 'תרגילים' },
+              { val: stats.personalBests, label: 'שיאים אישיים' },
+            ].map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  borderRadius: 12,
+                  border: `1px solid ${BORDER}`,
+                  padding: 12,
+                  background: '#FFFFFF',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: 24, fontWeight: 700, color: O }}>{s.val}</div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{s.label}</div>
+              </div>
+            ))}
           </div>
+
+          {/* Pinned point panel — shows up after a tap on a dot.
+              Mobile-friendly: stays put until the trainee dismisses
+              it. Hidden when nothing's selected. */}
+          {selectedPoint && (
+            <div style={{
+              margin: '12px 8px 0',
+              padding: 12,
+              background: '#FFF8F2',
+              borderRadius: 10,
+              border: `1px solid ${selectedPoint.color || BORDER}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+            }}>
+              <div>
+                <div style={{ fontSize: 12, color: '#888' }}>{selectedPoint.date}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#1A1A1A' }}>
+                  {selectedPoint.exerciseName}: {selectedPoint.value}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPoint(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#888',
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                }}
+                aria-label="סגור"
+              >×</button>
+            </div>
+          )}
+        </div>
         </div>
       )}
 
@@ -595,9 +1041,12 @@ export default function ProgressTab({ traineeId }) {
         coachId={isCoach ? currentUser?.id : null}
         currentUserId={currentUser?.id}
         isCoach={isCoach}
-        onSuccess={() =>
-          queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] })
-        }
+        onAchievement={setAchievement}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] });
+          queryClient.invalidateQueries({ queryKey: ['goals', traineeId] });
+          queryClient.invalidateQueries({ queryKey: ['goal-progress', traineeId] });
+        }}
       />
 
       {/* Coach edit-record dialog — same NewRecordDialog component
@@ -610,11 +1059,39 @@ export default function ProgressTab({ traineeId }) {
         currentUserId={currentUser?.id}
         isCoach={isCoach}
         editData={editingRecord}
+        onAchievement={setAchievement}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] });
+          queryClient.invalidateQueries({ queryKey: ['goals', traineeId] });
+          queryClient.invalidateQueries({ queryKey: ['goal-progress', traineeId] });
           setEditingRecord(null);
         }}
       />
+
+      {/* Goal-achieved celebration — fired from NewRecordDialog when
+          the saved record value crosses the active goal's target. The
+          "set new goal" CTA bubbles up to the parent profile via a
+          window event so the goals tab can open its form prefilled. */}
+      {achievement && (
+        <GoalAchievedPopup
+          goal={achievement.goal}
+          achievedValue={achievement.value}
+          exerciseName={achievement.exerciseName}
+          onClose={() => setAchievement(null)}
+          onSetNewGoal={() => {
+            try {
+              window.dispatchEvent(new CustomEvent('athletigo:open-goal-form', {
+                detail: {
+                  traineeId,
+                  exerciseName: achievement.exerciseName,
+                  startingValue: achievement.value,
+                },
+              }));
+            } catch {}
+            setAchievement(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   DEFAULT_EXERCISES, RECORD_UNITS, RECORD_TYPE_OPTIONS,
   exerciseInfoFor, unitLabel,
 } from '@/lib/recordExercises';
+import { checkAchievement } from '@/lib/goalsApi';
 
 const O = '#FF6F20';
 const BORDER = '#F0E4D0';
@@ -33,6 +34,9 @@ export default function NewRecordDialog({
   onSuccess,        // () => void — called after successful save
   editData,         // existing personal_records row — when set, the form
                     // prefills from it and saves as UPDATE instead of INSERT
+  onAchievement,    // ({ goal, value, exerciseName }) — fired when the
+                    // saved value crosses an active goal's target so the
+                    // page can show a celebration popup
 }) {
   const isEdit = !!editData?.id;
   const today = new Date().toISOString().split('T')[0];
@@ -229,8 +233,29 @@ export default function NewRecordDialog({
       }
     }
 
+    // Goal achievement check — fires AFTER the personal_records insert
+    // lands so the celebration popup reads against the freshest state.
+    // Best-effort: failure here doesn't undo the record save.
+    let achievementResult = null;
+    if (resolvedTraineeId && Number.isFinite(numericValue)) {
+      try {
+        achievementResult = await checkAchievement(
+          resolvedTraineeId, exerciseName, numericValue
+        );
+      } catch (e) {
+        console.warn('[Records] achievement check failed:', e?.message);
+      }
+    }
+
     toast.success(isPersonalBest ? '🏆 שיא אישי חדש!' : '✓ שיא נשמר');
     setSaving(false);
+    if (achievementResult?.achieved && onAchievement) {
+      onAchievement({
+        goal: achievementResult.goal,
+        value: numericValue,
+        exerciseName,
+      });
+    }
     onSuccess?.();
     onClose?.();
   };

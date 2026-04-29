@@ -15,6 +15,7 @@ import { useFormPersistence } from "../hooks/useFormPersistence";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useCloseConfirm } from "../hooks/useCloseConfirm";
 import DraftPrompt from "@/components/DraftPrompt";
+import { getCurrentPB, cancelActiveGoals, GOAL_STATUS } from "@/lib/goalsApi";
 
 const GOAL_TYPES = [
   "חבל",
@@ -46,13 +47,17 @@ const BLOCKERS = [
   "אחר"
 ];
 
-export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName, editingGoal = null, onSuccess }) {
+export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName, editingGoal = null, onSuccess, prefill = null }) {
   const queryClient = useQueryClient();
-  
+
+  // Prefill is set by the goal-achieved popup or any caller that
+  // wants to skip ahead with a known exercise + starting value.
+  // We treat it as a hint applied only on the create path.
   const defaultFormData = {
-    goal_name: "",
+    goal_name: prefill?.exerciseName ? `${prefill.exerciseName} – יעד חדש` : "",
     goal_type: "",
-    current_value: "",
+    exercise_name: prefill?.exerciseName || "",
+    current_value: prefill?.startingValue != null ? String(prefill.startingValue) : "",
     target_value: "",
     unit: "",
     current_status_level: "",
@@ -64,11 +69,12 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
   };
 
   const currentDefaults = editingGoal ? {
-    goal_name: editingGoal.goal_name || "",
-    goal_type: editingGoal.goal_type || "",
+    goal_name: editingGoal.goal_name || editingGoal.title || "",
+    goal_type: editingGoal.goal_type || editingGoal.category || "",
+    exercise_name: editingGoal.exercise_name || "",
     current_value: editingGoal.current_value || "",
     target_value: editingGoal.target_value || "",
-    unit: editingGoal.unit || "",
+    unit: editingGoal.unit || editingGoal.target_unit || "",
     current_status_level: editingGoal.current_status_level || "",
     current_status_notes: editingGoal.current_status_notes || "",
     progression_steps: editingGoal.progression_steps || "",
@@ -93,6 +99,8 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goal-progress'] });
       invalidateDashboard(queryClient);
       if (onSuccess) onSuccess();
       clearDraft();
@@ -110,6 +118,8 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
       queryClient.invalidateQueries({ queryKey: ['my-goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goal-progress'] });
       invalidateDashboard(queryClient);
       if (onSuccess) onSuccess();
       clearDraft();
@@ -130,25 +140,55 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
       return;
     }
 
-    // Map form fields to actual DB columns in goals table
+    // exercise_name links the goal to personal_records.name so the
+    // chart can overlay the projection line + achievement dots.
+    // When the user didn't fill it in, we fall back to the goal_name
+    // so legacy entries still get *some* anchor.
+    const exerciseName = (formData.exercise_name || formData.goal_name || '').trim();
+
+    // starting_value is the PB at the moment the goal was set. On
+    // create we look it up from personal_records — anchors the
+    // progress bar in the goals tab + the projection line on the chart.
+    let startingValue = null;
+    if (!editingGoal && traineeId && exerciseName) {
+      try {
+        const pb = await getCurrentPB(traineeId, exerciseName);
+        if (Number.isFinite(pb)) startingValue = pb;
+      } catch (e) {
+        console.warn("[GoalForm] getCurrentPB failed:", e?.message);
+      }
+    }
+
+    // Map form fields to actual DB columns in goals table.
+    // status defaults to the Hebrew 'פעיל' so the new active-goal
+    // queries pick this row up immediately. The migration adds
+    // exercise_name / starting_value / exercise_type — base44 silently
+    // drops them if the migration hasn't run yet.
     const goalData = {
       trainee_id: traineeId,
       title: formData.goal_name || formData.title || "",
       description: formData.description || null,
       category: formData.goal_type || formData.category || null,
+      exercise_name: exerciseName || null,
+      starting_value: startingValue,
       current_value: formData.current_value ? parseFloat(formData.current_value) : null,
       target_value: formData.target_value ? parseFloat(formData.target_value) : null,
       target_unit: formData.unit || formData.target_unit || null,
       target_date: formData.target_date ? new Date(formData.target_date).toISOString() : null,
       deadline: formData.target_date ? new Date(formData.target_date).toISOString() : null,
       notes: [formData.extra_notes, formData.progression_steps, formData.main_blockers?.join(', ')].filter(Boolean).join(' | ') || null,
-      status: editingGoal ? editingGoal.status : "בתהליך",
+      status: editingGoal ? editingGoal.status : GOAL_STATUS.ACTIVE,
     };
 
     try {
       if (editingGoal) {
         await updateGoalMutation.mutateAsync({ id: editingGoal.id, data: goalData });
       } else {
+        // Only one active goal per trainee+exercise — cancel any
+        // prior active row before inserting the new one.
+        if (traineeId && exerciseName) {
+          await cancelActiveGoals(traineeId, exerciseName);
+        }
         await createGoalMutation.mutateAsync(goalData);
       }
     } catch (error) {
@@ -204,6 +244,19 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
               placeholder="לדוגמה: 10 עליות כוח ברצף"
               className="rounded-xl border-gray-200 focus:border-[#FF6F20]"
             />
+          </div>
+
+          {/* 1b. Exercise name — links the goal to personal_records
+                so the chart can overlay the projection + milestones. */}
+          <div className="space-y-2">
+            <Label className="font-bold text-base">שם התרגיל בשיאים</Label>
+            <Input
+              value={formData.exercise_name || ""}
+              onChange={(e) => setFormData({ ...formData, exercise_name: e.target.value })}
+              placeholder="לדוגמה: עליות מתח / Pull Ups"
+              className="rounded-xl border-gray-200 focus:border-[#FF6F20]"
+            />
+            <div className="text-xs text-gray-500">השם המדויק של התרגיל בטאב השיאים — מאפשר לקשר את היעד לשיא ולהציג קו תחזית.</div>
           </div>
 
           {/* 2. Goal Type */}
