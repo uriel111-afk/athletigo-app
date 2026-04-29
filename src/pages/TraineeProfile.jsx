@@ -1867,6 +1867,33 @@ export default function TraineeProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCoach, traineePerms, activeTab]);
 
+  // Auto-open the SessionFormDialog when the URL carries
+  // ?sessionId=... (the coach's Sessions page deep-links here).
+  // Fires once after sessions load so editingSession references
+  // the freshly-fetched row, not a stale lookup. Strips the
+  // sessionId from the URL after open so a refresh doesn't re-pop.
+  const sessionIdParamHandledRef = useRef(false);
+  useEffect(() => {
+    if (sessionIdParamHandledRef.current) return;
+    const sid = searchParams.get('sessionId');
+    if (!sid) return;
+    if (!Array.isArray(sessions) || sessions.length === 0) return;
+    const target = sessions.find(s => String(s.id) === String(sid));
+    if (!target) return;
+    sessionIdParamHandledRef.current = true;
+    setActiveTab('attendance');
+    setEditingSession(target);
+    setShowEditSession(true);
+    // Drop the sessionId from the URL so the dialog doesn't re-open
+    // on every render. Keep tab + userId.
+    try {
+      const next = new URLSearchParams(window.location.search);
+      next.delete('sessionId');
+      const path = window.location.pathname + (next.toString() ? `?${next.toString()}` : '');
+      window.history.replaceState(null, '', path);
+    } catch {}
+  }, [sessions, searchParams]);
+
   // (traineeNotifs query moved into TraineeNotificationsTab — same query key
   // 'trainee-notifications' is used there, so existing invalidations keep working.)
 

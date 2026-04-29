@@ -26,6 +26,9 @@ import { AuthContext } from "@/lib/AuthContext";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
+import { useNavigate } from "react-router-dom";
+import NewSessionCard from "@/components/sessions/SessionCard";
+import { groupSessionsByTime, BUCKET_LABELS, statusMatchesFilter } from "@/lib/sessionGrouping";
 
 export default function Sessions() {
   const [showSessionDialog, setShowSessionDialog] = useState(false);
@@ -50,6 +53,31 @@ export default function Sessions() {
   // Multi-select for bulk session actions (mark completed / cancel /
   // soft-delete). Toggled via the "בחירה" button in the header.
   const sessionSel = useMultiSelect();
+
+  // Hook used by the redesigned grouped-cards view to deep-link into
+  // a trainee's profile sessions tab. AuthProvider lives inside
+  // <Router> so useNavigate() is always available here.
+  const navigate = useNavigate();
+
+  // 'classic' = the original gradient header + 4-section view. 'grouped'
+  // = the redesigned collapsible cards (היום/מחר/השבוע/בעתיד/עברו).
+  // Persists per browser via localStorage so the coach's preference
+  // sticks between visits.
+  const [sessionsLayout, setSessionsLayout] = useState(() => {
+    try { return localStorage.getItem('sessions_layout') || 'grouped'; } catch { return 'grouped'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('sessions_layout', sessionsLayout); } catch {}
+  }, [sessionsLayout]);
+
+  // Past bucket starts collapsed — the coach asks for it open via a
+  // toggle inside the grouped layout.
+  const [showPast, setShowPast] = useState(false);
+
+  // Local status-chip filter for the grouped layout. Distinct from
+  // the existing filterStatus (which drives the 4-section's stat
+  // tabs). Maps via STATUS_FAMILIES to all the legacy status values.
+  const [groupedStatusFilter, setGroupedStatusFilter] = useState('all');
 
   // Group Training state
   const [activeView, setActiveView] = useState('sessions'); // 'sessions' | 'groups'
@@ -689,6 +717,56 @@ export default function Sessions() {
 
     return true;
   });
+
+  // Sessions filtered for the redesigned grouped layout. Distinct
+  // from filteredSessions (which drives the legacy 4-section view)
+  // because the grouped layout uses its own status-chip filter +
+  // looser search semantics. Always strips soft-deleted rows.
+  const groupedFilteredSessions = (sessions || []).filter(s => {
+    if (s.status === 'deleted' || s.deleted_at) return false;
+    if (!statusMatchesFilter(s.status, groupedStatusFilter)) return false;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const traineeName = (s.participants?.[0]?.trainee_name || s.trainee_name || '').toLowerCase();
+      if (!traineeName.includes(q) && !(s.location || '').toLowerCase().includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Trainee lookup keyed by trainee_id — sourced inline from the
+  // session.participants[0] (multi-trainee sessions still get the
+  // first participant for the closed-card label). The new SessionCard
+  // accepts the looked-up trainee row and falls back to session
+  // fields when the row is missing.
+  const traineeMap = (sessions || []).reduce((acc, s) => {
+    const id = s.trainee_id;
+    if (!id) return acc;
+    if (acc[id]) return acc;
+    const name = s.participants?.find(p => p.trainee_id === id)?.trainee_name
+      || s.participants?.[0]?.trainee_name
+      || s.trainee_name
+      || '';
+    acc[id] = { id, full_name: name };
+    return acc;
+  }, {});
+
+  // Click on the redesigned card's CTA → deep-link into the trainee's
+  // profile, attendance tab, with sessionId so TraineeProfile auto-
+  // opens the SessionFormDialog on the right row.
+  const openSessionInTraineeProfile = (session, trainee) => {
+    const tid = trainee?.id || session?.trainee_id;
+    if (!tid) {
+      toast.error('לא נמצא מתאמן משויך למפגש');
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set('userId', tid);
+    params.set('tab', 'attendance');
+    params.set('sessionId', session.id);
+    navigate(`/TraineeProfile?${params.toString()}`);
+  };
 
   const todaySessions = filteredSessions.filter((s) => {
     try {
@@ -1392,8 +1470,151 @@ export default function Sessions() {
           {/* ═══ SESSIONS VIEW ═══ */}
           {activeView === 'sessions' && isLoading && <PageLoader />}
 
-          {activeView === 'sessions' && !isLoading &&
+          {/* Redesigned grouped collapsible cards — default view.
+              The legacy 4-section layout is still rendered below
+              when sessionsLayout === 'classic' so the coach can
+              fall back. Both pull from `sessions` (Hook) so they
+              stay in sync after CRUD. */}
+          {activeView === 'sessions' && !isLoading && sessionsLayout === 'grouped' && (() => {
+            const groups = groupSessionsByTime(groupedFilteredSessions);
+            const STATUS_FILTERS = [
+              { id: 'all',       label: 'הכל' },
+              { id: 'pending',   label: 'ממתין' },
+              { id: 'confirmed', label: 'מאושר' },
+              { id: 'completed', label: 'הושלם' },
+              { id: 'cancelled', label: 'בוטל' },
+            ];
+            const visibleBuckets = ['today', 'tomorrow', 'thisWeek', 'future'];
+            const totalVisible = visibleBuckets.reduce((n, k) => n + groups[k].length, 0);
+            return (
+              <div dir="rtl" style={{ paddingBottom: 80 }}>
+                {/* Status filter chips */}
+                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 0 12px', marginBottom: 12 }}>
+                  {STATUS_FILTERS.map(f => {
+                    const active = groupedStatusFilter === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setGroupedStatusFilter(f.id)}
+                        style={{
+                          padding: '8px 16px', borderRadius: 999, border: 'none',
+                          background: active
+                            ? 'linear-gradient(135deg, #FF6F20 0%, #FF8A47 100%)'
+                            : '#FFFFFF',
+                          color: active ? '#fff' : '#555',
+                          boxShadow: active ? '0 2px 8px rgba(255,111,32,0.25)' : 'none',
+                          border: active ? '1.5px solid #FF6F20' : '1.5px solid #F0E4D0',
+                          fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer',
+                          fontFamily: "'Heebo', 'Assistant', sans-serif",
+                          transition: 'all 0.2s ease',
+                        }}
+                      >{f.label}</button>
+                    );
+                  })}
+                </div>
+
+                {/* Toggle back to classic if needed */}
+                <div style={{ textAlign: 'left', marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setSessionsLayout('classic')}
+                    style={{
+                      background: 'none', border: 'none', color: '#888',
+                      fontSize: 12, cursor: 'pointer', padding: '4px 6px',
+                    }}
+                  >תצוגה קלאסית →</button>
+                </div>
+
+                {totalVisible === 0 && groups.past.length === 0 && (
+                  <div style={{
+                    textAlign: 'center', padding: 60, color: '#888',
+                    background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+                  }}>
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>📅</div>
+                    <div style={{ fontSize: 15 }}>אין מפגשים תחת הסינון הזה</div>
+                  </div>
+                )}
+
+                {visibleBuckets.map(bucketKey => {
+                  const list = groups[bucketKey];
+                  if (!list.length) return null;
+                  return (
+                    <div key={bucketKey} style={{ marginBottom: 18 }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        marginBottom: 8,
+                      }}>
+                        <h3 style={{
+                          margin: 0,
+                          fontSize: 18, fontWeight: 700,
+                          color: '#1A1A1A',
+                          fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+                          letterSpacing: 0.3,
+                        }}>{BUCKET_LABELS[bucketKey]}</h3>
+                        <span style={{
+                          fontSize: 12, fontWeight: 600, color: '#FF6F20',
+                          background: '#FFF5EE', padding: '2px 10px', borderRadius: 999,
+                        }}>{list.length}</span>
+                      </div>
+                      {list.map(s => (
+                        <NewSessionCard
+                          key={s.id}
+                          session={s}
+                          trainee={traineeMap[s.trainee_id]}
+                          onClick={openSessionInTraineeProfile}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+
+                {/* Past — collapsed by default */}
+                {groups.past.length > 0 && (
+                  <div style={{ marginTop: 24 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowPast(p => !p)}
+                      style={{
+                        width: '100%', padding: 12, borderRadius: 12,
+                        border: '1px dashed #F0E4D0',
+                        background: 'transparent', color: '#888',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        marginBottom: 10,
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      {showPast
+                        ? `▲ הסתר מפגשים שעברו (${groups.past.length})`
+                        : `▼ הצג מפגשים שעברו (${groups.past.length})`}
+                    </button>
+                    {showPast && groups.past.map(s => (
+                      <NewSessionCard
+                        key={s.id}
+                        session={s}
+                        trainee={traineeMap[s.trainee_id]}
+                        onClick={openSessionInTraineeProfile}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {activeView === 'sessions' && !isLoading && sessionsLayout === 'classic' &&
           <>
+              {/* Quick toggle back to the redesigned grouped view */}
+              <div style={{ textAlign: 'left', marginBottom: 12, direction: 'rtl' }}>
+                <button
+                  type="button"
+                  onClick={() => setSessionsLayout('grouped')}
+                  style={{
+                    background: 'none', border: 'none', color: '#888',
+                    fontSize: 12, cursor: 'pointer', padding: '4px 6px',
+                  }}
+                >תצוגה מקובצת →</button>
+              </div>
               {/* Today's Sessions - Priority */}
               {todaySessions.length > 0 &&
             <div className="mb-10">
