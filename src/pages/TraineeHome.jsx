@@ -1771,8 +1771,15 @@ export default function TraineeHome() {
                 >
                   {approvalBusy ? 'מעביר לתשלום...' : `💳 שלם ${pendingPrice}₪ ואשר`}
                 </button>
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#888', marginBottom: 12 }}>
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#888', marginBottom: 4 }}>
                   אישור המפגש מותנה בתשלום
+                </div>
+                {/* Tiny reassurance line: confirms we never collect
+                    the card here — it's a hosted Grow page — and
+                    that the trainee won't have to retype their
+                    profile fields. */}
+                <div style={{ textAlign: 'center', fontSize: 11, color: '#888', marginBottom: 12 }}>
+                  🔒 ייפתח דף תשלום מאובטח של משולם · הפרטים שלך מועברים אוטומטית
                 </div>
               </>
             ) : (

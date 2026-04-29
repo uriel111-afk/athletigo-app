@@ -16,6 +16,8 @@ import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { supabase } from "@/lib/supabaseClient";
 import SessionStatusPicker from "@/components/sessions/SessionStatusPicker";
 import { useQueryClient } from "@tanstack/react-query";
+import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
+import { requiresPayment } from "@/lib/sessionHelpers";
 import { DraftBanner } from "@/components/DraftBanner";
 import DraftPrompt from "@/components/DraftPrompt";
 
@@ -86,6 +88,10 @@ export default function SessionFormDialog({
 
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [availableServices, setAvailableServices] = useState([]);
+  // Completion guard for the inline status pills row at the top of
+  // the dialog. Holds the editingSession + price snapshot when the
+  // coach taps 'הושלם' on a paid-but-unpaid row.
+  const [overrideTarget, setOverrideTarget] = useState(null);
 
   // Fetch active services when participant changes
   useEffect(() => {
@@ -329,6 +335,20 @@ export default function SessionFormDialog({
                 variant="pills"
                 value={sessionForm.status}
                 onChange={async (newStatus) => {
+                  // Completion guard — same gate Sessions.jsx uses.
+                  // Snapshot price+payment_status from the latest
+                  // form values + editingSession so the dialog gets
+                  // the row even before the user saves the parent.
+                  const snapshot = {
+                    ...editingSession,
+                    price: sessionForm.price ?? editingSession?.price,
+                    payment_status: editingSession?.payment_status ?? sessionForm.payment_status,
+                  };
+                  if (newStatus === 'הושלם' && requiresPayment(snapshot)) {
+                    setOverrideTarget(snapshot);
+                    return;
+                  }
+
                   setSessionForm(prev => ({ ...prev, status: newStatus }));
                   try {
                     const { error } = await supabase
@@ -762,6 +782,22 @@ export default function SessionFormDialog({
         </div>
         </DialogContent>
       </Dialog>
+
+      {/* Override gate — fires when the inline status pills above
+          flip to 'הושלם' on a paid-but-unpaid row. The dialog owns
+          the DB write; we just refresh visible lists on confirm. */}
+      <PaymentOverrideDialog
+        session={overrideTarget}
+        isOpen={!!overrideTarget}
+        onCancel={() => setOverrideTarget(null)}
+        onConfirm={() => {
+          setSessionForm(prev => ({ ...prev, status: 'הושלם' }));
+          queryClient.invalidateQueries({ queryKey: ['sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
+          setOverrideTarget(null);
+        }}
+      />
     </>
   );
 }

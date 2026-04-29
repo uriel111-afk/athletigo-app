@@ -28,10 +28,16 @@ import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 import { useNavigate } from "react-router-dom";
 import NewSessionCard from "@/components/sessions/SessionCard";
+import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
+import { requiresPayment } from "@/lib/sessionHelpers";
 import { groupSessionsByTime, BUCKET_LABELS, statusMatchesFilter } from "@/lib/sessionGrouping";
 
 export default function Sessions() {
   const [showSessionDialog, setShowSessionDialog] = useState(false);
+  // Completion-guard state — set when handleSessionStatusChange
+  // catches 'הושלם' on a paid-but-unpaid row. The dialog opens; the
+  // coach types a reason; on confirm, it writes the override + closes.
+  const [overrideTarget, setOverrideTarget] = useState(null);
   const [editingSession, setEditingSession] = useState(null);
   const [sessionToEdit, setSessionToEdit] = useState(null);
   const [deletingSession, setDeletingSession] = useState(null);
@@ -419,6 +425,15 @@ export default function Sessions() {
   };
 
   const handleSessionStatusChange = async (session, newStatus) => {
+    // Completion guard — the coach can't quietly mark a paid-but-
+    // unpaid row 'הושלם'. Intercept and route through the override
+    // dialog; that path writes status + payment_status='override_no_
+    // payment' + the typed reason in one shot.
+    if (newStatus === 'הושלם' && requiresPayment(session)) {
+      setOverrideTarget(session);
+      return;
+    }
+
     // 1. Update session status
     await updateSessionMutation.mutateAsync({
       id: session.id,
@@ -2146,6 +2161,23 @@ export default function Sessions() {
           setSessionToEdit(null);
           queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
           invalidateDashboard(queryClient);
+        }}
+      />
+
+      {/* Completion guard — fires from handleSessionStatusChange
+          when a coach tries to mark an unpaid paid-row complete.
+          The dialog writes its own update + the audit notification;
+          we just refresh the visible lists on confirm. */}
+      <PaymentOverrideDialog
+        session={overrideTarget}
+        isOpen={!!overrideTarget}
+        onCancel={() => setOverrideTarget(null)}
+        onConfirm={() => {
+          queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+          invalidateDashboard(queryClient);
+          setOverrideTarget(null);
         }}
       />
     </ProtectedCoachPage>);

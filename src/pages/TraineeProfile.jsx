@@ -72,6 +72,8 @@ import PageLoader from "@/components/PageLoader";
 import InlineLoader from "@/components/InlineLoader";
 import PlanCard from "@/components/plans/PlanCard";
 import PlanEditorDialog from "@/components/plans/PlanEditorDialog";
+import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
+import { requiresPayment } from "@/lib/sessionHelpers";
 import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
@@ -1411,6 +1413,9 @@ export default function TraineeProfile() {
   // being edited or null when the dialog is closed.
   const [planStatusFilter, setPlanStatusFilter] = useState('all');
   const [editingPlan, setEditingPlan] = useState(null);
+  // Completion-guard target — set when a coach picks 'הושלם' on a
+  // paid-but-unpaid session through one of the inline status pickers.
+  const [overrideTarget, setOverrideTarget] = useState(null);
   // Goals-tab folder system (goal_progress driven). Each goal_name is
   // a folder; clicking a folder card expands it to show the chart +
   // history + linked records + update CTA.
@@ -4835,6 +4840,10 @@ export default function TraineeProfile() {
                                     }
                                     return;
                                   }
+                                  if (val === 'הושלם' && requiresPayment(session)) {
+                                    setOverrideTarget(session);
+                                    return;
+                                  }
                                   updateSessionStatusMutation.mutate({ session, newStatus: val });
                                 }}>
                                   <SelectTrigger className="h-8 text-xs w-auto min-w-[70px] border-gray-200"><SelectValue /></SelectTrigger>
@@ -4954,6 +4963,10 @@ export default function TraineeProfile() {
                                               } else {
                                                 setDeductDialog({ type: 'no_package', session, targetStatus: val });
                                               }
+                                              return;
+                                            }
+                                            if (val === 'הושלם' && requiresPayment(session)) {
+                                              setOverrideTarget(session);
                                               return;
                                             }
                                             updateSessionStatusMutation.mutate({ session, newStatus: val });
@@ -5685,6 +5698,24 @@ export default function TraineeProfile() {
           onSaved={() => {
             queryClient.invalidateQueries({ queryKey: ['training-plans'] });
             queryClient.invalidateQueries({ queryKey: ['trainee-plan-contents-bulk'] });
+          }}
+        />
+
+        {/* Completion guard — fired by the inline status pickers in
+            the attendance / package-history blocks when a coach
+            picks 'הושלם' on a paid-but-unpaid session. The dialog
+            owns the DB write + audit notification; we just refresh
+            the visible session lists on confirm. */}
+        <PaymentOverrideDialog
+          session={overrideTarget}
+          isOpen={!!overrideTarget}
+          onCancel={() => setOverrideTarget(null)}
+          onConfirm={() => {
+            queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+            queryClient.invalidateQueries({ queryKey: ['sessions'] });
+            queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
+            invalidateDashboard(queryClient);
+            setOverrideTarget(null);
           }}
         />
 

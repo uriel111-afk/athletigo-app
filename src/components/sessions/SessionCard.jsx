@@ -104,6 +104,11 @@ export default function SessionCard({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* Payment badge — sits next to the status picker so the
+              coach sees both attendance state AND money state on
+              the closed card. Renders only when price > 0. */}
+          <PaymentBadge session={session} />
+
           {/* Editable status picker — replaces the old static badge.
               stopPropagation inside the picker so opening its dropdown
               doesn't toggle the card's expand state. Falls back to a
@@ -196,6 +201,38 @@ export default function SessionCard({
         </div>
       )}
     </div>
+  );
+}
+
+// Tiny money-state pill. Three states + a hidden state for free
+// rows (price=0/null). Mirrors the colour vocab elsewhere in the
+// app: green=settled, red=skipped/overridden, amber=pending.
+function PaymentBadge({ session }) {
+  const price = Number(session?.price);
+  if (!Number.isFinite(price) || price <= 0) return null;
+  const status = session?.payment_status;
+
+  let bg, color, label;
+  if (status === 'paid') {
+    bg = '#D1FAE5'; color = '#065F46'; label = '✓ שולם';
+  } else if (status === 'override_no_payment') {
+    bg = '#FEE2E2'; color = '#991B1B'; label = '! ללא תשלום';
+  } else {
+    bg = '#FEF3C7'; color = '#92400E'; label = '₪ ממתין לתשלום';
+  }
+  return (
+    <span style={{
+      background: bg,
+      color,
+      padding: '3px 9px',
+      borderRadius: 999,
+      fontSize: 11,
+      fontWeight: 500,
+      whiteSpace: 'nowrap',
+      fontFamily: "'Heebo', 'Assistant', sans-serif",
+    }}>
+      {label}
+    </span>
   );
 }
 

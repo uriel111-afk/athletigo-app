@@ -20,18 +20,20 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Per-request id so a client error can be matched to the exact
+  // server log line. 8 hex chars is plenty for log searching.
+  const requestId = crypto.randomUUID().slice(0, 8);
+
   try {
-    // Boot-time diagnostics — env presence + endpoint. Helpful when
-    // a deploy lands without one of the secrets being copied over.
-    console.log('[payment-create] env:', MESHULAM_ENV, 'endpoint:', MESHULAM_ENDPOINT);
+    console.log(`[${requestId}] payment-create called env=${MESHULAM_ENV} endpoint=${MESHULAM_ENDPOINT}`);
     console.log(
-      '[payment-create] secrets ok:',
+      `[${requestId}] secrets ok:`,
       'MESHULAM_USER_ID', !!Deno.env.get('MESHULAM_USER_ID'),
       'MESHULAM_API_KEY', !!Deno.env.get('MESHULAM_API_KEY'),
     );
 
     const authHeader = req.headers.get('Authorization') || '';
-    if (!authHeader) return json({ error: 'לא מורשה' }, 401);
+    if (!authHeader) return json({ error: 'unauthorized', requestId }, 401);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -40,20 +42,28 @@ Deno.serve(async (req) => {
     const meshulamApiKey = Deno.env.get('MESHULAM_API_KEY');
 
     if (!meshulamUserId || !meshulamApiKey) {
-      console.error('[payment-create] missing MESHULAM_* secrets');
-      return json({ error: 'תשלומים לא מוגדרים בשרת' }, 500);
+      console.error(`[${requestId}] missing MESHULAM_* secrets`);
+      return json({ error: 'missing_secrets', requestId }, 500);
     }
 
     const supabaseUser = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-    if (authError || !user) return json({ error: 'לא מורשה' }, 401);
+    if (authError || !user) return json({ error: 'unauthorized', requestId }, 401);
 
-    const body = await req.json().catch(() => ({}));
-    console.log('[payment-create] request body:', JSON.stringify(body));
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: 'invalid_json', requestId }, 400);
+    }
+    console.log(`[${requestId}] request body:`, JSON.stringify(body));
+
     const amount = Number(body.amount);
-    if (!Number.isFinite(amount) || amount <= 0) return json({ error: 'סכום לא תקין' }, 400);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return json({ error: 'invalid_amount', amount: body.amount, requestId }, 400);
+    }
 
     const description = (body.description || 'AthletiGo — מפגש אימון').toString();
     const sessionId = body.session_id || null;
@@ -108,29 +118,58 @@ Deno.serve(async (req) => {
     for (const [k, v] of form.entries()) {
       debugPayload[k] = (k === 'apiKey') ? '***' : (typeof v === 'string' ? v : String(v));
     }
-    console.log('[payment-create] sending to Grow:', JSON.stringify(debugPayload));
+    console.log(`[${requestId}] sending to Grow:`, JSON.stringify(debugPayload));
 
     let meshulamRes;
     try {
       meshulamRes = await fetch(MESHULAM_ENDPOINT, { method: 'POST', body: form });
     } catch (e: any) {
-      console.error('[payment-create] meshulam fetch failed:', e?.message);
-      return json({ error: 'שירות התשלומים לא זמין כרגע' }, 502);
+      console.error(`[${requestId}] meshulam fetch failed:`, e?.message);
+      return json({
+        error: 'meshulam_unreachable',
+        message: e?.message || 'fetch failed',
+        requestId,
+      }, 502);
     }
 
-    const meshulamJson = await meshulamRes.json().catch(() => null);
-    console.log(
-      '[payment-create] Grow response status:', meshulamRes.status,
-      'body:', JSON.stringify(meshulamJson),
-    );
+    // Read body as text first so a non-JSON response (HTML error page,
+    // empty body, etc.) becomes a structured error instead of a
+    // generic 502 with no signal.
+    const meshulamText = await meshulamRes.text();
+    console.log(`[${requestId}] Grow response status=${meshulamRes.status} body=${meshulamText.slice(0, 500)}`);
 
-    if (!meshulamJson || Number(meshulamJson.status) !== 1 || !meshulamJson?.data?.url) {
-      console.error('[payment-create] meshulam error:', meshulamJson);
-      const errMsg = meshulamJson?.err || meshulamJson?.data?.err || 'יצירת דף התשלום נכשלה';
-      return json({ error: errMsg, details: meshulamJson }, 502);
+    let meshulamJson: any;
+    try {
+      meshulamJson = JSON.parse(meshulamText);
+    } catch {
+      return json({
+        error: 'meshulam_invalid_response',
+        httpStatus: meshulamRes.status,
+        rawResponse: meshulamText.slice(0, 500),
+        requestId,
+      }, 502);
     }
 
-    const { url, processId } = meshulamJson.data;
+    if (Number(meshulamJson.status) !== 1) {
+      console.error(`[${requestId}] meshulam business error:`, meshulamJson);
+      return json({
+        error: 'meshulam_business_error',
+        meshulamStatus: meshulamJson.status,
+        meshulamError: meshulamJson?.err || meshulamJson?.data?.err || 'unknown',
+        details: meshulamJson,
+        requestId,
+      }, 400);
+    }
+
+    const checkoutUrl: string | undefined = meshulamJson?.data?.url;
+    const processId: string | undefined = meshulamJson?.data?.processId;
+    if (!checkoutUrl) {
+      return json({
+        error: 'meshulam_missing_url',
+        details: meshulamJson,
+        requestId,
+      }, 502);
+    }
 
     try {
       await admin.from('payments').insert({
@@ -144,13 +183,28 @@ Deno.serve(async (req) => {
         payment_type: paymentType,
       });
     } catch (e: any) {
-      console.warn('[payment-create] payments insert failed:', e?.message);
+      console.warn(`[${requestId}] payments insert failed:`, e?.message);
     }
 
-    return json({ url, processId });
+    // Backwards-compatible response — clients still read `data.url`
+    // and `data.processId`. New `checkoutUrl` field added so the
+    // structured-error contract is consistent with the failure paths.
+    return json({
+      success: true,
+      url: checkoutUrl,
+      checkoutUrl,
+      processId: processId || null,
+      transactionId: processId || null,
+      requestId,
+    });
+
   } catch (err: any) {
-    console.error('[payment-create] unexpected:', err);
-    return json({ error: 'תקלה בלתי צפויה ביצירת התשלום' }, 500);
+    console.error(`[${requestId}] unexpected:`, err);
+    return json({
+      error: 'internal_error',
+      message: err?.message || String(err),
+      requestId,
+    }, 500);
   }
 });
 
