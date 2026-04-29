@@ -3792,38 +3792,54 @@ export default function TraineeProfile() {
                 {baselines.length >= 1 && (() => {
                   const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
                   const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
-                  const techNames = [...new Set(baselines.map(b => b.technique || 'basic'))];
-                  // Group by created_at within a 60s window so a single
+                  const techOf = (b) => b.technique || b.tab_name || b.name || 'basic';
+                  const jpsOf = (b) => Number(b.baseline_score ?? b.jps ?? b.score ?? 0);
+                  const techNames = [...new Set(baselines.map(techOf))];
+                  // Group by created_at within a 120s window so a single
                   // multi-technique save (which writes one row per
                   // technique with the same created_at) becomes one
                   // session, but two distinct saves on the same day stay
-                  // separate. Each chart point = one session.
+                  // separate. Legacy rows missing created_at fall back
+                  // to `date + id` so they still bucket sensibly.
                   const sessions = [];
-                  for (const b of [...baselines].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
-                    const ts = new Date(b.created_at);
-                    if (Number.isNaN(ts.getTime())) continue;
-                    const found = sessions.find(s => Math.abs(new Date(s.created_at) - ts) < 60000);
+                  const sortable = [...baselines].sort((a, b) =>
+                    new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0)
+                  );
+                  for (const b of sortable) {
+                    const stamp = b.created_at || b.date || b.id || new Date().toISOString();
+                    const ts = new Date(stamp);
+                    const tsValid = !Number.isNaN(ts.getTime());
+                    const found = tsValid
+                      ? sessions.find(s => Math.abs(new Date(s.created_at) - ts) < 120000)
+                      : null;
                     if (found) {
                       found.techniques.push(b);
                     } else {
+                      const safeTs = tsValid ? ts : new Date();
                       sessions.push({
-                        key: b.created_at,
-                        date: b.date || ts.toISOString().split('T')[0],
-                        time: ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
-                        created_at: b.created_at,
+                        key: stamp,
+                        date: b.date || safeTs.toISOString().split('T')[0],
+                        time: tsValid
+                          ? safeTs.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+                          : '',
+                        created_at: stamp,
                         techniques: [b],
                       });
                     }
                   }
+                  console.log('[Baseline] raw:', baselines.length, 'rows → grouped:', sessions.length, 'sessions',
+                    '· techniques:', techNames);
                   const chartData = sessions.map(s => {
                     const row = {
-                      date: `${new Date(s.date).toLocaleDateString('he-IL')} ${s.time}`,
+                      date: s.time
+                        ? `${new Date(s.date).toLocaleDateString('he-IL')} ${s.time}`
+                        : new Date(s.date).toLocaleDateString('he-IL'),
                       _key: s.key,
                     };
                     techNames.forEach(tech => {
-                      const entry = s.techniques.find(t => (t.technique || 'basic') === tech);
+                      const entry = s.techniques.find(t => techOf(t) === tech);
                       const label = TECH_LABELS[tech] || tech;
-                      row[label] = entry ? Number(entry.baseline_score) || 0 : null;
+                      row[label] = entry ? jpsOf(entry) : null;
                     });
                     return row;
                   });
@@ -3886,28 +3902,40 @@ export default function TraineeProfile() {
                   //   L1 (closed): date · time · N techniques + per-technique row
                   //   L2 (expanded): per-technique stat tile, EACH clickable
                   //   L3: BaselineFormDialog viewOnly — opened via openBaselineView
-                  // Sessions are bucketed by created_at within a 60s window so
-                  // a multi-technique save (one row per technique sharing a
-                  // timestamp) collapses into ONE card, but two distinct
-                  // saves on the same calendar day stay separate.
+                  // Sessions are bucketed by created_at within a 120s window;
+                  // a multi-technique save collapses into ONE card; legacy
+                  // rows without created_at fall back to `date + id`.
                   const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
                   const sessions = [];
-                  for (const b of [...baselines].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
-                    const ts = new Date(b.created_at);
-                    if (Number.isNaN(ts.getTime())) continue;
-                    const found = sessions.find(s => Math.abs(new Date(s.created_at) - ts) < 60000);
+                  const sortable = [...baselines].sort((a, b) =>
+                    new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0)
+                  );
+                  for (const b of sortable) {
+                    const stamp = b.created_at || b.date || b.id || new Date().toISOString();
+                    const ts = new Date(stamp);
+                    const tsValid = !Number.isNaN(ts.getTime());
+                    const found = tsValid
+                      ? sessions.find(s => Math.abs(new Date(s.created_at) - ts) < 120000)
+                      : null;
                     if (found) {
                       found.techniques.push(b);
                     } else {
+                      const safeTs = tsValid ? ts : new Date();
                       sessions.push({
-                        key: b.created_at,
-                        date: b.date || ts.toISOString().split('T')[0],
-                        time: ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
-                        created_at: b.created_at,
+                        key: stamp,
+                        date: b.date || safeTs.toISOString().split('T')[0],
+                        time: tsValid
+                          ? safeTs.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+                          : '',
+                        created_at: stamp,
                         techniques: [b],
                       });
                     }
                   }
+                  console.log('[Baseline] cards:', sessions.length, 'sessions from', baselines.length, 'rows');
+                  sessions.forEach(s => {
+                    console.log(`[Baseline]  · ${s.key}: ${s.techniques.length} techniques, date: ${s.date} ${s.time}`);
+                  });
                   const sortedSessions = [...sessions].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                   return (
                     <div className="space-y-3">
@@ -3942,9 +3970,13 @@ export default function TraineeProfile() {
                                 </div>
                               </div>
                               {techniques.map(t => {
-                                const techName = techLabels[t.technique] || t.technique || 'בסיס';
+                                const techKey = t.technique || t.tab_name || t.name || 'בסיס';
+                                const techName = techLabels[techKey] || techKey || 'בסיס';
                                 const jps = Number(t.baseline_score ?? t.jps ?? t.score ?? 0).toFixed(2);
-                                const total = t.total_jumps ?? 0;
+                                const rd = Array.isArray(t.rounds_data) ? t.rounds_data : [];
+                                const rdSum = rd.reduce((s, r) => s + (Number(r?.jumps) || 0), 0);
+                                const total = t.total_jumps ?? t.total ?? rdSum
+                                  ?? ((t.round1 || 0) + (t.round2 || 0) + (t.round3 || 0));
                                 return (
                                   <div key={t.id} style={{
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -3967,10 +3999,19 @@ export default function TraineeProfile() {
                                 borderTop: '1px solid #F0E4D0',
                               }}>
                                 {techniques.map((t, idx) => {
-                                  const techName = techLabels[t.technique] || t.technique || 'בסיס';
-                                  const total = t.total_jumps ?? 0;
-                                  const avg = t.average_jumps ?? (total && t.rounds_count ? (total / t.rounds_count).toFixed(1) : '—');
-                                  const best = t.best_round ?? '—';
+                                  const techKey = t.technique || t.tab_name || t.name || 'בסיס';
+                                  const techName = techLabels[techKey] || techKey || 'בסיס';
+                                  const rd = Array.isArray(t.rounds_data) ? t.rounds_data : [];
+                                  const rdSum = rd.reduce((s, r) => s + (Number(r?.jumps) || 0), 0);
+                                  const rdBest = rd.length ? Math.max(...rd.map(r => Number(r?.jumps) || 0)) : 0;
+                                  const total = t.total_jumps ?? t.total ?? rdSum
+                                    ?? ((t.round1 || 0) + (t.round2 || 0) + (t.round3 || 0));
+                                  const denom = t.rounds_count || rd.length || 3;
+                                  const avg = t.average_jumps ?? t.average
+                                    ?? (total > 0 && denom ? (total / denom).toFixed(1) : '—');
+                                  const best = t.best_round ?? rdBest
+                                    ?? Math.max(t.round1 || 0, t.round2 || 0, t.round3 || 0)
+                                    ?? '—';
                                   const jps = Number(t.baseline_score ?? t.jps ?? t.score ?? 0).toFixed(2);
                                   return (
                                     <div

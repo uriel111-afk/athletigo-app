@@ -117,38 +117,54 @@ function ProgressInner() {
   ];
 
   // ── Baseline JPS chart — one line per technique ─────────────
-  // Sessions are bucketed by created_at within a 60s window so a
-  // multi-technique save (one row per technique sharing a timestamp)
-  // becomes ONE point on the chart. Two distinct saves on the same
-  // day stay separate — each a discrete point with its own time stamp.
+  // Sessions bucketed by created_at within a 120s window so a
+  // multi-technique save becomes ONE point. Legacy rows missing
+  // created_at fall back to `date + id`. Tech name + score read
+  // through fallbacks (technique / tab_name / name; baseline_score /
+  // jps / score) so old rows still chart correctly.
   const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
   const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
-  const techNames = [...new Set(baselinesArr.map(b => b.technique || 'basic'))];
+  const techOf = (b) => b.technique || b.tab_name || b.name || 'basic';
+  const jpsOf = (b) => Number(b.baseline_score ?? b.jps ?? b.score ?? 0);
+  const techNames = [...new Set(baselinesArr.map(techOf))];
   const baselineSessions = [];
-  for (const b of [...baselinesArr].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
-    const ts = new Date(b.created_at);
-    if (Number.isNaN(ts.getTime())) continue;
-    const found = baselineSessions.find(s => Math.abs(new Date(s.created_at) - ts) < 60000);
+  const sortable = [...baselinesArr].sort((a, b) =>
+    new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0)
+  );
+  for (const b of sortable) {
+    const stamp = b.created_at || b.date || b.id || new Date().toISOString();
+    const ts = new Date(stamp);
+    const tsValid = !Number.isNaN(ts.getTime());
+    const found = tsValid
+      ? baselineSessions.find(s => Math.abs(new Date(s.created_at) - ts) < 120000)
+      : null;
     if (found) {
       found.techniques.push(b);
     } else {
+      const safeTs = tsValid ? ts : new Date();
       baselineSessions.push({
-        key: b.created_at,
-        date: b.date || ts.toISOString().split('T')[0],
-        time: ts.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
-        created_at: b.created_at,
+        key: stamp,
+        date: b.date || safeTs.toISOString().split('T')[0],
+        time: tsValid
+          ? safeTs.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+          : '',
+        created_at: stamp,
         techniques: [b],
       });
     }
   }
+  console.log('[Progress] baselines:', baselinesArr.length, 'rows → grouped:', baselineSessions.length, 'sessions',
+    '· techniques:', techNames);
   const baselineData = baselineSessions.map(s => {
-    const row = { date: `${new Date(s.date).toLocaleDateString('he-IL')} ${s.time}` };
+    const row = {
+      date: s.time
+        ? `${new Date(s.date).toLocaleDateString('he-IL')} ${s.time}`
+        : new Date(s.date).toLocaleDateString('he-IL'),
+    };
     techNames.forEach(tech => {
-      const entry = s.techniques.find(t => (t.technique || 'basic') === tech);
+      const entry = s.techniques.find(t => techOf(t) === tech);
       const label = TECH_LABELS[tech] || tech;
-      row[label] = entry
-        ? Number(entry.baseline_score ?? entry.jps ?? entry.score ?? 0)
-        : null;
+      row[label] = entry ? jpsOf(entry) : null;
     });
     return row;
   });
