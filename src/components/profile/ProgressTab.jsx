@@ -561,17 +561,15 @@ export default function ProgressTab({ traineeId }) {
       {records.length > 0 && (
         // Full-width breakout — escapes every horizontal padding above
         // it (TraineeProfile px-4, Tabs gutters, this component) and
-        // pins the chart to the actual viewport edges on mobile. The
-        // outer wrapper has padding:0 + overflow:hidden so nothing
-        // here adds gutters; text-bearing children re-introduce 16px
-        // horizontal padding individually so they never touch the
-        // screen edge.
+        // pins the chart to the actual viewport edges on mobile.
+        // overflow is left visible so chips never get clipped on the
+        // right; the SVG and text children all size themselves to the
+        // content area so no horizontal scroll is introduced.
         <div style={{
           marginLeft: 'calc(-50vw + 50%)',
           marginRight: 'calc(-50vw + 50%)',
           width: '100vw',
           padding: 0,
-          overflow: 'hidden',
           marginBottom: 16,
         }}>
         <div style={{
@@ -675,6 +673,7 @@ export default function ProgressTab({ traineeId }) {
             marginBottom: 12,
             padding: '0 16px',
             boxSizing: 'border-box',
+            overflow: 'visible',
           }}>
             <Chip
               size="sm"

@@ -82,13 +82,25 @@ export default function StepMilestones({
   }
 
   const W = containerWidth, H = height;
-  const padX = isMobile ? 8 : 20;
+  const padX = 4;
   const padTop = 24;
   const padBottom = 28;
 
+  // Y scale derives from data + goalTarget when target is in a
+  // sensible range. If the goal is far above/below the records (e.g.
+  // 50→200 reps target while data sits at 5-10), including it in
+  // allValues collapses the data into a thin band on the chart.
+  // Drop the goal from allValues when it's > 2× the data spread.
+  const dataValues = allPoints.map(p => p.value);
+  const dataMin = Math.min(...dataValues);
+  const dataMax = Math.max(...dataValues);
+  const dataRange = dataMax - dataMin || 1;
+  const goalInRange = goalTarget != null
+    && goalTarget >= dataMin - dataRange * 2
+    && goalTarget <= dataMax + dataRange * 2;
   const allValues = [
-    ...allPoints.map(p => p.value),
-    ...(goalTarget != null ? [goalTarget] : []),
+    ...dataValues,
+    ...(goalInRange ? [goalTarget] : []),
     ...(goalProjection ? goalProjection.map(p => p.value) : []),
   ];
   const minVal = Math.min(...allValues);
@@ -108,7 +120,16 @@ export default function StepMilestones({
   const dateIndex = new Map(allDates.map((d, i) => [d, i]));
   const dateCount = allDates.length || 1;
 
-  const xFor = (date) => padX + (dateIndex.get(date) / Math.max(1, dateCount - 1)) * (W - padX * 2);
+  // Force-spread x positions so 2-3 records don't all collapse to
+  // the same tight cluster. 30px insets on each side put the first
+  // and last points well clear of the edges (and clear of the right
+  // Y-axis labels).
+  const xFor = (date) => {
+    const idx = dateIndex.get(date);
+    if (dateCount <= 1) return W / 2;
+    const usableWidth = W - 60;
+    return 30 + (idx / (dateCount - 1)) * usableWidth;
+  };
   const yFor = (value) => H - padBottom - ((value - yMin) / yRange) * (H - padTop - padBottom);
 
   const goalY = goalTarget != null ? yFor(goalTarget) : null;
@@ -196,14 +217,14 @@ export default function StepMilestones({
         ))}
 
         {/* Y-axis tick labels — anchored on the right edge for RTL.
-            Skipping r=0 so the bottom value doesn't collide with the
-            X-axis date label, and using textAnchor="end" so labels
-            terminate at W-4 without overflow. */}
-        {[0.25, 0.5, 0.75, 1].map((r, i) => {
+            4 labels at r=0/0.33/0.66/1 cover the full vertical span
+            so the trainee sees both extremes; textAnchor="end" pins
+            the right edge at W-6 so digits don't bleed off-canvas. */}
+        {[0, 0.33, 0.66, 1].map((r, i) => {
           const val = Math.round(yMin + r * yRange);
           const y = H - padBottom - r * (H - padTop - padBottom);
           return (
-            <text key={`y-${i}`} x={W - 4} y={y + 4} textAnchor="end" fontSize="12" fill="#888">
+            <text key={`yl-${i}`} x={W - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#888" fontFamily="inherit">
               {val}
             </text>
           );
