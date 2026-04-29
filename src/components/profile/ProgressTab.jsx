@@ -13,6 +13,7 @@ import NewRecordDialog from '@/components/forms/NewRecordDialog';
 import { Chip } from '@/components/ui/Chip';
 import { GOAL_STATUS } from '@/lib/goalsApi';
 import GoalAchievedPopup from '@/components/trainee/GoalAchievedPopup';
+import RecordsByDay from '@/components/profile/RecordsByDay';
 
 const O = '#FF6F20';
 const CARD_BG = '#FFFFFF';
@@ -849,6 +850,46 @@ export default function ProgressTab({ traineeId }) {
           )}
         </div>
         </div>
+      )}
+
+      {/* Per-day folder view — sits between the master chart and
+          the per-exercise folders. Mirrors the chip filter so a
+          single tap on a chip narrows BOTH visualisations. Coach
+          and self-trainee both get edit-on-click; read-only viewers
+          (no isCoach flag and not the trainee themselves) just see
+          the row without the cursor changing. */}
+      {records.length > 0 && (
+        <section style={{ marginTop: 24 }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+            padding: '0 4px',
+          }}>
+            <h3 style={{
+              fontSize: 18, fontWeight: 700, margin: 0,
+              fontFamily: "'Barlow Condensed', 'Heebo', 'Assistant', sans-serif",
+            }}>
+              היסטוריית שיאים
+            </h3>
+            <span style={{ fontSize: 12, color: '#888' }}>
+              {records.length} שיאים סה״כ
+            </span>
+          </div>
+          <RecordsByDay
+            records={(() => {
+              if (filterExercise === 'all') return records;
+              const filterNorm = normalizeExerciseName(filterExercise);
+              return records.filter(
+                r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm
+              );
+            })()}
+            exerciseNames={exerciseNames}
+            colors={EXERCISE_COLORS}
+            onRecordClick={isCoach ? (rec) => setEditingRecord(rec) : undefined}
+          />
+        </section>
       )}
 
       {/* Per-exercise folders — inline expandable */}
