@@ -82,7 +82,7 @@ export default function StepMilestones({
   }
 
   const W = containerWidth, H = height;
-  const padX = isMobile ? 16 : 28;
+  const padX = isMobile ? 8 : 20;
   const padTop = 24;
   const padBottom = 28;
 
@@ -117,7 +117,14 @@ export default function StepMilestones({
     if (!s.data || s.data.length === 0) return null;
     const color = s.color || SERIES_COLORS[seriesIdx % SERIES_COLORS.length];
     const sorted = [...s.data].sort((a, b) => a.date.localeCompare(b.date));
-    const points = sorted.map(d => ({ ...d, x: xFor(d.date), y: yFor(d.value) }));
+    // Horizontal jitter for multi-series mode — different exercises
+    // logged on the same date stack on identical x and become a
+    // single visual point. Centered offset (±6px per series step)
+    // spreads them while keeping the date column readable.
+    const jitter = normalizedSeries.length > 1
+      ? (seriesIdx - (normalizedSeries.length - 1) / 2) * 6
+      : 0;
+    const points = sorted.map(d => ({ ...d, x: xFor(d.date) + jitter, y: yFor(d.value) }));
 
     let pathD = '';
     points.forEach((p, i) => {
@@ -187,6 +194,20 @@ export default function StepMilestones({
         {[0.25, 0.5, 0.75].map((r, i) => (
           <line key={i} x1={padX} y1={padTop + r * (H - padTop - padBottom)} x2={W - padX} y2={padTop + r * (H - padTop - padBottom)} stroke="#E8DCC8" strokeWidth="1" strokeDasharray="3 3"/>
         ))}
+
+        {/* Y-axis tick labels — anchored on the right edge for RTL.
+            Skipping r=0 so the bottom value doesn't collide with the
+            X-axis date label, and using textAnchor="end" so labels
+            terminate at W-4 without overflow. */}
+        {[0.25, 0.5, 0.75, 1].map((r, i) => {
+          const val = Math.round(yMin + r * yRange);
+          const y = H - padBottom - r * (H - padTop - padBottom);
+          return (
+            <text key={`y-${i}`} x={W - 4} y={y + 4} textAnchor="end" fontSize="12" fill="#888">
+              {val}
+            </text>
+          );
+        })}
 
         {goalY != null && (
           <g>

@@ -486,24 +486,18 @@ export default function ProgressTab({ traineeId }) {
     const targetVal = activeGoal ? parseFloat(activeGoal.target_value) : null;
     const goalTarget = Number.isFinite(targetVal) && targetVal > 0 ? targetVal : null;
 
-    // Pull the matching projection from the existing useMemo. It's
-    // an array indexed by exercise name; pick the one for the
-    // current chip. Map start/end ISO dates to the same 'D.M'
-    // format records use so dateIndex resolves both ends.
-    const proj = projections.find(p => p.ex === filterExercise);
-    const goalProjection = proj
-      ? [
-          { date: toDDM(proj.startDate), value: Number(proj.startValue) },
-          { date: toDDM(proj.endDate),   value: Number(proj.endValue) },
-        ].filter(p => p.date && Number.isFinite(p.value))
-      : null;
-
+    // Projection is intentionally disabled — it pushed the x-axis end
+    // out to target_date (often 30-90 days away), squashing every real
+    // record into the left ~10% of the chart. The horizontal goal line
+    // (goalTarget) still conveys "you're aiming at X" without warping
+    // the data. A future surface will show projection as a textual
+    // badge below the chart instead of a line.
     return {
       data,
       goalTarget,
-      goalProjection: goalProjection && goalProjection.length === 2 ? goalProjection : null,
+      goalProjection: null,
     };
-  }, [records, filterExercise, exerciseNames, goalsData, projections]);
+  }, [records, filterExercise, exerciseNames, goalsData]);
 
   // y-axis label — empty when 'all' (mixed units), otherwise the
   // unit string from the most recent record of the selected exercise.
@@ -675,10 +669,10 @@ export default function ProgressTab({ traineeId }) {
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
-            gap: 8,
+            gap: 6,
             justifyContent: 'flex-start',
             width: '100%',
-            marginBottom: 16,
+            marginBottom: 12,
             padding: '0 16px',
             boxSizing: 'border-box',
           }}>
