@@ -69,6 +69,7 @@ import VisionFormDialog from "../components/forms/VisionFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageLoader from "@/components/PageLoader";
+import InlineLoader from "@/components/InlineLoader";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
@@ -1540,7 +1541,7 @@ export default function TraineeProfile() {
         throw error;
       }
     },
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
     retry: false
   });
 
@@ -1559,7 +1560,7 @@ export default function TraineeProfile() {
       }
     },
     enabled: !!userIdParam && !!isCoach,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
     retry: false
   });
 
@@ -1684,7 +1685,7 @@ export default function TraineeProfile() {
     queryKey: ['trainee-goals', user?.id],
     queryFn: () => base44.entities.Goal.filter({ trainee_id: user.id }, '-created_at').catch(() => []),
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Coach-driven progress checkpoints for the free-text onboarding
@@ -1707,7 +1708,7 @@ export default function TraineeProfile() {
       return data || [];
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Personal records — needed by the goals tab to surface linked
@@ -1730,21 +1731,21 @@ export default function TraineeProfile() {
       return data || [];
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: measurements = [], isLoading: measurementsLoading } = useQuery({
     queryKey: ['my-measurements', user?.id],
     queryFn: () => base44.entities.Measurement.filter({ trainee_id: user.id }, '-date').catch(() => []),
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: results = [], isLoading: resultsLoading } = useQuery({
     queryKey: ['my-results', user?.id],
     queryFn: () => base44.entities.ResultsLog.filter({ trainee_id: user.id }, '-date').catch(() => []),
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: services = [], isLoading: servicesLoading } = useQuery({
@@ -1776,14 +1777,16 @@ export default function TraineeProfile() {
       return uniquePlans.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
+  // Workout history is consumed only by the achievements tab's
+  // workout list — lazy load it.
   const { data: workoutHistory = [], isLoading: workoutLoading } = useQuery({
     queryKey: ['trainee-workout-history', user?.id],
     queryFn: () => base44.entities.WorkoutHistory.filter({ user_id: user.id }, '-date').catch(() => []),
-    enabled: !!user?.id,
-    staleTime: 60000,
+    enabled: !!user?.id && activeTab === 'achievements',
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
@@ -1812,7 +1815,7 @@ export default function TraineeProfile() {
       return result;
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Optimized: Removed global exercise fetch
@@ -1824,11 +1827,14 @@ export default function TraineeProfile() {
       };
   };
 
+  // Baselines are only read inside the baselines tab body — safe
+  // to lazy-load. Header stats and other tabs don't reference this
+  // dataset.
   const { data: baselines = [], isLoading: baselinesLoading } = useQuery({
     queryKey: ['baselines', user?.id],
     queryFn: () => base44.entities.Baseline.filter({ trainee_id: user.id }, '-date').catch(() => []),
-    enabled: !!user?.id,
-    staleTime: 60000,
+    enabled: !!user?.id && activeTab === 'baselines',
+    staleTime: 5 * 60 * 1000,
   });
 
   // Per-trainee payments — used to surface a small 🧾 receipt button
@@ -1854,7 +1860,7 @@ export default function TraineeProfile() {
       }
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: coach, isLoading: coachLoading } = useQuery({
@@ -1864,7 +1870,7 @@ export default function TraineeProfile() {
       return users.find(u => u.is_coach === true || u.role === 'coach') || null;
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Trainee-permission hook must live UP HERE — above the loading
@@ -3084,8 +3090,15 @@ export default function TraineeProfile() {
     );
   }
 
-  // Full loading gate — show branded loader until user AND ALL tab data are ready
-  const coreDataLoading = profileLoading || !user || goalsLoading || measurementsLoading || resultsLoading || servicesLoading || plansLoading || sessionsLoading || attendanceLoading || workoutLoading || coachLoading || baselinesLoading;
+  // Profile-only gate: PageLoader hides the page until we have a
+  // user object + the coach link resolved (those drive tab labels,
+  // header, and gating). Tab-specific datasets each show their own
+  // InlineLoader inside the tab body once the page itself renders,
+  // so the trainee sees the page shell instantly instead of waiting
+  // for every query to settle. (Lazy `enabled: activeTab === ...`
+  // queries — currently baselines + workoutHistory — start fetching
+  // only when their tab is opened.)
+  const coreDataLoading = profileLoading || !user || coachLoading;
 
   if (coreDataLoading) {
     return <PageLoader />;
@@ -4100,7 +4113,8 @@ export default function TraineeProfile() {
                 </ErrorBoundary>
               </TabsContent>
 
-              {/* Baselines Tab */}
+              {/* Baselines Tab — lazy query, so we show an inline
+                  loader on the first visit while the data lands. */}
               <TabsContent value="baselines" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין</h2>
@@ -4108,6 +4122,12 @@ export default function TraineeProfile() {
                     <Plus className="w-3 h-3 ml-1" />הוסף בייסליין
                   </Button>
                 </div>
+                {baselinesLoading && baselines.length === 0 && (
+                  <InlineLoader message="טוען בייסליינים..." />
+                )}
+                {!(baselinesLoading && baselines.length === 0) && (
+                <>
+
 
                 {/* JPS progression chart — one line per technique so a
                     multi-technique baseline session shows as parallel
@@ -4385,6 +4405,8 @@ export default function TraineeProfile() {
                     </div>
                   );
                 })()}
+                </>
+                )}
               </TabsContent>
 
               {/* Services Tab */}

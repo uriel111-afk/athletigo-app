@@ -64,6 +64,17 @@
       document.addEventListener('gesturechange', function(e) { e.preventDefault(); });
       document.addEventListener('touchmove', function(e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
     </script>
+
+    <!-- Keyframes for the inline tab/section loader. Lives in
+         index.html so the animation is available from the very
+         first render, before React + Vite are ready to inject
+         CSS modules. Used by src/components/InlineLoader.jsx. -->
+    <style>
+      @keyframes loading-bar {
+        0%   { transform: translateX(-150%); }
+        100% { transform: translateX(300%); }
+      }
+    </style>
   </head>
   <body style="margin:0;padding:0;background:#FDF8F3;">
     <div id="root"></div>
