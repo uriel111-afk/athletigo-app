@@ -1,157 +1,56 @@
-import React from 'react';
-import { useWindowSize } from '@/hooks/useWindowSize';
+import { useWindowSize } from '../../hooks/useWindowSize';
 import { CHART_COLORS, CHART_HEIGHTS } from './CHART_TOKENS';
 
-// Circular progress ring for an active goal. Stat block to the
-// right shows title + description + start / current / target
-// trio; the ring itself fills from the brand orange.
-//
-// Props
-//   percent     — 0-100. Clamped on render.
-//   title       — short label ("היעד שלך")
-//   description — context line ("8 עליות מתח רצופות")
-//   start       — number, anchor at goal-set time.
-//   current     — number, latest value.
-//   target      — number, finish line.
-//   unit        — short unit string ("חזרות", "ק״ג")
-//
-// The ring is hand-built with two SVG circles (background +
-// stroke-dasharray progress). No external chart lib — stays sharp
-// at any DPR and animates cleanly via CSS transition.
-
-const STROKE = 9;
-
-export default function GoalProgressRing({
-  percent,
-  title,
-  description,
-  start,
-  current,
-  target,
-  unit,
-}) {
-  const { width: viewportWidth } = useWindowSize();
-  const isMobile = viewportWidth < 480;
+export default function GoalProgressRing({ percent = 0, title, description, start, current, target, unit }) {
+  const { width: winWidth } = useWindowSize();
+  const isMobile = winWidth < 480;
   const size = isMobile ? CHART_HEIGHTS.ring.mobile : CHART_HEIGHTS.ring.desktop;
-  const r = (size - STROKE) / 2;
-  const cx = size / 2;
-  const cy = size / 2;
-  const circumference = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
-  const dash = (clamped / 100) * circumference;
+
+  const radius = size * 0.4;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - Math.min(100, Math.max(0, percent)) / 100);
 
   return (
-    <div
-      style={{
-        display:    'flex',
-        alignItems: 'center',
-        gap:        14,
-        padding:    '12px 14px',
-        direction:  'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
-      }}
-    >
-      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-        <svg width={size} height={size} aria-hidden>
-          <circle
-            cx={cx}
-            cy={cy}
-            r={r}
-            fill="none"
-            stroke={CHART_COLORS.primaryFaint}
-            strokeWidth={STROKE}
-          />
-          <circle
-            cx={cx}
-            cy={cy}
-            r={r}
-            fill="none"
-            stroke={CHART_COLORS.primary}
-            strokeWidth={STROKE}
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${circumference}`}
-            // Start at 12 o'clock, rotate -90 from default 3 o'clock.
-            transform={`rotate(-90 ${cx} ${cy})`}
-            style={{ transition: 'stroke-dasharray 0.6s ease' }}
-          />
+    <div style={{
+      background: CHART_COLORS.bgCard,
+      border: `1px solid ${CHART_COLORS.border}`,
+      borderRadius: 14,
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6), 0 8px 18px -6px rgba(255,111,32,0.14), 0 3px 8px -2px rgba(96,51,17,0.08), 0 1px 2px rgba(96,51,17,0.04)',
+      padding: 16,
+    }}>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size, flexShrink: 0 }}>
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={CHART_COLORS.primaryFaint} strokeWidth="10"/>
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={CHART_COLORS.primary} strokeWidth="10" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} transform={`rotate(-90 ${size / 2} ${size / 2})`}/>
+          <text x={size / 2} y={size / 2 - 2} textAnchor="middle" fontSize="26" fontWeight="500" fill={CHART_COLORS.text}>{Math.round(percent)}%</text>
+          <text x={size / 2} y={size / 2 + 16} textAnchor="middle" fontSize="10" fill={CHART_COLORS.textMuted}>להשגת היעד</text>
         </svg>
-        <div
-          style={{
-            position: 'absolute',
-            inset:    0,
-            display:        'flex',
-            flexDirection:  'column',
-            alignItems:     'center',
-            justifyContent: 'center',
-            pointerEvents:  'none',
-          }}
-        >
-          <div
-            style={{
-              fontSize:   isMobile ? 22 : 26,
-              fontWeight: 500,
-              color:      CHART_COLORS.text,
-              fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
-              lineHeight: 1,
-            }}
-          >
-            {Math.round(clamped)}%
-          </div>
-          <div
-            style={{
-              fontSize:  9,
-              color:     CHART_COLORS.textMuted,
-              marginTop: 2,
-            }}
-          >
-            להשגת היעד
-          </div>
-        </div>
-      </div>
 
-      <div style={{ minWidth: 0, flex: 1, textAlign: 'right' }}>
-        {title && (
-          <div
-            style={{
-              fontSize:   12,
-              color:      CHART_COLORS.textMuted,
-              marginBottom: 2,
-            }}
-          >
-            {title}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {title && <div style={{ fontSize: 13, color: CHART_COLORS.textMuted, marginBottom: 2 }}>{title}</div>}
+          {description && <div style={{ fontSize: 16, fontWeight: 500, color: CHART_COLORS.text, marginBottom: 12 }}>{description}</div>}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {start != null && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: CHART_COLORS.textMuted }}>התחלה</span>
+                <span style={{ fontSize: 12, color: CHART_COLORS.text, fontWeight: 500 }}>{start}{unit ? ` ${unit}` : ''}</span>
+              </div>
+            )}
+            {current != null && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: CHART_COLORS.primary, fontWeight: 500 }}>נוכחי</span>
+                <span style={{ fontSize: 12, color: CHART_COLORS.primary, fontWeight: 500 }}>{current}{unit ? ` ${unit}` : ''}</span>
+              </div>
+            )}
+            {target != null && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: CHART_COLORS.textMuted }}>יעד</span>
+                <span style={{ fontSize: 12, color: CHART_COLORS.text, fontWeight: 500 }}>{target}{unit ? ` ${unit}` : ''}</span>
+              </div>
+            )}
           </div>
-        )}
-        {description && (
-          <div
-            style={{
-              fontSize:   15,
-              fontWeight: 600,
-              color:      CHART_COLORS.text,
-              marginBottom: 8,
-              wordBreak:  'break-word',
-            }}
-          >
-            {description}
-          </div>
-        )}
-        <div
-          style={{
-            display:        'flex',
-            justifyContent: 'space-between',
-            fontSize:       11,
-            color:          CHART_COLORS.textMuted,
-            gap:            6,
-          }}
-        >
-          <span>התחלה: <strong style={{ color: CHART_COLORS.text }}>{start ?? '—'}</strong></span>
-          <span>נוכחי: <strong style={{ color: CHART_COLORS.primary }}>{current ?? '—'}</strong></span>
-          <span>יעד: <strong style={{ color: CHART_COLORS.text }}>{target ?? '—'}</strong></span>
         </div>
-        {unit && (
-          <div style={{ fontSize: 10, color: CHART_COLORS.textMuted, marginTop: 4, textAlign: 'left' }}>
-            {unit}
-          </div>
-        )}
       </div>
     </div>
   );
