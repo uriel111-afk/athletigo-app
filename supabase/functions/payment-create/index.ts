@@ -82,7 +82,11 @@ Deno.serve(async (req) => {
     const cancelUrl = `${origin}/TraineeHome?paid=0`;
 
     const form = new FormData();
-    form.append('pageCode', meshulamUserId);
+    // pageCode is the Grow payment-page identifier (configured in
+    // the Grow dashboard), NOT the account user id. Sending the
+    // user id here was the regression that made Grow reject the
+    // request with "page not found"-style errors.
+    form.append('pageCode', '1');
     form.append('userId', meshulamUserId);
     form.append('apiKey', meshulamApiKey);
     form.append('sum', amount.toFixed(2));
