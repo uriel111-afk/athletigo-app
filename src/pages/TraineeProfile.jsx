@@ -1397,24 +1397,28 @@ export default function TraineeProfile() {
   // BaselineFormDialog mounts globally in App.jsx — opened via
   // openBaselineDialog({ traineeId, traineeName }).
   const [showBaselineDetail, setShowBaselineDetail] = useState(null);
-  // Session-level popup — { date, techniques: [...] }. Set by clicking
-  // "📋 צפייה בטופס המלא" inside an expanded card; cleared by the
-  // modal's X / backdrop click. Distinct from showBaselineDetail
-  // (which is the legacy single-row detail modal kept reachable from
-  // the per-row edit flow).
-  const [viewBaseline, setViewBaseline] = useState(null);
   // Inline expansion of a baseline card — null or the dateKey of the
   // currently-open card. Only one card is expanded at a time so the
   // tab stays compact on mobile.
   const [expandedBaseline, setExpandedBaseline] = useState(null);
-  // Active technique tab inside the L3 popup. Reset whenever the
-  // popup target changes — viewBaseline can carry an `activeTab`
-  // index from the caller (chart click → 0; L2 row click → that
-  // row's index) so the popup opens to the right tab.
-  const [popupActiveTab, setPopupActiveTab] = useState(0);
-  useEffect(() => {
-    if (viewBaseline) setPopupActiveTab(viewBaseline.activeTab || 0);
-  }, [viewBaseline]);
+
+  // Open the canonical BaselineFormDialog in viewOnly mode for a given
+  // session. existingRows controls both the prefill and which technique
+  // is the active tab — BaselineFormDialog picks the first technique it
+  // finds, so reordering the array is enough to set the starting tab.
+  const openBaselineView = (techniques, activeIdx = 0) => {
+    const ordered = [
+      techniques[activeIdx],
+      ...techniques.filter((_, i) => i !== activeIdx),
+    ].filter(Boolean);
+    openBaselineDialog({
+      traineeId: user?.id || null,
+      traineeName: user?.full_name || '',
+      viewOnly: true,
+      existingRows: ordered,
+    });
+  };
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -3824,7 +3828,7 @@ export default function TraineeProfile() {
                     if (!iso) return;
                     const techs = chartGroups[iso];
                     if (techs && techs.length) {
-                      setViewBaseline({ date: iso, techniques: techs, activeTab: 0 });
+                      openBaselineView(techs, 0);
                     }
                   };
                   return (
@@ -3952,7 +3956,7 @@ export default function TraineeProfile() {
                                       key={t.id}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setViewBaseline({ date: dateKey, techniques, activeTab: idx });
+                                        openBaselineView(techniques, idx);
                                       }}
                                       style={{
                                         background: '#FDF8F3', borderRadius: 12, padding: 12,
@@ -5122,250 +5126,10 @@ export default function TraineeProfile() {
         )}
         <BaselineDetailView isOpen={!!showBaselineDetail} onClose={() => setShowBaselineDetail(null)} baselineId={showBaselineDetail} />
 
-        {/* Session-level baseline popup with technique tabs at top.
-            Active tab content mirrors the original baseline form
-            layout: work/rest times in MM:SS, per-round tiles with
-            jumps + misses, totals strip with JPS, miss summary, notes.
-            Edit/delete still reachable per technique for the coach
-            so the existing supabase update + results_log mirror flow
-            stays available. */}
-        {viewBaseline && (() => {
-          const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
-          const dateLabel = new Date(viewBaseline.date).toLocaleDateString('he-IL');
-          const fmtMMSS = (sec) => {
-            const n = Number(sec);
-            if (!Number.isFinite(n) || n <= 0) return '00:00';
-            const m = Math.floor(n / 60);
-            const s = n % 60;
-            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-          };
-          const techs = viewBaseline.techniques;
-          const safeIdx = Math.min(Math.max(0, popupActiveTab), techs.length - 1);
-          const t = techs[safeIdx];
-          if (!t) return null;
-          const techName = techLabels[t.technique] || t.technique || 'בסיס';
-          const total = t.total_jumps ?? 0;
-          const avg = t.average_jumps ?? (total && t.rounds_count ? (total / t.rounds_count).toFixed(1) : '—');
-          const best = t.best_round ?? '—';
-          const jps = Number(t.baseline_score ?? t.jps ?? t.score ?? 0).toFixed(2);
-          const rounds = Array.isArray(t.rounds_data) ? t.rounds_data : [];
-          const totalMisses = rounds.reduce((sum, r) => sum + (Number(r?.misses) || 0), 0);
-          const workTime = t.work_time_seconds ?? t.work_time;
-          const restTime = t.rest_time_seconds ?? t.rest_time;
-          const techRest = t.tech_rest_seconds ?? t.tech_rest_time;
-          return (
-            <div
-              onClick={() => setViewBaseline(null)}
-              style={{
-                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                background: 'rgba(0,0,0,0.4)', zIndex: 10000,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: 16,
-              }}
-            >
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  background: 'white', borderRadius: 14, padding: 20,
-                  maxWidth: 420, width: '95%',
-                  maxHeight: '85vh', overflowY: 'auto',
-                  direction: 'rtl', position: 'relative',
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setViewBaseline(null)}
-                  aria-label="סגור"
-                  style={{
-                    position: 'absolute', top: 10, left: 10,
-                    background: 'none', border: 'none',
-                    fontSize: 22, cursor: 'pointer', color: '#888',
-                    padding: 4, lineHeight: 1,
-                  }}
-                >✕</button>
-
-                <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>📋 בייסליין</div>
-                  <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{dateLabel}</div>
-                </div>
-
-                {/* Technique tabs */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
-                  {techs.map((tech, i) => {
-                    const tabName = techLabels[tech.technique] || tech.technique || 'בסיס';
-                    const isActive = safeIdx === i;
-                    return (
-                      <button
-                        key={tech.id}
-                        type="button"
-                        onClick={() => setPopupActiveTab(i)}
-                        style={{
-                          padding: '8px 16px', borderRadius: 20, border: 'none',
-                          background: isActive ? '#FF6F20' : '#F0E4D0',
-                          color: isActive ? 'white' : '#666',
-                          fontSize: 13, fontWeight: isActive ? 600 : 500,
-                          cursor: 'pointer', whiteSpace: 'nowrap',
-                          fontFamily: "'Heebo', 'Assistant', sans-serif",
-                        }}
-                      >
-                        {tabName}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Active tab — coach edit/delete for this technique */}
-                {isCoach && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 8 }}>
-                    <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const newDate = prompt('תאריך (YYYY-MM-DD):', t.date);
-                        if (newDate === null) return;
-                        const newScore = prompt('ציון JPS:', t.baseline_score);
-                        if (newScore === null) return;
-                        const newNotes = prompt('הערות:', t.notes || '');
-                        if (newNotes === null) return;
-                        try {
-                          const updates = {};
-                          if (newDate && newDate !== t.date) updates.date = newDate;
-                          if (newScore && parseFloat(newScore) !== t.baseline_score) updates.baseline_score = parseFloat(newScore);
-                          if (newNotes !== (t.notes || '')) updates.notes = newNotes || null;
-                          if (Object.keys(updates).length === 0) return;
-                          await supabase.from('baselines').update(updates).eq('id', t.id);
-                          if (updates.date) { try { await supabase.from('results_log').update({ date: updates.date }).eq('baseline_id', t.id); } catch {} }
-                          if (updates.baseline_score) { try { await supabase.from('results_log').update({ record_value: String(updates.baseline_score) }).eq('baseline_id', t.id); } catch {} }
-                          toast.success("בייסליין עודכן");
-                          queryClient.invalidateQueries({ queryKey: ['baselines'] });
-                          queryClient.invalidateQueries({ queryKey: ['my-results'] });
-                          invalidateDashboard(queryClient);
-                          setViewBaseline(null);
-                        } catch (err) { toast.error("שגיאה: " + (err?.message || '')); }
-                      }}>
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="w-7 h-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!window.confirm(`למחוק את ${techName} מתאריך ${dateLabel}?`)) return;
-                        (async () => {
-                          try {
-                            try { await supabase.from('results_log').delete().eq('baseline_id', t.id); } catch {}
-                            await base44.entities.Baseline.delete(t.id);
-                            toast.success("בייסליין נמחק");
-                            queryClient.invalidateQueries({ queryKey: ['baselines'] });
-                            queryClient.invalidateQueries({ queryKey: ['my-results'] });
-                            queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                            invalidateDashboard(queryClient);
-                            setViewBaseline(null);
-                          } catch (err) {
-                            toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
-                          }
-                        })();
-                      }}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* Times — MM:SS pills */}
-                {(workTime || restTime || techRest) && (
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 14, fontSize: 13 }}>
-                    {workTime ? (
-                      <div style={{ flex: 1, textAlign: 'center', background: '#FDF8F3', borderRadius: 10, padding: 8 }}>
-                        <div style={{ fontSize: 10, color: '#888' }}>זמן עבודה</div>
-                        <div style={{ fontWeight: 600 }}>{fmtMMSS(workTime)}</div>
-                      </div>
-                    ) : null}
-                    {restTime ? (
-                      <div style={{ flex: 1, textAlign: 'center', background: '#FDF8F3', borderRadius: 10, padding: 8 }}>
-                        <div style={{ fontSize: 10, color: '#888' }}>זמן מנוחה</div>
-                        <div style={{ fontWeight: 600 }}>{fmtMMSS(restTime)}</div>
-                      </div>
-                    ) : null}
-                    {techRest ? (
-                      <div style={{ flex: 1, textAlign: 'center', background: '#FDF8F3', borderRadius: 10, padding: 8 }}>
-                        <div style={{ fontSize: 10, color: '#888' }}>מנו׳ טכניקות</div>
-                        <div style={{ fontWeight: 600 }}>{fmtMMSS(techRest)}</div>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-
-                {/* Round tiles — jumps + misses */}
-                {rounds.length > 0 && (
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                    {rounds.map((r, i) => {
-                      const jumps = Number(r?.jumps) || 0;
-                      const misses = Number(r?.misses) || 0;
-                      return (
-                        <div key={i} style={{
-                          flex: '1 1 90px', textAlign: 'center', background: 'white',
-                          borderRadius: 12, padding: 12, border: '1px solid #F0E4D0',
-                        }}>
-                          <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>סיבוב {r?.round || i + 1}</div>
-                          <div style={{ fontSize: 24, fontWeight: 700 }}>{jumps}</div>
-                          <div style={{ fontSize: 10, color: '#888' }}>קפיצות</div>
-                          {misses > 0 && (
-                            <div style={{
-                              fontSize: 11, color: '#C62828', marginTop: 4,
-                              background: '#FFEBEE', borderRadius: 6, padding: '2px 6px',
-                            }}>
-                              {misses} פספוסים
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Totals strip */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
-                  <div style={{ textAlign: 'center', background: '#FDF8F3', borderRadius: 10, padding: 10 }}>
-                    <div style={{ fontSize: 10, color: '#888' }}>סה״כ</div>
-                    <div style={{ fontSize: 18, fontWeight: 600 }}>{total}</div>
-                  </div>
-                  <div style={{ textAlign: 'center', background: '#FDF8F3', borderRadius: 10, padding: 10 }}>
-                    <div style={{ fontSize: 10, color: '#888' }}>ממוצע</div>
-                    <div style={{ fontSize: 18, fontWeight: 600 }}>{avg}</div>
-                  </div>
-                  <div style={{ textAlign: 'center', background: '#FDF8F3', borderRadius: 10, padding: 10 }}>
-                    <div style={{ fontSize: 10, color: '#888' }}>שיא</div>
-                    <div style={{ fontSize: 18, fontWeight: 600, color: '#D85A30' }}>{best}</div>
-                  </div>
-                  <div style={{ textAlign: 'center', background: '#FFF5EE', borderRadius: 10, padding: 10, border: '1px solid #FFD9C0' }}>
-                    <div style={{ fontSize: 10, color: '#FF6F20' }}>JPS</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#FF6F20' }}>{jps}</div>
-                  </div>
-                </div>
-
-                {/* Total misses bar */}
-                {totalMisses > 0 && (
-                  <div style={{
-                    background: '#FFEBEE', borderRadius: 10, padding: 10,
-                    display: 'flex', justifyContent: 'space-between',
-                    fontSize: 13, marginBottom: 14,
-                  }}>
-                    <span style={{ color: '#C62828' }}>סה״כ פספוסים</span>
-                    <span style={{ fontWeight: 600, color: '#C62828' }}>{totalMisses}</span>
-                  </div>
-                )}
-
-                {/* Notes */}
-                {t.notes && (
-                  <div style={{
-                    background: '#FDF8F3', borderRadius: 10, padding: 10,
-                    fontSize: 13, color: '#555', lineHeight: 1.5,
-                  }}>
-                    💡 {t.notes}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        {/* Session-level baseline view: chart click + L2 tile click both
+            call openBaselineView() → openBaselineDialog with viewOnly=true
+            so BaselineFormDialog (mounted globally via BaselineManager)
+            renders the read-only canonical form. No local popup needed. */}
 
         {/* Plan Form Dialog — pre-selects current trainee */}
         <PlanFormDialog

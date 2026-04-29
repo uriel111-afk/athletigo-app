@@ -412,6 +412,57 @@ export default function BaselineFormDialog({
         if (resultErr) console.error('[BaselineForm] results_log insert failed:', resultErr);
       }
 
+      // Mirror each technique into personal_records too. The records
+      // tab groups rows by `name` into "exercise folders" — using
+      // 'בייסליין — TECH' makes Basic/Foot Switch/High Knees show up
+      // automatically, with the JPS history forming each folder's
+      // progression line. Best-effort: failure here doesn't block the
+      // baseline save above.
+      try {
+        const recordInserts = (inserted || []).map(b => {
+          const c = perTechCalc[b.technique];
+          if (!c || !Number.isFinite(c.score) || c.score <= 0) return null;
+          const techLabel = TECHNIQUES.find(t => t.id === b.technique)?.label || b.technique;
+          return {
+            trainee_id: effectiveTraineeId,
+            coach_id: coachId || null,
+            name: `בייסליין — ${techLabel}`,
+            value: c.score,
+            unit: 'JPS',
+            date: dateStr,
+            record_type: 'max_reps',
+            exercise_category: 'jump_rope',
+            notes: `סה"כ ${c.totalJumps} · שיא סיבוב ${c.bestRound ?? '—'}`,
+            created_by_role: coachId ? 'coach' : 'trainee',
+            created_by_user_id: authUser?.id || null,
+          };
+        }).filter(Boolean);
+        if (recordInserts.length > 0) {
+          // For each technique, look up the previous best so we can
+          // mark is_personal_best + improvement / previous_value.
+          for (const row of recordInserts) {
+            const { data: prev } = await supabase
+              .from('personal_records')
+              .select('value')
+              .eq('trainee_id', row.trainee_id)
+              .eq('name', row.name)
+              .or('status.is.null,status.neq.deleted')
+              .order('value', { ascending: false })
+              .limit(1);
+            const prevValue = Number(prev?.[0]?.value) || 0;
+            row.is_personal_best = row.value > prevValue;
+            row.previous_value = prevValue || null;
+            row.improvement = prevValue ? +(row.value - prevValue).toFixed(2) : null;
+          }
+          const { error: pErr } = await supabase.from('personal_records').insert(recordInserts);
+          if (pErr) console.warn('[BaselineForm] personal_records insert failed:', pErr.message);
+          else console.log(`[BaselineForm] mirrored ${recordInserts.length} techniques to personal_records`);
+        }
+      } catch (e) {
+        console.warn('[BaselineForm] personal_records mirror failed:', e?.message);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['personal-records'] });
       queryClient.invalidateQueries({ queryKey: ['my-results'] });
       queryClient.invalidateQueries({ queryKey: ['baselines'] });
       queryClient.invalidateQueries({ queryKey: ['baselines-progress'] });
