@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useWindowSize } from "@/hooks/useWindowSize";
 
 // Unified page-level loading screen. Every page-scope loading state
 // in the app (Layout boot, ProtectedCoachPage gate, individual
@@ -8,15 +9,23 @@ import React, { useEffect, useState } from "react";
 // Visual:
 //   - cream #FDF8F3 background (transparent when used inline so it
 //     doesn't fight a parent's bg)
-//   - solid-black logoR via filter:brightness(0)
+//   - solid-black logoR via filter:brightness(0) at 50% opacity —
+//     reads as a watermark behind the activity, not a logo wall
+//   - logo defaults to 160 mobile / 200 desktop (callers can still
+//     pass `size` to override for niche use)
 //   - staged 0 → 30 → 60 → 85 progress bar (matches boot splash)
 //   - numeric percent line under the bar
 //
 // Inline button spinners (Loader2 in save buttons etc.) are NOT
 // page-level loaders and intentionally stay as-is — full-screen
 // splash treatment for a save-click would be terrible UX.
-export default function PageLoader({ size = 110, fullHeight = false, message = "" }) {
+export default function PageLoader({ size, fullHeight = false, message = "" }) {
   const [progress, setProgress] = useState(0);
+  const { width } = useWindowSize();
+  // Responsive default — only applied when the caller didn't
+  // pass an explicit `size` (Layout.jsx still passes 120, etc).
+  const resolvedSize = typeof size === 'number' ? size : (width < 480 ? 160 : 200);
+
   useEffect(() => {
     const t1 = setTimeout(() => setProgress(30), 100);
     const t2 = setTimeout(() => setProgress(60), 400);
@@ -42,10 +51,11 @@ export default function PageLoader({ size = 110, fullHeight = false, message = "
         src="/logoR.png"
         alt=""
         style={{
-          width: size,
+          width: resolvedSize,
           height: "auto",
           objectFit: "contain",
           filter: "brightness(0)",
+          opacity: 0.5,
           marginBottom: 24,
         }}
         onError={(e) => { e.currentTarget.style.display = "none"; }}

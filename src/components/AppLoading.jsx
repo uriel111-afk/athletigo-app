@@ -1,16 +1,21 @@
 import React, { useEffect, useState } from "react";
+import { useWindowSize } from "@/hooks/useWindowSize";
 
 // Full-screen loading splash — same brand treatment as the boot
 // splash in index.html, AppLoader (auth/data hydration), and
 // PageLoader fullHeight. Drop this into any page that needs a
 // 100vh "the app is working" screen.
 //
-// Visual: cream #FDF8F3 bg, solid-black logoR via filter:brightness(0),
-// 200×3 progress bar staged 0 → 30 → 60 → 85 with a numeric percent
-// line beneath, matching the boot-splash choreography. No wordmark,
-// no spinner, no caption.
+// Visual: cream #FDF8F3 bg, solid-black logoR via filter:brightness(0)
+// at 50% opacity (reads as a watermark, not a logo wall), 200×3
+// progress bar staged 0 → 30 → 60 → 85 with a numeric percent line
+// beneath, matching the boot-splash choreography. No wordmark, no
+// spinner, no caption.
 export default function AppLoading() {
   const [progress, setProgress] = useState(0);
+  const { width } = useWindowSize();
+  const logoSize = width < 480 ? 160 : 200;
+
   useEffect(() => {
     const t1 = setTimeout(() => setProgress(30), 100);
     const t2 = setTimeout(() => setProgress(60), 400);
@@ -34,10 +39,11 @@ export default function AppLoading() {
         src="/logoR.png"
         alt="AthletiGo"
         style={{
-          width: 110,
+          width: logoSize,
           height: "auto",
           objectFit: "contain",
           filter: "brightness(0)",
+          opacity: 0.5,
           marginBottom: 24,
         }}
         onError={(e) => { e.currentTarget.style.display = "none"; }}

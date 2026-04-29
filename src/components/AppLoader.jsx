@@ -1,16 +1,21 @@
 import React from "react";
+import { useWindowSize } from "@/hooks/useWindowSize";
 
 // In-app loader — visually identical to the boot splash defined in
 // index.html, so the hand-off from the static splash to React's
 // auth/data hydration is seamless. Single logo + progress bar on
-// the cream brand background. No text wordmark, no pulsing logo
-// (those competed with the new boot splash).
+// the cream brand background. Logo at 50% opacity reads as a
+// watermark behind the activity. No text wordmark, no pulsing
+// logo (those competed with the new boot splash).
 //
 // `progress` (0-100) drives the orange fill width; `label` is
 // accepted for backward compatibility but rendered as a small
 // muted line below the bar when present.
 export default function AppLoader({ progress, label }) {
   const pct = Math.max(0, Math.min(100, Number(progress) || 0));
+  const { width } = useWindowSize();
+  const logoSize = width < 480 ? 160 : 200;
+
   return (
     <div
       style={{
@@ -27,8 +32,9 @@ export default function AppLoader({ progress, label }) {
         src="/logoR.png"
         alt="AthletiGo"
         style={{
-          width: 110, height: 'auto', objectFit: 'contain',
+          width: logoSize, height: 'auto', objectFit: 'contain',
           filter: 'brightness(0)',
+          opacity: 0.5,
           marginBottom: 24,
         }}
         onError={(e) => { e.currentTarget.style.display = 'none'; }}
