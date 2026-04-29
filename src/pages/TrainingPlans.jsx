@@ -1113,6 +1113,44 @@ function statusBadge(plan) {
   }
 }
 
+// Build the human-readable list of exercise pills for the level-2
+// view. Order mirrors how a coach reads a printed program: volume
+// (sets × reps × weight) → time bookkeeping → effort → posture.
+// New optional fields can be appended without breaking layout because
+// the row uses flex-wrap.
+function getExerciseParams(ex) {
+  const params = [];
+  if (ex.sets)                  params.push(`${ex.sets} סטים`);
+  if (ex.reps)                  params.push(`${ex.reps} חזרות`);
+  if (ex.weight)                params.push(`${ex.weight} ק"ג`);
+  if (ex.work_time || ex.duration)
+                                params.push(`עבודה ${ex.work_time || ex.duration}״`);
+  if (ex.rest_time)             params.push(`מנוחה ${ex.rest_time}״`);
+  if (ex.rest_between_sets)     params.push(`מנו׳ סטים ${ex.rest_between_sets}״`);
+  if (ex.rest_between_exercises)params.push(`מנו׳ תרגילים ${ex.rest_between_exercises}״`);
+  if (ex.rpe)                   params.push(`RPE ${ex.rpe}`);
+  if (ex.tempo)                 params.push(`טמפו ${ex.tempo}`);
+  if (ex.static_hold_time || ex.static_hold || ex.hold_time)
+                                params.push(`החזקה ${ex.static_hold_time || ex.static_hold || ex.hold_time}״`);
+  if (ex.body_position)         params.push(ex.body_position);
+  if (ex.equipment)             params.push(Array.isArray(ex.equipment) ? ex.equipment.join(', ') : ex.equipment);
+  if (ex.grip)                  params.push(ex.grip);
+  if (ex.side)                  params.push(ex.side);
+  return params;
+}
+
+// Sub-exercises sit under three different field names depending on
+// when the row was saved: `children` (canonical), `exercise_list`
+// (legacy), `sub_exercises` (write path). Strings happen when an old
+// row stored them as JSON text — parse defensively.
+function getSubExercises(ex) {
+  const raw = ex.children || ex.exercise_list || ex.sub_exercises || [];
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) || []; } catch { return []; }
+  }
+  return Array.isArray(raw) ? raw : [];
+}
+
 function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, selected, onSelectToggle }) {
   const sections = contents.sections || [];
   const exercises = contents.exercises || [];
@@ -1197,68 +1235,113 @@ function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, sel
             <div style={{ padding: 16, textAlign: 'center', color: '#888', fontSize: 14 }}>
               אין סקשנים בתוכנית
             </div>
-          ) : sortedSections.map(section => {
+          ) : sortedSections.map((section, sIdx) => {
             const sectionExercises = exercisesBySection[section.id] || [];
             return (
-              <div key={section.id} style={{ marginTop: 12 }}>
+              <div key={section.id} style={{ marginTop: 14 }}>
+                {/* Section title — orange numbered badge + name + count */}
                 <div style={{
-                  fontSize: 14, fontWeight: 600, color: '#FF6F20',
-                  marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6,
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
                 }}>
-                  📂 {section.name || section.title || 'סקשן'}
-                  <span style={{ fontSize: 12, color: '#888', fontWeight: 400 }}>
+                  <span style={{
+                    width: 24, height: 24, borderRadius: '50%', background: '#FF6F20',
+                    color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  }}>{sIdx + 1}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#FF6F20' }}>
+                    {section.section_name || section.name || section.title || 'סקשן'}
+                  </span>
+                  <span style={{ fontSize: 12, color: '#888' }}>
                     ({sectionExercises.length} תרגילים)
                   </span>
                 </div>
 
-                {sectionExercises.map(ex => {
-                  const params = [];
-                  if (ex.sets)        params.push(`${ex.sets} סטים`);
-                  if (ex.reps)        params.push(`${ex.reps} חזרות`);
-                  if (ex.weight)      params.push(`${ex.weight} ק"ג`);
-                  if (ex.work_time)   params.push(`עבודה ${ex.work_time}״`);
-                  if (ex.rest_time)   params.push(`מנוחה ${ex.rest_time}״`);
-                  if (ex.rpe)         params.push(`RPE ${ex.rpe}`);
-                  if (ex.tempo)       params.push(`טמפו ${ex.tempo}`);
-                  if (ex.static_hold_time) params.push(`החזקה ${ex.static_hold_time}״`);
-
-                  // Sub-exercises live under children (canonical),
-                  // exercise_list, or sub_exercises depending on
-                  // when the row was saved.
-                  const rawSubs = ex.children || ex.exercise_list || ex.sub_exercises || [];
-                  const subList = typeof rawSubs === 'string'
-                    ? (() => { try { return JSON.parse(rawSubs) || []; } catch { return []; } })()
-                    : (Array.isArray(rawSubs) ? rawSubs : []);
+                {sectionExercises.map((ex, eIdx) => {
+                  const params = getExerciseParams(ex);
+                  const subList = getSubExercises(ex);
 
                   return (
                     <div
                       key={ex.id}
                       style={{
-                        padding: '8px 12px', marginBottom: 4,
-                        borderRadius: 10, background: '#FDF8F3', fontSize: 13,
+                        background: '#FAFAF8', borderRadius: 12, padding: 12,
+                        marginBottom: 6, border: '1px solid #F0E4D0',
                       }}
                     >
-                      <div style={{ fontWeight: 500, marginBottom: 2, color: '#1A1A1A' }}>
-                        {ex.exercise_name || ex.name || 'תרגיל'}
+                      {/* Exercise title — small orange numbered chip */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{
+                          width: 20, height: 20, borderRadius: '50%', background: '#FFF5EE',
+                          color: '#FF6F20', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 10, fontWeight: 600, flexShrink: 0, border: '1px solid #FFD9C0',
+                        }}>{eIdx + 1}</span>
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>
+                          {ex.exercise_name || ex.name || 'תרגיל'}
+                        </span>
                       </div>
+
+                      {/* Pills — params */}
                       {params.length > 0 && (
-                        <div style={{ color: '#888', fontSize: 12 }}>
-                          {params.join(' • ')}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                          {params.map((p, i) => (
+                            <span key={i} style={{
+                              fontSize: 11, padding: '2px 8px', borderRadius: 8,
+                              background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C0',
+                            }}>{p}</span>
+                          ))}
                         </div>
                       )}
+
+                      {/* Notes / focus points */}
+                      {(ex.notes || ex.focus_points) && (
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 4, fontStyle: 'italic' }}>
+                          💡 {ex.notes || ex.focus_points}
+                        </div>
+                      )}
+
+                      {/* Sub-exercise list */}
                       {subList.length > 0 && (
-                        <div style={{
-                          marginTop: 4, paddingRight: 12,
-                          fontSize: 12, color: '#888',
-                        }}>
+                        <div style={{ marginTop: 6, padding: 8, background: '#FDF8F3', borderRadius: 8 }}>
+                          <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
+                            רשימת תרגילים ({subList.length})
+                          </div>
                           {subList.map((s, i) => (
-                            <div key={s.id || i}>
-                              • {s.exercise_name || s.name || ''}
-                              {s.reps ? ` ×${s.reps}` : ''}
-                              {s.sets ? ` ${s.sets}S` : ''}
+                            <div key={s.id || i} style={{
+                              display: 'flex', justifyContent: 'space-between', padding: '3px 0',
+                              borderBottom: i < subList.length - 1 ? '1px solid #F0E4D0' : 'none',
+                              fontSize: 12,
+                            }}>
+                              <span>{i + 1}. {s.exercise_name || s.name || ''}</span>
+                              <span style={{ color: '#888' }}>
+                                {s.sets ? `${s.sets}S` : ''} {s.reps ? `×${s.reps}` : ''} {s.weight ? `${s.weight}kg` : ''}
+                              </span>
                             </div>
                           ))}
                         </div>
+                      )}
+
+                      {/* Tabata block */}
+                      {ex.tabata_data && typeof ex.tabata_data === 'object' && (
+                        <div style={{ marginTop: 6, padding: 8, background: '#FFF5EE', borderRadius: 8 }}>
+                          <div style={{ fontSize: 11, color: '#FF6F20' }}>⏱ טבטה</div>
+                          <div style={{ fontSize: 12, color: '#888' }}>
+                            {ex.tabata_data.work_time || 20}״ עבודה / {ex.tabata_data.rest_time || 10}״ מנוחה
+                            {ex.tabata_data.sets && ` × ${ex.tabata_data.sets} סטים`}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Video link */}
+                      {ex.video_url && (
+                        <a
+                          href={ex.video_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ fontSize: 12, color: '#FF6F20', marginTop: 4, display: 'block' }}
+                        >
+                          🎥 צפה בוידאו
+                        </a>
                       )}
                     </div>
                   );
@@ -1270,9 +1353,9 @@ function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, sel
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             style={{
-              width: '100%', padding: 12, borderRadius: 12, border: 'none',
-              background: '#FF6F20', color: 'white', fontSize: 14,
-              fontWeight: 600, cursor: 'pointer', marginTop: 12,
+              width: '100%', padding: 14, borderRadius: 14, border: 'none',
+              background: '#FF6F20', color: 'white', fontSize: 15,
+              fontWeight: 600, cursor: 'pointer', marginTop: 14,
             }}
           >
             ✏️ ערוך תוכנית
