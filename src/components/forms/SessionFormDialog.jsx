@@ -39,6 +39,10 @@ const INITIAL_DATA = {
   location: "",
   duration: 60,
   coach_notes: "",
+  // Private coach-only notes — shipped behind a separate column so
+  // a future trainee-side SELECT can omit it without losing the
+  // public coach_notes field.
+  coach_private_notes: "",
   participants: [],
   service_id: null,
   // Optional price — null/empty = free. When set, the trainee sees
@@ -65,6 +69,7 @@ export default function SessionFormDialog({
     location: editingSession.location || "",
     duration: editingSession.duration || 60,
     coach_notes: editingSession.coach_notes || "",
+    coach_private_notes: editingSession.coach_private_notes || "",
     participants: editingSession.participants || [],
     service_id: editingSession.service_id || null,
     price: editingSession.price != null ? String(editingSession.price) : "",
@@ -258,6 +263,7 @@ export default function SessionFormDialog({
       location: sessionForm.location || null,
       duration: sessionForm.duration || 60,
       coach_notes: sessionForm.coach_notes || null,
+      coach_private_notes: sessionForm.coach_private_notes || null,
       coach_id: currentCoach?.id || null,
       trainee_id: firstTraineeId,
       participants: sessionForm.participants || [],
@@ -745,6 +751,24 @@ export default function SessionFormDialog({
               placeholder="הערות נוספות למפגש..."
               className="rounded-xl min-h-[100px]"
               style={{ border: '1px solid #E0E0E0' }}
+            />
+          </div>
+
+          {/* Private coach-only notes — separate column, never
+              included in trainee-facing SELECTs (see
+              SESSION_FIELDS_TRAINEE in src/lib/sessionHelpers.js).
+              Orange-tinted so the coach can tell at a glance this
+              block isn't shared. */}
+          <div>
+            <Label className="text-sm font-bold mb-2 block" style={{ color: '#FF6F20' }}>
+              🔒 הערות פרטיות (גלויות רק לך)
+            </Label>
+            <Textarea
+              value={sessionForm.coach_private_notes}
+              onChange={(e) => setSessionForm({ ...sessionForm, coach_private_notes: e.target.value })}
+              placeholder="הערות לעצמך — המתאמן לא רואה את התוכן הזה"
+              className="rounded-xl min-h-[80px]"
+              style={{ border: '1px solid #FF6F20', background: '#FFF5EE' }}
             />
           </div>
 
