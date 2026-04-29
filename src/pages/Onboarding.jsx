@@ -44,24 +44,58 @@ const BODY_TYPES_GOAL = [
   { id: 'healthy',   label: 'בריא ומאוזן',  emoji: '🧘' },
 ];
 
-const ALL_GOALS = [
-  'חיזוק והתחשלות', 'ירידה במשקל', 'גמישות ותנועתיות',
-  'סיבולת וכושר', 'מיומנות ספציפית', 'הנאה ותחושה טובה',
-  'שיקום מפציעה', 'עליית מסת שריר', 'קליסטניקס ושליטה בגוף',
-  'שיפור יציבה', 'כוח פונקציונלי', 'שיפור ביצועים ספורטיביים',
+// Goal grid for step 3 — icon + Hebrew label. label is what gets
+// stored in `users.training_goals`, so order/spelling must stay
+// stable across edits.
+const GOAL_OPTIONS = [
+  { id: 'strength',     label: 'חיזוק והתחשלות',           icon: '💪' },
+  { id: 'weight_loss',  label: 'ירידה במשקל',              icon: '⚖️' },
+  { id: 'flexibility',  label: 'גמישות ותנועתיות',         icon: '🤸' },
+  { id: 'endurance',    label: 'סיבולת וכושר',             icon: '🏃' },
+  { id: 'skill',        label: 'מיומנות ספציפית',          icon: '🎯' },
+  { id: 'fun',          label: 'הנאה ותחושה טובה',         icon: '😊' },
+  { id: 'rehab',        label: 'שיקום מפציעה',             icon: '🩹' },
+  { id: 'muscle',       label: 'עליית מסת שריר',           icon: '⬆️' },
+  { id: 'calisthenics', label: 'קליסטניקס ושליטה בגוף',     icon: '🤾' },
+  { id: 'posture',      label: 'שיפור יציבה',              icon: '🧘' },
+  { id: 'functional',   label: 'כוח פונקציונלי',           icon: '🏋️' },
+  { id: 'performance',  label: 'שיפור ביצועים ספורטיביים', icon: '🏆' },
+];
+const ALL_GOALS = GOAL_OPTIONS.map(g => g.label);
+
+const FITNESS_LEVEL_OPTIONS = [
+  { id: 'beginner',     label: 'מתחילים',  emoji: '🌱' },
+  { id: 'intermediate', label: 'בינוני',   emoji: '🌿' },
+  { id: 'advanced',     label: 'מתקדם',    emoji: '🌳' },
+  { id: 'athlete',      label: 'ספורטיבי', emoji: '🔥' },
+];
+const FITNESS_LEVELS  = FITNESS_LEVEL_OPTIONS.map(f => f.label);
+
+const EXPERIENCE_OPTIONS = [
+  'חדר כושר', 'ריצה', 'שחייה', 'אומנויות לחימה',
+  'כדור', 'יוגה/פילאטיס', 'קרוספיט', 'אין ניסיון', 'אחר',
 ];
 
-const FITNESS_LEVELS  = ['מתחילים', 'בינוני', 'מתקדם', 'ספורטיבי'];
 const FREQUENCIES     = ['1-2', '3-4', '5-6', 'כל יום'];
-const ALL_CHALLENGES  = ['חוסר זמן', 'חוסר מוטיבציה', 'חוסר ידע', 'כאבים או פציעות', 'חוסר ביטחון', 'אין ציוד'];
-const ALL_PREFERENCES = ['אווירה טובה', 'תוצאות מדידות', 'למידת מיומנויות', 'אתגר גופני', 'הנאה', 'ליווי צמוד', 'גמישות בשעות'];
+const ALL_CHALLENGES  = ['חוסר זמן', 'חוסר מוטיבציה', 'חוסר ידע', 'כאבים/פציעות', 'חוסר ביטחון', 'אין ציוד', 'תזונה'];
+const ALL_PREFERENCES = ['אווירה טובה', 'תוצאות מדידות', 'למידת מיומנויות', 'אתגר גופני', 'הנאה', 'ליווי צמוד', 'גמישות בשעות', 'אימון בבית'];
 const REFERRAL_OPTIONS = [
-  { id: 'friend',    label: 'חבר' },
+  { id: 'friend',    label: 'חבר/ה' },
   { id: 'instagram', label: 'אינסטגרם' },
   { id: 'google',    label: 'גוגל' },
+  { id: 'tiktok',    label: 'טיקטוק' },
+  { id: 'facebook',  label: 'פייסבוק' },
   { id: 'other',     label: 'אחר' },
 ];
 const RELATION_OPTIONS = ['הורה', 'אפוטרופוס', 'בן/בת זוג', 'אח/ות', 'חבר', 'אחר'];
+
+// Quick pre-health chips for step 5. 'הכל תקין' is mutually exclusive
+// with the rest — selecting it clears any concern chips, and selecting
+// any concern chip clears 'הכל תקין'.
+const PREHEALTH_OPTIONS = [
+  'הכל תקין', 'כאבי גב', 'כאבי ברכיים', 'פציעה ישנה',
+  'בעיות נשימה', 'מגבלה רפואית', 'אחר',
+];
 
 // ── Styles ──
 const COLORS = {
@@ -207,6 +241,9 @@ export default function Onboarding() {
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
   const [emergencyRelation, setEmergencyRelation] = useState('');
+  // Collapsible "פרטים נוספים" toggle — opens to reveal address +
+  // referral source + emergency contact card.
+  const [showExtra, setShowExtra] = useState(false);
 
   // Step 2: measurements
   const [heightCm, setHeightCm] = useState('');
@@ -219,7 +256,12 @@ export default function Onboarding() {
   const [goalsDescription, setGoalsDescription] = useState('');
 
   // Step 4: about
-  const [sportsExperience, setSportsExperience] = useState('');
+  // Sports experience is now multi-select chips (selectedExperience) plus
+  // a free-text details box. fitness_background is persisted as the
+  // joined string "chips · details" so the existing summary code keeps
+  // working.
+  const [selectedExperience, setSelectedExperience] = useState([]);
+  const [experienceDetails, setExperienceDetails] = useState('');
   const [fitnessLevel, setFitnessLevel] = useState('');
   const [frequency, setFrequency] = useState('');
   const [selectedChallenges, setSelectedChallenges] = useState([]);
@@ -228,7 +270,9 @@ export default function Onboarding() {
   const [preferencesDescription, setPreferencesDescription] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
 
-  // Step 5: health
+  // Step 5: health — quick chips ('הכל תקין' / 'כאבי גב' / ...) plus a
+  // free-text textarea that only renders for the concern chips.
+  const [preHealthChips, setPreHealthChips] = useState([]);
   const [preHealthNote, setPreHealthNote] = useState('');
 
   // Step 6: pending session (auto-confirmed once paid)
@@ -299,7 +343,22 @@ export default function Onboarding() {
               : []);
         setSelectedGoals(tg);
         setGoalsDescription(u.goals_description || '');
-        setSportsExperience(u.fitness_background || '');
+        // fitness_background is stored as 'chips · details' — split it
+        // back so the chips and details textarea both prefill on re-entry.
+        const fbRaw = (u.fitness_background || '').trim();
+        if (fbRaw) {
+          const parts = fbRaw.split(/\s*·\s*/);
+          const chipPart = parts[0] || '';
+          const detailsPart = parts.slice(1).join(' · ');
+          const chips = chipPart.split(/\s*,\s*/).filter(c => EXPERIENCE_OPTIONS.includes(c));
+          if (chips.length > 0) {
+            setSelectedExperience(chips);
+            setExperienceDetails(detailsPart || '');
+          } else {
+            // Legacy free-text — keep it in details so we don't lose it.
+            setExperienceDetails(fbRaw);
+          }
+        }
         setFitnessLevel(u.fitness_experience || '');
         setFrequency(u.preferred_frequency || '');
         const ch = Array.isArray(u.current_challenges) ? u.current_challenges
@@ -315,7 +374,18 @@ export default function Onboarding() {
         setSelectedPreferences(pr);
         setPreferencesDescription(u.preferences_description || '');
         setAdditionalNotes(u.additional_notes || '');
-        setPreHealthNote(u.pre_health_note || '');
+        const note = u.pre_health_note || '';
+        setPreHealthNote(note);
+        // Re-derive the chip selection from the saved note. 'הכל תקין'
+        // is the only chip that fully replaces the note text; everything
+        // else is treated as concern context.
+        if (note === 'הכל תקין') {
+          setPreHealthChips(['הכל תקין']);
+        } else if (note.trim()) {
+          // Legacy free-text concern — leave the textarea filled and
+          // let the user pick chips again if they want.
+          setPreHealthChips([]);
+        }
         if (u.health_declaration_signed_at || u.health_declaration_id) setHealthSigned(true);
       } catch (e) {
         console.error('[Onboarding] bootstrap failed:', e);
@@ -442,8 +512,14 @@ export default function Onboarding() {
   const saveStep4 = async () => {
     setSavingStep(true);
     try {
+      // Merge experience chips + details into the single
+      // fitness_background column the rest of the app reads.
+      const chipsJoin = (selectedExperience || []).join(', ');
+      const fbCombined = experienceDetails.trim()
+        ? (chipsJoin ? `${chipsJoin} · ${experienceDetails.trim()}` : experienceDetails.trim())
+        : chipsJoin;
       await safeUpdate(userId, buildPayload({
-        fitness_background: sportsExperience.trim(),
+        fitness_background: fbCombined,
         fitness_experience: fitnessLevel,
         preferred_frequency: frequency,
         current_challenges: selectedChallenges,
@@ -459,8 +535,24 @@ export default function Onboarding() {
   const saveStep5PreHealth = async () => {
     setSavingStep(true);
     try {
+      // Combine chip selection with the free-text concern. 'הכל תקין'
+      // overrides the textarea; concern chips prepend, then the
+      // detail text follows when present.
+      const concernChips = preHealthChips.filter(c => c !== 'הכל תקין');
+      let combinedNote;
+      if (preHealthChips.includes('הכל תקין')) {
+        combinedNote = 'הכל תקין';
+      } else if (concernChips.length || preHealthNote.trim()) {
+        const chipsJoin = concernChips.join(', ');
+        const detail = preHealthNote.trim();
+        combinedNote = detail
+          ? (chipsJoin ? `${chipsJoin} · ${detail}` : detail)
+          : chipsJoin;
+      } else {
+        combinedNote = '';
+      }
       await safeUpdate(userId, buildPayload({
-        pre_health_note: preHealthNote.trim(),
+        pre_health_note: combinedNote,
       }));
       // Open the formal HealthDeclarationForm. Step 5 only advances
       // to step 6 after the form's onSigned fires — there is no skip.
@@ -548,39 +640,42 @@ export default function Onboarding() {
   // ── Render ──
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: COLORS.bg, paddingBottom: 80 }}>
-      {/* Progress bar */}
+      {/* Progress bar — circles top, bar bottom. Done steps go green;
+          active step is orange; unreached is muted. ✓ replaces the
+          number for done steps. */}
       <div style={{ padding: '16px 16px 8px' }}>
-        <div style={{ height: 3, background: COLORS.border, borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-          <div style={{
-            height: '100%', background: COLORS.accent,
-            width: `${((currentStepIndex + 1) / STEPS.length) * 100}%`,
-            transition: 'width 0.3s',
-          }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           {STEPS.map((s, i) => {
-            const reached = i <= currentStepIndex;
-            const completed = i < currentStepIndex;
+            const done = i < currentStepIndex;
+            const active = i === currentStepIndex;
             return (
               <div key={s.id} style={{ textAlign: 'center', flex: 1 }}>
                 <div style={{
-                  width: 22, height: 22, borderRadius: '50%', margin: '0 auto 3px',
-                  background: reached ? COLORS.accent : COLORS.border,
-                  color: reached ? '#fff' : COLORS.muted,
+                  width: 28, height: 28, borderRadius: '50%', margin: '0 auto 4px',
+                  background: done ? '#1D9E75' : active ? COLORS.accent : COLORS.border,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700,
+                  color: done || active ? '#fff' : COLORS.muted,
+                  fontSize: 12, fontWeight: 600,
+                  transition: 'all 0.3s ease',
                 }}>
-                  {completed ? '✓' : i + 1}
+                  {done ? '✓' : i + 1}
                 </div>
                 <div style={{
                   fontSize: 10, fontWeight: 600,
-                  color: reached ? COLORS.accent : COLORS.muted,
+                  color: active ? COLORS.accent : done ? '#1D9E75' : COLORS.muted,
                 }}>
                   {s.label}
                 </div>
               </div>
             );
           })}
+        </div>
+        <div style={{ height: 3, background: COLORS.border, borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%', background: COLORS.accent,
+            width: `${(currentStepIndex / Math.max(1, STEPS.length - 1)) * 100}%`,
+            transition: 'width 0.4s ease',
+          }} />
         </div>
       </div>
 
@@ -622,58 +717,117 @@ export default function Onboarding() {
               </div>
             </div>
 
-            <div style={{ height: 1, background: COLORS.border, margin: '16px 0' }} />
-            <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.muted, marginBottom: 8 }}>פרטים נוספים (לא חובה)</div>
+            {/* Optional details collapsible — minor's emergency contact
+                stays required (validated in step1Valid) but the section
+                only appears when expanded so the form looks light at
+                first glance. Auto-opens for minors so they can't miss it. */}
+            <button
+              type="button"
+              onClick={() => setShowExtra(!showExtra)}
+              style={{
+                width: '100%', padding: 10, borderRadius: 12,
+                border: `1px dashed ${COLORS.border}`,
+                background: 'transparent', color: COLORS.accent,
+                fontSize: 13, cursor: 'pointer', marginTop: 12,
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+              }}
+            >
+              {showExtra ? '▲ הסתר פרטים נוספים' : '▼ פרטים נוספים (לא חובה)'}
+            </button>
 
-            <div style={cardStyle}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>כתובת</div>
-                  <input value={address} onChange={e => setAddress(e.target.value)}
-                    placeholder="עיר / רחוב" style={inputStyle} />
+            {(showExtra || isMinor) && (
+              <div style={{ marginTop: 10 }}>
+                <div style={cardStyle}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>כתובת</div>
+                      <input value={address} onChange={e => setAddress(e.target.value)}
+                        placeholder="עיר / רחוב" style={inputStyle} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 6 }}>איך הגיעו אלינו?</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {REFERRAL_OPTIONS.map(o => {
+                          const active = referralSource === o.id;
+                          return (
+                            <button
+                              key={o.id}
+                              type="button"
+                              onClick={() => setReferralSource(active ? '' : o.id)}
+                              style={{
+                                padding: '6px 14px', borderRadius: 20,
+                                border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+                                background: active ? COLORS.chipBg : 'white',
+                                color: active ? COLORS.accent : COLORS.muted,
+                                fontSize: 12, cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                              }}
+                            >{o.label}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>איך הגעת אלינו?</div>
-                  <select value={referralSource} onChange={e => setReferralSource(e.target.value)}
-                    style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
-                    <option value="">בחר...</option>
-                    {REFERRAL_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
 
-            <div style={{ ...cardStyle, background: COLORS.bg }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.accent, marginBottom: 10 }}>
-                {isMinor ? '👨‍👩‍👧 איש קשר אחראי (נדרש אישור הורים)' : '📞 איש קשר אחראי'}
-              </div>
-              {isMinor && (
-                <div style={{
-                  background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 10,
-                  fontSize: 12, color: '#E65100', lineHeight: 1.5,
-                }}>
-                  ⚠️ מכיוון שהגיל מתחת ל-18, נדרש פרטי הורה או אפוטרופוס לצורך אישור פעילות
+                <div style={{ ...cardStyle, background: COLORS.bg }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.accent, marginBottom: 10 }}>
+                    {isMinor ? '👨‍👩‍👧 איש קשר אחראי (נדרש אישור הורים)' : '📞 איש קשר אחראי'}
+                  </div>
+                  {isMinor && (
+                    <div style={{
+                      background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 10,
+                      fontSize: 12, color: '#E65100', lineHeight: 1.5,
+                    }}>
+                      ⚠️ מתחת לגיל 18 — נדרשים פרטי הורה או אפוטרופוס
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <input value={emergencyName} onChange={e => setEmergencyName(e.target.value)}
+                      placeholder={isMinor ? 'שם הורה / אפוטרופוס *' : 'שם איש הקשר'}
+                      style={inputStyle} />
+                    <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)}
+                      placeholder={isMinor ? 'טלפון *' : 'טלפון'}
+                      inputMode="tel" style={inputStyle} />
+                    <div>
+                      <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6 }}>קרבה</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {RELATION_OPTIONS.map(r => {
+                          const active = emergencyRelation === r;
+                          return (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => setEmergencyRelation(active ? '' : r)}
+                              style={{
+                                padding: '6px 14px', borderRadius: 20,
+                                border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+                                background: active ? COLORS.chipBg : 'white',
+                                color: active ? COLORS.accent : COLORS.muted,
+                                fontSize: 12, cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                              }}
+                            >{r}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input value={emergencyName} onChange={e => setEmergencyName(e.target.value)}
-                  placeholder={isMinor ? 'שם הורה / אפוטרופוס *' : 'שם איש הקשר'}
-                  style={inputStyle} />
-                <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)}
-                  placeholder={isMinor ? 'טלפון *' : 'טלפון'}
-                  inputMode="tel" style={inputStyle} />
-                <select value={emergencyRelation} onChange={e => setEmergencyRelation(e.target.value)}
-                  style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
-                  <option value="">קרבה...</option>
-                  {RELATION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
               </div>
-            </div>
+            )}
 
             <button onClick={saveStep1} disabled={!step1Valid || savingStep}
               style={primaryBtn(step1Valid && !savingStep)}>
               {savingStep ? 'שומר...' : 'המשך'}
             </button>
+            {isMinor && !minorEmergencyValid && (
+              <div style={{
+                fontSize: 12, color: '#E65100', textAlign: 'center', marginTop: 8,
+              }}>נדרשים פרטי איש קשר אחראי</div>
+            )}
           </>
         )}
 
@@ -750,24 +904,50 @@ export default function Onboarding() {
             </div>
 
             <div style={cardStyle}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {ALL_GOALS.map(g => (
-                  <Chip key={g}
-                    active={selectedGoals.includes(g)}
-                    onClick={() => setSelectedGoals(prev =>
-                      prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]
-                    )}>
-                    {g}
-                  </Chip>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {GOAL_OPTIONS.map(g => {
+                  const active = selectedGoals.includes(g.label);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setSelectedGoals(prev =>
+                        prev.includes(g.label)
+                          ? prev.filter(x => x !== g.label)
+                          : [...prev, g.label]
+                      )}
+                      style={{
+                        padding: '12px 10px', borderRadius: 14, textAlign: 'center',
+                        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+                        background: active ? COLORS.chipBg : 'white',
+                        color: active ? COLORS.accent : COLORS.text,
+                        fontSize: 13, cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        transform: active ? 'scale(1.02)' : 'scale(1)',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>{g.icon}</div>
+                      <div>{g.label}</div>
+                    </button>
+                  );
+                })}
               </div>
+              {selectedGoals.length > 0 && (
+                <div style={{
+                  fontSize: 13, color: COLORS.accent,
+                  marginTop: 8, textAlign: 'center', fontWeight: 600,
+                }}>
+                  {selectedGoals.length} מטרות נבחרו
+                </div>
+              )}
             </div>
 
             {selectedGoals.length > 0 && (
               <div style={cardStyle}>
                 <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>רוצים לפרט עוד?</div>
                 <textarea value={goalsDescription} onChange={e => setGoalsDescription(e.target.value)}
-                  placeholder="למשל: להגיע ל-10 עליות מתח, לרדת 5 קילו..."
+                  placeholder="למשל: להגיע ל-10 עליות מתח רצופות, לרדת 5 קילו תוך 3 חודשים..."
                   rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 70 }} />
               </div>
             )}
@@ -793,30 +973,91 @@ export default function Onboarding() {
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>ניסיון ספורטיבי קודם</div>
-              <input value={sportsExperience} onChange={e => setSportsExperience(e.target.value)}
-                placeholder="למשל: שחייה 3 שנים, ריצה, חדר כושר..." style={inputStyle} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>יש ניסיון ספורטיבי?</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {EXPERIENCE_OPTIONS.map(exp => {
+                  const active = selectedExperience.includes(exp);
+                  return (
+                    <button
+                      key={exp}
+                      type="button"
+                      onClick={() => setSelectedExperience(prev =>
+                        prev.includes(exp) ? prev.filter(x => x !== exp) : [...prev, exp]
+                      )}
+                      style={{
+                        padding: '6px 14px', borderRadius: 20,
+                        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+                        background: active ? COLORS.chipBg : 'white',
+                        color: active ? COLORS.accent : COLORS.muted,
+                        fontSize: 12, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >{exp}</button>
+                  );
+                })}
+              </div>
+              {selectedExperience.length > 0 && (
+                <input
+                  value={experienceDetails}
+                  onChange={e => setExperienceDetails(e.target.value)}
+                  placeholder="פירוט נוסף — שנים, רמה, תחומים..."
+                  style={inputStyle}
+                />
+              )}
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>רמת הכושר הנוכחית</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>מה הרמה הנוכחית?</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                {FITNESS_LEVELS.map(l => (
-                  <ChoiceButton key={l} active={fitnessLevel === l} fullWidth
-                    onClick={() => setFitnessLevel(l)}>
-                    {l}
-                  </ChoiceButton>
-                ))}
+                {FITNESS_LEVEL_OPTIONS.map(level => {
+                  const active = fitnessLevel === level.label;
+                  return (
+                    <button
+                      key={level.id}
+                      type="button"
+                      onClick={() => setFitnessLevel(active ? '' : level.label)}
+                      style={{
+                        flex: 1, padding: '10px 6px', borderRadius: 12, textAlign: 'center',
+                        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+                        background: active ? COLORS.chipBg : 'white',
+                        color: active ? COLORS.accent : COLORS.text,
+                        fontSize: 12, fontWeight: active ? 600 : 500, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >
+                      <div style={{ fontSize: 20, marginBottom: 2 }}>{level.emoji}</div>
+                      {level.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             <div style={cardStyle}>
               <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>כמה פעמים בשבוע?</div>
-              <select value={frequency} onChange={e => setFrequency(e.target.value)}
-                style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
-                <option value="">בחר...</option>
-                {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {FREQUENCIES.map(f => {
+                  const active = frequency === f;
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setFrequency(active ? '' : f)}
+                      style={{
+                        flex: 1, padding: '8px 4px', borderRadius: 12,
+                        border: active ? `2px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+                        background: active ? COLORS.chipBg : 'white',
+                        color: active ? COLORS.accent : COLORS.text,
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >{f}</button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={cardStyle}>
@@ -876,20 +1117,68 @@ export default function Onboarding() {
         {step === 'health' && (
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🤝</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>לפני שמתחילים</div>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>❤️</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>הבריאות חשובה מעל הכל</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.6 }}>
-                הבריאות חשובה מעל הכל. נרצה לוודא שהגוף במצב שמאפשר פעילות גופנית — כדי לבנות תוכנית בטוחה שמותאמת בדיוק.
+                נרצה לוודא שהגוף במצב שמאפשר פעילות גופנית — כדי לבנות תוכנית בטוחה שמותאמת בדיוק.
               </div>
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>
-                יש כאב, פציעה או מגבלה שחשוב לדעת?
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>
+                יש כאב, פציעה או מגבלה?
               </div>
-              <textarea value={preHealthNote} onChange={e => setPreHealthNote(e.target.value)}
-                placeholder="למשל: כאבי גב תחתון, פציעת ברך ישנה... או פשוט 'הכל תקין' 😊"
-                rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {PREHEALTH_OPTIONS.map(h => {
+                  const isAllOk = h === 'הכל תקין';
+                  const active = preHealthChips.includes(h);
+                  return (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => {
+                        // 'הכל תקין' replaces every concern chip; any
+                        // concern chip clears 'הכל תקין'.
+                        if (isAllOk) {
+                          setPreHealthChips(active ? [] : ['הכל תקין']);
+                        } else {
+                          setPreHealthChips(prev => {
+                            const stripped = prev.filter(x => x !== 'הכל תקין');
+                            return stripped.includes(h)
+                              ? stripped.filter(x => x !== h)
+                              : [...stripped, h];
+                          });
+                        }
+                      }}
+                      style={{
+                        padding: '8px 16px', borderRadius: 20,
+                        border: active
+                          ? `2px solid ${isAllOk ? '#1D9E75' : '#C62828'}`
+                          : `1px solid ${COLORS.border}`,
+                        background: active
+                          ? (isAllOk ? '#E8F5E9' : '#FFEBEE')
+                          : 'white',
+                        color: active
+                          ? (isAllOk ? '#1D9E75' : '#C62828')
+                          : COLORS.muted,
+                        fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      }}
+                    >{h}</button>
+                  );
+                })}
+              </div>
+              {!preHealthChips.includes('הכל תקין') &&
+                (preHealthChips.length > 0 || preHealthNote) && (
+                <textarea
+                  value={preHealthNote}
+                  onChange={e => setPreHealthNote(e.target.value)}
+                  placeholder="פירוט — פציעות, מגבלות, תרופות..."
+                  rows={3}
+                  style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
+                />
+              )}
             </div>
 
             <button onClick={saveStep5PreHealth} disabled={savingStep} style={primaryBtn(!savingStep)}>

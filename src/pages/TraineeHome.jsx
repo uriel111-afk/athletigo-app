@@ -799,6 +799,20 @@ export default function TraineeHome() {
   const isFormer     = clientStatus === 'former';
   const isCasual     = clientStatus === 'casual';
 
+  // Per-status feature map — single source of truth for what a
+  // trainee can do. Existing isCasual / !isCasual gates below are
+  // preserved (they pre-date this map and still work correctly);
+  // new gates should prefer features.includes(...) so the policy
+  // lives in one place. Active-or-legacy gets the full set.
+  const STATUS_FEATURES = {
+    casual:    ['profile', 'progress', 'plan_view', 'records_view'],
+    active:    ['profile', 'progress', 'plan_view', 'records_view',
+                'records_add', 'baseline', 'goals', 'measurements', 'notifications'],
+    suspended: ['profile', 'progress'],
+    former:    ['profile'],
+  };
+  const features = STATUS_FEATURES[clientStatus] || STATUS_FEATURES.active;
+
   // Lock screens for suspended / former — full-screen message,
   // single CTA to contact coach (opens the same chat sheet the
   // notifications modal uses isn't worth rebuilding here, so we
