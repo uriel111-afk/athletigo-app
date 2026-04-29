@@ -116,12 +116,31 @@ function ProgressInner() {
     { label: 'שיפור JPS',       value: jpsImprovement != null ? `${jpsImprovement}%` : '—', icon: '📈', color: '#1565C0' },
   ];
 
-  // ── Baseline JPS chart data ──────────────────────────────────
-  const baselineData = baselinesArr.map(b => ({
-    date: new Date(b.date || b.created_at).toLocaleDateString('he-IL'),
-    jps: Number(b.jps ?? b.score ?? 0),
-    total: Number(b.total_jumps ?? b.total ?? 0),
-  }));
+  // ── Baseline JPS chart — one line per technique ─────────────
+  // Each baseline row is one technique × one session, so a multi-
+  // technique session shows as parallel points on the same date.
+  // connectNulls keeps a technique's line drawn across sessions
+  // where it wasn't measured.
+  const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
+  const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
+  const techNames = [...new Set(baselinesArr.map(b => b.technique || 'basic'))];
+  const baselineDates = [...new Set(baselinesArr.map(b =>
+    b.date || new Date(b.created_at).toISOString().split('T')[0]
+  ))].sort();
+  const baselineData = baselineDates.map(date => {
+    const row = { date: new Date(date).toLocaleDateString('he-IL') };
+    techNames.forEach(tech => {
+      const entry = baselinesArr.find(b => {
+        const bDate = b.date || new Date(b.created_at).toISOString().split('T')[0];
+        return bDate === date && (b.technique || 'basic') === tech;
+      });
+      const label = TECH_LABELS[tech] || tech;
+      row[label] = entry
+        ? Number(entry.baseline_score ?? entry.jps ?? entry.score ?? 0)
+        : null;
+    });
+    return row;
+  });
 
   // ── Records bar (latest record per exercise) ─────────────────
   const latestRecordPerExercise = {};
@@ -251,33 +270,41 @@ function ProgressInner() {
               ))}
             </div>
 
-            {/* Baseline JPS line chart */}
-            {baselineData.length > 0 && (
+            {/* Baseline JPS line chart — one line per technique */}
+            {baselineData.length > 0 && techNames.length > 0 && (
               <div style={card}>
                 <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
-                  📈 התקדמות בייסליין
+                  📈 התקדמות JPS לפי טכניקה
                 </div>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={baselineData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
                     <XAxis dataKey="date" fontSize={11} />
                     <YAxis domain={[0, 'auto']} fontSize={11} />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Line type="monotone" dataKey="jps" name="JPS"
-                      stroke="#FF6F20" strokeWidth={2.5}
-                      dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
-                      activeDot={{ r: 7, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
-                    <Line type="monotone" dataKey="total" name="סה״כ"
-                      stroke="#1D9E75" strokeWidth={2}
-                      dot={{ r: 4, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }} />
+                    {techNames.map((tech, i) => {
+                      const label = TECH_LABELS[tech] || tech;
+                      const color = TECH_COLORS[i % TECH_COLORS.length];
+                      return (
+                        <Line key={tech} type="monotone" dataKey={label} name={label}
+                          stroke={color} strokeWidth={2.5} connectNulls
+                          dot={{ r: 5, fill: color, stroke: 'white', strokeWidth: 2 }}
+                          activeDot={{ r: 7, fill: color, stroke: 'white', strokeWidth: 2 }} />
+                      );
+                    })}
                   </LineChart>
                 </ResponsiveContainer>
                 <div style={{
                   display: 'flex', justifyContent: 'center', gap: 16,
-                  marginTop: 8, fontSize: 12, color: '#888',
+                  marginTop: 8, fontSize: 12, color: '#1A1A1A', flexWrap: 'wrap',
                 }}>
-                  <span><span style={{ color: '#FF6F20' }}>●</span> JPS</span>
-                  <span><span style={{ color: '#1D9E75' }}>●</span> סה״כ קפיצות</span>
+                  {techNames.map((tech, i) => {
+                    const label = TECH_LABELS[tech] || tech;
+                    const color = TECH_COLORS[i % TECH_COLORS.length];
+                    return (
+                      <span key={tech}><span style={{ color }}>●</span> {label}</span>
+                    );
+                  })}
                 </div>
               </div>
             )}

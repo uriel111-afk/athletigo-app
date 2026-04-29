@@ -3761,25 +3761,36 @@ export default function TraineeProfile() {
                   </Button>
                 </div>
 
-                {/* JPS progression chart — every saved baseline shows up
-                    here as a fresh point. The cards below stay as the
-                    detail/edit surface; this is just a top-level read. */}
+                {/* JPS progression chart — one line per technique so a
+                    multi-technique baseline session shows as parallel
+                    points on the same date. connectNulls keeps the line
+                    visible for techniques that weren't measured every
+                    session. The cards below stay as the detail/edit
+                    surface; this is just a top-level read. */}
                 {baselines.length >= 1 && (() => {
-                  const chartData = [...baselines]
-                    .sort((a, b) => new Date(a.date || a.created_at) - new Date(b.date || b.created_at))
-                    .map(b => ({
-                      date: new Date(b.date || b.created_at).toLocaleDateString('he-IL'),
-                      jps: Number(b.baseline_score) || 0,
-                      total: Number(b.total_jumps) || 0,
-                      best: Number(b.best_round) || 0,
-                    }));
+                  const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
+                  const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
+                  const techNames = [...new Set(baselines.map(b => b.technique || 'basic'))];
+                  const dates = [...new Set(baselines.map(b => b.date || new Date(b.created_at).toISOString().split('T')[0]))].sort();
+                  const chartData = dates.map(date => {
+                    const row = { date: new Date(date).toLocaleDateString('he-IL') };
+                    techNames.forEach(tech => {
+                      const entry = baselines.find(b => {
+                        const bDate = b.date || new Date(b.created_at).toISOString().split('T')[0];
+                        return bDate === date && (b.technique || 'basic') === tech;
+                      });
+                      const label = TECH_LABELS[tech] || tech;
+                      row[label] = entry ? Number(entry.baseline_score) || 0 : null;
+                    });
+                    return row;
+                  });
                   return (
                     <div style={{
                       background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
                       padding: 16, marginBottom: 4,
                     }}>
                       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
-                        📈 התקדמות בייסליין
+                        📈 התקדמות JPS לפי טכניקה
                       </div>
                       <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
@@ -3787,21 +3798,28 @@ export default function TraineeProfile() {
                           <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
                           <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
                           <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} />
-                          <Line type="monotone" dataKey="jps"   name="JPS"  stroke="#FF6F20" strokeWidth={2.5}
-                            dot={{ r: 6, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
-                            activeDot={{ r: 8, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
-                          <Line type="monotone" dataKey="total" name="סה״כ" stroke="#1D9E75" strokeWidth={2}
-                            dot={{ r: 5, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }}
-                            activeDot={{ r: 7, fill: '#1D9E75', stroke: 'white', strokeWidth: 2 }} />
-                          <Line type="monotone" dataKey="best"  name="שיא"  stroke="#D85A30" strokeWidth={2}
-                            dot={{ r: 5, fill: '#D85A30', stroke: 'white', strokeWidth: 2 }}
-                            activeDot={{ r: 7, fill: '#D85A30', stroke: 'white', strokeWidth: 2 }} />
+                          {techNames.map((tech, i) => {
+                            const label = TECH_LABELS[tech] || tech;
+                            const color = TECH_COLORS[i % TECH_COLORS.length];
+                            return (
+                              <Line key={tech} type="monotone" dataKey={label} name={label}
+                                stroke={color} strokeWidth={2.5} connectNulls
+                                dot={{ r: 6, fill: color, stroke: 'white', strokeWidth: 2 }}
+                                activeDot={{ r: 8, fill: color, stroke: 'white', strokeWidth: 2 }} />
+                            );
+                          })}
                         </LineChart>
                       </ResponsiveContainer>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8, fontSize: 12 }}>
-                        <span style={{ color: '#FF6F20' }}>● JPS</span>
-                        <span style={{ color: '#1D9E75' }}>● סה״כ</span>
-                        <span style={{ color: '#D85A30' }}>● שיא</span>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                        {techNames.map((tech, i) => {
+                          const label = TECH_LABELS[tech] || tech;
+                          const color = TECH_COLORS[i % TECH_COLORS.length];
+                          return (
+                            <span key={tech} style={{ color: '#1A1A1A' }}>
+                              <span style={{ color }}>●</span> {label}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -3809,87 +3827,145 @@ export default function TraineeProfile() {
 
                 {baselines.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
-                ) : (
-                  <div className="space-y-3">
-                    {[...baselines].sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date)).map(b => {
-                      const techColors = { basic: '#FF6F20', foot_switch: '#2196F3', high_knees: '#4CAF50' };
-                      const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees' };
-                      return (
-                        <div key={b.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                          <div className="flex justify-between items-start">
-                            <button onClick={() => setShowBaselineDetail(b.id)} className="flex-1 text-right active:scale-[0.98] transition-transform">
-                              <h4 className="font-bold text-base text-gray-900">Baseline — {techLabels[b.technique] || b.technique}</h4>
-                              <p className="text-xs text-gray-500 mt-0.5">{new Date(b.date).toLocaleDateString('he-IL')} • {b.rounds_count} סיבובים × {b.work_time_seconds} שניות</p>
-                            </button>
-                            <div className="flex items-start gap-2 flex-shrink-0">
-                              <div className="text-left">
-                                <span className="text-xl font-black" style={{ color: techColors[b.technique] || '#FF6F20' }}>{b.baseline_score}</span>
-                                <span className="text-xs font-bold text-gray-400 block">JPS</span>
-                              </div>
-                              {isCoach && (
-                                <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    const newDate = prompt('תאריך (YYYY-MM-DD):', b.date);
-                                    if (newDate === null) return;
-                                    const newScore = prompt('ציון JPS:', b.baseline_score);
-                                    if (newScore === null) return;
-                                    const newNotes = prompt('הערות:', b.notes || '');
-                                    if (newNotes === null) return;
-                                    try {
-                                      const updates = {};
-                                      if (newDate && newDate !== b.date) updates.date = newDate;
-                                      if (newScore && parseFloat(newScore) !== b.baseline_score) updates.baseline_score = parseFloat(newScore);
-                                      if (newNotes !== (b.notes || '')) updates.notes = newNotes || null;
-                                      if (Object.keys(updates).length === 0) return;
-                                      await supabase.from('baselines').update(updates).eq('id', b.id);
-                                      if (updates.date) { try { await supabase.from('results_log').update({ date: updates.date }).eq('baseline_id', b.id); } catch {} }
-                                      if (updates.baseline_score) { try { await supabase.from('results_log').update({ record_value: String(updates.baseline_score) }).eq('baseline_id', b.id); } catch {} }
-                                      toast.success("בייסליין עודכן");
-                                      queryClient.invalidateQueries({ queryKey: ['baselines'] });
-                                      queryClient.invalidateQueries({ queryKey: ['my-results'] });
-                                      invalidateDashboard(queryClient);
-                                    } catch (err) { toast.error("שגיאה: " + (err?.message || '')); }
-                                  }}>
-                                  <Edit2 className="w-4 h-4" />
-                                </Button>
-                              )}
-                              {isCoach && (
-                                <Button variant="ghost" size="icon" className="w-8 h-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!window.confirm(`למחוק את הבייסליין מתאריך ${new Date(b.date).toLocaleDateString('he-IL')}?`)) return;
-                                    (async () => {
-                                      try {
-                                        // Delete linked results_log entry
-                                        try { await supabase.from('results_log').delete().eq('baseline_id', b.id); } catch {}
-                                        // Delete the baseline
-                                        await base44.entities.Baseline.delete(b.id);
-                                        toast.success("בייסליין נמחק");
-                                        queryClient.invalidateQueries({ queryKey: ['baselines'] });
-                                        queryClient.invalidateQueries({ queryKey: ['my-results'] });
-                                        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-                                        invalidateDashboard(queryClient);
-                                      } catch (err) {
-                                        toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
-                                      }
-                                    })();
-                                  }}>
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              )}
+                ) : (() => {
+                  // Group rows by session date so a multi-technique
+                  // baseline shows as ONE card with a row per technique.
+                  // Edit/delete still operate on the per-technique row.
+                  const techColors = { basic: '#FF6F20', foot_switch: '#2196F3', high_knees: '#4CAF50', criss: '#9C27B0' };
+                  const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
+                  const groups = {};
+                  for (const b of baselines) {
+                    const key = b.date || new Date(b.created_at).toISOString().split('T')[0];
+                    (groups[key] = groups[key] || []).push(b);
+                  }
+                  const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+                  return (
+                    <div className="space-y-3">
+                      {sortedDates.map(dateKey => {
+                        const techniques = groups[dateKey];
+                        const dateLabel = new Date(dateKey).toLocaleDateString('he-IL');
+                        const sessionMeta = techniques[0];
+                        return (
+                          <div key={dateKey} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                            <div className="flex justify-between items-center mb-3" style={{ direction: 'rtl' }}>
+                              <button onClick={() => setShowBaselineDetail(sessionMeta.id)} className="text-right active:scale-[0.98] transition-transform">
+                                <h4 className="font-bold text-base text-gray-900">📋 בייסליין — {dateLabel}</h4>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {techniques.length} {techniques.length === 1 ? 'טכניקה' : 'טכניקות'}
+                                  {sessionMeta.rounds_count ? ` · ${sessionMeta.rounds_count} סיבובים × ${sessionMeta.work_time_seconds} שניות` : ''}
+                                </p>
+                              </button>
+                            </div>
+
+                            {/* Per-technique table */}
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'auto 1fr 1fr 1fr 1fr auto',
+                              columnGap: 12, rowGap: 4,
+                              fontSize: 13, direction: 'rtl', alignItems: 'center',
+                            }}>
+                              <div style={{ fontWeight: 600, color: '#888' }}>טכניקה</div>
+                              <div style={{ fontWeight: 600, color: '#888', textAlign: 'center' }}>סה״כ</div>
+                              <div style={{ fontWeight: 600, color: '#888', textAlign: 'center' }}>ממוצע</div>
+                              <div style={{ fontWeight: 600, color: '#888', textAlign: 'center' }}>שיא</div>
+                              <div style={{ fontWeight: 600, color: '#FF6F20', textAlign: 'center' }}>JPS</div>
+                              <div></div>
+                              {techniques.map(t => {
+                                const techName = techLabels[t.technique] || t.technique || 'בסיס';
+                                const total = t.total_jumps ?? 0;
+                                const avg = t.average_jumps ?? (total && t.rounds_count ? (total / t.rounds_count).toFixed(1) : '—');
+                                const best = t.best_round ?? '—';
+                                const jps = Number(t.baseline_score) || 0;
+                                const color = techColors[t.technique] || '#FF6F20';
+                                return (
+                                  <React.Fragment key={t.id}>
+                                    <button onClick={() => setShowBaselineDetail(t.id)} style={{
+                                      fontWeight: 500, color: color, textAlign: 'right',
+                                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                                    }}>{techName}</button>
+                                    <div style={{ textAlign: 'center' }}>{total}</div>
+                                    <div style={{ textAlign: 'center' }}>{avg}</div>
+                                    <div style={{ textAlign: 'center', color: '#D85A30' }}>{best}</div>
+                                    <div style={{ textAlign: 'center', fontWeight: 700, color }}>{jps}</div>
+                                    <div style={{ display: 'flex', gap: 2 }}>
+                                      {isCoach && (
+                                        <Button variant="ghost" size="icon" className="w-7 h-7 text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50"
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            const newDate = prompt('תאריך (YYYY-MM-DD):', t.date);
+                                            if (newDate === null) return;
+                                            const newScore = prompt('ציון JPS:', t.baseline_score);
+                                            if (newScore === null) return;
+                                            const newNotes = prompt('הערות:', t.notes || '');
+                                            if (newNotes === null) return;
+                                            try {
+                                              const updates = {};
+                                              if (newDate && newDate !== t.date) updates.date = newDate;
+                                              if (newScore && parseFloat(newScore) !== t.baseline_score) updates.baseline_score = parseFloat(newScore);
+                                              if (newNotes !== (t.notes || '')) updates.notes = newNotes || null;
+                                              if (Object.keys(updates).length === 0) return;
+                                              await supabase.from('baselines').update(updates).eq('id', t.id);
+                                              if (updates.date) { try { await supabase.from('results_log').update({ date: updates.date }).eq('baseline_id', t.id); } catch {} }
+                                              if (updates.baseline_score) { try { await supabase.from('results_log').update({ record_value: String(updates.baseline_score) }).eq('baseline_id', t.id); } catch {} }
+                                              toast.success("בייסליין עודכן");
+                                              queryClient.invalidateQueries({ queryKey: ['baselines'] });
+                                              queryClient.invalidateQueries({ queryKey: ['my-results'] });
+                                              invalidateDashboard(queryClient);
+                                            } catch (err) { toast.error("שגיאה: " + (err?.message || '')); }
+                                          }}>
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                      )}
+                                      {isCoach && (
+                                        <Button variant="ghost" size="icon" className="w-7 h-7 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!window.confirm(`למחוק את ${techName} מתאריך ${dateLabel}?`)) return;
+                                            (async () => {
+                                              try {
+                                                try { await supabase.from('results_log').delete().eq('baseline_id', t.id); } catch {}
+                                                await base44.entities.Baseline.delete(t.id);
+                                                toast.success("בייסליין נמחק");
+                                                queryClient.invalidateQueries({ queryKey: ['baselines'] });
+                                                queryClient.invalidateQueries({ queryKey: ['my-results'] });
+                                                queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                                                invalidateDashboard(queryClient);
+                                              } catch (err) {
+                                                toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));
+                                              }
+                                            })();
+                                          }}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </div>
+
+                            {/* Per-technique rounds detail */}
+                            <div style={{ marginTop: 10, fontSize: 12, color: '#888', direction: 'rtl' }}>
+                              {techniques.map(t => {
+                                const techName = techLabels[t.technique] || t.technique || 'בסיס';
+                                const rd = Array.isArray(t.rounds_data) ? t.rounds_data : [];
+                                if (rd.length === 0) return null;
+                                return (
+                                  <div key={t.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                                    <span style={{ fontWeight: 500, color: techColors[t.technique] || '#FF6F20' }}>{techName}:</span>
+                                    {rd.map((r, i) => (
+                                      <span key={i}>סבב {r.round || i + 1}: {r.jumps ?? '—'}</span>
+                                    ))}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
-                          <button onClick={() => setShowBaselineDetail(b.id)} className="w-full text-right text-sm mt-2 active:opacity-70">
-                            <span className="text-gray-500 font-medium">סה"כ: </span><span className="text-gray-900">{b.total_jumps} קפיצות</span>
-                            <span className="text-gray-300 mx-2">|</span>
-                            <span className="text-gray-500 font-medium">ממוצע: </span><span className="text-gray-900">{b.average_jumps}</span>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </TabsContent>
 
               {/* Services Tab */}
