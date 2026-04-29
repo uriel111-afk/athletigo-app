@@ -11,6 +11,11 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log(
+      '[payment-webhook] received:',
+      req.method,
+      'content-type:', req.headers.get('content-type') || '(none)',
+    );
     const contentType = (req.headers.get('content-type') || '').toLowerCase();
     let payload: Record<string, any> = {};
     try {

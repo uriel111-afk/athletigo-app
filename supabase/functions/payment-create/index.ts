@@ -21,6 +21,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Boot-time diagnostics — env presence + endpoint. Helpful when
+    // a deploy lands without one of the secrets being copied over.
+    console.log('[payment-create] env:', MESHULAM_ENV, 'endpoint:', MESHULAM_ENDPOINT);
+    console.log(
+      '[payment-create] secrets ok:',
+      'MESHULAM_USER_ID', !!Deno.env.get('MESHULAM_USER_ID'),
+      'MESHULAM_API_KEY', !!Deno.env.get('MESHULAM_API_KEY'),
+    );
+
     const authHeader = req.headers.get('Authorization') || '';
     if (!authHeader) return json({ error: 'לא מורשה' }, 401);
 
@@ -42,6 +51,7 @@ Deno.serve(async (req) => {
     if (authError || !user) return json({ error: 'לא מורשה' }, 401);
 
     const body = await req.json().catch(() => ({}));
+    console.log('[payment-create] request body:', JSON.stringify(body));
     const amount = Number(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) return json({ error: 'סכום לא תקין' }, 400);
 
@@ -87,6 +97,15 @@ Deno.serve(async (req) => {
     form.append('cField2', user.id);
     form.append('cField3', paymentType);
 
+    // Echo the outbound payload so we can see exactly what hit Grow.
+    // apiKey is masked so the production Edge Function logs don't
+    // leak the secret if they're ever shared.
+    const debugPayload: Record<string, string> = {};
+    for (const [k, v] of form.entries()) {
+      debugPayload[k] = (k === 'apiKey') ? '***' : (typeof v === 'string' ? v : String(v));
+    }
+    console.log('[payment-create] sending to Grow:', JSON.stringify(debugPayload));
+
     let meshulamRes;
     try {
       meshulamRes = await fetch(MESHULAM_ENDPOINT, { method: 'POST', body: form });
@@ -96,6 +115,10 @@ Deno.serve(async (req) => {
     }
 
     const meshulamJson = await meshulamRes.json().catch(() => null);
+    console.log(
+      '[payment-create] Grow response status:', meshulamRes.status,
+      'body:', JSON.stringify(meshulamJson),
+    );
 
     if (!meshulamJson || Number(meshulamJson.status) !== 1 || !meshulamJson?.data?.url) {
       console.error('[payment-create] meshulam error:', meshulamJson);
