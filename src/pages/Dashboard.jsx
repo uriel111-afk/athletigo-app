@@ -22,6 +22,7 @@ import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { toast } from "sonner";
 import { notifySessionScheduled, notifyPlanCreated } from "@/functions/notificationTriggers";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
+import HeroSparkline from "@/components/charts/HeroSparkline";
 import PopupNotificationManager from "../components/PopupNotificationManager";
 import RecentPaymentsCard from "../components/RecentPaymentsCard";
 import AppSwitcher from "@/components/lifeos/AppSwitcher";
@@ -380,6 +381,21 @@ export default function Dashboard() {
 
           {/* App switcher — only renders for the Life OS coach. */}
           <AppSwitcher />
+
+          {/* Hero metrics row — single-point values from useDashboardStats.
+                No sparkline arrays available without a new historical query,
+                so we render value+label only (per spec: if data missing,
+                show HeroSparkline without sparkline). */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 8,
+            marginBottom: 12,
+          }}>
+            <HeroSparkline label="מתאמנים פעילים" value={stats?.activeClientsCount ?? 0} />
+            <HeroSparkline label="מפגשים החודש" value={stats?.monthlyCompletedSessionsCount ?? 0} />
+            <HeroSparkline label="הכנסה חודשית" value={stats?.monthlyRevenue ?? 0} unit="₪" />
+          </div>
 
           {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════
                 Container overflow:visible so the rotated 84×84
