@@ -426,24 +426,62 @@ export default function ProgressTab({ traineeId }) {
   // but we send isPR through anyway so cross-exercise records keep
   // the per-exercise PR markers when 'all' is selected and records
   // already carry the flag from the records flow.
-  const stepData = useMemo(() => {
-    const filterNorm = normalizeExerciseName(filterExercise);
-    const filtered = filterExercise === 'all'
-      ? records
-      : records.filter(r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm);
-    const sorted = [...filtered]
-      .filter(r => r?.date && Number.isFinite(Number(r.value)))
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    return sorted.map(r => {
+  // Props bundle for <StepMilestones>. Two shapes:
+  //   • 'all' filter      → { series: [{name,color,data:[{date,value}]}, ...] }
+  //                         one entry per exercise, palette stable per
+  //                         exerciseNames index.
+  //   • single-exercise   → { data: [...], goalTarget? }
+  //                         optional active-goal target draws as a
+  //                         dashed horizontal line. goalProjection is
+  //                         deliberately omitted — see the report.
+  const chartProps = useMemo(() => {
+    const toPoint = (r) => {
       const d = new Date(r.date);
       const dd = Number.isNaN(d.getTime()) ? '' : `${d.getDate()}.${d.getMonth() + 1}`;
-      return {
-        date: dd,
-        value: Number(r.value),
-        isPR: !!r.is_personal_best,
-      };
-    });
-  }, [records, filterExercise]);
+      return { date: dd, value: Number(r.value) };
+    };
+
+    if (filterExercise === 'all') {
+      // Bucket records by exercise_name, then turn each bucket into
+      // a series. Stable colour per exercise via exerciseNames index
+      // — same mapping used everywhere else on this surface.
+      const groups = new Map();
+      for (const r of records) {
+        if (!r?.date || !Number.isFinite(Number(r.value))) continue;
+        const key = (r.name || r.exercise_name || '').trim();
+        if (!key) continue;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(toPoint(r));
+      }
+      const series = [];
+      for (const [name, data] of groups.entries()) {
+        const idx = exerciseNames.indexOf(name);
+        const color = EXERCISE_COLORS[idx >= 0 ? idx % EXERCISE_COLORS.length : 0];
+        series.push({
+          name,
+          color,
+          data: data
+            .filter(p => p.date)
+            .sort((a, b) => a.date.localeCompare(b.date)),
+        });
+      }
+      return { series };
+    }
+
+    // Single-exercise mode.
+    const filterNorm = normalizeExerciseName(filterExercise);
+    const filtered = records
+      .filter(r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm)
+      .filter(r => r?.date && Number.isFinite(Number(r.value)))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const data = filtered.map(toPoint);
+
+    const activeGoal = findGoalForExercise(goalsData, filterExercise);
+    const targetVal = activeGoal ? parseFloat(activeGoal.target_value) : null;
+    const goalTarget = Number.isFinite(targetVal) && targetVal > 0 ? targetVal : null;
+
+    return { data, goalTarget };
+  }, [records, filterExercise, exerciseNames, goalsData]);
 
   // y-axis label — empty when 'all' (mixed units), otherwise the
   // unit string from the most recent record of the selected exercise.
@@ -652,7 +690,7 @@ export default function ProgressTab({ traineeId }) {
             // surfaces that may want them later, but no longer
             // overlaid on this chart.
             <ChartCard breakout padding="0">
-              <StepMilestones data={stepData} yLabel={stepYLabel} />
+              <StepMilestones {...chartProps} yLabel={stepYLabel} />
             </ChartCard>
           )}
 
