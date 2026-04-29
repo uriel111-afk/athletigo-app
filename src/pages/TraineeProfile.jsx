@@ -78,6 +78,7 @@ import ClientStatusPicker from "@/components/users/ClientStatusPicker";
 import { calculateAge, formatBirthWithAge } from "@/lib/dateHelpers";
 import ChartCard from "@/components/charts/ChartCard";
 import FilledArea from "@/components/charts/FilledArea";
+import GoalProgressRing from "@/components/charts/GoalProgressRing";
 import { CHART_COLORS } from "@/components/charts/CHART_TOKENS";
 import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
@@ -3886,6 +3887,54 @@ export default function TraineeProfile() {
                         : (exName ? colorFor(exName) : '#FF6F20');
                     const clickable = sectionStatus === 'achieved' && linkedRecs.length > 0;
                     const isActive = sectionStatus === 'active';
+
+                    // Active goals get the GoalProgressRing visual.
+                    // Achieved/cancelled keep the legacy card with the
+                    // milestone bar (and the achieved-card expand).
+                    if (isActive) {
+                      const dateLine = goal.target_date
+                        ? `יעד עד ${format(new Date(goal.target_date), 'dd/MM/yy', { locale: he })}`
+                        : null;
+                      const titleLine = [exName ? `🔗 ${exName}` : null, dateLine]
+                        .filter(Boolean)
+                        .join(' · ');
+                      return (
+                        <div key={goal.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <GoalProgressRing
+                            percent={pct}
+                            title={titleLine || null}
+                            description={goal.title || goal.goal_name}
+                            start={startVal}
+                            current={Number.isFinite(currVal) ? safeCurr : null}
+                            target={Number.isFinite(targetVal) ? safeTarget : null}
+                            unit={goal.target_unit || goal.unit || ''}
+                          />
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => { setEditingGoal(goal); setShowAddGoal(true); }}
+                              style={{
+                                flex: 1, padding: 10, borderRadius: 10,
+                                border: '1px solid #F0E4D0', background: 'white',
+                                fontSize: 14, cursor: 'pointer',
+                                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                              }}
+                            >ערוך</button>
+                            <button
+                              type="button"
+                              onClick={() => cancelGoal(goal)}
+                              style={{
+                                flex: 1, padding: 10, borderRadius: 10,
+                                border: '1px solid #FCA5A5', background: 'white',
+                                color: '#DC2626', fontSize: 14, cursor: 'pointer',
+                                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                              }}
+                            >בטל</button>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={goal.id}
