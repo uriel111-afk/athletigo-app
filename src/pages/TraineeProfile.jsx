@@ -1398,10 +1398,15 @@ export default function TraineeProfile() {
   // openBaselineDialog({ traineeId, traineeName }).
   const [showBaselineDetail, setShowBaselineDetail] = useState(null);
   // Session-level popup — { date, techniques: [...] }. Set by clicking
-  // a closed baseline card; cleared by the modal's X / backdrop click.
-  // Distinct from showBaselineDetail (which is the legacy single-row
-  // detail modal kept reachable from the per-row edit flow).
+  // "📋 צפייה בטופס המלא" inside an expanded card; cleared by the
+  // modal's X / backdrop click. Distinct from showBaselineDetail
+  // (which is the legacy single-row detail modal kept reachable from
+  // the per-row edit flow).
   const [viewBaseline, setViewBaseline] = useState(null);
+  // Inline expansion of a baseline card — null or the dateKey of the
+  // currently-open card. Only one card is expanded at a time so the
+  // tab stays compact on mobile.
+  const [expandedBaseline, setExpandedBaseline] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -3833,9 +3838,10 @@ export default function TraineeProfile() {
                 {baselines.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg"><Zap className="w-10 h-10 mx-auto mb-3 text-gray-300" /><p className="text-gray-500">אין מדידות בייסליין עדיין</p></div>
                 ) : (() => {
-                  // Closed cards: minimal — date header + a row per
-                  // technique (name + JPS). Tap anywhere on the card
-                  // to open the session popup with the full breakdown.
+                  // 3-level baseline cards:
+                  //   L1 (closed): date + technique count + best JPS + ▼
+                  //   L2 (expanded): per-technique stat tile + "צפייה בטופס המלא" CTA
+                  //   L3 (popup): viewBaseline modal — full form-style detail
                   const techLabels = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
                   const groups = {};
                   for (const b of baselines) {
@@ -3848,33 +3854,105 @@ export default function TraineeProfile() {
                       {sortedDates.map(dateKey => {
                         const techniques = groups[dateKey];
                         const dateLabel = new Date(dateKey).toLocaleDateString('he-IL');
+                        const isExpanded = expandedBaseline === dateKey;
+                        const bestJPS = Math.max(...techniques.map(t =>
+                          Number(t.baseline_score ?? t.jps ?? t.score ?? 0)
+                        ));
                         return (
-                          <div
-                            key={dateKey}
-                            onClick={() => setViewBaseline({ date: dateKey, techniques })}
-                            style={{
-                              background: 'white', borderRadius: 14,
-                              border: '1px solid #F0E4D0',
-                              padding: 14, cursor: 'pointer', direction: 'rtl',
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <div style={{ fontSize: 15, fontWeight: 600 }}>📋 בייסליין</div>
-                              <div style={{ fontSize: 13, color: '#888' }}>{dateLabel}</div>
-                            </div>
-                            {techniques.map(t => {
-                              const techName = techLabels[t.technique] || t.technique || 'בסיס';
-                              const jps = Number(t.baseline_score ?? t.jps ?? t.score ?? 0).toFixed(2);
-                              return (
-                                <div key={t.id} style={{
-                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                  padding: '4px 0', borderTop: '1px solid #F0E4D0', fontSize: 13,
-                                }}>
-                                  <span style={{ color: '#555' }}>{techName}</span>
-                                  <span style={{ fontWeight: 700, color: '#FF6F20' }}>{jps} JPS</span>
+                          <div key={dateKey} style={{
+                            background: 'white', borderRadius: 14,
+                            border: '1px solid #F0E4D0',
+                            overflow: 'hidden', direction: 'rtl',
+                          }}>
+                            {/* L1 — closed header (always visible, click toggles L2) */}
+                            <div
+                              onClick={() => setExpandedBaseline(isExpanded ? null : dateKey)}
+                              style={{
+                                padding: 14, cursor: 'pointer',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontSize: 15, fontWeight: 600 }}>📋 בייסליין</div>
+                                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                                  {dateLabel} · {techniques.length} {techniques.length === 1 ? 'טכניקה' : 'טכניקות'}
                                 </div>
-                              );
-                            })}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ textAlign: 'left' }}>
+                                  <div style={{ fontSize: 20, fontWeight: 700, color: '#FF6F20' }}>{bestJPS.toFixed(2)}</div>
+                                  <div style={{ fontSize: 10, color: '#888' }}>JPS שיא</div>
+                                </div>
+                                <span style={{
+                                  fontSize: 14, color: '#888',
+                                  display: 'inline-block',
+                                  transition: 'transform 0.2s',
+                                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                }}>▼</span>
+                              </div>
+                            </div>
+
+                            {/* L2 — expanded body */}
+                            {isExpanded && (
+                              <div style={{
+                                padding: '0 14px 14px',
+                                borderTop: '1px solid #F0E4D0',
+                              }}>
+                                {techniques.map(t => {
+                                  const techName = techLabels[t.technique] || t.technique || 'בסיס';
+                                  const total = t.total_jumps ?? 0;
+                                  const avg = t.average_jumps ?? (total && t.rounds_count ? (total / t.rounds_count).toFixed(1) : '—');
+                                  const best = t.best_round ?? '—';
+                                  const jps = Number(t.baseline_score ?? t.jps ?? t.score ?? 0).toFixed(2);
+                                  return (
+                                    <div key={t.id} style={{
+                                      background: '#FDF8F3', borderRadius: 12, padding: 12,
+                                      marginTop: 10, border: '1px solid #F0E4D0',
+                                    }}>
+                                      <div style={{ fontSize: 14, fontWeight: 600, color: '#FF6F20', marginBottom: 8 }}>
+                                        {techName}
+                                      </div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                        <div style={{ textAlign: 'center' }}>
+                                          <div style={{ fontSize: 11, color: '#888' }}>סה״כ</div>
+                                          <div style={{ fontWeight: 600 }}>{total}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                          <div style={{ fontSize: 11, color: '#888' }}>ממוצע</div>
+                                          <div style={{ fontWeight: 600 }}>{avg}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                          <div style={{ fontSize: 11, color: '#888' }}>שיא</div>
+                                          <div style={{ fontWeight: 600, color: '#D85A30' }}>{best}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                          <div style={{ fontSize: 11, color: '#888' }}>JPS</div>
+                                          <div style={{ fontWeight: 700, color: '#FF6F20' }}>{jps}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* L3 trigger — opens the full-form popup */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewBaseline({ date: dateKey, techniques });
+                                  }}
+                                  style={{
+                                    width: '100%', padding: 12, borderRadius: 12,
+                                    border: 'none', background: '#FF6F20',
+                                    color: 'white', fontSize: 14, fontWeight: 600,
+                                    cursor: 'pointer', marginTop: 12,
+                                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                                  }}
+                                >
+                                  📋 צפייה בטופס המלא
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
