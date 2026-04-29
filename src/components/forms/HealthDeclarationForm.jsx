@@ -17,6 +17,15 @@ import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 // whether it's a hosted file or inline base64. Sidesteps "bucket not found"
 // failures and missing-RLS issues entirely.
 
+// Two question variants drive defaults + colour palette:
+//   'risk'    — health concerns (the first 7). Default 'yes' (red)
+//               on purpose so the trainee can't blow through the
+//               form by mashing through accept-all defaults — they
+//               must consciously flip every concern they DON'T have.
+//               "yes" stays red, "no" turns green.
+//   'consent' — the trailing affirmation (feels_healthy). Default
+//               'no' (red); the trainee unlocks submit by tapping
+//               "כן" which paints in brand orange.
 const QUESTIONS = [
   { key: 'heart_disease',       label: 'האם אובחנת אי פעם עם מחלת לב?' },
   { key: 'blood_pressure',      label: 'האם יש לך בעיות לחץ דם?' },
@@ -25,12 +34,7 @@ const QUESTIONS = [
   { key: 'medications',         label: 'האם אתה נוטל תרופות באופן קבוע?' },
   { key: 'medical_limitations', label: 'האם יש לך מגבלה רפואית כלשהי שהמאמן צריך לדעת עליה?' },
   { key: 'recent_surgery',      label: 'האם עברת ניתוח ב-12 החודשים האחרונים?' },
-  // feels_healthy is the only inverted question — defaults to false
-  // (red "לא") and the trainee must explicitly tap "כן" (orange) to
-  // unlock the submit button. Other questions paint the same way:
-  // "yes" red = concern, "no" green = reassurance. Inverted swaps
-  // those roles so a positive affirmation matches the brand orange.
-  { key: 'feels_healthy',       label: 'האם אתה מרגיש בריא ומסוגל לבצע פעילות גופנית?', inverted: true },
+  { key: 'feels_healthy',       label: 'האם אתה מרגיש בריא ומסוגל לבצע פעילות גופנית?', variant: 'consent' },
 ];
 
 export default function HealthDeclarationForm({
@@ -44,13 +48,13 @@ export default function HealthDeclarationForm({
                              // through a separate path (e.g. payment).
   onSigned,          // optional — fires after a successful save
 }) {
-  // Initial answer map — every question defaults to false. The
-  // inverted feels_healthy used to default true, but we now require
-  // the trainee to explicitly tap "כן" so the form can't be sent
-  // with a stale "I'm fine" they never confirmed. The submit gate
-  // below enforces it.
+  // Default per variant:
+  //   risk   → true  (assumed concern; trainee taps "לא" to clear)
+  //   consent→ false (signature required; trainee taps "כן" to sign)
+  // The submit gate further down still requires feels_healthy === true,
+  // so a coach can't ship a row with the consent missing.
   const initialAnswers = () => Object.fromEntries(
-    QUESTIONS.map((q) => [q.key, false])
+    QUESTIONS.map((q) => [q.key, q.variant === 'consent' ? false : true])
   );
 
   const [answers, setAnswers] = useState(initialAnswers());
@@ -421,19 +425,22 @@ export default function HealthDeclarationForm({
                     the answer is still "no". */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {QUESTIONS.map((q) => {
+                const isConsent = q.variant === 'consent';
                 const value = answers[q.key];
                 const setValue = (next) => setAnswers((prev) => ({ ...prev, [q.key]: next }));
 
-                // Per-mode colour pair. inverted questions swap the
-                // affirmative + concerning roles; the unselected
-                // state stays the same neutral grey for both.
-                const noActive  = q.inverted
-                  ? { border: '2px solid #DC2626', bg: '#DC2626', fg: '#FFFFFF' }
-                  : { border: '2px solid #16a34a', bg: '#16a34a', fg: '#FFFFFF' };
-                const yesActive = q.inverted
-                  ? { border: '2px solid #FF6F20', bg: '#FF6F20', fg: '#FFFFFF' }
-                  : { border: '2px solid #DC2626', bg: '#DC2626', fg: '#FFFFFF' };
-                const inactive  = { border: '2px solid #E5E7EB', bg: '#FFFFFF', fg: '#6B7280' };
+                // Per-variant colour pair (light bg + dark text +
+                // 1.5px border for the active state; neutral 1px
+                // grey for the unselected one).
+                //   risk    — yes red, no green
+                //   consent — yes orange, no red
+                const noActive  = isConsent
+                  ? { border: '1.5px solid #DC2626', bg: '#FEE2E2', fg: '#DC2626' }
+                  : { border: '1.5px solid #16A34A', bg: '#D1FAE5', fg: '#16A34A' };
+                const yesActive = isConsent
+                  ? { border: '1.5px solid #FF6F20', bg: '#FFEDD5', fg: '#FF6F20' }
+                  : { border: '1.5px solid #DC2626', bg: '#FEE2E2', fg: '#DC2626' };
+                const inactive  = { border: '1px solid #E5E7EB',   bg: '#FFFFFF', fg: '#888888' };
 
                 const noStyle  = value === false ? noActive  : inactive;
                 const yesStyle = value === true  ? yesActive : inactive;
@@ -474,9 +481,9 @@ export default function HealthDeclarationForm({
                       </div>
                     </div>
 
-                    {/* Required-yes warning under feels_healthy when
-                        the trainee is still on the default 'no'. */}
-                    {q.inverted && value === false && (
+                    {/* Required-yes warning under the consent
+                        question while it's still on the default 'no'. */}
+                    {isConsent && value === false && (
                       <div style={{
                         marginTop: 6,
                         padding: '8px 12px',
