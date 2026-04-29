@@ -427,6 +427,26 @@ export default function Sessions() {
       }
     });
 
+    // Best-effort trainee notification so changes surface on the
+    // trainee's notification feed without polling. Failure here
+    // doesn't undo the status change above.
+    if (session.trainee_id) {
+      try {
+        const dateLabel = session.date
+          ? new Date(session.date).toLocaleDateString('he-IL')
+          : '';
+        await supabase.from('notifications').insert({
+          user_id: session.trainee_id,
+          type: 'session_status_changed',
+          title: '📅 סטטוס המפגש שונה',
+          message: `הסטטוס של המפגש ב-${dateLabel} שונה ל-${newStatus}`,
+          is_read: false,
+        });
+      } catch (e) {
+        console.warn('[Sessions] status-change trainee notif failed:', e?.message);
+      }
+    }
+
     // 2. Handle Automatic Logic (Deduction / Restoration)
     // If new status implies the session HAPPENED (Attended)
     if (newStatus === 'התקיים') {
@@ -751,6 +771,13 @@ export default function Sessions() {
     acc[id] = { id, full_name: name };
     return acc;
   }, {});
+
+  // Note: handleSessionStatusChange is defined further below (around
+  // line 421). It already routes through updateSessionMutation, fires
+  // attendance logging + service deduction/restoration, and toasts
+  // success — the new SessionCard's onStatusChange wires straight to
+  // it. We keep that single source of truth instead of adding a
+  // parallel UPDATE path here.
 
   // Click on the redesigned card's CTA → deep-link into the trainee's
   // profile, attendance tab, with sessionId so TraineeProfile auto-
@@ -1563,6 +1590,7 @@ export default function Sessions() {
                           session={s}
                           trainee={traineeMap[s.trainee_id]}
                           onClick={openSessionInTraineeProfile}
+                          onStatusChange={handleSessionStatusChange}
                         />
                       ))}
                     </div>
@@ -1594,6 +1622,7 @@ export default function Sessions() {
                         session={s}
                         trainee={traineeMap[s.trainee_id]}
                         onClick={openSessionInTraineeProfile}
+                        onStatusChange={handleSessionStatusChange}
                       />
                     ))}
                   </div>

@@ -13,6 +13,8 @@ import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
+import { supabase } from "@/lib/supabaseClient";
+import SessionStatusPicker from "@/components/sessions/SessionStatusPicker";
 import { DraftBanner } from "@/components/DraftBanner";
 import DraftPrompt from "@/components/DraftPrompt";
 
@@ -307,6 +309,54 @@ export default function SessionFormDialog({
           </DialogHeader>
 
           <div className="space-y-5">
+          {/* Status pills — when editing an existing row, switching the
+              chip writes to the DB immediately AND mirrors into the
+              local form state so a later "save" of other fields
+              persists the new status too. For new sessions there's no
+              row yet → only the local form state is touched and the
+              create flow picks up the chosen status on submit. */}
+          {editingSession?.id && (
+            <div>
+              <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
+                סטטוס המפגש
+              </Label>
+              <SessionStatusPicker
+                variant="pills"
+                value={sessionForm.status}
+                onChange={async (newStatus) => {
+                  setSessionForm(prev => ({ ...prev, status: newStatus }));
+                  try {
+                    const { error } = await supabase
+                      .from('sessions')
+                      .update({ status: newStatus, updated_at: new Date().toISOString() })
+                      .eq('id', editingSession.id);
+                    if (error) throw error;
+                    if (editingSession.trainee_id) {
+                      try {
+                        const dateLabel = editingSession.date
+                          ? new Date(editingSession.date).toLocaleDateString('he-IL')
+                          : '';
+                        await supabase.from('notifications').insert({
+                          user_id: editingSession.trainee_id,
+                          type: 'session_status_changed',
+                          title: '📅 סטטוס המפגש שונה',
+                          message: `הסטטוס של המפגש ב-${dateLabel} שונה ל-${newStatus}`,
+                          is_read: false,
+                        });
+                      } catch (e) {
+                        console.warn('[SessionForm] status-change notif failed:', e?.message);
+                      }
+                    }
+                    toast.success(`הסטטוס עודכן ל-${newStatus}`);
+                  } catch (e) {
+                    console.warn('[SessionForm] status update failed:', e?.message);
+                    toast.error('שגיאה בעדכון הסטטוס');
+                  }
+                }}
+              />
+            </div>
+          )}
+
           {/* Date Selection — Calendar picker */}
           <div>
             <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>

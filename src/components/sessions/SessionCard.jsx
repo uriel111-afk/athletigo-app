@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { STATUS_BADGES } from '@/lib/sessionGrouping';
+import SessionStatusPicker from './SessionStatusPicker';
 
 const fmtDate = (iso) => {
   if (!iso) return '';
@@ -19,6 +20,7 @@ export default function SessionCard({
   session,
   trainee,
   onClick,
+  onStatusChange,
   defaultOpen = false,
   selectable = false,
   selected = false,
@@ -102,7 +104,18 @@ export default function SessionCard({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {badge && (
+          {/* Editable status picker — replaces the old static badge.
+              stopPropagation inside the picker so opening its dropdown
+              doesn't toggle the card's expand state. Falls back to a
+              read-only badge when no onStatusChange handler is given. */}
+          {onStatusChange ? (
+            <SessionStatusPicker
+              variant="badge"
+              size="sm"
+              value={status}
+              onChange={(s) => onStatusChange(session, s)}
+            />
+          ) : badge ? (
             <span style={{
               padding: '4px 10px',
               borderRadius: 999,
@@ -111,7 +124,7 @@ export default function SessionCard({
               fontSize: 12, fontWeight: 600,
               whiteSpace: 'nowrap',
             }}>{badge.label}</span>
-          )}
+          ) : null}
           {!selectable && (
             <span aria-hidden style={{
               fontSize: 13, color: '#888',
@@ -132,6 +145,18 @@ export default function SessionCard({
             borderTop: '1px solid #F0E4D0',
           }}
         >
+          {/* Status pills row — full row, click any chip to switch */}
+          {onStatusChange && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>סטטוס המפגש</div>
+              <SessionStatusPicker
+                variant="pills"
+                value={status}
+                onChange={(s) => onStatusChange(session, s)}
+              />
+            </div>
+          )}
+
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
             fontSize: 13, color: '#1A1A1A',
