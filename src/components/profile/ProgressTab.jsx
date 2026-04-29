@@ -36,6 +36,9 @@ export default function ProgressTab({ traineeId }) {
   const [openRecordFolder, setOpenRecordFolder] = useState(null);
   const [filterExercise, setFilterExercise] = useState('all');
   const [showNewRecord, setShowNewRecord] = useState(false);
+  // Coach-only inline edit — set to a personal_records row to open
+  // NewRecordDialog in edit mode (UPDATE instead of INSERT).
+  const [editingRecord, setEditingRecord] = useState(null);
 
   // ── Data ───────────────────────────────────────────────────────
   const { data: records = [] } = useQuery({
@@ -494,6 +497,16 @@ export default function ProgressTab({ traineeId }) {
                       </span>
                       {isCoach && (
                         <button
+                          onClick={(e) => { e.stopPropagation(); setEditingRecord(r); }}
+                          style={{
+                            background: 'none', border: 'none', color: O,
+                            fontSize: 13, cursor: 'pointer', padding: 0,
+                          }}
+                          aria-label="ערוך שיא"
+                        >✏️</button>
+                      )}
+                      {isCoach && (
+                        <button
                           onClick={(e) => { e.stopPropagation(); deleteRecord(r.id); }}
                           style={{
                             background: 'none', border: 'none', color: '#C62828',
@@ -521,6 +534,22 @@ export default function ProgressTab({ traineeId }) {
         onSuccess={() =>
           queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] })
         }
+      />
+
+      {/* Coach edit-record dialog — same NewRecordDialog component
+          but with editData prefilled, switching it to UPDATE mode. */}
+      <NewRecordDialog
+        isOpen={!!editingRecord}
+        onClose={() => setEditingRecord(null)}
+        traineeId={traineeId}
+        coachId={isCoach ? currentUser?.id : null}
+        currentUserId={currentUser?.id}
+        isCoach={isCoach}
+        editData={editingRecord}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['personal-records', traineeId] });
+          setEditingRecord(null);
+        }}
       />
     </div>
   );

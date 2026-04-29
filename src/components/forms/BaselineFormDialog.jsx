@@ -187,6 +187,16 @@ export default function BaselineFormDialog({
 
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Coach-only flip from viewOnly → edit. The form prefills the same
+  // way (existingRows path runs whenever editMode || viewOnly is true);
+  // when the coach toggles editingFromView on, the inputs un-disable
+  // and the save button reappears, routing through the same delete-
+  // and-reinsert flow that editMode uses. Resets on every reopen so a
+  // fresh view never lands in edit mode.
+  const [editingFromView, setEditingFromView] = useState(false);
+  useEffect(() => { if (!isOpen) setEditingFromView(false); }, [isOpen]);
+  const effectiveViewOnly = viewOnly && !editingFromView;
+  const effectiveEditMode = editMode || (viewOnly && editingFromView);
   const [deleting, setDeleting] = useState(false);
   // Drag offset for the dialog (relative to its centered position).
   // Initial offset is staggered by stackIndex so multiple parallel
@@ -320,7 +330,7 @@ export default function BaselineFormDialog({
       const timeStr = (baselineTime && /^\d{2}:\d{2}$/.test(baselineTime))
         ? baselineTime
         : new Date().toTimeString().slice(0, 5);
-      const sharedCreatedAt = (editMode && existingRows?.[0]?.created_at)
+      const sharedCreatedAt = (effectiveEditMode && existingRows?.[0]?.created_at)
         ? existingRows[0].created_at
         : new Date().toISOString();
 
@@ -370,7 +380,7 @@ export default function BaselineFormDialog({
         perTechCalc[techId] = { totalJumps, avg, score, bestRound, roundsCount: filled.length };
       }
 
-      if (editMode && existingRows && existingRows.length > 0) {
+      if (effectiveEditMode && existingRows && existingRows.length > 0) {
         const idsToDelete = existingRows.map(r => r.id);
         await supabase.from('results_log').delete().in('baseline_id', idsToDelete);
         const { error: delErr } = await supabase.from('baselines').delete().in('id', idsToDelete);
@@ -472,7 +482,7 @@ export default function BaselineFormDialog({
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
 
-      toast.success(editMode ? 'הבייסליין עודכן' : `בייסליין נשמר — ${rowsToInsert.length} טכניקות`);
+      toast.success(effectiveEditMode ? 'הבייסליין עודכן' : `בייסליין נשמר — ${rowsToInsert.length} טכניקות`);
       clearDraft();
       onClose();
     } catch (error) {
@@ -609,7 +619,7 @@ export default function BaselineFormDialog({
               type="date"
               value={baselineDate}
               onChange={(v) => setBaselineDate(v)}
-              disabled={viewOnly}
+              disabled={effectiveViewOnly}
               max={new Date().toISOString().split('T')[0]}
             />
             <DateTimeCard
@@ -618,7 +628,7 @@ export default function BaselineFormDialog({
               type="time"
               value={baselineTime}
               onChange={(v) => setBaselineTime(v)}
-              disabled={viewOnly}
+              disabled={effectiveViewOnly}
             />
           </div>
 
@@ -632,13 +642,13 @@ export default function BaselineFormDialog({
               <select
                 value={workTime}
                 onChange={(e) => setWorkTime(Number(e.target.value))}
-                disabled={viewOnly}
+                disabled={effectiveViewOnly}
                 style={{
                   width: '100%', padding: '8px', borderRadius: 12,
                   border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
                   textAlign: 'center', textAlignLast: 'center',
                   direction: 'rtl', background: 'white', appearance: 'auto',
-                  cursor: viewOnly ? 'default' : 'pointer',
+                  cursor: effectiveViewOnly ? 'default' : 'pointer',
                 }}
               >
                 {Array.from({ length: 90 }, (_, i) => i + 1).map((s) => (
@@ -654,13 +664,13 @@ export default function BaselineFormDialog({
               <select
                 value={restTime}
                 onChange={(e) => setRestTime(Number(e.target.value))}
-                disabled={viewOnly}
+                disabled={effectiveViewOnly}
                 style={{
                   width: '100%', padding: '8px', borderRadius: 12,
                   border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
                   textAlign: 'center', textAlignLast: 'center',
                   direction: 'rtl', background: 'white', appearance: 'auto',
-                  cursor: viewOnly ? 'default' : 'pointer',
+                  cursor: effectiveViewOnly ? 'default' : 'pointer',
                 }}
               >
                 {Array.from({ length: 90 }, (_, i) => i + 1).map((s) => (
@@ -676,13 +686,13 @@ export default function BaselineFormDialog({
               <select
                 value={techRestTime}
                 onChange={(e) => setTechRestTime(Number(e.target.value))}
-                disabled={viewOnly}
+                disabled={effectiveViewOnly}
                 style={{
                   width: '100%', padding: '8px', borderRadius: 12,
                   border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
                   textAlign: 'center', textAlignLast: 'center',
                   direction: 'rtl', background: 'white', appearance: 'auto',
-                  cursor: viewOnly ? 'default' : 'pointer',
+                  cursor: effectiveViewOnly ? 'default' : 'pointer',
                 }}
               >
                 {Array.from({ length: 90 }, (_, i) => i + 1).map((s) => (
@@ -762,9 +772,9 @@ export default function BaselineFormDialog({
                     inputMode="numeric"
                     min={0}
                     value={r.jumps}
-                    onChange={viewOnly ? undefined : (e) => setRoundField(i, 'jumps', e.target.value)}
-                    readOnly={viewOnly}
-                    disabled={viewOnly}
+                    onChange={effectiveViewOnly ? undefined : (e) => setRoundField(i, 'jumps', e.target.value)}
+                    readOnly={effectiveViewOnly}
+                    disabled={effectiveViewOnly}
                     placeholder="קפיצות"
                     style={{
                       width: '100%',
@@ -785,9 +795,9 @@ export default function BaselineFormDialog({
                     inputMode="numeric"
                     min={0}
                     value={r.misses}
-                    onChange={viewOnly ? undefined : (e) => setRoundField(i, 'misses', e.target.value)}
-                    readOnly={viewOnly}
-                    disabled={viewOnly}
+                    onChange={effectiveViewOnly ? undefined : (e) => setRoundField(i, 'misses', e.target.value)}
+                    readOnly={effectiveViewOnly}
+                    disabled={effectiveViewOnly}
                     placeholder="פספוסים"
                     style={{
                       width: '100%',
@@ -823,8 +833,10 @@ export default function BaselineFormDialog({
             <ScoreCell value={calc.score} />
           </div>
 
-          {/* Buttons row */}
-          {viewOnly ? (
+          {/* Buttons row — when viewing as coach, show ✏️ toggle so the
+              coach can flip into edit mode without leaving the dialog;
+              when in flipped-edit mode, show save + cancel-back-to-view. */}
+          {effectiveViewOnly ? (
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={onClose}
@@ -832,6 +844,21 @@ export default function BaselineFormDialog({
               >
                 סגור
               </button>
+              {isCoach && viewOnly && (
+                <button
+                  type="button"
+                  onClick={() => setEditingFromView(true)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: '#FFF5EE', color: COLORS.primary,
+                    border: `1px solid ${COLORS.primary}`,
+                    fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  }}
+                >
+                  ✏️ עריכה
+                </button>
+              )}
               {isCoach && (
                 <button
                   type="button"
@@ -866,10 +893,14 @@ export default function BaselineFormDialog({
                   ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                       <Loader2 size={16} className="animate-spin" /> שומר...
                     </span>
-                  : 'שמור תוצאות'}
+                  : (effectiveEditMode ? '💾 שמור שינויים' : 'שמור תוצאות')}
               </button>
-              <button onClick={onClose} disabled={saving} style={btnGhost}>
-                ביטול
+              <button
+                onClick={() => editingFromView ? setEditingFromView(false) : onClose()}
+                disabled={saving}
+                style={btnGhost}
+              >
+                {editingFromView ? '👁 חזרה לצפייה' : 'ביטול'}
               </button>
             </div>
           )}

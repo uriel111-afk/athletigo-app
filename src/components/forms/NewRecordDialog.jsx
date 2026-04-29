@@ -30,8 +30,11 @@ export default function NewRecordDialog({
   trainees,         // [{ id, full_name }] — only consumed when traineeId is null
   currentUserId,    // user.id of whoever is invoking the form
   isCoach,          // role marker — drives created_by_role + coach_id columns
-  onSuccess,        // () => void — called after successful insert
+  onSuccess,        // () => void — called after successful save
+  editData,         // existing personal_records row — when set, the form
+                    // prefills from it and saves as UPDATE instead of INSERT
 }) {
+  const isEdit = !!editData?.id;
   const today = new Date().toISOString().split('T')[0];
   const initialForm = {
     pickedTraineeId: '',
@@ -52,10 +55,33 @@ export default function NewRecordDialog({
   const setField = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   // Reset on every open so a stale form doesn't bleed across sessions.
+  // When editData is provided, prefill from the existing row instead.
   useEffect(() => {
-    if (isOpen) setForm(initialForm);
+    if (!isOpen) return;
+    if (isEdit) {
+      const exerciseName = editData.name || editData.exercise_name || '';
+      // Match against DEFAULT_EXERCISES — anything not on the canonical
+      // list is treated as a custom name so the user can still rename.
+      const isKnown = DEFAULT_EXERCISES.some(e => e.name === exerciseName);
+      setForm({
+        pickedTraineeId: editData.trainee_id || '',
+        exercise: isKnown ? exerciseName : '__custom__',
+        customName: isKnown ? '' : exerciseName,
+        type: editData.record_type || 'max_reps',
+        value: editData.value != null ? String(editData.value) : '',
+        unit: editData.unit || 'reps',
+        date: editData.date || today,
+        techniqueName: editData.technique_name || '',
+        rpe: editData.rpe ?? 7,
+        quality: editData.quality_rating ?? 7,
+        notes: editData.notes || '',
+        videoUrl: editData.video_url || '',
+      });
+    } else {
+      setForm(initialForm);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, isEdit, editData?.id]);
 
   if (!isOpen) return null;
 
@@ -77,6 +103,45 @@ export default function NewRecordDialog({
     const numericValue = Number(form.value);
     const exerciseName = resolvedExerciseName;
     const exerciseInfo = exerciseInfoFor(exerciseName);
+
+    // EDIT mode — UPDATE the existing row in place. We don't recompute
+    // is_personal_best / improvement here on purpose: those derive from
+    // the row's relative position in the timeline, and recomputing them
+    // for a single edited row would corrupt the rest of the history.
+    // The coach can clear is_personal_best by editing a different row
+    // that displaces it. Notes / value / date / RPE / unit / video are
+    // the typical fix-up fields and they all flow through.
+    if (isEdit) {
+      const updates = {
+        record_type: form.type || 'max_reps',
+        name: exerciseName,
+        unit: form.unit || 'reps',
+        value: numericValue,
+        date: form.date || today,
+        notes: form.notes?.trim() || null,
+        exercise_category: exerciseInfo?.category || editData.exercise_category || 'general',
+        video_url: form.videoUrl?.trim() || null,
+        rpe: form.rpe ? Number(form.rpe) : null,
+        quality_rating: form.quality ? Number(form.quality) : null,
+        technique_acquired: form.type === 'technique',
+        technique_name: form.type === 'technique' ? (form.techniqueName?.trim() || null) : null,
+      };
+      const { error: updateErr } = await supabase
+        .from('personal_records')
+        .update(updates)
+        .eq('id', editData.id);
+      if (updateErr) {
+        console.error('[Records] update error:', updateErr);
+        toast.error('שגיאה בעדכון: ' + updateErr.message);
+        setSaving(false);
+        return;
+      }
+      toast.success('✓ שיא עודכן');
+      setSaving(false);
+      onSuccess?.();
+      onClose?.();
+      return;
+    }
 
     // Pull existing records for this exercise to compute previous_value,
     // improvement, and is_personal_best.
@@ -191,7 +256,7 @@ export default function NewRecordDialog({
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', marginBottom: 16,
         }}>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>🏆 שיא חדש</div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>{isEdit ? '✏️ עריכת שיא' : '🏆 שיא חדש'}</div>
           <button
             onClick={onClose}
             aria-label="סגור"
@@ -428,7 +493,7 @@ export default function NewRecordDialog({
             cursor: canSave ? 'pointer' : 'default',
           }}
         >
-          {saving ? '💾 שומר…' : '💾 שמור שיא'}
+          {saving ? '💾 שומר…' : (isEdit ? '💾 שמור שינויים' : '💾 שמור שיא')}
         </button>
       </div>
     </div>
