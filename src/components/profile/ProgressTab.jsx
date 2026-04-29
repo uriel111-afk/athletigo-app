@@ -15,6 +15,8 @@ import { GOAL_STATUS } from '@/lib/goalsApi';
 import GoalAchievedPopup from '@/components/trainee/GoalAchievedPopup';
 import RecordsByDay from '@/components/profile/RecordsByDay';
 import { useWindowSize } from '@/hooks/useWindowSize';
+import ChartCard from '@/components/charts/ChartCard';
+import StepMilestones from '@/components/charts/StepMilestones';
 
 const O = '#FF6F20';
 const CARD_BG = '#FFFFFF';
@@ -417,6 +419,43 @@ export default function ProgressTab({ traineeId }) {
     personalBests: records.filter(r => r.is_personal_best).length,
   };
 
+  // StepMilestones data — derived from the same records list the
+  // master chart used. Filter by chip selection, sort chronologically,
+  // and reduce to { date: 'DD.M', value, isPR }. PR detection is
+  // delegated to StepMilestones (it computes runningMax internally),
+  // but we send isPR through anyway so cross-exercise records keep
+  // the per-exercise PR markers when 'all' is selected and records
+  // already carry the flag from the records flow.
+  const stepData = useMemo(() => {
+    const filterNorm = normalizeExerciseName(filterExercise);
+    const filtered = filterExercise === 'all'
+      ? records
+      : records.filter(r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm);
+    const sorted = [...filtered]
+      .filter(r => r?.date && Number.isFinite(Number(r.value)))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    return sorted.map(r => {
+      const d = new Date(r.date);
+      const dd = Number.isNaN(d.getTime()) ? '' : `${d.getDate()}.${d.getMonth() + 1}`;
+      return {
+        date: dd,
+        value: Number(r.value),
+        isPR: !!r.is_personal_best,
+      };
+    });
+  }, [records, filterExercise]);
+
+  // y-axis label — empty when 'all' (mixed units), otherwise the
+  // unit string from the most recent record of the selected exercise.
+  const stepYLabel = useMemo(() => {
+    if (filterExercise === 'all') return '';
+    const filterNorm = normalizeExerciseName(filterExercise);
+    const rec = [...records]
+      .filter(r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+    return rec?.unit ? unitLabel(rec.unit) : '';
+  }, [records, filterExercise]);
+
   const deleteRecord = async (id) => {
     if (!id) return;
     if (!window.confirm('למחוק שיא זה?')) return;
@@ -603,199 +642,18 @@ export default function ProgressTab({ traineeId }) {
               הגרף ממוזער
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={chartHeight}>
-              <LineChart
-                data={masterChartData}
-                // Tighter margins on mobile so the plot area uses
-                // the actual viewport instead of leaving 20px×4
-                // unused gutters around it.
-                margin={isMobile
-                  ? { top: 20, right: 8, left: 8, bottom: 40 }
-                  : { top: 20, right: 20, left: 20, bottom: 50 }}
-              >
-                <CartesianGrid
-                  vertical={false}
-                  strokeDasharray="3 3"
-                  stroke={BORDER}
-                />
-                {/* reversed flips the time axis to RTL flow (latest on
-                    the left, earliest on the right) so it matches the
-                    Hebrew reading direction. */}
-                <XAxis
-                  dataKey="date"
-                  reversed
-                  tick={{ fontSize: isMobile ? 10 : 11, fill: '#888' }}
-                  tickFormatter={shortDateLabel}
-                  tickMargin={isMobile ? 4 : 8}
-                  minTickGap={20}
-                  interval={Math.max(0, Math.ceil(masterChartData.length / 6) - 1)}
-                  height={40}
-                />
-                {/* orientation="right" parks the value axis on the
-                    right side of the chart — the side a Hebrew reader
-                    expects to see numbers. */}
-                <YAxis
-                  orientation="right"
-                  domain={[0, 'dataMax + 1']}
-                  tick={{ fontSize: isMobile ? 10 : 11, fill: '#888' }}
-                  width={isMobile ? 32 : 36}
-                />
-                <Tooltip
-                  cursor={{ stroke: '#FF6F20', strokeWidth: 1, strokeDasharray: '3 3' }}
-                  wrapperStyle={{ maxWidth: 180 }}
-                  contentStyle={{
-                    background: '#FFFEFC',
-                    border: '1px solid #F5E8D5',
-                    borderRadius: 10,
-                    padding: '8px 12px',
-                    direction: 'rtl',
-                    fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
-                    fontSize: isMobile ? 11 : 13,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  }}
-                  labelStyle={{ color: '#888', marginBottom: 4 }}
-                  itemStyle={{ color: '#1A1A1A' }}
-                />
-                {chartExercises.length > 1 && (
-                  <Legend
-                    content={<CustomLegend />}
-                    wrapperStyle={{ paddingTop: 12 }}
-                    verticalAlign="bottom"
-                  />
-                )}
-                {chartExercises.map((ex, i) => {
-                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                  return (
-                    <Line
-                      key={ex}
-                      type="monotone"
-                      dataKey={ex}
-                      name={ex}
-                      stroke={color}
-                      strokeWidth={2.5}
-                      connectNulls
-                      dot={(props) => {
-                        const { cx, cy, payload, index } = props;
-                        const record = records.find(r =>
-                          r.date === payload._isoDate &&
-                          (r.name || r.exercise_name) === ex
-                        );
-                        const isPB = !!record?.is_personal_best;
-                        return (
-                          <circle
-                            key={`${ex}-${index}`}
-                            cx={cx} cy={cy}
-                            r={isPB ? 6 : 4}
-                            fill={isPB ? color : '#FFFFFF'}
-                            stroke={color}
-                            strokeWidth={1.5}
-                          />
-                        );
-                      }}
-                      activeDot={{
-                        r: 6, fill: color, stroke: 'white', strokeWidth: 2, cursor: 'pointer',
-                        onClick: (_, payload) => {
-                          if (!payload) return;
-                          setSelectedPoint({
-                            exerciseName: ex,
-                            color,
-                            date: payload.payload?.date,
-                            isoDate: payload.payload?._isoDate,
-                            value: payload.value ?? payload.payload?.[ex],
-                          });
-                        },
-                      }}
-                    />
-                  );
-                })}
-                {/* Dashed projection lines — current PB → target value
-                    at target_date (or slope-based fallback). Hidden
-                    from the legend so it doesn't double the entries. */}
-                {projections.map((p) => {
-                  const i = chartExercises.indexOf(p.ex);
-                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                  return (
-                    <Line
-                      key={`${p.ex}__proj`}
-                      type="linear"
-                      dataKey={`${p.ex}__proj`}
-                      name={`${p.ex} (תחזית ליעד)`}
-                      stroke={color}
-                      strokeWidth={1.8}
-                      strokeDasharray="6 4"
-                      dot={false}
-                      activeDot={false}
-                      connectNulls
-                      legendType="none"
-                    />
-                  );
-                })}
-                {/* Horizontal target lines — per visible exercise,
-                    one faint dotted guide at the active goal's
-                    target_value. */}
-                {projections.map((p) => {
-                  const i = chartExercises.indexOf(p.ex);
-                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                  return (
-                    <ReferenceLine
-                      key={`${p.ex}__target`}
-                      y={p.endValue}
-                      stroke={color}
-                      strokeDasharray="2 4"
-                      strokeOpacity={0.5}
-                      label={{
-                        value: `יעד ${p.ex}: ${p.endValue}`,
-                        position: 'left', fill: color, fontSize: 10,
-                      }}
-                    />
-                  );
-                })}
-                {/* Target-only goals — exercise has an active goal but
-                    no records yet. We can't draw a slope, so we draw a
-                    bolder dashed horizontal at the target so the
-                    trainee still sees what they're chasing. */}
-                {targetOnlyGoals.map((g) => {
-                  const i = chartExercises.indexOf(g.ex);
-                  const color = EXERCISE_COLORS[i >= 0 ? i % EXERCISE_COLORS.length : 0];
-                  return (
-                    <ReferenceLine
-                      key={`${g.ex}__target_only`}
-                      y={g.target}
-                      stroke={color}
-                      strokeDasharray="6 4"
-                      strokeWidth={1.8}
-                      strokeOpacity={0.8}
-                      label={{
-                        value: `יעד ${g.ex}: ${g.target}`,
-                        position: 'left', fill: color, fontSize: 10,
-                      }}
-                    />
-                  );
-                })}
-                {/* Achieved-goal flag dots — one per past achievement
-                    placed at completed_at / target_value. */}
-                {milestones.map((m, idx) => {
-                  const i = chartExercises.indexOf(m.ex);
-                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
-                  return (
-                    <ReferenceDot
-                      key={`milestone-${m.ex}-${idx}`}
-                      x={m.date}
-                      y={m.value}
-                      r={8}
-                      fill="#FFFFFF"
-                      stroke={color}
-                      strokeWidth={2}
-                      label={{
-                        value: '🏁',
-                        position: 'top',
-                        fontSize: 14,
-                      }}
-                    />
-                  );
-                })}
-              </LineChart>
-            </ResponsiveContainer>
+            // Replaced the multi-line LineChart (with projection +
+            // milestone overlays) with a single-series StepMilestones
+            // chart. Filter chips above narrow the dataset; the
+            // chart auto-handles 0 / 1 / many data points. The
+            // existing projection / milestone calculations
+            // (`projections`, `milestones`, `targetOnlyGoals`) are
+            // preserved upstream — they're available to other
+            // surfaces that may want them later, but no longer
+            // overlaid on this chart.
+            <ChartCard breakout padding="0">
+              <StepMilestones data={stepData} yLabel={stepYLabel} />
+            </ChartCard>
           )}
 
           {/* Stats row — three full-width cards under the chart. */}

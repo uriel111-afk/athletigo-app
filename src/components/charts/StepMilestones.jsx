@@ -58,7 +58,7 @@ export default function StepMilestones({ data = [], yLabel }) {
   });
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height, display: 'block' }} preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: '100%', height, display: 'block' }} preserveAspectRatio="xMidYMid meet">
       {[0.25, 0.5, 0.75].map((r, i) => (
         <line key={i} x1={padX} y1={padTop + r * (H - padTop - padBottom)} x2={W - padX} y2={padTop + r * (H - padTop - padBottom)} stroke={CHART_COLORS.border} strokeWidth="0.5" strokeDasharray="3 3"/>
       ))}
