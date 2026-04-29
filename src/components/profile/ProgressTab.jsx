@@ -14,6 +14,7 @@ import { Chip } from '@/components/ui/Chip';
 import { GOAL_STATUS } from '@/lib/goalsApi';
 import GoalAchievedPopup from '@/components/trainee/GoalAchievedPopup';
 import RecordsByDay from '@/components/profile/RecordsByDay';
+import { useWindowSize } from '@/hooks/useWindowSize';
 
 const O = '#FF6F20';
 const CARD_BG = '#FFFFFF';
@@ -132,6 +133,13 @@ export default function ProgressTab({ traineeId }) {
   const isCoach =
     currentUser?.is_coach || currentUser?.role === 'coach' || currentUser?.role === 'admin';
   const queryClient = useQueryClient();
+
+  // Responsive chart sizing. <480px gets a shorter chart + smaller
+  // axis tick text + tighter LineChart margins so the plot area
+  // stays readable on a 360px viewport without horizontal scroll.
+  const { width: viewportWidth } = useWindowSize();
+  const isMobile = viewportWidth < 480;
+  const chartHeight = isMobile ? 260 : 360;
 
   const [openRecordFolder, setOpenRecordFolder] = useState(null);
   const [filterExercise, setFilterExercise] = useState('all');
@@ -595,10 +603,15 @@ export default function ProgressTab({ traineeId }) {
               הגרף ממוזער
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={360}>
+            <ResponsiveContainer width="100%" height={chartHeight}>
               <LineChart
                 data={masterChartData}
-                margin={{ top: 20, right: 20, left: 20, bottom: 50 }}
+                // Tighter margins on mobile so the plot area uses
+                // the actual viewport instead of leaving 20px×4
+                // unused gutters around it.
+                margin={isMobile
+                  ? { top: 20, right: 8, left: 8, bottom: 40 }
+                  : { top: 20, right: 20, left: 20, bottom: 50 }}
               >
                 <CartesianGrid
                   vertical={false}
@@ -611,9 +624,9 @@ export default function ProgressTab({ traineeId }) {
                 <XAxis
                   dataKey="date"
                   reversed
-                  tick={{ fontSize: 11, fill: '#888' }}
+                  tick={{ fontSize: isMobile ? 10 : 11, fill: '#888' }}
                   tickFormatter={shortDateLabel}
-                  tickMargin={8}
+                  tickMargin={isMobile ? 4 : 8}
                   minTickGap={20}
                   interval={Math.max(0, Math.ceil(masterChartData.length / 6) - 1)}
                   height={40}
@@ -624,19 +637,20 @@ export default function ProgressTab({ traineeId }) {
                 <YAxis
                   orientation="right"
                   domain={[0, 'dataMax + 1']}
-                  tick={{ fontSize: 11, fill: '#888' }}
-                  width={36}
+                  tick={{ fontSize: isMobile ? 10 : 11, fill: '#888' }}
+                  width={isMobile ? 32 : 36}
                 />
                 <Tooltip
                   cursor={{ stroke: '#FF6F20', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  wrapperStyle={{ maxWidth: 180 }}
                   contentStyle={{
-                    background: 'white',
-                    border: '1px solid #F0E4D0',
+                    background: '#FFFEFC',
+                    border: '1px solid #F5E8D5',
                     borderRadius: 10,
                     padding: '8px 12px',
                     direction: 'rtl',
                     fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
-                    fontSize: 13,
+                    fontSize: isMobile ? 11 : 13,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                   }}
                   labelStyle={{ color: '#888', marginBottom: 4 }}

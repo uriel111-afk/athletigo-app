@@ -119,13 +119,16 @@ export default function RecordsByDay({ records, exerciseNames, colors, onRecordC
         const isOpen = !!openMap[date];
         return (
           <div key={date}>
-            {/* Day header — clickable, chevron rotates on open. */}
+            {/* Day header — clickable, chevron rotates on open.
+                Padding is tighter than the inner row content so the
+                whole card fits the 360px mobile viewport without a
+                horizontal scrollbar. */}
             <button
               type="button"
               onClick={() => toggle(date)}
               style={{
                 width: '100%',
-                padding: '14px 16px',
+                padding: '12px 12px',
                 background: 'white',
                 border: '1px solid #F0E4D0',
                 borderRadius: 12,
