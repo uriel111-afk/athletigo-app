@@ -95,10 +95,18 @@ const CONTAINER_PARAMS = new Set(["exercise_list", "tabata"]);
 const SUB_PARAMS = ALL_PARAMETERS.filter(p => !CONTAINER_PARAMS.has(p.id) && p.id !== "video_url");
 
 // ── DB Field Mapping ──────────────────────────────────────────────────
+// UI param id → DB column. Anything not listed maps identity. Keep
+// each entry on its own line so adding a new param doesn't get lost
+// in a multi-key one-liner. Verified against the live exercises
+// schema 2026-04-30 — INSPECTION_REPORT_V2.md §5.
 const DB_MAP = {
-  reps: "reps", weight_kg: "weight", load_type: "weight_type",
-  foot_position: "leg_position", static_hold: "static_hold_time",
-  notes: "description", tabata: "tabata_data",
+  reps: "reps",
+  weight_kg: "weight",
+  load_type: "weight_type",
+  foot_position: "leg_position",
+  static_hold: "static_hold_time",
+  notes: "description",
+  tabata: "tabata_data",
 };
 const getDbField = (paramId) => DB_MAP[paramId] || paramId;
 
