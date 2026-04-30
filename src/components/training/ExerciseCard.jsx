@@ -63,15 +63,12 @@ const buildChips = (ex) => {
   if (ex.weight_type && ex.weight_type !== "bodyweight") push("weight_type", "עומס", ex.weight_type);
   if (ex.rpe && ex.rpe !== "0") push("rpe", "RPE", ex.rpe);
   if (ex.tempo) {
-    // Expand "3-1-2-0" → "שלילי 3" · "החזקה למטה 1" · "חיובי 2" · "החזקה למעלה 0"
-    const parts = String(ex.tempo).split('-').map(p => p.trim()).filter(Boolean);
-    if (parts.length > 1) {
-      const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
-      const tempoDisplay = parts.map((p, i) => `${labels[i] || ''} ${p}"`).join(' · ');
-      push("tempo", "טמפו", tempoDisplay);
-    } else {
-      push("tempo", "טמפו", ex.tempo);
-    }
+    // Same formatter as the trainee view — see formatTempo() defined
+    // below. buildChips runs before formatTempo's declaration in
+    // source order, but the function reference is hoisted so the call
+    // here resolves correctly.
+    const tempoDisplay = formatTempo(ex.tempo);
+    if (tempoDisplay) push("tempo", "טמפו", tempoDisplay);
   }
 
   // Tabata-mode container surfaces the work/rest/rounds embedded in
@@ -152,12 +149,20 @@ const isContainerExercise = (ex) => {
   return ["טבטה", "סופרסט", "קומבו"].includes(ex.mode) && getSubExercises(ex).length > 0;
 };
 
-// Tempo display: expand "3-1-2-0" → "שלילי 3 · החזקה למטה 1 ·
-// חיובי 2 · החזקה למעלה 0". Single-segment values pass through.
+// Tempo display: expand both formats coaches actually use —
+//   • dashed:  "3-1-2-0"  → split on '-'
+//   • packed:  "3010"     → split per-character (PlanBuilder's
+//                            default per PARAM_SCHEMA is "3010")
+// Single-segment / non-numeric strings pass through unchanged.
 function formatTempo(val) {
-  if (!val) return null;
-  const parts = String(val).split('-').map(p => p.trim()).filter(Boolean);
-  if (parts.length <= 1) return String(val);
+  if (val == null || val === '') return null;
+  const str = String(val).trim();
+  if (!str) return null;
+  let parts = str.split('-').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 1 && /^\d{3,4}$/.test(parts[0])) {
+    parts = parts[0].split('');
+  }
+  if (parts.length < 2) return str;
   const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
   return parts.map((p, i) => `${labels[i] || ''} ${p}"`).join(' · ');
 }
