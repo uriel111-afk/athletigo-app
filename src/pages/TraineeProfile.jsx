@@ -2039,6 +2039,14 @@ export default function TraineeProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCoach, traineePerms, activeTab]);
 
+  // Broadcast a 'tab-changed' window event whenever activeTab flips.
+  // UnifiedPlanBuilder (and any other in-tab data-loader) listens to
+  // this and refetches so the trainee never sees stale plan/section/
+  // exercise data when switching back to a previously-viewed tab.
+  useEffect(() => {
+    window.dispatchEvent(new Event('tab-changed'));
+  }, [activeTab]);
+
   // Auto-open the SessionFormDialog when the URL carries
   // ?sessionId=... (the coach's Sessions page deep-links here).
   // Fires once after sessions load so editingSession references

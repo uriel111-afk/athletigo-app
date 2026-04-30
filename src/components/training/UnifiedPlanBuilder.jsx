@@ -47,6 +47,19 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     console.log('[UPB] mount — plan id:', plan?.id, 'name:', plan?.plan_name || plan?.name);
   }, [plan?.id]);
 
+  // Refetch when the parent profile's tab changes — TraineeProfile
+  // dispatches 'tab-changed' on every activeTab flip so users coming
+  // back to the plans tab see fresh data instead of cached state.
+  React.useEffect(() => {
+    if (!plan?.id) return;
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: ['training-sections', plan.id] });
+      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
+    };
+    window.addEventListener('tab-changed', handler);
+    return () => window.removeEventListener('tab-changed', handler);
+  }, [plan?.id, queryClient]);
+
   // initialData removed so isLoading actually flips to true on first
   // fetch — with [] as initialData the query was treated as already
   // fulfilled and the editor flashed "0 sections, 0 exercises" before
