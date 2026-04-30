@@ -467,6 +467,46 @@ export default function ModernExerciseForm({ exercise, onChange }) {
 
   const queryClient = useQueryClient();
 
+  // ── Draft persistence ─────────────────────────────────────────────────
+  // Save in-progress edits to localStorage on every change so an
+  // accidental refresh, swipe-back, or tab close doesn't wipe a long
+  // exercise edit. Keyed by exercise.id (or 'new') + plan id. TTL 7
+  // days. Hydrated once on mount when a fresher draft exists.
+  const draftKey = `exercise_draft_${exercise?.id || 'new'}_${exercise?.training_plan_id || 'unknown'}`;
+
+  useEffect(() => {
+    if (!exercise || (!exercise.id && !exercise.training_plan_id)) return;
+    try {
+      const payload = { ...exercise, _savedAt: Date.now() };
+      localStorage.setItem(draftKey, JSON.stringify(payload));
+    } catch {}
+  }, [exercise, draftKey]);
+
+  useEffect(() => {
+    if (!exercise) return;
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (!saved) return;
+      const draft = JSON.parse(saved);
+      const age = Date.now() - (draft._savedAt || 0);
+      if (age > 7 * 24 * 3600000) {
+        localStorage.removeItem(draftKey);
+        return;
+      }
+      // If the DB row is newer than the draft, the parent already
+      // saved successfully; drop the draft so we don't resurrect
+      // stale edits.
+      const dbStamp = exercise.updated_at ? new Date(exercise.updated_at).getTime() : 0;
+      if (dbStamp > (draft._savedAt || 0)) {
+        localStorage.removeItem(draftKey);
+        return;
+      }
+      delete draft._savedAt;
+      onChange({ ...exercise, ...draft });
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateEx = useCallback((field, value) => {
     onChange({ ...exercise, [field]: value });
   }, [exercise, onChange]);
@@ -655,9 +695,12 @@ export default function ModernExerciseForm({ exercise, onChange }) {
   };
 
   const handleRemoveParam = (paramId) => {
+    // Toggle visibility only — the underlying value stays in the
+    // exercise object so re-tapping the param restores what the
+    // coach already typed. The save flow writes every populated
+    // field; "hidden" params with values get persisted harmlessly.
     setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
     if (editingParam === paramId) setEditingParam(null);
-    updateEx(getDbField(paramId), null);
   };
 
   // ── Sub-exercise handlers ───────────────────────────────────────────
