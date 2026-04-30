@@ -86,29 +86,15 @@ export default function StepMilestones({
   const padTop = 24;
   const padBottom = 28;
 
-  // Y scale derives from data + goalTarget when target is in a
-  // sensible range. If the goal is far above/below the records (e.g.
-  // 50→200 reps target while data sits at 5-10), including it in
-  // allValues collapses the data into a thin band on the chart.
-  // Drop the goal from allValues when it's > 2× the data spread.
+  // Y scale anchored at 0 → dataMax + 30% headroom. goalTarget no
+  // longer participates in the scale so a far-away goal can't
+  // compress the data band; the goal line is still drawn at its
+  // mathematical y, and the surrounding SVG has overflow:visible
+  // so a value outside the plot area still appears in print.
   const dataValues = allPoints.map(p => p.value);
-  const dataMin = Math.min(...dataValues);
   const dataMax = Math.max(...dataValues);
-  const dataRange = dataMax - dataMin || 1;
-  const goalInRange = goalTarget != null
-    && goalTarget >= dataMin - dataRange * 2
-    && goalTarget <= dataMax + dataRange * 2;
-  const allValues = [
-    ...dataValues,
-    ...(goalInRange ? [goalTarget] : []),
-    ...(goalProjection ? goalProjection.map(p => p.value) : []),
-  ];
-  const minVal = Math.min(...allValues);
-  const maxVal = Math.max(...allValues);
-  const range = maxVal - minVal || 1;
-  const yPad = range * 0.1;
-  const yMin = minVal - yPad;
-  const yMax = maxVal + yPad;
+  const yMin = 0;
+  const yMax = dataMax + Math.max(1, Math.ceil(dataMax * 0.3));
   const yRange = yMax - yMin || 1;
 
   // Include projection dates in the x-axis so an endDate that
@@ -120,15 +106,17 @@ export default function StepMilestones({
   const dateIndex = new Map(allDates.map((d, i) => [d, i]));
   const dateCount = allDates.length || 1;
 
-  // Force-spread x positions so 2-3 records don't all collapse to
-  // the same tight cluster. 30px insets on each side put the first
-  // and last points well clear of the edges (and clear of the right
-  // Y-axis labels).
+  // Adaptive spread by point count — small datasets (2-3 records)
+  // would land near the edges with a uniform inset, so we widen the
+  // visual gap between them. 4+ records use a fixed 50px margin.
   const xFor = (date) => {
     const idx = dateIndex.get(date);
+    if (idx === undefined) return W / 2;
     if (dateCount <= 1) return W / 2;
-    const usableWidth = W - 60;
-    return 30 + (idx / (dateCount - 1)) * usableWidth;
+    if (dateCount === 2) return idx === 0 ? W * 0.25 : W * 0.75;
+    if (dateCount === 3) return W * 0.15 + (idx / (dateCount - 1)) * W * 0.7;
+    const margin = 50;
+    return margin + (idx / (dateCount - 1)) * (W - margin * 2);
   };
   const yFor = (value) => H - padBottom - ((value - yMin) / yRange) * (H - padTop - padBottom);
 
@@ -209,6 +197,7 @@ export default function StepMilestones({
     <div ref={containerRef} style={{ width: '100%', padding: 0, margin: 0 }}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
+        overflow="visible"
         style={{ width: '100%', height, display: 'block', maxWidth: 'none' }}
         preserveAspectRatio="xMidYMid meet"
       >
@@ -217,14 +206,13 @@ export default function StepMilestones({
         ))}
 
         {/* Y-axis tick labels — anchored on the right edge for RTL.
-            4 labels at r=0/0.33/0.66/1 cover the full vertical span
-            so the trainee sees both extremes; textAnchor="end" pins
-            the right edge at W-6 so digits don't bleed off-canvas. */}
-        {[0, 0.33, 0.66, 1].map((r, i) => {
+            3 ticks (min, mid, max) keep the gutter clean instead of
+            packing four numbers into a small vertical span. */}
+        {[0, 0.5, 1].map((r, i) => {
           const val = Math.round(yMin + r * yRange);
           const y = H - padBottom - r * (H - padTop - padBottom);
           return (
-            <text key={`yl-${i}`} x={W - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#888" fontFamily="inherit">
+            <text key={`yl-${i}`} x={W - 8} y={y + 4} textAnchor="end" fontSize="12" fill="#999" fontFamily="inherit">
               {val}
             </text>
           );
@@ -244,6 +232,14 @@ export default function StepMilestones({
         {normalizedSeries.map(renderSeries)}
 
         <text x={padX} y={H - 6} textAnchor="start" fontSize="12" fill={CHART_COLORS.textMuted}>{allDates[0]}</text>
+        {allDates.length > 5 && (() => {
+          const midIdx = Math.floor((allDates.length - 1) / 2);
+          return (
+            <text x={W / 2} y={H - 6} textAnchor="middle" fontSize="12" fill={CHART_COLORS.textMuted}>
+              {allDates[midIdx]}
+            </text>
+          );
+        })()}
         <text x={W - padX} y={H - 6} textAnchor="end" fontSize="12" fill={CHART_COLORS.textMuted}>{allDates[allDates.length - 1]}</text>
       </svg>
     </div>
