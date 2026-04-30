@@ -98,7 +98,7 @@ const SUB_PARAMS = ALL_PARAMETERS.filter(p => !CONTAINER_PARAMS.has(p.id) && p.i
 const DB_MAP = {
   reps: "reps", weight_kg: "weight", load_type: "weight_type",
   foot_position: "leg_position", static_hold: "static_hold_time",
-  notes: "description", tabata: "tabata_blocks",
+  notes: "description", tabata: "tabata_data",
 };
 const getDbField = (paramId) => DB_MAP[paramId] || paramId;
 
