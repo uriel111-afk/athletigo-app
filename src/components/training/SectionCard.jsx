@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import ExerciseCard from "./ExerciseCard";
 import { getSectionType } from "@/lib/sectionTypes";
+import { getSectionColor } from "@/lib/plansApi";
 
 export default function SectionCard({
   section,
@@ -34,24 +35,47 @@ export default function SectionCard({
   if (!section) return null;
 
   const sType = getSectionType(section.category);
-  const style = {
-    bg: '#FFFFFF',
-    text: '#111827',
-    subText: '#6B7280',
-    border: '#E5E7EB',
-    iconBg: sType.bgColor,
-    chevron: '#9CA3AF',
-    accent: sType.color,
-  };
+  // Trainee view: palette-by-order via getSectionColor(index). DB
+  // section.color (when set) overrides for an explicit per-section
+  // hue. Coach view keeps sectionType-driven colours so warmup vs
+  // strength stay visually intent-coded for editing.
+  const traineePalette = getSectionColor(index);
+  const isTraineeView = !showEditButtons;
+  const style = isTraineeView
+    ? {
+        bg:      section.color ? '#FFFEFC' : traineePalette.bg,
+        text:    section.color || traineePalette.text,
+        subText: section.color || traineePalette.text,
+        border:  section.color || traineePalette.border,
+        iconBg:  '#FFFFFF',
+        chevron: section.color || traineePalette.text,
+        accent:  section.color || traineePalette.border,
+      }
+    : {
+        bg:      '#FFFFFF',
+        text:    '#111827',
+        subText: '#6B7280',
+        border:  '#E5E7EB',
+        iconBg:  sType.bgColor,
+        chevron: '#9CA3AF',
+        accent:  sType.color,
+      };
 
   return (
     <div
-      className="rounded-3xl overflow-hidden transition-all shadow-sm hover:shadow-md mb-5 relative"
-      style={{
-        backgroundColor: style.bg,
-        border: `1px solid ${style.border}`,
-        borderLeft: `3px solid ${style.accent}`
-      }}
+      className={isTraineeView ? "overflow-hidden transition-all relative" : "rounded-3xl overflow-hidden transition-all shadow-sm hover:shadow-md mb-5 relative"}
+      style={isTraineeView
+        ? {
+            backgroundColor: style.bg,
+            borderRadius: 14,
+            marginBottom: 10,
+            borderRight: `4px solid ${style.accent}`,
+          }
+        : {
+            backgroundColor: style.bg,
+            border: `1px solid ${style.border}`,
+            borderLeft: `3px solid ${style.accent}`,
+          }}
     >
       {/* Section Header (Clickable) */}
       <div 
