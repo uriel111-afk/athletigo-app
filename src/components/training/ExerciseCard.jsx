@@ -441,12 +441,13 @@ export default function ExerciseCard({
   const subExercises = getSubExercises(exercise);
 
   // ── COACH VIEW ──────────────────────────────────────────────────────
-  // Same open-card content as the trainee view; only the action buttons
-  // differ. Reorder/duplicate/delete icon buttons live in the header
-  // next to the chevron so the section list still has the inline
-  // controls coaches expect — primary "ערוך תרגיל" button at the
-  // bottom of the open body lands them in the editor (layer 3).
-  if (isCoach || showEditButton) {
+  // Branch is decided by isCoach ONLY. showEditButton no longer routes
+  // here — it used to flip a trainee viewing their own plan
+  // (canEdit=true) into the coach layout, which broke the trainee
+  // experience. A trainee always sees TraineeExerciseCard regardless of
+  // ownership. Inline edit buttons inside CoachExerciseCard remain
+  // gated by their own onMove/onDuplicate/onDelete props.
+  if (isCoach) {
     return (
       <CoachExerciseCard
         exercise={exercise}
