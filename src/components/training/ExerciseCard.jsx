@@ -228,6 +228,14 @@ const formatParamValue = (val) => {
 // The open card content is identical; only the action buttons differ.
 
 function renderParamGroup(exercise, group) {
+  // TEMP DEBUG — surface which params each group resolves as "active"
+  // so we can tell whether a missing chip is a data-arrival problem
+  // (DB → exercise prop) or a filter problem (isParamFilled / hide
+  // rules). Remove once the trainee param issue is diagnosed.
+  console.log('[renderParamGroup]', group.title, 'active:', group.params.filter(p => {
+    const val = exercise[p.key];
+    return val != null && val !== '';
+  }).map(p => p.key + '=' + exercise[p.key]));
   const active = group.params.filter(p => {
     const val = exercise[p.key];
     if (val == null || val === '' || val === 'לא רלוונטי' || val === 'bodyweight') return false;
@@ -375,6 +383,27 @@ function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras }) {
 }
 
 function ExerciseOpenContent({ exercise, subExercises }) {
+  // TEMP DEBUG — log the populated subset of the exercise prop on
+  // every render so the user can paste DevTools Console output and
+  // confirm which fields are arriving from the DB. Remove once the
+  // trainee param issue is diagnosed.
+  console.log('[ExerciseOpenContent] exercise:', JSON.stringify({
+    name: exercise?.exercise_name || exercise?.name,
+    sets: exercise?.sets,
+    reps: exercise?.reps,
+    weight: exercise?.weight,
+    tempo: exercise?.tempo,
+    body_position: exercise?.body_position,
+    equipment: exercise?.equipment,
+    video_url: exercise?.video_url,
+    grip: exercise?.grip,
+    side: exercise?.side,
+    mode: exercise?.mode,
+    rpe: exercise?.rpe,
+    work_time: exercise?.work_time,
+    rest_time: exercise?.rest_time,
+  }, null, 2));
+
   return (
     <div style={{ padding: '0 16px 16px' }}>
       {PARAM_GROUPS.map(group => renderParamGroup(exercise, group))}
