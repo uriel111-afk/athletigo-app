@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Check, Edit2, Trash2, Zap, Layers, Clock, Dumbbell, Activity,
@@ -391,121 +391,214 @@ export default function ExerciseCard({
   }
 
   // ── TRAINEE VIEW ────────────────────────────────────────────────────
-  return (
-    <motion.div layout
-      className="w-full rounded-[14px] mb-3 overflow-hidden transition-all"
-      style={{ backgroundColor: "#F7F6F3", border: "1.5px solid #ede9e3", borderRight: `3px solid ${exercise.completed ? "#4CAF50" : "#FF6F20"}` }}>
+  // Read-only mirror of the coach editor. Header collapses the body;
+  // every populated field that the coach can fill in ModernExerciseForm
+  // shows up here in matching groups (no inputs, no edit affordances).
+  // The complete-toggle button is intentionally absent — it returns in
+  // the next phase as part of the execution flow.
+  return <TraineeExerciseCard exercise={exercise} />;
+}
 
-      <div className="p-4">
-        {/* Name + RPE */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            {isContainer && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#FF6F20] text-white flex-shrink-0">
-                {getContainerLabel(exercise)}
+function TraineeExerciseCard({ exercise }) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  const renderGroup = (title, params) => {
+    const active = params.filter(p => {
+      const val = exercise[p.key];
+      return val != null && val !== '' && val !== 'לא רלוונטי' && val !== 'bodyweight';
+    });
+    if (active.length === 0) return null;
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600, letterSpacing: 0.5 }}>
+          {title}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {active.map(p => {
+            const raw = exercise[p.key];
+            const display = Array.isArray(raw) ? raw.join(', ') : raw;
+            return (
+              <span key={p.key} style={{
+                padding: '5px 12px', borderRadius: 999, fontSize: 12,
+                background: '#FFF5EE', color: '#FF6F20',
+                border: '1px solid #FFD9C2', fontWeight: 500,
+              }}>
+                {p.label}: {display}{p.suffix || ''}
               </span>
-            )}
-            <h3 className="text-[15px] font-black text-gray-900 leading-snug truncate" style={{ fontFamily: "Barlow, sans-serif" }}>
-              {exercise.exercise_name || exercise.name || "תרגיל"}
-            </h3>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{
+      background: '#FFFEFC',
+      border: '1px solid #F5E8D5',
+      borderRadius: 14,
+      marginBottom: 10,
+      overflow: 'visible',
+    }}>
+      {/* Header — click to toggle open/closed */}
+      <div onClick={() => setIsOpen(!isOpen)} style={{
+        padding: '14px 16px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        cursor: 'pointer',
+      }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {exercise.exercise_name || exercise.name}
           </div>
-          {exercise.rpe && (
-            <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-bold flex-shrink-0">
-              RPE {exercise.rpe}
-            </div>
+          {exercise.mode && (
+            <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 500, marginTop: 2, display: 'block' }}>
+              {exercise.mode}
+            </span>
           )}
         </div>
-
-        {/* Grouped params — 4 logical groups (עומס / זמנים / טכניקה /
-            ציוד ומדיה). Each group skipped when empty. Replaces the
-            single-row chip blob to give the trainee a structured
-            recipe instead of a wall of pills. */}
-        {PARAM_GROUPS.map(group => {
-          const activeParams = group.params.filter(p => isParamFilled(exercise[p.key]));
-          if (activeParams.length === 0) return null;
-          return (
-            <div key={group.title} style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4, fontWeight: 500 }}>
-                {group.title}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {activeParams.map(p => {
-                  const raw = exercise[p.key];
-                  const formatted = p.format ? p.format(raw) : formatParamValue(raw);
-                  if (!formatted) return null;
-                  if (p.isLink) {
-                    return (
-                      <span
-                        key={p.key}
-                        onClick={() => window.open(raw, '_blank')}
-                        style={{
-                          padding: '4px 10px', borderRadius: 999, fontSize: 12,
-                          background: '#EFF6FF', color: '#3B82F6',
-                          border: '1px solid #BFDBFE',
-                          cursor: 'pointer', fontWeight: 500,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        ▶ {p.label}
-                      </span>
-                    );
-                  }
-                  return (
-                    <span key={p.key} style={{
-                      padding: '4px 10px', borderRadius: 999,
-                      fontSize: 12, background: '#FFF5EE', color: '#FF6F20',
-                      border: '1px solid #FFD9C2', fontWeight: 500,
-                      whiteSpace: 'nowrap',
-                    }}>
-                      <span style={{ opacity: 0.7 }}>{p.label}:</span>{' '}
-                      <span style={{ fontWeight: 700 }}>{formatted}{p.suffix || ''}</span>
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Sub-exercises for trainee */}
-        {isContainer && subExercises.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 p-2 mb-3 space-y-1">
-            {subExercises.map((sub, i) => (
-              <div key={sub.id || i} className="flex items-center gap-2 text-sm">
-                <span className="w-5 h-5 rounded-full bg-orange-100 text-[#FF6F20] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                  {i + 1}
-                </span>
-                <span className="font-bold text-gray-800 text-xs">{sub.exercise_name || sub.name || "תת-תרגיל"}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Complete button */}
-        <div className="flex items-center justify-end">
-          <button onClick={handleToggleComplete}
-            className={`w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all ${
-              exercise.completed ? "bg-green-500 border-green-500" : "bg-white border-gray-300"}`}>
-            {exercise.completed && <Check size={16} className="text-white" strokeWidth={3} />}
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {exercise.rpe && (
+            <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
+              background: '#FEF3C7', color: '#92400E', fontWeight: 500 }}>
+              RPE {exercise.rpe}
+            </span>
+          )}
+          <span style={{ fontSize: 14, color: '#888', transition: 'transform 0.2s',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
         </div>
-
-        {/* Coach notes — single channel: description / notes /
-            coach_notes (whichever the row carries). 💡 prefix flags
-            the card as guidance vs raw params. */}
-        {notes && (
-          <div style={{
-            marginTop: 8, padding: 12,
-            background: '#FFF9F0',
-            borderRadius: 10,
-            fontSize: 13,
-            color: '#555',
-            lineHeight: 1.6,
-          }}>
-            💡 {notes}
-          </div>
-        )}
       </div>
-    </motion.div>
+
+      {/* Body — every populated field, grouped to mirror the editor */}
+      {isOpen && (
+        <div style={{ padding: '0 16px 16px' }}>
+          {renderGroup('עומס', [
+            { key: 'sets', label: 'סטים' },
+            { key: 'reps', label: 'חזרות' },
+            { key: 'rounds', label: 'סבבים' },
+            { key: 'weight', label: 'משקל', suffix: ' ק"ג' },
+            { key: 'weight_type', label: 'סוג משקל' },
+          ])}
+
+          {renderGroup('זמנים', [
+            { key: 'work_time', label: 'זמן עבודה', suffix: '"' },
+            { key: 'rest_time', label: 'זמן מנוחה', suffix: '"' },
+            { key: 'rest_between_sets', label: 'מנוחה בין סטים', suffix: '"' },
+            { key: 'rest_between_exercises', label: 'מנוחה בין תרגילים', suffix: '"' },
+            { key: 'static_hold_time', label: 'החזקה סטטית', suffix: '"' },
+          ])}
+
+          {/* Tempo — 4 boxed cells. Splits both dashed ("3-1-2-0") and
+              packed ("3010") formats since PlanBuilder stores either. */}
+          {exercise.tempo && (() => {
+            const str = String(exercise.tempo).trim();
+            let parts = str.split('-').map(p => p.trim()).filter(Boolean);
+            if (parts.length === 1 && /^\d{3,4}$/.test(parts[0])) {
+              parts = parts[0].split('');
+            }
+            const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
+            return (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>טמפו</div>
+                <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
+                  {labels.map((label, i) => (
+                    <div key={i} style={{
+                      flex: 1, textAlign: 'center', padding: '8px 4px',
+                      background: '#FFF5EE', borderRadius: 10, border: '1px solid #FFD9C2',
+                    }}>
+                      <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 600, color: '#FF6F20' }}>{parts[i] || '0'}"</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {renderGroup('טכניקה', [
+            { key: 'body_position', label: 'מנח גוף' },
+            { key: 'leg_position', label: 'מנח רגליים' },
+            { key: 'side', label: 'צד' },
+            { key: 'grip', label: 'אחיזה' },
+            { key: 'range_of_motion', label: 'טווח תנועה' },
+          ])}
+
+          {exercise.equipment && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>ציוד</div>
+              <span style={{ padding: '5px 12px', borderRadius: 999, fontSize: 12,
+                background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C2', fontWeight: 500 }}>
+                {Array.isArray(exercise.equipment) ? exercise.equipment.join(', ') : exercise.equipment}
+              </span>
+            </div>
+          )}
+
+          {exercise.video_url && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>וידאו</div>
+              <button onClick={() => window.open(exercise.video_url, '_blank')}
+                style={{
+                  padding: '8px 16px', borderRadius: 10, fontSize: 13,
+                  background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE',
+                  cursor: 'pointer', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                ▶ צפה בוידאו
+              </button>
+            </div>
+          )}
+
+          {(exercise.description || exercise.notes || exercise.coach_notes) && (
+            <div style={{
+              marginTop: 8, padding: 12, background: '#FFF9F0',
+              borderRadius: 10, fontSize: 13, color: '#555', lineHeight: 1.6,
+            }}>
+              💡 {exercise.description || exercise.notes || exercise.coach_notes}
+            </div>
+          )}
+
+          {/* Sub-exercises (טבטה / סופרסט / קומבו). Reads through the
+              4 shapes coaches actually save into — children (canonical)
+              first, then tabata_data.{sub_exercises|blocks}, then the
+              legacy exercise_list / sub_exercises columns. */}
+          {(() => {
+            let subs = exercise.children;
+            if (typeof subs === 'string') {
+              try { subs = JSON.parse(subs); } catch { subs = null; }
+            }
+            if (!subs && exercise.tabata_data) {
+              try {
+                const td = typeof exercise.tabata_data === 'string'
+                  ? JSON.parse(exercise.tabata_data) : exercise.tabata_data;
+                subs = td?.sub_exercises || td?.blocks;
+              } catch {}
+            }
+            if (!subs) subs = exercise.exercise_list || exercise.sub_exercises;
+            if (!Array.isArray(subs) || subs.length === 0) return null;
+            return (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
+                  תרגילים ברשימה
+                </div>
+                {subs.map((sub, i) => (
+                  <div key={i} style={{
+                    fontSize: 13, color: '#1a1a1a', padding: '6px 0',
+                    borderBottom: i < subs.length - 1 ? '1px solid #F5E8D5' : 'none',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: '50%', background: '#FFF5EE',
+                      border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 11, color: '#FF6F20', fontWeight: 600, flexShrink: 0,
+                    }}>{i + 1}</span>
+                    {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
   );
 }
