@@ -17,6 +17,8 @@ import RecordsByDay from '@/components/profile/RecordsByDay';
 import { useWindowSize } from '@/hooks/useWindowSize';
 import ChartCard from '@/components/charts/ChartCard';
 import StepMilestones from '@/components/charts/StepMilestones';
+import TimeRangeSelector from '@/components/charts/TimeRangeSelector';
+import { aggregateRecords } from '@/lib/chartDataHelpers';
 
 const O = '#FF6F20';
 const CARD_BG = '#FFFFFF';
@@ -145,6 +147,7 @@ export default function ProgressTab({ traineeId }) {
 
   const [openRecordFolder, setOpenRecordFolder] = useState(null);
   const [filterExercise, setFilterExercise] = useState('all');
+  const [timeRange, setTimeRange] = useState('30d');
   const [showNewRecord, setShowNewRecord] = useState(false);
   // Coach-only inline edit — set to a personal_records row to open
   // NewRecordDialog in edit mode (UPDATE instead of INSERT).
@@ -437,38 +440,26 @@ export default function ProgressTab({ traineeId }) {
   //                         dashed line from the last record to the
   //                         goal's target_date / slope-projected end.
   const chartProps = useMemo(() => {
-    // Format an ISO/Date-ish input as 'D.M' (matches the records'
-    // display format so the StepMilestones x-axis sees them as the
-    // same key).
-    const toDDM = (iso) => {
-      if (!iso) return '';
-      const d = new Date(iso);
-      return Number.isNaN(d.getTime()) ? '' : `${d.getDate()}.${d.getMonth() + 1}`;
-    };
-    const toPoint = (r) => ({ date: toDDM(r.date), value: Number(r.value) });
-
     if (filterExercise === 'all') {
-      // Bucket records by exercise_name, then turn each bucket into
-      // a series. Stable colour per exercise via exerciseNames index
-      // — same mapping used everywhere else on this surface.
+      // Bucket records by exercise_name, then run each group through
+      // aggregateRecords(timeRange). Stable colour per exercise via
+      // exerciseNames index — same mapping used everywhere else.
       const groups = new Map();
       for (const r of records) {
         if (!r?.date || !Number.isFinite(Number(r.value))) continue;
         const key = (r.name || r.exercise_name || '').trim();
         if (!key) continue;
         if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(toPoint(r));
+        groups.get(key).push(r);
       }
       const series = [];
-      for (const [name, data] of groups.entries()) {
+      for (const [name, recs] of groups.entries()) {
         const idx = exerciseNames.indexOf(name);
         const color = EXERCISE_COLORS[idx >= 0 ? idx % EXERCISE_COLORS.length : 0];
         series.push({
           name,
           color,
-          data: data
-            .filter(p => p.date)
-            .sort((a, b) => a.date.localeCompare(b.date)),
+          data: aggregateRecords(recs, timeRange),
         });
       }
       return { series };
@@ -478,26 +469,20 @@ export default function ProgressTab({ traineeId }) {
     const filterNorm = normalizeExerciseName(filterExercise);
     const filtered = records
       .filter(r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm)
-      .filter(r => r?.date && Number.isFinite(Number(r.value)))
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const data = filtered.map(toPoint);
+      .filter(r => r?.date && Number.isFinite(Number(r.value)));
+    const data = aggregateRecords(filtered, timeRange);
 
     const activeGoal = findGoalForExercise(goalsData, filterExercise);
     const targetVal = activeGoal ? parseFloat(activeGoal.target_value) : null;
     const goalTarget = Number.isFinite(targetVal) && targetVal > 0 ? targetVal : null;
 
-    // Projection is intentionally disabled — it pushed the x-axis end
-    // out to target_date (often 30-90 days away), squashing every real
-    // record into the left ~10% of the chart. The horizontal goal line
-    // (goalTarget) still conveys "you're aiming at X" without warping
-    // the data. A future surface will show projection as a textual
-    // badge below the chart instead of a line.
+    // Projection intentionally disabled — see commit history for why.
     return {
       data,
       goalTarget,
       goalProjection: null,
     };
-  }, [records, filterExercise, exerciseNames, goalsData]);
+  }, [records, filterExercise, exerciseNames, goalsData, timeRange]);
 
   // y-axis label — empty when 'all' (mixed units), otherwise the
   // unit string from the most recent record of the selected exercise.
@@ -691,6 +676,8 @@ export default function ProgressTab({ traineeId }) {
               />
             ))}
           </div>
+
+          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
 
           {chartMinimized ? (
             <div style={{
