@@ -75,7 +75,7 @@ const ALL_PARAMETERS = [
   { id: "rpe",                    label: "RPE",              icon: ICONS.rpe,       defaultValue: "7" },
   { id: "load_type",              label: "סוג עומס",         icon: ICONS.weight,    defaultValue: "משקל גוף" },
   { id: "weight_kg",              label: "משקל",             icon: ICONS.weight,    defaultValue: "0" },
-  { id: "tempo",                  label: "טמפו",             icon: ICONS.tempo,     defaultValue: "3010" },
+  { id: "tempo",                  label: "טמפו",             icon: ICONS.tempo,     defaultValue: "" },
   { id: "rest_between_sets",      label: "מנ׳ בין סטים",     icon: ICONS.rest,      defaultValue: "60" },
   { id: "rest_between_exercises", label: "מנ׳ בין תרגילים", icon: ICONS.pause,     defaultValue: "15" },
   { id: "exercise_list",          label: "רשימת תרגילים",   icon: ICONS.list,      defaultValue: "_container" },
@@ -286,6 +286,49 @@ const CompactSelect = ({ value, onChange, options, onAdd }) => (
 // PARAM INPUT RENDERER
 // ══════════════════════════════════════════════════════════════════════
 
+function TempoInput({ value, onChange }) {
+  // Parse the stored value into 4 cells. Supports both formats coaches
+  // use: dashed "3-1-2-0" splits on '-', packed "3010" splits per
+  // character. Anything else falls back to empty cells.
+  const parts = (() => {
+    if (!value) return ['', '', '', ''];
+    const str = String(value).trim();
+    let p = str.split('-').map(s => s.trim());
+    if (p.length === 1 && /^\d{3,4}$/.test(p[0])) p = p[0].split('');
+    return [p[0] || '', p[1] || '', p[2] || '', p[3] || ''];
+  })();
+  const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
+  return (
+    <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
+      {labels.map((label, i) => (
+        <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>{label}</div>
+          <input
+            type="number"
+            min="0"
+            inputMode="numeric"
+            value={parts[i]}
+            onChange={(e) => {
+              const next = [...parts];
+              next[i] = e.target.value;
+              // Drop trailing empties so "3-0--" doesn't get saved.
+              while (next.length > 0 && (next[next.length - 1] === '' || next[next.length - 1] == null)) next.pop();
+              onChange(next.length === 0 ? '' : next.join('-'));
+            }}
+            placeholder="0"
+            style={{
+              width: '100%', height: 40,
+              border: '1px solid #F5E8D5', borderRadius: 10,
+              textAlign: 'center', fontSize: 16, fontWeight: 500,
+              background: '#FFFEFC', outline: 'none',
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom }) {
   // Time params
   if (["work_time", "rest_time", "rest_between_sets", "rest_between_exercises", "static_hold"].includes(paramId))
@@ -315,6 +358,11 @@ function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom 
   if (["sets", "reps", "rounds"].includes(paramId))
     return <NumberStepper value={value} onChange={onChange} />;
 
+  // Tempo — 4 boxed number inputs (eccentric/bottom hold/concentric/top hold).
+  // Stored as "X-Y-Z-W" so the reader (formatTempo in ExerciseCard)
+  // splits cleanly. Empty cells trim from the end on save.
+  if (paramId === "tempo") return <TempoInput value={value} onChange={onChange} />;
+
   // Selection params
   if (DEFAULTS[paramId]) {
     const opts = getOptions ? getOptions(paramId, DEFAULTS[paramId]) : DEFAULTS[paramId];
@@ -332,10 +380,10 @@ function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom 
     return <Textarea className="text-sm min-h-[60px] p-3 resize-none rounded-lg border-gray-200 focus:border-[#FF6F20]"
       value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder="דגשים, הוראות ביצוע..." />;
 
-  // Default text (tempo, video_url)
+  // Default text (video_url)
   return <Input className="h-9 text-sm rounded-lg border-gray-200 focus:border-[#FF6F20]"
     value={value || ""} onChange={(e) => onChange(e.target.value)}
-    placeholder={paramId === "tempo" ? "לדוגמה: 3010" : paramId === "video_url" ? "https://..." : ""} />;
+    placeholder={paramId === "video_url" ? "https://..." : ""} />;
 }
 
 // ══════════════════════════════════════════════════════════════════════
