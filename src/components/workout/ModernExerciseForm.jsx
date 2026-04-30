@@ -14,6 +14,48 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AddCustomValueDialog from "../forms/AddCustomValueDialog";
 import { toast } from "sonner";
 import { searchExercises } from "@/data/exercises";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+// Drag-handle wrapper for one sub-exercise row. Renders the ⠿ handle
+// to the right of the editor (RTL = visual right). Uses the sub.id so
+// onDragEnd resolves to the array index even when items are reordered.
+function SortableSubExerciseRow({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 6,
+      }}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        style={{
+          cursor: 'grab',
+          color: '#888',
+          fontSize: 18,
+          padding: '8px 4px',
+          touchAction: 'none',
+          userSelect: 'none',
+          flexShrink: 0,
+          lineHeight: 1,
+        }}
+        title="גרור לסידור מחדש"
+      >
+        ⠿
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}
 
 // ── Icons ─────────────────────────────────────────────────────────────
 const ICONS = {
@@ -719,6 +761,21 @@ export default function ModernExerciseForm({ exercise, onChange }) {
     updateEx("sub_exercises", subExercises.filter((_, idx) => idx !== i));
   };
 
+  // dnd-kit setup for the sub-exercise list. Same PointerSensor +
+  // 5px activation distance as PlanBuilder's section reorder, so a
+  // tap on duplicate/delete buttons inside the row never accidentally
+  // initiates a drag.
+  const subSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleSubDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = subExercises.findIndex(s => s.id === active.id);
+    const newIdx = subExercises.findIndex(s => s.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    updateEx("sub_exercises", arrayMove(subExercises, oldIdx, newIdx));
+  };
+
   const duplicateSubExercise = (i) => {
     const original = subExercises[i];
     if (!original) return;
@@ -835,13 +892,29 @@ export default function ModernExerciseForm({ exercise, onChange }) {
           </div>
 
           <div className="space-y-2 mb-3">
-            {subExercises.map((sub, i) => (
-              <SubExerciseEditor key={sub.id || i}
-                subEx={sub} index={i}
-                onChange={updateSubExercise} onRemove={removeSubExercise}
-                onDuplicate={duplicateSubExercise}
-                getOptions={getOptions} onAddCustom={handleAddCustom} />
-            ))}
+            {subExercises.length > 0 && (
+              <DndContext
+                sensors={subSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleSubDragEnd}
+              >
+                <SortableContext
+                  items={subExercises.map(s => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {subExercises.map((sub, i) => (
+                    <SortableSubExerciseRow key={sub.id} id={sub.id}>
+                      <SubExerciseEditor
+                        subEx={sub} index={i}
+                        onChange={updateSubExercise} onRemove={removeSubExercise}
+                        onDuplicate={duplicateSubExercise}
+                        getOptions={getOptions} onAddCustom={handleAddCustom}
+                      />
+                    </SortableSubExerciseRow>
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
             {subExercises.length === 0 && (
               <div className="text-center py-6 text-gray-300 text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">
                 אין תתי-תרגילים עדיין
