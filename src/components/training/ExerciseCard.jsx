@@ -232,7 +232,10 @@ const formatParamValue = (val) => {
 function renderParamGroup(exercise, group) {
   const active = group.params.filter(p => {
     const val = exercise[p.key];
-    if (val == null || val === '' || val === 'לא רלוונטי' || val === 'bodyweight') return false;
+    // Filter null/empty only — any populated value (including
+    // 'bodyweight' or 'לא רלוונטי') renders, so the trainee sees
+    // everything the coach actually saved.
+    if (val == null || val === '') return false;
     if (typeof val === 'string' && val.trim() === '') return false;
     if (Array.isArray(val) && val.length === 0) return false;
     // Tempo lives in a dedicated cell row, not in the chip group.
@@ -241,27 +244,28 @@ function renderParamGroup(exercise, group) {
   });
   if (active.length === 0) return null;
   return (
-    <div key={group.title} style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600, letterSpacing: 0.5 }}>
+    <div key={group.title} style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5 }}>
         {group.title}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {active.map(p => {
           const raw = exercise[p.key];
           if (p.isLink) {
             return (
               <span key={p.key} onClick={() => window.open(raw, '_blank')}
-                style={{ padding: '5px 12px', borderRadius: 999, fontSize: 12,
+                style={{ padding: '6px 14px', borderRadius: 999, fontSize: 14,
                   background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE',
-                  cursor: 'pointer', fontWeight: 500 }}>
+                  cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 ▶ {p.label}
               </span>
             );
           }
           const display = Array.isArray(raw) ? raw.join(', ') : raw;
           return (
-            <span key={p.key} style={{ padding: '5px 12px', borderRadius: 999, fontSize: 12,
-              background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C2', fontWeight: 500 }}>
+            <span key={p.key} style={{ padding: '6px 14px', borderRadius: 999, fontSize: 14,
+              background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C2',
+              fontWeight: 600, whiteSpace: 'nowrap' }}>
               {p.label}: {display}{p.suffix || ''}
             </span>
           );
@@ -280,16 +284,16 @@ function renderTempoCells(exercise) {
   }
   const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>טמפו</div>
-      <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5 }}>טמפו</div>
+      <div style={{ display: 'flex', gap: 10, direction: 'rtl' }}>
         {labels.map((label, i) => (
           <div key={i} style={{
-            flex: 1, textAlign: 'center', padding: '8px 4px',
-            background: '#FFF5EE', borderRadius: 10, border: '1px solid #FFD9C2',
+            flex: 1, textAlign: 'center', padding: '10px 4px',
+            background: '#FFF5EE', borderRadius: 12, border: '1px solid #FFD9C2',
           }}>
-            <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{label}</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: '#FF6F20' }}>{parts[i] || '0'}"</div>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#FF6F20', lineHeight: 1 }}>{parts[i] || '0'}"</div>
           </div>
         ))}
       </div>
@@ -302,8 +306,8 @@ function renderNotes(exercise) {
   if (!note) return null;
   return (
     <div style={{
-      marginTop: 10, padding: 12, background: '#FFF9F0',
-      borderRadius: 10, fontSize: 13, color: '#555', lineHeight: 1.6,
+      marginTop: 12, padding: 14, background: '#FFF9F0',
+      borderRadius: 12, fontSize: 14, color: '#555', lineHeight: 1.7,
     }}>
       💡 {note}
     </div>
@@ -313,20 +317,20 @@ function renderNotes(exercise) {
 function renderSubExercises(subs) {
   if (!Array.isArray(subs) || subs.length === 0) return null;
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5 }}>
         תרגילים ברשימה
       </div>
       {subs.map((sub, i) => (
         <div key={sub.id || i} style={{
-          fontSize: 13, color: '#1a1a1a', padding: '6px 0',
+          fontSize: 14, color: '#1a1a1a', padding: '8px 0',
           borderBottom: i < subs.length - 1 ? '1px solid #F5E8D5' : 'none',
-          display: 'flex', alignItems: 'center', gap: 8,
+          display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <span style={{
-            width: 22, height: 22, borderRadius: '50%', background: '#FFF5EE',
+            width: 26, height: 26, borderRadius: '50%', background: '#FFF5EE',
             border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontSize: 11, color: '#FF6F20', fontWeight: 600, flexShrink: 0,
+            justifyContent: 'center', fontSize: 12, color: '#FF6F20', fontWeight: 700, flexShrink: 0,
           }}>{i + 1}</span>
           {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
         </div>
@@ -384,7 +388,7 @@ function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras, headerLe
 
 function ExerciseOpenContent({ exercise, subExercises }) {
   return (
-    <div style={{ padding: '0 16px 16px' }}>
+    <div style={{ padding: '0 16px 20px' }}>
       {PARAM_GROUPS.map(group => renderParamGroup(exercise, group))}
       {renderTempoCells(exercise)}
       {renderNotes(exercise)}
