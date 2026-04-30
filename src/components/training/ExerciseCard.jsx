@@ -266,6 +266,10 @@ export default function ExerciseCard({
   const notes = exercise.description || exercise.coach_notes || exercise.notes;
   const isContainer = isContainerExercise(exercise);
   const subExercises = isContainer ? getSubExercises(exercise) : [];
+  // For the trainee view we always run the 4-shape reader, even when
+  // mode isn't set on the row — legacy exercises with children but
+  // missing mode still need to surface their sub-exercise list.
+  const traineeSubExercises = getSubExercises(exercise);
 
   // ── COACH VIEW ──────────────────────────────────────────────────────
   if (isCoach || showEditButton) {
@@ -394,12 +398,18 @@ export default function ExerciseCard({
   // Read-only mirror of the coach editor. Header collapses the body;
   // every populated field that the coach can fill in ModernExerciseForm
   // shows up here in matching groups (no inputs, no edit affordances).
-  // The complete-toggle button is intentionally absent — it returns in
-  // the next phase as part of the execution flow.
-  return <TraineeExerciseCard exercise={exercise} />;
+  // Complete-toggle and 4-shape sub-exercise reading are delegated to
+  // the parent helpers so the trainee card keeps full UX parity.
+  return (
+    <TraineeExerciseCard
+      exercise={exercise}
+      onToggleComplete={handleToggleComplete}
+      subExercises={traineeSubExercises}
+    />
+  );
 }
 
-function TraineeExerciseCard({ exercise }) {
+function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) {
   const [isOpen, setIsOpen] = useState(true);
 
   const renderGroup = (title, params) => {
@@ -433,13 +443,18 @@ function TraineeExerciseCard({ exercise }) {
   };
 
   return (
-    <div style={{
-      background: '#FFFEFC',
-      border: '1px solid #F5E8D5',
-      borderRadius: 14,
-      marginBottom: 10,
-      overflow: 'visible',
-    }}>
+    <motion.div
+      layout
+      style={{
+        background: '#FFFEFC',
+        border: '1px solid #F5E8D5',
+        borderRadius: 14,
+        marginBottom: 10,
+        overflow: 'visible',
+        // Green-when-completed indicator on the right edge (RTL)
+        borderRight: exercise.completed ? '3px solid #4CAF50' : '3px solid transparent',
+      }}
+    >
       {/* Header — click to toggle open/closed */}
       <div onClick={() => setIsOpen(!isOpen)} style={{
         padding: '14px 16px',
@@ -463,6 +478,12 @@ function TraineeExerciseCard({ exercise }) {
             <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
               background: '#FEF3C7', color: '#92400E', fontWeight: 500 }}>
               RPE {exercise.rpe}
+            </span>
+          )}
+          {exercise.completed && (
+            <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
+              background: '#D1FAE5', color: '#16A34A', fontWeight: 500 }}>
+              ✓ בוצע
             </span>
           )}
           <span style={{ fontSize: 14, color: '#888', transition: 'transform 0.2s',
@@ -557,48 +578,48 @@ function TraineeExerciseCard({ exercise }) {
             </div>
           )}
 
-          {/* Sub-exercises (טבטה / סופרסט / קומבו). Reads through the
-              4 shapes coaches actually save into — children (canonical)
-              first, then tabata_data.{sub_exercises|blocks}, then the
-              legacy exercise_list / sub_exercises columns. */}
-          {(() => {
-            let subs = exercise.children;
-            if (typeof subs === 'string') {
-              try { subs = JSON.parse(subs); } catch { subs = null; }
-            }
-            if (!subs && exercise.tabata_data) {
-              try {
-                const td = typeof exercise.tabata_data === 'string'
-                  ? JSON.parse(exercise.tabata_data) : exercise.tabata_data;
-                subs = td?.sub_exercises || td?.blocks;
-              } catch {}
-            }
-            if (!subs) subs = exercise.exercise_list || exercise.sub_exercises;
-            if (!Array.isArray(subs) || subs.length === 0) return null;
-            return (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
-                  תרגילים ברשימה
-                </div>
-                {subs.map((sub, i) => (
-                  <div key={i} style={{
-                    fontSize: 13, color: '#1a1a1a', padding: '6px 0',
-                    borderBottom: i < subs.length - 1 ? '1px solid #F5E8D5' : 'none',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                  }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: '50%', background: '#FFF5EE',
-                      border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', fontSize: 11, color: '#FF6F20', fontWeight: 600, flexShrink: 0,
-                    }}>{i + 1}</span>
-                    {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
-                  </div>
-                ))}
+          {/* Sub-exercises — uses the parent's getSubExercises 4-shape
+              reader (children → tabata_data.{sub_exercises|blocks} →
+              exercise_list → sub_exercises) so legacy rows still
+              surface their list, including flattened tabata blocks. */}
+          {Array.isArray(subExercises) && subExercises.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
+                תרגילים ברשימה
               </div>
-            );
-          })()}
+              {subExercises.map((sub, i) => (
+                <div key={sub.id || i} style={{
+                  fontSize: 13, color: '#1a1a1a', padding: '6px 0',
+                  borderBottom: i < subExercises.length - 1 ? '1px solid #F5E8D5' : 'none',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: '50%', background: '#FFF5EE',
+                    border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 11, color: '#FF6F20', fontWeight: 600, flexShrink: 0,
+                  }}>{i + 1}</span>
+                  {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Complete-toggle button — restored from the legacy trainee
+              card. Renders only when the parent supplied a handler and
+              the exercise hasn't been marked complete yet (the green
+              ✓ בוצע badge in the header conveys the completed state). */}
+          {onToggleComplete && !exercise.completed && (
+            <button onClick={onToggleComplete} style={{
+              width: '100%', height: 44, marginTop: 12,
+              borderRadius: 12, border: 'none',
+              background: '#FF6F20', color: 'white',
+              fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            }}>
+              סמן כבוצע ✓
+            </button>
+          )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
