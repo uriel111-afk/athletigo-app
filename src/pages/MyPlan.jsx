@@ -701,10 +701,10 @@ function MyPlanInner() {
   }
 
   return (
-    <UnifiedPlanBuilder 
-      plan={selectedPlan} 
-      isCoach={false} 
-      canEdit={selectedPlan?.created_by === user?.id}
+    <UnifiedPlanBuilder
+      plan={selectedPlan}
+      isCoach={false}
+      canEdit={false}
       onBack={() => setSelectedPlan(null)}
     />
   );
