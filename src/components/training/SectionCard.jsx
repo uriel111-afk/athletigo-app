@@ -35,6 +35,10 @@ export default function SectionCard({
   const completedCount = exercises.filter(e => e && e.completed).length;
   const totalCount = exercises.length;
 
+  // TEMP DEBUG — log how many exercises arrive vs what gets rendered.
+  // Remove once the missing-exercises issue is diagnosed.
+  console.log('[SectionCard]', section?.section_name, 'exercises received:', exercises?.length, 'exercises:', exercises?.map(e => e?.exercise_name || e?.name));
+
   // Auto-open the rating popup the moment all exercises in the section
   // flip to completed. Trainee-view only — coaches editing the plan
   // shouldn't see the rating modal. sectionRated guards a re-open if
