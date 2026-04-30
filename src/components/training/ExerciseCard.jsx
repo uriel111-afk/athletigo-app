@@ -316,19 +316,50 @@ export default function ExerciseCard({
           )}
         </div>
 
-        {/* Param pills */}
-        {chips.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {chips.slice(0, 5).map((chip, i) => {
+        {/* Param pills — all of them, no slice. Container wraps so a
+            wide param set fans out into multiple rows on mobile. */}
+        {(chips.length > 0 || exercise.video_url) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '0 0 12px' }}>
+            {chips.map((chip, i) => {
               const Icon = chip.icon;
               return (
-                <div key={i} className="bg-white px-2.5 py-1.5 rounded-full border border-gray-200 flex items-center gap-1.5">
-                  {Icon && <Icon size={12} className="text-[#FF6F20]" />}
-                  <span className="text-xs font-bold text-gray-800">{chip.value}</span>
-                  <span className="text-[10px] text-gray-400">{chip.label}</span>
-                </div>
+                <span key={i} style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  background: '#FFF5EE',
+                  color: '#FF6F20',
+                  border: '1px solid #FFD9C2',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  {Icon && <Icon size={12} />}
+                  <span style={{ opacity: 0.7 }}>{chip.label}:</span>
+                  <span style={{ fontWeight: 700 }}>{chip.value}</span>
+                </span>
               );
             })}
+            {exercise.video_url && (
+              <span
+                onClick={() => window.open(exercise.video_url, '_blank')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  background: '#EFF6FF',
+                  color: '#3B82F6',
+                  border: '1px solid #BFDBFE',
+                  cursor: 'pointer',
+                }}
+              >
+                ▶ וידאו
+              </span>
+            )}
           </div>
         )}
 
