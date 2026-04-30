@@ -1138,23 +1138,6 @@ function PersonalTab({
                 {user?.full_name || 'מתאמן/ת'}
               </div>
             )}
-            {/* Status pill is coach-only metadata — the trainee
-                shouldn't see "אונבורדינג / מזדמן / פעיל / מושהה /
-                לשעבר" classifications about themselves. */}
-            {isCoach && currentStatusOpt && !editingDetails && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                marginTop: 4,
-                padding: '2px 10px', borderRadius: 999,
-                background: currentStatusOpt.badgeBg,
-                color: currentStatusOpt.badgeFg,
-                border: `1px solid ${currentStatusOpt.borderColor}`,
-                fontSize: 11, fontWeight: 700,
-              }}>
-                <span aria-hidden>{currentStatusOpt.icon}</span>
-                {currentStatusOpt.label}
-              </span>
-            )}
           </div>
         </div>
 
@@ -1199,34 +1182,6 @@ function PersonalTab({
           <EditableField label="כתובת"        value={user?.address}          fieldKey="address" />
           <EditableField label="עיר"          value={user?.city}             fieldKey="city" />
         </div>
-
-        {/* Coach-only client status picker — pills row.
-            'onboarding' is read-only here per design (the wizard
-            owns that status); the other four statuses flip
-            immediately on tap, routing through the parent's
-            handleStatusChange so trainee_permissions and the
-            package freeze/unfreeze cascade run alongside the
-            simple users.client_status update. */}
-        {isCoach && onApplyStatusChange && (
-          <section style={{ marginTop: 18 }}>
-            <h3 style={{
-              fontSize: 13, color: '#888',
-              marginBottom: 8,
-              fontWeight: 600,
-            }}>
-              סטטוס מתאמן
-            </h3>
-            <ClientStatusPicker
-              variant="pills"
-              value={user?.client_status}
-              onChange={(newStatus) => onApplyStatusChange(newStatus)}
-            />
-            <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-              הסטטוס משפיע על אילו features המתאמן רואה במערכת.
-              {user?.client_status === 'onboarding' && ' מנוהל אוטומטית במהלך האונבורדינג.'}
-            </div>
-          </section>
-        )}
 
         {editingDetails && (
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
