@@ -152,6 +152,73 @@ const isContainerExercise = (ex) => {
   return ["טבטה", "סופרסט", "קומבו"].includes(ex.mode) && getSubExercises(ex).length > 0;
 };
 
+// Tempo display: expand "3-1-2-0" → "שלילי 3 · החזקה למטה 1 ·
+// חיובי 2 · החזקה למעלה 0". Single-segment values pass through.
+function formatTempo(val) {
+  if (!val) return null;
+  const parts = String(val).split('-').map(p => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return String(val);
+  const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
+  return parts.map((p, i) => `${labels[i] || ''} ${p}"`).join(' · ');
+}
+
+// Trainee view: 4 logical groups so a busy plan reads as a structured
+// recipe instead of a 20-chip blob. Each group renders its own header
+// + chip row; empty groups are skipped.
+const PARAM_GROUPS = [
+  {
+    title: 'עומס',
+    params: [
+      { key: 'sets', label: 'סטים' },
+      { key: 'reps', label: 'חזרות' },
+      { key: 'rounds', label: 'סבבים' },
+      { key: 'weight', label: 'משקל', suffix: ' ק"ג' },
+      { key: 'weight_type', label: 'סוג משקל' },
+      { key: 'rpe', label: 'RPE' },
+    ],
+  },
+  {
+    title: 'זמנים',
+    params: [
+      { key: 'work_time', label: 'זמן עבודה', suffix: '"' },
+      { key: 'rest_time', label: 'זמן מנוחה', suffix: '"' },
+      { key: 'rest_between_sets', label: 'מנוחה בין סטים', suffix: '"' },
+      { key: 'rest_between_exercises', label: 'מנוחה בין תרגילים', suffix: '"' },
+      { key: 'static_hold_time', label: 'החזקה סטטית', suffix: '"' },
+    ],
+  },
+  {
+    title: 'טכניקה',
+    params: [
+      { key: 'tempo', label: 'טמפו', format: formatTempo },
+      { key: 'body_position', label: 'מנח גוף' },
+      { key: 'leg_position', label: 'מנח רגליים' },
+      { key: 'side', label: 'צד' },
+      { key: 'grip', label: 'אחיזה' },
+      { key: 'range_of_motion', label: 'טווח תנועה' },
+    ],
+  },
+  {
+    title: 'ציוד ומדיה',
+    params: [
+      { key: 'equipment', label: 'ציוד' },
+      { key: 'video_url', label: 'וידאו', isLink: true },
+    ],
+  },
+];
+
+const isParamFilled = (val) => {
+  if (val == null || val === '' || val === 'לא רלוונטי') return false;
+  if (Array.isArray(val)) return val.length > 0;
+  if (typeof val === 'string' && val.trim() === '') return false;
+  return true;
+};
+
+const formatParamValue = (val) => {
+  if (Array.isArray(val)) return val.join(', ');
+  return String(val);
+};
+
 const getContainerLabel = (ex) => {
   if (ex.mode === "טבטה") return "טבטה";
   if (ex.mode === "סופרסט") return "רשימה";
@@ -344,52 +411,56 @@ export default function ExerciseCard({
           )}
         </div>
 
-        {/* Param pills — all of them, no slice. Container wraps so a
-            wide param set fans out into multiple rows on mobile. */}
-        {(chips.length > 0 || exercise.video_url) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '0 0 12px' }}>
-            {chips.map((chip, i) => {
-              const Icon = chip.icon;
-              return (
-                <span key={i} style={{
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                  background: '#FFF5EE',
-                  color: '#FF6F20',
-                  border: '1px solid #FFD9C2',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}>
-                  {Icon && <Icon size={12} />}
-                  <span style={{ opacity: 0.7 }}>{chip.label}:</span>
-                  <span style={{ fontWeight: 700 }}>{chip.value}</span>
-                </span>
-              );
-            })}
-            {exercise.video_url && (
-              <span
-                onClick={() => window.open(exercise.video_url, '_blank')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                  background: '#EFF6FF',
-                  color: '#3B82F6',
-                  border: '1px solid #BFDBFE',
-                  cursor: 'pointer',
-                }}
-              >
-                ▶ וידאו
-              </span>
-            )}
-          </div>
-        )}
+        {/* Grouped params — 4 logical groups (עומס / זמנים / טכניקה /
+            ציוד ומדיה). Each group skipped when empty. Replaces the
+            single-row chip blob to give the trainee a structured
+            recipe instead of a wall of pills. */}
+        {PARAM_GROUPS.map(group => {
+          const activeParams = group.params.filter(p => isParamFilled(exercise[p.key]));
+          if (activeParams.length === 0) return null;
+          return (
+            <div key={group.title} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 4, fontWeight: 500 }}>
+                {group.title}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {activeParams.map(p => {
+                  const raw = exercise[p.key];
+                  const formatted = p.format ? p.format(raw) : formatParamValue(raw);
+                  if (!formatted) return null;
+                  if (p.isLink) {
+                    return (
+                      <span
+                        key={p.key}
+                        onClick={() => window.open(raw, '_blank')}
+                        style={{
+                          padding: '4px 10px', borderRadius: 999, fontSize: 12,
+                          background: '#EFF6FF', color: '#3B82F6',
+                          border: '1px solid #BFDBFE',
+                          cursor: 'pointer', fontWeight: 500,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        ▶ {p.label}
+                      </span>
+                    );
+                  }
+                  return (
+                    <span key={p.key} style={{
+                      padding: '4px 10px', borderRadius: 999,
+                      fontSize: 12, background: '#FFF5EE', color: '#FF6F20',
+                      border: '1px solid #FFD9C2', fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      <span style={{ opacity: 0.7 }}>{p.label}:</span>{' '}
+                      <span style={{ fontWeight: 700 }}>{formatted}{p.suffix || ''}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
 
         {/* Sub-exercises for trainee */}
         {isContainer && subExercises.length > 0 && (
@@ -414,10 +485,19 @@ export default function ExerciseCard({
           </button>
         </div>
 
-        {/* Notes */}
+        {/* Coach notes — single channel: description / notes /
+            coach_notes (whichever the row carries). 💡 prefix flags
+            the card as guidance vs raw params. */}
         {notes && (
-          <div className="bg-white p-3 rounded-lg border-r-4 border-orange-400 mt-3">
-            <p className="text-sm text-gray-700 leading-relaxed">{notes}</p>
+          <div style={{
+            marginTop: 8, padding: 12,
+            background: '#FFF9F0',
+            borderRadius: 10,
+            fontSize: 13,
+            color: '#555',
+            lineHeight: 1.6,
+          }}>
+            💡 {notes}
           </div>
         )}
       </div>
