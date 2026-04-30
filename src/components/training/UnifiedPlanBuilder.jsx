@@ -47,6 +47,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     console.log('[UPB] mount — plan id:', plan?.id, 'name:', plan?.plan_name || plan?.name);
   }, [plan?.id]);
 
+  // initialData removed so isLoading actually flips to true on first
+  // fetch — with [] as initialData the query was treated as already
+  // fulfilled and the editor flashed "0 sections, 0 exercises" before
+  // the real data landed. The loading-gate below now catches this.
   const { data: sections = [], isLoading: sectionsLoading, error: sectionsError } = useQuery({
     queryKey: ['training-sections', plan.id],
     queryFn: async () => {
@@ -67,7 +71,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         }
       }
     },
-    initialData: [],
     enabled: !!plan.id
   });
 
@@ -91,7 +94,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         }
       }
     },
-    initialData: [],
     enabled: !!plan.id
   });
 
@@ -656,6 +658,24 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     if (!confirm('האם ברצונך לסיים את האימון ולשמור אותו ביומן ההיסטוריה?')) return;
     await saveWorkoutHistory();
   };
+
+  // Loading gate — prevents the "blank flash" where the editor renders
+  // a 0-section / 0-exercise plan for ~200ms before the real data
+  // lands. Per the project's loading-gate rule we use isLoading only
+  // (never isFetching) so background refetches don't flicker the page.
+  if (plan?.id && (sectionsLoading || exercisesLoading)) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 200,
+        direction: 'rtl',
+      }}>
+        <div style={{ fontSize: 14, color: '#888' }}>טוען תוכנית...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full pb-16 md:pb-24" dir="rtl">
