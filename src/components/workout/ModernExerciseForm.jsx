@@ -744,6 +744,28 @@ export default function ModernExerciseForm({ exercise, onChange }) {
     if (exercise.mode !== mode) updateEx("mode", mode);
   }, [confirmedParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-fill defaults for any confirmed param that's still empty.
+  // Triggers on every confirmedParams change. Container params and
+  // params with empty/sentinel default ('', '_container') are skipped.
+  // All updates batched into a single onChange to avoid the
+  // updateEx-from-stale-closure overwrite race.
+  useEffect(() => {
+    const updates = {};
+    let needsUpdate = false;
+    ALL_PARAMETERS.forEach(param => {
+      if (!confirmedParams.has(param.id)) return;
+      const dbField = getDbField(param.id);
+      const cur = exercise[dbField];
+      if (cur != null && cur !== '') return;
+      if (param.defaultValue == null || param.defaultValue === '' || param.defaultValue === '_container') return;
+      updates[dbField] = String(param.defaultValue);
+      needsUpdate = true;
+    });
+    if (needsUpdate) {
+      onChange({ ...exercise, ...updates });
+    }
+  }, [confirmedParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Param handlers ──────────────────────────────────────────────────
   const handleParamClick = (paramId) => {
     // Double-click on currently editing param → remove it
