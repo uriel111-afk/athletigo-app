@@ -387,10 +387,151 @@ function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras, headerLe
 }
 
 function ExerciseOpenContent({ exercise, subExercises }) {
+  // 4-col grid mirroring ModernExerciseForm's param tab grid. Filled
+  // params render orange + ✓ + value (truncated to 10 chars), empty
+  // params render gray with the icon + label. Below the grid the
+  // populated params get a second representation as full-width chips
+  // for legibility, plus tempo cells, notes, and sub-exercise list.
+  const ALL_DISPLAY_PARAMS = [
+    { id: "sets", label: "סטים", icon: Hash },
+    { id: "reps", label: "חזרות", icon: Repeat },
+    { id: "work_time", label: "זמן עבודה", icon: Clock },
+    { id: "rest_time", label: "זמן מנוחה", icon: Timer },
+    { id: "rounds", label: "סבבים", icon: Hash },
+    { id: "rpe", label: "RPE", icon: Zap },
+    { id: "weight_type", label: "סוג עומס", icon: Weight },
+    { id: "weight", label: "משקל", icon: Weight },
+    { id: "tempo", label: "טמפו", icon: Activity },
+    { id: "rest_between_sets", label: "מנ׳ סטים", icon: Timer },
+    { id: "rest_between_exercises", label: "מנ׳ תרגילים", icon: PauseCircle },
+    { id: "body_position", label: "מנח גוף", icon: User },
+    { id: "leg_position", label: "רגליים", icon: Footprints },
+    { id: "equipment", label: "ציוד", icon: Dumbbell },
+    { id: "static_hold_time", label: "החזקה", icon: PauseCircle },
+    { id: "side", label: "צד", icon: ArrowLeftRight },
+    { id: "range_of_motion", label: "טווח", icon: Maximize2 },
+    { id: "grip", label: "אחיזה", icon: GripVertical },
+    { id: "video_url", label: "וידאו", icon: Video },
+  ];
+
+  const getDisplayValue = (id, val) => {
+    if (!val || val === '' || val === '0') return null;
+    const v = String(val);
+    switch (id) {
+      case 'sets': return `${v} סטים`;
+      case 'reps': return `${v} חזרות`;
+      case 'rounds': return `${v} סבבים`;
+      case 'weight': return `${v} ק"ג`;
+      case 'rpe': return `RPE ${v}`;
+      case 'work_time':
+      case 'rest_time':
+      case 'rest_between_sets':
+      case 'rest_between_exercises':
+      case 'static_hold_time': {
+        const n = parseInt(v);
+        if (isNaN(n) || n === 0) return null;
+        return n < 60 ? `${n}"` : `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+      }
+      default: return v;
+    }
+  };
+
+  const filledParams = ALL_DISPLAY_PARAMS.filter(p => {
+    const val = exercise[p.id];
+    return val != null && val !== '' && val !== '0';
+  });
+
   return (
-    <div style={{ padding: '0 16px 20px' }}>
-      {PARAM_GROUPS.map(group => renderParamGroup(exercise, group))}
+    <div style={{ padding: '0 12px 20px' }}>
+      {/* Param grid — same shape as ModernExerciseForm's editor grid.
+          Orange = filled, gray = empty. */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 6,
+        marginBottom: 16,
+      }}>
+        {ALL_DISPLAY_PARAMS.map(p => {
+          const val = exercise[p.id];
+          const isFilled = val != null && val !== '' && val !== '0';
+          const displayVal = isFilled ? getDisplayValue(p.id, val) : null;
+          const Icon = p.icon;
+          return (
+            <div key={p.id} style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              padding: '8px 4px',
+              borderRadius: 12,
+              height: 54,
+              border: isFilled ? '1.5px solid #FF6F20' : '1px solid #E5E7EB',
+              background: isFilled ? '#FFF5EE' : '#FAFAFA',
+              color: isFilled ? '#FF6F20' : '#9CA3AF',
+            }}>
+              {isFilled ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Check size={10} strokeWidth={3} />
+                    <Icon size={11} />
+                  </div>
+                  <span style={{
+                    fontSize: 8, fontWeight: 700,
+                    textAlign: 'center', lineHeight: 1.2,
+                    overflow: 'hidden', width: '100%',
+                  }}>
+                    {(displayVal || p.label).slice(0, 10)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Icon size={15} strokeWidth={2} />
+                  <span style={{ fontSize: 9, fontWeight: 600, textAlign: 'center' }}>{p.label}</span>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tempo — 4 boxed cells, full-width row */}
       {renderTempoCells(exercise)}
+
+      {/* Filled params — full chips for legibility */}
+      {filledParams.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600 }}>פרטי התרגיל</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {filledParams.map(p => {
+              const val = getDisplayValue(p.id, exercise[p.id]);
+              if (!val) return null;
+              if (p.id === 'video_url') {
+                return (
+                  <span key={p.id} onClick={() => window.open(exercise[p.id], '_blank')}
+                    style={{
+                      padding: '6px 14px', borderRadius: 999, fontSize: 14,
+                      background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE',
+                      cursor: 'pointer', fontWeight: 600,
+                    }}>
+                    ▶ וידאו
+                  </span>
+                );
+              }
+              return (
+                <span key={p.id} style={{
+                  padding: '6px 14px', borderRadius: 999, fontSize: 14,
+                  background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C2',
+                  fontWeight: 600, whiteSpace: 'nowrap',
+                }}>
+                  {p.label}: {val}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {renderNotes(exercise)}
       {renderSubExercises(subExercises)}
     </div>
