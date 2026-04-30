@@ -224,6 +224,167 @@ const formatParamValue = (val) => {
   return String(val);
 };
 
+// ── Shared display helpers — used by BOTH coach + trainee open views.
+// The open card content is identical; only the action buttons differ.
+
+function renderParamGroup(exercise, group) {
+  const active = group.params.filter(p => {
+    const val = exercise[p.key];
+    if (val == null || val === '' || val === 'לא רלוונטי' || val === 'bodyweight') return false;
+    if (typeof val === 'string' && val.trim() === '') return false;
+    if (Array.isArray(val) && val.length === 0) return false;
+    // Tempo lives in a dedicated cell row, not in the chip group.
+    if (p.key === 'tempo') return false;
+    return true;
+  });
+  if (active.length === 0) return null;
+  return (
+    <div key={group.title} style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600, letterSpacing: 0.5 }}>
+        {group.title}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {active.map(p => {
+          const raw = exercise[p.key];
+          if (p.isLink) {
+            return (
+              <span key={p.key} onClick={() => window.open(raw, '_blank')}
+                style={{ padding: '5px 12px', borderRadius: 999, fontSize: 12,
+                  background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE',
+                  cursor: 'pointer', fontWeight: 500 }}>
+                ▶ {p.label}
+              </span>
+            );
+          }
+          const display = Array.isArray(raw) ? raw.join(', ') : raw;
+          return (
+            <span key={p.key} style={{ padding: '5px 12px', borderRadius: 999, fontSize: 12,
+              background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C2', fontWeight: 500 }}>
+              {p.label}: {display}{p.suffix || ''}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function renderTempoCells(exercise) {
+  if (!exercise.tempo) return null;
+  const str = String(exercise.tempo).trim();
+  let parts = str.split('-').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 1 && /^\d{3,4}$/.test(parts[0])) {
+    parts = parts[0].split('');
+  }
+  const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>טמפו</div>
+      <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
+        {labels.map((label, i) => (
+          <div key={i} style={{
+            flex: 1, textAlign: 'center', padding: '8px 4px',
+            background: '#FFF5EE', borderRadius: 10, border: '1px solid #FFD9C2',
+          }}>
+            <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{label}</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: '#FF6F20' }}>{parts[i] || '0'}"</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderNotes(exercise) {
+  const note = exercise.description || exercise.notes || exercise.coach_notes;
+  if (!note) return null;
+  return (
+    <div style={{
+      marginTop: 10, padding: 12, background: '#FFF9F0',
+      borderRadius: 10, fontSize: 13, color: '#555', lineHeight: 1.6,
+    }}>
+      💡 {note}
+    </div>
+  );
+}
+
+function renderSubExercises(subs) {
+  if (!Array.isArray(subs) || subs.length === 0) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
+        תרגילים ברשימה
+      </div>
+      {subs.map((sub, i) => (
+        <div key={sub.id || i} style={{
+          fontSize: 13, color: '#1a1a1a', padding: '6px 0',
+          borderBottom: i < subs.length - 1 ? '1px solid #F5E8D5' : 'none',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{
+            width: 22, height: 22, borderRadius: '50%', background: '#FFF5EE',
+            border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 11, color: '#FF6F20', fontWeight: 600, flexShrink: 0,
+          }}>{i + 1}</span>
+          {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras }) {
+  return (
+    <div onClick={onToggle} style={{
+      padding: '14px 16px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      cursor: 'pointer',
+    }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {exercise.exercise_name || exercise.name}
+        </div>
+        {exercise.mode && (
+          <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 500, marginTop: 2, display: 'block' }}>
+            {exercise.mode}
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        {exercise.rpe && (
+          <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
+            background: '#FEF3C7', color: '#92400E', fontWeight: 500 }}>
+            RPE {exercise.rpe}
+          </span>
+        )}
+        {exercise.completed && (
+          <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
+            background: '#D1FAE5', color: '#16A34A', fontWeight: 500 }}>
+            ✓ בוצע
+          </span>
+        )}
+        {headerExtras}
+        <span style={{ fontSize: 14, color: '#888', transition: 'transform 0.2s',
+          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+      </div>
+    </div>
+  );
+}
+
+function ExerciseOpenContent({ exercise, subExercises }) {
+  return (
+    <div style={{ padding: '0 16px 16px' }}>
+      {PARAM_GROUPS.map(group => renderParamGroup(exercise, group))}
+      {renderTempoCells(exercise)}
+      {renderNotes(exercise)}
+      {renderSubExercises(subExercises)}
+    </div>
+  );
+}
+
 const getContainerLabel = (ex) => {
   if (ex.mode === "טבטה") return "טבטה";
   if (ex.mode === "סופרסט") return "רשימה";
@@ -262,135 +423,29 @@ export default function ExerciseCard({
   const handleEdit = (e) => { e.stopPropagation(); onEdit ? onEdit() : onRowClick?.(); };
   const handleDelete = (e) => { e.stopPropagation(); onDelete?.(); };
 
-  const chips = buildChips(exercise);
-  const notes = exercise.description || exercise.coach_notes || exercise.notes;
-  const isContainer = isContainerExercise(exercise);
-  const subExercises = isContainer ? getSubExercises(exercise) : [];
-  // For the trainee view we always run the 4-shape reader, even when
-  // mode isn't set on the row — legacy exercises with children but
-  // missing mode still need to surface their sub-exercise list.
-  const traineeSubExercises = getSubExercises(exercise);
+  // Always run the 4-shape reader regardless of mode — both coach and
+  // trainee views show the same open content, and legacy rows with
+  // children but no mode still need to surface their sub-exercise list.
+  const subExercises = getSubExercises(exercise);
 
   // ── COACH VIEW ──────────────────────────────────────────────────────
+  // Same open-card content as the trainee view; only the action buttons
+  // differ. Reorder/duplicate/delete icon buttons live in the header
+  // next to the chevron so the section list still has the inline
+  // controls coaches expect — primary "ערוך תרגיל" button at the
+  // bottom of the open body lands them in the editor (layer 3).
   if (isCoach || showEditButton) {
     return (
-      <motion.div layout
-        className="w-full rounded-2xl overflow-hidden transition-all"
-        style={{ backgroundColor: "#FAFAFA", border: "1.5px solid #ede9e3", borderRight: `3px solid ${exercise.completed ? "#4CAF50" : "#FF6F20"}` }}>
-
-        <div className="p-3">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#FFF7ED" }}>
-                {isContainer ? <Layers size={14} className="text-[#FF6F20]" /> : <Dumbbell size={14} className="text-[#FF6F20]" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-black text-gray-900 leading-tight truncate">
-                  {exercise.exercise_name || exercise.name || "תרגיל"}
-                </h3>
-                {isContainer && (
-                  <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#FF6F20] text-white">
-                    {getContainerLabel(exercise)} ({subExercises.length})
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {onMove && (
-                <>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onMove(-1); }}
-                    disabled={isFirst}
-                    title="העלה תרגיל"
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors disabled:opacity-30 disabled:cursor-default text-xs leading-none"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onMove(1); }}
-                    disabled={isLast}
-                    title="הורד תרגיל"
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors disabled:opacity-30 disabled:cursor-default text-xs leading-none"
-                  >
-                    ↓
-                  </button>
-                </>
-              )}
-              <button onClick={handleEdit} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors" title="ערוך">
-                <Edit2 size={13} />
-              </button>
-              {onDuplicate && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-                  title="שכפל תרגיל"
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:bg-orange-50 transition-colors text-xs leading-none"
-                >
-                  📋
-                </button>
-              )}
-              <button onClick={handleDelete} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="מחק">
-                <Trash2 size={13} />
-              </button>
-            </div>
-          </div>
-
-          {/* Param chips with icons */}
-          {chips.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {chips.map((chip, i) => {
-                const Icon = chip.icon;
-                return (
-                  <span key={i} className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700">
-                    {Icon && <Icon size={10} className="text-[#FF6F20] flex-shrink-0" />}
-                    <span className="text-gray-400">{chip.label}:</span>
-                    <span className="font-bold">{chip.value}</span>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Sub-exercises for container */}
-          {isContainer && subExercises.length > 0 && (
-            <div className="bg-orange-50/50 border border-orange-100 rounded-lg p-2 mb-2">
-              <div className="space-y-1">
-                {subExercises.map((sub, i) => {
-                  const subChips = buildChips(sub);
-                  return (
-                    <div key={sub.id || i} className="flex items-start gap-2 bg-white rounded-lg px-2 py-1.5 border border-orange-100/50">
-                      <span className="w-5 h-5 rounded-full bg-[#FF6F20] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[11px] font-bold text-gray-800 truncate">{sub.exercise_name || sub.name || "תת-תרגיל"}</div>
-                        {subChips.length > 0 && (
-                          <div className="text-[9px] text-gray-400 truncate mt-0.5">
-                            {subChips.map((c) => `${c.label}: ${c.value}`).join(" · ")}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* No params */}
-          {chips.length === 0 && !isContainer && (
-            <p className="text-[11px] text-gray-400 italic mb-1">אין פרמטרים</p>
-          )}
-
-          {/* Notes */}
-          {notes && (
-            <p className="text-[11px] text-gray-500 leading-relaxed border-t border-gray-100 pt-1.5 mt-1">
-              <Info size={10} className="inline mr-1 text-gray-400" />
-              {notes}
-            </p>
-          )}
-        </div>
-      </motion.div>
+      <CoachExerciseCard
+        exercise={exercise}
+        subExercises={subExercises}
+        onEdit={handleEdit}
+        onMove={onMove}
+        isFirst={isFirst}
+        isLast={isLast}
+        onDuplicate={onDuplicate}
+        onDelete={handleDelete}
+      />
     );
   }
 
@@ -404,44 +459,12 @@ export default function ExerciseCard({
     <TraineeExerciseCard
       exercise={exercise}
       onToggleComplete={handleToggleComplete}
-      subExercises={traineeSubExercises}
+      subExercises={subExercises}
     />
   );
 }
 
-function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) {
-  const [isOpen, setIsOpen] = useState(true);
-
-  const renderGroup = (title, params) => {
-    const active = params.filter(p => {
-      const val = exercise[p.key];
-      return val != null && val !== '' && val !== 'לא רלוונטי' && val !== 'bodyweight';
-    });
-    if (active.length === 0) return null;
-    return (
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600, letterSpacing: 0.5 }}>
-          {title}
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {active.map(p => {
-            const raw = exercise[p.key];
-            const display = Array.isArray(raw) ? raw.join(', ') : raw;
-            return (
-              <span key={p.key} style={{
-                padding: '5px 12px', borderRadius: 999, fontSize: 12,
-                background: '#FFF5EE', color: '#FF6F20',
-                border: '1px solid #FFD9C2', fontWeight: 500,
-              }}>
-                {p.label}: {display}{p.suffix || ''}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
+function CardWrapper({ completed, children }) {
   return (
     <motion.div
       layout
@@ -451,175 +474,129 @@ function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) 
         borderRadius: 14,
         marginBottom: 10,
         overflow: 'visible',
-        // Green-when-completed indicator on the right edge (RTL)
-        borderRight: exercise.completed ? '3px solid #4CAF50' : '3px solid transparent',
+        // Green-when-completed indicator on the right edge (RTL).
+        // Transparent fallback keeps the same width either way (no
+        // layout shift when the green flips on/off).
+        borderRight: completed ? '3px solid #4CAF50' : '3px solid transparent',
       }}
     >
-      {/* Header — click to toggle open/closed */}
-      <div onClick={() => setIsOpen(!isOpen)} style={{
-        padding: '14px 16px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        cursor: 'pointer',
-      }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {exercise.exercise_name || exercise.name}
-          </div>
-          {exercise.mode && (
-            <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 500, marginTop: 2, display: 'block' }}>
-              {exercise.mode}
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {exercise.rpe && (
-            <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
-              background: '#FEF3C7', color: '#92400E', fontWeight: 500 }}>
-              RPE {exercise.rpe}
-            </span>
-          )}
-          {exercise.completed && (
-            <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
-              background: '#D1FAE5', color: '#16A34A', fontWeight: 500 }}>
-              ✓ בוצע
-            </span>
-          )}
-          <span style={{ fontSize: 14, color: '#888', transition: 'transform 0.2s',
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-        </div>
-      </div>
+      {children}
+    </motion.div>
+  );
+}
 
-      {/* Body — every populated field, grouped to mirror the editor */}
+function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) {
+  const [isOpen, setIsOpen] = useState(true);
+  return (
+    <CardWrapper completed={exercise.completed}>
+      <ExerciseCardHeader
+        exercise={exercise}
+        isOpen={isOpen}
+        onToggle={() => setIsOpen(!isOpen)}
+      />
       {isOpen && (
-        <div style={{ padding: '0 16px 16px' }}>
-          {renderGroup('עומס', [
-            { key: 'sets', label: 'סטים' },
-            { key: 'reps', label: 'חזרות' },
-            { key: 'rounds', label: 'סבבים' },
-            { key: 'weight', label: 'משקל', suffix: ' ק"ג' },
-            { key: 'weight_type', label: 'סוג משקל' },
-          ])}
-
-          {renderGroup('זמנים', [
-            { key: 'work_time', label: 'זמן עבודה', suffix: '"' },
-            { key: 'rest_time', label: 'זמן מנוחה', suffix: '"' },
-            { key: 'rest_between_sets', label: 'מנוחה בין סטים', suffix: '"' },
-            { key: 'rest_between_exercises', label: 'מנוחה בין תרגילים', suffix: '"' },
-            { key: 'static_hold_time', label: 'החזקה סטטית', suffix: '"' },
-          ])}
-
-          {/* Tempo — 4 boxed cells. Splits both dashed ("3-1-2-0") and
-              packed ("3010") formats since PlanBuilder stores either. */}
-          {exercise.tempo && (() => {
-            const str = String(exercise.tempo).trim();
-            let parts = str.split('-').map(p => p.trim()).filter(Boolean);
-            if (parts.length === 1 && /^\d{3,4}$/.test(parts[0])) {
-              parts = parts[0].split('');
-            }
-            const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
-            return (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>טמפו</div>
-                <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
-                  {labels.map((label, i) => (
-                    <div key={i} style={{
-                      flex: 1, textAlign: 'center', padding: '8px 4px',
-                      background: '#FFF5EE', borderRadius: 10, border: '1px solid #FFD9C2',
-                    }}>
-                      <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{label}</div>
-                      <div style={{ fontSize: 18, fontWeight: 600, color: '#FF6F20' }}>{parts[i] || '0'}"</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          {renderGroup('טכניקה', [
-            { key: 'body_position', label: 'מנח גוף' },
-            { key: 'leg_position', label: 'מנח רגליים' },
-            { key: 'side', label: 'צד' },
-            { key: 'grip', label: 'אחיזה' },
-            { key: 'range_of_motion', label: 'טווח תנועה' },
-          ])}
-
-          {exercise.equipment && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>ציוד</div>
-              <span style={{ padding: '5px 12px', borderRadius: 999, fontSize: 12,
-                background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C2', fontWeight: 500 }}>
-                {Array.isArray(exercise.equipment) ? exercise.equipment.join(', ') : exercise.equipment}
-              </span>
-            </div>
-          )}
-
-          {exercise.video_url && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>וידאו</div>
-              <button onClick={() => window.open(exercise.video_url, '_blank')}
-                style={{
-                  padding: '8px 16px', borderRadius: 10, fontSize: 13,
-                  background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE',
-                  cursor: 'pointer', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                ▶ צפה בוידאו
+        <>
+          <ExerciseOpenContent exercise={exercise} subExercises={subExercises} />
+          {onToggleComplete && !exercise.completed && (
+            <div style={{ padding: '0 16px 16px' }}>
+              <button onClick={onToggleComplete} style={{
+                width: '100%', height: 44,
+                borderRadius: 12, border: 'none',
+                background: '#FF6F20', color: 'white',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              }}>
+                סמן כבוצע ✓
               </button>
             </div>
           )}
-
-          {(exercise.description || exercise.notes || exercise.coach_notes) && (
-            <div style={{
-              marginTop: 8, padding: 12, background: '#FFF9F0',
-              borderRadius: 10, fontSize: 13, color: '#555', lineHeight: 1.6,
-            }}>
-              💡 {exercise.description || exercise.notes || exercise.coach_notes}
-            </div>
-          )}
-
-          {/* Sub-exercises — uses the parent's getSubExercises 4-shape
-              reader (children → tabata_data.{sub_exercises|blocks} →
-              exercise_list → sub_exercises) so legacy rows still
-              surface their list, including flattened tabata blocks. */}
-          {Array.isArray(subExercises) && subExercises.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
-                תרגילים ברשימה
-              </div>
-              {subExercises.map((sub, i) => (
-                <div key={sub.id || i} style={{
-                  fontSize: 13, color: '#1a1a1a', padding: '6px 0',
-                  borderBottom: i < subExercises.length - 1 ? '1px solid #F5E8D5' : 'none',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <span style={{
-                    width: 22, height: 22, borderRadius: '50%', background: '#FFF5EE',
-                    border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontSize: 11, color: '#FF6F20', fontWeight: 600, flexShrink: 0,
-                  }}>{i + 1}</span>
-                  {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Complete-toggle button — restored from the legacy trainee
-              card. Renders only when the parent supplied a handler and
-              the exercise hasn't been marked complete yet (the green
-              ✓ בוצע badge in the header conveys the completed state). */}
-          {onToggleComplete && !exercise.completed && (
-            <button onClick={onToggleComplete} style={{
-              width: '100%', height: 44, marginTop: 12,
-              borderRadius: 12, border: 'none',
-              background: '#FF6F20', color: 'white',
-              fontSize: 14, fontWeight: 600, cursor: 'pointer',
-            }}>
-              סמן כבוצע ✓
-            </button>
-          )}
-        </div>
+        </>
       )}
-    </motion.div>
+    </CardWrapper>
+  );
+}
+
+// Coach card — same open content as the trainee card; the header
+// carries reorder/duplicate/delete icons next to the chevron, and
+// the open body's primary action is "ערוך תרגיל" which lands the
+// coach in the editor (layer 3).
+function CoachExerciseCard({
+  exercise, subExercises, onEdit, onMove, isFirst, isLast, onDuplicate, onDelete,
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+  const stop = (e) => e.stopPropagation();
+  const headerExtras = (
+    <div onClick={stop} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+      {onMove && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(-1); }}
+            disabled={isFirst}
+            title="העלה תרגיל"
+            style={{
+              width: 28, height: 28, borderRadius: 999, border: 'none',
+              background: 'transparent', color: '#888', cursor: isFirst ? 'default' : 'pointer',
+              opacity: isFirst ? 0.3 : 1, fontSize: 12,
+            }}
+          >↑</button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(1); }}
+            disabled={isLast}
+            title="הורד תרגיל"
+            style={{
+              width: 28, height: 28, borderRadius: 999, border: 'none',
+              background: 'transparent', color: '#888', cursor: isLast ? 'default' : 'pointer',
+              opacity: isLast ? 0.3 : 1, fontSize: 12,
+            }}
+          >↓</button>
+        </>
+      )}
+      {onDuplicate && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+          title="שכפל תרגיל"
+          style={{
+            width: 28, height: 28, borderRadius: 999, border: 'none',
+            background: 'transparent', cursor: 'pointer', fontSize: 12,
+          }}
+        >📋</button>
+      )}
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(e); }}
+          title="מחק"
+          style={{
+            width: 28, height: 28, borderRadius: 999, border: 'none',
+            background: 'transparent', color: '#DC2626', cursor: 'pointer', fontSize: 12,
+          }}
+        >🗑</button>
+      )}
+    </div>
+  );
+  return (
+    <CardWrapper completed={exercise.completed}>
+      <ExerciseCardHeader
+        exercise={exercise}
+        isOpen={isOpen}
+        onToggle={() => setIsOpen(!isOpen)}
+        headerExtras={headerExtras}
+      />
+      {isOpen && (
+        <>
+          <ExerciseOpenContent exercise={exercise} subExercises={subExercises} />
+          {onEdit && (
+            <div style={{ padding: '0 16px 16px' }}>
+              <button onClick={onEdit} style={{
+                width: '100%', height: 44,
+                borderRadius: 12, border: '1.5px solid #FF6F20',
+                background: '#FFF5EE', color: '#FF6F20',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              }}>
+                ✏️ ערוך תרגיל
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </CardWrapper>
   );
 }
