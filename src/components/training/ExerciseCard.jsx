@@ -8,6 +8,8 @@ import {
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
+import ExerciseCheckbox from "./ExerciseCheckbox";
+import ExerciseNotePopup from "./ExerciseNotePopup";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -333,7 +335,7 @@ function renderSubExercises(subs) {
   );
 }
 
-function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras }) {
+function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras, headerLeading }) {
   return (
     <div onClick={onToggle} style={{
       padding: '14px 16px',
@@ -342,16 +344,22 @@ function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras }) {
       alignItems: 'center',
       cursor: 'pointer',
     }}>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {exercise.exercise_name || exercise.name}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+        {headerLeading}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{
+            fontSize: 16, fontWeight: 600,
+            color: exercise.completed ? '#16A34A' : '#1a1a1a',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {exercise.exercise_name || exercise.name}
+          </div>
+          {exercise.mode && (
+            <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 500, marginTop: 2, display: 'block' }}>
+              {exercise.mode}
+            </span>
+          )}
         </div>
-        {exercise.mode && (
-          <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 500, marginTop: 2, display: 'block' }}>
-            {exercise.mode}
-          </span>
-        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         {exercise.rpe && (
@@ -487,29 +495,54 @@ function CardWrapper({ completed, children }) {
 
 function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) {
   const [isOpen, setIsOpen] = useState(true);
+  const [showNotePopup, setShowNotePopup] = useState(false);
+
+  // Checkbox click handling: completing the exercise opens the note
+  // popup first, the popup's save/skip then triggers the actual
+  // toggle. Un-completing skips the popup and toggles immediately.
+  const handleCheckboxToggle = (_exId, _secId, willBeCompleted) => {
+    if (willBeCompleted) {
+      setShowNotePopup(true);
+    } else {
+      onToggleComplete?.();
+    }
+  };
+
+  const checkbox = (
+    <ExerciseCheckbox
+      exerciseId={exercise.id}
+      sectionId={exercise.training_section_id}
+      isCompleted={!!exercise.completed}
+      onToggle={handleCheckboxToggle}
+    />
+  );
+
   return (
     <CardWrapper completed={exercise.completed}>
       <ExerciseCardHeader
         exercise={exercise}
         isOpen={isOpen}
         onToggle={() => setIsOpen(!isOpen)}
+        headerLeading={<span onClick={(e) => e.stopPropagation()}>{checkbox}</span>}
       />
       {isOpen && (
-        <>
-          <ExerciseOpenContent exercise={exercise} subExercises={subExercises} />
-          {onToggleComplete && !exercise.completed && (
-            <div style={{ padding: '0 16px 16px' }}>
-              <button onClick={onToggleComplete} style={{
-                width: '100%', height: 44,
-                borderRadius: 12, border: 'none',
-                background: '#FF6F20', color: 'white',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              }}>
-                סמן כבוצע ✓
-              </button>
-            </div>
-          )}
-        </>
+        <ExerciseOpenContent exercise={exercise} subExercises={subExercises} />
+      )}
+      {showNotePopup && (
+        <ExerciseNotePopup
+          exerciseName={exercise.exercise_name || exercise.name}
+          onSave={(_note) => {
+            // TODO: persist trainee_note via planExecutionApi.markExerciseDone
+            // once the parent passes a workout_execution_id down — for
+            // now just toggle and close.
+            onToggleComplete?.();
+            setShowNotePopup(false);
+          }}
+          onSkip={() => {
+            onToggleComplete?.();
+            setShowNotePopup(false);
+          }}
+        />
       )}
     </CardWrapper>
   );
