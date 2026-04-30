@@ -62,7 +62,35 @@ const buildChips = (ex) => {
   if (ex.weight && ex.weight !== "0") push("weight", "משקל", `${ex.weight} ק"ג`);
   if (ex.weight_type && ex.weight_type !== "bodyweight") push("weight_type", "עומס", ex.weight_type);
   if (ex.rpe && ex.rpe !== "0") push("rpe", "RPE", ex.rpe);
-  if (ex.tempo) push("tempo", "טמפו", ex.tempo);
+  if (ex.tempo) {
+    // Expand "3-1-2-0" → "שלילי 3" · "החזקה למטה 1" · "חיובי 2" · "החזקה למעלה 0"
+    const parts = String(ex.tempo).split('-').map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
+      const tempoDisplay = parts.map((p, i) => `${labels[i] || ''} ${p}"`).join(' · ');
+      push("tempo", "טמפו", tempoDisplay);
+    } else {
+      push("tempo", "טמפו", ex.tempo);
+    }
+  }
+
+  // Tabata-mode container surfaces the work/rest/rounds embedded in
+  // tabata_data. Without this the trainee sees only the "טבטה" badge
+  // and a sub-exercise list with no actual timing.
+  if (ex.mode === 'טבטה' && ex.tabata_data) {
+    let tabata = ex.tabata_data;
+    if (typeof tabata === 'string') {
+      try { tabata = JSON.parse(tabata); } catch { tabata = null; }
+    }
+    if (tabata && typeof tabata === 'object') {
+      const work = tabata.work_time ?? tabata.work_sec;
+      const rest = tabata.rest_time ?? tabata.rest_sec;
+      const rounds = tabata.rounds;
+      if (work) push("work_time", "טבטה: עבודה", `${work}"`);
+      if (rest) push("rest_time", "טבטה: מנוחה", `${rest}"`);
+      if (rounds) push("rounds", "טבטה: סבבים", rounds);
+    }
+  }
 
   if (ex.body_position) push("body_position", "מנח גוף", ex.body_position);
   if (ex.leg_position) push("leg_position", "רגליים", ex.leg_position);
