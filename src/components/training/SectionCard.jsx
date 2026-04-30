@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp, Plus, Edit2, Trash2, Dumbbell, Target, Clock, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import ExerciseCard from "./ExerciseCard";
+import SectionRatingPopup from "./SectionRatingPopup";
 import { getSectionType } from "@/lib/sectionTypes";
 import { getSectionColor } from "@/lib/plansApi";
 
@@ -28,10 +29,25 @@ export default function SectionCard({
   plan
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
+  const [showRating, setShowRating] = useState(false);
+  const [sectionRated, setSectionRated] = useState(false);
 
   const completedCount = exercises.filter(e => e && e.completed).length;
   const totalCount = exercises.length;
-  
+
+  // Auto-open the rating popup the moment all exercises in the section
+  // flip to completed. Trainee-view only — coaches editing the plan
+  // shouldn't see the rating modal. sectionRated guards a re-open if
+  // the trainee toggles one off and back on within the same session.
+  useEffect(() => {
+    if (showEditButtons) return;
+    if (!exercises || exercises.length === 0) return;
+    const allDone = exercises.every(ex => ex && ex.completed);
+    if (allDone && !showRating && !sectionRated) {
+      setShowRating(true);
+    }
+  }, [exercises, showEditButtons, showRating, sectionRated]);
+
   if (!section) return null;
 
   const sType = getSectionType(section.category);
@@ -245,6 +261,18 @@ export default function SectionCard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showRating && (
+        <SectionRatingPopup
+          sectionName={section.section_name || section.title || 'הסקשן'}
+          onSubmit={(_challenge, _control, _note) => {
+            // TODO: persist via planExecutionApi.submitSectionRating
+            // once the parent threads workout_execution_id down.
+            setSectionRated(true);
+            setShowRating(false);
+          }}
+        />
+      )}
     </div>
   );
 }
