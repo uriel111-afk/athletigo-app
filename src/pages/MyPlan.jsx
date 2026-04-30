@@ -102,6 +102,34 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
           </div>
         )}
 
+        {/* Execution badges — best_score + execution_count from the
+            new plan-execution columns. Conditional renders so plans
+            that haven't been executed yet stay clean. */}
+        {(plan.best_score != null || (plan.execution_count || 0) > 0) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+            {plan.best_score != null && (
+              <span style={{
+                background: '#FFF5EE', color: '#FF6F20',
+                border: '1px solid #FFD9C2',
+                padding: '3px 10px', borderRadius: 999,
+                fontSize: 12, fontWeight: 700,
+              }}>
+                ⭐ שיא: {Number(plan.best_score).toFixed(1)}
+              </span>
+            )}
+            {(plan.execution_count || 0) > 0 && (
+              <span style={{
+                background: '#F3F4F6', color: '#4B5563',
+                border: '1px solid #E5E7EB',
+                padding: '3px 10px', borderRadius: 999,
+                fontSize: 12, fontWeight: 600,
+              }}>
+                {plan.execution_count} ביצוע{plan.execution_count > 1 ? 'ים' : ''}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Plan score + session comparison — derived from exercise_executions */}
         {scoreData && scoreData.sessions && scoreData.sessions.length > 0 && (
           <div className="pt-3 border-t border-[#E0E0E0] mt-3" onClick={(e) => e.stopPropagation()} style={{ direction: 'rtl' }}>
@@ -483,7 +511,7 @@ function MyPlanInner() {
 
     return (
       <div dir="rtl" className="min-h-screen bg-white pb-24">
-        <div className="max-w-4xl mx-auto px-4 md:p-6 lg:p-12">
+        <div className="w-full mx-auto" style={{ padding: '12px 8px 24px', maxWidth: 'none' }}>
           <div className="mb-8 flex justify-between items-end">
             <div>
                 <h1 className="text-4xl md:text-5xl font-black mb-3 text-black">התוכנית שלי</h1>
