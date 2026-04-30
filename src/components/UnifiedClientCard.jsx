@@ -11,6 +11,7 @@ import { User, Package, Calendar, Target, TrendingUp, FileText, X, Edit2, Award,
 import PhysicalMetricsManager from "./PhysicalMetricsManager";
 import PlanFormDialog from "./training/PlanFormDialog";
 import MessageCenter from "./MessageCenter";
+import ClientStatusPicker from "./users/ClientStatusPicker";
 import { createPageUrl } from "@/utils";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -698,36 +699,20 @@ export default function UnifiedClientCard({
             </div>
           </div>
 
-          {/* Onboarding-status badge — visible under the name.
-              Five canonical states: onboarding (blue), casual
-              (orange), active (green), suspended (gray), former
-              (red). Legacy Hebrew client_status values render no
-              badge so the visual stays clean during migration. */}
-          {(() => {
-            const palette = {
-              onboarding: { bg: '#DBEAFE', fg: '#1D4ED8', border: '#93C5FD', icon: '🔄', label: 'אונבורדינג' },
-              casual:     { bg: '#FFF3E5', fg: '#92400E', border: '#FCD9B6', icon: '⏳', label: 'מזדמן' },
-              active:     { bg: '#E8F5E9', fg: '#15803D', border: '#BBE5C0', icon: '✓',  label: 'פעיל' },
-              suspended:  { bg: '#F3F4F6', fg: '#4B5563', border: '#D1D5DB', icon: '⏸',  label: 'מושהה' },
-              former:     { bg: '#FEE2E2', fg: '#B91C1C', border: '#FCA5A5', icon: '×',  label: 'לשעבר' },
-            };
-            const conf = palette[currentClient.client_status];
-            if (!conf) return null;
-            return (
-              <div className="flex justify-center mb-1 md:mb-2">
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '3px 10px', borderRadius: 999,
-                  background: conf.bg, color: conf.fg,
-                  border: `1px solid ${conf.border}`,
-                  fontSize: 11, fontWeight: 700,
-                }}>
-                  <span aria-hidden>{conf.icon}</span>
-                  {conf.label}
-                </span>
-              </div>
-            );
-          })()}
+          {/* Onboarding-status — clickable picker (was a passive
+              <span> badge). Tap opens a dropdown to flip status;
+              'onboarding' renders read-only with a locked-icon hint
+              (handled inside ClientStatusPicker). */}
+          {currentClient.client_status && (
+            <div className="flex justify-center mb-1 md:mb-2">
+              <ClientStatusPicker
+                value={currentClient.client_status}
+                size="sm"
+                variant="badge"
+                onChange={(newStatus) => updateClientMutation.mutate({ client_status: newStatus })}
+              />
+            </div>
+          )}
 
           {/* Editable Header Fields */}
           <div className="space-y-1 md:space-y-2 mb-2 md:mb-3">
