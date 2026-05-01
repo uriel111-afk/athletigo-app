@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp, Plus, Edit2, Trash2, Dumbbell, Target, Clock, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+import { base44 } from "@/api/base44Client";
 import ExerciseCard from "./ExerciseCard";
 import SectionRatingPopup from "./SectionRatingPopup";
 import { getSectionType } from "@/lib/sectionTypes";
@@ -262,11 +264,34 @@ export default function SectionCard({
       {showRating && (
         <SectionRatingPopup
           sectionName={section.section_name || section.title || 'הסקשן'}
-          onSubmit={(_challenge, _control, _note) => {
-            // TODO: persist via planExecutionApi.submitSectionRating
-            // once the parent threads workout_execution_id down.
-            setSectionRated(true);
-            setShowRating(false);
+          onSubmit={async (challenge, control, note) => {
+            // Save the rating onto every exercise row in this section
+            // (control_rating / difficulty_rating / trainee_feedback).
+            // Mirrors the legacy SectionRatingModal flow in
+            // UnifiedPlanBuilder so a coach reviewing the trainee's
+            // record sees consistent fields. Try/finally guarantees
+            // the popup closes even if the write throws.
+            try {
+              const sectionExercises = (exercises || []).filter(
+                e => e && e.training_section_id === section.id
+              );
+              await Promise.all(
+                sectionExercises.map(ex =>
+                  base44.entities.Exercise.update(ex.id, {
+                    control_rating: control,
+                    difficulty_rating: challenge,
+                    trainee_feedback: note || null,
+                  })
+                )
+              );
+              toast.success('הדירוג נשמר');
+            } catch (err) {
+              console.warn('[SectionCard] rating save failed:', err?.message);
+              toast.error('שגיאה בשמירה, נסה שוב');
+            } finally {
+              setSectionRated(true);
+              setShowRating(false);
+            }
           }}
         />
       )}

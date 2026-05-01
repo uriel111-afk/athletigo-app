@@ -699,7 +699,34 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             {plan.plan_name}
           </h1>
         </div>
-        
+
+        {/* Focus areas + weekly days — surface what the coach picked
+            in PlanBuilder step 1 so the trainee sees the plan's
+            intent at a glance. Hidden when arrays are empty. */}
+        {((Array.isArray(plan.goal_focus) && plan.goal_focus.length > 0) ||
+          (Array.isArray(plan.weekly_days) && plan.weekly_days.length > 0)) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 16 }}>
+            {(plan.goal_focus || []).map(f => (
+              <span key={`f-${f}`} style={{
+                fontSize: 11, fontWeight: 600,
+                padding: '4px 10px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.18)', color: 'white',
+              }}>
+                {f}
+              </span>
+            ))}
+            {(plan.weekly_days || []).map(d => (
+              <span key={`d-${d}`} style={{
+                fontSize: 11, fontWeight: 600,
+                padding: '4px 10px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.28)', color: 'white',
+              }}>
+                {d}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Stat Chips */}
         <div className="grid grid-cols-4 gap-2 mb-4">
           <div className="bg-white/20 rounded-lg p-3 text-center">

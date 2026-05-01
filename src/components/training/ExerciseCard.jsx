@@ -546,12 +546,20 @@ function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) 
       {showNotePopup && (
         <ExerciseNotePopup
           exerciseName={exercise.exercise_name || exercise.name}
-          onSave={(_note) => {
-            // TODO: persist trainee_note via planExecutionApi.markExerciseDone
-            // once the parent passes a workout_execution_id down — for
-            // now just toggle and close.
-            onToggleComplete?.();
-            setShowNotePopup(false);
+          onSave={async (note) => {
+            try {
+              if (note && exercise?.id) {
+                // Persist note onto the exercise row's trainee_feedback
+                // column. base44 column-retry strips it gracefully if
+                // the schema doesn't have it yet.
+                await base44.entities.Exercise.update(exercise.id, { trainee_feedback: note });
+              }
+            } catch (err) {
+              console.warn('[ExerciseCard] note save failed:', err?.message);
+            } finally {
+              onToggleComplete?.();
+              setShowNotePopup(false);
+            }
           }}
           onSkip={() => {
             onToggleComplete?.();
