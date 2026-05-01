@@ -775,6 +775,98 @@ function IntroSection({ title, children, last }) {
   );
 }
 
+// ── Live narrative builder — fallback for trainees whose row doesn't
+// carry users.onboarding_summary (older accounts, manually-added
+// trainees, anyone who skipped the casual flow). New onboarders keep
+// the polished pre-built summary; everyone else gets a stitched-
+// together paragraph from whatever fields they DO have. Empty when
+// every field is missing.
+function calculateAgeFromBirthDate(birthDate) {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age >= 0 ? age : null;
+}
+
+function buildLiveNarrativeSummary(u) {
+  if (!u) return '';
+  const parts = [];
+
+  // Opening — name + age + gender (whichever are present).
+  const name = (u.full_name || u.name || '').trim();
+  const age = u.age || calculateAgeFromBirthDate(u.birth_date);
+  const gender = (u.gender || '').trim();
+  if (name || age || gender) {
+    let intro = name || 'מתאמן/ת';
+    if (age) intro += `, בן ${age}`;
+    if (gender) intro += `, ${gender}`;
+    parts.push(intro + '.');
+  }
+
+  // Fitness level + sport background.
+  const level = (u.fitness_level || u.fitness_experience || '').trim();
+  const background = (u.sport_background || u.fitness_background || '').trim();
+  if (level || background) {
+    const tail = [level && `רמת כושר: ${level}`, background].filter(Boolean).join('. ');
+    parts.push(tail + '.');
+  }
+
+  // Frequency.
+  const frequency = (u.preferred_frequency || u.training_frequency || '').trim();
+  if (frequency) parts.push(`תדירות מועדפת: ${frequency}.`);
+
+  // Challenges + freeform context.
+  const challenges = Array.isArray(u.current_challenges)
+    ? u.current_challenges
+    : (typeof u.current_challenges === 'string' && u.current_challenges
+        ? u.current_challenges.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+  const challengesText = (u.challenges_description || '').trim();
+  if (challenges.length || challengesText) {
+    const left = challenges.length ? `אתגרים נוכחיים: ${challenges.join(', ')}` : '';
+    const right = challengesText;
+    parts.push([left, right].filter(Boolean).join('. ') + '.');
+  }
+
+  // Training preferences.
+  const prefs = Array.isArray(u.training_preferences)
+    ? u.training_preferences
+    : (typeof u.training_preferences === 'string' && u.training_preferences
+        ? u.training_preferences.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+  const prefsText = (u.preferences_description || '').trim();
+  if (prefs.length || prefsText) {
+    const left = prefs.length ? `העדפות אימון: ${prefs.join(', ')}` : '';
+    parts.push([left, prefsText].filter(Boolean).join('. ') + '.');
+  }
+
+  // Health / injuries — soft handling so 'אין' doesn't read like an
+  // injury ("שימו לב: אין" sounds wrong).
+  const health = (u.health_issues || u.injuries || '').trim();
+  if (health && !/^(אין|לא|none|no)$/i.test(health)) {
+    parts.push(`שימו לב: ${health}.`);
+  } else if (health) {
+    parts.push('ללא פציעות או מגבלות ידועות.');
+  }
+
+  // Days / equipment — present in some onboarding flows, absent in
+  // others. Render only when populated.
+  const days = Array.isArray(u.weekly_days) ? u.weekly_days
+              : Array.isArray(u.available_days) ? u.available_days
+              : Array.isArray(u.preferred_days) ? u.preferred_days
+              : null;
+  if (days && days.length) parts.push(`ימי אימון מועדפים: ${days.join(', ')}.`);
+
+  const equipment = Array.isArray(u.available_equipment) ? u.available_equipment.join(', ')
+                  : Array.isArray(u.equipment) ? u.equipment.join(', ')
+                  : (typeof u.equipment === 'string' ? u.equipment : '').trim();
+  if (equipment) parts.push(`ציוד זמין: ${equipment}.`);
+
+  return parts.join(' ').trim();
+}
+
 function IntroTab({ user }) {
   const challenges  = parseList(user?.current_challenges);
   const preferences = parseList(user?.training_preferences);
@@ -844,6 +936,11 @@ function IntroTab({ user }) {
     } catch {}
   }
 
+  // Fallback narrative — only when the persisted summary is missing.
+  // Built fresh on every render from individual user fields. Empty
+  // string when there's literally nothing to say.
+  const liveSummary = !onboardingSummary ? buildLiveNarrativeSummary(user) : '';
+
   return (
     <>
       {/* Storytelling onboarding summary — same 2nd-person narrative
@@ -877,6 +974,29 @@ function IntroTab({ user }) {
             fontFamily: "'Heebo', 'Assistant', sans-serif",
           }}>
             {onboardingSummary}
+          </div>
+        </div>
+      )}
+
+      {/* Live fallback narrative — for trainees who pre-date the
+          casual onboarding flow (no users.onboarding_summary). Same
+          warm-cream box, slightly different background tone (#FFF9F0
+          vs #FFF5EE) so a coach can tell at a glance which kind they
+          are looking at. */}
+      {!onboardingSummary && liveSummary && (
+        <div style={{
+          background: '#FFF9F0',
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 20,
+          border: '1px solid #F5E8D5',
+          direction: 'rtl',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#FF6F20', marginBottom: 10 }}>
+            📋 סיכום היכרות
+          </div>
+          <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.8 }}>
+            {liveSummary}
           </div>
         </div>
       )}
