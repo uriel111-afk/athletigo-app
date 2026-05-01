@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
+import InstallPrompt from "@/components/InstallPrompt";
+import { useIsPWA } from "@/hooks/useIsPWA";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -16,6 +18,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const isPWA = useIsPWA();
 
   // If already logged in, redirect based on role. The Life OS coach
   // (uriel111@gmail.com) lands on /hub — the two-card entry screen —
@@ -201,6 +204,9 @@ export default function Login() {
           </form>
         </div>
       </div>
+      {/* Install banner — only on the unauthenticated login screen,
+          and only when the app is NOT already installed as a PWA. */}
+      {!isPWA && <InstallPrompt />}
     </div>
   );
 }

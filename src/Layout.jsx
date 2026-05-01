@@ -40,6 +40,7 @@ import {
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import TimerFooterBar from "@/components/TimerFooterBar";
+import MiniInstallButton from "@/components/MiniInstallButton";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
@@ -520,6 +521,17 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Sticky timer footer bar — replaces the old draggable bubble */}
           <TimerFooterBar />
+
+          {/* Compact install pill — hides itself when running as PWA
+              or after the user dismisses (sessionStorage, cleared on
+              logout). Floats top-left so it doesn't fight the bottom
+              nav or the timer bar. */}
+          <div style={{
+            position: 'fixed', top: 12, insetInlineStart: 12,
+            zIndex: 1100, pointerEvents: 'auto',
+          }}>
+            <MiniInstallButton />
+          </div>
 
           {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 72px per active timer bar) */}
           <div className="md:hidden"

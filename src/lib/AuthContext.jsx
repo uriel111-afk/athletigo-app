@@ -184,6 +184,10 @@ export const AuthProvider = ({ children }) => {
     supabase.auth.signOut().then(() => {
       setUser(null);
       setIsAuthenticated(false);
+      // Clear session-scoped UI dismissals so the next sign-in (which
+      // may be a different user on the same device) sees the install
+      // pill again instead of the previous user's dismissed state.
+      try { sessionStorage.removeItem('installPromptDismissed'); } catch {}
       // Logout intentionally uses a full reload so query caches +
       // route-only state don't leak across accounts.
       if (shouldRedirect) {

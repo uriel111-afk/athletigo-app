@@ -516,7 +516,10 @@ function App() {
         <Toaster />
         <LastSessionAlert />
         <BirthdayBlessingPopup />
-        <InstallPrompt />
+        {/* InstallPrompt was previously global — moved into Login.jsx so
+            the large bottom banner only appears on the unauthenticated
+            entry screen. Authenticated screens get the smaller
+            <MiniInstallButton /> via Layout. */}
         <VisualEditAgent />
       </ActiveTimerProvider>
       </ClockProvider>
