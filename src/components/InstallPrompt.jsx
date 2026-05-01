@@ -1,69 +1,97 @@
-import React, { useState } from "react";
-import { X } from "lucide-react";
+import { useState, useEffect } from 'react';
 
-export default function InstallPrompt({ onDismiss }) {
-  const [show, setShow] = useState(true);
+// Bottom-banner install nudge. Two surfaces:
+//   • Chrome / Edge / Android — listens for beforeinstallprompt and
+//     wires the deferred event through to a native install button.
+//   • Safari (iOS / macOS) — no beforeinstallprompt, so we render
+//     short instructions ("⎙ → הוסף למסך הבית"). Hidden when the app
+//     is already running standalone or when the user dismissed.
+//
+// Dismissals stick for 14 days via localStorage so we don't nag.
+const DISMISSED_KEY = 'install_dismissed_at';
+const NAG_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
+
+export default function InstallPrompt() {
+  const [show, setShow] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    // Chrome/Edge install prompt
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShow(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // Safari detection — no beforeinstallprompt event there. Render a
+    // hint banner with manual instructions instead. Skip when already
+    // running standalone (PWA already installed).
+    const ua = navigator.userAgent || '';
+    const isSafari = /^((?!chrome|crios|fxios|android).)*safari/i.test(ua);
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      window.navigator.standalone === true;
+
+    let dismissed = false;
+    try {
+      const ts = parseInt(localStorage.getItem(DISMISSED_KEY) || '0', 10);
+      if (ts && Date.now() - ts < NAG_COOLDOWN_MS) dismissed = true;
+    } catch {}
+
+    if (isSafari && !isStandalone && !dismissed) {
+      setShow(true);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    try {
+      const result = await deferredPrompt.userChoice;
+      if (result?.outcome === 'accepted') setShow(false);
+    } catch {}
+    setDeferredPrompt(null);
+  };
+
+  const handleDismiss = () => {
+    setShow(false);
+    try { localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch {}
+  };
 
   if (!show) return null;
 
-  const dismiss = () => {
-    localStorage.setItem('install_prompt_shown', 'true');
-    setShow(false);
-    if (onDismiss) onDismiss();
-  };
+  // No deferredPrompt → Safari/manual. Otherwise → Chrome native flow.
+  const isManual = !deferredPrompt;
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" dir="rtl">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
-        {/* Header */}
-        <div className="p-5 pb-3 flex justify-between items-start">
-          <div>
-            <h2 className="text-xl font-black text-gray-900">הורד את האפליקציה</h2>
-            <p className="text-sm text-gray-500 mt-1">גישה מהירה בלחיצה אחת מהמסך הבית שלך</p>
-          </div>
-          <button onClick={dismiss} className="p-1 rounded-full hover:bg-gray-100 text-gray-400 flex-shrink-0">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Instructions */}
-        <div className="px-5 pb-4 space-y-3">
-          {/* iPhone */}
-          <div className="bg-gray-50 rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-lg">🍎</span>
-              <span className="font-bold text-sm text-gray-900">אייפון (Safari)</span>
-            </div>
-            <div className="text-xs text-gray-600 leading-relaxed space-y-0.5">
-              <p>1. לחץ על כפתור השיתוף <span className="inline-block bg-gray-200 rounded px-1.5 py-0.5 font-mono text-[10px]">⬆</span> בתחתית המסך</p>
-              <p>2. גלול למטה ובחר <strong>"הוסף למסך הבית"</strong></p>
-              <p>3. לחץ <strong>"הוסף"</strong> בפינה הימנית העליונה</p>
-            </div>
-          </div>
-
-          {/* Android */}
-          <div className="bg-gray-50 rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-lg">🤖</span>
-              <span className="font-bold text-sm text-gray-900">אנדרואיד (Chrome)</span>
-            </div>
-            <div className="text-xs text-gray-600 leading-relaxed space-y-0.5">
-              <p>1. לחץ על תפריט <span className="inline-block bg-gray-200 rounded px-1.5 py-0.5 font-mono text-[10px]">⋮</span> (3 נקודות) בפינה העליונה</p>
-              <p>2. בחר <strong>"הוסף למסך הבית"</strong> או <strong>"התקן אפליקציה"</strong></p>
-              <p>3. לחץ <strong>"התקן"</strong></p>
-            </div>
-          </div>
-        </div>
-
-        {/* Dismiss button */}
-        <div className="px-5 pb-5">
-          <button onClick={dismiss}
-            className="w-full py-3 rounded-xl font-bold text-white text-base active:scale-[0.98] transition-transform"
-            style={{ backgroundColor: '#FF6F20' }}>
-            הבנתי, תודה!
-          </button>
+    <div style={{
+      position: 'fixed', bottom: 80, left: 16, right: 16,
+      background: '#1a1a1a', borderRadius: 16, padding: 16,
+      display: 'flex', alignItems: 'center', gap: 12,
+      zIndex: 9999, direction: 'rtl',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+    }}>
+      <img src="/icon-192.png" alt="" style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>התקן את AthletiGo</div>
+        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+          {isManual ? 'לחץ על ⎙ ואז "הוסף למסך הבית"' : 'גישה מהירה מהמסך הראשי'}
         </div>
       </div>
+      {!isManual && (
+        <button onClick={handleInstall} style={{
+          background: '#FF6F20', color: 'white', border: 'none',
+          borderRadius: 10, padding: '8px 16px', fontSize: 13,
+          fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+        }}>התקן</button>
+      )}
+      <button onClick={handleDismiss} style={{
+        background: 'none', border: 'none', color: '#666',
+        fontSize: 18, cursor: 'pointer', padding: 4, flexShrink: 0,
+      }}>✕</button>
     </div>
   );
 }

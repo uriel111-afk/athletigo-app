@@ -46,6 +46,7 @@ import TraineeHome from './pages/TraineeHome';
 import TabataTimer from './components/TabataTimer';
 import LastSessionAlert from './components/LastSessionAlert';
 import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
+import InstallPrompt from './components/InstallPrompt';
 import NotificationPopup from './components/NotificationPopup';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -515,6 +516,7 @@ function App() {
         <Toaster />
         <LastSessionAlert />
         <BirthdayBlessingPopup />
+        <InstallPrompt />
         <VisualEditAgent />
       </ActiveTimerProvider>
       </ClockProvider>
