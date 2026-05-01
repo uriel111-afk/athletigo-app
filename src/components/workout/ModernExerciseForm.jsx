@@ -558,7 +558,7 @@ function ExerciseNameInput({ value, onChange }) {
   );
 }
 
-export default function ModernExerciseForm({ exercise, onChange }) {
+export default function ModernExerciseForm({ exercise, onChange, readOnly = false }) {
   const [editingParam, setEditingParam] = useState(null);
   const [confirmedParams, setConfirmedParams] = useState(new Set());
   const [addValueDialog, setAddValueDialog] = useState({ isOpen: false, type: null, label: "" });
@@ -875,13 +875,24 @@ export default function ModernExerciseForm({ exercise, onChange }) {
   return (
     <div className="w-full" dir="rtl">
 
-      {/* ── Name with autocomplete ───────────────────────────── */}
-      <ExerciseNameInput value={exercise.exercise_name || ""} onChange={(name, libEx) => {
-        updateEx("exercise_name", name);
-        if (libEx?.defaultParams) {
-          Object.entries(libEx.defaultParams).forEach(([k, v]) => updateEx(k, String(v)));
-        }
-      }} />
+      {/* ── Name with autocomplete (read-only renders static text) ─ */}
+      {readOnly ? (
+        <div style={{ padding: '0 4px 16px' }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#9CA3AF', marginBottom: 4, letterSpacing: 1 }}>
+            שם התרגיל
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>
+            {exercise.exercise_name || exercise.name || ''}
+          </div>
+        </div>
+      ) : (
+        <ExerciseNameInput value={exercise.exercise_name || ""} onChange={(name, libEx) => {
+          updateEx("exercise_name", name);
+          if (libEx?.defaultParams) {
+            Object.entries(libEx.defaultParams).forEach(([k, v]) => updateEx(k, String(v)));
+          }
+        }} />
+      )}
 
       {/* ── Parameters Grid — ALL params, always visible ──────── */}
       <div className="mb-3 px-1">
@@ -896,15 +907,18 @@ export default function ModernExerciseForm({ exercise, onChange }) {
             const val = exercise[field];
 
             return (
-              <button key={p.id} type="button" onClick={() => handleParamClick(p.id)}
-                className={`flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-xl border h-[54px] transition-all active:scale-[0.97]
+              <button key={p.id} type="button"
+                onClick={readOnly ? undefined : () => handleParamClick(p.id)}
+                disabled={readOnly}
+                style={{ cursor: readOnly ? 'default' : 'pointer' }}
+                className={`flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-xl border h-[54px] transition-all ${readOnly ? '' : 'active:scale-[0.97]'}
                   ${isConf && !isEdit
                     ? (isCont
                       ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-1 ring-[#FF6F20]/30"
                       : "border-[#FF6F20]/40 bg-[#FFF3E0] text-[#FF6F20]")
                     : isEdit
                     ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-2 ring-[#FF6F20]/20"
-                    : "border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:text-gray-600"}`}>
+                    : "border-gray-200 bg-white text-gray-400" + (readOnly ? '' : ' hover:border-gray-300 hover:text-gray-600')}`}>
                 {isConf && !isEdit && !isCont ? (
                   <>
                     <div className="flex items-center gap-0.5">
@@ -927,8 +941,8 @@ export default function ModernExerciseForm({ exercise, onChange }) {
         </div>
       </div>
 
-      {/* ── Active Param Editor Panel ─────────────────────────── */}
-      {editDef && !CONTAINER_PARAMS.has(editingParam) && (
+      {/* ── Active Param Editor Panel — hidden in read-only ───── */}
+      {!readOnly && editDef && !CONTAINER_PARAMS.has(editingParam) && (
         <div className="mx-1 mb-3 bg-white border-2 border-[#FF6F20]/30 rounded-2xl overflow-hidden shadow-lg">
           <div className="bg-[#FFF7ED] px-3 py-2.5 flex items-center justify-between border-b border-[#FF6F20]/10">
             <div className="flex items-center gap-2">
@@ -958,8 +972,30 @@ export default function ModernExerciseForm({ exercise, onChange }) {
         </div>
       )}
 
-      {/* ── Container: Sub-Exercises ──────────────────────────── */}
-      {isContainer && (
+      {/* ── Container: Sub-Exercises (read-only collapses to a
+            numbered list; edit mode keeps DnD + add button) ──── */}
+      {isContainer && readOnly && subExercises.length > 0 && (
+        <div style={{ margin: '0 4px 16px' }}>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5 }}>
+            {containerType === "tabata" ? "תרגילי טבטה" : "תרגילים ברשימה"}
+          </div>
+          {subExercises.map((sub, i) => (
+            <div key={sub.id || i} style={{
+              fontSize: 14, color: '#1a1a1a', padding: '8px 0',
+              borderBottom: i < subExercises.length - 1 ? '1px solid #F5E8D5' : 'none',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <span style={{
+                width: 26, height: 26, borderRadius: '50%', background: '#FFF5EE',
+                border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 12, color: '#FF6F20', fontWeight: 700, flexShrink: 0,
+              }}>{i + 1}</span>
+              {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
+            </div>
+          ))}
+        </div>
+      )}
+      {isContainer && !readOnly && (
         <div className="mx-1 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <div className="h-[2px] flex-1 bg-[#FF6F20]/30 rounded-full" />
@@ -1007,14 +1043,16 @@ export default function ModernExerciseForm({ exercise, onChange }) {
         </div>
       )}
 
-      {/* Custom Value Dialog */}
-      <AddCustomValueDialog
-        isOpen={addValueDialog.isOpen}
-        onClose={() => setAddValueDialog({ ...addValueDialog, isOpen: false })}
-        title={addValueDialog.label}
-        onSave={handleSaveCustomValue}
-        isLoading={createCustomParamMutation.isPending}
-      />
+      {/* Custom Value Dialog — only relevant when editing */}
+      {!readOnly && (
+        <AddCustomValueDialog
+          isOpen={addValueDialog.isOpen}
+          onClose={() => setAddValueDialog({ ...addValueDialog, isOpen: false })}
+          title={addValueDialog.label}
+          onSave={handleSaveCustomValue}
+          isLoading={createCustomParamMutation.isPending}
+        />
+      )}
     </div>
   );
 }
