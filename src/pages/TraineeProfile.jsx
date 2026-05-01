@@ -5290,6 +5290,7 @@ export default function TraineeProfile() {
                     traineeId={user?.id}
                     coachId={coach?.id}
                     currentUser={currentUser}
+                    isCoach={isCoach}
                   />
                 </ErrorBoundary>
               </TabsContent>

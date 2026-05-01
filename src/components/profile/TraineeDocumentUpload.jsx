@@ -15,7 +15,7 @@ const iconBtnStyle = {
   padding: 4,
 };
 
-export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
+export function TraineeDocumentUpload({ traineeId, coachId, currentUser, isCoach = false }) {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [description, setDescription] = useState('');
@@ -158,10 +158,12 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
 
-  // A user can delete a doc they uploaded; the coach can delete any doc
-  // for their trainees.
+  // Only the coach can delete documents. Trainees see view + download
+  // only — even for files they uploaded themselves the trainee can't
+  // remove them after upload (per spec). The original `doc.uploaded_by`
+  // self-delete branch is gated out by the isCoach check.
   const canDelete = (doc) =>
-    !!currentUser?.id && (
+    isCoach && !!currentUser?.id && (
       doc.uploaded_by_user_id === currentUser.id ||
       currentUser.id === coachId
     );
@@ -172,8 +174,9 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
         מסמכים נוספים
       </h3>
 
-      {/* Upload — hidden behind a button until user wants to upload */}
-      {!showUpload ? (
+      {/* Upload UI — coach only. Trainees see the document list below
+          but no upload affordance per spec. */}
+      {isCoach && (!showUpload ? (
         <button
           type="button"
           onClick={() => setShowUpload(true)}
@@ -243,7 +246,7 @@ export function TraineeDocumentUpload({ traineeId, coachId, currentUser }) {
             עד {MAX_SIZE_MB} מגה · תמונה, PDF, Word, Excel
           </div>
         </div>
-      )}
+      ))}
 
       {/* Documents list */}
       {(!docs || docs.length === 0) ? (
