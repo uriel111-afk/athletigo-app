@@ -108,7 +108,12 @@ export default function Login() {
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{ backgroundColor: "#FAFAFA" }}
+      // paddingBottom: 120 keeps the centered login card clear of the
+      // fixed bottom-banner InstallPrompt (≈76px tall + 80px offset
+      // from the viewport bottom = 156px footprint). Without this,
+      // the install pill covered the submit button + 'forgot password'
+      // link on shorter viewports.
+      style={{ backgroundColor: "#FAFAFA", paddingBottom: 120 }}
       dir="rtl"
     >
       <div className="w-full max-w-sm">
