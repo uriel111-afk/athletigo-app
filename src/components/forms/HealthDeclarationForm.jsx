@@ -194,6 +194,22 @@ export default function HealthDeclarationForm({
       }
       console.log('[HealthDec] declaration saved OK, id:', inserted?.id);
 
+      // Fast-check flag on users — TraineeHome's auto-open gate reads
+      // this column instead of a fresh health_declarations query so
+      // the form never re-prompts a trainee who just signed. Best-
+      // effort; the health_declarations row is the source of truth.
+      try {
+        const traineeId = trainee?.id;
+        if (traineeId) {
+          await supabase
+            .from('users')
+            .update({ health_declaration_signed_at: new Date().toISOString() })
+            .eq('id', traineeId);
+        }
+      } catch (flagErr) {
+        console.error('[HealthDec] flag write failed:', flagErr);
+      }
+
       // Link the declaration to the session. When autoConfirmSession
       // is true (legacy/no-price flow), also flip status to 'confirmed'
       // and notify the coach. When false, the caller is gating

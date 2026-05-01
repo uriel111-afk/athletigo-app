@@ -637,11 +637,43 @@ export default function Onboarding() {
       // gates on. Skip buildPayload for those two so they always
       // land. Summary goes through buildPayload (empty summary
       // shouldn't overwrite a previous one).
-      await safeUpdate(userId, {
-        ...buildPayload({ onboarding_summary: summary }),
-        onboarding_completed_at: new Date().toISOString(),
-        client_status: 'casual',
-      });
+      // Retry up to 3 times on transient failure — onboarding being
+      // marked incomplete after the user thinks they finished is the
+      // worst-case bug, so we'd rather surface the error than navigate
+      // away silently. onboarding_completed=true is written alongside
+      // _at as a belt-and-suspenders boolean for legacy gates.
+      let attempts = 0;
+      let completionOk = false;
+      while (attempts < 3 && !completionOk) {
+        attempts++;
+        try {
+          const result = await safeUpdate(userId, {
+            ...buildPayload({ onboarding_summary: summary }),
+            onboarding_completed: true,
+            onboarding_completed_at: new Date().toISOString(),
+            client_status: 'casual',
+          });
+          // safeUpdate returns { ok, failed }. Treat any failure on the
+          // critical lifecycle fields as a non-success so we retry.
+          const criticalFailed = result?.failed?.some?.(k =>
+            k === 'onboarding_completed_at' || k === 'client_status' || k === 'onboarding_completed'
+          );
+          if (result?.ok || (!criticalFailed && (result?.failed?.length || 0) === 0)) {
+            completionOk = true;
+          } else {
+            console.warn('[Onboarding] completion retry', attempts, 'failed fields:', result?.failed);
+            if (attempts < 3) await new Promise(r => setTimeout(r, 1000));
+          }
+        } catch (err) {
+          console.error(`[Onboarding] completion attempt ${attempts} threw:`, err);
+          if (attempts < 3) await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      if (!completionOk) {
+        try { toast?.error?.('שגיאה בשמירת ההרשמה. נסה שוב.'); } catch {}
+        console.error('[Onboarding] completion FAILED after 3 attempts — not navigating');
+        return;
+      }
       console.log('[Onboarding] summary written:', summary);
       // Notify the coach — minimal columns only. `link` / `data` /
       // `status` may not exist on older installs and silently 400'd

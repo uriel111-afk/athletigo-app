@@ -532,18 +532,25 @@ export default function TraineeHome() {
   useEffect(() => {
     if (autoHealthShownRef.current) return;
     if (!user?.id) return;
+    // Fast-check column from users table — set the moment the trainee
+    // signs the form. Avoids a re-prompt while the health_declarations
+    // query is still loading.
+    if (user?.health_declaration_signed_at) return;
     if (hasSignedHealth !== false) return; // null=loading, true=already signed
+    // onboarding completion can land in either column depending on
+    // when the row was migrated; accept both.
+    const onboardingDone = !!(user?.onboarding_completed || user?.onboarding_completed_at);
     // Two surfaces require the form: anyone who finished the
-    // questionnaire (onboarding_completed) AND anyone with a
-    // pending_approval session even if they're not flagged as
-    // freshly-onboarded (covers casual returnees).
-    const needsSign = user?.onboarding_completed === true || !!pendingApprovalSession;
+    // questionnaire (onboardingDone) AND anyone with a pending_approval
+    // session even if they're not flagged as freshly-onboarded
+    // (covers casual returnees).
+    const needsSign = onboardingDone || !!pendingApprovalSession;
     if (!needsSign) return;
     console.log('[Onboarding] step → pre_health (auto-open before health_declaration)');
     autoHealthShownRef.current = true;
     setPendingSessionId(pendingApprovalSession?.id || null);
     setShowPreHealth(true);
-  }, [user?.id, user?.onboarding_completed, hasSignedHealth, pendingApprovalSession?.id]);
+  }, [user?.id, user?.onboarding_completed, user?.onboarding_completed_at, user?.health_declaration_signed_at, hasSignedHealth, pendingApprovalSession?.id]);
 
   // Diagnostic: which banner button should the trainee see right now?
   // Useful when debugging "why didn't the pay screen open" — the
