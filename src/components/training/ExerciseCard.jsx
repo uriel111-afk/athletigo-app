@@ -1,27 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import {
-  Check, Edit2, Trash2, Zap, Layers, Clock, Dumbbell, Activity,
-  Repeat, Hash, Timer, Weight, ArrowLeftRight, GripVertical,
-  Footprints, Maximize2, User, Info, Video, PauseCircle
-} from "lucide-react";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
+import { upsertTraineeProgress } from "@/lib/traineeProgressApi";
 import ExerciseCheckbox from "./ExerciseCheckbox";
 import ExerciseNotePopup from "./ExerciseNotePopup";
-import ModernExerciseForm from "../workout/ModernExerciseForm";
-
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-const PARAM_ICON = {
-  sets: Hash, reps: Repeat, work_time: Clock, rest_time: Timer,
-  rounds: Hash, rpe: Zap, weight_type: Weight, weight: Weight,
-  tempo: Activity, rest_between_sets: Timer, rest_between_exercises: PauseCircle,
-  leg_position: Footprints, body_position: User, equipment: Dumbbell,
-  static_hold_time: PauseCircle, description: Info, side: ArrowLeftRight,
-  range_of_motion: Maximize2, grip: GripVertical, video_url: Video,
-};
 
 const fmtTime = (v) => {
   if (!v && v !== 0) return null;
@@ -38,79 +22,19 @@ const fmtTime = (v) => {
   return n < 60 ? `${n} שנ׳` : `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 };
 
-/**
- * Build display chips: { field, icon, label, value }
- */
-const buildChips = (ex) => {
-  const chips = [];
-  const push = (field, label, value) => {
-    if (value) chips.push({ field, icon: PARAM_ICON[field], label, value });
-  };
-
-  if (ex.sets && ex.sets !== "0") push("sets", "סטים", ex.sets);
-  if (ex.reps && ex.reps !== "0") push("reps", "חזרות", ex.reps);
-  if (ex.rounds && ex.rounds !== "0") push("rounds", "סבבים", ex.rounds);
-
-  const wt = fmtTime(ex.work_time);
-  if (wt) push("work_time", "עבודה", wt);
-  const rt = fmtTime(ex.rest_time);
-  if (rt) push("rest_time", "מנוחה", rt);
-  const rbs = fmtTime(ex.rest_between_sets);
-  if (rbs) push("rest_between_sets", "מנ׳ סטים", rbs);
-  const rbe = fmtTime(ex.rest_between_exercises);
-  if (rbe) push("rest_between_exercises", "מנ׳ תרגילים", rbe);
-  const sh = fmtTime(ex.static_hold_time);
-  if (sh) push("static_hold_time", "החזקה", sh);
-
-  if (ex.weight && ex.weight !== "0") push("weight", "משקל", `${ex.weight} ק"ג`);
-  if (ex.weight_type && ex.weight_type !== "bodyweight") push("weight_type", "עומס", ex.weight_type);
-  if (ex.rpe && ex.rpe !== "0") push("rpe", "RPE", ex.rpe);
-  if (ex.tempo) {
-    // Same formatter as the trainee view — see formatTempo() defined
-    // below. buildChips runs before formatTempo's declaration in
-    // source order, but the function reference is hoisted so the call
-    // here resolves correctly.
-    const tempoDisplay = formatTempo(ex.tempo);
-    if (tempoDisplay) push("tempo", "טמפו", tempoDisplay);
+function formatTempo(val) {
+  if (val == null || val === '') return null;
+  const str = String(val).trim();
+  if (!str) return null;
+  let parts = str.split('-').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 1 && /^\d{3,4}$/.test(parts[0])) {
+    parts = parts[0].split('');
   }
+  if (parts.length < 2) return str;
+  const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
+  return parts.map((p, i) => `${labels[i] || ''} ${p}"`).join(' · ');
+}
 
-  // Tabata-mode container surfaces the work/rest/rounds embedded in
-  // tabata_data. Without this the trainee sees only the "טבטה" badge
-  // and a sub-exercise list with no actual timing.
-  if (ex.mode === 'טבטה' && ex.tabata_data) {
-    let tabata = ex.tabata_data;
-    if (typeof tabata === 'string') {
-      try { tabata = JSON.parse(tabata); } catch { tabata = null; }
-    }
-    if (tabata && typeof tabata === 'object') {
-      const work = tabata.work_time ?? tabata.work_sec;
-      const rest = tabata.rest_time ?? tabata.rest_sec;
-      const rounds = tabata.rounds;
-      if (work) push("work_time", "טבטה: עבודה", `${work}"`);
-      if (rest) push("rest_time", "טבטה: מנוחה", `${rest}"`);
-      if (rounds) push("rounds", "טבטה: סבבים", rounds);
-    }
-  }
-
-  if (ex.body_position) push("body_position", "מנח גוף", ex.body_position);
-  if (ex.leg_position) push("leg_position", "רגליים", ex.leg_position);
-  if (ex.side && ex.side !== "דו־צדדי") push("side", "צד", ex.side);
-  if (ex.grip) push("grip", "אחיזה", ex.grip);
-  if (ex.equipment) push("equipment", "ציוד", ex.equipment);
-  if (ex.range_of_motion && ex.range_of_motion !== "מלא") push("range_of_motion", "טווח", ex.range_of_motion);
-
-  return chips;
-};
-
-// Parse the sub-exercise list from any of the three column shapes
-// the codebase uses interchangeably:
-//   • ex.children      — canonical column per CLAUDE.md (PlanBuilder
-//                         saves the "רשימת תרגילים" param here)
-//   • ex.exercise_list — alternate alias some installs use
-//   • ex.sub_exercises — legacy direct array column
-//   • ex.tabata_data.sub_exercises / .blocks — embedded inside the
-//                         tabata config blob (older format)
-// Each shape may be a parsed array or a JSON string. Normalize.
 const asArray = (v) => {
   if (Array.isArray(v)) return v;
   if (typeof v === 'string') {
@@ -121,14 +45,12 @@ const asArray = (v) => {
   }
   return [];
 };
+
 const getSubExercises = (ex) => {
-  // ParamWidgets ListBuilder hands back items shaped { name, sets,
-  // reps, time, weight }. Map onto a stable display shape so the
-  // UI doesn't have to know which column it came from.
-  const fromChildren     = asArray(ex.children);
-  if (fromChildren.length)     return fromChildren;
-  const fromList         = asArray(ex.exercise_list);
-  if (fromList.length)         return fromList;
+  const fromChildren = asArray(ex.children);
+  if (fromChildren.length) return fromChildren;
+  const fromList = asArray(ex.exercise_list);
+  if (fromList.length) return fromList;
   const fromSubExercises = asArray(ex.sub_exercises);
   if (fromSubExercises.length) return fromSubExercises;
   if (!ex.tabata_data) return [];
@@ -148,278 +70,101 @@ const getSubExercises = (ex) => {
   return [];
 };
 
-const isContainerExercise = (ex) => {
-  return ["טבטה", "סופרסט", "קומבו"].includes(ex.mode) && getSubExercises(ex).length > 0;
-};
+function buildMetaSegments(ex) {
+  const segs = [];
+  const reps = ex.reps && ex.reps !== '0' ? ex.reps : null;
+  const sets = ex.sets && ex.sets !== '0' ? ex.sets : null;
+  const rounds = ex.rounds && ex.rounds !== '0' ? ex.rounds : null;
+  const work = fmtTime(ex.work_time);
+  const rest = fmtTime(ex.rest_time);
+  const restSets = fmtTime(ex.rest_between_sets);
+  const hold = fmtTime(ex.static_hold_time);
 
-// Tempo display: expand both formats coaches actually use —
-//   • dashed:  "3-1-2-0"  → split on '-'
-//   • packed:  "3010"     → split per-character (PlanBuilder's
-//                            default per PARAM_SCHEMA is "3010")
-// Single-segment / non-numeric strings pass through unchanged.
-function formatTempo(val) {
-  if (val == null || val === '') return null;
-  const str = String(val).trim();
-  if (!str) return null;
-  let parts = str.split('-').map(p => p.trim()).filter(Boolean);
-  if (parts.length === 1 && /^\d{3,4}$/.test(parts[0])) {
-    parts = parts[0].split('');
+  if (sets && reps) segs.push(`${sets} סטים × ${reps} חזרות`);
+  else if (sets && work) segs.push(`${sets} סטים × ${work}`);
+  else if (sets && hold) segs.push(`${sets} סטים × ${hold} החזקה`);
+  else if (sets) segs.push(`${sets} סטים`);
+  else if (reps) segs.push(`${reps} חזרות`);
+  else if (rounds && work) segs.push(`${rounds} סבבים × ${work}`);
+  else if (rounds) segs.push(`${rounds} סבבים`);
+  else if (work) segs.push(`עבודה ${work}`);
+  else if (hold) segs.push(`${hold} החזקה`);
+
+  if (rest) segs.push(`מנוחה ${rest}`);
+  else if (restSets) segs.push(`מנ׳ סטים ${restSets}`);
+
+  if (ex.weight && ex.weight !== '0') {
+    segs.push(`משקל ${ex.weight} ק"ג`);
+  } else if (ex.weight_type && ex.weight_type !== 'bodyweight') {
+    segs.push(ex.weight_type);
   }
-  if (parts.length < 2) return str;
-  const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
-  return parts.map((p, i) => `${labels[i] || ''} ${p}"`).join(' · ');
-}
 
-// Trainee view: 4 logical groups so a busy plan reads as a structured
-// recipe instead of a 20-chip blob. Each group renders its own header
-// + chip row; empty groups are skipped.
-const PARAM_GROUPS = [
-  {
-    title: 'עומס',
-    params: [
-      { key: 'sets', label: 'סטים' },
-      { key: 'reps', label: 'חזרות' },
-      { key: 'rounds', label: 'סבבים' },
-      { key: 'weight', label: 'משקל', suffix: ' ק"ג' },
-      { key: 'weight_type', label: 'סוג משקל' },
-      { key: 'rpe', label: 'RPE' },
-    ],
-  },
-  {
-    title: 'זמנים',
-    params: [
-      { key: 'work_time', label: 'זמן עבודה', suffix: '"' },
-      { key: 'rest_time', label: 'זמן מנוחה', suffix: '"' },
-      { key: 'rest_between_sets', label: 'מנוחה בין סטים', suffix: '"' },
-      { key: 'rest_between_exercises', label: 'מנוחה בין תרגילים', suffix: '"' },
-      { key: 'static_hold_time', label: 'החזקה סטטית', suffix: '"' },
-    ],
-  },
-  {
-    title: 'טכניקה',
-    params: [
-      { key: 'tempo', label: 'טמפו', format: formatTempo },
-      { key: 'body_position', label: 'מנח גוף' },
-      { key: 'leg_position', label: 'מנח רגליים' },
-      { key: 'side', label: 'צד' },
-      { key: 'grip', label: 'אחיזה' },
-      { key: 'range_of_motion', label: 'טווח תנועה' },
-    ],
-  },
-  {
-    title: 'ציוד ומדיה',
-    params: [
-      { key: 'equipment', label: 'ציוד' },
-      { key: 'video_url', label: 'וידאו', isLink: true },
-    ],
-  },
-];
-
-const isParamFilled = (val) => {
-  if (val == null || val === '' || val === 'לא רלוונטי') return false;
-  if (Array.isArray(val)) return val.length > 0;
-  if (typeof val === 'string' && val.trim() === '') return false;
-  return true;
-};
-
-const formatParamValue = (val) => {
-  if (Array.isArray(val)) return val.join(', ');
-  return String(val);
-};
-
-// ── Shared display helpers — used by BOTH coach + trainee open views.
-// The open card content is identical; only the action buttons differ.
-
-function renderParamGroup(exercise, group) {
-  const active = group.params.filter(p => {
-    const val = exercise[p.key];
-    // Filter null/empty only — any populated value (including
-    // 'bodyweight' or 'לא רלוונטי') renders, so the trainee sees
-    // everything the coach actually saved.
-    if (val == null || val === '') return false;
-    if (typeof val === 'string' && val.trim() === '') return false;
-    if (Array.isArray(val) && val.length === 0) return false;
-    // Tempo lives in a dedicated cell row, not in the chip group.
-    if (p.key === 'tempo') return false;
-    return true;
-  });
-  if (active.length === 0) return null;
-  return (
-    <div key={group.title} style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5 }}>
-        {group.title}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {active.map(p => {
-          const raw = exercise[p.key];
-          if (p.isLink) {
-            return (
-              <span key={p.key} onClick={() => window.open(raw, '_blank')}
-                style={{ padding: '6px 14px', borderRadius: 999, fontSize: 14,
-                  background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE',
-                  cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                ▶ {p.label}
-              </span>
-            );
-          }
-          const display = Array.isArray(raw) ? raw.join(', ') : raw;
-          return (
-            <span key={p.key} style={{ padding: '6px 14px', borderRadius: 999, fontSize: 14,
-              background: '#FFF5EE', color: '#FF6F20', border: '1px solid #FFD9C2',
-              fontWeight: 600, whiteSpace: 'nowrap' }}>
-              {p.label}: {display}{p.suffix || ''}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function renderTempoCells(exercise) {
-  if (!exercise.tempo) return null;
-  const str = String(exercise.tempo).trim();
-  let parts = str.split('-').map(p => p.trim()).filter(Boolean);
-  if (parts.length === 1 && /^\d{3,4}$/.test(parts[0])) {
-    parts = parts[0].split('');
+  if (ex.rpe && ex.rpe !== '0') segs.push(`RPE ${ex.rpe}`);
+  if (ex.tempo) {
+    const tempo = formatTempo(ex.tempo);
+    if (tempo) segs.push(`טמפו ${tempo}`);
   }
-  const labels = ['שלילי', 'החזקה למטה', 'חיובי', 'החזקה למעלה'];
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5 }}>טמפו</div>
-      <div style={{ display: 'flex', gap: 10, direction: 'rtl' }}>
-        {labels.map((label, i) => (
-          <div key={i} style={{
-            flex: 1, textAlign: 'center', padding: '10px 4px',
-            background: '#FFF5EE', borderRadius: 12, border: '1px solid #FFD9C2',
-          }}>
-            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#FF6F20', lineHeight: 1 }}>{parts[i] || '0'}"</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  if (ex.equipment) segs.push(`ציוד: ${ex.equipment}`);
+  return segs;
 }
 
-function renderNotes(exercise) {
-  const note = exercise.description || exercise.notes || exercise.coach_notes;
-  if (!note) return null;
-  return (
-    <div style={{
-      marginTop: 12, padding: 14, background: '#FFF9F0',
-      borderRadius: 12, fontSize: 14, color: '#555', lineHeight: 1.7,
-    }}>
-      💡 {note}
-    </div>
-  );
+function extractTabata(ex) {
+  if (ex.mode !== 'טבטה') return null;
+  let data = ex.tabata_data;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch { data = null; }
+  }
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const work = data.work_time ?? data.work_sec ?? null;
+    const rest = data.rest_time ?? data.rest_sec ?? null;
+    const rounds = data.rounds ?? null;
+    const subs = Array.isArray(data.sub_exercises) ? data.sub_exercises
+      : (Array.isArray(data.blocks) && data.blocks[0]?.block_exercises)
+      ? data.blocks[0].block_exercises : [];
+    if (work || rest || rounds || subs.length > 0) {
+      return { work, rest, rounds, exercises: subs };
+    }
+  }
+  if (ex.work_time || ex.rest_time || ex.rounds) {
+    return {
+      work: ex.work_time || null,
+      rest: ex.rest_time || null,
+      rounds: ex.rounds || null,
+      exercises: [],
+    };
+  }
+  return null;
 }
 
-function renderSubExercises(subs) {
-  if (!Array.isArray(subs) || subs.length === 0) return null;
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 13, color: '#888', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5 }}>
-        תרגילים ברשימה
-      </div>
-      {subs.map((sub, i) => (
-        <div key={sub.id || i} style={{
-          fontSize: 14, color: '#1a1a1a', padding: '8px 0',
-          borderBottom: i < subs.length - 1 ? '1px solid #F5E8D5' : 'none',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <span style={{
-            width: 26, height: 26, borderRadius: '50%', background: '#FFF5EE',
-            border: '1px solid #FFD9C2', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontSize: 12, color: '#FF6F20', fontWeight: 700, flexShrink: 0,
-          }}>{i + 1}</span>
-          {typeof sub === 'string' ? sub : (sub.name || sub.exercise_name || '')}
-        </div>
-      ))}
-    </div>
-  );
+function extractExerciseList(ex) {
+  const isListMode = ['סופרסט', 'קומבו', 'רשימה'].includes(ex.mode)
+    || ex.category === 'רשימת תרגילים'
+    || ex.exercise_type === 'exercise_list';
+  const subs = getSubExercises(ex);
+  if (!isListMode && subs.length === 0) return null;
+  if (subs.length === 0) return null;
+  return { exercises: subs, label: ex.mode || 'רשימה' };
 }
 
-function ExerciseCardHeader({ exercise, isOpen, onToggle, headerExtras, headerLeading }) {
-  return (
-    <div onClick={onToggle} style={{
-      padding: '14px 16px',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      cursor: 'pointer',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-        {headerLeading}
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{
-            fontSize: 16, fontWeight: 600,
-            color: exercise.completed ? '#16A34A' : '#1a1a1a',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {exercise.exercise_name || exercise.name}
-          </div>
-          {exercise.mode && (
-            <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 500, marginTop: 2, display: 'block' }}>
-              {exercise.mode}
-            </span>
-          )}
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        {exercise.rpe && (
-          <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
-            background: '#FEF3C7', color: '#92400E', fontWeight: 500 }}>
-            RPE {exercise.rpe}
-          </span>
-        )}
-        {exercise.completed && (
-          <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11,
-            background: '#D1FAE5', color: '#16A34A', fontWeight: 500 }}>
-            ✓ בוצע
-          </span>
-        )}
-        {headerExtras}
-        <span style={{ fontSize: 14, color: '#888', transition: 'transform 0.2s',
-          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-      </div>
-    </div>
-  );
+function describeSub(sub) {
+  if (typeof sub === 'string') return { name: sub, detail: null };
+  const name = sub.name || sub.exercise_name || 'תת-תרגיל';
+  const bits = [];
+  if (sub.reps) bits.push(`${sub.reps} חזרות`);
+  if (sub.sets) bits.push(`${sub.sets} סטים`);
+  if (sub.time || sub.work_time) bits.push(`${sub.time || sub.work_time}"`);
+  if (sub.weight) bits.push(`${sub.weight} ק"ג`);
+  return { name, detail: bits.join(' · ') || null };
 }
-
-function ExerciseOpenContent({ exercise, subExercises }) {
-  return (
-    <div style={{ padding: '0 16px 20px' }}>
-      {PARAM_GROUPS.map(group => renderParamGroup(exercise, group))}
-      {renderTempoCells(exercise)}
-      {renderNotes(exercise)}
-      {renderSubExercises(subExercises)}
-    </div>
-  );
-}
-
-const getContainerLabel = (ex) => {
-  if (ex.mode === "טבטה") return "טבטה";
-  if (ex.mode === "סופרסט") return "רשימה";
-  if (ex.mode === "קומבו") return "קומבו";
-  return "מיכל";
-};
-
-// ── Component ────────────────────────────────────────────────────────
 
 export default function ExerciseCard({
-  exercise, index = 0, onToggleComplete, onRowClick, onEdit, onDelete,
-  onMove, isFirst = false, isLast = false, onDuplicate,
-  onOpenExecution, showEditButton = false, isCoach = false,
-  sectionColor = "#FF6F20", plan,
+  exercise, onToggleComplete, onEdit, onDelete,
+  isCoach = false, plan, traineeProgress,
 }) {
   const queryClient = useQueryClient();
   if (!exercise) return null;
 
   const handleToggleComplete = async (e) => {
-    // Optional event — the legacy coach card passes the click event so
-    // we stop propagation, but the new TraineeExerciseCard calls this
-    // from the note popup save/skip handlers with no argument.
     if (e?.stopPropagation) e.stopPropagation();
     if (onToggleComplete) onToggleComplete(exercise);
     if (!isCoach && !exercise.completed && plan?.created_by) {
@@ -436,223 +181,198 @@ export default function ExerciseCard({
     }
   };
 
-  const handleEdit = (e) => { e.stopPropagation(); onEdit ? onEdit() : onRowClick?.(); };
-  const handleDelete = (e) => { e.stopPropagation(); onDelete?.(); };
-
-  // Always run the 4-shape reader regardless of mode — both coach and
-  // trainee views show the same open content, and legacy rows with
-  // children but no mode still need to surface their sub-exercise list.
   const subExercises = getSubExercises(exercise);
+  const planId = plan?.id || null;
+  const savedFeedback = traineeProgress?.feedback || '';
 
-  // ── COACH VIEW ──────────────────────────────────────────────────────
-  // Branch is decided by isCoach ONLY. showEditButton no longer routes
-  // here — it used to flip a trainee viewing their own plan
-  // (canEdit=true) into the coach layout, which broke the trainee
-  // experience. A trainee always sees TraineeExerciseCard regardless of
-  // ownership. Inline edit buttons inside CoachExerciseCard remain
-  // gated by their own onMove/onDuplicate/onDelete props.
-  if (isCoach) {
-    return (
-      <CoachExerciseCard
-        exercise={exercise}
-        subExercises={subExercises}
-        onEdit={handleEdit}
-        onMove={onMove}
-        isFirst={isFirst}
-        isLast={isLast}
-        onDuplicate={onDuplicate}
-        onDelete={handleDelete}
-      />
-    );
-  }
-
-  // ── TRAINEE VIEW ────────────────────────────────────────────────────
-  // Read-only mirror of the coach editor. Header collapses the body;
-  // every populated field that the coach can fill in ModernExerciseForm
-  // shows up here in matching groups (no inputs, no edit affordances).
-  // Complete-toggle and 4-shape sub-exercise reading are delegated to
-  // the parent helpers so the trainee card keeps full UX parity.
-  return (
-    <TraineeExerciseCard
-      exercise={exercise}
-      onToggleComplete={handleToggleComplete}
-      subExercises={subExercises}
-    />
-  );
-}
-
-function CardWrapper({ completed, children }) {
-  return (
-    <motion.div
-      layout
-      style={{
-        background: '#FFFEFC',
-        border: '1px solid #F5E8D5',
-        borderRadius: 14,
-        marginBottom: 10,
-        overflow: 'visible',
-        // Green-when-completed indicator on the right edge (RTL).
-        // Transparent fallback keeps the same width either way (no
-        // layout shift when the green flips on/off).
-        borderRight: completed ? '3px solid #4CAF50' : '3px solid transparent',
-      }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) {
-  const [isOpen, setIsOpen] = useState(true);
   const [showNotePopup, setShowNotePopup] = useState(false);
+  const [feedback, setFeedback] = useState(savedFeedback || '');
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const debounceRef = useRef(null);
+  const lastPersistedRef = useRef(savedFeedback || '');
 
-  // Checkbox click handling: completing the exercise opens the note
-  // popup first, the popup's save/skip then triggers the actual
-  // toggle. Un-completing skips the popup and toggles immediately.
+  useEffect(() => {
+    setFeedback(savedFeedback || '');
+    lastPersistedRef.current = savedFeedback || '';
+  }, [exercise.id, savedFeedback]);
+
+  const queueSave = (next) => {
+    setFeedback(next);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const value = (next || '').trim();
+      if (value === (lastPersistedRef.current || '').trim()) return;
+      try {
+        setSavingFeedback(true);
+        const traineeId = (await base44.auth.me())?.id;
+        if (!traineeId || !exercise?.id) return;
+        await upsertTraineeProgress({
+          traineeId, exerciseId: exercise.id, planId,
+          feedback: value || null,
+        });
+        lastPersistedRef.current = value;
+      } catch (err) {
+        console.warn('[ExerciseCard] feedback save failed:', err?.message);
+      } finally {
+        setSavingFeedback(false);
+      }
+    }, 500);
+  };
+
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
+
   const handleCheckboxToggle = (_exId, _secId, willBeCompleted) => {
     if (willBeCompleted) {
       setShowNotePopup(true);
     } else {
-      onToggleComplete?.();
+      handleToggleComplete();
     }
   };
 
-  const checkbox = (
-    <ExerciseCheckbox
-      exerciseId={exercise.id}
-      sectionId={exercise.training_section_id}
-      isCompleted={!!exercise.completed}
-      onToggle={handleCheckboxToggle}
-    />
-  );
+  const metaSegs = buildMetaSegments(exercise);
+  const tabata = extractTabata(exercise);
+  const exList = extractExerciseList(exercise);
+  const coachNote = exercise.description || exercise.notes || exercise.coach_notes || null;
+  const completed = !!exercise.completed;
 
   return (
-    <CardWrapper completed={exercise.completed}>
-      <ExerciseCardHeader
-        exercise={exercise}
-        isOpen={isOpen}
-        onToggle={() => setIsOpen(!isOpen)}
-        headerLeading={<span onClick={(e) => e.stopPropagation()}>{checkbox}</span>}
+    <div style={{
+      background: 'white',
+      borderRadius: 12,
+      padding: '14px 16px',
+      marginBottom: 8,
+      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      border: completed ? '1px solid #FFE0CC' : '1px solid #F0E4D0',
+      borderRight: completed ? '3px solid #FF6F20' : '1px solid #F0E4D0',
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 12,
+      direction: 'rtl',
+    }}>
+      <ExerciseCheckbox
+        exerciseId={exercise.id}
+        sectionId={exercise.training_section_id}
+        isCompleted={completed}
+        onToggle={handleCheckboxToggle}
       />
-      {isOpen && (
-        <div style={{ padding: '8px 8px 0' }}>
-          <ModernExerciseForm
-            exercise={exercise}
-            onChange={() => {}}
-            readOnly={true}
-          />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 4,
+          textDecoration: completed ? 'line-through' : 'none',
+          textDecorationColor: completed ? '#FF6F20' : 'transparent',
+        }}>
+          {exercise.exercise_name || exercise.name || 'תרגיל'}
         </div>
-      )}
+
+        {metaSegs.length > 0 && (
+          <div style={{ fontSize: 14, color: '#555', lineHeight: 1.5 }}>
+            {metaSegs.join(' · ')}
+          </div>
+        )}
+
+        {coachNote && (
+          <div style={{ fontSize: 13, color: '#666', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>
+            {coachNote}
+          </div>
+        )}
+
+        {tabata && (
+          <div style={{ marginTop: 10, padding: 10, background: '#FFF9F0', borderRadius: 8, border: '1px solid #F0E4D0' }}>
+            <div style={{ fontSize: 11, color: '#FF6F20', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>טבטה</div>
+            <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: tabata.exercises.length > 0 ? 10 : 0 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>{tabata.work ?? '—'}{tabata.work ? "''" : ''}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>עבודה</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>{tabata.rest ?? '—'}{tabata.rest ? "''" : ''}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>מנוחה</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>{tabata.rounds ?? '—'}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>סבבים</div>
+              </div>
+            </div>
+            {tabata.exercises.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>תרגילים בסבב:</div>
+                {tabata.exercises.map((sub, i) => {
+                  const { name, detail } = describeSub(sub);
+                  return (
+                    <div key={i} style={{ fontSize: 14, color: '#1a1a1a', padding: '3px 0' }}>
+                      {i + 1}. {name}
+                      {detail && (<span style={{ fontSize: 12, color: '#888', marginRight: 6 }}> · {detail}</span>)}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!tabata && exList && (
+          <div style={{ marginTop: 10, padding: 10, background: '#FFF9F0', borderRadius: 8, border: '1px solid #F0E4D0' }}>
+            <div style={{ fontSize: 11, color: '#FF6F20', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>רשימת תרגילים</div>
+            {exList.exercises.map((sub, i) => {
+              const { name, detail } = describeSub(sub);
+              return (
+                <div key={i} style={{ fontSize: 14, color: '#1a1a1a', padding: '4px 0', borderBottom: i < exList.exercises.length - 1 ? '1px solid #F0E4D0' : 'none' }}>
+                  <div style={{ fontWeight: 500 }}>{i + 1}. {name}</div>
+                  {detail && (<div style={{ fontSize: 12, color: '#666' }}>{detail}</div>)}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <input
+          type="text"
+          placeholder="הוסף משוב לתרגיל (אופציונלי)"
+          value={feedback}
+          onChange={(e) => queueSave(e.target.value)}
+          style={{
+            marginTop: 8, width: '100%', padding: '8px 10px',
+            border: '1px solid #F0E4D0', borderRadius: 8,
+            fontSize: 13, fontFamily: 'inherit', background: '#FFF9F0',
+            direction: 'rtl', boxSizing: 'border-box', outline: 'none',
+          }}
+        />
+        {savingFeedback && (
+          <div style={{ fontSize: 11, color: '#FF6F20', marginTop: 2 }}>שומר משוב...</div>
+        )}
+      </div>
+
       {showNotePopup && (
         <ExerciseNotePopup
           exerciseName={exercise.exercise_name || exercise.name}
           onSave={async (note) => {
             try {
               if (note && exercise?.id) {
-                // Persist note onto the exercise row's trainee_feedback
-                // column. base44 column-retry strips it gracefully if
-                // the schema doesn't have it yet.
-                await base44.entities.Exercise.update(exercise.id, { trainee_feedback: note });
+                const traineeId = (await base44.auth.me())?.id;
+                if (traineeId) {
+                  await upsertTraineeProgress({
+                    traineeId, exerciseId: exercise.id, planId,
+                    completed: true, feedback: note,
+                  });
+                  lastPersistedRef.current = note;
+                  setFeedback(note);
+                }
               }
             } catch (err) {
               console.warn('[ExerciseCard] note save failed:', err?.message);
             } finally {
-              onToggleComplete?.();
+              handleToggleComplete();
               setShowNotePopup(false);
             }
           }}
           onSkip={() => {
-            onToggleComplete?.();
+            handleToggleComplete();
             setShowNotePopup(false);
           }}
         />
       )}
-    </CardWrapper>
-  );
-}
-
-// Coach card — same open content as the trainee card; the header
-// carries reorder/duplicate/delete icons next to the chevron, and
-// the open body's primary action is "ערוך תרגיל" which lands the
-// coach in the editor (layer 3).
-function CoachExerciseCard({
-  exercise, subExercises, onEdit, onMove, isFirst, isLast, onDuplicate, onDelete,
-}) {
-  const [isOpen, setIsOpen] = useState(true);
-  const stop = (e) => e.stopPropagation();
-  const headerExtras = (
-    <div onClick={stop} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-      {onMove && (
-        <>
-          <button
-            onClick={(e) => { e.stopPropagation(); onMove(-1); }}
-            disabled={isFirst}
-            title="העלה תרגיל"
-            style={{
-              width: 28, height: 28, borderRadius: 999, border: 'none',
-              background: 'transparent', color: '#888', cursor: isFirst ? 'default' : 'pointer',
-              opacity: isFirst ? 0.3 : 1, fontSize: 12,
-            }}
-          >↑</button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onMove(1); }}
-            disabled={isLast}
-            title="הורד תרגיל"
-            style={{
-              width: 28, height: 28, borderRadius: 999, border: 'none',
-              background: 'transparent', color: '#888', cursor: isLast ? 'default' : 'pointer',
-              opacity: isLast ? 0.3 : 1, fontSize: 12,
-            }}
-          >↓</button>
-        </>
-      )}
-      {onDuplicate && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-          title="שכפל תרגיל"
-          style={{
-            width: 28, height: 28, borderRadius: 999, border: 'none',
-            background: 'transparent', cursor: 'pointer', fontSize: 12,
-          }}
-        >📋</button>
-      )}
-      {onDelete && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(e); }}
-          title="מחק"
-          style={{
-            width: 28, height: 28, borderRadius: 999, border: 'none',
-            background: 'transparent', color: '#DC2626', cursor: 'pointer', fontSize: 12,
-          }}
-        >🗑</button>
-      )}
     </div>
-  );
-  return (
-    <CardWrapper completed={exercise.completed}>
-      <ExerciseCardHeader
-        exercise={exercise}
-        isOpen={isOpen}
-        onToggle={() => setIsOpen(!isOpen)}
-        headerExtras={headerExtras}
-      />
-      {isOpen && (
-        <>
-          <ExerciseOpenContent exercise={exercise} subExercises={subExercises} />
-          {onEdit && (
-            <div style={{ padding: '0 16px 16px' }}>
-              <button onClick={onEdit} style={{
-                width: '100%', height: 44,
-                borderRadius: 12, border: '1.5px solid #FF6F20',
-                background: '#FFF5EE', color: '#FF6F20',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              }}>
-                ✏️ ערוך תרגיל
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </CardWrapper>
   );
 }
