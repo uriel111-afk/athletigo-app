@@ -10,6 +10,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import ExerciseCheckbox from "./ExerciseCheckbox";
 import ExerciseNotePopup from "./ExerciseNotePopup";
+import ModernExerciseForm from "../workout/ModernExerciseForm";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -534,7 +535,13 @@ function TraineeExerciseCard({ exercise, onToggleComplete, subExercises = [] }) 
         headerLeading={<span onClick={(e) => e.stopPropagation()}>{checkbox}</span>}
       />
       {isOpen && (
-        <ExerciseOpenContent exercise={exercise} subExercises={subExercises} />
+        <div style={{ padding: '8px 8px 0' }}>
+          <ModernExerciseForm
+            exercise={exercise}
+            onChange={() => {}}
+            readOnly={true}
+          />
+        </div>
       )}
       {showNotePopup && (
         <ExerciseNotePopup
