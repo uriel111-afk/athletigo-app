@@ -110,35 +110,33 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4"
-      // paddingBottom: 120 keeps the centered login card clear of the
-      // fixed bottom-banner InstallPrompt (≈76px tall + 80px offset
-      // from the viewport bottom = 156px footprint). Without this,
-      // the install pill covered the submit button + 'forgot password'
-      // link on shorter viewports.
-      style={{ backgroundColor: "#FAFAFA", paddingBottom: 120 }}
+      className="min-h-screen flex flex-col items-center px-4"
+      // paddingBottom: 140 keeps the centered login card clear of the
+      // fixed bottom-banner InstallPrompt so it never covers the
+      // submit button or the 'forgot password' line.
+      style={{ backgroundColor: "#FFF9F0", paddingTop: 48, paddingBottom: 140 }}
       dir="rtl"
     >
-      <div className="w-full max-w-sm">
+      <div className="w-full" style={{ maxWidth: 400 }}>
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
           <img
             src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 130, height: 'auto', objectFit: 'contain', marginBottom: 24, filter: 'brightness(0)' }}
+            style={{ width: 140, height: 'auto', objectFit: 'contain', marginBottom: 24, filter: 'brightness(0)' }}
           />
-          <div style={{ fontSize: 14, color: '#888', marginTop: 16, fontWeight: 500 }}>
+          <div style={{ fontSize: 15, color: '#888', fontWeight: 500, textAlign: 'center' }}>
             כניסה למערכת מאמנים ומתאמנים
           </div>
         </div>
 
         {/* Card */}
         <div
-          className="rounded-2xl p-6"
           style={{
             backgroundColor: "#FFFFFF",
-            border: "1px solid #E0E0E0",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+            borderRadius: 20,
+            padding: 28,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
           }}
         >
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -154,8 +152,8 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="h-11 rounded-xl text-right"
-                style={{ border: "1px solid #E0E0E0", direction: "ltr" }}
+                className="text-right border border-[#F0E4D0] focus:border-[#FF6F20] focus-visible:border-[#FF6F20] focus-visible:ring-0 focus-visible:ring-offset-0"
+                style={{ borderRadius: 10, padding: 12, height: 'auto', direction: "ltr" }}
               />
             </div>
 
@@ -171,8 +169,8 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="h-11 rounded-xl"
-                style={{ border: "1px solid #E0E0E0", direction: "ltr" }}
+                className="border border-[#F0E4D0] focus:border-[#FF6F20] focus-visible:border-[#FF6F20] focus-visible:ring-0 focus-visible:ring-offset-0"
+                style={{ borderRadius: 10, padding: 12, height: 'auto', direction: "ltr" }}
               />
             </div>
 
@@ -188,8 +186,8 @@ export default function Login() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 rounded-xl font-bold text-white text-base"
-              style={{ backgroundColor: "#FF6F20" }}
+              className="w-full font-bold text-white text-base"
+              style={{ backgroundColor: "#FF6F20", height: 52, borderRadius: 12 }}
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -198,7 +196,7 @@ export default function Login() {
               )}
             </Button>
 
-            <div className="text-center" style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+            <div className="text-center" style={{ fontSize: 13, color: '#888', marginTop: 8 }}>
               שכחת סיסמה? פנה למאמן שלך
             </div>
           </form>
