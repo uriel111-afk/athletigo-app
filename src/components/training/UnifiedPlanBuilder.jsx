@@ -18,6 +18,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = false, onBack }) {
+  // Diagnostic — confirms the metadata fields the orange header
+  // expects are actually present on the plan row that landed here.
+  // Logs once per plan id change.
+  useEffect(() => {
+    if (plan) {
+      // eslint-disable-next-line no-console
+      console.log('[HEADER] plan metadata:', {
+        goal_focus: plan.goal_focus,
+        weekly_days: plan.weekly_days,
+        difficulty_level: plan.difficulty_level,
+        duration_weeks: plan.duration_weeks,
+      });
+    }
+  }, [plan?.id]);
+
   const [showEditBuilder, setShowEditBuilder] = useState(false);
   const [showSectionDialog, setShowSectionDialog] = useState(false);
   const [showExerciseDialog, setShowExerciseDialog] = useState(false);
@@ -747,98 +762,88 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </h1>
         </div>
 
-        {/* Plan metadata — details text row, goal_focus pills, weekly
-            day pills, and description. Each block renders only when its
-            source field has a real value. Same banner shown to coach
-            and trainee. */}
-        {(() => {
-          const focuses = Array.isArray(plan.goal_focus) ? plan.goal_focus.filter(Boolean) : [];
-          const days = Array.isArray(plan.weekly_days) ? plan.weekly_days.filter(Boolean) : [];
-          const difficulty = plan.difficulty_level && String(plan.difficulty_level).trim();
-          const weeks = plan.duration_weeks && Number(plan.duration_weeks) > 0
-            ? Number(plan.duration_weeks)
-            : null;
-          const description = plan.description && String(plan.description).trim();
+        {/* Metadata section — details row, goal_focus chips, weekly day
+            chips, and description. Each block renders only when its
+            source has a real value. Same banner for coach and trainee. */}
+        <div style={{ marginBottom: 12 }}>
 
-          // Details row: "{N} פעמים בשבוע · {weeks} שבועות · {difficulty}".
-          // Skip any part whose source isn't set.
-          const detailParts = [];
-          if (days.length > 0) detailParts.push(`${days.length} פעמים בשבוע`);
-          if (weeks) detailParts.push(`${weeks} שבועות`);
-          if (difficulty) detailParts.push(plan.difficulty_level);
-
-          if (
-            !focuses.length && !days.length && !description &&
-            detailParts.length === 0
-          ) return null;
-
-          return (
-            <div className="mb-4">
-              {/* Details text row */}
-              {detailParts.length > 0 && (
-                <div style={{
-                  fontSize: 13, color: 'rgba(255,255,255,0.85)',
-                  textAlign: 'center', marginBottom: 8,
-                }}>
-                  {detailParts.join(' · ')}
-                </div>
-              )}
-
-              {/* Goal focus chips (rgba 0.2) */}
-              {focuses.length > 0 && (
-                <div style={{
-                  display: 'flex', flexWrap: 'wrap',
-                  justifyContent: 'center', alignItems: 'center',
-                  gap: 6, marginBottom: 8,
-                }}>
-                  {focuses.map((f, i) => (
-                    <span key={`gf-${i}`} style={{
-                      background: 'rgba(255,255,255,0.2)', color: 'white',
-                      fontSize: 11, padding: '3px 10px', borderRadius: 999,
-                      fontWeight: 600,
-                    }}>{f}</span>
-                  ))}
-                </div>
-              )}
-
-              {/* Weekly day chips (rgba 0.15, tighter padding + tighter gap) */}
-              {days.length > 0 && (
-                <div style={{
-                  display: 'flex', flexWrap: 'wrap',
-                  justifyContent: 'center', alignItems: 'center',
-                  gap: 4, marginBottom: 10,
-                }}>
-                  {days.map((d, i) => (
-                    <span key={`wd-${i}`} style={{
-                      background: 'rgba(255,255,255,0.15)', color: 'white',
-                      fontSize: 11, padding: '3px 8px', borderRadius: 999,
-                      fontWeight: 600,
-                    }}>{d}</span>
-                  ))}
-                </div>
-              )}
-
-              {/* Description — italic, side-padded, 2-line clamp */}
-              {description && (
-                <div style={{
-                  textAlign: 'center',
-                  fontSize: 12,
-                  fontStyle: 'italic',
-                  color: 'rgba(255,255,255,0.7)',
-                  paddingInline: 16,
-                  marginBottom: 10,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {description}
-                </div>
-              )}
+          {/* Details row: days/week + duration + difficulty */}
+          {(plan.weekly_days?.length > 0 || plan.duration_weeks || plan.difficulty_level) && (
+            <div style={{
+              fontSize: 13,
+              color: 'rgba(255,255,255,0.9)',
+              textAlign: 'center',
+              marginBottom: 8,
+              fontWeight: 500,
+            }}>
+              {[
+                plan.weekly_days?.length ? `${plan.weekly_days.length} פעמים בשבוע` : null,
+                plan.duration_weeks ? `${plan.duration_weeks} שבועות` : null,
+                plan.difficulty_level || null,
+              ].filter(Boolean).join(' · ')}
             </div>
-          );
-        })()}
+          )}
+
+          {/* Goal focus chips */}
+          {Array.isArray(plan.goal_focus) && plan.goal_focus.length > 0 && (
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              justifyContent: 'center',
+              marginBottom: 8,
+            }}>
+              {plan.goal_focus.map((f, i) => (
+                <span key={i} style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  background: 'rgba(255,255,255,0.22)',
+                  color: 'white',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                }}>{f}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Weekly days chips */}
+          {Array.isArray(plan.weekly_days) && plan.weekly_days.length > 0 && (
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 4,
+              justifyContent: 'center',
+              marginBottom: 8,
+            }}>
+              {plan.weekly_days.map((d, i) => (
+                <span key={i} style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '3px 9px',
+                  borderRadius: 999,
+                  background: 'rgba(255,255,255,0.15)',
+                  color: 'white',
+                }}>{d}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Description */}
+          {plan.description && (
+            <div style={{
+              fontSize: 12,
+              color: 'rgba(255,255,255,0.7)',
+              fontStyle: 'italic',
+              textAlign: 'center',
+              paddingInline: 20,
+              lineHeight: 1.4,
+            }}>
+              {plan.description}
+            </div>
+          )}
+
+        </div>
 
         {/* Stat Chips */}
         <div className="grid grid-cols-4 gap-2 mb-4">
@@ -1239,16 +1244,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         }
       }}>
         <DialogContent
-          className="w-[90%] sm:max-w-[425px] bg-white p-5 relative rounded-2xl border-none shadow-2xl z-[100] outline-none"
+          className="w-[90%] sm:max-w-[425px] bg-white p-5 relative rounded-2xl border-none shadow-2xl outline-none"
           dir="rtl"
           style={{
             position: 'fixed',
             left: '50%',
             top: 'auto',
-            bottom: 'max(env(safe-area-inset-bottom), 110px)',
+            bottom: 'calc(env(safe-area-inset-bottom) + 100px)',
             transform: 'translateX(-50%)',
-            maxHeight: 'calc(100vh - 180px)',
+            maxHeight: 'calc(100vh - 200px)',
             overflowY: 'auto',
+            zIndex: 200,
           }}
           onInteractOutside={(e) => e.preventDefault()}>
 
