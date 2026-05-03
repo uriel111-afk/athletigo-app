@@ -162,17 +162,25 @@ function MasterCard({ plan, sectionsCount, exercisesCount, onStart }) {
   );
 }
 
-function ExecutionRow({ plan, execution, indexLabel }) {
+function ExecutionRow({ plan, execution, indexLabel, onOpen }) {
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
   return (
-    <div style={{
-      background: 'white',
-      border: '1px solid #F0E4D0',
-      borderRadius: 12,
-      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      gap: 10, padding: '12px 16px',
-    }}>
+    <button
+      type="button"
+      onClick={() => onOpen && onOpen(plan)}
+      style={{
+        all: 'unset',
+        cursor: 'pointer',
+        boxSizing: 'border-box',
+        width: '100%',
+        background: 'white',
+        border: '1px solid #F0E4D0',
+        borderRadius: 12,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 10, padding: '12px 16px',
+      }}
+    >
       <div style={{
         fontSize: 15, fontWeight: 800, color: DARK,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -192,7 +200,7 @@ function ExecutionRow({ plan, execution, indexLabel }) {
           <span style={{ fontSize: 12 }}>⭐</span>
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -286,6 +294,7 @@ export default function WorkoutFolderDetail({
                     plan={plan}
                     execution={exec}
                     indexLabel={indexLabel}
+                    onOpen={onStart}
                   />
                   {i < numberedNewestFirst.length - 1 && <ExecutionDivider />}
                 </React.Fragment>
