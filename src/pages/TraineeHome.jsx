@@ -1527,7 +1527,7 @@ export default function TraineeHome() {
             // mirror those perms here so the tile hides when the
             // destination would block.
             { icon:'📅', label:'מפגשים',   to: createPageUrl("TraineeSessions"),                    perm: 'view_training_plan' },
-            { icon:'📋', label:'תוכנית',   to: createPageUrl("MyWorkoutLog"),                       perm: 'view_training_plan' },
+            { icon:'💪', label:'אימונים',  to: createPageUrl("Workouts"),                            perm: 'view_training_plan' },
             { icon:'📈', label:'התקדמות', to: createPageUrl("Progress"),                          perm: 'view_progress' },
             { icon:'🎯', label:'יעדים',    to: createPageUrl("TraineeProfile") + "?tab=goals" },
             { icon:'⏱', label:'שעונים',   to: createPageUrl("Clocks") },

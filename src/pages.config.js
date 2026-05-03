@@ -73,6 +73,7 @@ import TrainingPlanView from './pages/TrainingPlanView';
 import Clocks from './pages/Clocks';
 import SkillTracks from './pages/SkillTracks';
 import Challenges from './pages/Challenges';
+import Workouts from './pages/Workouts';
 import __Layout from './Layout.jsx';
 
 
@@ -103,6 +104,7 @@ export const PAGES = {
     "Clocks": Clocks,
     "SkillTracks": SkillTracks,
     "Challenges": Challenges,
+    "Workouts": Workouts,
 }
 
 export const pagesConfig = {
