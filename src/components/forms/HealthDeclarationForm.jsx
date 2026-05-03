@@ -203,9 +203,22 @@ export default function HealthDeclarationForm({
       try {
         const traineeId = trainee?.id;
         if (traineeId) {
+          // Read the current row first so we can decide whether the
+          // signature should also promote the trainee out of the
+          // "onboarding" status into "casual" (= "מזדמן" in the coach
+          // UI). If the coach has already promoted them past casual
+          // (active / suspended / former / etc.) we don't downgrade.
+          const { data: row } = await supabase
+            .from('users')
+            .select('client_status')
+            .eq('id', traineeId)
+            .maybeSingle();
+          const promote = !row?.client_status || row.client_status === 'onboarding';
+          const update = { health_declaration_signed_at: new Date().toISOString() };
+          if (promote) update.client_status = 'casual';
           await supabase
             .from('users')
-            .update({ health_declaration_signed_at: new Date().toISOString() })
+            .update(update)
             .eq('id', traineeId);
         }
       } catch (flagErr) {
