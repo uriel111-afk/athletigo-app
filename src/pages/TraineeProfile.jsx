@@ -3548,6 +3548,75 @@ export default function TraineeProfile() {
   // TAB_PERM_MAP block. Hoisted to keep the hook count stable
   // across the loading → loaded transition.)
 
+  // Coach focus mode — when the coach is on the "תוכניות" tab, drop
+  // the rest of the profile chrome and show a full-bleed list of the
+  // trainee's plans. Trainees still get the normal multi-tab profile
+  // (their own "תוכניות" tab is just one of the tabs in the strip).
+  if (isCoach && activeTab === 'plans') {
+    return (
+      <ErrorBoundary>
+        <div className="w-full" dir="rtl"
+             style={{ background: '#F2F2F7', minHeight: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid #F0E4D0',
+            background: 'white',
+            position: 'sticky', top: 0, zIndex: 10,
+          }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('personal')}
+              style={{
+                background: 'none', border: 'none',
+                color: '#FF6F20', fontWeight: 700,
+                fontSize: 15, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              → חזרה לפרופיל
+            </button>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+              תוכניות אימון
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPlanDialog(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#FF6F20',
+                border: 'none',
+                borderRadius: 10,
+                color: 'white',
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              + תוכנית חדשה
+            </button>
+          </div>
+
+          <WorkoutsInner
+            traineeId={user?.id}
+            isCoach={true}
+            showHeader={false}
+          />
+
+          <PlanFormDialog
+            isOpen={showPlanDialog}
+            onClose={() => setShowPlanDialog(false)}
+            onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
+            trainees={effectiveUser ? [effectiveUser] : user ? [user] : []}
+            isLoading={createPlanForTraineeMutation.isPending}
+            hideTraineeSelection
+          />
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div className="w-full bg-[#F2F2F7]" dir="rtl" style={{ fontSize: 16, height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
