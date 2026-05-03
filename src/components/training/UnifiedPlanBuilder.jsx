@@ -17,22 +17,60 @@ import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificati
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
+// Defensive parser for array-shaped fields. The codebase has at least
+// three persisted shapes in the wild for goal_focus / weekly_days:
+//   1. real text[] arrays         — ["כוח", "סבולת"]
+//   2. comma-separated TEXT       — "כוח, סבולת"
+//   3. JSON-stringified-twice TEXT — "[\"כוח\"]" or items that are
+//      themselves stringified JSON like ["\"\\\"כוח\\\"\""]
+// This function unwraps each shape recursively into a clean array of
+// trimmed strings. Always returns an array.
+function parseArrayField(field) {
+  const stripQuotes = (s) => String(s).replace(/^[\[\"\\\s]+|[\]\"\\\s]+$/g, '').trim();
+  if (field == null || field === '') return [];
+  if (Array.isArray(field)) {
+    return field
+      .map((item) => {
+        if (item == null) return '';
+        if (typeof item === 'string') {
+          try {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed)) return parseArrayField(parsed);
+            if (typeof parsed === 'string') return stripQuotes(parsed);
+            return stripQuotes(String(parsed));
+          } catch {
+            return stripQuotes(item);
+          }
+        }
+        return String(item);
+      })
+      .flat()
+      .map(stripQuotes)
+      .filter(Boolean);
+  }
+  if (typeof field === 'string') {
+    try {
+      const parsed = JSON.parse(field);
+      if (Array.isArray(parsed)) return parseArrayField(parsed);
+      if (typeof parsed === 'string') return [stripQuotes(parsed)];
+      return [stripQuotes(String(parsed))];
+    } catch {
+      return field.split(/[,،]/).map(stripQuotes).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 // Coach-only inline editor for plan metadata. Mounts as a bottom-sheet
 // over a translucent backdrop. Closes on backdrop tap. The save button
 // hands the new payload back to the parent via onSave; the parent
 // owns the supabase write + cache invalidation.
-function PlanMetadataEditor({ plan, onSave, onClose }) {
+function PlanMetadataEditor({ plan, onSave, onClose, onDelete }) {
   const initial = plan || {};
-  const initFocus = Array.isArray(initial.goal_focus)
-    ? initial.goal_focus
-    : (typeof initial.goal_focus === 'string'
-      ? initial.goal_focus.split(/[,،]/).map((s) => s.trim()).filter(Boolean)
-      : []);
-  const initDays = Array.isArray(initial.weekly_days)
-    ? initial.weekly_days
-    : (typeof initial.weekly_days === 'string'
-      ? initial.weekly_days.split(/[,،]/).map((s) => s.trim()).filter(Boolean)
-      : []);
+  // Both fields can land in any of the three legacy shapes; the
+  // shared parseArrayField helper unwraps them into a clean array.
+  const initFocus = parseArrayField(initial.goal_focus);
+  const initDays = parseArrayField(initial.weekly_days);
 
   const [goalFocus, setGoalFocus] = useState(initFocus);
   const [weeklyDays, setWeeklyDays] = useState(initDays);
@@ -233,6 +271,21 @@ function PlanMetadataEditor({ plan, onSave, onClose }) {
           }}>
           שמור שינויים ✓
         </button>
+
+        {onDelete && (
+          <button type="button" onClick={onDelete}
+            style={{
+              width: '100%', padding: '12px', marginTop: 12,
+              background: 'white',
+              border: '1px solid #FCA5A5',
+              borderRadius: 12,
+              color: '#DC2626',
+              fontWeight: 700, fontSize: 14,
+              cursor: 'pointer',
+            }}>
+            🗑️ מחק את התוכנית
+          </button>
+        )}
       </div>
     </div>
   );
@@ -249,21 +302,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
   }, [plan?.id]);
 
-  // Resolve metadata fields against possible legacy aliases AND legacy
-  // shapes. The codebase has two writers: one stores TEXT[] arrays
-  // (modern path), another stores comma-separated TEXT (legacy — see
-  // TrainingPlans.jsx:805 fallback). The header has to accept both.
-  const toList = (v) => {
-    if (!v) return null;
-    if (Array.isArray(v)) return v.filter(Boolean).length > 0 ? v.filter(Boolean) : null;
-    if (typeof v === 'string') {
-      const parts = v.split(/[,،]/).map((s) => s.trim()).filter(Boolean);
-      return parts.length > 0 ? parts : null;
-    }
-    return null;
-  };
-  const headerGoalFocus = toList(plan?.goal_focus) || toList(plan?.focus_areas);
-  const headerWeeklyDays = toList(plan?.weekly_days) || toList(plan?.training_days);
+  // Resolve metadata fields through parseArrayField, which unwraps all
+  // three shapes the codebase persists (real arrays, comma-separated
+  // strings, double-JSON-encoded strings). Legacy aliases checked too:
+  // focus_areas / training_days / level / weeks.
+  const goalFocusItems =
+    parseArrayField(plan?.goal_focus).length > 0
+      ? parseArrayField(plan?.goal_focus)
+      : parseArrayField(plan?.focus_areas);
+  const weeklyDaysItems =
+    parseArrayField(plan?.weekly_days).length > 0
+      ? parseArrayField(plan?.weekly_days)
+      : parseArrayField(plan?.training_days);
+  const headerGoalFocus = goalFocusItems.length > 0 ? goalFocusItems : null;
+  const headerWeeklyDays = weeklyDaysItems.length > 0 ? weeklyDaysItems : null;
   const headerDifficulty = plan?.difficulty_level || plan?.level || null;
   const headerWeeks = (() => {
     const raw = plan?.duration_weeks ?? plan?.weeks;
@@ -1074,13 +1126,27 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           plan={plan}
           onSave={handleSaveMetadata}
           onClose={() => setShowMetadataEditor(false)}
+          onDelete={() => {
+            setShowMetadataEditor(false);
+            handleDeletePlan();
+          }}
         />
       )}
-      {/* PLAN HEADER */}
-      <div className="mb-6" style={{ backgroundColor: '#FF6F20', padding: '20px', borderRadius: '0 0 24px 24px' }}>
-        <div className="flex items-center justify-center mb-4">
+      {/* PLAN HEADER — clean layout per spec, with inline rename
+          preserved (tap title → input + ✓/✕). Delete moved into the
+          metadata editor so the banner stays focused. */}
+      <div className="mb-6" style={{
+        backgroundColor: '#FF6F20',
+        padding: '20px 20px 16px',
+        borderRadius: '0 0 24px 24px',
+      }}>
+        {/* Title row: name + ערוך button (or input + ✓/✕ when renaming) */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 10, marginBottom: 8,
+        }}>
           {canEdit && editingPlanName ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
               <input
                 value={tempPlanName}
                 onChange={(e) => setTempPlanName(e.target.value)}
@@ -1094,7 +1160,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 }}
                 style={{
                   flex: 1,
-                  fontSize: 22, fontWeight: 900, color: '#1a1a1a',
+                  fontSize: 24, fontWeight: 900, color: '#1a1a1a',
                   background: 'white', border: 'none',
                   borderRadius: 10, padding: '6px 12px',
                   fontFamily: 'Barlow Condensed, sans-serif',
@@ -1126,174 +1192,146 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               >✕</button>
             </div>
           ) : (
-            <h1
-              className="text-2xl font-black text-white"
-              style={{
-                fontFamily: 'Barlow Condensed, sans-serif',
-                cursor: canEdit ? 'pointer' : 'default',
-              }}
-              onClick={() => {
-                if (!canEdit) return;
-                setTempPlanName(plan.plan_name || '');
-                setEditingPlanName(true);
-              }}
-              title={canEdit ? 'לחץ לעריכת שם' : ''}
-            >
-              {plan.plan_name}
-              {canEdit && <span style={{ fontSize: 14, marginRight: 8, opacity: 0.7 }}>✏️</span>}
-            </h1>
+            <>
+              <h1
+                style={{
+                  fontSize: 24, fontWeight: 900, color: 'white', margin: 0,
+                  fontFamily: 'Barlow Condensed, sans-serif',
+                  cursor: canEdit ? 'pointer' : 'default',
+                }}
+                onClick={() => {
+                  if (!canEdit) return;
+                  setTempPlanName(plan.plan_name || '');
+                  setEditingPlanName(true);
+                }}
+                title={canEdit ? 'לחץ לעריכת שם' : ''}
+              >
+                {plan.plan_name}
+              </h1>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setShowMetadataEditor(true)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 999,
+                    background: 'rgba(255,255,255,0.2)',
+                    border: '1px solid rgba(255,255,255,0.35)',
+                    color: 'white', fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >
+                  ✏️ ערוך
+                </button>
+              )}
+            </>
           )}
         </div>
 
-        {canEdit && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => setShowMetadataEditor(true)}
-              style={{
-                padding: '4px 12px', borderRadius: 999,
-                background: 'rgba(255,255,255,0.2)',
-                border: '1px solid rgba(255,255,255,0.4)',
-                color: 'white', fontSize: 12, fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ✏️ ערוך פרטי תוכנית
-            </button>
-            <button
-              type="button"
-              onClick={handleDeletePlan}
-              style={{
-                padding: '4px 12px', borderRadius: 999,
-                background: 'rgba(220,38,38,0.15)',
-                border: '1px solid rgba(220,38,38,0.4)',
-                color: 'white', fontSize: 12, fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              🗑️ מחק תוכנית
-            </button>
+        {/* Details row: days + duration + difficulty */}
+        {(weeklyDaysItems.length > 0 || plan.duration_weeks || plan.difficulty_level) && (
+          <div style={{
+            fontSize: 13, color: 'rgba(255,255,255,0.9)',
+            textAlign: 'center', marginBottom: 10, fontWeight: 500,
+          }}>
+            {[
+              weeklyDaysItems.length ? `${weeklyDaysItems.length} פעמים בשבוע` : null,
+              plan.duration_weeks ? `${plan.duration_weeks} שבועות` : null,
+              plan.difficulty_level || null,
+            ].filter(Boolean).join(' · ')}
           </div>
         )}
 
-        {/* Metadata section — details row, goal_focus chips, weekly day
-            chips, and description. Reads through legacy aliases so old
-            plans (focus_areas / training_days / level / weeks) still
-            populate the header. Same banner for coach and trainee. */}
-        <div style={{ marginBottom: 12 }}>
+        {/* Goal focus chips */}
+        {goalFocusItems.length > 0 && (
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 6,
+            justifyContent: 'center', marginBottom: 10,
+          }}>
+            {goalFocusItems.map((f, i) => (
+              <span key={i} style={{
+                fontSize: 12, fontWeight: 600,
+                padding: '4px 12px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.22)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.3)',
+              }}>{f}</span>
+            ))}
+          </div>
+        )}
 
-          {/* Details row: days/week + duration + difficulty */}
-          {(headerWeeklyDays || headerWeeks || headerDifficulty) && (
-            <div style={{
-              fontSize: 13,
-              color: 'rgba(255,255,255,0.9)',
-              textAlign: 'center',
-              marginBottom: 8,
-              fontWeight: 500,
+        {/* Weekly day circles */}
+        {weeklyDaysItems.length > 0 && (
+          <div style={{
+            display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 12,
+          }}>
+            {weeklyDaysItems.map((d, i) => (
+              <span key={i} style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.25)',
+                color: 'white', fontSize: 12, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{d}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Description */}
+        {plan.description && (
+          <div style={{
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.85)',
+            fontStyle: 'italic',
+            textAlign: 'center',
+            paddingInline: 20,
+            lineHeight: 1.4,
+            marginBottom: 12,
+          }}>
+            {plan.description}
+          </div>
+        )}
+
+        {/* Stats chips */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8, marginBottom: 10,
+        }}>
+          {[
+            { value: `${exercises.filter((e) => e.completed).length}`, label: 'ביצועים' },
+            { value: `${sections.length}`, label: 'סקשנים' },
+            { value: `${exercises.length}`, label: 'תרגילים' },
+            { value: `${progressPct}%`, label: 'הושלם' },
+          ].map((stat) => (
+            <div key={stat.label} style={{
+              background: 'rgba(255,255,255,0.18)',
+              borderRadius: 10, padding: '8px 4px', textAlign: 'center',
             }}>
-              {[
-                headerWeeklyDays ? `${headerWeeklyDays.length} פעמים בשבוע` : null,
-                headerWeeks ? `${headerWeeks} שבועות` : null,
-                headerDifficulty || null,
-              ].filter(Boolean).join(' · ')}
+              <div style={{
+                fontSize: 18, fontWeight: 900, color: 'white',
+                fontFamily: 'Barlow Condensed, sans-serif',
+              }}>
+                {stat.value}
+              </div>
+              <div style={{
+                fontSize: 10, color: 'rgba(255,255,255,0.8)',
+                fontWeight: 700, textTransform: 'uppercase',
+              }}>
+                {stat.label}
+              </div>
             </div>
-          )}
-
-          {/* Goal focus chips */}
-          {headerGoalFocus && (
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 6,
-              justifyContent: 'center',
-              marginBottom: 8,
-            }}>
-              {headerGoalFocus.map((f, i) => (
-                <span key={i} style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: '3px 10px',
-                  borderRadius: 999,
-                  background: 'rgba(255,255,255,0.22)',
-                  color: 'white',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                }}>{f}</span>
-              ))}
-            </div>
-          )}
-
-          {/* Weekly days chips */}
-          {headerWeeklyDays && (
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 4,
-              justifyContent: 'center',
-              marginBottom: 8,
-            }}>
-              {headerWeeklyDays.map((d, i) => (
-                <span key={i} style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '3px 9px',
-                  borderRadius: 999,
-                  background: 'rgba(255,255,255,0.15)',
-                  color: 'white',
-                }}>{d}</span>
-              ))}
-            </div>
-          )}
-
-          {/* Description */}
-          {plan.description && (
-            <div style={{
-              fontSize: 12,
-              color: 'rgba(255,255,255,0.7)',
-              fontStyle: 'italic',
-              textAlign: 'center',
-              paddingInline: 20,
-              lineHeight: 1.4,
-            }}>
-              {plan.description}
-            </div>
-          )}
-
+          ))}
         </div>
 
-        {/* Stat Chips */}
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-              {exercises.filter(e => e.completed).length}
-            </div>
-            <div className="text-xs text-white/80 uppercase font-bold">ביצועים</div>
-          </div>
-          <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-              {sections.length}
-            </div>
-            <div className="text-xs text-white/80 uppercase font-bold">סקשנים</div>
-          </div>
-          <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-              {exercises.length}
-            </div>
-            <div className="text-xs text-white/80 uppercase font-bold">תרגילים</div>
-          </div>
-          <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-              {exercises.length > 0 ? Math.round((exercises.filter(e => e.completed).length / exercises.length) * 100) : 0}%
-            </div>
-            <div className="text-xs text-white/80 uppercase font-bold">הושלם</div>
-          </div>
-        </div>
-        
-        {/* Progress Bar */}
-        <div className="bg-white/20 rounded-full h-2 overflow-hidden">
-          <div
-            className="h-full bg-white transition-all duration-500"
-            style={{ width: `${exercises.length > 0 ? (exercises.filter(e => e.completed).length / exercises.length) * 100 : 0}%` }}
-          ></div>
+        {/* Progress bar */}
+        <div style={{
+          background: 'rgba(255,255,255,0.25)',
+          borderRadius: 999, height: 6, overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%', background: 'white',
+            width: `${progressPct}%`,
+            transition: 'width 0.5s ease',
+            borderRadius: 999,
+          }} />
         </div>
       </div>
 
