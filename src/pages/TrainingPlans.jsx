@@ -294,8 +294,12 @@ export default function TrainingPlans() {
 
   const updatePlanMutation = useMutation({
     mutationFn: async ({ id, data, originalPlan }) => {
-      // Strip fields that don't exist in training_plans table
-      const { weekly_days, coach_id, created_date, training_days, difficulty, ...safeData } = data;
+      // Strip fields that don't exist in training_plans table.
+      // weekly_days IS a real column (PlanBuilder writes it directly via
+      // supabase.from('training_plans').insert), so it was being dropped
+      // here erroneously — coach updates were losing weekly_days. The
+      // legacy aliases (training_days, difficulty) still get stripped.
+      const { coach_id, created_date, training_days, difficulty, ...safeData } = data;
       // Keep title in sync with plan_name
       if (safeData.plan_name) safeData.title = safeData.plan_name;
       console.log("Sending to training_plans (update):", safeData);
