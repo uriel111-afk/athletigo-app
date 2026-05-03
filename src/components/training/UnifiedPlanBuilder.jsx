@@ -1008,68 +1008,69 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       {/* Summary Dialog */}
       <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
         <DialogContent
-          className="w-[90%] sm:max-w-[425px] bg-white p-6 text-center relative rounded-2xl border-none shadow-2xl z-[100] fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-h-[70vh] overflow-y-auto outline-none"
+          className="w-[90%] sm:max-w-[425px] p-6 text-center relative rounded-2xl border-none shadow-2xl z-[100] fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-h-[70vh] overflow-y-auto outline-none text-white"
+          style={{ backgroundColor: '#1a1a1a' }}
           dir="rtl"
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}>
 
             <button
             onClick={() => setShowSummaryDialog(false)}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors p-1">
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1">
 
                 <X className="w-5 h-5" />
             </button>
 
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <Award className="w-8 h-8 text-green-600" />
+            <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'rgba(34,197,94,0.15)' }}>
+                <Award className="w-8 h-8 text-green-400" />
             </div>
-            <DialogTitle className="text-2xl font-black mb-2 text-gray-900">אימון הושלם!</DialogTitle>
+            <DialogTitle className="text-2xl font-black mb-2 text-white">סיימת את האימון! 🏆</DialogTitle>
             
             {summaryData &&
           <div className="space-y-6">
-                    <p className="text-lg text-gray-600 font-medium">
+                    <p className="text-lg text-gray-300 font-medium">
                         {summaryData.message}
                     </p>
 
                     {/* NEW STATS GRID */}
-                    <div className="grid grid-cols-3 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl border" style={{ backgroundColor: '#252525', borderColor: '#333' }}>
                         <div className="text-center flex flex-col items-center justify-center">
-                            <div className="text-xl font-black text-gray-800">{summaryData.totalExercises}</div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase">תרגילים</div>
+                            <div className="text-xl font-black text-white">{summaryData.totalExercises}</div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase">תרגילים</div>
                         </div>
-                        <div className="text-center flex flex-col items-center justify-center border-r border-gray-200 border-l">
-                            <div className="text-xl font-black text-gray-800">{summaryData.totalSets}</div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase">סטים</div>
+                        <div className="text-center flex flex-col items-center justify-center" style={{ borderRightWidth: 1, borderLeftWidth: 1, borderColor: '#3a3a3a', borderStyle: 'solid' }}>
+                            <div className="text-xl font-black text-white">{summaryData.totalSets}</div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase">סטים</div>
                         </div>
                         <div className="text-center flex flex-col items-center justify-center">
-                            <div className="text-xl font-black text-gray-800">{summaryData.avgRPE}</div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase">RPE ממוצע</div>
+                            <div className="text-xl font-black text-white">{summaryData.avgRPE}</div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase">RPE ממוצע</div>
                         </div>
 
-                        <div className="col-span-3 border-t border-gray-200 my-1"></div>
+                        <div className="col-span-3 my-1" style={{ borderTopWidth: 1, borderColor: '#3a3a3a', borderStyle: 'solid' }}></div>
 
                         <div className="text-center flex flex-col items-center justify-center">
-                            <div className="text-lg font-bold text-gray-800">{summaryData.totalWorkTime}</div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase">זמן עבודה</div>
+                            <div className="text-lg font-bold text-white">{summaryData.totalWorkTime}</div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase">זמן עבודה</div>
                         </div>
-                        <div className="col-span-2 text-center flex flex-col items-center justify-center border-r border-gray-200">
-                            <div className="text-lg font-bold text-gray-800">{summaryData.totalRestTime}</div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase">זמן מנוחה</div>
+                        <div className="col-span-2 text-center flex flex-col items-center justify-center" style={{ borderRightWidth: 1, borderColor: '#3a3a3a', borderStyle: 'solid' }}>
+                            <div className="text-lg font-bold text-white">{summaryData.totalRestTime}</div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase">זמן מנוחה</div>
                         </div>
                     </div>
 
                     <div style={{
                       textAlign: 'center', padding: '20px',
-                      background: '#FFF5EE', borderRadius: 16,
+                      background: 'rgba(255,111,32,0.12)', borderRadius: 16,
                       border: '2px solid #FF6F20', marginBottom: 16
                     }}>
-                      <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
+                      <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>
                         הציון שלך לאימון הזה
                       </div>
                       <div style={{ fontSize: 48, fontWeight: 700, color: '#FF6F20', lineHeight: 1 }}>
                         {summaryData.averageRating != null ? summaryData.averageRating.toFixed(1) : '—'}
                       </div>
-                      <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                      <div style={{ fontSize: 13, color: '#bbb', marginTop: 4 }}>
                         מתוך 10
                       </div>
                     </div>
@@ -1078,7 +1079,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                         <Button
                 onClick={() => setShowSummaryDialog(false)}
                 variant="outline"
-                className="flex-1 h-12 rounded-xl font-bold border-gray-200 text-gray-600 hover:bg-gray-50">
+                className="flex-1 h-12 rounded-xl font-bold border-gray-700 text-gray-200 bg-transparent hover:bg-gray-800 hover:text-white">
 
                             חזור לאימון
                         </Button>
@@ -1149,7 +1150,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </button>
 
           <DialogHeader>
-            <DialogTitle className="text-lg font-black text-center">🎯 משוב על הסקשן</DialogTitle>
+            <DialogTitle className="text-lg font-black text-center">סיימת סקשן! 🎯</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="p-2 rounded-lg text-center" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
