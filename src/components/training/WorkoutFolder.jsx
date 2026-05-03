@@ -18,6 +18,15 @@ function formatDate(iso) {
   }
 }
 
+function formatShort(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('he-IL', {
+      day: '2-digit', month: '2-digit',
+    });
+  } catch { return ''; }
+}
+
 function scoreBadgeColor(score) {
   if (score == null) return { bg: '#F3F4F6', fg: '#6B7280' };
   if (score >= 7) return { bg: '#DCFCE7', fg: '#16A34A' };
@@ -30,29 +39,37 @@ export default function WorkoutFolder({
 }) {
   const [open, setOpen] = useState(false);
 
-  const completed = useMemo(
-    () => (executions || []).filter((e) => e.status === 'completed'),
-    [executions]
-  );
+  // The new save-on-finish model means every row in workout_executions is
+  // a completed run — there is no in-progress / status field.
+  const completed = executions || [];
 
-  const lastScore = completed.length > 0
-    ? completed[0].total_avg_score
-    : (plan.best_score ?? null);
+  const lastExecution = completed[0] || null;
+  const lastScore = lastExecution?.self_rating ?? null;
 
   const chartData = useMemo(
     () => completed
       .slice()
       .reverse()
-      .filter((e) => e.total_avg_score != null)
-      .map((e, i) => ({
-        idx: i + 1,
-        date: formatDate(e.completed_at || e.started_at),
-        score: Number(e.total_avg_score),
+      .filter((e) => e.self_rating != null)
+      .map((e) => ({
+        date: formatShort(e.executed_at),
+        score: Number(e.self_rating),
+        completion: e.completion_percent != null ? Number(e.completion_percent) : null,
       })),
     [completed]
   );
 
   const lastBadge = scoreBadgeColor(lastScore != null ? Number(lastScore) : null);
+
+  const handleStart = (e) => {
+    e?.stopPropagation();
+    onStart && onStart(plan);
+  };
+
+  const handleReviewLatest = (e) => {
+    e?.stopPropagation();
+    if (lastExecution) onReview && onReview(lastExecution);
+  };
 
   return (
     <div
@@ -131,44 +148,99 @@ export default function WorkoutFolder({
             )}
           </div>
         </div>
+
+        {/* Always-visible action row, even when the folder is closed. */}
+        <div style={{
+          display: 'flex', gap: 8, marginTop: 12,
+        }}>
+          <button
+            type="button"
+            onClick={handleStart}
+            style={{
+              flex: 1, height: 44, borderRadius: 10,
+              background: ORANGE, color: 'white', border: 'none',
+              fontSize: 14, fontWeight: 800, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', gap: 6,
+            }}
+          >
+            <Play className="w-4 h-4" />
+            התחל אימון
+          </button>
+          <button
+            type="button"
+            onClick={handleReviewLatest}
+            disabled={!lastExecution}
+            style={{
+              flex: 1, height: 44, borderRadius: 10,
+              background: 'white',
+              color: lastExecution ? DARK : '#AAA',
+              border: `1px solid ${lastExecution ? '#F0E4D0' : '#EEE'}`,
+              fontSize: 13, fontWeight: 700,
+              cursor: lastExecution ? 'pointer' : 'not-allowed',
+              display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', gap: 6,
+            }}
+          >
+            <Eye className="w-4 h-4" />
+            צפה בביצועים קודמים
+          </button>
+        </div>
       </button>
 
       {open && (
         <div style={{ padding: '0 16px 16px' }}>
-          {chartData.length >= 2 && (
-            <div style={{
-              background: '#FAFAFA', borderRadius: 12, padding: 12,
-              border: '1px solid #F0F0F0', marginBottom: 12,
-            }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-                📈 התקדמות
+          {/* Improvement graph or empty state. */}
+          <div style={{
+            background: '#FAFAFA', borderRadius: 12, padding: 12,
+            border: '1px solid #F0F0F0', marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+              📈 התקדמות
+            </div>
+            {chartData.length === 0 ? (
+              <div style={{
+                padding: '20px 8px', textAlign: 'center', color: '#888',
+                fontSize: 12,
+              }}>
+                עדיין לא ביצעת אימון — הגרף יופיע אחרי הביצוע הראשון
               </div>
-              <div style={{ height: 160, width: '100%' }}>
+            ) : (
+              <div style={{ height: 180, width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                    <XAxis dataKey="date" fontSize={10} />
-                    <YAxis domain={[0, 10]} fontSize={10} />
+                    <XAxis dataKey="date" fontSize={11} />
+                    <YAxis domain={[0, 10]} fontSize={11} />
                     <Tooltip
-                      formatter={(v) => [Number(v).toFixed(1), 'ציון']}
-                      labelFormatter={(l) => l}
+                      formatter={(v, name) => {
+                        if (name === 'score') return [Number(v).toFixed(1), 'ציון'];
+                        return [v, name];
+                      }}
+                      labelFormatter={(l, payload) => {
+                        const p = payload?.[0]?.payload;
+                        if (!p) return l;
+                        const pct = p.completion != null ? ` · ${p.completion}% השלמה` : '';
+                        return `${l}${pct}`;
+                      }}
                     />
                     <Line
                       type="monotone"
                       dataKey="score"
                       stroke={ORANGE}
                       strokeWidth={2}
-                      dot={{ r: 3, fill: ORANGE }}
+                      dot={{ r: 4, fill: ORANGE }}
+                      activeDot={{ r: 6, fill: ORANGE }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Master template chip */}
           <div style={{
-            border: `2px solid #cbd5e1`, background: '#F8FAFC',
+            border: '2px solid #cbd5e1', background: '#F8FAFC',
             borderRadius: 12, padding: 12, marginBottom: 12,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -188,20 +260,20 @@ export default function WorkoutFolder({
 
           {/* Past executions list */}
           {completed.length > 0 ? (
-            <div style={{ marginBottom: 12 }}>
+            <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6, color: '#444' }}>
                 ביצועים אחרונים
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {completed.slice(0, 8).map((exec) => {
                   const badge = scoreBadgeColor(
-                    exec.total_avg_score != null ? Number(exec.total_avg_score) : null
+                    exec.self_rating != null ? Number(exec.self_rating) : null
                   );
                   return (
                     <button
                       key={exec.id}
                       type="button"
-                      onClick={() => onReview && onReview(exec)}
+                      onClick={(e) => { e.stopPropagation(); onReview && onReview(exec); }}
                       style={{
                         all: 'unset',
                         cursor: 'pointer',
@@ -218,7 +290,7 @@ export default function WorkoutFolder({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Eye className="w-4 h-4" style={{ color: '#888' }} />
                         <span style={{ fontSize: 13, color: '#444' }}>
-                          {formatDate(exec.completed_at || exec.started_at)}
+                          {formatDate(exec.executed_at)}
                         </span>
                       </div>
                       <span style={{
@@ -226,8 +298,8 @@ export default function WorkoutFolder({
                         padding: '2px 8px', borderRadius: 999,
                         fontSize: 12, fontWeight: 700,
                       }}>
-                        {exec.total_avg_score != null
-                          ? Number(exec.total_avg_score).toFixed(1)
+                        {exec.self_rating != null
+                          ? Number(exec.self_rating).toFixed(1)
                           : '—'}
                       </span>
                     </button>
@@ -235,30 +307,7 @@ export default function WorkoutFolder({
                 })}
               </div>
             </div>
-          ) : (
-            <div style={{
-              padding: 12, background: '#FAFAFA', borderRadius: 10,
-              fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 12,
-            }}>
-              עוד לא בוצע אימון. לחץ על הכפתור למטה כדי להתחיל.
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => onStart && onStart(plan)}
-            style={{
-              width: '100%', height: 48, borderRadius: 12,
-              background: ORANGE, color: 'white', border: 'none',
-              fontSize: 15, fontWeight: 800, cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center',
-              justifyContent: 'center', gap: 8,
-              boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
-            }}
-          >
-            <Play className="w-4 h-4" />
-            התחל אימון חדש
-          </button>
+          ) : null}
         </div>
       )}
     </div>

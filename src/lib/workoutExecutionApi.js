@@ -1,74 +1,89 @@
 import { supabase } from './supabaseClient';
-import {
-  startOrResumeExecution,
-  markExerciseDone,
-  unmarkExercise,
-  submitSectionRating,
-  completeWorkout,
-  getExecutionHistory,
-  getExecutionDetails,
-} from './planExecutionApi';
 
-export {
-  startOrResumeExecution,
-  markExerciseDone,
-  unmarkExercise,
-  submitSectionRating,
-  completeWorkout,
-  getExecutionHistory,
-  getExecutionDetails,
-};
-
-export async function createExecution(planId, traineeId, totalExercises) {
-  return startOrResumeExecution(planId, traineeId, null, totalExercises);
-}
-
-// Per-set log save. `mode` is the exercise's input mode and decides which
-// numeric column the value lands in. We upsert on (execution, exercise, set)
-// so editing the same set just updates the row.
-export async function saveSetLog(executionId, exerciseId, setNumber, mode, value, note = null) {
-  const payload = {
-    execution_id: executionId,
-    exercise_id: exerciseId,
-    set_number: setNumber,
-    notes: note,
-  };
-  const numeric = value === '' || value == null ? null : Number(value);
-  if (mode === 'seconds' || mode === 'time') payload.time_completed = numeric;
-  else if (mode === 'kg' || mode === 'weight') payload.weight_used = numeric;
-  else payload.reps_completed = numeric;
-
-  const { error } = await supabase
-    .from('exercise_set_logs')
-    .upsert(payload, { onConflict: 'execution_id,exercise_id,set_number' });
-  if (error) throw error;
-}
-
-export async function getSetLogs(executionId) {
-  const { data, error } = await supabase
-    .from('exercise_set_logs')
-    .select('*')
-    .eq('execution_id', executionId)
-    .order('exercise_id', { ascending: true })
-    .order('set_number', { ascending: true });
-  if (error) throw error;
-  return data || [];
-}
+// Real production schema we target:
+//   workout_executions:  id, trainee_id, workout_template_id, plan_id,
+//                        executed_at, self_rating, completion_percent,
+//                        section_ratings (jsonb)
+//   exercise_set_logs:   id, execution_id, exercise_id, set_number,
+//                        reps_completed, time_completed, weight_used, notes
+//
+// Save model: workout state is held in memory during the active flow. On
+// "שמור וסיים" we INSERT one workout_executions row + bulk-insert all
+// exercise_set_logs at once. No in-progress rows live in the DB.
 
 export async function getExecutionsForPlan(planId, traineeId) {
   const { data, error } = await supabase
     .from('workout_executions')
-    .select('*, section_executions(*)')
+    .select('*')
     .eq('plan_id', planId)
     .eq('trainee_id', traineeId)
-    .order('started_at', { ascending: false });
+    .order('executed_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
 
-// Reads logged values for one exercise inside one execution and returns
-// them indexed by set_number. The execution view uses this to pre-fill the
-// per-set inputs (in active mode) or render them read-only (review mode).
+export async function getExecutionWithSetLogs(executionId) {
+  const [execRes, logsRes] = await Promise.all([
+    supabase.from('workout_executions').select('*').eq('id', executionId).single(),
+    supabase
+      .from('exercise_set_logs')
+      .select('*')
+      .eq('execution_id', executionId)
+      .order('exercise_id', { ascending: true })
+      .order('set_number', { ascending: true }),
+  ]);
+  if (execRes.error) throw execRes.error;
+  if (logsRes.error) throw logsRes.error;
+  return { execution: execRes.data, setLogs: logsRes.data || [] };
+}
+
+// setLogs: [{ exercise_id, set_number, mode, value, note? }]
+//   mode = 'reps' | 'seconds' | 'time' | 'kg' | 'weight'
+// Empty / nullish values land as NULL in the matching column.
+export async function saveCompletedWorkout({
+  planId,
+  traineeId,
+  workoutTemplateId = null,
+  selfRating,
+  completionPercent,
+  sectionRatings = {},
+  setLogs = [],
+}) {
+  const { data: exec, error: insertErr } = await supabase
+    .from('workout_executions')
+    .insert({
+      plan_id: planId,
+      trainee_id: traineeId,
+      workout_template_id: workoutTemplateId,
+      executed_at: new Date().toISOString(),
+      self_rating: selfRating,
+      completion_percent: completionPercent,
+      section_ratings: sectionRatings,
+    })
+    .select()
+    .single();
+  if (insertErr) throw insertErr;
+
+  if (setLogs.length > 0) {
+    const rows = setLogs.map((s) => {
+      const row = {
+        execution_id: exec.id,
+        exercise_id: s.exercise_id,
+        set_number: s.set_number,
+        notes: s.note || null,
+      };
+      const v = s.value === '' || s.value == null ? null : Number(s.value);
+      if (s.mode === 'seconds' || s.mode === 'time') row.time_completed = v;
+      else if (s.mode === 'kg' || s.mode === 'weight') row.weight_used = v;
+      else row.reps_completed = v;
+      return row;
+    });
+    const { error: logsErr } = await supabase.from('exercise_set_logs').insert(rows);
+    if (logsErr) throw logsErr;
+  }
+  return exec;
+}
+
 export function indexSetLogs(logs) {
   const byExercise = {};
   for (const log of logs || []) {
@@ -76,4 +91,11 @@ export function indexSetLogs(logs) {
     byExercise[log.exercise_id][log.set_number] = log;
   }
   return byExercise;
+}
+
+export function valueFromLog(log, mode) {
+  if (!log) return '';
+  if (mode === 'seconds' || mode === 'time') return log.time_completed ?? '';
+  if (mode === 'kg' || mode === 'weight') return log.weight_used ?? '';
+  return log.reps_completed ?? '';
 }

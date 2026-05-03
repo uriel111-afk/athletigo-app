@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageLoader from '@/components/PageLoader';
@@ -7,13 +7,8 @@ import PermGate from '@/components/PermGate';
 import WorkoutFolder from '@/components/training/WorkoutFolder';
 import WorkoutExecution from '@/components/training/WorkoutExecution';
 import WorkoutExecutionReadOnly from '@/components/training/WorkoutExecutionReadOnly';
-import {
-  getPlansForTrainee, getPlanWithDetails,
-} from '@/lib/plansApi';
-import {
-  getExecutionsForPlan, createExecution, getExecutionDetails,
-} from '@/lib/workoutExecutionApi';
-import { toast } from 'sonner';
+import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
+import { getExecutionsForPlan } from '@/lib/workoutExecutionApi';
 
 export function WorkoutsInner({ showHeader = true } = {}) {
   const queryClient = useQueryClient();
@@ -65,38 +60,18 @@ export function WorkoutsInner({ showHeader = true } = {}) {
     enabled: plans.length > 0 && !!traineeId,
   });
 
-  const startMutation = useMutation({
-    mutationFn: async (plan) => {
-      const detailed = planDetails[plan.id];
-      const total = (detailed?.sections || [])
-        .reduce((sum, s) => sum + (s.exercises?.length || 0), 0);
-      const result = await createExecution(plan.id, traineeId, total);
-      return { plan: detailed || plan, execution: result.execution };
-    },
-    onSuccess: ({ plan, execution }) => {
-      queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
-      setView({ mode: 'execute', plan, execution });
-    },
-    onError: (e) => toast.error('פתיחת אימון נכשלה: ' + (e?.message || '')),
-  });
+  const handleStart = (plan) => {
+    const detailed = planDetails[plan.id] || plan;
+    setView({ mode: 'execute', plan: detailed });
+  };
 
-  const reviewMutation = useMutation({
-    mutationFn: async ({ plan, executionId }) => {
-      const [details, execFull] = await Promise.all([
-        plan ? Promise.resolve(plan) : null,
-        getExecutionDetails(executionId),
-      ]);
-      return { plan: details, execution: execFull };
-    },
-    onSuccess: ({ plan, execution }) => {
-      setView({ mode: 'review', plan, execution });
-    },
-    onError: (e) => toast.error('פתיחת ביצוע נכשלה: ' + (e?.message || '')),
-  });
+  const handleReview = (plan) => (exec) => {
+    const detailed = planDetails[plan.id] || plan;
+    setView({ mode: 'review', plan: detailed, executionId: exec.id });
+  };
 
-  const handleStart = (plan) => startMutation.mutate(plan);
-  const handleReview = (plan) => (exec) => reviewMutation.mutate({ plan, executionId: exec.id });
   const handleBack = () => setView({ mode: 'list' });
+
   const handleCompleted = () => {
     queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
     queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
@@ -109,7 +84,7 @@ export function WorkoutsInner({ showHeader = true } = {}) {
     return (
       <WorkoutExecution
         plan={view.plan}
-        execution={view.execution}
+        traineeId={traineeId}
         onBack={handleBack}
         onCompleted={handleCompleted}
       />
@@ -119,7 +94,7 @@ export function WorkoutsInner({ showHeader = true } = {}) {
     return (
       <WorkoutExecutionReadOnly
         plan={view.plan}
-        execution={view.execution}
+        executionId={view.executionId}
         onBack={handleBack}
       />
     );
@@ -170,7 +145,7 @@ export function WorkoutsInner({ showHeader = true } = {}) {
         )}
       </div>
 
-      {(startMutation.isPending || reviewMutation.isPending || execLoading) && (
+      {execLoading && (
         <div style={{
           position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(0,0,0,0.7)', color: 'white', padding: '8px 14px',

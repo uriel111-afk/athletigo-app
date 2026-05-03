@@ -1,17 +1,263 @@
-import React from 'react';
-import WorkoutExecution from './WorkoutExecution';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import {
+  getExecutionWithSetLogs, indexSetLogs, valueFromLog,
+} from '@/lib/workoutExecutionApi';
 
-// Thin wrapper — the active execution component already supports a
-// `readOnly` mode that disables checkboxes, set inputs, notes, and the
-// finish button, and skips the section / workout popups (popups only
-// open from interactions that are blocked when readOnly).
-export default function WorkoutExecutionReadOnly({ plan, execution, onBack }) {
+const ORANGE = '#FF6F20';
+const DARK = '#1a1a1a';
+const GREEN = '#16A34A';
+
+function modeLabel(mode) {
+  if (mode === 'seconds' || mode === 'time') return 'שניות';
+  if (mode === 'kg' || mode === 'weight') return 'ק״ג';
+  return 'חזרות';
+}
+
+function targetForMode(ex) {
+  const mode = ex.mode;
+  if (mode === 'seconds' || mode === 'time') return ex.work_time || ex.time || '';
+  if (mode === 'kg' || mode === 'weight') return ex.weight || '';
+  return ex.reps || '';
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('he-IL', {
+      day: 'numeric', month: 'numeric', year: 'numeric',
+    });
+  } catch { return ''; }
+}
+
+function ExerciseRow({ exercise, completed, savedLogs }) {
+  const mode = exercise.mode || 'reps';
+  const sets = Math.max(1, Number(exercise.sets) || 1);
+  const target = targetForMode(exercise);
+  const targetStr = target === '' || target == null ? '' : String(target);
+  const noteRow = savedLogs?.[1];
+  const note = noteRow?.notes || '';
+
   return (
-    <WorkoutExecution
-      plan={plan}
-      execution={execution}
-      readOnly
-      onBack={onBack}
-    />
+    <div style={{
+      background: 'white',
+      border: '1px solid #EEE',
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 10,
+      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      opacity: completed ? 1 : 0.5,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div
+          aria-label="בוצע"
+          style={{
+            width: 22, height: 22, borderRadius: 6,
+            border: `2px solid ${completed ? GREEN : '#D0D0D0'}`,
+            background: completed ? GREEN : 'white',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, marginTop: 4,
+          }}
+        >
+          {completed && <Check className="w-3 h-3" style={{ color: 'white' }} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4 }}>
+            {exercise.exercise_name || exercise.name || 'תרגיל'}
+          </div>
+          <div style={{ fontSize: 12, color: '#666' }}>
+            {sets} סטים × {targetStr || '?'} {modeLabel(mode)}
+            {exercise.rest_time ? ` · מנוחה ${exercise.rest_time}''` : ''}
+          </div>
+          {exercise.coach_private_notes && (
+            <div style={{
+              fontSize: 12, color: '#555', fontStyle: 'italic',
+              marginTop: 6, padding: '6px 8px',
+              background: '#FFF8F3', borderRadius: 8,
+              borderRight: `3px solid ${ORANGE}`,
+            }}>
+              {exercise.coach_private_notes}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {sets > 1 && (
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10,
+          paddingTop: 10, borderTop: '1px dashed #EEE',
+        }}>
+          {Array.from({ length: sets }, (_, i) => i + 1).map((n) => (
+            <label key={n} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            }}>
+              <span style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>
+                סט {n}
+              </span>
+              <input
+                type="number"
+                value={valueFromLog(savedLogs?.[n], mode) ?? ''}
+                placeholder={targetStr}
+                disabled
+                style={{
+                  width: 64, height: 36, textAlign: 'center',
+                  border: '1px solid #E5E5E5',
+                  borderRadius: 8, fontSize: 14, fontWeight: 700,
+                  background: '#FAFAFA', color: DARK, outline: 'none',
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+
+      {note && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{
+            width: '100%', minHeight: 36, padding: '8px 10px',
+            border: '1px solid #E5E5E5', borderRadius: 8,
+            fontSize: 13, background: '#FAFAFA', color: '#444',
+            boxSizing: 'border-box',
+          }}>
+            {note}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function WorkoutExecutionReadOnly({ plan, executionId, onBack }) {
+  const [loading, setLoading] = useState(true);
+  const [execution, setExecution] = useState(null);
+  const [setLogIndex, setSetLogIndex] = useState({});
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!executionId) { setLoading(false); return; }
+    getExecutionWithSetLogs(executionId)
+      .then(({ execution: exec, setLogs }) => {
+        if (cancelled) return;
+        setExecution(exec);
+        setSetLogIndex(indexSetLogs(setLogs));
+      })
+      .catch((e) => { if (!cancelled) setError(e?.message || 'load failed'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [executionId]);
+
+  const sectionRatings = execution?.section_ratings || {};
+
+  // An exercise is shown "completed" if it has any set logs from this run.
+  const completedSet = useMemo(() => {
+    const s = new Set();
+    for (const exId of Object.keys(setLogIndex)) s.add(exId);
+    return s;
+  }, [setLogIndex]);
+
+  return (
+    <div dir="rtl" style={{ background: '#FAFAFA', minHeight: '100vh', paddingBottom: 80 }}>
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 10,
+        background: 'white', borderBottom: '1px solid #EEE',
+        padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <button
+          type="button"
+          onClick={() => onBack && onBack()}
+          style={{
+            all: 'unset', cursor: 'pointer', padding: 6, borderRadius: 8,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          aria-label="חזור"
+        >
+          <ArrowRight className="w-5 h-5" />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 16, fontWeight: 900, color: DARK,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {plan?.plan_name || plan?.title || 'אימון'}
+          </div>
+          <div style={{ fontSize: 11, color: '#888' }}>
+            תצוגה בלבד · {formatDate(execution?.executed_at)}
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center' }}>
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: ORANGE, display: 'inline-block' }} />
+        </div>
+      ) : error ? (
+        <div style={{ padding: 24, textAlign: 'center', color: '#888' }}>
+          לא הצלחנו לטעון את הביצוע ({error})
+        </div>
+      ) : (
+        <div style={{ padding: '12px 14px' }}>
+          {/* Average score card */}
+          {execution?.self_rating != null && (
+            <div style={{
+              background: '#FFF5EE',
+              border: `2px solid ${ORANGE}`,
+              borderRadius: 16, padding: 16,
+              marginBottom: 14, textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 12, color: '#888' }}>הציון לאימון</div>
+              <div style={{ fontSize: 42, fontWeight: 700, color: ORANGE, lineHeight: 1 }}>
+                {Number(execution.self_rating).toFixed(1)}
+              </div>
+              {execution.completion_percent != null && (
+                <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                  השלמה: {execution.completion_percent}%
+                </div>
+              )}
+            </div>
+          )}
+
+          {(plan?.sections || []).map((section) => {
+            const rating = sectionRatings[section.id];
+            return (
+              <div key={section.id} style={{
+                background: 'white', borderRadius: 14,
+                borderLeft: `4px solid ${ORANGE}`,
+                padding: 12, marginBottom: 12,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: 8, gap: 8,
+                }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: DARK }}>
+                    {section.section_name || 'סקשן'}
+                  </div>
+                  {rating != null && (
+                    <span style={{
+                      background: '#FFF5EE',
+                      color: ORANGE,
+                      border: `1px solid ${ORANGE}`,
+                      padding: '2px 10px', borderRadius: 999,
+                      fontSize: 12, fontWeight: 800,
+                    }}>
+                      {Number(rating).toFixed(1)}
+                    </span>
+                  )}
+                </div>
+                {(section.exercises || []).map((ex) => (
+                  <ExerciseRow
+                    key={ex.id}
+                    exercise={ex}
+                    completed={completedSet.has(ex.id)}
+                    savedLogs={setLogIndex[ex.id]}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
