@@ -174,15 +174,18 @@ const TimeWheel = ({ value, max, onChange, label }) => {
   const dec = () => onChange(value <= 0 ? max : value - 1);
 
   return (
-    <div className="flex flex-col items-center w-14">
-      <button type="button" onClick={inc} className="w-10 h-7 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
-        <Plus size={14} strokeWidth={3} />
+    <div className="flex flex-col items-center" style={{ width: 56 }}>
+      <button type="button" onClick={inc}
+              className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
+        <Plus size={12} strokeWidth={3} />
       </button>
       <input type="text" inputMode="numeric" value={pad(value)}
         onChange={(e) => { const n = parseInt(e.target.value) || 0; onChange(Math.min(max, Math.max(0, n))); }}
-        className="w-14 h-11 text-center text-2xl font-black border-2 border-gray-200 rounded-xl bg-white focus:border-[#FF6F20] focus:outline-none select-all" />
-      <button type="button" onClick={dec} className="w-10 h-7 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
-        <Minus size={14} strokeWidth={3} />
+        className="w-14 text-center font-black border-2 border-gray-200 rounded-xl bg-white focus:border-[#FF6F20] focus:outline-none select-all"
+        style={{ height: 40, fontSize: 28, lineHeight: 1 }} />
+      <button type="button" onClick={dec}
+              className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
+        <Minus size={12} strokeWidth={3} />
       </button>
       <span className="text-[8px] text-gray-400 font-bold mt-0.5">{label}</span>
     </div>
@@ -204,12 +207,17 @@ const TimeUnitInput = ({ value, onChange }) => {
 
   const set = (m, s) => onChange(String(m * 60 + s));
 
+  // The whole picker is constrained to 180px so it never balloons the
+  // editor panel: smaller +/- buttons (32px), 28px digit font, 12px
+  // padding around the wheels.
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center"
+         style={{ maxHeight: 180, padding: 12, boxSizing: 'border-box' }}>
       <span className="text-[9px] text-gray-400 font-bold mb-1" dir="ltr">דקות : שניות</span>
       <div className="flex items-start justify-center gap-0.5" dir="ltr">
         <TimeWheel value={mins} max={59} onChange={(m) => set(m, remSecs)} label="min" />
-        <span className="text-2xl font-black text-gray-300 mt-2.5 mx-0.5">:</span>
+        <span className="font-black text-gray-300 mx-0.5"
+              style={{ fontSize: 28, lineHeight: 1, marginTop: 36 }}>:</span>
         <TimeWheel value={remSecs} max={59} onChange={(s) => set(mins, s)} label="sec" />
       </div>
     </div>
@@ -500,8 +508,10 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
                   </button>
                 </div>
               </div>
-              <ParamInputRenderer paramId={editingParam} value={subEx[getDbField(editingParam)]}
-                onChange={(v) => update(getDbField(editingParam), v)} getOptions={getOptions} onAddCustom={onAddCustom} />
+              <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                <ParamInputRenderer paramId={editingParam} value={subEx[getDbField(editingParam)]}
+                  onChange={(v) => update(getDbField(editingParam), v)} getOptions={getOptions} onAddCustom={onAddCustom} />
+              </div>
             </div>
           )}
         </div>
@@ -894,10 +904,11 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         }} />
       )}
 
-      {/* ── Parameters Grid — ALL params, always visible ──────── */}
+      {/* ── Parameters Row — ALL params, scroll horizontally ────── */}
       <div className="mb-3 px-1">
         <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-wider">פרמטרים</label>
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto whitespace-nowrap pb-1
+                        [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {ALL_PARAMETERS.map((p) => {
             const isCont = CONTAINER_PARAMS.has(p.id);
             const isConf = confirmedParams.has(p.id);
@@ -911,7 +922,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 onClick={readOnly ? undefined : () => handleParamClick(p.id)}
                 disabled={readOnly}
                 style={{ cursor: readOnly ? 'default' : 'pointer' }}
-                className={`flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-xl border h-[54px] transition-all ${readOnly ? '' : 'active:scale-[0.97]'}
+                className={`flex-shrink-0 w-[80px] flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-xl border h-[54px] transition-all ${readOnly ? '' : 'active:scale-[0.97]'}
                   ${isConf && !isEdit
                     ? (isCont
                       ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-1 ring-[#FF6F20]/30"
@@ -960,7 +971,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               </button>
             </div>
           </div>
-          <div className="p-3">
+          <div className="p-3" style={{ maxHeight: 200, overflowY: 'auto' }}>
             <ParamInputRenderer
               paramId={editingParam}
               value={exercise[getDbField(editingParam)]}
