@@ -904,8 +904,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             </Button>
           </div>
         </DialogContent>
-      </Dialog
-            {/* Execution surface — coaches log actual performance numbers via
+      </Dialog>
+
+      {/* Execution surface — coaches log actual performance numbers via
           the existing modal; trainees see the full-screen reflection
           screen that also persists a row to exercise_executions for
           plan scoring. */}
