@@ -106,7 +106,11 @@ export function WorkoutsInner({
   const handleDuplicateExecution = async (plan) => {
     if (!plan?.id || !traineeId) return;
     try {
-      await createDuplicatedExecution({ planId: plan.id, traineeId });
+      await createDuplicatedExecution({
+        planId: plan.id,
+        traineeId,
+        note: isCoach ? 'שוכפל על ידי המאמן' : 'שוכפל על ידי המתאמן',
+      });
       toast.success('האימון שוכפל בהצלחה ✅');
       queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
     } catch (e) {

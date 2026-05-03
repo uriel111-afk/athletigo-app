@@ -341,6 +341,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [showMetadataEditor, setShowMetadataEditor] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const celebrationFiredRef = useRef(false);
+  // Guard: gates the section/summary popups + the celebration overlay
+  // so they only fire after the trainee has actually toggled at least
+  // one exercise in this session. Prevents the popup-on-mount bug
+  // when entering an already-completed plan from a prior run.
+  const hasInteractedRef = useRef(false);
   
   // Execution Modal State
   const [showExecutionModal, setShowExecutionModal] = useState(false);
@@ -629,6 +634,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   const checkAndTriggerPopups = (toggledExerciseId, isCompleted) => {
     if (!isCompleted) return; // We don't trigger popups on uncheck
+    // Guard: only fire popups once the trainee has actively interacted
+    // in this session. Prevents auto-firing on mount when entering an
+    // already-completed plan or when fresh data hydrates the exercises
+    // array with a stale `completed: true` flag.
+    if (!hasInteractedRef.current) return;
 
     // Create a virtual state of exercises including the one just toggled
     const validExercises = exercises.filter(Boolean);
@@ -781,6 +791,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   useEffect(() => {
     if (canEdit) return;                 // coach side: no celebration
     if (!exercises || exercises.length === 0) return;
+    // Same guard as checkAndTriggerPopups — never auto-fire on mount,
+    // even when every exercise on the row is marked completed from a
+    // previous session. Trainee must tap something this session for
+    // the celebration to count.
+    if (!hasInteractedRef.current) return;
     const allDone = exercises.every(e => e.completed);
     if (allDone && !celebrationFiredRef.current) {
       celebrationFiredRef.current = true;
@@ -797,6 +812,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const handleToggleComplete = async (exercise) => {
     // 1. Optimistic / Immediate Logic
     const newCompletedState = !exercise.completed;
+    // Mark interaction so popups + celebration can fire from now on.
+    hasInteractedRef.current = true;
 
     // 2. Trigger Popup Checks (only if turning ON)
     if (newCompletedState) {
@@ -1551,6 +1568,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             setShowExecutionModal(false);
             setExecutionExercise(null);
             toast.success("✅ בוצע");
+            hasInteractedRef.current = true;
             checkAndTriggerPopups(executionExercise.id, true);
           }}
           isLoading={updateExerciseMutation.isPending}
@@ -1567,6 +1585,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           traineeId={plan.assigned_to || null}
           onCompletedExercise={async (ex) => {
             await updateExerciseMutation.mutateAsync({ id: ex.id, data: { completed: true } });
+            hasInteractedRef.current = true;
             checkAndTriggerPopups(ex.id, true);
           }}
         />

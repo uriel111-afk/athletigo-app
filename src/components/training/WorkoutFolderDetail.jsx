@@ -260,25 +260,46 @@ function MasterCard({
                 fontWeight: 700,
                 fontSize: 15,
                 cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
             >
-              📋 שכפל אימון למתאמן
+              📋 שכפל אימון
             </button>
           )}
         </>
       ) : (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onActivate && onActivate(); }}
-          style={{
-            width: '100%', height: 48, borderRadius: 12,
-            background: ORANGE, color: 'white', border: 'none',
-            fontSize: 15, fontWeight: 800, cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
-          }}
-        >
-          {traineeLabel}
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onActivate && onActivate(); }}
+            style={{
+              width: '100%', height: 48, borderRadius: 12,
+              background: ORANGE, color: 'white', border: 'none',
+              fontSize: 15, fontWeight: 800, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
+              marginBottom: onDuplicateExecution ? 8 : 0,
+            }}
+          >
+            {traineeLabel}
+          </button>
+          {onDuplicateExecution && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDuplicateExecution(plan); }}
+              style={{
+                width: '100%', padding: '12px',
+                background: 'white',
+                border: `2px solid ${ORANGE}`,
+                borderRadius: 12,
+                color: ORANGE,
+                fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              📋 שכפל אימון
+            </button>
+          )}
+        </>
       )}
     </div>
   );
