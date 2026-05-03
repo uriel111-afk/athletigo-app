@@ -7,13 +7,12 @@ import PermGate from '@/components/PermGate';
 import WorkoutFolder from '@/components/training/WorkoutFolder';
 import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
 import WorkoutExecution from '@/components/training/WorkoutExecution';
-import WorkoutExecutionReadOnly from '@/components/training/WorkoutExecutionReadOnly';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
 import { getExecutionsForPlan } from '@/lib/workoutExecutionApi';
 
 export function WorkoutsInner({ showHeader = true } = {}) {
   const queryClient = useQueryClient();
-  const [view, setView] = useState({ mode: 'list' }); // 'list' | 'execute' | 'review'
+  const [view, setView] = useState({ mode: 'list' }); // 'list' | 'execute'
   // selectedPlan drives the folder-detail page. When set we show the
   // detail view; clearing it returns to the folder list. The execute /
   // review modes still take precedence so finishing a workout returns
@@ -72,18 +71,6 @@ export function WorkoutsInner({ showHeader = true } = {}) {
     setView({ mode: 'execute', plan: detailed });
   };
 
-  const handleReview = (plan) => (exec) => {
-    const detailed = planDetails[plan.id] || plan;
-    setView({ mode: 'review', plan: detailed, executionId: exec.id });
-  };
-
-  const handlePreviewMaster = (plan) => {
-    const detailed = planDetails[plan.id] || plan;
-    // executionId = null tells ReadOnly to render the structure with no
-    // values / no checkmarks — pure template view.
-    setView({ mode: 'review', plan: detailed, executionId: null });
-  };
-
   const handleBack = () => setView({ mode: 'list' });
 
   const handleCompleted = () => {
@@ -104,16 +91,6 @@ export function WorkoutsInner({ showHeader = true } = {}) {
       />
     );
   }
-  if (view.mode === 'review') {
-    return (
-      <WorkoutExecutionReadOnly
-        plan={view.plan}
-        executionId={view.executionId}
-        onBack={handleBack}
-      />
-    );
-  }
-
   if (selectedPlan) {
     const detailed = planDetails[selectedPlan.id] || selectedPlan;
     const sections = detailed?.sections || [];

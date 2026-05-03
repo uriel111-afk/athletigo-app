@@ -1,10 +1,9 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, ChevronUp, ChevronLeft } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
-import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -163,8 +162,7 @@ function MasterCard({ plan, sectionsCount, exercisesCount, onStart }) {
   );
 }
 
-function ExecutionItem({ plan, execution, indexLabel }) {
-  const [open, setOpen] = React.useState(false);
+function ExecutionRow({ plan, execution, indexLabel }) {
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
   return (
     <div style={{
@@ -172,52 +170,28 @@ function ExecutionItem({ plan, execution, indexLabel }) {
       border: '1px solid #F0E4D0',
       borderRadius: 12,
       boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-      overflow: 'hidden',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 10, padding: '12px 16px',
     }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        style={{
-          all: 'unset',
-          cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 10, padding: '12px 16px',
-          width: '100%', boxSizing: 'border-box',
-        }}
-      >
-        <div style={{
-          fontSize: 15, fontWeight: 800, color: DARK,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          minWidth: 0,
+      <div style={{
+        fontSize: 15, fontWeight: 800, color: DARK,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        minWidth: 0,
+      }}>
+        {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <span style={{ fontSize: 13, color: '#888' }}>
+          {formatShort(execution.executed_at)}
+        </span>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 2,
+          fontSize: 14, fontWeight: 800, color: ORANGE,
         }}>
-          {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 13, color: '#888' }}>
-            {formatShort(execution.executed_at)}
-          </span>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 2,
-            fontSize: 14, fontWeight: 800, color: ORANGE,
-          }}>
-            {score != null ? score.toFixed(1) : '—'}
-            <span style={{ fontSize: 12 }}>⭐</span>
-          </span>
-          {open
-            ? <ChevronUp className="w-4 h-4" style={{ color: '#888' }} />
-            : <ChevronLeft className="w-4 h-4" style={{ color: '#888' }} />}
-        </div>
-      </button>
-      {open && (
-        <div style={{ padding: '0 12px 12px' }}>
-          <WorkoutExecutionReadOnly
-            plan={plan}
-            executionId={execution.id}
-            compact
-          />
-        </div>
-      )}
+          {score != null ? score.toFixed(1) : '—'}
+          <span style={{ fontSize: 12 }}>⭐</span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -308,7 +282,7 @@ export default function WorkoutFolderDetail({
             <div>
               {numberedNewestFirst.map(({ exec, indexLabel }, i) => (
                 <React.Fragment key={exec.id}>
-                  <ExecutionItem
+                  <ExecutionRow
                     plan={plan}
                     execution={exec}
                     indexLabel={indexLabel}
