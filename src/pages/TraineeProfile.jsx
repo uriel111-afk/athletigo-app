@@ -963,6 +963,12 @@ function IntroTab({ user }) {
   const preferencesDesc = (user?.preferences_description || '').trim();
   // Sport / fitness background — accept both alias columns.
   const fitnessBackground = (user?.sport_background || user?.fitness_background || '').trim();
+  // Info-card source data — pills for goal_focus, day-circles for
+  // weekly_days, and the stats row for fitness/height/weight.
+  const goalFocusItems  = parseList(user?.goal_focus);
+  const weeklyDaysItems = parseList(user?.weekly_days);
+  const heightCm        = Number.isFinite(Number(user?.height)) ? Number(user.height) : null;
+  const weightKg        = Number.isFinite(Number(user?.weight)) ? Number(user.weight) : null;
   // training_goals is intentionally NOT shown here — it belongs to
   // the יעדים tab. Avoiding the duplicate keeps the source of
   // truth single per the spec.
@@ -973,10 +979,12 @@ function IntroTab({ user }) {
   const onboardingSummary  = (user?.onboarding_summary || '').trim();
   const onboardingFinishedAt = user?.onboarding_completed_at || null;
 
+  const hasInfoCard = goalFocusItems.length || weeklyDaysItems.length
+                      || heightCm != null || weightKg != null || fitness;
   const hasAnything = challenges.length || preferences.length
                       || fitness || frequency || notes || injuries || preHealth
                       || challengesDesc || preferencesDesc || fitnessBackground
-                      || onboardingSummary;
+                      || onboardingSummary || hasInfoCard;
 
   if (!hasAnything) {
     return (
@@ -1023,6 +1031,89 @@ function IntroTab({ user }) {
 
   return (
     <>
+      {/* Compact visual info card — goal_focus pills, weekly_days
+          circles, and fitness/height/weight stats. Sits at the top of
+          the tab so a coach scanning the profile sees the highlights
+          before reading the narrative summaries below. */}
+      {hasInfoCard && (
+        <div style={{
+          background: 'white', borderRadius: 16, padding: 20,
+          border: '1px solid #F0E4D0', marginBottom: 16,
+          direction: 'rtl',
+        }}>
+          {goalFocusItems.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 8 }}>
+                🎯 מוקדי האימון
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {goalFocusItems.map((f, i) => (
+                  <span key={`${f}-${i}`} style={{
+                    padding: '4px 12px', borderRadius: 999,
+                    background: '#FFF5EE', color: '#FF6F20',
+                    fontSize: 12, fontWeight: 600, border: '1px solid #FFE5D0',
+                  }}>{f}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {weeklyDaysItems.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 8 }}>
+                📅 ימי אימון
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'].map((d) => {
+                  const active = weeklyDaysItems.includes(d);
+                  return (
+                    <div key={d} style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      background: active ? '#FF6F20' : '#F3F4F6',
+                      color: active ? 'white' : '#9CA3AF',
+                      fontSize: 13, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>{d}</div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {(fitness || heightCm != null || weightKg != null) && (
+            <div style={{ display: 'flex', gap: 12 }}>
+              {fitness && (
+                <div style={{
+                  flex: 1, background: '#FFF5EE', borderRadius: 10,
+                  padding: 10, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>💪 רמת כושר</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#FF6F20' }}>{fitness}</div>
+                </div>
+              )}
+              {heightCm != null && (
+                <div style={{
+                  flex: 1, background: '#F0F4FF', borderRadius: 10,
+                  padding: 10, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>📏 גובה</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#3B82F6' }}>{heightCm} ס"מ</div>
+                </div>
+              )}
+              {weightKg != null && (
+                <div style={{
+                  flex: 1, background: '#F0FDF4', borderRadius: 10,
+                  padding: 10, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>⚖️ משקל</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#059669' }}>{weightKg} ק"ג</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Storytelling onboarding summary — same 2nd-person narrative
           the TraineeOnboardingAlert popup renders, persisted to
           users.onboarding_summary. Always reachable from this tab. */}

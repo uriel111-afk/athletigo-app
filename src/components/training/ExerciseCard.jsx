@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { upsertTraineeProgress } from "@/lib/traineeProgressApi";
 import ExerciseCheckbox from "./ExerciseCheckbox";
 import ExerciseNotePopup from "./ExerciseNotePopup";
+import { useLongPress } from "@/lib/useLongPress";
 
 const fmtTime = (v) => {
   if (!v && v !== 0) return null;
@@ -158,10 +159,14 @@ function describeSub(sub) {
 }
 
 export default function ExerciseCard({
-  exercise, onToggleComplete, onEdit, onDelete,
-  isCoach = false, plan, traineeProgress,
+  exercise, onToggleComplete, onEdit, onDelete, onRename,
+  canEdit = false, isCoach = false, plan, traineeProgress,
 }) {
   const queryClient = useQueryClient();
+  const [renamingExercise, setRenamingExercise] = useState(false);
+  const longPressRename = useLongPress(() => {
+    if (canEdit && onRename) setRenamingExercise(true);
+  });
   if (!exercise) return null;
 
   const handleToggleComplete = async (e) => {
@@ -258,13 +263,49 @@ export default function ExerciseCard({
         onToggle={handleCheckboxToggle}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 4,
-          textDecoration: completed ? 'line-through' : 'none',
-          textDecorationColor: completed ? '#FF6F20' : 'transparent',
-        }}>
-          {exercise.exercise_name || exercise.name || 'תרגיל'}
-        </div>
+        {renamingExercise ? (
+          <input
+            autoFocus
+            defaultValue={exercise.exercise_name || exercise.name || ''}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={(e) => {
+              const next = e.target.value.trim();
+              setRenamingExercise(false);
+              const current = exercise.exercise_name || exercise.name || '';
+              if (next && next !== current) {
+                onRename?.(exercise.id, next);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.target.blur();
+              if (e.key === 'Escape') {
+                e.target.value = exercise.exercise_name || exercise.name || '';
+                e.target.blur();
+              }
+            }}
+            style={{
+              fontSize: 18, fontWeight: 700, color: '#1a1a1a',
+              marginBottom: 4, width: '100%',
+              border: 'none', borderBottom: '2px solid #FF6F20',
+              background: 'transparent', outline: 'none',
+              padding: '2px 0', direction: 'rtl',
+              fontFamily: 'inherit',
+            }}
+          />
+        ) : (
+          <div
+            {...(canEdit ? longPressRename : {})}
+            style={{
+              fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 4,
+              textDecoration: completed ? 'line-through' : 'none',
+              textDecorationColor: completed ? '#FF6F20' : 'transparent',
+              cursor: canEdit ? 'pointer' : 'default',
+              userSelect: 'none',
+            }}
+          >
+            {exercise.exercise_name || exercise.name || 'תרגיל'}
+          </div>
+        )}
 
         {metaSegs.length > 0 && (
           <div style={{ fontSize: 14, color: '#555', lineHeight: 1.5 }}>

@@ -360,6 +360,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     console.log('[UPB] mount — plan id:', plan?.id, 'name:', plan?.plan_name || plan?.name);
   }, [plan?.id]);
 
+  // Reset all popup-related refs/state when the plan switches under us
+  // (the parent may reuse the same instance with a different plan).
+  // Without this, hasInteractedRef from a prior plan would let the
+  // section/summary popups fire on the new plan's mount.
+  React.useEffect(() => {
+    hasInteractedRef.current = false;
+    celebrationFiredRef.current = false;
+    setSectionRatings({});
+    setCompletedSections(new Set());
+    setShowSectionFeedbackDialog(false);
+    setShowSummaryDialog(false);
+    setShowCelebration(false);
+  }, [plan?.id]);
+
   // Refetch when the parent profile's tab changes — TraineeProfile
   // dispatches 'tab-changed' on every activeTab flip so users coming
   // back to the plans tab see fresh data instead of cached state.
@@ -1482,9 +1496,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 onDeleteExercise={(exerciseId) => {
                   if (confirm('למחוק תרגיל זה?')) deleteExerciseMutation.mutate(exerciseId);
                 }}
+                onRenameSection={(sectionId, newName) => {
+                  updateSectionMutation.mutate({ id: sectionId, data: { section_name: newName } });
+                }}
+                onRenameExercise={(exerciseId, newName) => {
+                  updateExerciseMutation.mutate({ id: exerciseId, data: { exercise_name: newName } });
+                }}
                 showEditButtons={canEdit}
                 isCoach={isCoach}
-                plan={plan} 
+                plan={plan}
                 onOpenExecution={(ex) => {
                   setExecutionExercise(ex);
                   setShowExecutionModal(true);

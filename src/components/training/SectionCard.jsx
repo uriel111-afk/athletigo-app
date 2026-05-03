@@ -9,6 +9,7 @@ import ExerciseCard from "./ExerciseCard";
 import SectionRatingPopup from "./SectionRatingPopup";
 import { getSectionType } from "@/lib/sectionTypes";
 import { getSectionColor } from "@/lib/plansApi";
+import { useLongPress } from "@/lib/useLongPress";
 
 export default function SectionCard({
   section,
@@ -27,6 +28,8 @@ export default function SectionCard({
   onDuplicateExercise,
   onDeleteExercise,
   onOpenExecution,
+  onRenameSection,
+  onRenameExercise,
   showEditButtons = false,
   isCoach = false,
   plan,
@@ -35,6 +38,10 @@ export default function SectionCard({
   const [expanded, setExpanded] = useState(!showEditButtons);
   const [showRating, setShowRating] = useState(false);
   const [sectionRated, setSectionRated] = useState(false);
+  const [renamingSection, setRenamingSection] = useState(false);
+  const longPressRename = useLongPress(() => {
+    if (showEditButtons && onRenameSection) setRenamingSection(true);
+  });
 
   useEffect(() => {
     if (showEditButtons) return;
@@ -99,17 +106,55 @@ export default function SectionCard({
               {section.icon || '📌'}
             </div>
             <div className="flex-1 min-w-0">
-              <h3
-                className="leading-tight truncate"
-                style={{
-                  fontSize: isTraineeView ? 22 : 16,
-                  fontWeight: isTraineeView ? 700 : 900,
-                  color: isTraineeView ? '#1a1a1a' : style.text,
-                  fontFamily: 'Barlow, sans-serif',
-                }}
-              >
-                {section.section_name}
-              </h3>
+              {renamingSection ? (
+                <input
+                  autoFocus
+                  defaultValue={section.section_name}
+                  onClick={(e) => e.stopPropagation()}
+                  onBlur={(e) => {
+                    const next = e.target.value.trim();
+                    setRenamingSection(false);
+                    if (next && next !== section.section_name) {
+                      onRenameSection?.(section.id, next);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.target.blur();
+                    if (e.key === 'Escape') {
+                      e.target.value = section.section_name;
+                      e.target.blur();
+                    }
+                  }}
+                  style={{
+                    fontSize: isTraineeView ? 22 : 16,
+                    fontWeight: isTraineeView ? 700 : 900,
+                    color: '#1a1a1a',
+                    fontFamily: 'Barlow, sans-serif',
+                    border: 'none',
+                    borderBottom: '2px solid #FF6F20',
+                    background: 'transparent',
+                    outline: 'none',
+                    width: '100%',
+                    padding: '2px 0',
+                    direction: 'rtl',
+                  }}
+                />
+              ) : (
+                <h3
+                  {...(showEditButtons ? longPressRename : {})}
+                  className="leading-tight truncate"
+                  style={{
+                    fontSize: isTraineeView ? 22 : 16,
+                    fontWeight: isTraineeView ? 700 : 900,
+                    color: isTraineeView ? '#1a1a1a' : style.text,
+                    fontFamily: 'Barlow, sans-serif',
+                    cursor: showEditButtons ? 'pointer' : 'default',
+                    userSelect: 'none',
+                  }}
+                >
+                  {section.section_name}
+                </h3>
+              )}
               <div
                 style={{
                   fontSize: isTraineeView ? 13 : 12,
@@ -175,6 +220,8 @@ export default function SectionCard({
                       onToggleComplete={onToggleComplete}
                       onEdit={() => onEditExercise(exercise)}
                       onDelete={() => onDeleteExercise(exercise.id)}
+                      onRename={onRenameExercise}
+                      canEdit={showEditButtons}
                       isCoach={isCoach}
                       plan={plan}
                       traineeProgress={traineeProgressByExercise[exercise.id]}
