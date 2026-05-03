@@ -111,19 +111,24 @@ export default function Login() {
   return (
     <div
       className="min-h-screen flex flex-col items-center px-4"
-      // paddingBottom: 140 keeps the centered login card clear of the
-      // fixed bottom-banner InstallPrompt so it never covers the
-      // submit button or the 'forgot password' line.
-      style={{ backgroundColor: "#FFF9F0", paddingTop: 48, paddingBottom: 140 }}
+      // paddingBottom is conditional on PWA install state — when the
+      // fixed-bottom InstallPrompt is rendering (≈100px footprint), we
+      // reserve room so it can't cover the 'שכחת סיסמא' line. When the
+      // app is already installed, only a small breathing space is needed.
+      style={{
+        backgroundColor: "#FFF9F0",
+        paddingTop: 32,
+        paddingBottom: isPWA ? 24 : 100,
+      }}
       dir="rtl"
     >
       <div className="w-full" style={{ maxWidth: 400 }}>
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
           <img
             src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 140, height: 'auto', objectFit: 'contain', marginBottom: 24, filter: 'brightness(0)' }}
+            style={{ width: 110, height: 'auto', objectFit: 'contain', marginBottom: 12, filter: 'brightness(0)' }}
           />
           <div style={{ fontSize: 15, color: '#888', fontWeight: 500, textAlign: 'center' }}>
             כניסה למערכת מאמנים ומתאמנים
@@ -135,11 +140,11 @@ export default function Login() {
           style={{
             backgroundColor: "#FFFFFF",
             borderRadius: 20,
-            padding: 28,
+            padding: 20,
             boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
           }}
         >
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="font-bold text-sm" style={{ color: "#000000" }}>
                 אימייל
