@@ -1,20 +1,19 @@
 import React from 'react';
 import { ChevronLeft } from 'lucide-react';
+import SwipeableCard from '@/components/SwipeableCard';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
 
 // One folder card on the main "אימונים" list. Tapping the card calls
-// onSelect(plan); navigation lives in Workouts.jsx and mounts
-// WorkoutFolderDetail when a plan is selected.
+// onSelect(plan); navigation lives in Workouts.jsx.
 //
-// When isCoach=true, an "✏️ עריכה" chip appears next to the chevron
-// and stops propagation on tap so the coach can jump straight into
-// UnifiedPlanBuilder (canEdit=true) without drilling into the folder
-// detail first.
+// When isCoach=true, the card is wrapped in SwipeableCard (swipe left
+// reveals edit + delete buttons) AND an "✏️ עריכה" chip appears next
+// to the chevron for desktop / non-touch users.
 export default function WorkoutFolder({
   plan, sectionsCount, exercisesCount, executions,
-  isCoach = false, onSelect, onEdit,
+  isCoach = false, onSelect, onEdit, onDelete,
 }) {
   const completed = executions || [];
   const newestFirst = completed
@@ -22,7 +21,7 @@ export default function WorkoutFolder({
     .sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
   const lastScore = newestFirst[0]?.self_rating ?? null;
 
-  return (
+  const cardInner = (
     <div
       dir="rtl"
       role="button"
@@ -102,5 +101,17 @@ export default function WorkoutFolder({
         </div>
       </div>
     </div>
+  );
+
+  // Coach gets swipe-to-reveal edit + delete; trainee passes through
+  // straight to the inner card (no gesture handlers).
+  return (
+    <SwipeableCard
+      disabled={!isCoach || (!onEdit && !onDelete)}
+      onEdit={onEdit ? () => onEdit(plan) : undefined}
+      onDelete={onDelete ? () => onDelete(plan) : undefined}
+    >
+      {cardInner}
+    </SwipeableCard>
   );
 }

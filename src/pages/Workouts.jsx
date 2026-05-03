@@ -8,6 +8,7 @@ import WorkoutFolder from '@/components/training/WorkoutFolder';
 import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
 import UnifiedPlanBuilder from '@/components/training/UnifiedPlanBuilder';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabaseClient';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
 import { getExecutionsForPlan, createDuplicatedExecution } from '@/lib/workoutExecutionApi';
 
@@ -113,6 +114,44 @@ export function WorkoutsInner({
     }
   };
 
+  // Coach-only: cascade-delete the plan after window.confirm. Order
+  // matters so FKs don't block the final delete.
+  const handleDeletePlan = async (plan) => {
+    if (!plan?.id) return;
+    if (!window.confirm(`למחוק את "${plan.plan_name || ''}" לצמיתות? לא ניתן לשחזר.`)) return;
+    try {
+      await supabase.from('exercises').delete().eq('training_plan_id', plan.id);
+      await supabase.from('training_sections').delete().eq('training_plan_id', plan.id);
+      await supabase.from('workout_executions').delete().eq('plan_id', plan.id);
+      const { error } = await supabase.from('training_plans').delete().eq('id', plan.id);
+      if (error) throw error;
+      toast.success('התוכנית נמחקה ✅');
+      queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+    } catch (e) {
+      console.error('[Workouts] delete plan failed:', e);
+      toast.error('מחיקה נכשלה: ' + (e?.message || 'נסה שוב'));
+    }
+  };
+
+  // Coach-only: delete a single past execution + its set logs.
+  const handleDeleteExecution = async (execution) => {
+    if (!execution?.id) return;
+    if (!window.confirm('למחוק ביצוע זה לצמיתות?')) return;
+    try {
+      await supabase.from('exercise_set_logs').delete().eq('execution_id', execution.id);
+      const { error } = await supabase.from('workout_executions').delete().eq('id', execution.id);
+      if (error) throw error;
+      toast.success('הביצוע נמחק ✅');
+      queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
+    } catch (e) {
+      console.error('[Workouts] delete execution failed:', e);
+      toast.error('מחיקה נכשלה: ' + (e?.message || 'נסה שוב'));
+    }
+  };
+
   const handleBack = () => {
     setView('list');
     setSelectedPlan(null);
@@ -157,6 +196,7 @@ export function WorkoutsInner({
         onWorkoutFinished={handleWorkoutFinished}
         onEditPlan={handleEditPlan}
         onDuplicateExecution={handleDuplicateExecution}
+        onDeleteExecution={handleDeleteExecution}
       />
     );
   }
@@ -202,6 +242,7 @@ export function WorkoutsInner({
                     isCoach={isCoach}
                     onSelect={handleSelect}
                     onEdit={handleEditPlan}
+                    onDelete={handleDeletePlan}
                   />
                   {i < visiblePlans.length - 1 && (
                     <div style={{ height: 1, background: '#EEE', margin: '0 8px' }} />

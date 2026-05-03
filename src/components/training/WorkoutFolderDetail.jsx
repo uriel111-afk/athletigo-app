@@ -7,6 +7,7 @@ import {
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 import FullscreenChart from '@/components/FullscreenChart';
+import SwipeableCard from '@/components/SwipeableCard';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -287,16 +288,17 @@ function MasterCard({
 // plan name, score and completion %. Expanded mounts
 // WorkoutExecutionReadOnly compact, which fetches workout_executions +
 // exercise_set_logs and renders the saved per-set values, exercise notes,
-// section ratings, and the average score — i.e. exactly what the
-// trainee entered. The same component is used in the coach view inside
-// TraineeProfile.
-function ExecutionRow({ plan, execution, indexLabel }) {
+// section ratings, and the average score.
+//
+// When isCoach=true and onDelete is provided, the row is wrapped in
+// SwipeableCard so a left-swipe reveals a delete button.
+function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete }) {
   const [open, setOpen] = useState(false);
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
   const completion = execution.completion_percent != null
     ? Number(execution.completion_percent)
     : null;
-  return (
+  const inner = (
     <div style={{
       background: 'white',
       border: '1px solid #F0E4D0',
@@ -353,12 +355,21 @@ function ExecutionRow({ plan, execution, indexLabel }) {
       )}
     </div>
   );
+
+  return (
+    <SwipeableCard
+      disabled={!isCoach || !onDelete}
+      onDelete={onDelete ? () => onDelete(execution) : undefined}
+    >
+      {inner}
+    </SwipeableCard>
+  );
 }
 
 export default function WorkoutFolderDetail({
   plan, sectionsCount, exercisesCount, executions,
   isCoach = false, onBack, onWorkoutFinished, onEditPlan,
-  onDuplicateExecution,
+  onDuplicateExecution, onDeleteExecution,
 }) {
   // null = render the folder body. 'active' = full-screen workout via the
   // master button (canEdit/isCoach mirror the user's role).
@@ -469,6 +480,8 @@ export default function WorkoutFolderDetail({
                     plan={plan}
                     execution={exec}
                     indexLabel={indexLabel}
+                    isCoach={isCoach}
+                    onDelete={onDeleteExecution}
                   />
                   {i < numberedNewestFirst.length - 1 && <ExecutionDivider />}
                 </React.Fragment>
