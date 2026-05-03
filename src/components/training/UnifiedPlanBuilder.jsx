@@ -747,10 +747,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </h1>
         </div>
 
-        {/* Plan metadata — pills (goal_focus + weekly_days mixed),
-            difficulty + duration text, and description. Each block
-            renders only when its source field has a real value. Same
-            banner shown to coach and trainee. */}
+        {/* Plan metadata — details text row, goal_focus pills, weekly
+            day pills, and description. Each block renders only when its
+            source field has a real value. Same banner shown to coach
+            and trainee. */}
         {(() => {
           const focuses = Array.isArray(plan.goal_focus) ? plan.goal_focus.filter(Boolean) : [];
           const days = Array.isArray(plan.weekly_days) ? plan.weekly_days.filter(Boolean) : [];
@@ -759,37 +759,79 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             ? Number(plan.duration_weeks)
             : null;
           const description = plan.description && String(plan.description).trim();
-          if (!focuses.length && !days.length && !difficulty && !weeks && !description) return null;
+
+          // SECTION 2 — details row: "{N} פעמים בשבוע · {weeks} שבועות
+          // · רמת קושי: {difficulty}". Skip parts that aren't set.
+          const detailParts = [];
+          if (days.length > 0) detailParts.push(`${days.length} פעמים בשבוע`);
+          if (weeks) detailParts.push(`${weeks} שבועות`);
+          if (difficulty) detailParts.push(`רמת קושי: ${plan.difficulty_level}`);
+
+          if (
+            !focuses.length && !days.length && !description &&
+            detailParts.length === 0
+          ) return null;
+
           return (
             <div className="mb-4">
-              {(focuses.length > 0 || days.length > 0) && (
-                <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
+              {/* SECTION 2 — details text row */}
+              {detailParts.length > 0 && (
+                <div style={{
+                  fontSize: 13, color: 'white', textAlign: 'center', marginBottom: 8,
+                }}>
+                  {detailParts.join(' · ')}
+                </div>
+              )}
+
+              {/* SECTION 3 — goal chips (rgba 0.2) */}
+              {focuses.length > 0 && (
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap',
+                  justifyContent: 'center', alignItems: 'center',
+                  gap: 6, marginBottom: 8,
+                }}>
                   {focuses.map((f, i) => (
                     <span key={`gf-${i}`} style={{
                       background: 'rgba(255,255,255,0.2)', color: 'white',
-                      fontSize: 12, padding: '4px 10px', borderRadius: 999, fontWeight: 600,
+                      fontSize: 11, padding: '3px 10px', borderRadius: 999,
+                      fontWeight: 600,
                     }}>{f}</span>
                   ))}
+                </div>
+              )}
+
+              {/* SECTION 4 — day chips (rgba 0.15, slightly tighter) */}
+              {days.length > 0 && (
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap',
+                  justifyContent: 'center', alignItems: 'center',
+                  gap: 6, marginBottom: 8,
+                }}>
                   {days.map((d, i) => (
                     <span key={`wd-${i}`} style={{
-                      background: 'rgba(255,255,255,0.3)', color: 'white',
-                      fontSize: 12, padding: '4px 10px', borderRadius: 999, fontWeight: 600,
+                      background: 'rgba(255,255,255,0.15)', color: 'white',
+                      fontSize: 11, padding: '3px 8px', borderRadius: 999,
+                      fontWeight: 600,
                     }}>{d}</span>
                   ))}
                 </div>
               )}
-              {(difficulty || weeks) && (
-                <div className="flex flex-wrap items-center justify-center gap-3 mb-1"
-                     style={{ fontSize: 12, color: 'white' }}>
-                  {difficulty && <span>💪 {plan.difficulty_level}</span>}
-                  {weeks && <span>{weeks} שבועות</span>}
-                </div>
-              )}
+
+              {/* SECTION 5 — description, italic, max 2 lines */}
               {description && (
-                <div className="text-center mt-1" style={{
-                  fontSize: 12, color: 'rgba(255,255,255,0.8)', fontStyle: 'italic',
+                <div style={{
+                  textAlign: 'center',
+                  fontSize: 12,
+                  fontStyle: 'italic',
+                  color: 'rgba(255,255,255,0.8)',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  marginTop: 4,
                 }}>
-                  {plan.description}
+                  {description}
                 </div>
               )}
             </div>
