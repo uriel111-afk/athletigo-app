@@ -634,11 +634,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   const checkAndTriggerPopups = (toggledExerciseId, isCompleted) => {
     if (!isCompleted) return; // We don't trigger popups on uncheck
-    // Guard: only fire popups once the trainee has actively interacted
-    // in this session. Prevents auto-firing on mount when entering an
-    // already-completed plan or when fresh data hydrates the exercises
-    // array with a stale `completed: true` flag.
+    // Guard 1: trainee must have actively interacted in this session.
     if (!hasInteractedRef.current) return;
+    // Guard 2: at least one exercise must actually be completed (belt
+    // and suspenders against any state path that flips the ref but
+    // leaves no completed rows).
+    if (!exercises.some((e) => e && e.completed)) return;
 
     // Create a virtual state of exercises including the one just toggled
     const validExercises = exercises.filter(Boolean);
@@ -1802,12 +1803,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             maxHeight: 'calc(100vh - 200px)',
             overflowY: 'auto',
             zIndex: 200,
-          }}
-          onInteractOutside={(e) => e.preventDefault()}>
+          }}>
 
+          {/* Top-left close button — discards rating, closes popup,
+              still re-checks "all done" so the workout summary fires
+              if every exercise is now complete. */}
           <button
+            type="button"
             onClick={() => {
               setShowSectionFeedbackDialog(false);
+              setCurrentSection(null);
               setTimeout(async () => {
                 const freshExercises = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
                 const allExercisesComplete = freshExercises.every((e) => e.completed);
@@ -1816,10 +1821,22 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 }
               }, 500);
             }}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors p-1">
-
-              <X className="w-5 h-5" />
-          </button>
+            style={{
+              position: 'absolute',
+              top: 12, left: 12,
+              width: 32, height: 32,
+              borderRadius: '50%',
+              border: '1px solid #E5E7EB',
+              background: 'white',
+              fontSize: 16,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#6B7280',
+            }}
+            aria-label="סגור"
+          >✕</button>
 
           <DialogHeader>
             <DialogTitle className="text-lg font-black text-center">סיימת סקשן! 🎯</DialogTitle>
@@ -1883,6 +1900,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 className="flex-1 text-gray-500 hover:bg-gray-50 h-12 rounded-xl font-bold">
                   ביטול
               </Button>
+              {/* Continue button — always active. If the trainee never
+                  moved the slider the default rating still saves, but
+                  rating is conceptually optional: the X / ביטול paths
+                  store nothing and progression is unblocked. */}
               <Button
                 onClick={() => {
                   const newRatings = {
@@ -1903,7 +1924,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 }}
                 className="flex-[2] h-12 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all" style={{ backgroundColor: '#FF6F20' }}>
                 <Check className="w-4 h-4 ml-1" />
-                שמור והמשך
+                המשך
               </Button>
             </div>
           </div>
