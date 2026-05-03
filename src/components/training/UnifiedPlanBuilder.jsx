@@ -439,7 +439,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   const getExercisesBySection = React.useCallback((sectionId) => {
     return exercises.filter((e) => e && e.training_section_id === sectionId).sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [exercises
+  }, [exercises]);
        // Update Plan Stats when exercises change or complete
   useEffect(() => {
     if (plan && exercises.length > 0) {
