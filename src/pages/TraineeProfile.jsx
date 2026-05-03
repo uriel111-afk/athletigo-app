@@ -1281,20 +1281,44 @@ function PersonalTab({
   };
 
   // EditableField — renders FieldCell when not editing, or an input
-  // bound to editFields[fieldKey] when editing.
+  // bound to editFields[fieldKey] when editing. Inputs use the spec's
+  // larger padding + 1.5px subtle border so labels and values both
+  // breathe; focus border swaps to orange.
   const EditableField = ({ label, value, fieldKey, type = 'text' }) => {
     if (!editingDetails) return <FieldCell label={label} value={value} />;
     return (
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{label}</div>
+      <div style={{ minWidth: 0, marginBottom: 16 }}>
+        <label style={{
+          fontSize: 12, fontWeight: 600, color: '#888',
+          marginBottom: 4, display: 'block', textAlign: 'right',
+        }}>
+          {label}
+        </label>
         <input
           type={type}
           value={editFields[fieldKey] ?? ''}
-          onChange={(e) => setEditFields(prev => ({ ...prev, [fieldKey]: e.target.value }))}
+          onChange={(e) => setEditFields((prev) => ({ ...prev, [fieldKey]: e.target.value }))}
+          onFocus={(e) => {
+            e.target.style.borderColor = '#FF6F20';
+            e.target.style.background = 'white';
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = '#F0E4D0';
+            e.target.style.background = '#FFF9F5';
+          }}
           style={{
-            width: '100%', padding: '8px 10px', borderRadius: 12,
-            border: '1px solid #FF6F20', fontSize: 14, direction: 'rtl',
-            background: '#FFF5EE', boxSizing: 'border-box', outline: 'none',
+            width: '100%',
+            minHeight: 48,
+            padding: '12px 14px',
+            border: '1.5px solid #F0E4D0',
+            borderRadius: 10,
+            fontSize: 15,
+            fontFamily: 'inherit',
+            direction: 'rtl',
+            background: '#FFF9F5',
+            boxSizing: 'border-box',
+            outline: 'none',
+            color: '#1a1a1a',
           }}
         />
       </div>
@@ -1309,15 +1333,39 @@ function PersonalTab({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <div style={{
-            width: 60, height: 60, borderRadius: '50%',
-            background: '#FF6F20', color: '#FFFFFF',
+            width: 72, height: 72, borderRadius: '50%',
+            background: '#FF6F20',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22, fontWeight: 800, flexShrink: 0,
+            flexShrink: 0,
             overflow: 'hidden',
+            border: '3px solid white',
+            boxShadow: '0 2px 12px rgba(255,111,32,0.3)',
           }}>
-            {user?.profile_image
-              ? <img src={user.profile_image} alt={user.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : initials}
+            {user?.profile_image ? (
+              <img
+                src={user.profile_image}
+                alt={user.full_name || ''}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <img
+                src="/logoR.png"
+                alt="AthletiGo"
+                style={{
+                  width: 48, height: 48, objectFit: 'contain',
+                  filter: 'brightness(0) invert(1)',
+                }}
+                onError={(e) => {
+                  const wrap = e.currentTarget.parentElement;
+                  if (!wrap) return;
+                  e.currentTarget.style.display = 'none';
+                  const fallback = document.createElement('span');
+                  fallback.textContent = initials;
+                  fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Barlow Condensed,sans-serif';
+                  wrap.appendChild(fallback);
+                }}
+              />
+            )}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             {editingDetails ? (
@@ -1325,12 +1373,28 @@ function PersonalTab({
                 type="text"
                 value={editFields.full_name ?? ''}
                 onChange={(e) => setEditFields(prev => ({ ...prev, full_name: e.target.value }))}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#FF6F20';
+                  e.target.style.background = 'white';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#F0E4D0';
+                  e.target.style.background = '#FFF9F5';
+                }}
                 placeholder="שם מלא"
                 style={{
-                  width: '100%', padding: '8px 10px', borderRadius: 12,
-                  border: '1px solid #FF6F20', fontSize: 16, fontWeight: 600,
-                  direction: 'rtl', background: '#FFF5EE', outline: 'none',
+                  width: '100%',
+                  minHeight: 48,
+                  padding: '12px 14px',
+                  border: '1.5px solid #F0E4D0',
+                  borderRadius: 10,
+                  fontSize: 16, fontWeight: 600,
+                  direction: 'rtl',
+                  background: '#FFF9F5',
+                  outline: 'none',
                   boxSizing: 'border-box',
+                  color: '#1a1a1a',
+                  fontFamily: 'inherit',
                 }}
               />
             ) : (
