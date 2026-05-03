@@ -127,15 +127,18 @@ function ExerciseRow({ exercise, completed, savedLogs }) {
   );
 }
 
-export default function WorkoutExecutionReadOnly({ plan, executionId, onBack }) {
-  const [loading, setLoading] = useState(true);
+export default function WorkoutExecutionReadOnly({
+  plan, executionId, onBack, compact = false,
+}) {
+  const [loading, setLoading] = useState(!!executionId);
   const [execution, setExecution] = useState(null);
   const [setLogIndex, setSetLogIndex] = useState({});
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!executionId) { setLoading(false); return; }
+    if (!executionId) { setLoading(false); setExecution(null); return; }
+    setLoading(true);
     getExecutionWithSetLogs(executionId)
       .then(({ execution: exec, setLogs }) => {
         if (cancelled) return;
@@ -156,39 +159,47 @@ export default function WorkoutExecutionReadOnly({ plan, executionId, onBack }) 
     return s;
   }, [setLogIndex]);
 
+  const wrapperStyle = compact
+    ? { background: 'transparent' }
+    : { background: '#FAFAFA', minHeight: '100vh', paddingBottom: 80 };
+
   return (
-    <div dir="rtl" style={{ background: '#FAFAFA', minHeight: '100vh', paddingBottom: 80 }}>
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
-        background: 'white', borderBottom: '1px solid #EEE',
-        padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <button
-          type="button"
-          onClick={() => onBack && onBack()}
-          style={{
-            all: 'unset', cursor: 'pointer', padding: 6, borderRadius: 8,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          aria-label="חזור"
-        >
-          <ArrowRight className="w-5 h-5" />
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 16, fontWeight: 900, color: DARK,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {plan?.plan_name || plan?.title || 'אימון'}
-          </div>
-          <div style={{ fontSize: 11, color: '#888' }}>
-            תצוגה בלבד · {formatDate(execution?.executed_at)}
+    <div dir="rtl" style={wrapperStyle}>
+      {!compact && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 10,
+          background: 'white', borderBottom: '1px solid #EEE',
+          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <button
+            type="button"
+            onClick={() => onBack && onBack()}
+            style={{
+              all: 'unset', cursor: 'pointer', padding: 6, borderRadius: 8,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            aria-label="חזור"
+          >
+            <ArrowRight className="w-5 h-5" />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 16, fontWeight: 900, color: DARK,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {plan?.plan_name || plan?.title || 'אימון'}
+            </div>
+            <div style={{ fontSize: 11, color: '#888' }}>
+              {executionId
+                ? `תצוגה בלבד · ${formatDate(execution?.executed_at)}`
+                : 'תצוגת תבנית · קריאה בלבד'}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ padding: compact ? 16 : 40, textAlign: 'center' }}>
           <Loader2 className="w-6 h-6 animate-spin" style={{ color: ORANGE, display: 'inline-block' }} />
         </div>
       ) : error ? (
@@ -196,9 +207,11 @@ export default function WorkoutExecutionReadOnly({ plan, executionId, onBack }) 
           לא הצלחנו לטעון את הביצוע ({error})
         </div>
       ) : (
-        <div style={{ padding: '12px 14px' }}>
-          {/* Average score card */}
-          {execution?.self_rating != null && (
+        <div style={{ padding: compact ? '8px 0 0' : '12px 14px' }}>
+          {/* Average score card — only when we actually have an execution
+              (and never in compact mode, where the parent card already
+              shows the score badge). */}
+          {!compact && execution?.self_rating != null && (
             <div style={{
               background: '#FFF5EE',
               border: `2px solid ${ORANGE}`,
@@ -223,14 +236,14 @@ export default function WorkoutExecutionReadOnly({ plan, executionId, onBack }) 
               <div key={section.id} style={{
                 background: 'white', borderRadius: 14,
                 borderLeft: `4px solid ${ORANGE}`,
-                padding: 12, marginBottom: 12,
+                padding: 12, marginBottom: 10,
                 boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
               }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   marginBottom: 8, gap: 8,
                 }}>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: DARK }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: DARK }}>
                     {section.section_name || 'סקשן'}
                   </div>
                   {rating != null && (

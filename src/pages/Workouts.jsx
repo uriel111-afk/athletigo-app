@@ -70,6 +70,13 @@ export function WorkoutsInner({ showHeader = true } = {}) {
     setView({ mode: 'review', plan: detailed, executionId: exec.id });
   };
 
+  const handlePreviewMaster = (plan) => {
+    const detailed = planDetails[plan.id] || plan;
+    // executionId = null tells ReadOnly to render the structure with no
+    // values / no checkmarks — pure template view.
+    setView({ mode: 'review', plan: detailed, executionId: null });
+  };
+
   const handleBack = () => setView({ mode: 'list' });
 
   const handleCompleted = () => {
@@ -133,12 +140,13 @@ export function WorkoutsInner({ showHeader = true } = {}) {
             return (
               <WorkoutFolder
                 key={plan.id}
-                plan={plan}
+                plan={detailed || plan}
                 sectionsCount={sections.length}
                 exercisesCount={exCount}
                 executions={executionsByPlan[plan.id] || []}
                 onStart={handleStart}
                 onReview={handleReview(detailed || plan)}
+                onPreviewMaster={handlePreviewMaster}
               />
             );
           })
