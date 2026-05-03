@@ -5,6 +5,7 @@ import { base44 } from '@/api/base44Client';
 import PageLoader from '@/components/PageLoader';
 import PermGate from '@/components/PermGate';
 import WorkoutFolder from '@/components/training/WorkoutFolder';
+import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
 import WorkoutExecution from '@/components/training/WorkoutExecution';
 import WorkoutExecutionReadOnly from '@/components/training/WorkoutExecutionReadOnly';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
@@ -13,6 +14,12 @@ import { getExecutionsForPlan } from '@/lib/workoutExecutionApi';
 export function WorkoutsInner({ showHeader = true } = {}) {
   const queryClient = useQueryClient();
   const [view, setView] = useState({ mode: 'list' }); // 'list' | 'execute' | 'review'
+  // selectedPlan drives the folder-detail page. When set we show the
+  // detail view; clearing it returns to the folder list. The execute /
+  // review modes still take precedence so finishing a workout returns
+  // to the same detail page (queries get invalidated, so the new run
+  // appears in the executions list immediately).
+  const [selectedPlan, setSelectedPlan] = useState(null);
 
   const { data: user } = useQuery({
     queryKey: ['current-user-workouts'],
@@ -107,6 +114,22 @@ export function WorkoutsInner({ showHeader = true } = {}) {
     );
   }
 
+  if (selectedPlan) {
+    const detailed = planDetails[selectedPlan.id] || selectedPlan;
+    const sections = detailed?.sections || [];
+    const exCount = sections.reduce((s, sec) => s + (sec.exercises?.length || 0), 0);
+    return (
+      <WorkoutFolderDetail
+        plan={detailed}
+        sectionsCount={sections.length}
+        exercisesCount={exCount}
+        executions={executionsByPlan[selectedPlan.id] || []}
+        onStart={handleStart}
+        onBack={() => setSelectedPlan(null)}
+      />
+    );
+  }
+
   const visiblePlans = (plans || []).filter((p) => p && p.status !== 'deleted' && !p.deleted_at);
   const detailsReady = !detailsLoading && Object.keys(planDetails).length === visiblePlans.length;
 
@@ -145,9 +168,7 @@ export function WorkoutsInner({ showHeader = true } = {}) {
                     sectionsCount={sections.length}
                     exercisesCount={exCount}
                     executions={executionsByPlan[plan.id] || []}
-                    onStart={handleStart}
-                    onReview={handleReview(detailed || plan)}
-                    onPreviewMaster={handlePreviewMaster}
+                    onSelect={(p) => setSelectedPlan(p)}
                   />
                   {/* Subtle divider between adjacent plan cards on the list. */}
                   {i < visiblePlans.length - 1 && (
