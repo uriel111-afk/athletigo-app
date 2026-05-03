@@ -733,8 +733,17 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
             placeholder="שם תת-התרגיל" autoFocus={!subEx.exercise_name}
             className="w-full h-9 text-sm font-bold border-b-2 border-gray-100 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1" />
 
-          {/* Mini param grid */}
-          <div className="grid grid-cols-5 gap-1">
+          {/* Sub-exercise param grid — same 4-col layout as the main
+              params row above so the form looks the same regardless of
+              whether the user is editing a top-level exercise or a
+              nested sub-exercise inside a container (tabata /
+              exercise_list). */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 8,
+            marginBottom: 12,
+          }}>
             {SUB_PARAMS.map((p) => {
               const isConf = confirmed.has(p.id);
               const isEdit = editingParam === p.id;
