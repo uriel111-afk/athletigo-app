@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowRight, ChevronUp, ChevronLeft } from 'lucide-react';
 import {
-  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
+import FullscreenChart from '@/components/FullscreenChart';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -52,16 +53,54 @@ function ExecutionDivider() {
   );
 }
 
-function trendFor(scores) {
-  if (!scores || scores.length < 2) return null;
-  const a = scores[scores.length - 2];
-  const b = scores[scores.length - 1];
-  if (b > a) return { icon: '↑', color: '#16A34A' };
-  if (b < a) return { icon: '↓', color: '#DC2626' };
-  return { icon: '→', color: '#888' };
+// The chart body is extracted so we can render it both inline (200px)
+// and inside the fullscreen modal (340px) without duplication.
+function ImprovementChart({ data, height, gradientId = 'workoutGrad' }) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor={ORANGE} stopOpacity={0.25} />
+            <stop offset="95%" stopColor={ORANGE} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#F5E6D8" vertical={false} />
+        <XAxis
+          dataKey="date" tick={{ fontSize: 10, fill: '#AAA' }}
+          axisLine={false} tickLine={false}
+        />
+        <YAxis
+          domain={[0, 10]} tick={{ fontSize: 10, fill: '#AAA' }}
+          axisLine={false} tickLine={false} ticks={[0, 2, 4, 6, 8, 10]}
+        />
+        <Tooltip
+          contentStyle={{
+            background: '#1a1a1a', border: 'none', borderRadius: 10,
+            color: 'white', fontSize: 12,
+          }}
+          formatter={(v) => [`${Number(v).toFixed(1)}/10`, 'ציון']}
+          labelStyle={{ color: ORANGE, fontWeight: 700 }}
+          cursor={{ stroke: ORANGE, strokeWidth: 1, strokeDasharray: '4 4' }}
+        />
+        <ReferenceLine y={5} stroke="#E5E5E5" strokeDasharray="3 3" />
+        <Area
+          type="monotone"
+          dataKey="score"
+          stroke={ORANGE}
+          strokeWidth={3}
+          fill={`url(#${gradientId})`}
+          dot={{ fill: ORANGE, r: 5, strokeWidth: 2, stroke: 'white' }}
+          activeDot={{ r: 8, fill: ORANGE, stroke: 'white', strokeWidth: 2 }}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 }
 
-function ImprovementGraph({ data }) {
+function ImprovementGraph({ data, executionsCount }) {
+  const [fullscreen, setFullscreen] = useState(false);
+
   if (!data || data.length === 0) {
     return (
       <div style={{
@@ -74,62 +113,74 @@ function ImprovementGraph({ data }) {
     );
   }
 
-  const lastScore = data[data.length - 1].score;
-  const trend = trendFor(data.map((d) => d.score));
+  const latest = data[data.length - 1].score;
+  const prev = data.length >= 2 ? data[data.length - 2].score : null;
+  const trend = prev != null ? Number((latest - prev).toFixed(2)) : 0;
 
   return (
-    <div style={{
-      background: '#FFFFFF', borderRadius: 14,
-      border: '1px solid #F0F0F0', padding: 14,
-    }}>
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'baseline', marginBottom: 8, gap: 8,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-          <span style={{ fontSize: 40, fontWeight: 800, color: ORANGE, lineHeight: 1 }}>
-            {lastScore.toFixed(1)}
-          </span>
-          {trend && (
-            <span style={{ fontSize: 16, fontWeight: 800, color: trend.color }}>
-              {trend.icon}
-            </span>
-          )}
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setFullscreen(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setFullscreen(true); }}
+        style={{
+          background: 'white',
+          borderRadius: 20,
+          padding: '20px 16px 12px',
+          marginBottom: 16,
+          boxShadow: '0 8px 32px rgba(255,111,32,0.10)',
+          border: '1px solid #FFE5D0',
+          cursor: 'pointer',
+        }}
+      >
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'flex-start', marginBottom: 16, gap: 8,
+        }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+              גרף השיפור שלך
+            </div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+              {executionsCount} ביצועים
+            </div>
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{
+              fontSize: 40, fontWeight: 900, color: ORANGE, lineHeight: 1,
+            }}>
+              {latest.toFixed(1)}
+            </div>
+            <div style={{ fontSize: 11, color: '#888', textAlign: 'center' }}>
+              מתוך 10
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#444' }}>
-          📈 גרף השיפור
-        </div>
+
+        {trend !== 0 && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '4px 10px', borderRadius: 999, marginBottom: 12,
+            background: trend > 0 ? '#ECFDF5' : '#FEF2F2',
+            color: trend > 0 ? '#059669' : '#DC2626',
+            fontSize: 12, fontWeight: 600,
+          }}>
+            {trend > 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)} מהאימון הקודם
+          </div>
+        )}
+
+        <ImprovementChart data={data} height={200} gradientId="workoutGrad" />
       </div>
-      <div style={{ height: 220, width: '100%' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-            <defs>
-              <linearGradient id="orangeGradDetail" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor={ORANGE} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={ORANGE} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-            <XAxis dataKey="date" fontSize={11} />
-            <YAxis domain={[0, 10]} fontSize={11} />
-            <Tooltip
-              formatter={(v) => [Number(v).toFixed(1), 'ציון']}
-              labelFormatter={(l) => l}
-            />
-            <Area
-              type="monotone" dataKey="score"
-              stroke="none" fill="url(#orangeGradDetail)"
-            />
-            <Line
-              type="monotone" dataKey="score"
-              stroke={ORANGE} strokeWidth={2.5}
-              dot={{ r: 4, fill: ORANGE }}
-              activeDot={{ r: 6, fill: ORANGE }}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+
+      <FullscreenChart
+        isOpen={fullscreen}
+        onClose={() => setFullscreen(false)}
+        title="גרף השיפור שלך"
+      >
+        <ImprovementChart data={data} height={340} gradientId="workoutGradFs" />
+      </FullscreenChart>
+    </>
   );
 }
 
@@ -367,7 +418,7 @@ export default function WorkoutFolderDetail({
       </div>
 
       <div style={{ padding: 16 }}>
-        <ImprovementGraph data={chartData} />
+        <ImprovementGraph data={chartData} executionsCount={completed.length} />
 
         <GradientDivider />
 
