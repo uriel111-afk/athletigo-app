@@ -737,22 +737,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     );
   }
 
-  // Diagnostic — confirms which metadata fields are actually present on
-  // the plan row that landed in this component. If goal_focus /
-  // weekly_days / difficulty_level / duration_weeks come back undefined
-  // here, the issue is the source row, not the header render.
-  if (typeof window !== 'undefined') {
-    // eslint-disable-next-line no-console
-    console.log('[UPB] plan data for header:', {
-      plan_name: plan?.plan_name,
-      goal_focus: plan?.goal_focus,
-      weekly_days: plan?.weekly_days,
-      difficulty_level: plan?.difficulty_level,
-      duration_weeks: plan?.duration_weeks,
-      description: plan?.description,
-    });
-  }
-
   return (
     <div className="w-full pb-16 md:pb-24" dir="rtl">
       {/* PLAN HEADER */}

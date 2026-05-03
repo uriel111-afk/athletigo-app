@@ -26,6 +26,8 @@ export default function PlanFormDialog({
     description: "",
     goal_focus: [],
     weekly_days: [],
+    difficulty_level: "",
+    duration_weeks: 4,
     assigned_to: "",
     series_id: ""
   };
@@ -33,12 +35,16 @@ export default function PlanFormDialog({
   const currentDefaults = editingPlan ? {
     plan_name: editingPlan.plan_name || "",
     description: editingPlan.description || "",
-    goal_focus: Array.isArray(editingPlan.goal_focus) ? editingPlan.goal_focus : 
+    goal_focus: Array.isArray(editingPlan.goal_focus) ? editingPlan.goal_focus :
                 (typeof editingPlan.goal_focus === 'string' ? editingPlan.goal_focus.split(', ') : []),
     weekly_days: Array.isArray(editingPlan.weekly_days) ? editingPlan.weekly_days : [],
+    difficulty_level: editingPlan.difficulty_level || "",
+    duration_weeks: typeof editingPlan.duration_weeks === 'number' ? editingPlan.duration_weeks : 4,
     assigned_to: editingPlan.assigned_to || "",
     series_id: editingPlan.series_id || ""
   } : defaultPlanForm;
+
+  const DIFFICULTY_OPTIONS = ['מתחיל', 'בינוני', 'מתקדם', 'מקצועי'];
 
   const formKey = `plan_form_${editingPlan ? editingPlan.id : 'new'}`;
   
@@ -102,6 +108,11 @@ export default function PlanFormDialog({
       plan_name: planForm.plan_name,
       description: planForm.description || "",
       goal_focus: Array.isArray(planForm.goal_focus) && planForm.goal_focus.length > 0 ? planForm.goal_focus : ['כוח'],
+      weekly_days: Array.isArray(planForm.weekly_days) ? planForm.weekly_days : [],
+      difficulty_level: planForm.difficulty_level || null,
+      duration_weeks: typeof planForm.duration_weeks === 'number' && planForm.duration_weeks > 0
+        ? planForm.duration_weeks
+        : null,
       series_id: planForm.series_id || null
     };
 
@@ -302,6 +313,73 @@ export default function PlanFormDialog({
               })}
             </div>
             <p className="text-xs text-gray-400 mr-1">ניתן לבחור מספר ימים קבועים לאימון</p>
+          </div>
+
+          {/* Difficulty level (button chips) */}
+          <div className="space-y-3">
+            <Label className="text-base font-bold text-[#000000]">
+              רמת קושי
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {DIFFICULTY_OPTIONS.map((opt) => {
+                const selected = planForm.difficulty_level === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setPlanForm({
+                      ...planForm,
+                      difficulty_level: selected ? '' : opt,
+                    })}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 999,
+                      border: selected ? 'none' : '2px solid #E0E0E0',
+                      background: selected ? '#FF6F20' : 'white',
+                      color: selected ? 'white' : '#1a1a1a',
+                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Duration in weeks */}
+          <div className="space-y-2">
+            <Label className="text-base font-bold text-[#000000]">
+              משך התוכנית (שבועות)
+            </Label>
+            <input
+              type="number"
+              min={1}
+              max={52}
+              value={planForm.duration_weeks ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === '') {
+                  setPlanForm({ ...planForm, duration_weeks: null });
+                  return;
+                }
+                const n = parseInt(v, 10);
+                if (Number.isFinite(n)) {
+                  setPlanForm({
+                    ...planForm,
+                    duration_weeks: Math.min(52, Math.max(1, n)),
+                  });
+                }
+              }}
+              style={{
+                width: 120, height: 48, padding: '0 14px',
+                borderRadius: 12, border: '2px solid #E0E0E0',
+                fontSize: 16, fontWeight: 700, color: '#1a1a1a',
+                outline: 'none', background: 'white',
+              }}
+              onFocus={(e) => { e.target.style.borderColor = '#FF6F20'; }}
+              onBlur={(e) => { e.target.style.borderColor = '#E0E0E0'; }}
+            />
           </div>
 
           {/* 5. Description */}

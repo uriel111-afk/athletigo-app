@@ -319,7 +319,11 @@ export default function Dashboard() {
           title: planData.plan_name, plan_name: planData.plan_name,
           assigned_to: t?.id || "", assigned_to_name: t?.full_name || "",
           created_by: coach.id, created_by_name: coach.full_name,
-          goal_focus: gf, description: planData.description || "",
+          goal_focus: gf,
+          weekly_days: Array.isArray(planData.weekly_days) ? planData.weekly_days : [],
+          difficulty_level: planData.difficulty_level || null,
+          duration_weeks: typeof planData.duration_weeks === 'number' ? planData.duration_weeks : null,
+          description: planData.description || "",
           start_date: new Date().toISOString().split("T")[0], status: "פעילה", is_template: false,
         }));
       }
