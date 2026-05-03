@@ -22,6 +22,18 @@ export async function getExecutionsForPlan(planId, traineeId) {
   return data || [];
 }
 
+// All executions for one trainee across every plan. Used by the coach
+// view inside TraineeProfile to show a recent-executions list.
+export async function getAllExecutionsForTrainee(traineeId) {
+  const { data, error } = await supabase
+    .from('workout_executions')
+    .select('*')
+    .eq('trainee_id', traineeId)
+    .order('executed_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
 export async function getExecutionWithSetLogs(executionId) {
   const [execRes, logsRes] = await Promise.all([
     supabase.from('workout_executions').select('*').eq('id', executionId).single(),

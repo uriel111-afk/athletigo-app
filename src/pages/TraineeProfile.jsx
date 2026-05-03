@@ -73,6 +73,8 @@ import InlineLoader from "@/components/InlineLoader";
 import PlanCard from "@/components/plans/PlanCard";
 import PlanEditorDialog from "@/components/plans/PlanEditorDialog";
 import { WorkoutsInner } from "@/pages/Workouts";
+import WorkoutExecutionReadOnly from "@/components/training/WorkoutExecutionReadOnly";
+import { getAllExecutionsForTrainee } from "@/lib/workoutExecutionApi";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
 import ClientStatusPicker from "@/components/users/ClientStatusPicker";
@@ -99,6 +101,82 @@ import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 import TraineeReceiptsList from "@/components/TraineeReceiptsList";
 import LinkSessionToPackageDialog from "@/components/LinkSessionToPackageDialog";
+
+// Coach-side execution row used inside the "תוכניות" tab. Closed
+// shows Hebrew long timestamp + plan name + completion% + score.
+// Tapping the row expands inline and mounts WorkoutExecutionReadOnly
+// in compact mode — that fetches workout_executions + exercise_set_logs
+// and renders saved per-set values, exercise notes, section ratings
+// and the average score.
+function formatLongHe(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('he-IL', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return ''; }
+}
+function CoachExecutionRow({ execution, plan }) {
+  const [open, setOpen] = useState(false);
+  const score = execution.self_rating != null ? Number(execution.self_rating) : null;
+  const completion = execution.completion_percent != null
+    ? Number(execution.completion_percent)
+    : null;
+  const planName = plan?.plan_name || plan?.title || 'אימון';
+  return (
+    <div style={{
+      background: 'white',
+      border: '1px solid #F0E4D0',
+      borderRadius: 12,
+      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      overflow: 'hidden',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          all: 'unset', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, padding: '12px 16px',
+          width: '100%', boxSizing: 'border-box',
+          direction: 'rtl',
+        }}
+      >
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 800, color: '#1a1a1a',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            marginBottom: 2,
+          }}>
+            {planName}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {formatLongHe(execution.executed_at)}
+            {completion != null && ` · ${completion}% השלמה`}
+          </div>
+        </div>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 2,
+          fontSize: 14, fontWeight: 800, color: '#FF6F20', flexShrink: 0,
+        }}>
+          {score != null ? score.toFixed(1) : '—'}
+          <span style={{ fontSize: 12 }}>⭐</span>
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: '0 12px 12px' }}>
+          <WorkoutExecutionReadOnly
+            plan={plan}
+            executionId={execution.id}
+            compact
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PAYMENT_METHODS = [
   { value: 'cash',        label: 'מזומן',          icon: '💵' },
@@ -1927,6 +2005,18 @@ export default function TraineeProfile() {
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
+  });
+
+  // workout_executions rows for this trainee. Used by the coach view
+  // inside the "תוכניות" tab to surface a list of recent executions —
+  // each row expands inline to a WorkoutExecutionReadOnly that fetches
+  // exercise_set_logs and renders saved per-set values, notes, ratings
+  // and the average score.
+  const { data: traineeExecutions = [] } = useQuery({
+    queryKey: ['trainee-workout-executions', user?.id],
+    queryFn: () => getAllExecutionsForTrainee(user.id).catch(() => []),
+    enabled: !!user?.id && isCoach,
+    staleTime: 60 * 1000,
   });
 
   // Bulk-load sections + exercises for every visible plan so the
@@ -5320,6 +5410,33 @@ export default function TraineeProfile() {
                       />
                     );
                   });
+                })()}
+
+                {/* Recent executions (workout_executions). Each row
+                    expands inline to a WorkoutExecutionReadOnly that
+                    fetches exercise_set_logs and shows saved per-set
+                    values, exercise notes, section ratings and the
+                    average score — i.e. exactly what the trainee
+                    entered when finishing the workout. */}
+                {traineeExecutions.length > 0 && (() => {
+                  const plansById = new Map((trainingPlans || []).map((p) => [p.id, p]));
+                  return (
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ background: '#FF6F20' }} />
+                        ביצועים אחרונים ({traineeExecutions.length})
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {traineeExecutions.map((exec) => (
+                          <CoachExecutionRow
+                            key={exec.id}
+                            execution={exec}
+                            plan={plansById.get(exec.plan_id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
                 })()}
 
                 {/* Workout history — independent of plan rows; kept

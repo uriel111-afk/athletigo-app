@@ -5,6 +5,7 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
+import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -14,6 +15,18 @@ function formatShort(iso) {
   try {
     return new Date(iso).toLocaleDateString('he-IL', {
       day: '2-digit', month: '2-digit',
+    });
+  } catch { return ''; }
+}
+
+// Hebrew long format for execution metadata, e.g.
+// "יום שלישי, 22 באפריל 2026, 14:32".
+function formatLongHe(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('he-IL', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     });
   } catch { return ''; }
 }
@@ -182,12 +195,19 @@ function MasterCard({
   );
 }
 
-// One past-execution accordion. Closed shows metadata; expanded mounts
-// UnifiedPlanBuilder inline so coach and trainee see the same canonical
-// workout layout. canEdit/isCoach flow through from the parent.
-function ExecutionRow({ plan, execution, indexLabel, isCoach, onWorkoutFinished }) {
+// One past-execution accordion. Closed shows the Hebrew long timestamp,
+// plan name, score and completion %. Expanded mounts
+// WorkoutExecutionReadOnly compact, which fetches workout_executions +
+// exercise_set_logs and renders the saved per-set values, exercise notes,
+// section ratings, and the average score — i.e. exactly what the
+// trainee entered. The same component is used in the coach view inside
+// TraineeProfile.
+function ExecutionRow({ plan, execution, indexLabel }) {
   const [open, setOpen] = useState(false);
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
+  const completion = execution.completion_percent != null
+    ? Number(execution.completion_percent)
+    : null;
   return (
     <div style={{
       background: 'white',
@@ -208,17 +228,20 @@ function ExecutionRow({ plan, execution, indexLabel, isCoach, onWorkoutFinished 
           width: '100%', boxSizing: 'border-box',
         }}
       >
-        <div style={{
-          fontSize: 15, fontWeight: 800, color: DARK,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          minWidth: 0,
-        }}>
-          {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{
+            fontSize: 15, fontWeight: 800, color: DARK,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            marginBottom: 2,
+          }}>
+            {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
+          </div>
+          <div style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {formatLongHe(execution.executed_at)}
+            {completion != null && ` · ${completion}% השלמה`}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 13, color: '#888' }}>
-            {formatShort(execution.executed_at)}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
             fontSize: 14, fontWeight: 800, color: ORANGE,
@@ -232,15 +255,11 @@ function ExecutionRow({ plan, execution, indexLabel, isCoach, onWorkoutFinished 
         </div>
       </button>
       {open && (
-        <div style={{ padding: '0 4px 8px' }}>
-          <UnifiedPlanBuilder
+        <div style={{ padding: '0 12px 12px' }}>
+          <WorkoutExecutionReadOnly
             plan={plan}
-            isCoach={isCoach}
-            canEdit={isCoach}
-            onBack={() => {
-              setOpen(false);
-              onWorkoutFinished && onWorkoutFinished();
-            }}
+            executionId={execution.id}
+            compact
           />
         </div>
       )}
@@ -359,8 +378,6 @@ export default function WorkoutFolderDetail({
                     plan={plan}
                     execution={exec}
                     indexLabel={indexLabel}
-                    isCoach={isCoach}
-                    onWorkoutFinished={onWorkoutFinished}
                   />
                   {i < numberedNewestFirst.length - 1 && <ExecutionDivider />}
                 </React.Fragment>

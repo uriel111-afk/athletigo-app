@@ -24,8 +24,9 @@ function targetForMode(ex) {
 function formatDate(iso) {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleDateString('he-IL', {
-      day: 'numeric', month: 'numeric', year: 'numeric',
+    return new Date(iso).toLocaleString('he-IL', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     });
   } catch { return ''; }
 }
