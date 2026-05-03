@@ -973,6 +973,61 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     await saveWorkoutHistory();
   };
 
+  // Coach-only: rename the plan inline. Updates plan_name + title
+  // (kept in sync per existing convention) then invalidates plan
+  // caches so the new name shows up everywhere.
+  const savePlanName = async () => {
+    const next = (tempPlanName || '').trim();
+    if (!next) {
+      toast.error('שם התוכנית לא יכול להיות ריק');
+      return;
+    }
+    if (next === plan.plan_name) {
+      setEditingPlanName(false);
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('training_plans')
+        .update({ plan_name: next, title: next })
+        .eq('id', plan.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
+      toast.success('שם התוכנית עודכן ✅');
+      setEditingPlanName(false);
+    } catch (e) {
+      console.error('[UPB] rename plan failed:', e);
+      toast.error('שמירה נכשלה: ' + (e?.message || 'נסה שוב'));
+    }
+  };
+
+  // Coach-only: hard-delete the plan and everything keyed to it.
+  // Confirmed via window.confirm because the action is irreversible.
+  // Order matters: child rows first so foreign keys don't block the
+  // final plan delete.
+  const handleDeletePlan = async () => {
+    if (!plan?.id) return;
+    if (!window.confirm(`למחוק את התוכנית "${plan.plan_name || ''}" לצמיתות? לא ניתן לשחזר.`)) return;
+    try {
+      await supabase.from('exercises').delete().eq('training_plan_id', plan.id);
+      await supabase.from('training_sections').delete().eq('training_plan_id', plan.id);
+      await supabase.from('workout_executions').delete().eq('plan_id', plan.id);
+      const { error } = await supabase.from('training_plans').delete().eq('id', plan.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
+      toast.success('התוכנית נמחקה ✅');
+      if (onBack) onBack();
+    } catch (e) {
+      console.error('[UPB] delete plan failed:', e);
+      toast.error('מחיקה נכשלה: ' + (e?.message || 'נסה שוב'));
+    }
+  };
+
   // Coach-only: save plan metadata edits via direct supabase update +
   // invalidate every cache that touches training_plans so the orange
   // header re-renders with the fresh values on the next paint.
@@ -1024,13 +1079,74 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       {/* PLAN HEADER */}
       <div className="mb-6" style={{ backgroundColor: '#FF6F20', padding: '20px', borderRadius: '0 0 24px 24px' }}>
         <div className="flex items-center justify-center mb-4">
-          <h1 className="text-2xl font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-            {plan.plan_name}
-          </h1>
+          {canEdit && editingPlanName ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+              <input
+                value={tempPlanName}
+                onChange={(e) => setTempPlanName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); savePlanName(); }
+                  if (e.key === 'Escape') {
+                    setTempPlanName(plan.plan_name || '');
+                    setEditingPlanName(false);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  fontSize: 22, fontWeight: 900, color: '#1a1a1a',
+                  background: 'white', border: 'none',
+                  borderRadius: 10, padding: '6px 12px',
+                  fontFamily: 'Barlow Condensed, sans-serif',
+                  textAlign: 'center', outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={savePlanName}
+                style={{
+                  padding: '6px 12px', borderRadius: 8,
+                  background: 'white', border: 'none',
+                  color: '#FF6F20', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}
+                aria-label="שמור"
+              >✓</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempPlanName(plan.plan_name || '');
+                  setEditingPlanName(false);
+                }}
+                style={{
+                  padding: '6px 12px', borderRadius: 8,
+                  background: 'rgba(255,255,255,0.2)', border: 'none',
+                  color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}
+                aria-label="בטל"
+              >✕</button>
+            </div>
+          ) : (
+            <h1
+              className="text-2xl font-black text-white"
+              style={{
+                fontFamily: 'Barlow Condensed, sans-serif',
+                cursor: canEdit ? 'pointer' : 'default',
+              }}
+              onClick={() => {
+                if (!canEdit) return;
+                setTempPlanName(plan.plan_name || '');
+                setEditingPlanName(true);
+              }}
+              title={canEdit ? 'לחץ לעריכת שם' : ''}
+            >
+              {plan.plan_name}
+              {canEdit && <span style={{ fontSize: 14, marginRight: 8, opacity: 0.7 }}>✏️</span>}
+            </h1>
+          )}
         </div>
 
         {canEdit && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={() => setShowMetadataEditor(true)}
@@ -1043,6 +1159,19 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               }}
             >
               ✏️ ערוך פרטי תוכנית
+            </button>
+            <button
+              type="button"
+              onClick={handleDeletePlan}
+              style={{
+                padding: '4px 12px', borderRadius: 999,
+                background: 'rgba(220,38,38,0.15)',
+                border: '1px solid rgba(220,38,38,0.4)',
+                color: 'white', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              🗑️ מחק תוכנית
             </button>
           </div>
         )}
