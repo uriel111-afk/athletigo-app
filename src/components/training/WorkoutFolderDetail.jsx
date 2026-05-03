@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, ChevronUp, ChevronLeft } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -41,16 +41,6 @@ function GradientDivider() {
       margin: '20px 0',
       borderRadius: 999,
     }} />
-  );
-}
-
-function ExecutionDivider() {
-  return (
-    <>
-      <div style={{ height: 8 }} />
-      <div style={{ height: 1, background: '#F0E4D0', margin: '0 16px' }} />
-      <div style={{ height: 8 }} />
-    </>
   );
 }
 
@@ -316,15 +306,13 @@ function MasterCard({
 function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete }) {
   const [open, setOpen] = useState(false);
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
-  const completion = execution.completion_percent != null
-    ? Number(execution.completion_percent)
-    : null;
+  const hasScore = score != null;
   const inner = (
     <div style={{
       background: 'white',
       border: '1px solid #F0E4D0',
-      borderRadius: 12,
-      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      borderRadius: 10,
+      marginBottom: 6,
       overflow: 'hidden',
     }}>
       <button
@@ -335,34 +323,40 @@ function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete }
           all: 'unset',
           cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 10, padding: '12px 16px',
+          gap: 10, padding: '10px 14px',
           width: '100%', boxSizing: 'border-box',
         }}
       >
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: 15, fontWeight: 800, color: DARK,
+            fontSize: 13, fontWeight: 700, color: DARK,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            marginBottom: 2,
+            marginBottom: 1,
           }}>
             {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
           </div>
-          <div style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: 11, color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {formatLongHe(execution.executed_at)}
-            {completion != null && ` · ${completion}% השלמה`}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 2,
-            fontSize: 14, fontWeight: 800, color: ORANGE,
+          <div style={{
+            width: 34, height: 34, borderRadius: '50%',
+            background: hasScore ? ORANGE : '#F3F4F6',
+            color: hasScore ? 'white' : '#9CA3AF',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: hasScore ? 13 : 9,
+            fontWeight: 800,
+            lineHeight: 1,
+            textAlign: 'center',
+            padding: hasScore ? 0 : 2,
+            boxSizing: 'border-box',
           }}>
-            {score != null ? score.toFixed(1) : '—'}
-            <span style={{ fontSize: 12 }}>⭐</span>
+            {hasScore ? score.toFixed(1) : 'לא בוצע'}
+          </div>
+          <span style={{ fontSize: 12, color: '#888', width: 12, textAlign: 'center' }}>
+            {open ? '▲' : '▼'}
           </span>
-          {open
-            ? <ChevronUp className="w-4 h-4" style={{ color: '#888' }} />
-            : <ChevronLeft className="w-4 h-4" style={{ color: '#888' }} />}
         </div>
       </button>
       {open && (
@@ -489,23 +483,35 @@ export default function WorkoutFolderDetail({
 
         {completed.length > 0 && (
           <>
-            <GradientDivider />
-
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 10, color: DARK }}>
-              ביצועים קודמים ({completed.length})
+            <div style={{
+              borderTop: '1px solid #F0E4D0',
+              marginTop: 12,
+              padding: '12px 0 8px',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: DARK }}>
+                ביצועים קודמים
+              </div>
+              <span style={{
+                background: '#FFF5EE',
+                color: ORANGE,
+                fontSize: 12, fontWeight: 700,
+                padding: '3px 10px', borderRadius: 999,
+                lineHeight: 1,
+              }}>
+                {completed.length}
+              </span>
             </div>
             <div>
-              {numberedNewestFirst.map(({ exec, indexLabel }, i) => (
-                <React.Fragment key={exec.id}>
-                  <ExecutionRow
-                    plan={plan}
-                    execution={exec}
-                    indexLabel={indexLabel}
-                    isCoach={isCoach}
-                    onDelete={onDeleteExecution}
-                  />
-                  {i < numberedNewestFirst.length - 1 && <ExecutionDivider />}
-                </React.Fragment>
+              {numberedNewestFirst.map(({ exec, indexLabel }) => (
+                <ExecutionRow
+                  key={exec.id}
+                  plan={plan}
+                  execution={exec}
+                  indexLabel={indexLabel}
+                  isCoach={isCoach}
+                  onDelete={onDeleteExecution}
+                />
               ))}
             </div>
           </>
