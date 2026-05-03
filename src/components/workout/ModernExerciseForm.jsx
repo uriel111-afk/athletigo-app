@@ -340,22 +340,58 @@ function TempoInput({ value, onChange }) {
   );
 }
 
-// Body position — single-select chip group. Rendering inline (not via
-// the DEFAULTS → CompactSelect path) because the dropdown was reading
-// as empty content. Uses the spec's chip palette: 20-radius pills,
-// orange when selected, white with gray border idle.
+// Spec-aligned defaults for the two chip-pickers introduced earlier.
+// These are the FALLBACK lists when the user's localStorage doesn't
+// have a custom set yet.
 const BODY_POSITION_OPTIONS = [
   'עמידה', 'ישיבה', 'שכיבה על הגב', 'שכיבה על הבטן',
   'תלייה', 'ברכיים', 'צד ימין', 'צד שמאל', 'אחר',
 ];
-// Equipment — multi-select. Stored as a comma-joined string so the
-// existing readers (ExerciseCard.buildMetaSegments) keep working
-// without a schema change.
 const EQUIPMENT_OPTIONS = [
   'ללא ציוד', 'משקולות', 'מוט', 'קטלבל', 'גומיות', 'טבעות',
   'מקבילים', 'TRX', 'תיבה', 'כדור', 'מכונה', 'אחר',
 ];
 
+// Params that get the full editable chip experience (chips +
+// "ערוך רשימה" pencil that flips into per-row edit/delete + an
+// "+ הוסף" inline at the bottom). Each entry maps to (defaults, multi).
+const EDITABLE_PARAMS = {
+  body_position:   { defaults: BODY_POSITION_OPTIONS, multi: false },
+  equipment:       { defaults: EQUIPMENT_OPTIONS,     multi: true  },
+  side:            { defaults: DEFAULTS.side,         multi: false },
+  grip:            { defaults: DEFAULTS.grip,         multi: false },
+  range_of_motion: { defaults: DEFAULTS.range_of_motion, multi: false },
+};
+
+const OPTIONS_STORAGE_PREFIX = 'athletigo_options_';
+
+// localStorage-backed option list per paramId. Falls back to defaults
+// when storage is empty, corrupt, or unavailable. Persisting writes the
+// JSON immediately so a coach's edits survive a refresh.
+function useOptionsList(paramId, defaults) {
+  const [options, setOptionsState] = React.useState(() => {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return defaults;
+      const saved = window.localStorage.getItem(OPTIONS_STORAGE_PREFIX + paramId);
+      const parsed = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaults;
+    } catch {
+      return defaults;
+    }
+  });
+  const setOptions = React.useCallback((next) => {
+    setOptionsState(next);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(OPTIONS_STORAGE_PREFIX + paramId, JSON.stringify(next));
+      }
+    } catch { /* quota exceeded etc. */ }
+  }, [paramId]);
+  return [options, setOptions];
+}
+
+// Display-mode chip pill — used by both the chip renderer and the
+// non-edit view of EditableOptionSelector.
 function ChipGrid({ options, selected, onToggle }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -385,34 +421,187 @@ function ChipGrid({ options, selected, onToggle }) {
   );
 }
 
-function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom }) {
-  // Body position (single-select chips)
-  if (paramId === 'body_position') {
-    return (
-      <ChipGrid
-        options={BODY_POSITION_OPTIONS}
-        selected={value || ''}
-        onToggle={(opt) => onChange(value === opt ? '' : opt)}
-      />
-    );
-  }
+// Reusable selector with persistent CRUD over its option list.
+// `multi=true` stores the value as a comma-joined string so existing
+// readers (ExerciseCard.buildMetaSegments) keep working unchanged.
+function EditableOptionSelector({ paramId, value, onChange, defaults, multi = false }) {
+  const [options, setOptions] = useOptionsList(paramId, defaults);
+  const [editMode, setEditMode] = React.useState(false);
+  const [newOption, setNewOption] = React.useState('');
 
-  // Equipment (multi-select chips, comma-joined storage)
-  if (paramId === 'equipment') {
-    const selected = String(value || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+  const selectedArr = multi
+    ? String(value || '').split(',').map((s) => s.trim()).filter(Boolean)
+    : (value ? [value] : []);
+
+  const toggle = (opt) => {
+    if (multi) {
+      const next = selectedArr.includes(opt)
+        ? selectedArr.filter((s) => s !== opt)
+        : [...selectedArr, opt];
+      onChange(next.join(', '));
+    } else {
+      onChange(value === opt ? '' : opt);
+    }
+  };
+
+  const updateOption = (i, val) => {
+    const next = options.slice();
+    next[i] = val;
+    setOptions(next);
+  };
+
+  const deleteOption = (i) => {
+    if (options.length <= 1) return; // spec: min 1 must remain
+    const removed = options[i];
+    const next = options.filter((_, idx) => idx !== i);
+    setOptions(next);
+    // Spec: clear selection if the removed option was selected
+    if (multi) {
+      if (selectedArr.includes(removed)) {
+        onChange(selectedArr.filter((s) => s !== removed).join(', '));
+      }
+    } else if (value === removed) {
+      onChange('');
+    }
+  };
+
+  const addOption = () => {
+    const trimmed = newOption.trim();
+    if (!trimmed || options.includes(trimmed)) {
+      setNewOption('');
+      return;
+    }
+    setOptions([...options, trimmed]);
+    setNewOption('');
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <button
+          type="button"
+          onClick={() => setEditMode((v) => !v)}
+          style={{
+            padding: '4px 10px',
+            background: editMode ? '#FF6F20' : 'white',
+            border: '1px solid ' + (editMode ? '#FF6F20' : '#E5E7EB'),
+            borderRadius: 8,
+            color: editMode ? 'white' : '#6B7280',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {editMode ? '✓ סיום עריכה' : '✏️ ערוך רשימה'}
+        </button>
+      </div>
+
+      {!editMode ? (
+        <ChipGrid
+          options={options}
+          selected={multi ? selectedArr : (value || '')}
+          onToggle={toggle}
+        />
+      ) : (
+        <div>
+          {options.map((opt, i) => {
+            const canDelete = options.length > 1;
+            return (
+              <div
+                key={`${i}-${opt}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 0', borderBottom: '1px solid #F0E4D0',
+                }}
+              >
+                <input
+                  value={opt}
+                  onChange={(e) => updateOption(i, e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    direction: 'rtl',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => deleteOption(i)}
+                  disabled={!canDelete}
+                  title={canDelete ? 'מחק' : 'לפחות אפשרות אחת חייבת להישאר'}
+                  style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    border: 'none',
+                    background: canDelete ? '#FEE2E2' : '#F3F4F6',
+                    color: canDelete ? '#DC2626' : '#9CA3AF',
+                    fontSize: 16,
+                    cursor: canDelete ? 'pointer' : 'not-allowed',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <input
+              value={newOption}
+              onChange={(e) => setNewOption(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } }}
+              placeholder="הוסף אפשרות חדשה..."
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                border: '2px solid #FF6F20',
+                borderRadius: 8,
+                fontSize: 13,
+                direction: 'rtl',
+                fontFamily: 'inherit',
+                background: '#FFF9F0',
+                outline: 'none',
+              }}
+            />
+            <button
+              type="button"
+              onClick={addOption}
+              style={{
+                padding: '8px 16px',
+                background: '#FF6F20',
+                border: 'none',
+                borderRadius: 8,
+                color: 'white',
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              + הוסף
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom }) {
+  // Editable chip-list params (body_position, equipment, side, grip,
+  // range_of_motion). Each is backed by localStorage so the coach's
+  // tweaks persist between sessions; defaults serve as the fallback.
+  if (EDITABLE_PARAMS[paramId]) {
+    const cfg = EDITABLE_PARAMS[paramId];
     return (
-      <ChipGrid
-        options={EQUIPMENT_OPTIONS}
-        selected={selected}
-        onToggle={(opt) => {
-          const next = selected.includes(opt)
-            ? selected.filter((s) => s !== opt)
-            : [...selected, opt];
-          onChange(next.join(', '));
-        }}
+      <EditableOptionSelector
+        paramId={paramId}
+        value={value}
+        onChange={onChange}
+        defaults={cfg.defaults}
+        multi={cfg.multi}
       />
     );
   }
