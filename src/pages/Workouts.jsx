@@ -6,18 +6,17 @@ import PageLoader from '@/components/PageLoader';
 import PermGate from '@/components/PermGate';
 import WorkoutFolder from '@/components/training/WorkoutFolder';
 import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
-import WorkoutExecution from '@/components/training/WorkoutExecution';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
 import { getExecutionsForPlan } from '@/lib/workoutExecutionApi';
 
 export function WorkoutsInner({ showHeader = true } = {}) {
   const queryClient = useQueryClient();
-  const [view, setView] = useState({ mode: 'list' }); // 'list' | 'execute'
-  // selectedPlan drives the folder-detail page. When set we show the
-  // detail view; clearing it returns to the folder list. The execute /
-  // review modes still take precedence so finishing a workout returns
-  // to the same detail page (queries get invalidated, so the new run
-  // appears in the executions list immediately).
+  // Two-state navigation per spec: 'list' shows plan cards; 'folder'
+  // shows the detail page for selectedPlan. Inside the folder view,
+  // mounting a workout (master button) or expanding a past execution
+  // is handled locally inside WorkoutFolderDetail — same component
+  // mounts UnifiedPlanBuilder either full-screen or inline.
+  const [view, setView] = useState('list');
   const [selectedPlan, setSelectedPlan] = useState(null);
 
   const { data: user } = useQuery({
@@ -27,6 +26,7 @@ export function WorkoutsInner({ showHeader = true } = {}) {
   });
 
   const traineeId = user?.id;
+  const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const { data: plans = [], isLoading: plansLoading } = useQuery({
     queryKey: ['workouts-plans', traineeId],
@@ -66,32 +66,27 @@ export function WorkoutsInner({ showHeader = true } = {}) {
     enabled: plans.length > 0 && !!traineeId,
   });
 
-  const handleStart = (plan) => {
-    const detailed = planDetails[plan.id] || plan;
-    setView({ mode: 'execute', plan: detailed });
+  const handleSelect = (plan) => {
+    setSelectedPlan(plan);
+    setView('folder');
   };
 
-  const handleBack = () => setView({ mode: 'list' });
+  const handleBack = () => {
+    setView('list');
+    setSelectedPlan(null);
+  };
 
-  const handleCompleted = () => {
+  // Folder calls this whenever a workout finishes inside it (the user
+  // navigates back from UnifiedPlanBuilder). We invalidate queries so
+  // the new execution shows up in the list and the graph immediately.
+  const handleWorkoutFinished = () => {
     queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
     queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
-    setView({ mode: 'list' });
   };
 
   if (plansLoading) return <PageLoader />;
 
-  if (view.mode === 'execute') {
-    return (
-      <WorkoutExecution
-        plan={view.plan}
-        traineeId={traineeId}
-        onBack={handleBack}
-        onCompleted={handleCompleted}
-      />
-    );
-  }
-  if (selectedPlan) {
+  if (view === 'folder' && selectedPlan) {
     const detailed = planDetails[selectedPlan.id] || selectedPlan;
     const sections = detailed?.sections || [];
     const exCount = sections.reduce((s, sec) => s + (sec.exercises?.length || 0), 0);
@@ -101,8 +96,9 @@ export function WorkoutsInner({ showHeader = true } = {}) {
         sectionsCount={sections.length}
         exercisesCount={exCount}
         executions={executionsByPlan[selectedPlan.id] || []}
-        onStart={handleStart}
-        onBack={() => setSelectedPlan(null)}
+        isCoach={isCoach}
+        onBack={handleBack}
+        onWorkoutFinished={handleWorkoutFinished}
       />
     );
   }
@@ -145,9 +141,8 @@ export function WorkoutsInner({ showHeader = true } = {}) {
                     sectionsCount={sections.length}
                     exercisesCount={exCount}
                     executions={executionsByPlan[plan.id] || []}
-                    onSelect={(p) => setSelectedPlan(p)}
+                    onSelect={handleSelect}
                   />
-                  {/* Subtle divider between adjacent plan cards on the list. */}
                   {i < visiblePlans.length - 1 && (
                     <div style={{ height: 1, background: '#EEE', margin: '0 8px' }} />
                   )}

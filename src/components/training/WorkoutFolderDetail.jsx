@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
-import { ArrowRight } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowRight, ChevronUp, ChevronLeft } from 'lucide-react';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
+import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -12,7 +13,7 @@ function formatShort(iso) {
   if (!iso) return '';
   try {
     return new Date(iso).toLocaleDateString('he-IL', {
-      day: 'numeric', month: 'numeric',
+      day: '2-digit', month: '2-digit',
     });
   } catch { return ''; }
 }
@@ -119,7 +120,7 @@ function ImprovementGraph({ data }) {
   );
 }
 
-function MasterCard({ plan, sectionsCount, exercisesCount, onStart }) {
+function MasterCard({ plan, sectionsCount, exercisesCount, isCoach, onActivate }) {
   return (
     <div style={{
       position: 'relative',
@@ -135,12 +136,12 @@ function MasterCard({ plan, sectionsCount, exercisesCount, onStart }) {
         padding: '2px 10px', borderRadius: 999,
         letterSpacing: 0.5, border: '1px solid #DDD6FE',
       }}>
-        תבנית
+        אימון אב
       </span>
       <div style={{ fontSize: 13, color: '#6366F1', fontWeight: 700, marginBottom: 6 }}>
         🎯 אימון אב
       </div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4, paddingLeft: 56 }}>
+      <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4, paddingLeft: 64 }}>
         {plan.plan_name || plan.title || 'תוכנית'}
       </div>
       <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>
@@ -148,7 +149,7 @@ function MasterCard({ plan, sectionsCount, exercisesCount, onStart }) {
       </div>
       <button
         type="button"
-        onClick={() => onStart && onStart(plan)}
+        onClick={onActivate}
         style={{
           width: '100%', height: 48, borderRadius: 12,
           background: ORANGE, color: 'white', border: 'none',
@@ -156,61 +157,88 @@ function MasterCard({ plan, sectionsCount, exercisesCount, onStart }) {
           boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
         }}
       >
-        שכפל והתחל אימון חדש
+        {isCoach ? 'ערוך אימון' : 'התחל אימון חדש'}
       </button>
     </div>
   );
 }
 
-function ExecutionRow({ plan, execution, indexLabel, onOpen }) {
+// One past-execution accordion. Closed shows metadata; expanded mounts
+// UnifiedPlanBuilder inline so coach and trainee see the same canonical
+// workout layout. canEdit/isCoach flow through from the parent.
+function ExecutionRow({ plan, execution, indexLabel, isCoach, onWorkoutFinished }) {
+  const [open, setOpen] = useState(false);
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
   return (
-    <button
-      type="button"
-      onClick={() => onOpen && onOpen(plan)}
-      style={{
-        all: 'unset',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        width: '100%',
-        background: 'white',
-        border: '1px solid #F0E4D0',
-        borderRadius: 12,
-        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 10, padding: '12px 16px',
-      }}
-    >
-      <div style={{
-        fontSize: 15, fontWeight: 800, color: DARK,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        minWidth: 0,
-      }}>
-        {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <span style={{ fontSize: 13, color: '#888' }}>
-          {formatShort(execution.executed_at)}
-        </span>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 2,
-          fontSize: 14, fontWeight: 800, color: ORANGE,
+    <div style={{
+      background: 'white',
+      border: '1px solid #F0E4D0',
+      borderRadius: 12,
+      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      overflow: 'hidden',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          all: 'unset',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, padding: '12px 16px',
+          width: '100%', boxSizing: 'border-box',
+        }}
+      >
+        <div style={{
+          fontSize: 15, fontWeight: 800, color: DARK,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          minWidth: 0,
         }}>
-          {score != null ? score.toFixed(1) : '—'}
-          <span style={{ fontSize: 12 }}>⭐</span>
-        </span>
-      </div>
-    </button>
+          {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: '#888' }}>
+            {formatShort(execution.executed_at)}
+          </span>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            fontSize: 14, fontWeight: 800, color: ORANGE,
+          }}>
+            {score != null ? score.toFixed(1) : '—'}
+            <span style={{ fontSize: 12 }}>⭐</span>
+          </span>
+          {open
+            ? <ChevronUp className="w-4 h-4" style={{ color: '#888' }} />
+            : <ChevronLeft className="w-4 h-4" style={{ color: '#888' }} />}
+        </div>
+      </button>
+      {open && (
+        <div style={{ padding: '0 4px 8px' }}>
+          <UnifiedPlanBuilder
+            plan={plan}
+            isCoach={isCoach}
+            canEdit={isCoach}
+            onBack={() => {
+              setOpen(false);
+              onWorkoutFinished && onWorkoutFinished();
+            }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function WorkoutFolderDetail({
-  plan, sectionsCount, exercisesCount, executions, onStart, onBack,
+  plan, sectionsCount, exercisesCount, executions,
+  isCoach = false, onBack, onWorkoutFinished,
 }) {
+  // null = render the folder body. 'active' = full-screen workout via the
+  // master button (canEdit/isCoach mirror the user's role).
+  const [activeMode, setActiveMode] = useState(null);
+
   const completed = executions || [];
 
-  // Newest first for the accordion list, with index labels where the
-  // OLDEST run is "(1)" and the newest is "(N)".
   const numberedNewestFirst = useMemo(() => {
     const sorted = completed
       .slice()
@@ -219,7 +247,6 @@ export default function WorkoutFolderDetail({
     return sorted.map((exec, i) => ({ exec, indexLabel: total - i }));
   }, [completed]);
 
-  // Oldest→newest for the chart so the line moves left→right through time.
   const chartData = useMemo(
     () => completed
       .slice()
@@ -234,11 +261,24 @@ export default function WorkoutFolderDetail({
 
   const planName = plan?.plan_name || plan?.title || 'אימון';
 
+  // Master button activation → full-screen UnifiedPlanBuilder (replaces
+  // the folder body but stays within the same Workouts page level).
+  if (activeMode === 'active') {
+    return (
+      <UnifiedPlanBuilder
+        plan={plan}
+        isCoach={isCoach}
+        canEdit={isCoach}
+        onBack={() => {
+          setActiveMode(null);
+          onWorkoutFinished && onWorkoutFinished();
+        }}
+      />
+    );
+  }
+
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#FAFAFA' }}>
-      {/* Sticky header — back button on the right (RTL "start" position),
-          plan name centered. The 36px placeholder on the left balances the
-          back button's width so the title actually centers. */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 10,
         background: 'white',
@@ -249,14 +289,15 @@ export default function WorkoutFolderDetail({
         <button
           type="button"
           onClick={() => onBack && onBack()}
-          aria-label="חזור"
           style={{
             all: 'unset', cursor: 'pointer',
-            width: 36, height: 36, borderRadius: 8,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            height: 36, borderRadius: 8, padding: '0 10px',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            color: DARK, fontSize: 14, fontWeight: 700,
           }}
         >
-          <ArrowRight className="w-5 h-5" style={{ color: DARK }} />
+          <ArrowRight className="w-5 h-5" />
+          חזרה לאימונים
         </button>
         <div style={{
           flex: 1, textAlign: 'center', fontSize: 16, fontWeight: 800, color: DARK,
@@ -265,7 +306,10 @@ export default function WorkoutFolderDetail({
         }}>
           {planName}
         </div>
-        <div style={{ width: 36 }} />
+        {/* Spacer to balance the back-button width so the title
+            actually centers. Width matched to a typical "חזרה לאימונים"
+            label so the visual balance is close. */}
+        <div style={{ width: 110 }} />
       </div>
 
       <div style={{ padding: 16 }}>
@@ -277,7 +321,8 @@ export default function WorkoutFolderDetail({
           plan={plan}
           sectionsCount={sectionsCount}
           exercisesCount={exercisesCount}
-          onStart={onStart}
+          isCoach={isCoach}
+          onActivate={() => setActiveMode('active')}
         />
 
         {completed.length > 0 && (
@@ -294,7 +339,8 @@ export default function WorkoutFolderDetail({
                     plan={plan}
                     execution={exec}
                     indexLabel={indexLabel}
-                    onOpen={onStart}
+                    isCoach={isCoach}
+                    onWorkoutFinished={onWorkoutFinished}
                   />
                   {i < numberedNewestFirst.length - 1 && <ExecutionDivider />}
                 </React.Fragment>

@@ -38,7 +38,7 @@ export default function WorkoutFolder({
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: 20, fontWeight: 900, color: DARK,
+            fontSize: 18, fontWeight: 800, color: DARK,
             marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}>
