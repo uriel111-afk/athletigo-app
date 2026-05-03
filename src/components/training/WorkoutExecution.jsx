@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { ArrowRight, Check, Loader2, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronLeft, Loader2, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { saveCompletedWorkout } from '@/lib/workoutExecutionApi';
@@ -7,17 +7,47 @@ import { saveCompletedWorkout } from '@/lib/workoutExecutionApi';
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
 
-function modeLabel(mode) {
+// Treat 0 / "" / null / undefined as "not set" so we skip those fields.
+function hasNumeric(v) {
+  if (v == null || v === '') return false;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0;
+}
+
+function unitLabelForMode(mode) {
   if (mode === 'seconds' || mode === 'time') return 'שניות';
-  if (mode === 'kg' || mode === 'weight') return 'ק״ג';
   return 'חזרות';
 }
 
-function targetForMode(ex) {
-  const mode = ex.mode;
-  if (mode === 'seconds' || mode === 'time') return ex.work_time || ex.time || '';
-  if (mode === 'kg' || mode === 'weight') return ex.weight || '';
-  return ex.reps || '';
+// Placeholder for per-set inputs: prefer the explicit reps target, fall
+// back to work_time when the exercise is time-based.
+function setPlaceholder(ex) {
+  if (hasNumeric(ex.reps)) return String(ex.reps);
+  if (hasNumeric(ex.work_time)) return String(ex.work_time);
+  return '';
+}
+
+// Build the one-line params string from the real exercise fields.
+//   sets × (reps | work_time | rounds | tabata_sets) · מנוחה rest_time '' · weight ק"ג · RPE rpe · טמפו tempo
+// Skip any field that is null, 0, or empty.
+function buildParamsLine(ex) {
+  const main = [];
+  if (hasNumeric(ex.sets))         main.push(`${ex.sets} סטים`);
+  if (hasNumeric(ex.reps))         main.push(`${ex.reps} חזרות`);
+  else if (hasNumeric(ex.work_time)) main.push(`${ex.work_time} שניות`);
+  else if (hasNumeric(ex.rounds))    main.push(`${ex.rounds} סבבים`);
+  else if (hasNumeric(ex.tabata_sets)) main.push(`${ex.tabata_sets} סטים טבטה`);
+
+  const extras = [];
+  if (hasNumeric(ex.rest_time)) extras.push(`מנוחה ${ex.rest_time}''`);
+  if (hasNumeric(ex.weight))    extras.push(`${ex.weight} ק״ג`);
+  if (hasNumeric(ex.rpe))       extras.push(`RPE ${ex.rpe}`);
+  if (ex.tempo)                 extras.push(`טמפו ${ex.tempo}`);
+
+  const mainStr = main.join(' × ');
+  const extrasStr = extras.join(' · ');
+  if (mainStr && extrasStr) return `${mainStr} · ${extrasStr}`;
+  return mainStr || extrasStr || '';
 }
 
 function formatSeconds(secs) {
@@ -32,8 +62,9 @@ function ExerciseCard({
 }) {
   const mode = exercise.mode || 'reps';
   const sets = Math.max(1, Number(exercise.sets) || 1);
-  const target = targetForMode(exercise);
-  const targetStr = target === '' || target == null ? '' : String(target);
+  const params = buildParamsLine(exercise);
+  const placeholder = setPlaceholder(exercise);
+  const unitLabel = unitLabelForMode(mode);
 
   return (
     <div style={{
@@ -65,10 +96,9 @@ function ExerciseCard({
           <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4 }}>
             {exercise.exercise_name || exercise.name || 'תרגיל'}
           </div>
-          <div style={{ fontSize: 12, color: '#666' }}>
-            {sets} סטים × {targetStr || '?'} {modeLabel(mode)}
-            {exercise.rest_time ? ` · מנוחה ${exercise.rest_time}''` : ''}
-          </div>
+          {params && (
+            <div style={{ fontSize: 12, color: '#666' }}>{params}</div>
+          )}
           {exercise.coach_private_notes && (
             <div style={{
               fontSize: 12, color: '#555', fontStyle: 'italic',
@@ -98,7 +128,7 @@ function ExerciseCard({
                 type="number"
                 inputMode="numeric"
                 value={setValues?.[n] ?? ''}
-                placeholder={targetStr}
+                placeholder={placeholder}
                 onChange={(e) => onSetChange(exercise.id, n, e.target.value)}
                 style={{
                   width: 64, height: 36, textAlign: 'center',
@@ -109,6 +139,9 @@ function ExerciseCard({
                 onFocus={(e) => { e.target.style.borderColor = ORANGE; }}
                 onBlur={(e) => { e.target.style.borderColor = '#F0E4D0'; }}
               />
+              <span style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>
+                {unitLabel}
+              </span>
             </label>
           ))}
         </div>
@@ -146,6 +179,23 @@ export default function WorkoutExecution({ plan, traineeId, onBack, onCompleted 
   const [setValues, setSetValues] = useState({});   // exerciseId -> { setN -> value }
   const [notes, setNotes] = useState({});           // exerciseId -> string
   const [sectionRatings, setSectionRatings] = useState({}); // sectionId -> rating
+  // Section collapse state. Default: every section open. We re-sync when
+  // `plan.sections` changes so newly-added sections start expanded too —
+  // and we preserve any user-driven toggles for sections that already
+  // existed.
+  const [openSections, setOpenSections] = useState({});
+  useEffect(() => {
+    setOpenSections((prev) => {
+      const next = { ...prev };
+      for (const s of plan?.sections || []) {
+        if (next[s.id] == null) next[s.id] = true;
+      }
+      return next;
+    });
+  }, [plan]);
+  const toggleSection = useCallback((sectionId) => {
+    setOpenSections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  }, []);
 
   const [feedbackSection, setFeedbackSection] = useState(null);
   const [feedbackRating, setFeedbackRating] = useState(7);
@@ -328,6 +378,9 @@ export default function WorkoutExecution({ plan, traineeId, onBack, onCompleted 
       <div style={{ padding: '12px 14px' }}>
         {(plan?.sections || []).map((section) => {
           const rating = sectionRatings[section.id];
+          const isOpen = openSections[section.id] !== false;
+          const exCount = (section.exercises || []).length;
+          const exDone = (section.exercises || []).filter((e) => done[e.id]).length;
           return (
             <div key={section.id} style={{
               background: 'white', borderRadius: 14,
@@ -335,12 +388,33 @@ export default function WorkoutExecution({ plan, traineeId, onBack, onCompleted 
               padding: 12, marginBottom: 12,
               boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
             }}>
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 8, gap: 8,
-              }}>
-                <div style={{ fontSize: 16, fontWeight: 900, color: DARK }}>
-                  {section.section_name || 'סקשן'}
+              <button
+                type="button"
+                onClick={() => toggleSection(section.id)}
+                aria-expanded={isOpen}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: isOpen ? 8 : 0, gap: 8, width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  {isOpen
+                    ? <ChevronDown className="w-5 h-5" style={{ color: ORANGE, flexShrink: 0 }} />
+                    : <ChevronLeft className="w-5 h-5" style={{ color: ORANGE, flexShrink: 0 }} />}
+                  <div style={{
+                    fontSize: 16, fontWeight: 900, color: DARK,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {section.section_name || 'סקשן'}
+                  </div>
+                  {!isOpen && (
+                    <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>
+                      {exDone}/{exCount}
+                    </span>
+                  )}
                 </div>
                 {rating != null && (
                   <span style={{
@@ -349,12 +423,13 @@ export default function WorkoutExecution({ plan, traineeId, onBack, onCompleted 
                     border: `1px solid ${ORANGE}`,
                     padding: '2px 10px', borderRadius: 999,
                     fontSize: 12, fontWeight: 800,
+                    flexShrink: 0,
                   }}>
                     {Number(rating).toFixed(1)}
                   </span>
                 )}
-              </div>
-              {(section.exercises || []).map((ex) => (
+              </button>
+              {isOpen && (section.exercises || []).map((ex) => (
                 <ExerciseCard
                   key={ex.id}
                   exercise={ex}
