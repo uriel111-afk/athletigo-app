@@ -17,6 +17,202 @@ import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificati
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
+// Coach-only inline editor for plan metadata. Mounts as a bottom-sheet
+// over a translucent backdrop. Closes on backdrop tap. The save button
+// hands the new payload back to the parent via onSave; the parent
+// owns the supabase write + cache invalidation.
+function PlanMetadataEditor({ plan, onSave, onClose }) {
+  const initial = plan || {};
+  const initFocus = Array.isArray(initial.goal_focus)
+    ? initial.goal_focus
+    : (typeof initial.goal_focus === 'string'
+      ? initial.goal_focus.split(/[,،]/).map((s) => s.trim()).filter(Boolean)
+      : []);
+  const initDays = Array.isArray(initial.weekly_days)
+    ? initial.weekly_days
+    : (typeof initial.weekly_days === 'string'
+      ? initial.weekly_days.split(/[,،]/).map((s) => s.trim()).filter(Boolean)
+      : []);
+
+  const [goalFocus, setGoalFocus] = useState(initFocus);
+  const [weeklyDays, setWeeklyDays] = useState(initDays);
+  const [difficultyLevel, setDifficultyLevel] = useState(initial.difficulty_level || '');
+  const [durationWeeks, setDurationWeeks] = useState(
+    Number.isFinite(Number(initial.duration_weeks)) && Number(initial.duration_weeks) > 0
+      ? Number(initial.duration_weeks) : 4
+  );
+  const [startDate, setStartDate] = useState(initial.start_date || '');
+  const [description, setDescription] = useState(initial.description || '');
+
+  const FOCUS_OPTS = [
+    'כוח', 'סיבולת', 'הרזיה', 'גמישות',
+    'בניית שריר', 'שיפור יציבה', 'בריאות כללית', 'ספורט ספציפי',
+  ];
+  const DAY_OPTS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+  const DIFFICULTY_OPTS = ['מתחיל', 'בינוני', 'מתקדם', 'מקצועי'];
+
+  const handleSubmit = () => {
+    onSave({
+      goal_focus: goalFocus,
+      weekly_days: weeklyDays,
+      difficulty_level: difficultyLevel || null,
+      duration_weeks: Number.isFinite(durationWeeks) && durationWeeks > 0 ? durationWeeks : null,
+      start_date: startDate || null,
+      description,
+    });
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+        display: 'flex', alignItems: 'flex-end',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', background: 'white',
+          borderRadius: '20px 20px 0 0',
+          padding: '24px 20px',
+          maxHeight: '85vh', overflowY: 'auto',
+          direction: 'rtl',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>עריכת פרטי תוכנית</div>
+          <button type="button" onClick={onClose}
+                  style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>
+            ✕
+          </button>
+        </div>
+
+        {/* Goal focus */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#374151' }}>מוקדי אימון</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {FOCUS_OPTS.map((opt) => {
+              const sel = goalFocus.includes(opt);
+              return (
+                <button key={opt} type="button"
+                  onClick={() => setGoalFocus((prev) =>
+                    prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt])}
+                  style={{
+                    padding: '6px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 13,
+                    background: sel ? '#FF6F20' : 'white',
+                    color: sel ? 'white' : '#374151',
+                    border: sel ? 'none' : '1px solid #E5E7EB',
+                    fontWeight: sel ? 600 : 400,
+                  }}>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Weekly days */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#374151' }}>ימי ביצוע</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {DAY_OPTS.map((day) => {
+              const sel = weeklyDays.includes(day);
+              return (
+                <button key={day} type="button"
+                  onClick={() => setWeeklyDays((prev) =>
+                    prev.includes(day) ? prev.filter((x) => x !== day) : [...prev, day])}
+                  style={{
+                    width: 40, height: 40, borderRadius: '50%', cursor: 'pointer',
+                    fontSize: 14, fontWeight: 700,
+                    background: sel ? '#FF6F20' : 'white',
+                    color: sel ? 'white' : '#374151',
+                    border: sel ? 'none' : '1px solid #E5E7EB',
+                  }}>
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Difficulty */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#374151' }}>רמת קושי</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {DIFFICULTY_OPTS.map((opt) => {
+              const sel = difficultyLevel === opt;
+              return (
+                <button key={opt} type="button"
+                  onClick={() => setDifficultyLevel(sel ? '' : opt)}
+                  style={{
+                    flex: 1, padding: '8px 4px', borderRadius: 8, cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600,
+                    background: sel ? '#FF6F20' : 'white',
+                    color: sel ? 'white' : '#374151',
+                    border: sel ? 'none' : '1px solid #E5E7EB',
+                  }}>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Duration */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#374151' }}>משך התוכנית</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <input type="number" min="1" max="52" value={durationWeeks}
+              onChange={(e) => setDurationWeeks(parseInt(e.target.value, 10) || 1)}
+              style={{
+                width: 80, padding: '8px 12px', border: '1px solid #E5E7EB',
+                borderRadius: 8, fontSize: 16, textAlign: 'center',
+              }} />
+            <span style={{ fontSize: 14, color: '#6B7280' }}>שבועות</span>
+          </div>
+        </div>
+
+        {/* Start date */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#374151' }}>תאריך התחלה</div>
+          <input type="date" value={startDate || ''}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 12px',
+              border: '1px solid #E5E7EB', borderRadius: 8,
+              fontSize: 14, boxSizing: 'border-box',
+            }} />
+        </div>
+
+        {/* Description */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#374151' }}>תיאור התוכנית</div>
+          <textarea value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="תאר את מטרת התוכנית..." rows={3}
+            style={{
+              width: '100%', padding: '10px 12px',
+              border: '1px solid #E5E7EB', borderRadius: 8,
+              fontSize: 14, fontFamily: 'inherit', direction: 'rtl',
+              resize: 'vertical', boxSizing: 'border-box',
+            }} />
+        </div>
+
+        <button type="button" onClick={handleSubmit}
+          style={{
+            width: '100%', padding: '14px', background: '#FF6F20',
+            border: 'none', borderRadius: 12, color: 'white',
+            fontWeight: 700, fontSize: 16, cursor: 'pointer',
+          }}>
+          שמור שינויים ✓
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = false, onBack }) {
   // Diagnostic — full plan object dump so we can see whatever shape
   // legacy rows actually have (alternate field names, base44-injected
@@ -65,6 +261,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [completedSections, setCompletedSections] = useState(new Set());
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
+  const [showMetadataEditor, setShowMetadataEditor] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const celebrationFiredRef = useRef(false);
   
@@ -751,6 +948,27 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     await saveWorkoutHistory();
   };
 
+  // Coach-only: save plan metadata edits via direct supabase update +
+  // invalidate every cache that touches training_plans so the orange
+  // header re-renders with the fresh values on the next paint.
+  const handleSaveMetadata = async (payload) => {
+    try {
+      const { error } = await supabase
+        .from('training_plans')
+        .update(payload)
+        .eq('id', plan.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
+      setShowMetadataEditor(false);
+      toast.success('פרטי התוכנית עודכנו ✅');
+    } catch (e) {
+      console.error('[UPB] save metadata failed:', e);
+      toast.error('שמירה נכשלה: ' + (e?.message || 'נסה שוב'));
+    }
+  };
+
   // Loading gate — prevents the "blank flash" where the editor renders
   // a 0-section / 0-exercise plan for ~200ms before the real data
   // lands. Per the project's loading-gate rule we use isLoading only
@@ -771,6 +989,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   return (
     <div className="w-full pb-16 md:pb-24" dir="rtl">
+      {canEdit && showMetadataEditor && (
+        <PlanMetadataEditor
+          plan={plan}
+          onSave={handleSaveMetadata}
+          onClose={() => setShowMetadataEditor(false)}
+        />
+      )}
       {/* PLAN HEADER */}
       <div className="mb-6" style={{ backgroundColor: '#FF6F20', padding: '20px', borderRadius: '0 0 24px 24px' }}>
         <div className="flex items-center justify-center mb-4">
@@ -778,6 +1003,24 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             {plan.plan_name}
           </h1>
         </div>
+
+        {canEdit && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowMetadataEditor(true)}
+              style={{
+                padding: '4px 12px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.4)',
+                color: 'white', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ✏️ ערוך פרטי תוכנית
+            </button>
+          </div>
+        )}
 
         {/* Metadata section — details row, goal_focus chips, weekly day
             chips, and description. Reads through legacy aliases so old
@@ -893,13 +1136,88 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         
         {/* Progress Bar */}
         <div className="bg-white/20 rounded-full h-2 overflow-hidden">
-          <div 
+          <div
             className="h-full bg-white transition-all duration-500"
             style={{ width: `${exercises.length > 0 ? (exercises.filter(e => e.completed).length / exercises.length) * 100 : 0}%` }}
           ></div>
         </div>
       </div>
-      
+
+      {/* Trainee-only info card under the orange banner — same data
+          rendered in a calmer, more readable surface. Only mounts when
+          there is actually data to show. */}
+      {!canEdit && (
+        (headerGoalFocus || headerWeeklyDays || headerDifficulty || headerWeeks || plan?.start_date)
+      ) && (
+        <div style={{
+          background: 'white',
+          borderRadius: 16,
+          padding: '16px 20px',
+          margin: '0 16px 16px',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+          border: '1px solid #F0E4D0',
+          direction: 'rtl',
+        }}>
+          {headerGoalFocus && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>🎯 מוקדי האימון</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {headerGoalFocus.map((f, i) => (
+                  <span key={i} style={{
+                    padding: '4px 12px', borderRadius: 999,
+                    background: '#FFF5EE', color: '#FF6F20',
+                    fontSize: 12, fontWeight: 600,
+                    border: '1px solid #FFE5D0',
+                  }}>{f}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {headerWeeklyDays && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>📅 ימי ביצוע</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {headerWeeklyDays.map((d, i) => (
+                  <span key={i} style={{
+                    minWidth: 32, height: 32, padding: '0 8px',
+                    borderRadius: 999,
+                    background: '#FF6F20', color: 'white',
+                    fontSize: 13, fontWeight: 700,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  }}>{d}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(headerDifficulty || headerWeeks || plan?.start_date) && (
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {headerDifficulty && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>💪 רמת קושי</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{headerDifficulty}</div>
+                </div>
+              )}
+              {headerWeeks && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>⏱ משך</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{headerWeeks} שבועות</div>
+                </div>
+              )}
+              {plan?.start_date && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>📆 התחלה</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
+                    {new Date(plan.start_date).toLocaleDateString('he-IL')}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px' }}>
 
         {canEdit &&
