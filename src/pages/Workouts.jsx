@@ -9,24 +9,33 @@ import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
 import { getExecutionsForPlan } from '@/lib/workoutExecutionApi';
 
-export function WorkoutsInner({ showHeader = true } = {}) {
+// Optional props:
+//   traineeId — when set, the folder list belongs to this user (the
+//               coach is viewing somebody else's plans). Defaults to
+//               the currently-logged-in user, which is the normal
+//               trainee-viewing-own-plans flow.
+//   isCoach   — overrides role detection. Pass `true` when the caller
+//               knows the viewer is a coach (e.g. TraineeProfile).
+//               Defaults to deriving from the current user.
+export function WorkoutsInner({
+  showHeader = true,
+  traineeId: traineeIdProp = null,
+  isCoach: isCoachProp = null,
+} = {}) {
   const queryClient = useQueryClient();
-  // Two-state navigation per spec: 'list' shows plan cards; 'folder'
-  // shows the detail page for selectedPlan. Inside the folder view,
-  // mounting a workout (master button) or expanding a past execution
-  // is handled locally inside WorkoutFolderDetail — same component
-  // mounts UnifiedPlanBuilder either full-screen or inline.
   const [view, setView] = useState('list');
   const [selectedPlan, setSelectedPlan] = useState(null);
 
-  const { data: user } = useQuery({
+  const { data: currentUser } = useQuery({
     queryKey: ['current-user-workouts'],
     queryFn: () => base44.auth.me(),
     retry: false,
   });
 
-  const traineeId = user?.id;
-  const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
+  const traineeId = traineeIdProp || currentUser?.id;
+  const isCoach = isCoachProp != null
+    ? isCoachProp
+    : (currentUser?.role === 'coach' || currentUser?.is_coach === true || currentUser?.role === 'admin');
 
   const { data: plans = [], isLoading: plansLoading } = useQuery({
     queryKey: ['workouts-plans', traineeId],

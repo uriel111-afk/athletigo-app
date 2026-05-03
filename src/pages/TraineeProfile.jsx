@@ -5322,15 +5322,25 @@ export default function TraineeProfile() {
                 )}
               </TabsContent>
 
-              {/* Plans Tab — collapsible PlanCard list with status
-                  filter chips + an in-context PlanEditorDialog. The
-                  legacy PlanBuilder page still exists for any deep
-                  link that lands on it; this tab is the in-profile
-                  experience the coach uses day-to-day. */}
+              {/* Plans Tab — single WorkoutsInner mount for both
+                  trainee and coach. The viewer's role drives the
+                  master-card button label inside WorkoutFolderDetail
+                  ("התחל אימון" for trainee, "ערוך אימון" for coach),
+                  while traineeId pins the data to the profile being
+                  viewed (so the coach sees the trainee's plans, not
+                  their own). */}
               <TabsContent value="plans" className="space-y-4 w-full" dir="rtl">
-                {!isCoach ? (
-                  <WorkoutsInner showHeader={false} />
-                ) : (<>
+                <WorkoutsInner
+                  traineeId={user?.id}
+                  isCoach={isCoach}
+                  showHeader={false}
+                />
+                {/* Legacy coach-only management UI below — kept hidden
+                    behind a noop branch so the existing planContents /
+                    PlanCard / WorkoutHistory render paths can be removed
+                    in a follow-up cleanup without losing them in this
+                    diff. */}
+                {false && isCoach && (<>
                 {plansLoading && trainingPlans.length === 0 && (
                   <InlineLoader message="טוען תוכניות..." />
                 )}
