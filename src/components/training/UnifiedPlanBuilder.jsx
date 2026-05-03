@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,6 @@ import SectionCard from "./SectionCard";
 import ExerciseExecutionModal from "./ExerciseExecutionModal";
 import ExerciseExecution from "@/components/ExerciseExecution";
 import { toast } from "sonner";
-import { getTraineeProgressForPlan, bulkUpsertProgress } from "@/lib/traineeProgressApi";
 import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificationTriggers";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -26,23 +26,32 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [currentSection, setCurrentSection] = useState(null);
   const [editingPlanName, setEditingPlanName] = useState(false);
   const [tempPlanName, setTempPlanName] = useState(plan.plan_name || "");
-  const sectionFormRef = useRef(null);
+  const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
-  const [sectionFeedbackData, setSectionFeedbackData] = useState({ sectionId: null, sectionName: "", control_rating: 5, difficulty_rating: 5, notes: "" });
+  const [sectionFeedbackData, setSectionFeedbackData] = useState({ sectionId: null, sectionName: "", rating: 7, notes: "" });
+  const [sectionRatings, setSectionRatings] = useState({});
   const [completedSections, setCompletedSections] = useState(new Set());
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const celebrationFiredRef = useRef(false);
+  
+  // Execution Modal State
   const [showExecutionModal, setShowExecutionModal] = useState(false);
   const [executionExercise, setExecutionExercise] = useState(null);
 
   const queryClient = useQueryClient();
 
+  // Identity log — fires on every mount with the plan id we received.
+  // Lets the coach (with DevTools open) confirm whether the prop
+  // actually carries an id when "ערוך תוכנית" is clicked.
   React.useEffect(() => {
     console.log('[UPB] mount — plan id:', plan?.id, 'name:', plan?.plan_name || plan?.name);
   }, [plan?.id]);
 
+  // Refetch when the parent profile's tab changes — TraineeProfile
+  // dispatches 'tab-changed' on every activeTab flip so users coming
+  // back to the plans tab see fresh data instead of cached state.
   React.useEffect(() => {
     if (!plan?.id) return;
     const handler = () => {
@@ -53,17 +62,26 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     return () => window.removeEventListener('tab-changed', handler);
   }, [plan?.id, queryClient]);
 
+  // initialData removed so isLoading actually flips to true on first
+  // fetch — with [] as initialData the query was treated as already
+  // fulfilled and the editor flashed "0 sections, 0 exercises" before
+  // the real data landed. The loading-gate below now catches this.
   const { data: sections = [], isLoading: sectionsLoading, error: sectionsError } = useQuery({
     queryKey: ['training-sections', plan.id],
     queryFn: async () => {
       try {
         const rows = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id }, 'order');
+        console.log('[UPB] sections query OK:', rows?.length, 'rows for plan', plan.id);
         return rows;
       } catch (e) {
+        console.warn('[UPB] sections query with order failed, retrying without sort:', e?.message);
         try {
           const data = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id });
-          return data.sort((a, b) => (a.order || 0) - (b.order || 0));
+          const sorted = data.sort((a, b) => (a.order || 0) - (b.order || 0));
+          console.log('[UPB] sections retry OK:', sorted?.length, 'rows');
+          return sorted;
         } catch (err) {
+          console.error('[UPB] sections retry FAILED:', err?.message);
           return [];
         }
       }
@@ -76,12 +94,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     queryFn: async () => {
       try {
         const rows = await base44.entities.Exercise.filter({ training_plan_id: plan.id }, 'order');
+        console.log('[UPB] exercises query OK:', rows?.length, 'rows for plan', plan.id);
         return rows;
       } catch (e) {
+        console.warn('[UPB] exercises query with order failed, retrying without sort:', e?.message);
         try {
           const data = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
-          return data.sort((a, b) => (a.order || 0) - (b.order || 0));
+          const sorted = data.sort((a, b) => (a.order || 0) - (b.order || 0));
+          console.log('[UPB] exercises retry OK:', sorted?.length, 'rows');
+          return sorted;
         } catch (err) {
+          console.error('[UPB] exercises retry FAILED:', err?.message);
           return [];
         }
       }
@@ -89,25 +112,22 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     enabled: !!plan.id
   });
 
-  const { data: traineeProgress = [] } = useQuery({
-    queryKey: ['trainee-progress', plan.id],
-    queryFn: async () => {
-      try {
-        const me = await base44.auth.me();
-        if (!me?.id) return [];
-        return await getTraineeProgressForPlan(me.id, plan.id);
-      } catch (e) {
-        return [];
-      }
-    },
-    enabled: !!plan.id && !canEdit,
-  });
-
-  const traineeProgressByExercise = React.useMemo(() => {
-    const map = {};
-    for (const row of traineeProgress || []) map[row.exercise_id] = row;
-    return map;
-  }, [traineeProgress]);
+  // Summary log on every data change — surfaces the query state at a
+  // glance: how many sections / exercises landed, whether the queries
+  // are still running, and whether either one errored. With these
+  // logs in place, an "editor opens empty" report is one console paste
+  // away from a diagnosis.
+  React.useEffect(() => {
+    console.log('[UPB] data state:', {
+      planId: plan?.id,
+      sectionsCount: sections?.length || 0,
+      exercisesCount: exercises?.length || 0,
+      sectionsLoading,
+      exercisesLoading,
+      sectionsError: sectionsError?.message,
+      exercisesError: exercisesError?.message,
+    });
+  }, [plan?.id, sections, exercises, sectionsLoading, exercisesLoading, sectionsError, exercisesError]);
 
   const updatePlanMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.TrainingPlan.update(id, data),
@@ -155,17 +175,25 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
+  // Duplicate a section and every exercise inside it. The clone lands
+  // at the bottom of the order list — coaches reorder via drag-and-drop
+  // (the existing dnd-kit handler in PlanBuilder.jsx). Exercises inside
+  // the section copy verbatim minus id/created_at.
   const duplicateSectionMutation = useMutation({
     mutationFn: async (originalSection) => {
       if (!originalSection) return;
       const maxOrder = Math.max(0, ...sections.map((s) => Number(s.order) || 0));
+      // 1) Create the new section row
       const { id: _omitId, created_at: _omitCa, ...sectionFields } = originalSection;
       const newSection = await base44.entities.TrainingSection.create({
         ...sectionFields,
         name: (originalSection.name || 'סקשן') + ' (עותק)',
         order: maxOrder + 1,
       });
-      const originalExercises = exercises.filter((e) => e.training_section_id === originalSection.id);
+      // 2) Clone every exercise that belonged to the original section
+      const originalExercises = exercises.filter(
+        (e) => e.training_section_id === originalSection.id
+      );
       for (const ex of originalExercises) {
         const { id: _exId, created_at: _exCa, training_section_id: _ts, ...exFields } = ex;
         await base44.entities.Exercise.create({
@@ -183,9 +211,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
   });
 
+  // Reorder helpers — swap the `order` value with an immediate
+  // neighbor (one step up or down). Cheaper than rewriting every
+  // sibling's order, and matches what the up/down arrow UX implies
+  // (one nudge per click). Drag-and-drop reorder in PlanBuilder still
+  // wins for big rearrangements.
   const moveSectionMutation = useMutation({
     mutationFn: async ({ section, direction }) => {
-      const sorted = [...sections].filter(Boolean).sort((a, b) => (a.order || 0) - (b.order || 0));
+      const sorted = [...sections]
+        .filter(Boolean)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
       const idx = sorted.findIndex((s) => s.id === section.id);
       const targetIdx = idx + direction;
       if (idx < 0 || targetIdx < 0 || targetIdx >= sorted.length) return;
@@ -204,7 +239,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   const moveExerciseMutation = useMutation({
     mutationFn: async ({ exercise, direction }) => {
-      const same = exercises.filter((e) => e && e.training_section_id === exercise.training_section_id).sort((a, b) => (a.order || 0) - (b.order || 0));
+      const same = exercises
+        .filter((e) => e && e.training_section_id === exercise.training_section_id)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
       const idx = same.findIndex((e) => e.id === exercise.id);
       const targetIdx = idx + direction;
       if (idx < 0 || targetIdx < 0 || targetIdx >= same.length) return;
@@ -221,11 +258,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     onError: (err) => toast.error('❌ שגיאה: ' + (err?.message || 'נסה שוב')),
   });
 
+  // Duplicate an exercise in place — clone lands at the bottom of its
+  // section's order list so the coach sees it appear at the end and
+  // can drag it into position. id/created_at stripped so the row is a
+  // fresh insert, not an upsert.
   const duplicateExerciseMutation = useMutation({
     mutationFn: async (originalExercise) => {
       if (!originalExercise) return;
       const { id: _exId, created_at: _exCa, ...exFields } = originalExercise;
-      const same = exercises.filter((e) => e && e.training_section_id === originalExercise.training_section_id);
+      const same = exercises.filter(
+        (e) => e && e.training_section_id === originalExercise.training_section_id
+      );
       const maxOrder = Math.max(0, ...same.map((e) => Number(e.order) || 0));
       return await base44.entities.Exercise.create({
         ...exFields,
@@ -263,6 +306,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     mutationFn: ({ id, data }) => base44.entities.Exercise.update(id, prepareExerciseData(data)),
     onSuccess: async (data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
+      // Only show toast for explicit form saves, not toggle
       if (showExerciseDialog) {
         setShowExerciseDialog(false);
         setEditingExercise(null);
@@ -270,9 +314,119 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       }
     },
     onError: (error) => {
-      toast.error("שגיאה בעדכון התוכנית — נסה שוב");
+        console.error("Update failed", error);
+        toast.error("שגיאה בעדכון התוכנית — נסה שוב");
     }
   });
+
+  // --- Completion Logic ---
+
+  const checkAndTriggerPopups = (toggledExerciseId, isCompleted) => {
+    if (!isCompleted) return; // We don't trigger popups on uncheck
+
+    // Create a virtual state of exercises including the one just toggled
+    const validExercises = exercises.filter(Boolean);
+    const updatedExercises = validExercises.map((e) =>
+    e.id === toggledExerciseId ? { ...e, completed: true } : e
+    );
+
+    const toggledExercise = updatedExercises.find((e) => e.id === toggledExerciseId);
+    if (!toggledExercise) return;
+
+    const sectionId = toggledExercise.training_section_id;
+
+    // Check if Section is Complete
+    const sectionExercises = updatedExercises.filter((e) => e.training_section_id === sectionId);
+    const isSectionComplete = sectionExercises.length > 0 && sectionExercises.every((e) => e.completed);
+
+    // If Section Complete AND not handled this session
+    if (isSectionComplete && !completedSections.has(sectionId)) {
+      const section = sections.find((s) => s.id === sectionId);
+      if (section) {
+        // 1. Show Popup (Wait for user interaction before checking global completion)
+        setSectionFeedbackData({
+          sectionId: section.id,
+          sectionName: section.section_name,
+          rating: 7,
+          notes: ""
+        });
+        setShowSectionFeedbackDialog(true);
+
+        // 2. Update Local State & DB
+        if (!section.completed) {
+          updateSectionMutation.mutate({ id: sectionId, data: { completed: true } });
+        }
+        setCompletedSections((prev) => new Set([...prev, sectionId]));
+      }
+      return; // STOP HERE. 
+    }
+
+    // Only check global completion here if we DID NOT just finish a section (e.g. updating single exercise not in section, or section already completed)
+    // The Section Feedback Dialog will handle checking global completion on close.
+    if (!isSectionComplete || completedSections.has(sectionId)) {
+      const allExercisesComplete = updatedExercises.length > 0 && updatedExercises.every((e) => e.completed);
+      if (allExercisesComplete) {
+        setTimeout(() => showWorkoutSummary(updatedExercises), 700);
+      }
+    }
+  };
+
+  const showWorkoutSummary = (currentExercisesList, ratingsMap) => {
+    const completed = currentExercisesList.filter((e) => e.completed);
+    const totalExercises = completed.length;
+
+    // Calculate Stats
+    const totalSets = completed.reduce((acc, e) => acc + (parseInt(e.sets) || parseInt(e.rounds) || parseInt(e.tabata_sets) || parseInt(e.superset_rounds) || parseInt(e.combo_sets) || 0), 0);
+
+    const parseTime = (t) => {
+      if (!t) return 0;
+      if (typeof t === 'string' && t.includes(':')) {
+        const [m, s] = t.split(':').map(Number);
+        return (m || 0) * 60 + (s || 0);
+      }
+      return parseInt(t) || 0;
+    };
+
+    const totalWorkSeconds = completed.reduce((acc, e) => acc + parseTime(e.work_time), 0);
+    const totalRestSeconds = completed.reduce((acc, e) => acc + parseTime(e.rest_time), 0);
+
+    const formatTimeStat = (secs) => {
+      const m = Math.floor(secs / 60).toString().padStart(2, '0');
+      const s = (secs % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    };
+
+    const rpeValues = completed.map((e) => parseInt(e.rpe)).filter((v) => !isNaN(v) && v > 0);
+    const avgRPE = rpeValues.length > 0 ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1) : "-";
+
+    const effectiveRatings = ratingsMap || sectionRatings;
+    const ratingValues = Object.values(effectiveRatings);
+    const averageRating = ratingValues.length > 0
+      ? Math.round((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) * 10) / 10
+      : null;
+
+    const messages = [
+    "מעולה! האימון הושלם. רמת השליטה והביצוע שלך במגמת שיפור.",
+    "יפה מאוד! סיימת את כל הסקשנים בהצלחה.",
+    "עבודה חזקה! המשמעת שלך מביאה תוצאות.",
+    "כל הכבוד! עוד אימון נכנס ליומן ההיסטוריה.",
+    "סיימת את האימון! הגוף שלך מתחזק מאימון לאימון."];
+
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+
+    setSummaryData({
+      averageRating,
+      totalExercises,
+      totalSets,
+      totalWorkTime: formatTimeStat(totalWorkSeconds),
+      totalRestTime: formatTimeStat(totalRestSeconds),
+      avgRPE,
+      message: averageRating != null
+        ? `מעולה! האימון הושלם בציון ${averageRating}. ${randomMessage}`
+        : `מעולה! האימון הושלם. ${randomMessage}`,
+    });
+    setShowSummaryDialog(true);
+  };
 
   const deleteExerciseMutation = useMutation({
     mutationFn: (id) => base44.entities.Exercise.delete(id),
@@ -282,32 +436,44 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     },
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
+
   const getExercisesBySection = React.useCallback((sectionId) => {
     return exercises.filter((e) => e && e.training_section_id === sectionId).sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [exercises]);
-
+  }, [exercises
+       // Update Plan Stats when exercises change or complete
   useEffect(() => {
     if (plan && exercises.length > 0) {
       const total = exercises.length;
       const completed = exercises.filter(e => e.completed).length;
       const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-      const topExercises = exercises.slice(0, 5).map(e => `• ${e.exercise_name || e.name || 'תרגיל'}`).join('\n');
+      
+      // Generate preview text
+      const topExercises = exercises
+        .slice(0, 5)
+        .map(e => `• ${e.exercise_name || e.name || 'תרגיל'}`)
+        .join('\n');
+      
       const previewText = total > 5 ? `${topExercises}\n+ עוד ${total - 5}` : topExercises;
+
       if (plan.progress_percentage !== progress || plan.exercises_count !== total) {
-        const timer = setTimeout(() => {
-          base44.entities.TrainingPlan.update(plan.id, {
-            progress_percentage: progress,
-            exercises_count: total,
-            preview_text: previewText
-          }).catch(console.error);
-        }, 2000);
-        return () => clearTimeout(timer);
+         // Debounced update to avoid spamming DB
+         const timer = setTimeout(() => {
+            base44.entities.TrainingPlan.update(plan.id, {
+               progress_percentage: progress,
+               exercises_count: total,
+               preview_text: previewText
+            }).catch(console.error);
+         }, 2000);
+         return () => clearTimeout(timer);
       }
     }
   }, [exercises, plan]);
 
+  // Trainee-only: celebrate the transition to 100%. Ref flag ensures the
+  // modal fires only once per mount, so re-ticking after 100% (or loading
+  // an already-complete plan) doesn't retrigger.
   useEffect(() => {
-    if (canEdit) return;
+    if (canEdit) return;                 // coach side: no celebration
     if (!exercises || exercises.length === 0) return;
     const allDone = exercises.every(e => e.completed);
     if (allDone && !celebrationFiredRef.current) {
@@ -317,93 +483,21 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     if (!allDone) celebrationFiredRef.current = false;
   }, [exercises, canEdit]);
 
+  // Progress for the bottom bar (trainee view only)
   const exercisesTotal = exercises?.length ?? 0;
   const exercisesDone = exercises?.filter(e => e.completed).length ?? 0;
   const progressPct = exercisesTotal > 0 ? Math.round((exercisesDone / exercisesTotal) * 100) : 0;
 
-  const checkAndTriggerPopups = (toggledExerciseId, isCompleted) => {
-    if (!isCompleted) return;
-    const validExercises = exercises.filter(Boolean);
-    const updatedExercises = validExercises.map((e) => e.id === toggledExerciseId ? { ...e, completed: true } : e);
-    const toggledExercise = updatedExercises.find((e) => e.id === toggledExerciseId);
-    if (!toggledExercise) return;
-    const sectionId = toggledExercise.training_section_id;
-    const sectionExercises = updatedExercises.filter((e) => e.training_section_id === sectionId);
-    const isSectionComplete = sectionExercises.length > 0 && sectionExercises.every((e) => e.completed);
-
-    if (isSectionComplete && !completedSections.has(sectionId)) {
-      const section = sections.find((s) => s.id === sectionId);
-      if (section) {
-        setSectionFeedbackData({
-          sectionId: section.id,
-          sectionName: section.section_name,
-          control_rating: 5,
-          difficulty_rating: 5,
-          notes: ""
-        });
-        setShowSectionFeedbackDialog(true);
-        if (!section.completed) {
-          updateSectionMutation.mutate({ id: sectionId, data: { completed: true } });
-        }
-        setCompletedSections((prev) => new Set([...prev, sectionId]));
-      }
-      return;
-    }
-
-    if (!isSectionComplete || completedSections.has(sectionId)) {
-      const allExercisesComplete = updatedExercises.length > 0 && updatedExercises.every((e) => e.completed);
-      if (allExercisesComplete) {
-        setTimeout(() => showWorkoutSummary(updatedExercises), 700);
-      }
-    }
-  };
-
-  const showWorkoutSummary = (currentExercisesList) => {
-    const completed = currentExercisesList.filter((e) => e.completed);
-    const totalExercises = completed.length;
-    const totalSets = completed.reduce((acc, e) => acc + (parseInt(e.sets) || parseInt(e.rounds) || 0), 0);
-    const parseTime = (t) => {
-      if (!t) return 0;
-      if (typeof t === 'string' && t.includes(':')) {
-        const [m, s] = t.split(':').map(Number);
-        return (m || 0) * 60 + (s || 0);
-      }
-      return parseInt(t) || 0;
-    };
-    const totalWorkSeconds = completed.reduce((acc, e) => acc + parseTime(e.work_time), 0);
-    const totalRestSeconds = completed.reduce((acc, e) => acc + parseTime(e.rest_time), 0);
-    const formatTimeStat = (secs) => {
-      const m = Math.floor(secs / 60).toString().padStart(2, '0');
-      const s = (secs % 60).toString().padStart(2, '0');
-      return `${m}:${s}`;
-    };
-    const rpeValues = completed.map((e) => parseInt(e.rpe)).filter((v) => !isNaN(v) && v > 0);
-    const avgRPE = rpeValues.length > 0 ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1) : "-";
-    const ratings = currentExercisesList.map((e) => ({ c: e.control_rating || 5, d: e.difficulty_rating || 5 }));
-    const avgControl = ratings.length > 0 ? Math.round(ratings.reduce((acc, curr) => acc + curr.c, 0) / ratings.length * 10) / 10 : 5;
-    const avgDifficulty = ratings.length > 0 ? Math.round(ratings.reduce((acc, curr) => acc + curr.d, 0) / ratings.length * 10) / 10 : 5;
-    const messages = [
-      "מעולה! האימון הושלם.",
-      "יפה מאוד! סיימת את כל הסקשנים.",
-      "עבודה חזקה!",
-      "כל הכבוד!",
-    ];
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-    setSummaryData({
-      avgControl, avgDifficulty, totalExercises, totalSets,
-      totalWorkTime: formatTimeStat(totalWorkSeconds),
-      totalRestTime: formatTimeStat(totalRestSeconds),
-      avgRPE,
-      message: `${randomMessage} שליטה ממוצעת: ${avgControl}, קושי ממוצע: ${avgDifficulty}.`
-    });
-    setShowSummaryDialog(true);
-  };
-
   const handleToggleComplete = async (exercise) => {
+    // 1. Optimistic / Immediate Logic
     const newCompletedState = !exercise.completed;
+
+    // 2. Trigger Popup Checks (only if turning ON)
     if (newCompletedState) {
       checkAndTriggerPopups(exercise.id, true);
     }
+
+    // 3. Mutate DB
     await updateExerciseMutation.mutateAsync({
       id: exercise.id,
       data: { completed: newCompletedState }
@@ -415,6 +509,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       toast.error("נא למלא שם סקשן");
       return;
     }
+
     const order = editingSection?.order || sections.length + 1;
     const data = {
       ...sectionData,
@@ -425,6 +520,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       color_theme: sectionData.color_theme || null,
       icon: sectionData.icon || null
     };
+
     if (editingSection?.id) {
       await updateSectionMutation.mutateAsync({ id: editingSection.id, data });
     } else {
@@ -432,28 +528,76 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
   };
 
+  // --- SUMMARY GENERATOR ---
+  const generateTabataSummary = (blocks) => {
+    if (!blocks || blocks.length === 0) return "לא הוגדרו ערכי טבטה";
+
+    if (blocks.length === 1) {
+      const b = blocks[0];
+      const exList = (b.block_exercises || []).map(ex => ex.name).join(" • ");
+      const remaining = (b.block_exercises || []).length > 3 ? "…" : "";
+      // Show up to 3 items then truncate
+      const items = (b.block_exercises || []);
+      const displayEx = items.slice(0, 3).map(ex => ex.name).join(" • ") + (items.length > 3 ? ` (+${items.length - 3})` : "");
+      
+      return `עבודה: ${b.work_time}ש׳ | מנוחה: ${b.rest_time}ש׳ | סבבים: ${b.rounds} | בין סבבים: ${b.rest_between_rounds}ש׳ | סטים: ${b.sets}\nתרגילים: ${displayEx}`;
+    }
+
+    // Multiple blocks - Show up to 2
+    let summary = blocks.slice(0, 2).map((b, idx) => {
+      const name = b.name || `בלוק ${idx + 1}`;
+      const items = (b.block_exercises || []);
+      const exList = items.slice(0, 3).map(ex => ex.name).join(" • ");
+      const remaining = items.length > 3 ? "…" : "";
+      return `${name}: עבודה ${b.work_time}ש׳/מנוחה ${b.rest_time}ש׳ | סבבים ${b.rounds} | סטים ${b.sets} | ${exList}${remaining}`;
+    }).join("\n");
+
+    if (blocks.length > 2) {
+       summary += "\n…";
+    }
+    return summary;
+  };
+
   const handleSaveExercise = async (exerciseData) => {
+    // Explicit per-field validation with distinct error messages so
+    // the user knows exactly what's missing instead of seeing one
+    // generic "fill in name" toast for unrelated errors.
     if (!exerciseData?.exercise_name?.trim()) {
+      console.warn('[UnifiedPlanBuilder] handleSaveExercise: exercise_name missing');
       toast.error("שם התרגיל חסר");
       return;
     }
     if (!currentSection?.id) {
+      console.error('[UnifiedPlanBuilder] handleSaveExercise: currentSection.id missing', { currentSection });
       toast.error("יש לבחור סקציה לפני הוספת תרגיל");
       return;
     }
     if (!plan?.id) {
+      console.error('[UnifiedPlanBuilder] handleSaveExercise: plan.id missing', { plan });
       toast.error("יש לשמור את התוכנית קודם");
       return;
     }
 
+    // ── Sub-exercises / Container logic ─────────────────────────────
     let tabataPreview = null;
     let tabataData = null;
     const subExercises = exerciseData.sub_exercises || [];
 
     if (subExercises.length > 0) {
+      // Container exercise — serialize sub-exercises to tabata_data
       const containerType = exerciseData.mode === "טבטה" ? "tabata" : "list";
-      tabataData = JSON.stringify({ container_type: containerType, sub_exercises: subExercises });
-      tabataPreview = subExercises.map((s) => s.exercise_name || "תת-תרגיל").join(" • ");
+      tabataData = JSON.stringify({
+        container_type: containerType,
+        sub_exercises: subExercises,
+      });
+      tabataPreview = subExercises
+        .map((s) => s.exercise_name || "תת-תרגיל")
+        .join(" • ");
+    } else if (exerciseData.mode === "טבטה" && exerciseData.tabata_blocks?.length > 0) {
+      // Legacy tabata blocks (backward compat)
+      const blocks = exerciseData.tabata_blocks;
+      tabataPreview = generateTabataSummary(blocks);
+      tabataData = JSON.stringify({ blocks });
     }
 
     const sectionExercises = getExercisesBySection(currentSection.id);
@@ -470,6 +614,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       order,
       completed: editingExercise?.completed || false,
     };
+    // Clean up fields that don't exist as DB columns
     delete data.sub_exercises;
     delete data.tabataPreview;
     delete data.tabataData;
@@ -478,11 +623,59 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     try {
       if (editingExercise?.id) {
         await updateExerciseMutation.mutateAsync({ id: editingExercise.id, data });
+        toast.success("עודכן בהצלחה");
       } else {
         await createExerciseMutation.mutateAsync(data);
+        toast.success("נוצר בהצלחה");
       }
     } catch (error) {
-      toast.error("שגיאה בשמירה: " + (error?.message || 'נסה שוב'));
+      // Surface the actual error text so the user (and us) can tell
+      // a schema mismatch from a network failure from an RLS denial.
+      console.error("[UnifiedPlanBuilder] handleSaveExercise failed:", error, { data });
+      const msg = error?.message || error?.error?.message || error?.body?.message || 'נסה שוב';
+      toast.error("שגיאה בשמירה: " + msg);
+    }
+  };
+
+  const saveWorkoutExecution = async () => {
+    try {
+      const traineeId = plan.assigned_to || plan.created_by;
+      if (!traineeId) {
+        console.warn('[saveWorkoutExecution] no trainee id on plan');
+        return;
+      }
+
+      const completedCount = exercises.filter((e) => e && e.completed).length;
+      const completionPct = exercises.length > 0
+        ? Math.round((completedCount / exercises.length) * 100)
+        : 0;
+
+      const ratingValues = Object.values(sectionRatings);
+      const avg = ratingValues.length > 0
+        ? Math.round((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) * 10) / 10
+        : null;
+
+      const { error } = await supabase
+        .from('workout_executions')
+        .insert({
+          trainee_id: traineeId,
+          workout_template_id: plan.id,
+          plan_id: plan.id,
+          executed_at: new Date().toISOString(),
+          self_rating: avg,
+          completion_percent: completionPct,
+          section_ratings: sectionRatings,
+          notes: null,
+        });
+
+      if (error) {
+        console.warn('[saveWorkoutExecution] failed:', error.message);
+        toast.error('שגיאה בשמירת הציון');
+      } else if (avg != null) {
+        toast.success(`✅ הציון ${avg} נשמר`);
+      }
+    } catch (err) {
+      console.warn('[saveWorkoutExecution]', err);
     }
   };
 
@@ -490,92 +683,126 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     try {
       const completedCount = exercises.filter((e) => e && e.completed).length;
       const totalCount = exercises.length;
+
+      const currentDate = new Date().toISOString();
+
       const ratings = exercises.map((e) => ({ c: e.control_rating || 5, d: e.difficulty_rating || 5 }));
       const avgControl = Math.round(ratings.reduce((acc, curr) => acc + curr.c, 0) / (ratings.length || 1) * 10) / 10;
       const avgDifficulty = Math.round(ratings.reduce((acc, curr) => acc + curr.d, 0) / (ratings.length || 1) * 10) / 10;
+
       await base44.entities.WorkoutHistory.create({
         userId: plan.assigned_to || plan.created_by,
         planId: plan.id,
         planName: plan.plan_name,
-        date: new Date().toISOString(),
+        date: currentDate,
         mastery_avg: avgControl,
         difficulty_avg: avgDifficulty,
         notes: `הושלמו ${completedCount} מתוך ${totalCount} תרגילים`
       });
+
       if (shouldUpdatePlanStatus && !plan.is_template) {
         await base44.entities.TrainingPlan.update(plan.id, { status: 'הושלמה' });
       }
-      toast.success("🎉 האימון נשמר!");
+
+      toast.success("🎉 האימון נשמר ביומן ההיסטוריה!");
       if (onBack) onBack();
     } catch (error) {
+      console.error("Error saving workout log:", error);
       toast.error("שגיאה בשמירת האימון");
     }
   };
 
+  const handleFinishWorkout = async () => {
+    if (!confirm('האם ברצונך לסיים את האימון ולשמור אותו ביומן ההיסטוריה?')) return;
+    await saveWorkoutHistory();
+  };
+
+  // Loading gate — prevents the "blank flash" where the editor renders
+  // a 0-section / 0-exercise plan for ~200ms before the real data
+  // lands. Per the project's loading-gate rule we use isLoading only
+  // (never isFetching) so background refetches don't flicker the page.
   if (plan?.id && (sectionsLoading || exercisesLoading)) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200, direction: 'rtl' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 200,
+        direction: 'rtl',
+      }}>
         <div style={{ fontSize: 14, color: '#888' }}>טוען תוכנית...</div>
       </div>
     );
-  
+  }
+
   return (
     <div className="w-full pb-16 md:pb-24" dir="rtl">
+      {/* PLAN HEADER */}
       <div className="mb-6" style={{ backgroundColor: '#FF6F20', padding: '20px', borderRadius: '0 0 24px 24px' }}>
         <div className="flex items-center justify-center mb-4">
           <h1 className="text-2xl font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
             {plan.plan_name}
           </h1>
         </div>
-
-        {((Array.isArray(plan.goal_focus) && plan.goal_focus.length > 0) || (Array.isArray(plan.weekly_days) && plan.weekly_days.length > 0)) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 16 }}>
-            {(plan.goal_focus || []).map(f => (
-              <span key={`f-${f}`} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.18)', color: 'white' }}>{f}</span>
-            ))}
-            {(plan.weekly_days || []).map(d => (
-              <span key={`d-${d}`} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.28)', color: 'white' }}>{d}</span>
-            ))}
-          </div>
-        )}
-
+        
+        {/* Stat Chips */}
         <div className="grid grid-cols-4 gap-2 mb-4">
           <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white">{exercises.filter(e => e.completed).length}</div>
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {exercises.filter(e => e.completed).length}
+            </div>
             <div className="text-xs text-white/80 uppercase font-bold">ביצועים</div>
           </div>
           <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white">{sections.length}</div>
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {sections.length}
+            </div>
             <div className="text-xs text-white/80 uppercase font-bold">סקשנים</div>
           </div>
           <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white">{exercises.length}</div>
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {exercises.length}
+            </div>
             <div className="text-xs text-white/80 uppercase font-bold">תרגילים</div>
           </div>
           <div className="bg-white/20 rounded-lg p-3 text-center">
-            <div className="text-lg font-black text-white">{exercises.length > 0 ? Math.round((exercises.filter(e => e.completed).length / exercises.length) * 100) : 0}%</div>
+            <div className="text-lg font-black text-white" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              {exercises.length > 0 ? Math.round((exercises.filter(e => e.completed).length / exercises.length) * 100) : 0}%
+            </div>
             <div className="text-xs text-white/80 uppercase font-bold">הושלם</div>
           </div>
         </div>
-
+        
+        {/* Progress Bar */}
         <div className="bg-white/20 rounded-full h-2 overflow-hidden">
-          <div className="h-full bg-white transition-all duration-500" style={{ width: `${exercises.length > 0 ? (exercises.filter(e => e.completed).length / exercises.length) * 100 : 0}%` }}></div>
+          <div 
+            className="h-full bg-white transition-all duration-500"
+            style={{ width: `${exercises.length > 0 ? (exercises.filter(e => e.completed).length / exercises.length) * 100 : 0}%` }}
+          ></div>
         </div>
       </div>
-
+      
       <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px' }}>
-        {canEdit && (
-          <div className="mb-4 md:mb-6 w-full flex gap-2">
-            <Button onClick={(e) => { e.stopPropagation(); setEditingSection(null); setShowSectionDialog(true); }} className="flex-1 sm:flex-none rounded-xl py-3 md:py-4 font-bold text-white text-sm md:text-base" style={{ backgroundColor: '#FF6F20' }}>
+
+        {canEdit &&
+        <div className="mb-4 md:mb-6 w-full flex gap-2">
+            <Button onClick={(e) => {
+            e.stopPropagation();
+            setEditingSection(null);
+            setShowSectionDialog(true);
+          }}
+          className="flex-1 sm:flex-none rounded-xl py-3 md:py-4 font-bold text-white text-sm md:text-base"
+          style={{ backgroundColor: '#FF6F20' }}>
               <Plus className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
               הוסף סקשן חדש
             </Button>
           </div>
-        )}
+        }
 
         <div className="space-y-3 md:space-y-6 mb-20 md:mb-24 w-full">
           {sections.filter(Boolean).map((section, index) => {
             const sectionExercises = getExercisesBySection(section.id);
+            console.log('[UPB] rendering section:', section.id, 'exercises:', sectionExercises?.length);
             return (
               <SectionCard
                 key={section.id}
@@ -593,27 +820,46 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   setEditingExercise({ mode: "חזרות", exercise_name: "", weight_type: "bodyweight", completed: false });
                   setShowExerciseDialog(true);
                 }}
-                onEditSection={(sectionToEdit) => { setEditingSection(sectionToEdit); setShowSectionDialog(true); }}
-                onDeleteSection={(sectionId) => { if (confirm('למחוק סקשן זה?')) deleteSectionMutation.mutate(sectionId); }}
+                onEditSection={(sectionToEdit) => {
+                  setEditingSection(sectionToEdit);
+                  setShowSectionDialog(true);
+                }}
+                onDeleteSection={(sectionId) => {
+                  if (confirm('למחוק סקשן זה?')) deleteSectionMutation.mutate(sectionId);
+                }}
                 onDuplicateSection={(s) => duplicateSectionMutation.mutate(s)}
                 onMoveSection={(direction) => moveSectionMutation.mutate({ section, direction })}
                 isFirstSection={index === 0}
                 isLastSection={index === sections.filter(Boolean).length - 1}
                 onMoveExercise={(exercise, direction) => moveExerciseMutation.mutate({ exercise, direction })}
                 onDuplicateExercise={(exercise) => duplicateExerciseMutation.mutate(exercise)}
-                onDeleteExercise={(exerciseId) => { if (confirm('למחוק תרגיל זה?')) deleteExerciseMutation.mutate(exerciseId); }}
+                onDeleteExercise={(exerciseId) => {
+                  if (confirm('למחוק תרגיל זה?')) deleteExerciseMutation.mutate(exerciseId);
+                }}
                 showEditButtons={canEdit}
                 isCoach={isCoach}
-                plan={plan}
-                traineeProgressByExercise={traineeProgressByExercise}
-              />
-            );
+                plan={plan} 
+                onOpenExecution={(ex) => {
+                  setExecutionExercise(ex);
+                  setShowExecutionModal(true);
+                }}
+              />);
           })}
         </div>
+
+        {/* Save/Finish Button for Coach - Removed as requested */}
+
+        {/* Finish Button for Trainee - Removed as requested */}
       </div>
 
-      <Dialog open={showSectionDialog} onOpenChange={(open) => { if (!open) { setShowSectionDialog(false); setEditingSection(null); } }}>
-        <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
+      {/* Section Dialog */}
+      <Dialog open={showSectionDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowSectionDialog(false);
+          setEditingSection(null);
+        }
+      }}>
+        <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">{editingSection ? '✏️ ערוך סקשן' : '➕ סקשן חדש'}</DialogTitle>
           </DialogHeader>
@@ -623,62 +869,387 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               const merged = { ...editingSection, ...data };
               setEditingSection(merged);
               sectionFormRef.current = merged;
-            }}
-          />
+            }} />
+
           <div className="flex gap-3 pt-4">
-            <Button onClick={() => { setShowSectionDialog(false); setEditingSection(null); sectionFormRef.current = null; }} variant="outline" className="flex-1 rounded-xl py-6 font-bold">ביטול</Button>
+            <Button
+              onClick={() => {
+                setShowSectionDialog(false);
+                setEditingSection(null);
+                sectionFormRef.current = null;
+              }}
+              variant="outline"
+              className="flex-1 rounded-xl py-6 font-bold">
+              ביטול
+            </Button>
             <Button
               onClick={async () => {
+                // Use ref to get the absolute latest form data (avoids stale closure)
                 const formData = sectionFormRef.current || editingSection || {};
-                if (!formData.section_name) { toast.error("נא למלא שם סקשן"); return; }
+                if (!formData.section_name) {
+                  toast.error("נא למלא שם סקשן");
+                  return;
+                }
                 await handleSaveSection(formData);
               }}
               disabled={createSectionMutation.isPending || updateSectionMutation.isPending}
-              className="flex-1 rounded-xl py-6 font-bold text-white text-lg"
-              style={{ backgroundColor: '#FF6F20' }}
-            >
-              {createSectionMutation.isPending || updateSectionMutation.isPending ? <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</> : editingSection ? 'עדכן סקשן' : 'צור סקשן'}
+              className="flex-1 rounded-xl py-6 font-bold text-white text-lg" style={{ backgroundColor: '#FF6F20' }}>
+              {createSectionMutation.isPending || updateSectionMutation.isPending ?
+              <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</> :
+              editingSection ?
+              'עדכן סקשן' :
+
+              'צור סקשן'
+              }
             </Button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog
+            {/* Execution surface — coaches log actual performance numbers via
+          the existing modal; trainees see the full-screen reflection
+          screen that also persists a row to exercise_executions for
+          plan scoring. */}
+      {isCoach ? (
+        <ExerciseExecutionModal
+          isOpen={showExecutionModal}
+          onClose={() => {
+            setShowExecutionModal(false);
+            setExecutionExercise(null);
+          }}
+          exercise={executionExercise}
+          onSave={async (data) => {
+            await updateExerciseMutation.mutateAsync({ id: executionExercise.id, data });
+            setShowExecutionModal(false);
+            setExecutionExercise(null);
+            toast.success("✅ בוצע");
+            checkAndTriggerPopups(executionExercise.id, true);
+          }}
+          isLoading={updateExerciseMutation.isPending}
+        />
+      ) : (
+        <ExerciseExecution
+          isOpen={showExecutionModal}
+          onClose={() => {
+            setShowExecutionModal(false);
+            setExecutionExercise(null);
+          }}
+          exercise={executionExercise}
+          planId={plan.id}
+          traineeId={plan.assigned_to || null}
+          onCompletedExercise={async (ex) => {
+            await updateExerciseMutation.mutateAsync({ id: ex.id, data: { completed: true } });
+            checkAndTriggerPopups(ex.id, true);
+          }}
+        />
+      )}
 
-      <Dialog open={showExerciseDialog} onOpenChange={(open) => { if (!open) { setShowExerciseDialog(false); setEditingExercise(null); setCurrentSection(null); } }}>
+      {/* Exercise Dialog - Sticky Footer Layout */}
+      <Dialog open={showExerciseDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowExerciseDialog(false);
+          setEditingExercise(null);
+          setCurrentSection(null);
+        }
+      }}>
         <DialogContent className="w-[95vw] md:w-full max-w-2xl h-[90vh] md:h-auto md:max-h-[85vh] flex flex-col p-0 gap-0 bg-white overflow-hidden" style={{ borderRadius: '20px' }}>
           <div className="p-6 pb-4 border-b border-gray-50 bg-white z-20">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-black text-gray-900">{editingExercise ? '✏️ ערוך תרגיל' : '➕ תרגיל חדש'}</DialogTitle>
+              <DialogTitle className="text-2xl font-black text-gray-900">
+                {editingExercise ? '✏️ ערוך תרגיל' : '➕ תרגיל חדש'}
+              </DialogTitle>
             </DialogHeader>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 pt-2">
+          
+          <div className="flex-1 overflow-y-auto p-6 pt-2 scrollbar-hide">
             <ModernExerciseForm
               exercise={editingExercise || { mode: "חזרות", exercise_name: "", weight_type: "bodyweight" }}
-              onChange={(data) => setEditingExercise({ ...editingExercise, ...data })}
-            />
+              onChange={(data) => setEditingExercise({ ...editingExercise, ...data })} />
+
           </div>
-          <div className="p-4 bg-white z-20 border-t">
+
+          <div className="p-4 bg-white z-20 border-t border-[#E8E8E8]">
             <Button
               onClick={async () => {
                 const formData = editingExercise || {};
-                if (!formData.exercise_name) { toast.error("נא למלא שם תרגיל"); return; }
+                if (!formData.exercise_name) {
+                  toast.error("נא למלא שם תרגיל");
+                  return;
+                }
                 await handleSaveExercise(formData);
               }}
               disabled={createExerciseMutation.isPending || updateExerciseMutation.isPending}
-              className="w-full rounded-xl h-[56px] font-black text-white text-lg"
-              style={{ backgroundColor: '#FF6F20' }}
-            >
-              {createExerciseMutation.isPending || updateExerciseMutation.isPending ? <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</> : editingExercise ? 'עדכן תרגיל' : 'שמור תרגיל'}
+              className="w-full rounded-xl h-[56px] font-black text-white text-lg shadow-xl hover:shadow-2xl hover:scale-[1.01] transition-all"
+              style={{ backgroundColor: '#FF6F20' }}>
+
+              {createExerciseMutation.isPending || updateExerciseMutation.isPending ?
+              <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</> :
+              editingExercise ?
+              'עדכן תרגיל' :
+
+              'שמור תרגיל'
+              }
             </Button>
+            
+            <button
+              onClick={() => {
+                setShowExerciseDialog(false);
+                setEditingExercise(null);
+                setCurrentSection(null);
+              }}
+              className="w-full mt-3 text-gray-400 text-sm font-bold hover:text-gray-600 transition-colors">
+
+              ביטול וחזרה
+            </button>
           </div>
         </DialogContent>
       </Dialog>
 
+      {/* Summary Dialog */}
+      <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
+        <DialogContent
+          className="w-[90%] sm:max-w-[425px] bg-white p-6 text-center relative rounded-2xl border-none shadow-2xl z-[100] fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-h-[70vh] overflow-y-auto outline-none"
+          dir="rtl"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}>
+
+            <button
+            onClick={() => setShowSummaryDialog(false)}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors p-1">
+
+                <X className="w-5 h-5" />
+            </button>
+
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <Award className="w-8 h-8 text-green-600" />
+            </div>
+            <DialogTitle className="text-2xl font-black mb-2 text-gray-900">אימון הושלם!</DialogTitle>
+            
+            {summaryData &&
+          <div className="space-y-6">
+                    <p className="text-lg text-gray-600 font-medium">
+                        {summaryData.message}
+                    </p>
+
+                    {/* NEW STATS GRID */}
+                    <div className="grid grid-cols-3 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                        <div className="text-center flex flex-col items-center justify-center">
+                            <div className="text-xl font-black text-gray-800">{summaryData.totalExercises}</div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase">תרגילים</div>
+                        </div>
+                        <div className="text-center flex flex-col items-center justify-center border-r border-gray-200 border-l">
+                            <div className="text-xl font-black text-gray-800">{summaryData.totalSets}</div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase">סטים</div>
+                        </div>
+                        <div className="text-center flex flex-col items-center justify-center">
+                            <div className="text-xl font-black text-gray-800">{summaryData.avgRPE}</div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase">RPE ממוצע</div>
+                        </div>
+
+                        <div className="col-span-3 border-t border-gray-200 my-1"></div>
+
+                        <div className="text-center flex flex-col items-center justify-center">
+                            <div className="text-lg font-bold text-gray-800">{summaryData.totalWorkTime}</div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase">זמן עבודה</div>
+                        </div>
+                        <div className="col-span-2 text-center flex flex-col items-center justify-center border-r border-gray-200">
+                            <div className="text-lg font-bold text-gray-800">{summaryData.totalRestTime}</div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase">זמן מנוחה</div>
+                        </div>
+                    </div>
+
+                    <div style={{
+                      textAlign: 'center', padding: '20px',
+                      background: '#FFF5EE', borderRadius: 16,
+                      border: '2px solid #FF6F20', marginBottom: 16
+                    }}>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
+                        הציון שלך לאימון הזה
+                      </div>
+                      <div style={{ fontSize: 48, fontWeight: 700, color: '#FF6F20', lineHeight: 1 }}>
+                        {summaryData.averageRating != null ? summaryData.averageRating.toFixed(1) : '—'}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                        מתוך 10
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <Button
+                onClick={() => setShowSummaryDialog(false)}
+                variant="outline"
+                className="flex-1 h-12 rounded-xl font-bold border-gray-200 text-gray-600 hover:bg-gray-50">
+
+                            חזור לאימון
+                        </Button>
+                        <Button
+                onClick={async () => {
+                  await saveWorkoutExecution();
+                  await saveWorkoutHistory(true); // Auto-save and update status
+                  setShowSummaryDialog(false);
+
+                  // Notify Coach
+                  if (plan.created_by) {
+                    try {
+                      await base44.entities.Notification.create({
+                        user_id: plan.created_by,
+                        type: 'workout_completion',
+                        title: 'אימון הושלם בהצלחה! 🏆',
+                        message: `המתאמן ${plan.assigned_to_name || 'המתאמן'} השלים את אימון "${plan.plan_name}"`,
+                        is_read: false
+                      });
+                    } catch (e) {console.error(e);}
+                  }
+                }}
+                className="flex-[2] h-12 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all"
+                style={{ backgroundColor: '#FF6F20' }}>
+
+                            סיום אימון
+                        </Button>
+                    </div>
+                </div>
+          }
+        </DialogContent>
+      </Dialog>
+
+      {/* Section Feedback Dialog */}
+      <Dialog open={showSectionFeedbackDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowSectionFeedbackDialog(false);
+          setTimeout(async () => {
+            const freshExercises = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
+            const allExercisesComplete = freshExercises.every((e) => e.completed);
+            if (allExercisesComplete) {
+              showWorkoutSummary(freshExercises);
+            }
+          }, 500);
+        } else {
+          setShowSectionFeedbackDialog(true);
+        }
+      }}>
+        <DialogContent
+          className="w-[90%] sm:max-w-[425px] bg-white p-5 relative rounded-2xl border-none shadow-2xl z-[100] fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-h-[70vh] overflow-y-auto outline-none"
+          dir="rtl"
+          onInteractOutside={(e) => {}}>
+
+          <button
+            onClick={() => {
+              setShowSectionFeedbackDialog(false);
+              setTimeout(async () => {
+                const freshExercises = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
+                const allExercisesComplete = freshExercises.every((e) => e.completed);
+                if (allExercisesComplete) {
+                  showWorkoutSummary(freshExercises);
+                }
+              }, 500);
+            }}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors p-1">
+
+              <X className="w-5 h-5" />
+          </button>
+
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black text-center">🎯 משוב על הסקשן</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="p-2 rounded-lg text-center" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+              <p className="text-base font-black" style={{ color: '#FF6F20' }}>{sectionFeedbackData.sectionName}</p>
+            </div>
+
+            <div style={{ marginBottom: 20, direction: 'rtl' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, textAlign: 'center' }}>
+                איך אתה מרגיש לגבי הסקשן הזה?
+              </div>
+              <div style={{
+                fontSize: 36, fontWeight: 700, color: '#FF6F20',
+                textAlign: 'center', marginBottom: 8
+              }}>
+                {Number(sectionFeedbackData.rating).toFixed(1)}
+              </div>
+              <input
+                type="range"
+                min="1" max="10" step="0.5"
+                value={sectionFeedbackData.rating}
+                onChange={(e) => setSectionFeedbackData({ ...sectionFeedbackData, rating: parseFloat(e.target.value) })}
+                style={{ width: '100%', accentColor: '#FF6F20' }}
+              />
+              <div style={{
+                display: 'flex', justifyContent: 'space-between',
+                fontSize: 11, color: '#888', marginTop: 4
+              }}>
+                <span>קשה</span>
+                <span>בסדר</span>
+                <span>מעולה</span>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold mb-1.5 block flex items-center gap-1 justify-center">
+                <Edit2 className="w-3 h-3" style={{ color: '#7D7D7D' }} />הערות (אופציונלי)
+              </Label>
+              <Textarea
+                value={sectionFeedbackData.notes}
+                onChange={(e) => setSectionFeedbackData({ ...sectionFeedbackData, notes: e.target.value })}
+                placeholder="איך הרגיש הסקשן? משהו מיוחד?"
+                className="text-xs min-h-[60px] resize-none text-center" />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={() => {
+                  setShowSectionFeedbackDialog(false);
+                  setTimeout(async () => {
+                    const freshExercises = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
+                    const allExercisesComplete = freshExercises.every((e) => e.completed);
+                    if (allExercisesComplete) {
+                      setTimeout(() => showWorkoutSummary(freshExercises), 700);
+                    }
+                  }, 500);
+                }}
+                variant="ghost"
+                className="flex-1 text-gray-500 hover:bg-gray-50 h-12 rounded-xl font-bold">
+                  ביטול
+              </Button>
+              <Button
+                onClick={() => {
+                  const newRatings = {
+                    ...sectionRatings,
+                    [sectionFeedbackData.sectionId]: sectionFeedbackData.rating,
+                  };
+                  setSectionRatings(newRatings);
+                  setShowSectionFeedbackDialog(false);
+                  toast.success(`✅ סקשן "${sectionFeedbackData.sectionName}" הושלם!`);
+
+                  setTimeout(async () => {
+                    const freshExercises = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
+                    const allExercisesComplete = freshExercises.every((e) => e.completed);
+                    if (allExercisesComplete) {
+                      showWorkoutSummary(freshExercises, newRatings);
+                    }
+                  }, 500);
+                }}
+                className="flex-[2] h-12 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all" style={{ backgroundColor: '#FF6F20' }}>
+                <Check className="w-4 h-4 ml-1" />
+                שמור
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Finish Button — only for trainees doing workout, not coaches editing */}
       {!canEdit && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black p-4 z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-black p-4 z-50" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}>
+          {/* Thin progress bar: fill #FF6F20 on #FFE5D0 track */}
           {exercisesTotal > 0 && (
             <div style={{ marginBottom: 10 }}>
-              <div style={{ height: 6, width: '100%', background: '#FFE5D0', borderRadius: 999, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${progressPct}%`, background: '#FF6F20', transition: 'width 0.25s ease' }} />
+              <div style={{
+                height: 6, width: '100%', background: '#FFE5D0',
+                borderRadius: 999, overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%', width: `${progressPct}%`,
+                  background: '#FF6F20', transition: 'width 0.25s ease',
+                }} />
               </div>
               <div style={{ color: '#FFE5D0', fontSize: 11, fontWeight: 600, marginTop: 4, textAlign: 'center' }}>
                 {exercisesDone} / {exercisesTotal} · {progressPct}%
@@ -702,8 +1273,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </div>
       )}
 
+      {/* "כל הכבוד" — fires once when the trainee ticks the last exercise */}
       <Dialog open={showCelebration} onOpenChange={(o) => { if (!o) setShowCelebration(false); }}>
-        <DialogContent className="max-w-sm" style={{ background: '#FFF9F0', border: '2px solid #FF6F20', borderRadius: 16 }}>
+        <DialogContent
+          className="max-w-sm"
+          style={{ background: '#FFF9F0', border: '2px solid #FF6F20', borderRadius: 16 }}>
           <DialogHeader>
             <DialogTitle style={{ color: '#FF6F20', fontWeight: 800, fontSize: 20, textAlign: 'center' }}>
               כל הכבוד! סיימת את התוכנית 💪
@@ -712,12 +1286,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           <div dir="rtl" style={{ textAlign: 'center', padding: '8px 0 16px', color: '#1a1a1a', fontSize: 14 }}>
             סימנת את כל התרגילים. המשך כך באימון הבא.
           </div>
-          <button onClick={() => setShowCelebration(false)} style={{ width: '100%', padding: 12, background: '#FF6F20', color: '#FFFFFF', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+          <button
+            onClick={() => setShowCelebration(false)}
+            style={{
+              width: '100%', padding: 12, background: '#FF6F20', color: '#FFFFFF',
+              border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer',
+            }}>
             סגור
           </button>
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div>);
+
 }
+      
   
