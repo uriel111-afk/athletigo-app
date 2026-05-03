@@ -133,23 +133,30 @@ export function WorkoutsInner({ showHeader = true } = {}) {
             <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#FF6F20', display: 'inline-block' }} />
           </div>
         ) : (
-          visiblePlans.map((plan) => {
-            const detailed = planDetails[plan.id];
-            const sections = detailed?.sections || [];
-            const exCount = sections.reduce((s, sec) => s + (sec.exercises?.length || 0), 0);
-            return (
-              <WorkoutFolder
-                key={plan.id}
-                plan={detailed || plan}
-                sectionsCount={sections.length}
-                exercisesCount={exCount}
-                executions={executionsByPlan[plan.id] || []}
-                onStart={handleStart}
-                onReview={handleReview(detailed || plan)}
-                onPreviewMaster={handlePreviewMaster}
-              />
-            );
-          })
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {visiblePlans.map((plan, i) => {
+              const detailed = planDetails[plan.id];
+              const sections = detailed?.sections || [];
+              const exCount = sections.reduce((s, sec) => s + (sec.exercises?.length || 0), 0);
+              return (
+                <React.Fragment key={plan.id}>
+                  <WorkoutFolder
+                    plan={detailed || plan}
+                    sectionsCount={sections.length}
+                    exercisesCount={exCount}
+                    executions={executionsByPlan[plan.id] || []}
+                    onStart={handleStart}
+                    onReview={handleReview(detailed || plan)}
+                    onPreviewMaster={handlePreviewMaster}
+                  />
+                  {/* Subtle divider between adjacent plan cards on the list. */}
+                  {i < visiblePlans.length - 1 && (
+                    <div style={{ height: 1, background: '#EEE', margin: '0 8px' }} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
         )}
       </div>
 

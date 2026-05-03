@@ -1,66 +1,171 @@
 import React, { useMemo, useState } from 'react';
+import { ChevronDown, ChevronUp, ChevronLeft } from 'lucide-react';
 import {
-  ChevronDown, ChevronUp, ChevronLeft, Play, Eye, Calendar, Award,
-} from 'lucide-react';
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer,
 } from 'recharts';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
 
-function formatLong(iso) {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleDateString('he-IL', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-    });
-  } catch { return ''; }
-}
-
 function formatShort(iso) {
   if (!iso) return '';
   try {
     return new Date(iso).toLocaleDateString('he-IL', {
-      day: '2-digit', month: '2-digit',
+      day: 'numeric', month: 'numeric',
     });
   } catch { return ''; }
 }
 
-function scoreBadgeColor(score) {
-  if (score == null) return { bg: '#F3F4F6', fg: '#6B7280' };
-  if (score >= 7) return { bg: '#DCFCE7', fg: '#16A34A' };
-  if (score >= 4) return { bg: '#FEF3C7', fg: '#B45309' };
-  return { bg: '#FEE2E2', fg: '#DC2626' };
-}
-
-function Divider() {
-  return <div style={{ height: 1, background: '#EAEAEA', margin: '14px 0' }} />;
-}
-
-function ScoreCircle({ score }) {
-  const display = score == null ? '—' : Number(score).toFixed(1);
+function GradientDivider() {
   return (
     <div style={{
-      width: 44, height: 44, borderRadius: '50%',
-      background: ORANGE, color: 'white',
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 13, fontWeight: 800,
-      flexShrink: 0,
+      height: 1,
+      background: 'linear-gradient(to right, #FF6F20, #FFE5D0, transparent)',
+      margin: '20px 0',
+      borderRadius: 999,
+    }} />
+  );
+}
+
+function ExecutionDivider() {
+  return (
+    <>
+      <div style={{ height: 8 }} />
+      <div style={{ height: 1, background: '#F0E4D0', margin: '0 16px' }} />
+      <div style={{ height: 8 }} />
+    </>
+  );
+}
+
+function trendFor(scores) {
+  if (!scores || scores.length < 2) return null;
+  const a = scores[scores.length - 2];
+  const b = scores[scores.length - 1];
+  if (b > a) return { icon: '↑', color: '#16A34A' };
+  if (b < a) return { icon: '↓', color: '#DC2626' };
+  return { icon: '→', color: '#888' };
+}
+
+function ImprovementGraph({ data }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{
+        padding: '24px 12px', textAlign: 'center', color: '#888',
+        background: '#FAFAFA', borderRadius: 14, border: '1px solid #F0F0F0',
+        fontSize: 13,
+      }}>
+        עוד לא ביצעת אימון זה · הגרף יופיע אחרי הביצוע הראשון
+      </div>
+    );
+  }
+
+  const lastScore = data[data.length - 1].score;
+  const trend = trendFor(data.map((d) => d.score));
+
+  return (
+    <div style={{
+      background: '#FFFFFF', borderRadius: 14,
+      border: '1px solid #F0F0F0', padding: 14,
     }}>
-      {display}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'baseline', marginBottom: 8, gap: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+          <span style={{ fontSize: 40, fontWeight: 800, color: ORANGE, lineHeight: 1 }}>
+            {lastScore.toFixed(1)}
+          </span>
+          {trend && (
+            <span style={{ fontSize: 16, fontWeight: 800, color: trend.color }}>
+              {trend.icon}
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#444' }}>
+          📈 גרף השיפור
+        </div>
+      </div>
+      <div style={{ height: 220, width: '100%' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+            <defs>
+              <linearGradient id="orangeGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={ORANGE} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={ORANGE} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+            <XAxis dataKey="date" fontSize={11} />
+            <YAxis domain={[0, 10]} fontSize={11} />
+            <Tooltip
+              formatter={(v) => [Number(v).toFixed(1), 'ציון']}
+              labelFormatter={(l) => l}
+            />
+            <Area
+              type="monotone" dataKey="score"
+              stroke="none" fill="url(#orangeGrad)"
+            />
+            <Line
+              type="monotone" dataKey="score"
+              stroke={ORANGE} strokeWidth={2.5}
+              dot={{ r: 4, fill: ORANGE }}
+              activeDot={{ r: 6, fill: ORANGE }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
 
-// One past-execution card. Loads the full read-only body lazily on first
-// expand by mounting WorkoutExecutionReadOnly in compact mode — it does
-// its own data fetch + caching.
-function ExecutionAccordionItem({ plan, execution, indexLabel }) {
+function MasterCard({ plan, sectionsCount, exercisesCount, onStart }) {
+  return (
+    <div style={{
+      position: 'relative',
+      background: '#EEF2FF',
+      border: '2px solid #818CF8',
+      borderRadius: 14,
+      padding: 16,
+    }}>
+      <span style={{
+        position: 'absolute', top: 10, left: 12,
+        fontSize: 10, fontWeight: 800, color: '#6D28D9',
+        background: '#F5F3FF',
+        padding: '2px 10px', borderRadius: 999,
+        letterSpacing: 0.5, border: '1px solid #DDD6FE',
+      }}>
+        תבנית
+      </span>
+      <div style={{ fontSize: 13, color: '#6366F1', fontWeight: 700, marginBottom: 6 }}>
+        🎯 אימון אב
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4, paddingLeft: 56 }}>
+        {plan.plan_name || plan.title || 'תוכנית'}
+      </div>
+      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>
+        {sectionsCount} סקשנים · {exercisesCount} תרגילים
+      </div>
+      <button
+        type="button"
+        onClick={() => onStart && onStart(plan)}
+        style={{
+          width: '100%', height: 48, borderRadius: 12,
+          background: ORANGE, color: 'white', border: 'none',
+          fontSize: 15, fontWeight: 800, cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
+        }}
+      >
+        שכפל והתחל אימון חדש
+      </button>
+    </div>
+  );
+}
+
+function ExecutionItem({ plan, execution, indexLabel }) {
   const [open, setOpen] = useState(false);
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
-
   return (
     <div style={{
       background: 'white',
@@ -76,31 +181,32 @@ function ExecutionAccordionItem({ plan, execution, indexLabel }) {
         style={{
           all: 'unset',
           cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          padding: '12px 16px',
-          width: '100%',
-          boxSizing: 'border-box',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, padding: '12px 16px',
+          width: '100%', boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
-          <div style={{ fontSize: 13, color: '#888' }}>
-            {formatLong(execution.executed_at)}
-          </div>
-          <div style={{
-            fontSize: 15, fontWeight: 800, color: DARK,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
-          </div>
+        <div style={{
+          fontSize: 15, fontWeight: 800, color: DARK,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          minWidth: 0,
+        }}>
+          {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <ScoreCircle score={score} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: '#888' }}>
+            {formatShort(execution.executed_at)}
+          </span>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            fontSize: 14, fontWeight: 800, color: ORANGE,
+          }}>
+            {score != null ? score.toFixed(1) : '—'}
+            <span style={{ fontSize: 12 }}>⭐</span>
+          </span>
           {open
-            ? <ChevronUp className="w-5 h-5" style={{ color: '#888' }} />
-            : <ChevronLeft className="w-5 h-5" style={{ color: '#888' }} />}
+            ? <ChevronUp className="w-4 h-4" style={{ color: '#888' }} />
+            : <ChevronLeft className="w-4 h-4" style={{ color: '#888' }} />}
         </div>
       </button>
       {open && (
@@ -116,18 +222,21 @@ function ExecutionAccordionItem({ plan, execution, indexLabel }) {
   );
 }
 
+// onReview / onPreviewMaster are kept in the prop list for backward
+// compat with any caller still passing them — the new design folds
+// review-latest into the inline accordion list and the master preview
+// into the inline master card.
 export default function WorkoutFolder({
   plan, sectionsCount, exercisesCount, executions,
-  onStart, onReview, onPreviewMaster,
+  onStart,
+  /* eslint-disable-next-line no-unused-vars */
+  onReview, /* eslint-disable-next-line no-unused-vars */ onPreviewMaster,
 }) {
   const [open, setOpen] = useState(false);
-
-  // Every row in workout_executions is a completed run in the new save
-  // model — there is no in-progress / status field.
   const completed = executions || [];
 
-  // Sort newest-first for the past-executions list, while assigning an
-  // index where the OLDEST run is "(1)" and the newest is "(N)".
+  // Newest-first for the accordion list, with index labels where the
+  // OLDEST run is "(1)" and the newest is "(N)".
   const numberedNewestFirst = useMemo(() => {
     const sorted = completed
       .slice()
@@ -136,11 +245,7 @@ export default function WorkoutFolder({
     return sorted.map((exec, i) => ({ exec, indexLabel: total - i }));
   }, [completed]);
 
-  const lastExecution = numberedNewestFirst[0]?.exec || null;
-  const lastScore = lastExecution?.self_rating ?? null;
-
-  // The improvement chart wants oldest→newest so the line moves left→right
-  // through time. (X axis renders LTR even in an RTL container.)
+  // Oldest→newest for the chart so the line moves left→right through time.
   const chartData = useMemo(
     () => completed
       .slice()
@@ -149,35 +254,24 @@ export default function WorkoutFolder({
       .map((e) => ({
         date: formatShort(e.executed_at),
         score: Number(e.self_rating),
-        completion: e.completion_percent != null ? Number(e.completion_percent) : null,
       })),
     [completed]
   );
 
-  const lastBadge = scoreBadgeColor(lastScore != null ? Number(lastScore) : null);
-
-  const handleStart = (e) => { e?.stopPropagation(); onStart && onStart(plan); };
-  const handleReviewLatest = (e) => {
-    e?.stopPropagation();
-    if (lastExecution) onReview && onReview(lastExecution);
-  };
-  const handlePreviewMaster = () => {
-    if (onPreviewMaster) onPreviewMaster(plan);
-  };
+  const lastScore = numberedNewestFirst[0]?.exec?.self_rating ?? null;
 
   return (
     <div
+      dir="rtl"
       style={{
         background: 'white',
-        border: '1px solid #E0E0E0',
+        borderRight: `4px solid ${ORANGE}`,
         borderRadius: 16,
-        boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
         overflow: 'hidden',
-        marginBottom: 12,
       }}
-      dir="rtl"
     >
-      {/* ───────────── Closed-folder header ───────────── */}
+      {/* ── Closed-folder header ────────────────────────────────── */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -193,32 +287,20 @@ export default function WorkoutFolder({
               marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}>
-              {plan.plan_name || plan.title || 'תוכנית'}
+              💪 {plan.plan_name || plan.title || 'תוכנית'}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 12, color: '#666' }}>
-              <span>{sectionsCount} סקשנים</span>
-              <span>·</span>
-              <span>{exercisesCount} תרגילים</span>
-              <span>·</span>
-              <span>{completed.length} ביצועים</span>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>
+              {sectionsCount} סקשנים · {exercisesCount} תרגילים
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, color: '#666' }}>
+              {completed.length} ביצועים
               {lastScore != null && (
-                <span style={{
-                  background: lastBadge.bg, color: lastBadge.fg,
-                  padding: '3px 10px', borderRadius: 999,
-                  fontSize: 12, fontWeight: 700,
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                }}>
-                  <Award className="w-3 h-3" />
-                  {Number(lastScore).toFixed(1)}
-                </span>
-              )}
-              {plan.created_at && (
-                <span style={{ fontSize: 11, color: '#888', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <Calendar className="w-3 h-3" />
-                  {formatLong(plan.created_at)}
-                </span>
+                <>
+                  {' · ציון אחרון: '}
+                  <span style={{ color: ORANGE, fontWeight: 800 }}>
+                    {Number(lastScore).toFixed(1)} ⭐
+                  </span>
+                </>
               )}
             </div>
           </div>
@@ -228,178 +310,43 @@ export default function WorkoutFolder({
               : <ChevronDown className="w-6 h-6" style={{ color: ORANGE }} />}
           </div>
         </div>
-
-        {/* Always-visible action row, even when the folder is closed. */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <button
-            type="button"
-            onClick={handleStart}
-            style={{
-              flex: 1, height: 44, borderRadius: 10,
-              background: ORANGE, color: 'white', border: 'none',
-              fontSize: 14, fontWeight: 800, cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center',
-              justifyContent: 'center', gap: 6,
-            }}
-          >
-            <Play className="w-4 h-4" />
-            התחל אימון
-          </button>
-          <button
-            type="button"
-            onClick={handleReviewLatest}
-            disabled={!lastExecution}
-            style={{
-              flex: 1, height: 44, borderRadius: 10,
-              background: 'white',
-              color: lastExecution ? DARK : '#AAA',
-              border: `1px solid ${lastExecution ? '#F0E4D0' : '#EEE'}`,
-              fontSize: 13, fontWeight: 700,
-              cursor: lastExecution ? 'pointer' : 'not-allowed',
-              display: 'inline-flex', alignItems: 'center',
-              justifyContent: 'center', gap: 6,
-            }}
-          >
-            <Eye className="w-4 h-4" />
-            צפה בביצועים קודמים
-          </button>
-        </div>
       </button>
 
-      {/* ───────────── Open-folder body ───────────── */}
+      {/* ── Open-folder body ───────────────────────────────────── */}
       {open && (
         <div style={{ padding: '0 16px 16px' }}>
-          {/* SECTION 1 — Improvement graph */}
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-              📈 התקדמות
-            </div>
-            {chartData.length === 0 ? (
-              <div style={{
-                padding: '20px 8px', textAlign: 'center', color: '#888',
-                fontSize: 12, background: '#FAFAFA',
-                border: '1px solid #F0F0F0', borderRadius: 12,
-              }}>
-                עוד לא ביצעת את האימון — הגרף יופיע אחרי הביצוע הראשון
+          <ImprovementGraph data={chartData} />
+
+          <GradientDivider />
+
+          <MasterCard
+            plan={plan}
+            sectionsCount={sectionsCount}
+            exercisesCount={exercisesCount}
+            onStart={onStart}
+          />
+
+          {completed.length > 0 && (
+            <>
+              <GradientDivider />
+
+              <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 10, color: DARK }}>
+                ביצועים קודמים ({completed.length})
               </div>
-            ) : (
-              <div style={{
-                background: '#FAFAFA', borderRadius: 12,
-                border: '1px solid #F0F0F0', padding: 12,
-                height: 160 + 24,
-              }}>
-                <div style={{ height: 160, width: '100%' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                      <XAxis dataKey="date" fontSize={11} />
-                      <YAxis domain={[0, 10]} fontSize={11} />
-                      <Tooltip
-                        formatter={(v, name) => {
-                          if (name === 'score') return [Number(v).toFixed(1), 'ציון'];
-                          return [v, name];
-                        }}
-                        labelFormatter={(l, payload) => {
-                          const p = payload?.[0]?.payload;
-                          if (!p) return l;
-                          const pct = p.completion != null ? ` · ${p.completion}% השלמה` : '';
-                          return `${l}${pct}`;
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="score"
-                        stroke={ORANGE}
-                        strokeWidth={2}
-                        dot={{ r: 4, fill: ORANGE }}
-                        activeDot={{ r: 6, fill: ORANGE }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <Divider />
-
-          {/* SECTION 2 — Master workout card. The card body (everything
-              outside the orange button) is itself tappable and opens
-              the master in read-only template mode. */}
-          <div
-            onClick={handlePreviewMaster}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handlePreviewMaster(); }}
-            style={{
-              position: 'relative',
-              background: '#F0F4FF',
-              border: '2px solid #CBD5FF',
-              borderRadius: 12,
-              padding: 16,
-              cursor: onPreviewMaster ? 'pointer' : 'default',
-            }}
-          >
-            <span style={{
-              position: 'absolute', top: 8, left: 12,
-              fontSize: 10, fontWeight: 800, color: '#64748B',
-              background: 'rgba(255,255,255,0.7)',
-              padding: '2px 8px', borderRadius: 999,
-              letterSpacing: 0.5,
-            }}>
-              תבנית
-            </span>
-            <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4, paddingLeft: 56 }}>
-              {plan.plan_name || plan.title || 'תוכנית'}
-            </div>
-            <div style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>
-              {sectionsCount} סקשנים · {exercisesCount} תרגילים
-            </div>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onStart && onStart(plan); }}
-              style={{
-                width: '100%', height: 48, borderRadius: 12,
-                background: ORANGE, color: 'white', border: 'none',
-                fontSize: 15, fontWeight: 800, cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center',
-                justifyContent: 'center', gap: 8,
-                boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
-              }}
-            >
-              <Play className="w-4 h-4" />
-              התחל אימון חדש
-            </button>
-          </div>
-
-          <Divider />
-
-          {/* SECTION 3 — Past executions, newest first, with inline expand. */}
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 10, color: DARK }}>
-              ביצועים קודמים ({completed.length})
-            </div>
-            {completed.length === 0 ? (
-              <div style={{
-                padding: 20, background: '#FAFAFA', borderRadius: 12,
-                border: '1px solid #F0F0F0',
-                fontSize: 13, color: '#888', textAlign: 'center',
-              }}>
-                עוד אין ביצועים — לחץ "התחל אימון חדש" כדי להתחיל.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {numberedNewestFirst.map(({ exec, indexLabel }) => (
-                  <ExecutionAccordionItem
-                    key={exec.id}
-                    plan={plan}
-                    execution={exec}
-                    indexLabel={indexLabel}
-                  />
+              <div>
+                {numberedNewestFirst.map(({ exec, indexLabel }, i) => (
+                  <React.Fragment key={exec.id}>
+                    <ExecutionItem
+                      plan={plan}
+                      execution={exec}
+                      indexLabel={indexLabel}
+                    />
+                    {i < numberedNewestFirst.length - 1 && <ExecutionDivider />}
+                  </React.Fragment>
                 ))}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>
