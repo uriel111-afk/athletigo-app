@@ -44,9 +44,19 @@ function PlanMetadataEditor({ plan, onSave, onClose }) {
   const [startDate, setStartDate] = useState(initial.start_date || '');
   const [description, setDescription] = useState(initial.description || '');
 
+  // Emoji card options matched to the dashboard's PlanFormDialog so
+  // both surfaces feel like the same product. Same labels too — when
+  // a plan was created there and then edited here, selections stay
+  // selected.
   const FOCUS_OPTS = [
-    'כוח', 'סיבולת', 'הרזיה', 'גמישות',
-    'בניית שריר', 'שיפור יציבה', 'בריאות כללית', 'ספורט ספציפי',
+    { label: 'כוח',     emoji: '💪' },
+    { label: 'סבולת',   emoji: '🏃' },
+    { label: 'גמישות',  emoji: '🧘' },
+    { label: 'טכניקה',  emoji: '🎯' },
+    { label: 'שיא',     emoji: '🏆' },
+    { label: 'מיומנות', emoji: '⚡' },
+    { label: 'כושר',    emoji: '⚡' },
+    { label: 'שיקום',   emoji: '🩷' },
   ];
   const DAY_OPTS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
   const DIFFICULTY_OPTS = ['מתחיל', 'בינוני', 'מתקדם', 'מקצועי'];
@@ -89,24 +99,39 @@ function PlanMetadataEditor({ plan, onSave, onClose }) {
           </button>
         </div>
 
-        {/* Goal focus */}
+        {/* Goal focus — emoji card grid (matches PlanFormDialog) */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#374151' }}>מוקדי אימון</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 8,
+          }}>
             {FOCUS_OPTS.map((opt) => {
-              const sel = goalFocus.includes(opt);
+              const sel = goalFocus.includes(opt.label);
               return (
-                <button key={opt} type="button"
+                <button key={opt.label} type="button"
                   onClick={() => setGoalFocus((prev) =>
-                    prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt])}
+                    prev.includes(opt.label) ? prev.filter((x) => x !== opt.label) : [...prev, opt.label])}
                   style={{
-                    padding: '6px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 13,
-                    background: sel ? '#FF6F20' : 'white',
-                    color: sel ? 'white' : '#374151',
-                    border: sel ? 'none' : '1px solid #E5E7EB',
-                    fontWeight: sel ? 600 : 400,
+                    padding: '16px 12px',
+                    borderRadius: 16,
+                    border: sel ? '2px solid #FF6F20' : '1px solid #E5E7EB',
+                    background: sel ? '#FFF5EE' : 'white',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 8,
+                    minWidth: 0,
                   }}>
-                  {opt}
+                  <span style={{ fontSize: 32, lineHeight: 1 }}>{opt.emoji}</span>
+                  <span style={{
+                    fontSize: 13, fontWeight: 600,
+                    color: sel ? '#FF6F20' : '#374151',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    maxWidth: '100%',
+                  }}>{opt.label}</span>
                 </button>
               );
             })}

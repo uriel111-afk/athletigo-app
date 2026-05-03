@@ -63,6 +63,20 @@ export default function WorkoutFolder({
               </>
             )}
           </div>
+          {plan.created_at && (
+            <div style={{
+              fontSize: 11,
+              color: '#aaa',
+              marginTop: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}>
+              📅 נוצר: {new Date(plan.created_at).toLocaleDateString('he-IL', {
+                day: 'numeric', month: 'long', year: 'numeric',
+              })}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4 }}>
           {isCoach && onEdit && (

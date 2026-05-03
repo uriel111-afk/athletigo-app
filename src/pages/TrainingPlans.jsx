@@ -970,7 +970,9 @@ export default function TrainingPlans() {
                       👤 {deletingPlan.assigned_to_name || 'ללא מתאמן'}
                     </p>
                     <p className="text-sm" style={{ color: '#7D7D7D' }}>
-                      🎯 {deletingPlan.goal_focus}
+                      🎯 {Array.isArray(deletingPlan.goal_focus)
+                        ? deletingPlan.goal_focus.join(', ')
+                        : (deletingPlan.goal_focus || '')}
                     </p>
                     <p className="text-xs mt-2" style={{ color: '#7D7D7D' }}>
                       📋 {getPlanSections(deletingPlan.id).length} סקשנים
