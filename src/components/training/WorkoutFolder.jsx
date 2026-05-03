@@ -4,12 +4,17 @@ import { ChevronLeft } from 'lucide-react';
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
 
-// One folder card on the main "אימונים" list. Tapping it calls
-// onSelect(plan) — navigation lives in Workouts.jsx, which mounts
-// WorkoutFolderDetail when a plan is selected. No expand-in-place
-// behavior here anymore.
+// One folder card on the main "אימונים" list. Tapping the card calls
+// onSelect(plan); navigation lives in Workouts.jsx and mounts
+// WorkoutFolderDetail when a plan is selected.
+//
+// When isCoach=true, an "✏️ עריכה" chip appears next to the chevron
+// and stops propagation on tap so the coach can jump straight into
+// UnifiedPlanBuilder (canEdit=true) without drilling into the folder
+// detail first.
 export default function WorkoutFolder({
-  plan, sectionsCount, exercisesCount, executions, onSelect,
+  plan, sectionsCount, exercisesCount, executions,
+  isCoach = false, onSelect, onEdit,
 }) {
   const completed = executions || [];
   const newestFirst = completed
@@ -18,13 +23,13 @@ export default function WorkoutFolder({
   const lastScore = newestFirst[0]?.self_rating ?? null;
 
   return (
-    <button
+    <div
       dir="rtl"
-      type="button"
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect && onSelect(plan)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect && onSelect(plan); }}
       style={{
-        all: 'unset',
-        display: 'block',
         cursor: 'pointer',
         boxSizing: 'border-box',
         width: '100%',
@@ -59,10 +64,29 @@ export default function WorkoutFolder({
             )}
           </div>
         </div>
-        <div style={{ paddingTop: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4 }}>
+          {isCoach && onEdit && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onEdit(plan); }}
+              style={{
+                padding: '6px 12px',
+                background: '#FFF5EE',
+                border: `1px solid ${ORANGE}`,
+                borderRadius: 8,
+                color: ORANGE,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ✏️ עריכה
+            </button>
+          )}
           <ChevronLeft className="w-6 h-6" style={{ color: ORANGE }} />
         </div>
       </div>
-    </button>
+    </div>
   );
 }

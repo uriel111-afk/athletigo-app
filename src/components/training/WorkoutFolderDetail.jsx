@@ -134,24 +134,21 @@ function ImprovementGraph({ data }) {
 }
 
 function MasterCard({
-  plan, sectionsCount, exercisesCount, isCoach, hasExecutions, onActivate,
+  plan, sectionsCount, exercisesCount, isCoach, hasExecutions,
+  onActivate, onEditPlan,
 }) {
-  // Coach edits, trainee runs. The trainee label flips to "בצע שוב" once
-  // there's at least one prior execution so the CTA reflects "do the
-  // master again" rather than implying a fresh start.
-  const buttonLabel = isCoach
-    ? 'ערוך אימון'
-    : (hasExecutions ? 'בצע שוב' : 'התחל אימון');
-
-  // The whole card is tappable — clicking anywhere outside the button
-  // also opens the workout view. Both paths land on the same
-  // UnifiedPlanBuilder mount, so this is just a larger tap target.
+  // Coach edits the master plan; trainee runs it. Tap target = whole
+  // card to give a generous hit area.
+  const traineeLabel = hasExecutions ? 'בצע שוב' : 'התחל אימון';
+  const handleCardTap = isCoach
+    ? () => onEditPlan && onEditPlan(plan)
+    : () => onActivate && onActivate();
   return (
     <div
-      onClick={onActivate}
+      onClick={handleCardTap}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onActivate && onActivate(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCardTap(); }}
       style={{
         position: 'relative',
         background: '#EEF2FF',
@@ -179,18 +176,37 @@ function MasterCard({
       <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>
         {sectionsCount} סקשנים · {exercisesCount} תרגילים
       </div>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onActivate && onActivate(); }}
-        style={{
-          width: '100%', height: 48, borderRadius: 12,
-          background: ORANGE, color: 'white', border: 'none',
-          fontSize: 15, fontWeight: 800, cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
-        }}
-      >
-        {buttonLabel}
-      </button>
+      {isCoach ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEditPlan && onEditPlan(plan); }}
+          style={{
+            width: '100%', padding: '12px',
+            background: 'white',
+            border: `2px solid ${ORANGE}`,
+            borderRadius: 12,
+            color: ORANGE,
+            fontWeight: 700,
+            fontSize: 15,
+            cursor: 'pointer',
+          }}
+        >
+          ✏️ ערוך תוכנית
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onActivate && onActivate(); }}
+          style={{
+            width: '100%', height: 48, borderRadius: 12,
+            background: ORANGE, color: 'white', border: 'none',
+            fontSize: 15, fontWeight: 800, cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
+          }}
+        >
+          {traineeLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -269,7 +285,7 @@ function ExecutionRow({ plan, execution, indexLabel }) {
 
 export default function WorkoutFolderDetail({
   plan, sectionsCount, exercisesCount, executions,
-  isCoach = false, onBack, onWorkoutFinished,
+  isCoach = false, onBack, onWorkoutFinished, onEditPlan,
 }) {
   // null = render the folder body. 'active' = full-screen workout via the
   // master button (canEdit/isCoach mirror the user's role).
@@ -362,6 +378,7 @@ export default function WorkoutFolderDetail({
           isCoach={isCoach}
           hasExecutions={completed.length > 0}
           onActivate={() => setActiveMode('active')}
+          onEditPlan={onEditPlan}
         />
 
         {completed.length > 0 && (

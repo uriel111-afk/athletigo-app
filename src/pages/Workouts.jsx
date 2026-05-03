@@ -6,6 +6,8 @@ import PageLoader from '@/components/PageLoader';
 import PermGate from '@/components/PermGate';
 import WorkoutFolder from '@/components/training/WorkoutFolder';
 import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
+import UnifiedPlanBuilder from '@/components/training/UnifiedPlanBuilder';
+import { toast } from 'sonner';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
 import { getExecutionsForPlan } from '@/lib/workoutExecutionApi';
 
@@ -25,6 +27,11 @@ export function WorkoutsInner({
   const queryClient = useQueryClient();
   const [view, setView] = useState('list');
   const [selectedPlan, setSelectedPlan] = useState(null);
+  // Coach-only plan editing surface. When set, replaces every other
+  // view with a full-screen UnifiedPlanBuilder mounted with
+  // canEdit=true / isCoach=true. Both the list-card edit chip and the
+  // master-card "ערוך תוכנית" button route through this state.
+  const [editingPlan, setEditingPlan] = useState(null);
 
   const { data: currentUser } = useQuery({
     queryKey: ['current-user-workouts'],
@@ -80,6 +87,21 @@ export function WorkoutsInner({
     setView('folder');
   };
 
+  const handleEditPlan = (plan) => {
+    if (!plan) return;
+    const detailed = planDetails[plan.id] || plan;
+    setEditingPlan(detailed);
+  };
+
+  const handleEditDone = () => {
+    setEditingPlan(null);
+    // Refresh the list so any edits show up in the folder details +
+    // exercise counts immediately.
+    queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+    queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
+    toast.success('התוכנית עודכנה בהצלחה ✅');
+  };
+
   const handleBack = () => {
     setView('list');
     setSelectedPlan(null);
@@ -95,6 +117,20 @@ export function WorkoutsInner({
 
   if (plansLoading) return <PageLoader />;
 
+  // Editing takes precedence over folder/list views — when a coach
+  // taps either the folder-card "עריכה" chip or the master-card
+  // "ערוך תוכנית" button, we replace the screen entirely.
+  if (editingPlan) {
+    return (
+      <UnifiedPlanBuilder
+        plan={editingPlan}
+        canEdit={true}
+        isCoach={true}
+        onBack={handleEditDone}
+      />
+    );
+  }
+
   if (view === 'folder' && selectedPlan) {
     const detailed = planDetails[selectedPlan.id] || selectedPlan;
     const sections = detailed?.sections || [];
@@ -108,6 +144,7 @@ export function WorkoutsInner({
         isCoach={isCoach}
         onBack={handleBack}
         onWorkoutFinished={handleWorkoutFinished}
+        onEditPlan={handleEditPlan}
       />
     );
   }
@@ -150,7 +187,9 @@ export function WorkoutsInner({
                     sectionsCount={sections.length}
                     exercisesCount={exCount}
                     executions={executionsByPlan[plan.id] || []}
+                    isCoach={isCoach}
                     onSelect={handleSelect}
+                    onEdit={handleEditPlan}
                   />
                   {i < visiblePlans.length - 1 && (
                     <div style={{ height: 1, background: '#EEE', margin: '0 8px' }} />
