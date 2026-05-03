@@ -705,7 +705,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       }
 
       toast.success("🎉 האימון נשמר ביומן ההיסטוריה!");
-      if (onBack) onBack();
+      // Navigation back is owned by the caller (the "סיום אימון" button
+      // handler) so we always navigate after the saves resolve, even
+      // when one of them throws — see the workout-completion popup.
     } catch (error) {
       console.error("Error saving workout log:", error);
       toast.error("שגיאה בשמירת האימון");
@@ -1134,11 +1136,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                         </Button>
                         <Button
                 onClick={async () => {
-                  await saveWorkoutExecution();
-                  await saveWorkoutHistory(true); // Auto-save and update status
+                  // Try both saves; swallow errors so navigation still
+                  // happens (the toast inside each save tells the user
+                  // when one fails). Navigation back lets the parent's
+                  // handleWorkoutFinished invalidate query caches so
+                  // the improvement graph picks up the new point.
+                  try { await saveWorkoutExecution(); } catch (e) { console.warn(e); }
+                  try { await saveWorkoutHistory(true); } catch (e) { console.warn(e); }
                   setShowSummaryDialog(false);
 
-                  // Notify Coach
+                  // Notify Coach (best-effort, doesn't block navigation)
                   if (plan.created_by) {
                     try {
                       await base44.entities.Notification.create({
@@ -1150,6 +1157,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                       });
                     } catch (e) {console.error(e);}
                   }
+
+                  if (onBack) onBack();
                 }}
                 className="flex-[2] h-12 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all"
                 style={{ backgroundColor: '#FF6F20' }}>
@@ -1280,7 +1289,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 }}
                 className="flex-[2] h-12 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all" style={{ backgroundColor: '#FF6F20' }}>
                 <Check className="w-4 h-4 ml-1" />
-                שמור
+                שמור והמשך
               </Button>
             </div>
           </div>

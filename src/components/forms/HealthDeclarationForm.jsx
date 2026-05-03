@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 
 // Standard PAR-Q-style screening, 8 yes/no questions per the casual
@@ -48,6 +49,7 @@ export default function HealthDeclarationForm({
                              // through a separate path (e.g. payment).
   onSigned,          // optional — fires after a successful save
 }) {
+  const queryClient = useQueryClient();
   // Default per variant:
   //   risk   → true  (assumed concern; trainee taps "לא" to clear)
   //   consent→ false (signature required; trainee taps "כן" to sign)
@@ -209,6 +211,16 @@ export default function HealthDeclarationForm({
       } catch (flagErr) {
         console.error('[HealthDec] flag write failed:', flagErr);
       }
+
+      // Force any cached user / health-declaration query to refetch so
+      // the auto-open gate in TraineeHome sees the new state on the
+      // next render and never re-prompts a trainee who just signed.
+      try {
+        queryClient.invalidateQueries({ queryKey: ['current-user'] });
+        queryClient.invalidateQueries({ queryKey: ['user'] });
+        queryClient.invalidateQueries({ queryKey: ['users'] });
+        queryClient.invalidateQueries({ queryKey: ['health-declarations'] });
+      } catch {}
 
       // Link the declaration to the session. When autoConfirmSession
       // is true (legacy/no-price flow), also flip status to 'confirmed'

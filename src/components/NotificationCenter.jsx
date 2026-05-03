@@ -18,7 +18,11 @@ export default function NotificationCenter({ userId, isCoach, onEdit, onDelete }
     queryKey: ['notifications', userId],
     queryFn: async () => {
       try {
-        return await base44.entities.Notification.filter({ user_id: userId }, '-created_at');
+        // Only fetch unread rows so dismissed/acknowledged notifications
+        // can't reappear in the list. The dismiss / acknowledge mutations
+        // both flip is_read=true, which immediately drops the row from
+        // future refetches.
+        return await base44.entities.Notification.filter({ user_id: userId, is_read: false }, '-created_at');
       } catch (error) {
         console.error("[NotificationCenter] Error loading notifications:", error);
         return [];

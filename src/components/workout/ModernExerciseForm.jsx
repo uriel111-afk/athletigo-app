@@ -907,8 +907,19 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       {/* ── Parameters Row — ALL params, scroll horizontally ────── */}
       <div className="mb-3 px-1">
         <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-wider">פרמטרים</label>
-        <div className="flex gap-1.5 overflow-x-auto whitespace-nowrap pb-1
-                        [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          style={{
+            display: 'flex',
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            gap: 8,
+            paddingBottom: 4,
+            whiteSpace: 'nowrap',
+          }}
+          className="[&::-webkit-scrollbar]:hidden"
+        >
           {ALL_PARAMETERS.map((p) => {
             const isCont = CONTAINER_PARAMS.has(p.id);
             const isConf = confirmedParams.has(p.id);

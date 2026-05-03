@@ -21,6 +21,34 @@ function targetForMode(ex) {
   return ex.reps || '';
 }
 
+// hasNumeric / buildParamsLine mirror the trainee active flow's
+// formatter. We never render a "?" — segments only appear when the
+// underlying field has a real, non-zero value.
+function hasNumeric(v) {
+  if (v == null || v === '' || v === '0') return false;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0;
+}
+function buildParamsLine(ex) {
+  const main = [];
+  if (hasNumeric(ex.sets))            main.push(`${ex.sets} סטים`);
+  if (hasNumeric(ex.reps))            main.push(`${ex.reps} חזרות`);
+  else if (hasNumeric(ex.work_time))  main.push(`${ex.work_time} שניות`);
+  else if (hasNumeric(ex.rounds))     main.push(`${ex.rounds} סבבים`);
+  else if (hasNumeric(ex.static_hold_time)) main.push(`${ex.static_hold_time} החזקה`);
+
+  const extras = [];
+  if (hasNumeric(ex.rest_time)) extras.push(`מנוחה ${ex.rest_time}''`);
+  if (hasNumeric(ex.weight))    extras.push(`${ex.weight} ק״ג`);
+  if (hasNumeric(ex.rpe))       extras.push(`RPE ${ex.rpe}`);
+  if (ex.tempo)                 extras.push(`טמפו ${ex.tempo}`);
+
+  const mainStr = main.join(' × ');
+  const extrasStr = extras.join(' · ');
+  if (mainStr && extrasStr) return `${mainStr} · ${extrasStr}`;
+  return mainStr || extrasStr || '';
+}
+
 function formatDate(iso) {
   if (!iso) return '';
   try {
@@ -66,10 +94,12 @@ function ExerciseRow({ exercise, completed, savedLogs }) {
           <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4 }}>
             {exercise.exercise_name || exercise.name || 'תרגיל'}
           </div>
-          <div style={{ fontSize: 12, color: '#666' }}>
-            {sets} סטים × {targetStr || '?'} {modeLabel(mode)}
-            {exercise.rest_time ? ` · מנוחה ${exercise.rest_time}''` : ''}
-          </div>
+          {(() => {
+            const params = buildParamsLine(exercise);
+            return params ? (
+              <div style={{ fontSize: 12, color: '#666' }}>{params}</div>
+            ) : null;
+          })()}
           {exercise.coach_private_notes && (
             <div style={{
               fontSize: 12, color: '#555', fontStyle: 'italic',
