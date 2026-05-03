@@ -1103,8 +1103,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       {/* Summary Dialog */}
       <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
         <DialogContent
-          className="w-[90%] sm:max-w-[425px] p-6 text-center relative rounded-2xl border-none shadow-2xl z-[100] fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-h-[70vh] overflow-y-auto outline-none text-white"
-          style={{ backgroundColor: '#1a1a1a' }}
+          className="w-[90%] sm:max-w-[425px] p-6 text-center relative rounded-2xl border-none shadow-2xl z-[100] outline-none text-white"
+          style={{
+            backgroundColor: '#1a1a1a',
+            position: 'fixed',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            maxHeight: 'calc(100vh - 120px)',
+            overflowY: 'auto',
+          }}
           dir="rtl"
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}>
@@ -1231,9 +1239,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         }
       }}>
         <DialogContent
-          className="w-[90%] sm:max-w-[425px] bg-white p-5 relative rounded-2xl border-none shadow-2xl z-[100] fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-h-[70vh] overflow-y-auto outline-none"
+          className="w-[90%] sm:max-w-[425px] bg-white p-5 relative rounded-2xl border-none shadow-2xl z-[100] outline-none"
           dir="rtl"
-          onInteractOutside={(e) => {}}>
+          style={{
+            position: 'fixed',
+            left: '50%',
+            top: 'auto',
+            bottom: 'max(env(safe-area-inset-bottom), 110px)',
+            transform: 'translateX(-50%)',
+            maxHeight: 'calc(100vh - 180px)',
+            overflowY: 'auto',
+          }}
+          onInteractOutside={(e) => e.preventDefault()}>
 
           <button
             onClick={() => {
