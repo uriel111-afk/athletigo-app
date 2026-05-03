@@ -904,22 +904,15 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         }} />
       )}
 
-      {/* ── Parameters Row — ALL params, scroll horizontally ────── */}
+      {/* ── Parameters Grid — 4-col wrap so every param is visible ── */}
       <div className="mb-3 px-1">
         <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-wider">פרמטרים</label>
-        <div
-          style={{
-            display: 'flex',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            gap: 8,
-            paddingBottom: 4,
-            whiteSpace: 'nowrap',
-          }}
-          className="[&::-webkit-scrollbar]:hidden"
-        >
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8,
+          marginBottom: 16,
+        }}>
           {ALL_PARAMETERS.map((p) => {
             const isCont = CONTAINER_PARAMS.has(p.id);
             const isConf = confirmedParams.has(p.id);
@@ -928,33 +921,66 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             const field = getDbField(p.id);
             const val = exercise[field];
 
+            // Three visual states preserved from the previous design:
+            // idle (gray), confirmed-but-not-editing (orange tint), and
+            // currently editing (solid orange selected). Confirmed shows
+            // the saved value instead of the label.
+            let bg = 'white';
+            let color = '#6B7280';
+            let border = '1px solid #E5E7EB';
+            if (isEdit) {
+              bg = '#FF6F20'; color = 'white'; border = 'none';
+            } else if (isConf) {
+              bg = '#FFF7ED'; color = '#FF6F20'; border = '1px solid #FF6F20';
+            }
+
             return (
               <button key={p.id} type="button"
                 onClick={readOnly ? undefined : () => handleParamClick(p.id)}
                 disabled={readOnly}
-                style={{ cursor: readOnly ? 'default' : 'pointer' }}
-                className={`flex-shrink-0 w-[80px] flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-xl border h-[54px] transition-all ${readOnly ? '' : 'active:scale-[0.97]'}
-                  ${isConf && !isEdit
-                    ? (isCont
-                      ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-1 ring-[#FF6F20]/30"
-                      : "border-[#FF6F20]/40 bg-[#FFF3E0] text-[#FF6F20]")
-                    : isEdit
-                    ? "border-[#FF6F20] bg-[#FFF7ED] text-[#FF6F20] shadow-md ring-2 ring-[#FF6F20]/20"
-                    : "border-gray-200 bg-white text-gray-400" + (readOnly ? '' : ' hover:border-gray-300 hover:text-gray-600')}`}>
+                style={{
+                  padding: '8px 4px',
+                  borderRadius: 8,
+                  border,
+                  background: bg,
+                  color,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: readOnly ? 'default' : 'pointer',
+                  textAlign: 'center',
+                  minHeight: 56,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2,
+                }}
+                className={readOnly ? '' : 'active:scale-[0.97] transition-all'}
+              >
                 {isConf && !isEdit && !isCont ? (
                   <>
-                    <div className="flex items-center gap-0.5">
-                      <Check size={10} strokeWidth={3} className="text-[#FF6F20]" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Check size={10} strokeWidth={3} />
                       <Icon size={11} />
                     </div>
-                    <span className="text-[8px] font-bold leading-tight text-center truncate w-full">
+                    <span style={{
+                      fontSize: 8, fontWeight: 700, lineHeight: 1.1,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                    }}>
                       {getDisplay(p.id, val) || p.label}
                     </span>
                   </>
                 ) : (
                   <>
                     <Icon size={15} strokeWidth={2} />
-                    <span className="text-[9px] font-bold leading-tight text-center">{p.label}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, lineHeight: 1.1,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                    }}>
+                      {p.label}
+                    </span>
                   </>
                 )}
               </button>

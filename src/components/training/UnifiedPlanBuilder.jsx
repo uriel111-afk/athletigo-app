@@ -18,20 +18,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = false, onBack }) {
-  // Diagnostic — confirms the metadata fields the orange header
-  // expects are actually present on the plan row that landed here.
-  // Logs once per plan id change.
+  // Diagnostic — full plan object dump so we can see whatever shape
+  // legacy rows actually have (alternate field names, base44-injected
+  // metadata, etc.). Logs once per plan id change.
   useEffect(() => {
     if (plan) {
       // eslint-disable-next-line no-console
-      console.log('[HEADER] plan metadata:', {
-        goal_focus: plan.goal_focus,
-        weekly_days: plan.weekly_days,
-        difficulty_level: plan.difficulty_level,
-        duration_weeks: plan.duration_weeks,
-      });
+      console.log('[HEADER] full plan object:', JSON.stringify(plan, null, 2));
     }
   }, [plan?.id]);
+
+  // Resolve metadata fields against possible legacy aliases. Old rows
+  // saved before the schema unification can carry e.g. focus_areas,
+  // training_days, level, weeks. We pick whichever has data.
+  const headerGoalFocus =
+    (Array.isArray(plan?.goal_focus) && plan.goal_focus.length > 0 && plan.goal_focus) ||
+    (Array.isArray(plan?.focus_areas) && plan.focus_areas.length > 0 && plan.focus_areas) ||
+    null;
+  const headerWeeklyDays =
+    (Array.isArray(plan?.weekly_days) && plan.weekly_days.length > 0 && plan.weekly_days) ||
+    (Array.isArray(plan?.training_days) && plan.training_days.length > 0 && plan.training_days) ||
+    null;
+  const headerDifficulty = plan?.difficulty_level || plan?.level || null;
+  const headerWeeks = (() => {
+    const raw = plan?.duration_weeks ?? plan?.weeks;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
 
   const [showEditBuilder, setShowEditBuilder] = useState(false);
   const [showSectionDialog, setShowSectionDialog] = useState(false);
@@ -763,12 +776,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </div>
 
         {/* Metadata section — details row, goal_focus chips, weekly day
-            chips, and description. Each block renders only when its
-            source has a real value. Same banner for coach and trainee. */}
+            chips, and description. Reads through legacy aliases so old
+            plans (focus_areas / training_days / level / weeks) still
+            populate the header. Same banner for coach and trainee. */}
         <div style={{ marginBottom: 12 }}>
 
           {/* Details row: days/week + duration + difficulty */}
-          {(plan.weekly_days?.length > 0 || plan.duration_weeks || plan.difficulty_level) && (
+          {(headerWeeklyDays || headerWeeks || headerDifficulty) && (
             <div style={{
               fontSize: 13,
               color: 'rgba(255,255,255,0.9)',
@@ -777,15 +791,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               fontWeight: 500,
             }}>
               {[
-                plan.weekly_days?.length ? `${plan.weekly_days.length} פעמים בשבוע` : null,
-                plan.duration_weeks ? `${plan.duration_weeks} שבועות` : null,
-                plan.difficulty_level || null,
+                headerWeeklyDays ? `${headerWeeklyDays.length} פעמים בשבוע` : null,
+                headerWeeks ? `${headerWeeks} שבועות` : null,
+                headerDifficulty || null,
               ].filter(Boolean).join(' · ')}
             </div>
           )}
 
           {/* Goal focus chips */}
-          {Array.isArray(plan.goal_focus) && plan.goal_focus.length > 0 && (
+          {headerGoalFocus && (
             <div style={{
               display: 'flex',
               flexWrap: 'wrap',
@@ -793,7 +807,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               justifyContent: 'center',
               marginBottom: 8,
             }}>
-              {plan.goal_focus.map((f, i) => (
+              {headerGoalFocus.map((f, i) => (
                 <span key={i} style={{
                   fontSize: 11,
                   fontWeight: 600,
@@ -808,7 +822,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           )}
 
           {/* Weekly days chips */}
-          {Array.isArray(plan.weekly_days) && plan.weekly_days.length > 0 && (
+          {headerWeeklyDays && (
             <div style={{
               display: 'flex',
               flexWrap: 'wrap',
@@ -816,7 +830,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               justifyContent: 'center',
               marginBottom: 8,
             }}>
-              {plan.weekly_days.map((d, i) => (
+              {headerWeeklyDays.map((d, i) => (
                 <span key={i} style={{
                   fontSize: 11,
                   fontWeight: 700,

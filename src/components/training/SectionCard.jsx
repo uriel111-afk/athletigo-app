@@ -116,22 +116,20 @@ export default function SectionCard({
                   fontWeight: 500,
                   color: isTraineeView ? '#888' : style.subText,
                   marginTop: 2,
+                  display: 'block',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   maxWidth: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
                 }}
               >
-                <span style={{ flexShrink: 0 }}>{section.category || 'כללי'}</span>
-                <span className="opacity-50" style={{ flexShrink: 0 }}>·</span>
-                <span style={{ flexShrink: 0 }}>{exercises.length} תרגילים</span>
+                {(section.category || 'כללי')}
+                {' · '}
+                {exercises.length} תרגילים
                 {section.completed && (
                   <>
-                    <span className="opacity-50" style={{ flexShrink: 0 }}>·</span>
-                    <span className="text-green-500 font-bold" style={{ flexShrink: 0 }}>הושלם</span>
+                    {' · '}
+                    <span className="text-green-500 font-bold">הושלם</span>
                   </>
                 )}
               </div>
