@@ -120,15 +120,34 @@ function ImprovementGraph({ data }) {
   );
 }
 
-function MasterCard({ plan, sectionsCount, exercisesCount, isCoach, onActivate }) {
+function MasterCard({
+  plan, sectionsCount, exercisesCount, isCoach, hasExecutions, onActivate,
+}) {
+  // Coach edits, trainee runs. The trainee label flips to "בצע שוב" once
+  // there's at least one prior execution so the CTA reflects "do the
+  // master again" rather than implying a fresh start.
+  const buttonLabel = isCoach
+    ? 'ערוך אימון'
+    : (hasExecutions ? 'בצע שוב' : 'התחל אימון');
+
+  // The whole card is tappable — clicking anywhere outside the button
+  // also opens the workout view. Both paths land on the same
+  // UnifiedPlanBuilder mount, so this is just a larger tap target.
   return (
-    <div style={{
-      position: 'relative',
-      background: '#EEF2FF',
-      border: '2px solid #818CF8',
-      borderRadius: 14,
-      padding: 16,
-    }}>
+    <div
+      onClick={onActivate}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onActivate && onActivate(); }}
+      style={{
+        position: 'relative',
+        background: '#EEF2FF',
+        border: '2px solid #818CF8',
+        borderRadius: 14,
+        padding: 16,
+        cursor: 'pointer',
+      }}
+    >
       <span style={{
         position: 'absolute', top: 10, left: 12,
         fontSize: 10, fontWeight: 800, color: '#6D28D9',
@@ -149,7 +168,7 @@ function MasterCard({ plan, sectionsCount, exercisesCount, isCoach, onActivate }
       </div>
       <button
         type="button"
-        onClick={onActivate}
+        onClick={(e) => { e.stopPropagation(); onActivate && onActivate(); }}
         style={{
           width: '100%', height: 48, borderRadius: 12,
           background: ORANGE, color: 'white', border: 'none',
@@ -157,7 +176,7 @@ function MasterCard({ plan, sectionsCount, exercisesCount, isCoach, onActivate }
           boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
         }}
       >
-        {isCoach ? 'ערוך אימון' : 'התחל אימון חדש'}
+        {buttonLabel}
       </button>
     </div>
   );
@@ -322,6 +341,7 @@ export default function WorkoutFolderDetail({
           sectionsCount={sectionsCount}
           exercisesCount={exercisesCount}
           isCoach={isCoach}
+          hasExecutions={completed.length > 0}
           onActivate={() => setActiveMode('active')}
         />
 
