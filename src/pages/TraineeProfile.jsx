@@ -82,6 +82,7 @@ import { calculateAge, formatBirthWithAge } from "@/lib/dateHelpers";
 import ChartCard from "@/components/charts/ChartCard";
 import FilledArea from "@/components/charts/FilledArea";
 import GoalProgressRing from "@/components/charts/GoalProgressRing";
+import GoalsOverviewChart from "@/components/charts/GoalsOverviewChart";
 import { CHART_COLORS } from "@/components/charts/CHART_TOKENS";
 import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
@@ -3720,6 +3721,24 @@ export default function TraineeProfile() {
                     <Plus className="w-3 h-3 ml-1" />הוסף יעד
                   </Button>
                 </div>
+
+                {/* Goals overview chart — recharts horizontal bar chart
+                    of every goal with three summary cards above (total /
+                    completed / average %). Tap to open fullscreen. The
+                    per-goal cards below stay so the existing edit /
+                    cancel actions keep working. */}
+                {(goals || []).length > 0 && (
+                  <GoalsOverviewChart
+                    goals={(goals || []).map((g) => ({
+                      title: g.title || g.goal_name,
+                      progress: typeof g.progress === 'number'
+                        ? g.progress
+                        : (g.target_value && g.current_value
+                          ? Math.round((Number(g.current_value) / Number(g.target_value)) * 100)
+                          : 0),
+                    }))}
+                  />
+                )}
 
                 {/* Folder-card layout. Each goal_name is a folder.
                     Sources: users.training_goals (onboarding picks)
