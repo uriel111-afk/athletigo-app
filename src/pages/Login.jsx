@@ -117,18 +117,18 @@ export default function Login() {
       // app is already installed, only a small breathing space is needed.
       style={{
         backgroundColor: "#FFF9F0",
-        paddingTop: 20,
-        paddingBottom: isPWA ? 24 : 100,
+        paddingTop: 12,
+        paddingBottom: isPWA ? 24 : 160,
       }}
       dir="rtl"
     >
       <div className="w-full" style={{ maxWidth: 400 }}>
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 10 }}>
           <img
             src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 130, height: 'auto', objectFit: 'contain', marginBottom: 8, filter: 'brightness(0)' }}
+            style={{ width: 160, height: 'auto', objectFit: 'contain', marginBottom: 6, filter: 'brightness(0)' }}
           />
           <div style={{ fontSize: 15, color: '#888', fontWeight: 500, textAlign: 'center' }}>
             כניסה למערכת מאמנים ומתאמנים
