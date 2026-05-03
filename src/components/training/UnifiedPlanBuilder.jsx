@@ -744,7 +744,56 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             {plan.plan_name}
           </h1>
         </div>
-        
+
+        {/* Plan metadata — pills (goal_focus + weekly_days mixed),
+            difficulty + duration text, and description. Each block
+            renders only when its source field has a real value. Same
+            banner shown to coach and trainee. */}
+        {(() => {
+          const focuses = Array.isArray(plan.goal_focus) ? plan.goal_focus.filter(Boolean) : [];
+          const days = Array.isArray(plan.weekly_days) ? plan.weekly_days.filter(Boolean) : [];
+          const difficulty = plan.difficulty_level && String(plan.difficulty_level).trim();
+          const weeks = plan.duration_weeks && Number(plan.duration_weeks) > 0
+            ? Number(plan.duration_weeks)
+            : null;
+          const description = plan.description && String(plan.description).trim();
+          if (!focuses.length && !days.length && !difficulty && !weeks && !description) return null;
+          return (
+            <div className="mb-4">
+              {(focuses.length > 0 || days.length > 0) && (
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
+                  {focuses.map((f, i) => (
+                    <span key={`gf-${i}`} style={{
+                      background: 'rgba(255,255,255,0.2)', color: 'white',
+                      fontSize: 12, padding: '4px 10px', borderRadius: 999, fontWeight: 600,
+                    }}>{f}</span>
+                  ))}
+                  {days.map((d, i) => (
+                    <span key={`wd-${i}`} style={{
+                      background: 'rgba(255,255,255,0.3)', color: 'white',
+                      fontSize: 12, padding: '4px 10px', borderRadius: 999, fontWeight: 600,
+                    }}>{d}</span>
+                  ))}
+                </div>
+              )}
+              {(difficulty || weeks) && (
+                <div className="flex flex-wrap items-center justify-center gap-3 mb-1"
+                     style={{ fontSize: 12, color: 'white' }}>
+                  {difficulty && <span>💪 {plan.difficulty_level}</span>}
+                  {weeks && <span>{weeks} שבועות</span>}
+                </div>
+              )}
+              {description && (
+                <div className="text-center mt-1" style={{
+                  fontSize: 12, color: 'rgba(255,255,255,0.8)', fontStyle: 'italic',
+                }}>
+                  {plan.description}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Stat Chips */}
         <div className="grid grid-cols-4 gap-2 mb-4">
           <div className="bg-white/20 rounded-lg p-3 text-center">
