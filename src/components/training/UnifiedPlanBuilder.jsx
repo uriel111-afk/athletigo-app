@@ -760,12 +760,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             : null;
           const description = plan.description && String(plan.description).trim();
 
-          // SECTION 2 — details row: "{N} פעמים בשבוע · {weeks} שבועות
-          // · רמת קושי: {difficulty}". Skip parts that aren't set.
+          // Details row: "{N} פעמים בשבוע · {weeks} שבועות · {difficulty}".
+          // Skip any part whose source isn't set.
           const detailParts = [];
           if (days.length > 0) detailParts.push(`${days.length} פעמים בשבוע`);
           if (weeks) detailParts.push(`${weeks} שבועות`);
-          if (difficulty) detailParts.push(`רמת קושי: ${plan.difficulty_level}`);
+          if (difficulty) detailParts.push(plan.difficulty_level);
 
           if (
             !focuses.length && !days.length && !description &&
@@ -774,16 +774,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
           return (
             <div className="mb-4">
-              {/* SECTION 2 — details text row */}
+              {/* Details text row */}
               {detailParts.length > 0 && (
                 <div style={{
-                  fontSize: 13, color: 'white', textAlign: 'center', marginBottom: 8,
+                  fontSize: 13, color: 'rgba(255,255,255,0.85)',
+                  textAlign: 'center', marginBottom: 8,
                 }}>
                   {detailParts.join(' · ')}
                 </div>
               )}
 
-              {/* SECTION 3 — goal chips (rgba 0.2) */}
+              {/* Goal focus chips (rgba 0.2) */}
               {focuses.length > 0 && (
                 <div style={{
                   display: 'flex', flexWrap: 'wrap',
@@ -800,12 +801,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 </div>
               )}
 
-              {/* SECTION 4 — day chips (rgba 0.15, slightly tighter) */}
+              {/* Weekly day chips (rgba 0.15, tighter padding + tighter gap) */}
               {days.length > 0 && (
                 <div style={{
                   display: 'flex', flexWrap: 'wrap',
                   justifyContent: 'center', alignItems: 'center',
-                  gap: 6, marginBottom: 8,
+                  gap: 4, marginBottom: 10,
                 }}>
                   {days.map((d, i) => (
                     <span key={`wd-${i}`} style={{
@@ -817,19 +818,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 </div>
               )}
 
-              {/* SECTION 5 — description, italic, max 2 lines */}
+              {/* Description — italic, side-padded, 2-line clamp */}
               {description && (
                 <div style={{
                   textAlign: 'center',
                   fontSize: 12,
                   fontStyle: 'italic',
-                  color: 'rgba(255,255,255,0.8)',
+                  color: 'rgba(255,255,255,0.7)',
+                  paddingInline: 16,
+                  marginBottom: 10,
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  marginTop: 4,
                 }}>
                   {description}
                 </div>

@@ -111,39 +111,46 @@ export default function SectionCard({
                 {section.section_name}
               </h3>
               <div
-                className="flex items-center gap-2 mt-1"
                 style={{
                   fontSize: isTraineeView ? 13 : 12,
                   fontWeight: 500,
                   color: isTraineeView ? '#888' : style.subText,
+                  marginTop: 2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
                 }}
               >
-                <span>{section.category || 'כללי'}</span>
-                <span className="opacity-50">•</span>
-                <span>{exercises.length} תרגילים</span>
+                <span style={{ flexShrink: 0 }}>{section.category || 'כללי'}</span>
+                <span className="opacity-50" style={{ flexShrink: 0 }}>·</span>
+                <span style={{ flexShrink: 0 }}>{exercises.length} תרגילים</span>
                 {section.completed && (
                   <>
-                    <span className="opacity-50">•</span>
-                    <span className="text-green-500 font-bold">הושלם</span>
+                    <span className="opacity-50" style={{ flexShrink: 0 }}>·</span>
+                    <span className="text-green-500 font-bold" style={{ flexShrink: 0 }}>הושלם</span>
                   </>
                 )}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 pl-1 flex-shrink-0">
+          <div className="flex items-center gap-2 pl-1 flex-shrink-0">
             {showEditButtons && (
-              <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+              <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
                 {onMoveSection && (
                   <>
-                    <Button onClick={() => onMoveSection(-1)} disabled={isFirstSection} size="icon" variant="ghost" title="העלה סקשן" className="h-8 w-8 rounded-full hover:bg-gray-100 disabled:opacity-30" style={{ color: style.subText }}>↑</Button>
-                    <Button onClick={() => onMoveSection(1)} disabled={isLastSection} size="icon" variant="ghost" title="הורד סקשן" className="h-8 w-8 rounded-full hover:bg-gray-100 disabled:opacity-30" style={{ color: style.subText }}>↓</Button>
+                    <Button onClick={() => onMoveSection(-1)} disabled={isFirstSection} size="icon" variant="ghost" title="העלה סקשן" className="h-7 w-7 rounded-full hover:bg-gray-100 disabled:opacity-30" style={{ color: style.subText }}>↑</Button>
+                    <Button onClick={() => onMoveSection(1)} disabled={isLastSection} size="icon" variant="ghost" title="הורד סקשן" className="h-7 w-7 rounded-full hover:bg-gray-100 disabled:opacity-30" style={{ color: style.subText }}>↓</Button>
                   </>
                 )}
-                <Button onClick={() => onEditSection(section)} size="icon" variant="ghost" className="h-8 w-8 rounded-full hover:bg-gray-100" style={{ color: style.subText }}><Edit2 size={16} /></Button>
+                <Button onClick={() => onEditSection(section)} size="icon" variant="ghost" className="h-7 w-7 rounded-full hover:bg-gray-100" style={{ color: style.subText }}><Edit2 size={14} /></Button>
                 {onDuplicateSection && (
-                  <Button onClick={() => onDuplicateSection(section)} size="icon" variant="ghost" title="שכפל סקשן" className="h-8 w-8 rounded-full hover:bg-gray-100 text-base leading-none" style={{ color: style.subText }}>📋</Button>
+                  <Button onClick={() => onDuplicateSection(section)} size="icon" variant="ghost" title="שכפל סקשן" className="h-7 w-7 rounded-full hover:bg-gray-100 text-sm leading-none" style={{ color: style.subText }}>📋</Button>
                 )}
-                <Button onClick={() => onDeleteSection(section.id)} size="icon" variant="ghost" className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-500" style={{ color: style.subText }}><Trash2 size={16} /></Button>
+                <Button onClick={() => onDeleteSection(section.id)} size="icon" variant="ghost" className="h-7 w-7 rounded-full hover:bg-red-50 hover:text-red-500" style={{ color: style.subText }}><Trash2 size={14} /></Button>
               </div>
             )}
             <div className={`transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} style={{ color: style.chevron }}>
