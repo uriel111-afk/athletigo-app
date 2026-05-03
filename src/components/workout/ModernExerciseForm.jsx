@@ -174,20 +174,23 @@ const TimeWheel = ({ value, max, onChange, label }) => {
   const dec = () => onChange(value <= 0 ? max : value - 1);
 
   return (
-    <div className="flex flex-col items-center" style={{ width: 56 }}>
+    <div className="flex flex-col items-center"
+         style={{ minWidth: 56, textAlign: 'center', overflow: 'visible' }}>
       <button type="button" onClick={inc}
-              className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
-        <Plus size={12} strokeWidth={3} />
+              className="flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all"
+              style={{ width: 36, height: 36 }}>
+        <Plus size={14} strokeWidth={3} />
       </button>
       <input type="text" inputMode="numeric" value={pad(value)}
         onChange={(e) => { const n = parseInt(e.target.value) || 0; onChange(Math.min(max, Math.max(0, n))); }}
-        className="w-14 text-center font-black border-2 border-gray-200 rounded-xl bg-white focus:border-[#FF6F20] focus:outline-none select-all"
-        style={{ height: 40, fontSize: 28, lineHeight: 1 }} />
+        className="text-center font-black border-2 border-gray-200 rounded-xl bg-white focus:border-[#FF6F20] focus:outline-none select-all"
+        style={{ width: 56, height: 50, fontSize: 32, lineHeight: 1 }} />
       <button type="button" onClick={dec}
-              className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all">
-        <Minus size={12} strokeWidth={3} />
+              className="flex items-center justify-center text-gray-300 hover:text-[#FF6F20] active:scale-90 transition-all"
+              style={{ width: 36, height: 36 }}>
+        <Minus size={14} strokeWidth={3} />
       </button>
-      <span className="text-[8px] text-gray-400 font-bold mt-0.5">{label}</span>
+      <span className="text-[9px] text-gray-400 font-bold mt-0.5">{label}</span>
     </div>
   );
 };
@@ -207,17 +210,17 @@ const TimeUnitInput = ({ value, onChange }) => {
 
   const set = (m, s) => onChange(String(m * 60 + s));
 
-  // The whole picker is constrained to 180px so it never balloons the
-  // editor panel: smaller +/- buttons (32px), 28px digit font, 12px
-  // padding around the wheels.
+  // Wrapper minWidth 160 so digits never get squeezed by the editor
+  // panel chrome; overflow:visible so neither column gets clipped.
   return (
     <div className="flex flex-col items-center"
-         style={{ maxHeight: 180, padding: 12, boxSizing: 'border-box' }}>
-      <span className="text-[9px] text-gray-400 font-bold mb-1" dir="ltr">דקות : שניות</span>
-      <div className="flex items-start justify-center gap-0.5" dir="ltr">
+         style={{ minWidth: 160, padding: '16px 20px', overflow: 'visible' }}>
+      <span className="text-[10px] text-gray-400 font-bold mb-1" dir="ltr">דקות : שניות</span>
+      <div className="flex items-start justify-center gap-1" dir="ltr"
+           style={{ overflow: 'visible' }}>
         <TimeWheel value={mins} max={59} onChange={(m) => set(m, remSecs)} label="min" />
-        <span className="font-black text-gray-300 mx-0.5"
-              style={{ fontSize: 28, lineHeight: 1, marginTop: 36 }}>:</span>
+        <span className="font-black text-gray-300"
+              style={{ fontSize: 32, lineHeight: 1, marginTop: 38 }}>:</span>
         <TimeWheel value={remSecs} max={59} onChange={(s) => set(mins, s)} label="sec" />
       </div>
     </div>
@@ -337,7 +340,83 @@ function TempoInput({ value, onChange }) {
   );
 }
 
+// Body position — single-select chip group. Rendering inline (not via
+// the DEFAULTS → CompactSelect path) because the dropdown was reading
+// as empty content. Uses the spec's chip palette: 20-radius pills,
+// orange when selected, white with gray border idle.
+const BODY_POSITION_OPTIONS = [
+  'עמידה', 'ישיבה', 'שכיבה על הגב', 'שכיבה על הבטן',
+  'תלייה', 'ברכיים', 'צד ימין', 'צד שמאל', 'אחר',
+];
+// Equipment — multi-select. Stored as a comma-joined string so the
+// existing readers (ExerciseCard.buildMetaSegments) keep working
+// without a schema change.
+const EQUIPMENT_OPTIONS = [
+  'ללא ציוד', 'משקולות', 'מוט', 'קטלבל', 'גומיות', 'טבעות',
+  'מקבילים', 'TRX', 'תיבה', 'כדור', 'מכונה', 'אחר',
+];
+
+function ChipGrid({ options, selected, onToggle }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {options.map((opt) => {
+        const isSel = Array.isArray(selected) ? selected.includes(opt) : selected === opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onToggle(opt)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 20,
+              border: isSel ? 'none' : '1px solid #E5E7EB',
+              background: isSel ? '#FF6F20' : 'white',
+              color: isSel ? 'white' : '#374151',
+              fontSize: 13,
+              fontWeight: isSel ? 600 : 400,
+              cursor: 'pointer',
+            }}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ParamInputRenderer({ paramId, value, onChange, getOptions, onAddCustom }) {
+  // Body position (single-select chips)
+  if (paramId === 'body_position') {
+    return (
+      <ChipGrid
+        options={BODY_POSITION_OPTIONS}
+        selected={value || ''}
+        onToggle={(opt) => onChange(value === opt ? '' : opt)}
+      />
+    );
+  }
+
+  // Equipment (multi-select chips, comma-joined storage)
+  if (paramId === 'equipment') {
+    const selected = String(value || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return (
+      <ChipGrid
+        options={EQUIPMENT_OPTIONS}
+        selected={selected}
+        onToggle={(opt) => {
+          const next = selected.includes(opt)
+            ? selected.filter((s) => s !== opt)
+            : [...selected, opt];
+          onChange(next.join(', '));
+        }}
+      />
+    );
+  }
+
   // Time params
   if (["work_time", "rest_time", "rest_between_sets", "rest_between_exercises", "static_hold"].includes(paramId))
     return <TimeUnitInput value={value} onChange={onChange} />;
@@ -508,7 +587,7 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
                   </button>
                 </div>
               </div>
-              <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+              <div style={{ overflow: 'visible' }}>
                 <ParamInputRenderer paramId={editingParam} value={subEx[getDbField(editingParam)]}
                   onChange={(v) => update(getDbField(editingParam), v)} getOptions={getOptions} onAddCustom={onAddCustom} />
               </div>
@@ -1008,7 +1087,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               </button>
             </div>
           </div>
-          <div className="p-3" style={{ maxHeight: 200, overflowY: 'auto' }}>
+          <div className="p-3" style={{ overflow: 'visible' }}>
             <ParamInputRenderer
               paramId={editingParam}
               value={exercise[getDbField(editingParam)]}
