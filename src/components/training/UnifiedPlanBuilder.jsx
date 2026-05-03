@@ -28,17 +28,21 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
   }, [plan?.id]);
 
-  // Resolve metadata fields against possible legacy aliases. Old rows
-  // saved before the schema unification can carry e.g. focus_areas,
-  // training_days, level, weeks. We pick whichever has data.
-  const headerGoalFocus =
-    (Array.isArray(plan?.goal_focus) && plan.goal_focus.length > 0 && plan.goal_focus) ||
-    (Array.isArray(plan?.focus_areas) && plan.focus_areas.length > 0 && plan.focus_areas) ||
-    null;
-  const headerWeeklyDays =
-    (Array.isArray(plan?.weekly_days) && plan.weekly_days.length > 0 && plan.weekly_days) ||
-    (Array.isArray(plan?.training_days) && plan.training_days.length > 0 && plan.training_days) ||
-    null;
+  // Resolve metadata fields against possible legacy aliases AND legacy
+  // shapes. The codebase has two writers: one stores TEXT[] arrays
+  // (modern path), another stores comma-separated TEXT (legacy — see
+  // TrainingPlans.jsx:805 fallback). The header has to accept both.
+  const toList = (v) => {
+    if (!v) return null;
+    if (Array.isArray(v)) return v.filter(Boolean).length > 0 ? v.filter(Boolean) : null;
+    if (typeof v === 'string') {
+      const parts = v.split(/[,،]/).map((s) => s.trim()).filter(Boolean);
+      return parts.length > 0 ? parts : null;
+    }
+    return null;
+  };
+  const headerGoalFocus = toList(plan?.goal_focus) || toList(plan?.focus_areas);
+  const headerWeeklyDays = toList(plan?.weekly_days) || toList(plan?.training_days);
   const headerDifficulty = plan?.difficulty_level || plan?.level || null;
   const headerWeeks = (() => {
     const raw = plan?.duration_weeks ?? plan?.weeks;
@@ -1392,8 +1396,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   background: '#FF6F20', transition: 'width 0.25s ease',
                 }} />
               </div>
-              <div style={{ color: '#FFE5D0', fontSize: 11, fontWeight: 600, marginTop: 4, textAlign: 'center' }}>
-                {exercisesDone} / {exercisesTotal} · {progressPct}%
+              <div style={{
+                color: '#FFE5D0',
+                fontSize: 12,
+                fontWeight: 700,
+                marginTop: 4,
+                textAlign: 'center',
+                letterSpacing: 0.5,
+              }}>
+                {exercisesDone} / {exercisesTotal} תרגילים · {progressPct}% הושלם
               </div>
             </div>
           )}

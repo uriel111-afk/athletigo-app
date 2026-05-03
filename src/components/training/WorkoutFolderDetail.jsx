@@ -186,7 +186,7 @@ function ImprovementGraph({ data, executionsCount }) {
 
 function MasterCard({
   plan, sectionsCount, exercisesCount, isCoach, hasExecutions,
-  onActivate, onEditPlan,
+  onActivate, onEditPlan, onDuplicateExecution,
 }) {
   // Coach edits the master plan; trainee runs it. Tap target = whole
   // card to give a generous hit area.
@@ -228,22 +228,43 @@ function MasterCard({
         {sectionsCount} סקשנים · {exercisesCount} תרגילים
       </div>
       {isCoach ? (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onEditPlan && onEditPlan(plan); }}
-          style={{
-            width: '100%', padding: '12px',
-            background: 'white',
-            border: `2px solid ${ORANGE}`,
-            borderRadius: 12,
-            color: ORANGE,
-            fontWeight: 700,
-            fontSize: 15,
-            cursor: 'pointer',
-          }}
-        >
-          ✏️ ערוך תוכנית
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEditPlan && onEditPlan(plan); }}
+            style={{
+              width: '100%', padding: '12px',
+              background: 'white',
+              border: `2px solid ${ORANGE}`,
+              borderRadius: 12,
+              color: ORANGE,
+              fontWeight: 700,
+              fontSize: 15,
+              cursor: 'pointer',
+              marginBottom: 8,
+            }}
+          >
+            ✏️ ערוך תוכנית
+          </button>
+          {onDuplicateExecution && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDuplicateExecution(plan); }}
+              style={{
+                width: '100%', padding: '12px',
+                background: '#1a1a1a',
+                border: 'none',
+                borderRadius: 12,
+                color: ORANGE,
+                fontWeight: 700,
+                fontSize: 15,
+                cursor: 'pointer',
+              }}
+            >
+              📋 שכפל אימון למתאמן
+            </button>
+          )}
+        </>
       ) : (
         <button
           type="button"
@@ -337,6 +358,7 @@ function ExecutionRow({ plan, execution, indexLabel }) {
 export default function WorkoutFolderDetail({
   plan, sectionsCount, exercisesCount, executions,
   isCoach = false, onBack, onWorkoutFinished, onEditPlan,
+  onDuplicateExecution,
 }) {
   // null = render the folder body. 'active' = full-screen workout via the
   // master button (canEdit/isCoach mirror the user's role).
@@ -430,6 +452,7 @@ export default function WorkoutFolderDetail({
           hasExecutions={completed.length > 0}
           onActivate={() => setActiveMode('active')}
           onEditPlan={onEditPlan}
+          onDuplicateExecution={onDuplicateExecution}
         />
 
         {completed.length > 0 && (

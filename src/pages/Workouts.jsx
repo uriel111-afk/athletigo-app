@@ -9,7 +9,7 @@ import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
 import UnifiedPlanBuilder from '@/components/training/UnifiedPlanBuilder';
 import { toast } from 'sonner';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
-import { getExecutionsForPlan } from '@/lib/workoutExecutionApi';
+import { getExecutionsForPlan, createDuplicatedExecution } from '@/lib/workoutExecutionApi';
 
 // Optional props:
 //   traineeId — when set, the folder list belongs to this user (the
@@ -102,6 +102,17 @@ export function WorkoutsInner({
     toast.success('התוכנית עודכנה בהצלחה ✅');
   };
 
+  const handleDuplicateExecution = async (plan) => {
+    if (!plan?.id || !traineeId) return;
+    try {
+      await createDuplicatedExecution({ planId: plan.id, traineeId });
+      toast.success('האימון שוכפל בהצלחה ✅');
+      queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
+    } catch (e) {
+      toast.error('שכפול האימון נכשל: ' + (e?.message || 'נסה שוב'));
+    }
+  };
+
   const handleBack = () => {
     setView('list');
     setSelectedPlan(null);
@@ -145,6 +156,7 @@ export function WorkoutsInner({
         onBack={handleBack}
         onWorkoutFinished={handleWorkoutFinished}
         onEditPlan={handleEditPlan}
+        onDuplicateExecution={handleDuplicateExecution}
       />
     );
   }

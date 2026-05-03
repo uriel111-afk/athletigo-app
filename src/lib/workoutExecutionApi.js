@@ -22,6 +22,31 @@ export async function getExecutionsForPlan(planId, traineeId) {
   return data || [];
 }
 
+// Coach-side: duplicate the master plan as a fresh, unfilled execution
+// row owned by the trainee. Used by the "שכפל אימון למתאמן" button on
+// the master card in WorkoutFolderDetail. The resulting row appears in
+// the trainee's executions list immediately so they can open it later.
+export async function createDuplicatedExecution({
+  planId, traineeId, note = 'שוכפל על ידי המאמן',
+}) {
+  const { data, error } = await supabase
+    .from('workout_executions')
+    .insert({
+      plan_id: planId,
+      trainee_id: traineeId,
+      workout_template_id: planId,
+      executed_at: new Date().toISOString(),
+      self_rating: null,
+      completion_percent: 0,
+      section_ratings: {},
+      notes: note,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // All executions for one trainee across every plan. Used by the coach
 // view inside TraineeProfile to show a recent-executions list.
 export async function getAllExecutionsForTrainee(traineeId) {
