@@ -15,7 +15,7 @@ import {
 } from '@/lib/workoutExecutionApi';
 import { toast } from 'sonner';
 
-function WorkoutsInner() {
+export function WorkoutsInner({ showHeader = true } = {}) {
   const queryClient = useQueryClient();
   const [view, setView] = useState({ mode: 'list' }); // 'list' | 'execute' | 'review'
 
@@ -129,14 +129,16 @@ function WorkoutsInner() {
   const detailsReady = !detailsLoading && Object.keys(planDetails).length === visiblePlans.length;
 
   return (
-    <div dir="rtl" style={{ minHeight: '100vh', background: '#FAFAFA', paddingBottom: 80 }}>
-      <div style={{ padding: '16px 14px 8px', background: 'white', borderBottom: '1px solid #EEE' }}>
-        <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a1a' }}>אימונים</div>
-        <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-          תיקיית האימונים שלך — כל תוכנית היא תיקייה עם היסטוריית ביצועים
+    <div dir="rtl" style={{ minHeight: showHeader ? '100vh' : 'auto', background: showHeader ? '#FAFAFA' : 'transparent', paddingBottom: showHeader ? 80 : 0 }}>
+      {showHeader && (
+        <div style={{ padding: '16px 14px 8px', background: 'white', borderBottom: '1px solid #EEE' }}>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a1a' }}>אימונים</div>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+            תיקיית האימונים שלך — כל תוכנית היא תיקייה עם היסטוריית ביצועים
+          </div>
         </div>
-      </div>
-      <div style={{ padding: '14px' }}>
+      )}
+      <div style={{ padding: showHeader ? '14px' : '0' }}>
         {visiblePlans.length === 0 ? (
           <div style={{
             padding: 24, background: 'white', borderRadius: 16,

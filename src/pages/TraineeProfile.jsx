@@ -72,6 +72,7 @@ import PageLoader from "@/components/PageLoader";
 import InlineLoader from "@/components/InlineLoader";
 import PlanCard from "@/components/plans/PlanCard";
 import PlanEditorDialog from "@/components/plans/PlanEditorDialog";
+import { WorkoutsInner } from "@/pages/Workouts";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
 import ClientStatusPicker from "@/components/users/ClientStatusPicker";
@@ -5237,6 +5238,9 @@ export default function TraineeProfile() {
                   link that lands on it; this tab is the in-profile
                   experience the coach uses day-to-day. */}
               <TabsContent value="plans" className="space-y-4 w-full" dir="rtl">
+                {!isCoach ? (
+                  <WorkoutsInner showHeader={false} />
+                ) : (<>
                 {plansLoading && trainingPlans.length === 0 && (
                   <InlineLoader message="טוען תוכניות..." />
                 )}
@@ -5344,6 +5348,7 @@ export default function TraineeProfile() {
                     </div>
                   </div>
                 )}
+                </>)}
               </TabsContent>
 
               {/* Notifications Tab */}
