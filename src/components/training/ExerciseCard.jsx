@@ -266,6 +266,12 @@ export default function ExerciseCard({
 }) {
   const queryClient = useQueryClient();
   const [renamingExercise, setRenamingExercise] = useState(false);
+  // Tap on the exercise name opens a bottom sheet with the full
+  // prescription (params as readable rows + coach description).
+  // Long-press on the name still opens the inline rename input
+  // when canEdit && onRename, so the two gestures don't conflict —
+  // tap = open sheet, long-press = rename.
+  const [showDetail, setShowDetail] = useState(false);
   const longPressRename = useLongPress(() => {
     if (canEdit && onRename) setRenamingExercise(true);
   });
@@ -407,12 +413,21 @@ export default function ExerciseCard({
           />
         ) : (
           <div
+            onClick={() => setShowDetail(true)}
             {...(canEdit ? longPressRename : {})}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowDetail(true);
+              }
+            }}
             style={{
               fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 4,
               textDecoration: completed ? 'line-through' : 'none',
               textDecorationColor: completed ? '#FF6F20' : 'transparent',
-              cursor: canEdit ? 'pointer' : 'default',
+              cursor: 'pointer',
               userSelect: 'none',
             }}
           >
@@ -734,6 +749,109 @@ export default function ExerciseCard({
             setShowNotePopup(false);
           }}
         />
+      )}
+
+      {/* Detail bottom sheet — opens on name tap. Renders the
+          exercise's full prescription (params + coach description)
+          as readable rows, mobile-friendly. Backdrop click + סגור
+          button + Escape all dismiss. */}
+      {showDetail && (
+        <>
+          <div
+            onClick={() => setShowDetail(false)}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.4)', zIndex: 200,
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0,
+              background: 'white', borderRadius: '20px 20px 0 0',
+              padding: '24px 20px 40px', zIndex: 201,
+              maxHeight: '80vh', overflowY: 'auto', direction: 'rtl',
+            }}
+          >
+            <div style={{
+              width: 36, height: 4, background: '#E5E7EB',
+              borderRadius: 999, margin: '0 auto 20px',
+            }} />
+
+            <div style={{
+              fontSize: 28, fontWeight: 900, color: '#1a1a1a',
+              marginBottom: 8, fontFamily: 'Barlow Condensed, sans-serif',
+            }}>
+              {exercise.exercise_name || exercise.name || 'תרגיל'}
+            </div>
+
+            {coachNote && (
+              <div style={{
+                background: '#FFF5EE', borderRadius: 12,
+                padding: '12px 16px', marginBottom: 16,
+                fontSize: 14, color: '#FF6F20', fontStyle: 'italic',
+              }}>
+                {coachNote}
+              </div>
+            )}
+
+            {(() => {
+              const fmtTimeRow = (v) => {
+                const total = typeof v === 'string' && v.includes(':')
+                  ? (() => { const [m, s] = v.split(':').map(Number); return (m || 0) * 60 + (s || 0); })()
+                  : parseInt(v, 10);
+                if (Number.isNaN(total) || total <= 0) return null;
+                const m = Math.floor(total / 60);
+                const s = total % 60;
+                return `${m}:${String(s).padStart(2, '0')}`;
+              };
+              const rows = [
+                exercise.sets && exercise.sets !== '0' && `${exercise.sets} סטים`,
+                exercise.reps && exercise.reps !== '0' && `${exercise.reps} חזרות`,
+                exercise.rounds && exercise.rounds !== '0' && `${exercise.rounds} סבבים`,
+                exercise.work_time && (() => {
+                  const t = fmtTimeRow(exercise.work_time);
+                  return t ? `זמן עבודה: ${t}` : null;
+                })(),
+                exercise.rest_time && (() => {
+                  const t = fmtTimeRow(exercise.rest_time);
+                  return t ? `מנוחה: ${t}` : null;
+                })(),
+                exercise.weight && exercise.weight !== '0' && `משקל: ${exercise.weight} ק"ג`,
+                exercise.rpe && exercise.rpe !== '0' && `RPE: ${exercise.rpe}`,
+                exercise.tempo && `טמפו: ${exercise.tempo}`,
+                exercise.body_position,
+                exercise.equipment && (Array.isArray(exercise.equipment) ? exercise.equipment.join(', ') : exercise.equipment),
+                exercise.side,
+                exercise.grip,
+                exercise.range_of_motion,
+              ].filter(Boolean);
+              return rows.map((param, i) => (
+                <div key={i} style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  padding: '10px 0', borderBottom: '1px solid #F5F5F5',
+                  fontSize: 15, color: '#1a1a1a',
+                }}>
+                  <span>{param}</span>
+                </div>
+              ));
+            })()}
+
+            <button
+              type="button"
+              onClick={() => setShowDetail(false)}
+              style={{
+                width: '100%', padding: '14px', marginTop: 20,
+                background: '#FF6F20', border: 'none', borderRadius: 12,
+                color: 'white', fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(255,111,32,0.3)',
+              }}
+            >
+              סגור
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

@@ -1507,9 +1507,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       {/* Progress bar — always visible, sits OUTSIDE the header card
           so it stays in view whether the card is collapsed or not. */}
       <div style={{ padding: '0 20px', marginBottom: 16, marginTop: -8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: '#aaa' }}>התקדמות</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#FF6F20' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+          <span style={{ fontSize: 14, color: '#aaa' }}>התקדמות</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: '#FF6F20' }}>
             {Math.round(progressPct || 0)}%
           </span>
         </div>
