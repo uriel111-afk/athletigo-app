@@ -89,17 +89,21 @@ export default function SectionCard({
   if (!section) return null;
 
   const sType = getSectionType(section.category);
-  const traineePalette = getSectionColor(index);
+  // ALWAYS index-based — section.color from the DB is intentionally
+  // ignored so a plan's color rhythm stays uniform regardless of
+  // any legacy color override that might have been written to the
+  // row. Returns a flat hex string (with optional alpha suffix).
+  const sectionColor = getSectionColor(index);
   const isTraineeView = !showEditButtons;
   const style = isTraineeView
     ? {
-        bg: section.color ? '#FFFEFC' : traineePalette.bg,
-        text: section.color || traineePalette.text,
-        subText: section.color || traineePalette.text,
-        border: section.color || traineePalette.border,
+        bg: '#FFFEFC',
+        text: sectionColor,
+        subText: sectionColor,
+        border: sectionColor,
         iconBg: '#FFFFFF',
-        chevron: section.color || traineePalette.text,
-        accent: section.color || traineePalette.border,
+        chevron: sectionColor,
+        accent: sectionColor,
       }
     : {
         bg: '#FFFFFF',
@@ -108,7 +112,7 @@ export default function SectionCard({
         border: '#E5E7EB',
         iconBg: sType.bgColor,
         chevron: '#9CA3AF',
-        accent: sType.color,
+        accent: sectionColor,
       };
 
   return (
