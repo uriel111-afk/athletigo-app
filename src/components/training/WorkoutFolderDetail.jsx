@@ -404,21 +404,22 @@ function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete, 
             </span>
           ) : (
             <>
-              <div style={{
-                width: 34, height: 34, borderRadius: '50%',
-                background: hasScore ? ORANGE : '#F3F4F6',
-                color: hasScore ? 'white' : '#9CA3AF',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: hasScore ? 13 : 9,
-                fontWeight: 800,
-                lineHeight: 1,
-                textAlign: 'center',
-                padding: hasScore ? 0 : 2,
-                boxSizing: 'border-box',
-              }}>
-                {hasScore ? score.toFixed(1) : 'לא בוצע'}
-              </div>
-              <span style={{ fontSize: 12, color: '#888', width: 12, textAlign: 'center' }}>
+              {hasScore && (
+                <div style={{
+                  width: 34, height: 34, borderRadius: '50%',
+                  background: ORANGE, color: 'white',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 900, lineHeight: 1,
+                }}>
+                  {score.toFixed(1)}
+                </div>
+              )}
+              {completionNum > 0 && (
+                <span style={{ fontSize: 11, color: '#888' }}>
+                  {Math.round(completionNum)}%
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: '#ccc' }}>
                 {open ? '▲' : '▼'}
               </span>
             </>
