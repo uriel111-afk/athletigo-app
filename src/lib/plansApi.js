@@ -84,13 +84,22 @@ export async function duplicatePlan(sourcePlanId, traineeId) {
   return newPlan;
 }
 
+// 10-entry palette so plans with up to 10 sections give every
+// section a unique color before the cycle repeats. Order: brand
+// orange first, then a perceptually distinct rotation. Each entry
+// keeps the {bg, border, text} shape getSectionColor consumers
+// expect (SectionCard's trainee branch reads all three).
 export const SECTION_COLORS = [
-  { bg: '#FFF5EE', border: '#FF6F20', text: '#FF6F20' },
-  { bg: '#D1FAE5', border: '#16A34A', text: '#16A34A' },
-  { bg: '#EFF6FF', border: '#3B82F6', text: '#3B82F6' },
-  { bg: '#EDE9FE', border: '#7C3AED', text: '#7C3AED' },
-  { bg: '#FCE7F3', border: '#EC4899', text: '#EC4899' },
-  { bg: '#FEF3C7', border: '#F59E0B', text: '#F59E0B' },
+  { bg: '#FFF5EE', border: '#FF6F20', text: '#FF6F20' }, // כתום
+  { bg: '#EFF6FF', border: '#3B82F6', text: '#3B82F6' }, // כחול
+  { bg: '#D1FAE5', border: '#22C55E', text: '#16A34A' }, // ירוק
+  { bg: '#EDE9FE', border: '#A855F7', text: '#7C3AED' }, // סגול
+  { bg: '#FEE2E2', border: '#EF4444', text: '#DC2626' }, // אדום
+  { bg: '#FEF3C7', border: '#F59E0B', text: '#B45309' }, // צהוב
+  { bg: '#CFFAFE', border: '#06B6D4', text: '#0E7490' }, // טורקיז
+  { bg: '#FCE7F3', border: '#EC4899', text: '#DB2777' }, // ורוד
+  { bg: '#ECFCCB', border: '#84CC16', text: '#4D7C0F' }, // ליים
+  { bg: '#FFEDD5', border: '#F97316', text: '#C2410C' }, // כתום כהה
 ];
 
 export function getSectionColor(index) {

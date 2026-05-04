@@ -124,7 +124,7 @@ export default function SectionCard({
         : {
             backgroundColor: style.bg,
             border: `1px solid ${style.border}`,
-            borderLeft: `3px solid ${style.accent}`,
+            borderRight: `3px solid ${style.accent}`,
           }}
     >
       <div
