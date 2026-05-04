@@ -441,6 +441,17 @@ export default function ExerciseCard({
           </div>
         )}
 
+        {/* Sub-exercise count chip — only when this exercise is a
+            container with children. Tapping the name still opens
+            the modal where the full list renders. */}
+        {subExercises.length > 0 && (
+          <div style={{
+            fontSize: 13, color: '#FF6F20', fontWeight: 700, marginTop: 4,
+          }}>
+            {subExercises.length} תת-תרגילים ▼
+          </div>
+        )}
+
         {/* Per-set tracker — trainee view only, when the exercise is
             multi-set. One block per set: the input row (reps + ✓),
             then a conditional 1-10 difficulty prompt that surfaces
@@ -613,31 +624,39 @@ export default function ExerciseCard({
         )}
 
         {tabata && (
-          <div style={{ marginTop: 10, padding: 10, background: '#FFF9F0', borderRadius: 8, border: '1px solid #F0E4D0' }}>
-            <div style={{ fontSize: 11, color: '#FF6F20', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>טבטה</div>
-            <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: tabata.exercises.length > 0 ? 10 : 0 }}>
+          <div style={{ marginTop: 10, padding: 12, background: '#FFF9F0', borderRadius: 8, border: '1px solid #F0E4D0' }}>
+            <div style={{ fontSize: 13, color: '#FF6F20', fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>טבטה</div>
+            <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: tabata.exercises.length > 0 ? 12 : 0 }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>{tabata.work ?? '—'}{tabata.work ? "''" : ''}</div>
-                <div style={{ fontSize: 11, color: '#888' }}>עבודה</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>{tabata.work ?? '—'}{tabata.work ? "''" : ''}</div>
+                <div style={{ fontSize: 13, color: '#888' }}>עבודה</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>{tabata.rest ?? '—'}{tabata.rest ? "''" : ''}</div>
-                <div style={{ fontSize: 11, color: '#888' }}>מנוחה</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>{tabata.rest ?? '—'}{tabata.rest ? "''" : ''}</div>
+                <div style={{ fontSize: 13, color: '#888' }}>מנוחה</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>{tabata.rounds ?? '—'}</div>
-                <div style={{ fontSize: 11, color: '#888' }}>סבבים</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>{tabata.rounds ?? '—'}</div>
+                <div style={{ fontSize: 13, color: '#888' }}>סבבים</div>
               </div>
             </div>
             {tabata.exercises.length > 0 && (
               <div>
-                <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>תרגילים בסבב:</div>
+                <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 600 }}>תרגילים בסבב:</div>
                 {tabata.exercises.map((sub, i) => {
                   const { name, detail } = describeSub(sub);
                   return (
-                    <div key={i} style={{ fontSize: 14, color: '#1a1a1a', padding: '3px 0' }}>
-                      {i + 1}. {name}
-                      {detail && (<span style={{ fontSize: 12, color: '#888', marginRight: 6 }}> · {detail}</span>)}
+                    <div key={i} style={{
+                      fontSize: 16, fontWeight: 700, color: '#1a1a1a', padding: '6px 0',
+                      borderBottom: i < tabata.exercises.length - 1 ? '1px solid #F0E4D0' : 'none',
+                    }}>
+                      <span style={{ color: '#FF6F20', marginLeft: 6 }}>{i + 1}.</span>
+                      {name}
+                      {detail && (
+                        <div style={{ fontSize: 14, color: '#888', fontWeight: 400, marginTop: 2 }}>
+                          {detail}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -647,14 +666,24 @@ export default function ExerciseCard({
         )}
 
         {!tabata && exList && (
-          <div style={{ marginTop: 10, padding: 10, background: '#FFF9F0', borderRadius: 8, border: '1px solid #F0E4D0' }}>
-            <div style={{ fontSize: 11, color: '#FF6F20', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>רשימת תרגילים</div>
+          <div style={{ marginTop: 10, padding: 12, background: '#FFF9F0', borderRadius: 8, border: '1px solid #F0E4D0' }}>
+            <div style={{ fontSize: 13, color: '#FF6F20', fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>
+              רשימת תרגילים ({exList.exercises.length})
+            </div>
             {exList.exercises.map((sub, i) => {
               const { name, detail } = describeSub(sub);
               return (
-                <div key={i} style={{ fontSize: 14, color: '#1a1a1a', padding: '4px 0', borderBottom: i < exList.exercises.length - 1 ? '1px solid #F0E4D0' : 'none' }}>
-                  <div style={{ fontWeight: 500 }}>{i + 1}. {name}</div>
-                  {detail && (<div style={{ fontSize: 12, color: '#666' }}>{detail}</div>)}
+                <div key={i} style={{
+                  padding: '8px 0',
+                  borderBottom: i < exList.exercises.length - 1 ? '1px solid #F0E4D0' : 'none',
+                }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+                    <span style={{ color: '#FF6F20', marginLeft: 6 }}>{i + 1}.</span>
+                    {name}
+                  </div>
+                  {detail && (
+                    <div style={{ fontSize: 14, color: '#888', marginTop: 2 }}>{detail}</div>
+                  )}
                 </div>
               );
             })}
@@ -875,6 +904,60 @@ export default function ExerciseCard({
                 ));
               })()}
             </div>
+
+            {/* Sub-exercises — surfaces inside the detail modal when
+                this exercise is a container (tabata / superset /
+                exercise_list). Source uses the same getSubExercises
+                helper the closed card uses, so any persisted shape
+                (children / exercise_list / sub_exercises /
+                tabata_data.sub_exercises) renders identically. */}
+            {subExercises.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{
+                  fontSize: 14, fontWeight: 700, color: '#888',
+                  marginBottom: 12, paddingBottom: 8,
+                  borderBottom: '2px solid #FF6F20',
+                }}>
+                  רשימת תרגילים ({subExercises.length})
+                </div>
+                {subExercises.map((child, i) => {
+                  const { name, detail } = describeSub(child);
+                  const childNote = child.description || child.notes || child.coach_notes || null;
+                  return (
+                    <div key={i} style={{
+                      padding: '12px 14px',
+                      background: i % 2 === 0 ? '#FAFAFA' : 'white',
+                      borderRadius: 10,
+                      marginBottom: 8,
+                      border: '1px solid #F0E4D0',
+                    }}>
+                      <div style={{
+                        fontSize: 17, fontWeight: 700,
+                        color: '#1a1a1a', marginBottom: 4,
+                      }}>
+                        <span style={{ color: '#FF6F20', marginLeft: 6 }}>{i + 1}.</span>
+                        {name}
+                      </div>
+                      {detail && (
+                        <div style={{
+                          fontSize: 14, color: '#888', lineHeight: 1.6,
+                        }}>
+                          {detail}
+                        </div>
+                      )}
+                      {childNote && (
+                        <div style={{
+                          fontSize: 13, color: '#FF6F20',
+                          fontStyle: 'italic', marginTop: 6,
+                        }}>
+                          {childNote}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Per-set inputs in the modal — trainee only, when the
                 exercise is multi-set and the per-set wiring is plumbed.
