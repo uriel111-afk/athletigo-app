@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run lint:strict",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:strict": "eslint --config eslint.config.strict.js \"src/**/*.{js,jsx}\"",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview"
   },

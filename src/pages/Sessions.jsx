@@ -30,6 +30,7 @@ import { useNavigate } from "react-router-dom";
 import NewSessionCard from "@/components/sessions/SessionCard";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
+import { createPageUrl } from "@/utils";
 import { groupSessionsByTime, BUCKET_LABELS, statusMatchesFilter } from "@/lib/sessionGrouping";
 
 export default function Sessions() {
