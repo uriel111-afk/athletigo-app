@@ -1309,283 +1309,151 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           }}
         />
       )}
-      {/* PLAN HEADER — clean layout per spec, with inline rename
-          preserved (tap title → input + ✓/✕). Delete moved into the
-          metadata editor so the banner stays focused. */}
-      <div className="mb-6" style={{
-        backgroundColor: '#FF6F20',
-        padding: '20px 20px 16px',
-        borderRadius: '0 0 24px 24px',
+      {/* Plan Header Card — clean white surface with a thin orange
+          stripe at the top. Replaces the previous full-orange banner
+          plus the duplicate trainee info card; everything (goals,
+          weekly days, progress, stats) renders in one calm container.
+          Plan name editing routes through the metadata editor only;
+          the inline rename + ✓/✕ flow was dropped. */}
+      <div style={{
+        background: 'white',
+        borderRadius: 16,
+        overflow: 'hidden',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        direction: 'rtl',
+        margin: '0 16px 16px',
       }}>
-        {/* Title row: name + ערוך button (or input + ✓/✕ when renaming) */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 10, marginBottom: 8,
-        }}>
-          {canEdit && editingPlanName ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-              <input
-                value={tempPlanName}
-                onChange={(e) => setTempPlanName(e.target.value)}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); savePlanName(); }
-                  if (e.key === 'Escape') {
-                    setTempPlanName(plan.plan_name || '');
-                    setEditingPlanName(false);
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  fontSize: 24, fontWeight: 900, color: '#1a1a1a',
-                  background: 'white', border: 'none',
-                  borderRadius: 10, padding: '6px 12px',
-                  fontFamily: 'Barlow Condensed, sans-serif',
-                  textAlign: 'center', outline: 'none',
-                }}
-              />
-              <button
-                type="button"
-                onClick={savePlanName}
-                style={{
-                  padding: '6px 12px', borderRadius: 8,
-                  background: 'white', border: 'none',
-                  color: '#FF6F20', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                }}
-                aria-label="שמור"
-              >✓</button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTempPlanName(plan.plan_name || '');
-                  setEditingPlanName(false);
-                }}
-                style={{
-                  padding: '6px 12px', borderRadius: 8,
-                  background: 'rgba(255,255,255,0.2)', border: 'none',
-                  color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                }}
-                aria-label="בטל"
-              >✕</button>
-            </div>
-          ) : (
-            <>
-              <h1
-                style={{
-                  fontSize: 24, fontWeight: 900, color: 'white', margin: 0,
-                  fontFamily: 'Barlow Condensed, sans-serif',
-                  cursor: canEdit ? 'pointer' : 'default',
-                }}
-                onClick={() => {
-                  if (!canEdit) return;
-                  setTempPlanName(plan.plan_name || '');
-                  setEditingPlanName(true);
-                }}
-                title={canEdit ? 'לחץ לעריכת שם' : ''}
-              >
-                {plan.plan_name}
-              </h1>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => setShowMetadataEditor(true)}
-                  style={{
-                    padding: '4px 10px', borderRadius: 999,
-                    background: 'rgba(255,255,255,0.2)',
-                    border: '1px solid rgba(255,255,255,0.35)',
-                    color: 'white', fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}
-                >
-                  ✏️ ערוך
-                </button>
-              )}
-            </>
-          )}
-        </div>
+        <div style={{ height: 5, background: '#FF6F20' }} />
 
-        {/* Details row: days + duration + difficulty */}
-        {(weeklyDaysItems.length > 0 || plan.duration_weeks || plan.difficulty_level) && (
-          <div style={{
-            fontSize: 13, color: 'rgba(255,255,255,0.9)',
-            textAlign: 'center', marginBottom: 10, fontWeight: 500,
-          }}>
-            {[
-              weeklyDaysItems.length ? `${weeklyDaysItems.length} פעמים בשבוע` : null,
-              plan.duration_weeks ? `${plan.duration_weeks} שבועות` : null,
-              plan.difficulty_level || null,
-            ].filter(Boolean).join(' · ')}
-          </div>
-        )}
-
-        {/* Goal focus chips */}
-        {goalFocusItems.length > 0 && (
-          <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 6,
-            justifyContent: 'center', marginBottom: 10,
-          }}>
-            {goalFocusItems.map((f, i) => (
-              <span key={i} style={{
-                fontSize: 12, fontWeight: 600,
-                padding: '4px 12px', borderRadius: 999,
-                background: 'rgba(255,255,255,0.22)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.3)',
-              }}>{f}</span>
-            ))}
-          </div>
-        )}
-
-        {/* Weekly day circles */}
-        {weeklyDaysItems.length > 0 && (
-          <div style={{
-            display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 12,
-          }}>
-            {weeklyDaysItems.map((d, i) => (
-              <span key={i} style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.25)',
-                color: 'white', fontSize: 12, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{d}</span>
-            ))}
-          </div>
-        )}
-
-        {/* Description */}
-        {plan.description && (
-          <div style={{
-            fontSize: 12,
-            color: 'rgba(255,255,255,0.85)',
-            fontStyle: 'italic',
-            textAlign: 'center',
-            paddingInline: 20,
-            lineHeight: 1.4,
-            marginBottom: 12,
-          }}>
-            {plan.description}
-          </div>
-        )}
-
-        {/* Stats chips */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 8, marginBottom: 10,
-        }}>
-          {[
-            { value: `${exercises.filter((e) => e.completed).length}`, label: 'ביצועים' },
-            { value: `${sections.length}`, label: 'סקשנים' },
-            { value: `${exercises.length}`, label: 'תרגילים' },
-            { value: `${progressPct}%`, label: 'הושלם' },
-          ].map((stat) => (
-            <div key={stat.label} style={{
-              background: 'rgba(255,255,255,0.18)',
-              borderRadius: 10, padding: '8px 4px', textAlign: 'center',
+        <div style={{ padding: '20px 20px 14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 12 }}>
+            <h2 style={{
+              margin: 0,
+              fontFamily: 'Barlow Condensed, sans-serif',
+              fontSize: 32,
+              fontWeight: 700,
+              color: '#1a1a1a',
+              lineHeight: 1.1,
+              letterSpacing: '-0.5px',
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}>
-              <div style={{
-                fontSize: 18, fontWeight: 900, color: 'white',
-                fontFamily: 'Barlow Condensed, sans-serif',
-              }}>
-                {stat.value}
-              </div>
-              <div style={{
-                fontSize: 10, color: 'rgba(255,255,255,0.8)',
-                fontWeight: 700, textTransform: 'uppercase',
-              }}>
-                {stat.label}
-              </div>
-            </div>
-          ))}
+              {plan?.plan_name || 'תכנית אימון'}
+            </h2>
+            {canEdit && (
+              <button
+                onClick={() => setShowMetadataEditor(true)}
+                style={{
+                  background: '#FFF0E4',
+                  border: '1.5px solid #FF6F20',
+                  color: '#FF6F20',
+                  padding: '8px 16px',
+                  borderRadius: 999,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  fontFamily: 'Barlow, sans-serif',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+                ערוך
+              </button>
+            )}
+          </div>
+          <p style={{ margin: 0, fontSize: 15, color: '#888', fontFamily: 'Barlow, sans-serif' }}>
+            {`${goalFocusItems.length > 0 ? goalFocusItems.join(', ') + ' · ' : ''}${weeklyDaysItems.length || 0} פעמים בשבוע · ${plan?.duration_weeks || 0} שבועות · רמה ${plan?.difficulty_level || 'מתחיל'}`}
+          </p>
         </div>
 
-        {/* Progress bar */}
-        <div style={{
-          background: 'rgba(255,255,255,0.25)',
-          borderRadius: 999, height: 6, overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%', background: 'white',
-            width: `${progressPct}%`,
-            transition: 'width 0.5s ease',
-            borderRadius: 999,
-          }} />
+        {goalFocusItems.length > 0 && (
+          <div style={{ padding: '0 20px 16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {goalFocusItems.map((tag, i) => (
+              <span key={i} style={{
+                background: '#FFF0E4',
+                color: '#FF6F20',
+                padding: '6px 14px',
+                borderRadius: 999,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: 'Barlow, sans-serif',
+              }}>{tag}</span>
+            ))}
+          </div>
+        )}
+
+        {weeklyDaysItems.length > 0 && (
+          <div style={{ padding: '0 20px 16px' }}>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#888', fontWeight: 600, letterSpacing: '0.3px', fontFamily: 'Barlow, sans-serif' }}>
+              ימי אימון
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {['א','ב','ג','ד','ה','ו','ש'].map((day, idx) => {
+                const isActive = weeklyDaysItems.some((d) => {
+                  const map = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6, 'א': 0, 'ב': 1, 'ג': 2, 'ד': 3, 'ה': 4, 'ו': 5, 'ש': 6 };
+                  return (map[d] ?? -1) === idx;
+                });
+                return (
+                  <div key={idx} style={{
+                    flex: 1, maxWidth: 40, height: 40, borderRadius: '50%',
+                    background: isActive ? '#FF6F20' : '#F5EDDB',
+                    color: isActive ? 'white' : '#C4B79E',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16, fontWeight: isActive ? 700 : 500,
+                    fontFamily: 'Barlow Condensed, sans-serif', flexShrink: 0,
+                  }}>{day}</div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style={{ padding: '0 20px 18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 14, color: '#888', fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>התקדמות</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif' }}>{Math.round(progressPct || 0)}%</span>
+          </div>
+          <div style={{ height: 8, background: '#F5EDDB', borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{
+              width: `${Math.max(2, Math.round(progressPct || 0))}%`,
+              height: '100%', background: '#FF6F20', borderRadius: 999,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+        </div>
+
+        {/* Bottom stats — תרגילים / סקשנים / ביצועים. "ביצועים"
+            here means how many exercises the trainee has completed in
+            this run, matching the legacy banner's semantics. */}
+        <div style={{ display: 'flex', padding: '16px 20px', borderTop: '1px solid #F0E4D0', background: '#FFFCF8' }}>
+          {(() => {
+            const executionCount = exercises.filter((e) => e && e.completed).length;
+            const stats = [
+              { value: exercises.length, label: 'תרגילים' },
+              { value: sections.length, label: 'סקשנים' },
+              { value: executionCount, label: 'ביצועים' },
+            ];
+            return stats.map((stat, i, arr) => (
+              <React.Fragment key={stat.label}>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
+                </div>
+                {i < arr.length - 1 && <div style={{ width: 1, background: '#F0E4D0' }} />}
+              </React.Fragment>
+            ));
+          })()}
         </div>
       </div>
-
-      {/* Trainee-only info card under the orange banner — same data
-          rendered in a calmer, more readable surface. Only mounts when
-          there is actually data to show. */}
-      {!canEdit && (
-        (headerGoalFocus || headerWeeklyDays || headerDifficulty || headerWeeks || plan?.start_date)
-      ) && (
-        <div style={{
-          background: 'white',
-          borderRadius: 16,
-          padding: '16px 20px',
-          margin: '0 16px 16px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-          border: '1px solid #F0E4D0',
-          direction: 'rtl',
-        }}>
-          {headerGoalFocus && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>🎯 מוקדי האימון</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {headerGoalFocus.map((f, i) => (
-                  <span key={i} style={{
-                    padding: '4px 12px', borderRadius: 999,
-                    background: '#FFF5EE', color: '#FF6F20',
-                    fontSize: 12, fontWeight: 600,
-                    border: '1px solid #FFE5D0',
-                  }}>{f}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {headerWeeklyDays && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 6, letterSpacing: 0.5 }}>📅 ימי ביצוע</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {headerWeeklyDays.map((d, i) => (
-                  <span key={i} style={{
-                    minWidth: 32, height: 32, padding: '0 8px',
-                    borderRadius: 999,
-                    background: '#FF6F20', color: 'white',
-                    fontSize: 13, fontWeight: 700,
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  }}>{d}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {(headerDifficulty || headerWeeks || plan?.start_date) && (
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              {headerDifficulty && (
-                <div>
-                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>💪 רמת קושי</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{headerDifficulty}</div>
-                </div>
-              )}
-              {headerWeeks && (
-                <div>
-                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>⏱ משך</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{headerWeeks} שבועות</div>
-                </div>
-              )}
-              {plan?.start_date && (
-                <div>
-                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>📆 התחלה</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
-                    {new Date(plan.start_date).toLocaleDateString('he-IL')}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px' }}>
 
