@@ -127,31 +127,70 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
       const isCasual = formData.clientType === 'casual';
       const clientStatusValue = 'onboarding';
 
-      // Step 2: Insert profile into users table
-      const { error: profileError } = await supabase.from('users').insert({
+      // Step 2: Upsert profile into users table.
+      // Why upsert instead of insert: a `handle_new_user` trigger on
+      // auth.users may already have created a minimal public.users row
+      // by the time we get here, which makes a plain INSERT fail with
+      // a duplicate-key 422/409. Upsert with onConflict='id' merges
+      // our richer payload onto whatever the trigger seeded.
+      //
+      // birth_date is sent as the raw HTML5 date string (YYYY-MM-DD)
+      // because the column is DATE — wrapping it in
+      // `new Date(...).toISOString()` produces a full TIMESTAMP that
+      // PostgREST rejects with 422 for a DATE column.
+      const corePayload = {
         id: authData.user.id,
         email,
         full_name: formData.fullName,
+        role: 'trainee',
+        client_status: clientStatusValue,
+        coach_id: coach?.id || null,
+        onboarding_completed: false,
+        created_at: new Date().toISOString(),
+      };
+      const extraPayload = {
         phone: formData.phone || null,
-        birth_date: formData.birthDate ? new Date(formData.birthDate).toISOString() : null,
+        birth_date: formData.birthDate || null,
         age: age ? parseInt(age) : null,
         join_date: formData.joinDate || new Date().toISOString().split('T')[0],
         address: formData.address || null,
         coach_notes: formData.coachNotes || null,
-        // client_status is the canonical onboarding gate — 'casual'
-        // for the new pipeline, 'active' for paying clients. The
-        // legacy Hebrew client_type is kept in sync for back-compat.
-        client_status: clientStatusValue,
         client_type: isCasual ? 'מתאמן מזדמן' : 'לקוח פעיל',
-        coach_id: coach?.id || null,
-        role: 'trainee',
-        onboarding_completed: false,
-        created_at: new Date().toISOString(),
-      });
+      };
+
+      let { error: profileError } = await supabase
+        .from('users')
+        .upsert({ ...corePayload, ...extraPayload }, { onConflict: 'id' });
 
       if (profileError) {
-        toast.error("שגיאה בשמירת הפרופיל: " + profileError.message);
-        return;
+        // One column in the extras is missing or violates a constraint
+        // in this install. Fall back to upserting the core fields, then
+        // patch each extra individually so the failures don't cascade.
+        // Mirrors the per-field retry pattern in TraineeProfile.jsx.
+        console.warn('[AddTrainee] bulk upsert failed, retrying per-field:', profileError.message);
+        const { error: coreError } = await supabase
+          .from('users')
+          .upsert(corePayload, { onConflict: 'id' });
+        if (coreError) {
+          toast.error("שגיאה בשמירת הפרופיל: " + coreError.message);
+          return;
+        }
+        const failedFields = [];
+        for (const [k, v] of Object.entries(extraPayload)) {
+          if (v == null) continue;
+          const { error: fieldError } = await supabase
+            .from('users')
+            .update({ [k]: v })
+            .eq('id', authData.user.id);
+          if (fieldError) {
+            console.warn(`[AddTrainee] field "${k}" rejected:`, fieldError.message);
+            failedFields.push(k);
+          }
+        }
+        if (failedFields.length) {
+          toast.warning(`חלק מהשדות לא נשמרו: ${failedFields.join(', ')}`);
+        }
+        profileError = null;
       }
 
       // Cross-app sync (best-effort, never blocks): a new trainee is
