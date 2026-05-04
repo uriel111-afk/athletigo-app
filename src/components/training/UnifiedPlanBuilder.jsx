@@ -1490,7 +1490,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   }
 
   return (
-    <div className="w-full pb-16 md:pb-24" dir="rtl">
+    // Bottom padding is the height of the fixed "סיים אימון" footer
+    // bar (~110-130px including safe-area-inset-bottom on notched
+    // devices). 140px on mobile + 160px on desktop keeps the last
+    // section above it. Trainee-only — coach view doesn't render
+    // the bar but the padding is harmless there.
+    <div
+      dir="rtl"
+      className="w-full"
+      style={{
+        paddingBottom: !canEdit
+          ? 'calc(140px + env(safe-area-inset-bottom))'
+          : undefined,
+      }}
+    >
       {canEdit && showMetadataEditor && (
         <PlanMetadataEditor
           plan={plan}
