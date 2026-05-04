@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { bulkUpsertProgress } from "@/lib/traineeProgressApi";
 import ExerciseCard from "./ExerciseCard";
 import SectionRatingPopup from "./SectionRatingPopup";
@@ -45,6 +46,36 @@ export default function SectionCard({
   const longPressRename = useLongPress(() => {
     if (showEditButtons && onRenameSection) setRenamingSection(true);
   });
+
+  // Local mirror of the section coach-notes textarea — keeps typing
+  // responsive without writing to Supabase on every keystroke. Saved
+  // on blur via supabase.update against training_sections. Re-syncs
+  // whenever the parent passes a new section row in.
+  const [coachNotes, setCoachNotes] = useState(section?.coach_notes || "");
+  const [savingNotes, setSavingNotes] = useState(false);
+  useEffect(() => {
+    setCoachNotes(section?.coach_notes || "");
+  }, [section?.id, section?.coach_notes]);
+
+  const saveSectionNotes = async (next) => {
+    if (!section?.id) return;
+    if ((next || "") === (section?.coach_notes || "")) return;
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('training_sections')
+        .update({ coach_notes: next || null })
+        .eq('id', section.id);
+      if (error) {
+        console.warn('[SectionCard] coach_notes save failed:', error.message);
+        toast.error('שמירת הערה נכשלה');
+      }
+    } catch (e) {
+      console.warn('[SectionCard] coach_notes threw:', e?.message);
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   useEffect(() => {
     if (showEditButtons) return;
@@ -241,6 +272,50 @@ export default function SectionCard({
                     <Plus className="w-4 h-4 ml-2" />
                     הוסף תרגיל לסקשן
                   </Button>
+                </div>
+              )}
+
+              {/* Coach notes — coach-edit mode only. Saves on blur to
+                  training_sections.coach_notes. Local textarea state
+                  keeps typing snappy; only diffs commit to Supabase. */}
+              {showEditButtons && (
+                <div style={{
+                  padding: '12px 16px',
+                  borderTop: '1px solid #F0E4D0',
+                  marginTop: 8,
+                }}>
+                  <div style={{
+                    fontSize: 12, color: '#888',
+                    marginBottom: 6, fontWeight: 600,
+                    direction: 'rtl', textAlign: 'right',
+                  }}>
+                    💬 הערת מאמן לסקשן
+                    {savingNotes && (
+                      <span style={{ marginRight: 8, fontSize: 11, color: '#FF6F20' }}>
+                        שומר...
+                      </span>
+                    )}
+                  </div>
+                  <textarea
+                    value={coachNotes}
+                    onChange={(e) => setCoachNotes(e.target.value)}
+                    onBlur={(e) => saveSectionNotes(e.target.value)}
+                    placeholder="הוסף הערה לסקשן זה..."
+                    rows={2}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #F0E4D0',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                      direction: 'rtl',
+                      resize: 'none',
+                      boxSizing: 'border-box',
+                      background: '#FAFAFA',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
               )}
             </div>
