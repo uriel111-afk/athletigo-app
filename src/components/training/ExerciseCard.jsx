@@ -751,98 +751,193 @@ export default function ExerciseCard({
         />
       )}
 
-      {/* Detail bottom sheet — opens on name tap. Renders the
-          exercise's full prescription (params + coach description)
-          as readable rows, mobile-friendly. Backdrop click + סגור
-          button + Escape all dismiss. */}
+      {/* Detail centered modal — opens on name tap. Card-style sheet
+          floats over a dimmed backdrop instead of sliding up from
+          the bottom edge. Backdrop click + ✕ + סגור all dismiss;
+          inner clicks stop propagation so taps inside don't fall
+          through and close the modal. */}
       {showDetail && (
-        <>
+        <div
+          onClick={() => setShowDetail(false)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', zIndex: 200,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
           <div
-            onClick={() => setShowDetail(false)}
-            style={{
-              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(0,0,0,0.4)', zIndex: 200,
-            }}
-          />
-          <div
+            onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0,
-              background: 'white', borderRadius: '20px 20px 0 0',
-              padding: '24px 20px 40px', zIndex: 201,
-              maxHeight: '80vh', overflowY: 'auto', direction: 'rtl',
+              background: 'white',
+              borderRadius: 20,
+              padding: '28px 24px',
+              width: 'calc(100% - 48px)',
+              maxWidth: 420,
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              direction: 'rtl',
+              position: 'relative',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
             }}
           >
-            <div style={{
-              width: 36, height: 4, background: '#E5E7EB',
-              borderRadius: 999, margin: '0 auto 20px',
-            }} />
+            {/* Top-left close ✕ */}
+            <button
+              type="button"
+              onClick={() => setShowDetail(false)}
+              aria-label="סגור"
+              style={{
+                position: 'absolute',
+                top: 16, left: 16,
+                width: 32, height: 32,
+                borderRadius: '50%',
+                border: '1px solid #E5E7EB',
+                background: '#F9F9F9',
+                fontSize: 16, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#888',
+                padding: 0,
+              }}
+            >✕</button>
 
             <div style={{
               fontSize: 28, fontWeight: 900, color: '#1a1a1a',
-              marginBottom: 8, fontFamily: 'Barlow Condensed, sans-serif',
+              marginBottom: 6, fontFamily: 'Barlow Condensed, sans-serif',
+              paddingLeft: 40,
             }}>
               {exercise.exercise_name || exercise.name || 'תרגיל'}
             </div>
 
+            {metaSegs.length > 0 && (
+              <div style={{
+                fontSize: 15, color: '#888',
+                marginBottom: 20, lineHeight: 1.6,
+              }}>
+                {metaSegs.join(' · ')}
+              </div>
+            )}
+
             {coachNote && (
               <div style={{
                 background: '#FFF5EE', borderRadius: 12,
-                padding: '12px 16px', marginBottom: 16,
+                padding: '12px 16px', marginBottom: 20,
                 fontSize: 14, color: '#FF6F20', fontStyle: 'italic',
+                lineHeight: 1.6,
+                borderRight: '3px solid #FF6F20',
               }}>
                 {coachNote}
               </div>
             )}
 
-            {(() => {
-              const fmtTimeRow = (v) => {
-                const total = typeof v === 'string' && v.includes(':')
-                  ? (() => { const [m, s] = v.split(':').map(Number); return (m || 0) * 60 + (s || 0); })()
-                  : parseInt(v, 10);
-                if (Number.isNaN(total) || total <= 0) return null;
-                const m = Math.floor(total / 60);
-                const s = total % 60;
-                return `${m}:${String(s).padStart(2, '0')}`;
-              };
-              const rows = [
-                exercise.sets && exercise.sets !== '0' && `${exercise.sets} סטים`,
-                exercise.reps && exercise.reps !== '0' && `${exercise.reps} חזרות`,
-                exercise.rounds && exercise.rounds !== '0' && `${exercise.rounds} סבבים`,
-                exercise.work_time && (() => {
-                  const t = fmtTimeRow(exercise.work_time);
-                  return t ? `זמן עבודה: ${t}` : null;
-                })(),
-                exercise.rest_time && (() => {
-                  const t = fmtTimeRow(exercise.rest_time);
-                  return t ? `מנוחה: ${t}` : null;
-                })(),
-                exercise.weight && exercise.weight !== '0' && `משקל: ${exercise.weight} ק"ג`,
-                exercise.rpe && exercise.rpe !== '0' && `RPE: ${exercise.rpe}`,
-                exercise.tempo && `טמפו: ${exercise.tempo}`,
-                exercise.body_position,
-                exercise.equipment && (Array.isArray(exercise.equipment) ? exercise.equipment.join(', ') : exercise.equipment),
-                exercise.side,
-                exercise.grip,
-                exercise.range_of_motion,
-              ].filter(Boolean);
-              return rows.map((param, i) => (
-                <div key={i} style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  padding: '10px 0', borderBottom: '1px solid #F5F5F5',
-                  fontSize: 15, color: '#1a1a1a',
-                }}>
-                  <span>{param}</span>
+            {/* Param label/value rows. Times use the same fmtTime
+                helper the rest of the app uses (m:ss). */}
+            <div style={{ marginBottom: 20 }}>
+              {(() => {
+                const items = [
+                  exercise.sets && exercise.sets !== '0' && { label: 'סטים', value: exercise.sets },
+                  exercise.reps && exercise.reps !== '0' && { label: 'חזרות', value: exercise.reps },
+                  exercise.rounds && exercise.rounds !== '0' && { label: 'סבבים', value: exercise.rounds },
+                  exercise.work_time && (() => {
+                    const t = fmtTime(exercise.work_time);
+                    return t ? { label: 'זמן עבודה', value: t } : null;
+                  })(),
+                  exercise.rest_time && (() => {
+                    const t = fmtTime(exercise.rest_time);
+                    return t ? { label: 'מנוחה', value: t } : null;
+                  })(),
+                  exercise.static_hold_time && (() => {
+                    const t = fmtTime(exercise.static_hold_time);
+                    return t ? { label: 'החזקה', value: t } : null;
+                  })(),
+                  exercise.weight && exercise.weight !== '0' && { label: 'משקל', value: `${exercise.weight} ק"ג` },
+                  exercise.rpe && exercise.rpe !== '0' && { label: 'RPE', value: exercise.rpe },
+                  exercise.tempo && { label: 'טמפו', value: exercise.tempo },
+                  exercise.body_position && { label: 'מנח גוף', value: exercise.body_position },
+                  exercise.equipment && {
+                    label: 'ציוד',
+                    value: Array.isArray(exercise.equipment) ? exercise.equipment.join(', ') : exercise.equipment,
+                  },
+                  exercise.side && { label: 'צד', value: exercise.side },
+                  exercise.grip && { label: 'אחיזה', value: exercise.grip },
+                  exercise.range_of_motion && { label: 'טווח תנועה', value: exercise.range_of_motion },
+                ].filter(Boolean);
+                return items.map((param, i) => (
+                  <div key={i} style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 0',
+                    borderBottom: '1px solid #F5F5F5',
+                  }}>
+                    <span style={{ fontSize: 14, color: '#888' }}>{param.label}</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>{param.value}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Per-set inputs in the modal — trainee only, when the
+                exercise is multi-set and the per-set wiring is plumbed.
+                Bound to the same setLog / handlers as the inline rows
+                on the card body, so toggling here also updates the
+                main card. */}
+            {!canEdit
+              && (parseInt(exercise.sets, 10) || 0) > 1
+              && onSetLogChange && onSetToggleDone && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#888', marginBottom: 12 }}>
+                  מילוי סטים
                 </div>
-              ));
-            })()}
+                {Array.from({ length: parseInt(exercise.sets, 10) || 1 }, (_, i) => {
+                  const log = (setLog && setLog[i]) || {};
+                  const placeholder = (exercise.reps && exercise.reps !== '0' && exercise.reps)
+                    || (exercise.work_time && exercise.work_time !== '0' && exercise.work_time)
+                    || '';
+                  return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 0', borderBottom: '1px solid #F5F5F5',
+                    }}>
+                      <span style={{ fontSize: 14, color: '#aaa', minWidth: 44 }}>סט {i + 1}</span>
+                      <input
+                        type="number"
+                        placeholder={String(placeholder)}
+                        value={log.reps_completed ?? ''}
+                        onChange={(e) => onSetLogChange(exercise.id, i, 'reps_completed', e.target.value)}
+                        style={{
+                          flex: 1, height: 48, fontSize: 18, fontWeight: 700,
+                          border: '1.5px solid #F0E4D0', borderRadius: 10,
+                          textAlign: 'center', background: '#FAFAFA',
+                          outline: 'none', direction: 'ltr',
+                          boxSizing: 'border-box', padding: '0 8px',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onSetToggleDone(exercise, i)}
+                        aria-label={log.done ? 'בטל סט' : 'סמן סט כבוצע'}
+                        style={{
+                          width: 40, height: 40, borderRadius: '50%',
+                          background: log.done ? '#FF6F20' : 'white',
+                          border: '2px solid #FF6F20',
+                          color: log.done ? 'white' : '#FF6F20',
+                          fontSize: 18, fontWeight: 700, cursor: 'pointer',
+                          boxShadow: log.done ? '0 4px 12px rgba(255,111,32,0.3)' : 'none',
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          padding: 0, lineHeight: 1,
+                        }}
+                      >✓</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <button
               type="button"
               onClick={() => setShowDetail(false)}
               style={{
-                width: '100%', padding: '14px', marginTop: 20,
+                width: '100%', padding: '14px', marginTop: 8,
                 background: '#FF6F20', border: 'none', borderRadius: 12,
                 color: 'white', fontWeight: 700, fontSize: 16, cursor: 'pointer',
                 boxShadow: '0 4px 16px rgba(255,111,32,0.3)',
@@ -851,7 +946,7 @@ export default function ExerciseCard({
               סגור
             </button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
