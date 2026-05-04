@@ -466,6 +466,28 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     enabled: !!plan.id
   });
 
+  // Real count of past workout_executions for this plan — drives the
+  // "ביצועים" stat in the header card. Distinct from the legacy
+  // exercises.filter(e=>e.completed) derivation, which only counted
+  // exercises ticked in the current run. Best-effort; falls back to 0.
+  const { data: executionsData } = useQuery({
+    queryKey: ['execution-count', plan?.id],
+    queryFn: async () => {
+      if (!plan?.id) return [];
+      const { data, error } = await supabase
+        .from('workout_executions')
+        .select('id')
+        .eq('plan_id', plan.id);
+      if (error) {
+        console.warn('[UPB] execution-count query failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!plan?.id,
+  });
+  const executionCount = executionsData?.length || 0;
+
   // Summary log on every data change — surfaces the query state at a
   // glance: how many sections / exercises landed, whether the queries
   // are still running, and whether either one errored. With these
@@ -1373,6 +1395,19 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           <p style={{ margin: 0, fontSize: 15, color: '#888', fontFamily: 'Barlow, sans-serif' }}>
             {`${goalFocusItems.length > 0 ? goalFocusItems.join(', ') + ' · ' : ''}${weeklyDaysItems.length || 0} פעמים בשבוע · ${plan?.duration_weeks || 0} שבועות · רמה ${plan?.difficulty_level || 'מתחיל'}`}
           </p>
+          {plan?.description && (
+            <p style={{
+              margin: '6px 0 0',
+              fontSize: 14,
+              color: '#888',
+              fontFamily: 'Barlow, sans-serif',
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+              paddingBottom: 4,
+            }}>
+              {plan.description}
+            </p>
+          )}
         </div>
 
         {goalFocusItems.length > 0 && (
@@ -1432,26 +1467,23 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </div>
 
         {/* Bottom stats — תרגילים / סקשנים / ביצועים. "ביצועים"
-            here means how many exercises the trainee has completed in
-            this run, matching the legacy banner's semantics. */}
+            counts past workout_executions rows for this plan via the
+            execution-count useQuery hoisted near the other top-level
+            queries. Updates as the user finishes more workouts. */}
         <div style={{ display: 'flex', padding: '16px 20px', borderTop: '1px solid #F0E4D0', background: '#FFFCF8' }}>
-          {(() => {
-            const executionCount = exercises.filter((e) => e && e.completed).length;
-            const stats = [
-              { value: exercises.length, label: 'תרגילים' },
-              { value: sections.length, label: 'סקשנים' },
-              { value: executionCount, label: 'ביצועים' },
-            ];
-            return stats.map((stat, i, arr) => (
-              <React.Fragment key={stat.label}>
-                <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
-                  <div style={{ fontSize: 13, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
-                </div>
-                {i < arr.length - 1 && <div style={{ width: 1, background: '#F0E4D0' }} />}
-              </React.Fragment>
-            ));
-          })()}
+          {[
+            { value: exercises.length, label: 'תרגילים' },
+            { value: sections.length, label: 'סקשנים' },
+            { value: executionCount, label: 'ביצועים' },
+          ].map((stat, i, arr) => (
+            <React.Fragment key={stat.label}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: 32, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ fontSize: 13, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
+              </div>
+              {i < arr.length - 1 && <div style={{ width: 1, background: '#F0E4D0' }} />}
+            </React.Fragment>
+          ))}
         </div>
       </div>
 
