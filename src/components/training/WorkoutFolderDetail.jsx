@@ -295,30 +295,58 @@ function MasterCard({
   );
 }
 
-// One past-execution accordion. Closed shows the Hebrew long timestamp,
-// plan name, score and completion %. Expanded mounts
-// WorkoutExecutionReadOnly compact, which fetches workout_executions +
-// exercise_set_logs and renders the saved per-set values, exercise notes,
-// section ratings, and the average score.
+// One past-execution accordion. Three render shapes:
+//
+//   • Completed (has a score)          — tap expands inline to
+//     WorkoutExecutionReadOnly which fetches workout_executions +
+//     exercise_set_logs and renders the saved per-set values,
+//     exercise notes, section ratings, and the average score.
+//
+//   • Blank / scheduled (completion=0  — created by the duplicate
+//     button or any other "I plan to do this" path) — tap fires
+//     onActivate(execution); the parent flips to active mode and
+//     mounts UnifiedPlanBuilder so the trainee can actually run it.
+//     No accordion, no read-only render — those would just show
+//     placeholders since no set logs exist yet.
+//
+//   • In-progress (completion>0 but no score) — falls through to the
+//     accordion in case partial set logs exist worth showing.
 //
 // When isCoach=true and onDelete is provided, the row is wrapped in
 // SwipeableCard so a left-swipe reveals a delete button.
-function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete }) {
+function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete, onActivate }) {
   const [open, setOpen] = useState(false);
   const score = execution.self_rating != null ? Number(execution.self_rating) : null;
   const hasScore = score != null;
+  const completionRaw = execution.completion_percent;
+  const completionNum = completionRaw == null ? 0 : Number(completionRaw);
+  // Treat blank duplicates and any unstarted scheduled rows as
+  // "tap to start." We can't cheaply check exercise_set_logs from
+  // here without an extra round-trip per row, so completion_percent
+  // alone gates the branch — createDuplicatedExecution writes 0 and
+  // the live workout flow overwrites it on save.
+  const isBlank = !hasScore && completionNum === 0;
+
+  const handleClick = () => {
+    if (isBlank) {
+      if (onActivate) onActivate(execution);
+      return;
+    }
+    setOpen((v) => !v);
+  };
+
   const inner = (
     <div style={{
       background: 'white',
-      border: '1px solid #F0E4D0',
+      border: isBlank ? `1px solid ${ORANGE}` : '1px solid #F0E4D0',
       borderRadius: 10,
       marginBottom: 6,
       overflow: 'hidden',
     }}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+        onClick={handleClick}
+        aria-expanded={isBlank ? undefined : open}
         style={{
           all: 'unset',
           cursor: 'pointer',
@@ -336,30 +364,47 @@ function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete }
             {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
           </div>
           <div style={{ fontSize: 11, color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {formatLongHe(execution.executed_at)}
+            {isBlank ? 'מוכן להתחלה' : formatLongHe(execution.executed_at)}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%',
-            background: hasScore ? ORANGE : '#F3F4F6',
-            color: hasScore ? 'white' : '#9CA3AF',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: hasScore ? 13 : 9,
-            fontWeight: 800,
-            lineHeight: 1,
-            textAlign: 'center',
-            padding: hasScore ? 0 : 2,
-            boxSizing: 'border-box',
-          }}>
-            {hasScore ? score.toFixed(1) : 'לא בוצע'}
-          </div>
-          <span style={{ fontSize: 12, color: '#888', width: 12, textAlign: 'center' }}>
-            {open ? '▲' : '▼'}
-          </span>
+          {isBlank ? (
+            <span style={{
+              padding: '6px 12px',
+              borderRadius: 999,
+              background: ORANGE,
+              color: 'white',
+              fontSize: 12,
+              fontWeight: 800,
+              lineHeight: 1,
+              boxShadow: '0 2px 6px rgba(255,111,32,0.25)',
+            }}>
+              ▶ התחל אימון
+            </span>
+          ) : (
+            <>
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%',
+                background: hasScore ? ORANGE : '#F3F4F6',
+                color: hasScore ? 'white' : '#9CA3AF',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: hasScore ? 13 : 9,
+                fontWeight: 800,
+                lineHeight: 1,
+                textAlign: 'center',
+                padding: hasScore ? 0 : 2,
+                boxSizing: 'border-box',
+              }}>
+                {hasScore ? score.toFixed(1) : 'לא בוצע'}
+              </div>
+              <span style={{ fontSize: 12, color: '#888', width: 12, textAlign: 'center' }}>
+                {open ? '▲' : '▼'}
+              </span>
+            </>
+          )}
         </div>
       </button>
-      {open && (
+      {!isBlank && open && (
         <div style={{ padding: '0 12px 12px' }}>
           <WorkoutExecutionReadOnly
             plan={plan}
@@ -511,6 +556,7 @@ export default function WorkoutFolderDetail({
                   indexLabel={indexLabel}
                   isCoach={isCoach}
                   onDelete={onDeleteExecution}
+                  onActivate={() => setActiveMode('active')}
                 />
               ))}
             </div>
