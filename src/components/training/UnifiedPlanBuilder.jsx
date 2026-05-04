@@ -1392,13 +1392,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               </button>
             )}
           </div>
-          <p style={{ margin: 0, fontSize: 15, color: '#888', fontFamily: 'Barlow, sans-serif' }}>
+          <p style={{ margin: 0, fontSize: 16, color: '#888', fontFamily: 'Barlow, sans-serif' }}>
             {`${goalFocusItems.length > 0 ? goalFocusItems.join(', ') + ' · ' : ''}${weeklyDaysItems.length || 0} פעמים בשבוע · ${plan?.duration_weeks || 0} שבועות · רמה ${plan?.difficulty_level || 'מתחיל'}`}
           </p>
           {plan?.description && (
             <p style={{
               margin: '6px 0 0',
-              fontSize: 14,
+              fontSize: 15,
               color: '#888',
               fontFamily: 'Barlow, sans-serif',
               fontStyle: 'italic',
@@ -1418,7 +1418,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 color: '#FF6F20',
                 padding: '6px 14px',
                 borderRadius: 999,
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 600,
                 fontFamily: 'Barlow, sans-serif',
               }}>{tag}</span>
@@ -1439,11 +1439,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 });
                 return (
                   <div key={idx} style={{
-                    flex: 1, maxWidth: 40, height: 40, borderRadius: '50%',
+                    flex: 1, maxWidth: 44, height: 44, borderRadius: '50%',
                     background: isActive ? '#FF6F20' : '#F5EDDB',
                     color: isActive ? 'white' : '#C4B79E',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 16, fontWeight: isActive ? 700 : 500,
+                    fontSize: 17, fontWeight: isActive ? 700 : 500,
                     fontFamily: 'Barlow Condensed, sans-serif', flexShrink: 0,
                   }}>{day}</div>
                 );
@@ -1454,8 +1454,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
         <div style={{ padding: '0 20px 18px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 14, color: '#888', fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>התקדמות</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif' }}>{Math.round(progressPct || 0)}%</span>
+            <span style={{ fontSize: 15, color: '#888', fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>התקדמות</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif' }}>{Math.round(progressPct || 0)}%</span>
           </div>
           <div style={{ height: 8, background: '#F5EDDB', borderRadius: 999, overflow: 'hidden' }}>
             <div style={{
@@ -1478,8 +1478,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           ].map((stat, i, arr) => (
             <React.Fragment key={stat.label}>
               <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: 32, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ fontSize: 13, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
+                <div style={{ fontSize: 36, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ fontSize: 15, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
               </div>
               {i < arr.length - 1 && <div style={{ width: 1, background: '#F0E4D0' }} />}
             </React.Fragment>

@@ -1353,7 +1353,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   border,
                   background: bg,
                   color,
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: 600,
                   cursor: readOnly ? 'default' : 'pointer',
                   textAlign: 'center',
@@ -1383,11 +1383,11 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 {isConf && !isEdit && !isCont ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Check size={10} strokeWidth={3} />
-                      <Icon size={11} />
+                      <Check size={12} strokeWidth={3} />
+                      <Icon size={13} />
                     </div>
                     <span style={{
-                      fontSize: 8, fontWeight: 700, lineHeight: 1.1,
+                      fontSize: 11, fontWeight: 700, lineHeight: 1.1,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       maxWidth: '100%',
                     }}>
@@ -1396,9 +1396,9 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   </>
                 ) : (
                   <>
-                    <Icon size={15} strokeWidth={2} />
+                    <Icon size={17} strokeWidth={2} />
                     <span style={{
-                      fontSize: 9, fontWeight: 700, lineHeight: 1.1,
+                      fontSize: 12, fontWeight: 700, lineHeight: 1.1,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       maxWidth: '100%',
                     }}>
@@ -1449,11 +1449,11 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span aria-hidden style={{ color: '#ccc', fontSize: 16, cursor: 'grab' }}>⠿</span>
-                <span style={{ fontSize: 13, color: '#FF6F20', fontWeight: 600 }}>
+                <span style={{ fontSize: 14, color: '#FF6F20', fontWeight: 600 }}>
                   {row.label}
                 </span>
               </div>
-              <span style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 700 }}>
+              <span style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 700 }}>
                 {row.value}
               </span>
             </div>

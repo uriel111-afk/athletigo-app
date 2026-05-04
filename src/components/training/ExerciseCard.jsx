@@ -421,7 +421,7 @@ export default function ExerciseCard({
         )}
 
         {metaSegs.length > 0 && (
-          <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 15, color: '#888', lineHeight: 1.5 }}>
             {metaSegs.join(' · ')}
           </div>
         )}
@@ -452,7 +452,7 @@ export default function ExerciseCard({
                     borderBottom: isLast ? 'none' : '1px solid #F9F9F9',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 12, color: '#888', minWidth: 36 }}>
+                      <span style={{ fontSize: 14, color: '#888', minWidth: 40 }}>
                         סט {i + 1}
                       </span>
                       <input
@@ -461,14 +461,15 @@ export default function ExerciseCard({
                         value={log.reps_completed ?? ''}
                         onChange={(e) => onSetLogChange(exercise.id, i, 'reps_completed', e.target.value)}
                         style={{
-                          width: 64, padding: '6px 8px', border: '1px solid #F0E4D0',
-                          borderRadius: 8, fontSize: 14, textAlign: 'center',
+                          width: 72, height: 48, padding: '6px 8px', border: '1px solid #F0E4D0',
+                          borderRadius: 8, fontSize: 18, textAlign: 'center',
                           background: 'white', outline: 'none',
                           direction: 'ltr',
+                          boxSizing: 'border-box',
                         }}
                       />
                       {unit && (
-                        <span style={{ fontSize: 11, color: '#888' }}>{unit}</span>
+                        <span style={{ fontSize: 13, color: '#888' }}>{unit}</span>
                       )}
                       <button
                         type="button"
@@ -494,7 +495,7 @@ export default function ExerciseCard({
                         display: 'flex', alignItems: 'center', gap: 6,
                         padding: '8px 0', flexWrap: 'wrap',
                       }}>
-                        <span style={{ fontSize: 11, color: '#888', width: '100%' }}>
+                        <span style={{ fontSize: 13, color: '#888', width: '100%' }}>
                           כמה היה קשה?
                         </span>
                         {[1,2,3,4,5,6,7,8,9,10].map((n) => (
@@ -503,12 +504,12 @@ export default function ExerciseCard({
                             type="button"
                             onClick={() => onSetLogChange(exercise.id, i, 'difficulty', n)}
                             style={{
-                              width: 28, height: 28,
+                              width: 32, height: 32,
                               borderRadius: '50%',
                               border: '1px solid #F0E4D0',
                               background: 'white',
                               color: '#1a1a1a',
-                              fontSize: 11,
+                              fontSize: 13,
                               fontWeight: 600,
                               cursor: 'pointer',
                               flexShrink: 0,
@@ -523,7 +524,7 @@ export default function ExerciseCard({
                         nulls the difficulty so the prompt re-appears. */}
                     {log.difficulty != null && (
                       <div style={{
-                        fontSize: 11, color: '#FF6F20', fontWeight: 600,
+                        fontSize: 13, color: '#FF6F20', fontWeight: 600,
                         padding: '4px 0',
                       }}>
                         קושי: {log.difficulty}/10
@@ -537,7 +538,7 @@ export default function ExerciseCard({
                             border: 'none',
                             color: '#ccc',
                             cursor: 'pointer',
-                            fontSize: 11,
+                            fontSize: 13,
                           }}
                         >✕</button>
                       </div>
@@ -568,7 +569,7 @@ export default function ExerciseCard({
                     background: '#FFF5EE',
                     borderRadius: 8,
                     marginTop: 8,
-                    fontSize: 12,
+                    fontSize: 14,
                   }}>
                     {completionPct != null && (
                       <span style={{ color: '#1a1a1a' }}>
@@ -653,7 +654,7 @@ export default function ExerciseCard({
           style={{
             marginTop: 8, width: '100%', padding: '8px 10px',
             border: '1px solid #F0E4D0', borderRadius: 8,
-            fontSize: 13, fontFamily: 'inherit', background: '#FFF9F0',
+            fontSize: 15, fontFamily: 'inherit', background: '#FFF9F0',
             direction: 'rtl', boxSizing: 'border-box', outline: 'none',
           }}
         />

@@ -378,13 +378,13 @@ function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete, 
       >
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: 13, fontWeight: 700, color: DARK,
+            fontSize: 15, fontWeight: 700, color: DARK,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             marginBottom: 1,
           }}>
             {plan?.plan_name || plan?.title || 'אימון'} ({indexLabel})
           </div>
-          <div style={{ fontSize: 11, color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: 13, color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {isBlank ? 'מוכן להתחלה' : formatLongHe(execution.executed_at)}
           </div>
         </div>
@@ -409,13 +409,13 @@ function ExecutionRow({ plan, execution, indexLabel, isCoach = false, onDelete, 
                   width: 34, height: 34, borderRadius: '50%',
                   background: ORANGE, color: 'white',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, fontWeight: 900, lineHeight: 1,
+                  fontSize: 15, fontWeight: 900, lineHeight: 1,
                 }}>
                   {score.toFixed(1)}
                 </div>
               )}
               {completionNum > 0 && (
-                <span style={{ fontSize: 11, color: '#888' }}>
+                <span style={{ fontSize: 13, color: '#888' }}>
                   {Math.round(completionNum)}%
                 </span>
               )}

@@ -164,7 +164,7 @@ export default function SectionCard({
                     }
                   }}
                   style={{
-                    fontSize: isTraineeView ? 22 : 18,
+                    fontSize: isTraineeView ? 22 : 20,
                     fontWeight: 700,
                     color: '#1a1a1a',
                     fontFamily: 'Barlow, sans-serif',
@@ -182,7 +182,7 @@ export default function SectionCard({
                   {...(showEditButtons ? longPressRename : {})}
                   className="leading-tight truncate"
                   style={{
-                    fontSize: isTraineeView ? 22 : 18,
+                    fontSize: isTraineeView ? 22 : 20,
                     fontWeight: 700,
                     color: isTraineeView ? '#1a1a1a' : style.text,
                     fontFamily: 'Barlow, sans-serif',
@@ -212,7 +212,7 @@ export default function SectionCard({
                 }}
               >
                 <span style={{
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: 700,
                   color: '#FF6F20',
                   fontFamily: 'Barlow Condensed, sans-serif',
@@ -289,7 +289,7 @@ export default function SectionCard({
                       padding: '8px 12px',
                       border: '1px solid #F0E4D0',
                       borderRadius: 8,
-                      fontSize: 13,
+                      fontSize: 15,
                       fontFamily: 'inherit',
                       direction: 'rtl',
                       resize: 'none',
