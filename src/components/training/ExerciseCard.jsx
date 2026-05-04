@@ -75,7 +75,100 @@ const getSubExercises = (ex) => {
   return [];
 };
 
+// One-segment formatter keyed on the editor's internal param ids
+// (sets, reps, weight_kg, work_time, …). Lets buildMetaSegments
+// honor exercises.param_order — when the coach drags rows in the
+// editor, the trainee meta line renders in the same sequence.
+// Internal id → DB-side column ("weight_kg" → "weight") is bridged
+// inside each switch case; if you add a new param, mirror the
+// editor's formatParamValue logic here.
+function segmentForParam(paramId, ex) {
+  switch (paramId) {
+    case 'sets':
+      return ex.sets && ex.sets !== '0' ? `${ex.sets} סטים` : null;
+    case 'reps':
+      return ex.reps && ex.reps !== '0' ? `${ex.reps} חזרות` : null;
+    case 'rounds':
+      return ex.rounds && ex.rounds !== '0' ? `${ex.rounds} סבבים` : null;
+    case 'work_time': {
+      const t = fmtTime(ex.work_time);
+      return t ? `עבודה ${t}` : null;
+    }
+    case 'rest_time': {
+      const t = fmtTime(ex.rest_time);
+      return t ? `מנוחה ${t}` : null;
+    }
+    case 'rest_between_sets': {
+      const t = fmtTime(ex.rest_between_sets);
+      return t ? `מנ׳ סטים ${t}` : null;
+    }
+    case 'rest_between_exercises': {
+      const t = fmtTime(ex.rest_between_exercises);
+      return t ? `מנ׳ תרגילים ${t}` : null;
+    }
+    case 'static_hold': {
+      const t = fmtTime(ex.static_hold_time);
+      return t ? `${t} החזקה` : null;
+    }
+    case 'weight':
+    case 'weight_kg':
+      if (ex.weight && ex.weight !== '0') return `משקל ${ex.weight} ק"ג`;
+      if (ex.weight_type && ex.weight_type !== 'bodyweight') return ex.weight_type;
+      return null;
+    case 'rpe':
+      return ex.rpe && ex.rpe !== '0' ? `RPE ${ex.rpe}` : null;
+    case 'tempo': {
+      if (!ex.tempo) return null;
+      const t = formatTempo(ex.tempo);
+      return t ? `טמפו ${t}` : null;
+    }
+    case 'body_position':   return ex.body_position || null;
+    case 'equipment':       return ex.equipment || null;
+    case 'side':            return ex.side || null;
+    case 'grip':            return ex.grip || null;
+    case 'range_of_motion': return ex.range_of_motion || null;
+    default:                return null;
+  }
+}
+
+const DEFAULT_PARAM_ORDER = [
+  'sets', 'reps', 'rounds', 'work_time', 'static_hold',
+  'rest_time', 'rest_between_sets', 'rest_between_exercises',
+  'weight_kg', 'rpe', 'tempo',
+  'body_position', 'equipment', 'side', 'grip', 'range_of_motion',
+];
+
 function buildMetaSegments(ex) {
+  // Honor coach-authored ordering when present, else fall back to
+  // the canonical default. The combined "3 סטים × 10 חזרות" form
+  // is preserved only when neither sets nor reps appears in
+  // param_order — once the coach reorders, each param renders on
+  // its own.
+  const order = Array.isArray(ex.param_order) && ex.param_order.length > 0
+    ? ex.param_order
+    : null;
+
+  if (order) {
+    const segs = [];
+    const seen = new Set();
+    for (const id of order) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const seg = segmentForParam(id, ex);
+      if (seg) segs.push(seg);
+    }
+    // Tail: any populated params that weren't in the saved order
+    // (e.g. coach added a new field after dragging).
+    for (const id of DEFAULT_PARAM_ORDER) {
+      if (seen.has(id)) continue;
+      const seg = segmentForParam(id, ex);
+      if (seg) segs.push(seg);
+    }
+    return segs;
+  }
+
+  // Legacy combined formatter — preserves the "3 סטים × 10 חזרות"
+  // collapse for rows the coach hasn't reordered.
   const segs = [];
   const reps = ex.reps && ex.reps !== '0' ? ex.reps : null;
   const sets = ex.sets && ex.sets !== '0' ? ex.sets : null;
@@ -109,9 +202,6 @@ function buildMetaSegments(ex) {
     const tempo = formatTempo(ex.tempo);
     if (tempo) segs.push(`טמפו ${tempo}`);
   }
-  // Surface every other coach-set parameter so the trainee can see
-  // exactly what was prescribed without opening the editor. Hidden
-  // empty values stay hidden — only set fields appear.
   if (ex.body_position) segs.push(ex.body_position);
   if (ex.equipment) segs.push(ex.equipment);
   if (ex.side) segs.push(ex.side);

@@ -1238,19 +1238,56 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   );
 
   // Stacked summary rows — one row per populated parameter, drawn
-  // under the chip grid so the coach sees a running label-and-value
-  // breakdown of the prescription. Order follows ALL_PARAMETERS so
-  // the rows match the chip grid sequence.
-  const summaryRows = ALL_PARAMETERS
-    .filter((p) => !CONTAINER_PARAMS.has(p.id))
-    .map((p) => {
-      const val = exercise[getDbField(p.id)];
-      if (!hasVal(val)) return null;
-      const formatted = formatParamValue(p.id, val);
-      if (!formatted) return null;
-      return { id: p.id, label: p.label, value: formatted };
-    })
-    .filter(Boolean);
+  // under the chip grid. Default order follows ALL_PARAMETERS, but
+  // the coach can drag any row to reorder; the resulting param-id
+  // list is persisted to exercises.param_order so the trainee's
+  // ExerciseCard meta line renders the same way.
+  const buildRow = (paramId) => {
+    const def = ALL_PARAMETERS.find((p) => p.id === paramId);
+    if (!def || CONTAINER_PARAMS.has(paramId)) return null;
+    const val = exercise[getDbField(paramId)];
+    if (!hasVal(val)) return null;
+    const formatted = formatParamValue(paramId, val);
+    if (!formatted) return null;
+    return { id: paramId, label: def.label, value: formatted };
+  };
+
+  const filledIds = ALL_PARAMETERS
+    .filter((p) => !CONTAINER_PARAMS.has(p.id) && hasVal(exercise[getDbField(p.id)]))
+    .map((p) => p.id);
+
+  const savedOrder = Array.isArray(exercise.param_order)
+    ? exercise.param_order.filter((id) => filledIds.includes(id))
+    : [];
+  const orderedIds = [
+    ...savedOrder,
+    ...filledIds.filter((id) => !savedOrder.includes(id)),
+  ];
+  const summaryRows = orderedIds.map(buildRow).filter(Boolean);
+
+  // HTML5 drag handlers — refs (not state) so cross-row hover events
+  // don't trigger renders during the drag. Touch-screen drag-and-drop
+  // is best-effort; HTML5 DnD has known mobile gaps but we avoid the
+  // dnd-kit dependency the spec asked us to skip.
+  const dragItemRef = useRef(null);
+  const dragOverRef = useRef(null);
+
+  const handleParamDragStart = (paramId) => { dragItemRef.current = paramId; };
+  const handleParamDragEnter = (paramId) => { dragOverRef.current = paramId; };
+  const handleParamDragEnd = () => {
+    const from = dragItemRef.current;
+    const to = dragOverRef.current;
+    dragItemRef.current = null;
+    dragOverRef.current = null;
+    if (!from || !to || from === to) return;
+    const next = [...orderedIds];
+    const fromIdx = next.indexOf(from);
+    const toIdx = next.indexOf(to);
+    if (fromIdx === -1 || toIdx === -1) return;
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, from);
+    updateEx('param_order', next);
+  };
 
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
@@ -1391,18 +1428,31 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           direction: 'rtl',
         }}>
           {summaryRows.map((row) => (
-            <div key={row.id} style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 12px',
-              background: '#FFF5EE',
-              borderRadius: 8,
-              border: '1px solid #FFE5D0',
-            }}>
-              <span style={{ fontSize: 13, color: '#FF6F20', fontWeight: 600 }}>
-                {row.label}
-              </span>
+            <div
+              key={row.id}
+              draggable
+              onDragStart={() => handleParamDragStart(row.id)}
+              onDragEnter={() => handleParamDragEnter(row.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnd={handleParamDragEnd}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '8px 12px',
+                background: '#FFF5EE',
+                borderRadius: 8,
+                border: '1px solid #FFE5D0',
+                cursor: 'grab',
+                userSelect: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span aria-hidden style={{ color: '#ccc', fontSize: 16, cursor: 'grab' }}>⠿</span>
+                <span style={{ fontSize: 13, color: '#FF6F20', fontWeight: 600 }}>
+                  {row.label}
+                </span>
+              </div>
               <span style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 700 }}>
                 {row.value}
               </span>
