@@ -305,42 +305,35 @@ function MasterCard({
         background: '#EEF2FF',
         border: '2px solid #818CF8',
         borderRadius: 14,
-        padding: 16,
+        padding: '14px 16px',
         cursor: 'pointer',
       }}
     >
-      <span style={{
-        position: 'absolute', top: 10, left: 12,
-        fontSize: 10, fontWeight: 800, color: '#6D28D9',
-        background: '#F5F3FF',
-        padding: '2px 10px', borderRadius: 999,
-        letterSpacing: 0.5, border: '1px solid #DDD6FE',
-      }}>
-        תוכנית המאמן
-      </span>
       {isCoach && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setShowPlanMenu(true); }}
           aria-label="פעולות תוכנית"
           style={{
-            position: 'absolute', top: 10, right: 12,
-            width: 36, height: 36, borderRadius: '50%',
-            background: '#F5F5F5', border: 'none',
-            fontSize: 22, lineHeight: 1, cursor: 'pointer',
+            position: 'absolute', top: 12, left: 12,
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.06)', border: 'none',
+            fontSize: 18, lineHeight: 1, cursor: 'pointer',
             color: '#888',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 0,
+            zIndex: 2,
           }}
         >⋮</button>
       )}
-      <div style={{ fontSize: 13, color: '#6366F1', fontWeight: 700, marginBottom: 6 }}>
-        🎯 תוכנית המאמן
-      </div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4, paddingLeft: 64 }}>
+      <div style={{
+        fontSize: 17, fontWeight: 800, color: DARK,
+        marginBottom: 4,
+        paddingLeft: isCoach ? 44 : 0,
+      }}>
         {plan.plan_name || plan.title || 'תוכנית'}
       </div>
-      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>
+      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 12 }}>
         {sectionsCount} סקשנים · {exercisesCount} תרגילים
       </div>
       {isCoach ? (
@@ -349,13 +342,13 @@ function MasterCard({
             type="button"
             onClick={(e) => { e.stopPropagation(); onEditPlan && onEditPlan(plan); }}
             style={{
-              width: '100%', padding: '12px',
+              width: '100%', padding: '10px',
               background: 'white',
               border: `2px solid ${ORANGE}`,
               borderRadius: 12,
               color: ORANGE,
               fontWeight: 700,
-              fontSize: 15,
+              fontSize: 13,
               cursor: 'pointer',
               marginBottom: 8,
             }}
@@ -367,13 +360,13 @@ function MasterCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); onDuplicateExecution(plan); }}
               style={{
-                width: '100%', padding: '12px',
+                width: '100%', padding: '10px',
                 background: '#1a1a1a',
                 border: 'none',
                 borderRadius: 12,
                 color: ORANGE,
                 fontWeight: 700,
-                fontSize: 15,
+                fontSize: 13,
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
@@ -388,9 +381,9 @@ function MasterCard({
             type="button"
             onClick={(e) => { e.stopPropagation(); onActivate && onActivate(); }}
             style={{
-              width: '100%', height: 48, borderRadius: 12,
+              width: '100%', height: 44, borderRadius: 12,
               background: ORANGE, color: 'white', border: 'none',
-              fontSize: 15, fontWeight: 800, cursor: 'pointer',
+              fontSize: 14, fontWeight: 800, cursor: 'pointer',
               boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
               marginBottom: onDuplicateExecution ? 8 : 0,
             }}
@@ -402,12 +395,12 @@ function MasterCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); onDuplicateExecution(plan); }}
               style={{
-                width: '100%', padding: '12px',
+                width: '100%', padding: '10px',
                 background: 'white',
                 border: `2px solid ${ORANGE}`,
                 borderRadius: 12,
                 color: ORANGE,
-                fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                fontWeight: 700, fontSize: 13, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
             >
@@ -417,14 +410,16 @@ function MasterCard({
         </>
       )}
 
-      {/* Action menu — bottom sheet */}
+      {/* Action menu — bottom sheet. zIndex bumped above app
+          chrome / bottom nav, plus 100px bottom padding so the
+          last action isn't hidden behind a sticky footer. */}
       {showPlanMenu && (
         <>
           <div
             onClick={(e) => { e.stopPropagation(); setShowPlanMenu(false); }}
             style={{
               position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(0,0,0,0.4)', zIndex: 200,
+              background: 'rgba(0,0,0,0.4)', zIndex: 999,
             }}
           />
           <div
@@ -432,7 +427,7 @@ function MasterCard({
             style={{
               position: 'fixed', bottom: 0, left: 0, right: 0,
               background: 'white', borderRadius: '20px 20px 0 0',
-              padding: '24px 20px 40px', zIndex: 201, direction: 'rtl',
+              padding: '24px 20px 100px', zIndex: 1000, direction: 'rtl',
               cursor: 'default',
             }}
           >
@@ -467,14 +462,16 @@ function MasterCard({
         </>
       )}
 
-      {/* Copy-to-trainee picker — second sheet */}
+      {/* Copy-to-trainee picker — second sheet. zIndex above the
+          first menu (which is at 1000) so the picker stacks on
+          top, plus 100px bottom padding to clear the footer. */}
       {showCopyToTrainee && (
         <>
           <div
             onClick={(e) => { e.stopPropagation(); setShowCopyToTrainee(false); }}
             style={{
               position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(0,0,0,0.4)', zIndex: 202,
+              background: 'rgba(0,0,0,0.4)', zIndex: 1001,
             }}
           />
           <div
@@ -482,7 +479,7 @@ function MasterCard({
             style={{
               position: 'fixed', bottom: 0, left: 0, right: 0,
               background: 'white', borderRadius: '20px 20px 0 0',
-              padding: '24px 20px 40px', zIndex: 203,
+              padding: '24px 20px 100px', zIndex: 1002,
               maxHeight: '70vh', overflowY: 'auto', direction: 'rtl',
               cursor: 'default',
             }}
