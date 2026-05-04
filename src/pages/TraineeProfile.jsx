@@ -86,6 +86,7 @@ import GoalsOverviewChart from "@/components/charts/GoalsOverviewChart";
 import { CHART_COLORS } from "@/components/charts/CHART_TOKENS";
 import { Chip } from "@/components/ui/Chip";
 import DocumentSigningTab from "@/components/DocumentSigningTab";
+import GoalsTab from "@/components/profile/GoalsTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
 import TraineeNotificationsTab from "@/components/profile/TraineeNotificationsTab";
@@ -3888,11 +3889,21 @@ export default function TraineeProfile() {
                 <IntroTab user={user} />
               </TabsContent>
 
-              {/* Goals Tab */}
+              {/* Goals Tab — v2 redesign. Self-contained component
+                  in src/components/profile/GoalsTab.jsx renders the
+                  per-goal accordion cards with measurement history,
+                  AreaChart sparklines, and the new "+ יעד חדש" sheet
+                  (type picker → form). The legacy folder-card +
+                  RadarChart layout that lived inline here was
+                  replaced wholesale; the legacy goalProgress /
+                  RadarChart / GoalsOverviewChart code paths stay
+                  unused (dead branches in this file) until a follow
+                  up cleans them up. */}
               <TabsContent value="goals" className="space-y-4 w-full" dir="rtl">
-                {goalsLoading && goals.length === 0 && (
-                  <InlineLoader message="טוען יעדים..." />
-                )}
+                <GoalsTab traineeId={user?.id} isCoach={isCoach} />
+              </TabsContent>
+              {false && (
+                <TabsContent value="__goals_legacy_unused" className="hidden">
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><Target className="w-5 h-5 text-[#FF6F20]" />יעדים</h2>
                   <Button onClick={() => { setEditingGoal(null); setShowAddGoal(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
@@ -4541,7 +4552,8 @@ export default function TraineeProfile() {
                     </div>
                   );
                 })()}
-              </TabsContent>
+                </TabsContent>
+              )}
 
               {/* Metrics Tab */}
               <TabsContent value="metrics" className="space-y-4 w-full" dir="rtl">
