@@ -1,10 +1,95 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabaseClient';
+
+// Open-ended goal input UX helpers.
+//
+// GOAL_PLACEHOLDERS — rotated every 2s while the title field is
+// empty + focused. Each example reads as a full trainee statement
+// so the "this is free text, not just a number" affordance is
+// obvious before the trainee starts typing.
+const GOAL_PLACEHOLDERS = [
+  'לדוגמה: "10 עליות סנטה"',
+  'לדוגמה: "לרוץ 5 ק״מ בלי לעצור"',
+  'לדוגמה: "להרגיש קל בקפיצות"',
+  'לדוגמה: "לעמוד 60 שניות על הידיים"',
+];
+const GOAL_TITLE_MAX = 120;
+
+// Reusable autogrow textarea — single-line by default, scrollHeight
+// trick expands as the user types. RTL + brand styling baked in.
+function AutogrowTextarea({
+  value, onChange, placeholder, maxLength, style, onFocus, onBlur, ...rest
+}) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value.slice(0, maxLength || Infinity))}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      rows={1}
+      style={{
+        width: '100%', padding: '12px 14px',
+        border: '1.5px solid #F0E4D0', borderRadius: 10,
+        fontSize: 15, direction: 'rtl', boxSizing: 'border-box',
+        resize: 'none', overflow: 'hidden', minHeight: 44,
+        fontFamily: 'inherit', lineHeight: 1.5,
+        outline: 'none', background: 'white',
+        ...(style || {}),
+      }}
+      {...rest}
+    />
+  );
+}
+
+// Inline character counter — gray under the limit, brand orange in
+// the last 20 chars so the trainee sees the boundary coming.
+function CharCounter({ length, max }) {
+  const near = length > (max - 20);
+  return (
+    <div style={{
+      fontSize: 11,
+      color: near ? '#FF6F20' : '#888',
+      textAlign: 'left',
+      marginTop: 2,
+      fontFeatureSettings: '"tnum"',
+    }}>
+      {length}/{max}
+    </div>
+  );
+}
+
+// Tiny ✅ that fades in/out beside a save control. 300ms fade-in,
+// auto-clears via parent state.
+function SaveCheckmark({ show }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-block', marginRight: 8,
+        opacity: show ? 1 : 0,
+        transform: show ? 'scale(1)' : 'scale(0.85)',
+        transition: 'opacity 0.3s ease, transform 0.3s ease',
+        fontSize: 16, lineHeight: 1,
+      }}
+    >
+      {show ? '✅' : ''}
+    </span>
+  );
+}
 
 // Goals system v2 — measurable, trackable goals.
 //   Per-goal accordion card with a sparkline of every measurement.
@@ -54,20 +139,40 @@ function NewGoalSheet({ onClose, traineeId, onSaved }) {
     unit: '', targetDate: '',
   });
   const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  // Rotating placeholder for the title field — flips through
+  // GOAL_PLACEHOLDERS every 2s while the field is empty + focused.
+  const [titleFocused, setTitleFocused] = useState(false);
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  useEffect(() => {
+    if (!titleFocused || form.title.length > 0) return;
+    const t = setInterval(
+      () => setPlaceholderIdx((n) => (n + 1) % GOAL_PLACEHOLDERS.length),
+      2000,
+    );
+    return () => clearInterval(t);
+  }, [titleFocused, form.title]);
 
   const saveGoal = async () => {
     if (!form.title || !form.targetValue || !selectedType) return;
     setSaving(true);
     try {
+      // Open inputs — the trainee may type "10 חזרות" or "5 ק״מ".
+      // parseFloat extracts the leading number for the NUMERIC
+      // start_value / target_value columns; the full string also
+      // lands in title / success_definition for free-text recall.
       const startNum = parseFloat(form.startValue);
+      const targetNum = parseFloat(form.targetValue);
       const startVal = Number.isFinite(startNum) ? startNum : 0;
+      const targetVal = Number.isFinite(targetNum) ? targetNum : null;
       const { error } = await supabase.from('goals').insert({
         trainee_id: traineeId,
         title: form.title.trim(),
         goal_type: selectedType.type,
         start_value: startVal,
         current_value: startVal,
-        target_value: parseFloat(form.targetValue),
+        target_value: targetVal,
         unit: form.unit?.trim() || selectedType.unit || null,
         success_definition: form.successDefinition?.trim() || null,
         target_date: form.targetDate || null,
@@ -80,6 +185,8 @@ function NewGoalSheet({ onClose, traineeId, onSaved }) {
         }]),
       });
       if (error) throw error;
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1200);
       toast.success('היעד נוצר ✅');
       onSaved && onSaved();
     } catch (e) {
@@ -150,31 +257,112 @@ function NewGoalSheet({ onClose, traineeId, onSaved }) {
               <div style={{ fontSize: 18, fontWeight: 800 }}>{selectedType.label}</div>
             </div>
 
-            {[
-              { label: 'אני רוצה...', key: 'title', placeholder: 'תאר את היעד שלך', type: 'text' },
-              { label: 'הצלחה תיראה כך:', key: 'successDefinition', placeholder: 'למשל: לרוץ 5 ק"מ בלי לעצור', type: 'text' },
-              { label: 'נקודת התחלה (היום)', key: 'startValue', placeholder: `0 ${selectedType.unit}`, type: 'number' },
-              { label: 'יעד סופי', key: 'targetValue', placeholder: `${selectedType.unit}`, type: 'number' },
-              { label: 'יחידת מידה', key: 'unit', placeholder: selectedType.unit, type: 'text' },
-              { label: 'תאריך יעד (אופציונלי)', key: 'targetDate', placeholder: '', type: 'date' },
-            ].map((field) => (
-              <div key={field.key} style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>
-                  {field.label}
-                </div>
-                <input
-                  type={field.type}
-                  placeholder={field.placeholder}
-                  value={form[field.key]}
-                  onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
-                  style={{
-                    width: '100%', padding: '12px 14px',
-                    border: '1.5px solid #F0E4D0', borderRadius: 10,
-                    fontSize: 15, direction: 'rtl', boxSizing: 'border-box',
-                  }}
-                />
+            {/* Title — autogrow textarea, char counter, rotating
+                placeholder while empty + focused. Open-ended so the
+                trainee can write "10 עליות סנטה" or a longer phrase. */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>
+                אני רוצה...
               </div>
-            ))}
+              <AutogrowTextarea
+                value={form.title}
+                onChange={(v) => setForm((f) => ({ ...f, title: v }))}
+                onFocus={() => setTitleFocused(true)}
+                onBlur={() => setTitleFocused(false)}
+                placeholder={GOAL_PLACEHOLDERS[placeholderIdx]}
+                maxLength={GOAL_TITLE_MAX}
+              />
+              <CharCounter length={form.title.length} max={GOAL_TITLE_MAX} />
+            </div>
+
+            {/* Success definition — also free text + autogrow. */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>
+                הצלחה תיראה כך:
+              </div>
+              <AutogrowTextarea
+                value={form.successDefinition}
+                onChange={(v) => setForm((f) => ({ ...f, successDefinition: v }))}
+                placeholder='למשל: "לרוץ 5 ק״מ בלי לעצור"'
+                maxLength={GOAL_TITLE_MAX}
+              />
+              <CharCounter length={form.successDefinition.length} max={GOAL_TITLE_MAX} />
+            </div>
+
+            {/* Start / target — open text. parseFloat extracts the
+                leading number on save; the trainee can also type
+                a phrase ("עליות סנטה: 0", "5 ק״מ") and save the
+                numeric portion. */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>
+                נקודת התחלה (היום)
+              </div>
+              <input
+                type="text"
+                placeholder={`לדוגמה: 0 ${selectedType.unit}`.trim()}
+                value={form.startValue}
+                onChange={(e) => setForm((f) => ({ ...f, startValue: e.target.value }))}
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  border: '1.5px solid #F0E4D0', borderRadius: 10,
+                  fontSize: 15, direction: 'rtl', boxSizing: 'border-box',
+                  outline: 'none', background: 'white',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>
+                יעד סופי
+              </div>
+              <input
+                type="text"
+                placeholder={`לדוגמה: 10 ${selectedType.unit}`.trim()}
+                value={form.targetValue}
+                onChange={(e) => setForm((f) => ({ ...f, targetValue: e.target.value }))}
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  border: '1.5px solid #F0E4D0', borderRadius: 10,
+                  fontSize: 15, direction: 'rtl', boxSizing: 'border-box',
+                  outline: 'none', background: 'white',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>
+                יחידת מידה
+              </div>
+              <input
+                type="text"
+                placeholder={selectedType.unit}
+                value={form.unit}
+                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  border: '1.5px solid #F0E4D0', borderRadius: 10,
+                  fontSize: 15, direction: 'rtl', boxSizing: 'border-box',
+                  outline: 'none', background: 'white',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>
+                תאריך יעד (אופציונלי)
+              </div>
+              <input
+                type="date"
+                value={form.targetDate}
+                onChange={(e) => setForm((f) => ({ ...f, targetDate: e.target.value }))}
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  border: '1.5px solid #F0E4D0', borderRadius: 10,
+                  fontSize: 15, direction: 'rtl', boxSizing: 'border-box',
+                  outline: 'none', background: 'white',
+                }}
+              />
+            </div>
 
             <button
               type="button"
@@ -188,8 +376,10 @@ function NewGoalSheet({ onClose, traineeId, onSaved }) {
                 fontWeight: 700, fontSize: 16,
                 cursor: form.title && form.targetValue && !saving ? 'pointer' : 'not-allowed',
                 marginTop: 8,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
+              <SaveCheckmark show={savedFlash} />
               {saving ? 'שומר...' : 'צור יעד ✓'}
             </button>
           </>
@@ -203,6 +393,7 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
   const [measValue, setMeasValue] = useState('');
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const pct = getProgressPct(goal);
   const measurements = parseMeasurements(goal.measurements);
@@ -215,14 +406,23 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
   ];
 
   const saveMeasurement = async () => {
+    // Open input — accept "10 חזרות" or "5 ק״מ" too. parseFloat
+    // extracts the leading number for the chart point; the
+    // freeform note (full string) attaches as the "note" field
+    // so the trainee can recall what they actually wrote.
     const val = parseFloat(measValue);
-    if (!Number.isFinite(val)) return;
+    if (!Number.isFinite(val)) {
+      toast.error('יש להזין מספר במדידה');
+      return;
+    }
     setSaving(true);
     try {
-      const updated = [
-        ...measurements,
-        { date: new Date().toISOString(), value: val },
-      ];
+      const trimmed = (measValue || '').trim();
+      const note = trimmed && trimmed !== String(val) ? trimmed : null;
+      const entry = note
+        ? { date: new Date().toISOString(), value: val, note }
+        : { date: new Date().toISOString(), value: val };
+      const updated = [...measurements, entry];
       const { error } = await supabase
         .from('goals')
         .update({
@@ -233,6 +433,8 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
       if (error) throw error;
       setMeasValue('');
       setAdding(false);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1200);
       toast.success('מדידה נשמרה ✅');
       onMeasurementSaved && onMeasurementSaved();
     } catch (e) {
@@ -334,16 +536,16 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
           {adding ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
               <input
-                type="number"
-                placeholder={`ערך ב-${goal.unit || ''}`}
+                type="text"
+                placeholder={goal.unit ? `לדוגמה: 10 ${goal.unit}` : 'הזן ערך'}
                 value={measValue}
-                onChange={(e) => setMeasValue(e.target.value)}
+                onChange={(e) => setMeasValue(e.target.value.slice(0, GOAL_TITLE_MAX))}
                 autoFocus
                 style={{
-                  flex: 1, height: 44, fontSize: 18, fontWeight: 700,
+                  flex: 1, height: 44, fontSize: 16, fontWeight: 600,
                   border: '2px solid #FF6F20', borderRadius: 10,
-                  textAlign: 'center', padding: '0 12px',
-                  outline: 'none', direction: 'ltr',
+                  textAlign: 'right', padding: '0 12px',
+                  outline: 'none', direction: 'rtl',
                   boxSizing: 'border-box',
                 }}
               />
@@ -357,8 +559,10 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
                   color: measValue && !saving ? 'white' : '#aaa',
                   border: 'none', borderRadius: 10,
                   fontWeight: 700, cursor: measValue && !saving ? 'pointer' : 'not-allowed',
+                  display: 'inline-flex', alignItems: 'center',
                 }}
               >
+                <SaveCheckmark show={savedFlash} />
                 {saving ? '...' : 'שמור'}
               </button>
               <button

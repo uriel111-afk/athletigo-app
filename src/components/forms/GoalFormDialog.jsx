@@ -283,21 +283,21 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs text-gray-500">מצב נוכחי</Label>
-                <Input 
-                  type="number" 
-                  value={formData.current_value} 
+                <Input
+                  type="text"
+                  value={formData.current_value}
                   onChange={(e) => setFormData({ ...formData, current_value: e.target.value })}
-                  placeholder="הקלד מספר"
+                  placeholder='לדוגמה: "5 ק״מ"'
                   className="rounded-lg h-9 text-center text-sm placeholder:text-xs bg-white"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-gray-500">יעד מספרי</Label>
                 <Input
-                  type="number"
+                  type="text"
                   value={formData.target_value}
                   onChange={(e) => setFormData({ ...formData, target_value: e.target.value })}
-                  placeholder="הקלד מספר"
+                  placeholder='לדוגמה: "10 ק״מ"'
                   className="rounded-lg h-9 text-center text-sm placeholder:text-xs bg-white"
                 />
               </div>
