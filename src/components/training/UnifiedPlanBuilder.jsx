@@ -1181,11 +1181,177 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         if (logErr) console.warn('[saveWorkoutExecution] set logs failed:', logErr.message);
       }
 
+      // Best-effort auto-PR + goal sync. Errors here never block the
+      // happy path — the execution row is already saved.
+      try {
+        await checkAndUpdateRecords(execRow.id, traineeId);
+      } catch (e) {
+        console.warn('[saveWorkoutExecution] auto-PR check threw:', e?.message);
+      }
+
       if (avg != null) toast.success(`✅ הציון ${avg} נשמר`);
       return execRow;
     } catch (err) {
       console.warn('[saveWorkoutExecution]', err);
       return null;
+    }
+  };
+
+  // After a workout finishes, walk every set log on this execution,
+  // pick the best reps_completed per exercise, and compare against the
+  // trainee's existing personal_records. If new max > current best
+  // → insert a fresh personal_records row (preserving history) +
+  // pulse a 🏆 toast + cascade to the goal-progress sync below.
+  //
+  // Writes to personal_records (existing table) — NOT a new "records"
+  // table. The schema uses name TEXT (not exercise_id FK) so we look
+  // up exercise.exercise_name from the exercises rows in one batch.
+  const checkAndUpdateRecords = async (executionId, traineeId) => {
+    if (!executionId || !traineeId) return;
+
+    const { data: rawLogs, error: logsErr } = await supabase
+      .from('exercise_set_logs')
+      .select('exercise_id, reps_completed, completed')
+      .eq('execution_id', executionId);
+    if (logsErr) {
+      console.warn('[checkAndUpdateRecords] set logs query failed:', logsErr.message);
+      return;
+    }
+    if (!rawLogs?.length) return;
+
+    // Best reps per exercise (only completed sets count toward PRs).
+    const maxByExercise = {};
+    for (const log of rawLogs) {
+      if (!log?.exercise_id) continue;
+      const reps = parseInt(log.reps_completed, 10);
+      if (!Number.isFinite(reps) || reps <= 0) continue;
+      if (!maxByExercise[log.exercise_id] || reps > maxByExercise[log.exercise_id]) {
+        maxByExercise[log.exercise_id] = reps;
+      }
+    }
+    const exerciseIds = Object.keys(maxByExercise);
+    if (exerciseIds.length === 0) return;
+
+    // Resolve exercise names in one round-trip.
+    const { data: exRows, error: exErr } = await supabase
+      .from('exercises')
+      .select('id, exercise_name, name')
+      .in('id', exerciseIds);
+    if (exErr) {
+      console.warn('[checkAndUpdateRecords] exercises lookup failed:', exErr.message);
+      return;
+    }
+    const nameById = {};
+    for (const ex of (exRows || [])) {
+      nameById[ex.id] = ex.exercise_name || ex.name || null;
+    }
+
+    for (const exerciseId of exerciseIds) {
+      const exerciseName = nameById[exerciseId];
+      const maxReps = maxByExercise[exerciseId];
+      if (!exerciseName || !Number.isFinite(maxReps)) continue;
+
+      // Current best for this trainee+exercise. personal_records keeps
+      // every PR row, so order desc + limit 1 gives the latest top.
+      const { data: existing, error: prErr } = await supabase
+        .from('personal_records')
+        .select('value')
+        .eq('trainee_id', traineeId)
+        .eq('name', exerciseName)
+        .order('value', { ascending: false })
+        .limit(1);
+      if (prErr) {
+        console.warn(`[checkAndUpdateRecords] personal_records lookup failed for ${exerciseName}:`, prErr.message);
+        continue;
+      }
+      const currentBest = Number(existing?.[0]?.value) || 0;
+      if (maxReps <= currentBest) continue;
+
+      // New PR — insert (don't upsert; history rows feed the chart).
+      const { error: insErr } = await supabase.from('personal_records').insert({
+        trainee_id: traineeId,
+        record_type: 'workout',
+        name: exerciseName,
+        unit: 'חזרות',
+        value: maxReps,
+        date: new Date().toISOString().slice(0, 10),
+        created_by_role: isCoach ? 'coach' : 'trainee',
+        created_by_user_id: traineeId,
+      });
+      if (insErr) {
+        console.warn(`[checkAndUpdateRecords] PR insert failed for ${exerciseName}:`, insErr.message);
+        continue;
+      }
+      toast.success(`🏆 שיא חדש! ${exerciseName}: ${maxReps} חזרות`);
+
+      // Cascade to any reps/skill goal that links this exercise.
+      try {
+        await syncGoalsFromPR(traineeId, exerciseId, exerciseName, maxReps);
+      } catch (e) {
+        console.warn('[checkAndUpdateRecords] goal sync threw:', e?.message);
+      }
+    }
+  };
+
+  // Update goals whose linked_exercise_id matches the PR's exercise OR
+  // whose title/exercise_name matches the exercise name. Skips goals
+  // with auto_update=false so coaches can opt a goal out. Pushes a new
+  // measurement entry, bumps current_value, flips status to הושג when
+  // newValue >= target_value.
+  const syncGoalsFromPR = async (traineeId, exerciseId, exerciseName, newValue) => {
+    const { data: goals } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('trainee_id', traineeId)
+      .eq('status', 'פעיל')
+      .in('goal_type', ['reps', 'skill']);
+    if (!goals?.length) return;
+
+    const matches = goals.filter((g) => {
+      if (g.auto_update === false) return false;
+      if (g.linked_exercise_id && g.linked_exercise_id === exerciseId) return true;
+      const title = (g.title || g.goal_name || '').toLowerCase();
+      const link = (g.exercise_name || '').toLowerCase();
+      const tag = (exerciseName || '').toLowerCase();
+      if (link && link === tag) return true;
+      if (title && tag && title.includes(tag)) return true;
+      return false;
+    });
+
+    for (const goal of matches) {
+      const currentVal = Number(goal.current_value) || 0;
+      if (newValue <= currentVal) continue;
+      const measurements = (() => {
+        const raw = goal.measurements;
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string' && raw) {
+          try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; } catch { return []; }
+        }
+        return [];
+      })();
+      measurements.push({
+        date: new Date().toISOString(),
+        value: newValue,
+        note: 'עדכון אוטומטי מאימון',
+      });
+      const target = Number(goal.target_value);
+      const becameDone = Number.isFinite(target) && target > 0 && newValue >= target;
+      const update = {
+        current_value: newValue,
+        measurements: JSON.stringify(measurements),
+      };
+      if (becameDone) {
+        update.status = 'הושג';
+        update.completed_at = new Date().toISOString();
+      }
+      const { error } = await supabase.from('goals').update(update).eq('id', goal.id);
+      if (error) {
+        console.warn(`[syncGoalsFromPR] goal update failed for ${goal.id}:`, error.message);
+        continue;
+      }
+      if (becameDone) {
+        toast.success(`🎉 השגת את היעד: ${goal.title || goal.goal_name || 'יעד'}!`);
+      }
     }
   };
 
