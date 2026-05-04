@@ -34,6 +34,7 @@ export default function SectionCard({
   setLogs = {},
   onSetLogChange,
   onSetToggleDone,
+  sectionRating = null,
   showEditButtons = false,
   isCoach = false,
   plan,
@@ -219,6 +220,20 @@ export default function SectionCard({
                 }}>
                   {exercises.length} תרגילים
                 </span>
+                {/* Saved section rating — trainee view only. Renders
+                    once the trainee submits the section feedback
+                    sliders so the score they gave is visible on the
+                    closed card. */}
+                {!showEditButtons && sectionRating != null && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: '#FFF5EE', border: '1px solid #FFE5D0',
+                    borderRadius: 999, padding: '3px 10px',
+                    fontSize: 12, fontWeight: 700, color: '#FF6F20',
+                  }}>
+                    ⭐ {Number(sectionRating).toFixed(1)}/10
+                  </span>
+                )}
                 {section.completed && (
                   <span className="text-green-500 font-bold" style={{ fontSize: 12 }}>
                     הושלם

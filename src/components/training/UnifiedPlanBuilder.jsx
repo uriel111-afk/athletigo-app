@@ -356,7 +356,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     control: 7, challenge: 7, notes: "",
   });
   const [sectionRatings, setSectionRatings] = useState({});
-  const [completedSections, setCompletedSections] = useState(new Set());
+  // Ref (not state) — checkAndTriggerPopups reads this synchronously
+  // to decide whether to fire the section feedback dialog. State
+  // would batch the add through React's update queue and a fast
+  // double-tap could slip a duplicate fire through the window. Nothing
+  // renders based on this set, so a ref is the right shape.
+  const ratedSectionsRef = useRef(new Set());
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [showMetadataEditor, setShowMetadataEditor] = useState(false);
@@ -401,8 +406,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   React.useEffect(() => {
     hasInteractedRef.current = false;
     celebrationFiredRef.current = false;
+    ratedSectionsRef.current = new Set();
     setSectionRatings({});
-    setCompletedSections(new Set());
     setShowSectionFeedbackDialog(false);
     setShowSummaryDialog(false);
     setShowCelebration(false);
@@ -727,10 +732,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     const isSectionComplete = sectionExercises.length > 0 && sectionExercises.every((e) => e.completed);
 
     // If Section Complete AND not handled this session
-    if (isSectionComplete && !completedSections.has(sectionId)) {
+    if (isSectionComplete && !ratedSectionsRef.current.has(sectionId)) {
       const section = sections.find((s) => s.id === sectionId);
       if (section) {
-        // 1. Show Popup (Wait for user interaction before checking global completion)
+        // Mark immediately — synchronous ref add closes the
+        // double-fire window before the dialog even renders.
+        ratedSectionsRef.current.add(sectionId);
         setSectionFeedbackData({
           sectionId: section.id,
           sectionName: section.section_name,
@@ -740,18 +747,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         });
         setShowSectionFeedbackDialog(true);
 
-        // 2. Update Local State & DB
         if (!section.completed) {
           updateSectionMutation.mutate({ id: sectionId, data: { completed: true } });
         }
-        setCompletedSections((prev) => new Set([...prev, sectionId]));
       }
-      return; // STOP HERE. 
+      return; // STOP HERE.
     }
 
     // Only check global completion here if we DID NOT just finish a section (e.g. updating single exercise not in section, or section already completed)
     // The Section Feedback Dialog will handle checking global completion on close.
-    if (!isSectionComplete || completedSections.has(sectionId)) {
+    if (!isSectionComplete || ratedSectionsRef.current.has(sectionId)) {
       const allExercisesComplete = updatedExercises.length > 0 && updatedExercises.every((e) => e.completed);
       if (allExercisesComplete) {
         setTimeout(() => showWorkoutSummary(updatedExercises), 700);
@@ -1738,6 +1743,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 key={section.id}
                 index={index}
                 section={section}
+                sectionRating={sectionRatings[section.id] ?? null}
                 exercises={sectionExercises}
                 onToggleComplete={handleToggleComplete}
                 onEditExercise={(exercise) => {
