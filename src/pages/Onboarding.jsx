@@ -675,6 +675,49 @@ export default function Onboarding() {
         return;
       }
       console.log('[Onboarding] summary written:', summary);
+
+      // Materialize the trainee's onboarding goal selections as
+      // individual rows in the `goals` table so the יעדים tab + the
+      // records-chart projection line have something to render on day
+      // one. Idempotent: skipped if any onboarding-sourced goal
+      // already exists for this trainee. Best-effort — failure here
+      // doesn't block the flow (the labels are already on
+      // users.training_goals as a fallback).
+      const onboardingGoals = Array.isArray(fresh?.training_goals)
+        ? fresh.training_goals
+        : (Array.isArray(selectedGoals) ? selectedGoals : []);
+      if (onboardingGoals.length > 0) {
+        try {
+          const { data: existing } = await supabase
+            .from('goals')
+            .select('id')
+            .eq('trainee_id', userId)
+            .eq('source', 'onboarding')
+            .limit(1);
+          if (!existing?.length) {
+            const goalsToInsert = onboardingGoals.map((goal) => ({
+              trainee_id: userId,
+              title: goal,
+              description: 'יעד שנקבע באונבורדינג',
+              progress: 0,
+              status: 'פעיל',
+              source: 'onboarding',
+              created_at: new Date().toISOString(),
+            }));
+            const { error: gErr } = await supabase.from('goals').insert(goalsToInsert);
+            if (gErr) {
+              console.warn('[Onboarding] goals seed failed:', gErr.message);
+            } else {
+              console.log('[Onboarding] goals seeded:', goalsToInsert.length);
+            }
+          } else {
+            console.log('[Onboarding] goals already seeded — skipping');
+          }
+        } catch (e) {
+          console.warn('[Onboarding] goals seed threw:', e?.message);
+        }
+      }
+
       // Notify the coach — minimal columns only. `link` / `data` /
       // `status` may not exist on older installs and silently 400'd
       // the insert before. user_id + type + title + message + is_read
