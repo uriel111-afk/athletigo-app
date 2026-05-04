@@ -8,19 +8,23 @@ import ExerciseCheckbox from "./ExerciseCheckbox";
 import ExerciseNotePopup from "./ExerciseNotePopup";
 import { useLongPress } from "@/lib/useLongPress";
 
+// Always m:ss. Stored values may be raw integer seconds, numeric
+// strings, or pre-formatted "m:ss" strings — all roundtrip back to
+// total seconds first, then format. Returns null for empty/zero so
+// the caller can omit the param entirely.
 const fmtTime = (v) => {
   if (!v && v !== 0) return null;
+  let total;
   if (typeof v === "string" && v.includes(":")) {
     const [m, s] = v.split(":").map(Number);
-    const total = (m || 0) * 60 + (s || 0);
-    if (total === 0) return null;
-    if (total % 60 === 0) return `${total / 60} דק׳`;
-    return total < 60 ? `${total} שנ׳` : `${m}:${String(s).padStart(2, "0")}`;
+    total = (m || 0) * 60 + (s || 0);
+  } else {
+    total = parseInt(v, 10);
   }
-  const n = parseInt(v);
-  if (isNaN(n) || n === 0) return null;
-  if (n % 60 === 0) return `${n / 60} דק׳`;
-  return n < 60 ? `${n} שנ׳` : `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+  if (Number.isNaN(total) || total <= 0) return null;
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 };
 
 function formatTempo(val) {

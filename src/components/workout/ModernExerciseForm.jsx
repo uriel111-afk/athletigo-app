@@ -118,12 +118,22 @@ const hasVal = (v) => {
   return true;
 };
 
+// Always m:ss — values are stored as total seconds; "1:30" reads
+// naturally for both short rest gaps and long work intervals.
+// Returns null for empty/zero so the caller can decide to omit
+// the param entirely.
 const fmtTime = (v) => {
   if (!v && v !== 0) return null;
-  const n = parseInt(v);
-  if (isNaN(n) || n === 0) return null;
-  if (n % 60 === 0) return `${n / 60} דק׳`;
-  return n < 60 ? `${n} שנ׳` : `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+  const n = typeof v === 'string' && v.includes(':')
+    ? (() => {
+        const [m, s] = v.split(':').map(Number);
+        return (m || 0) * 60 + (s || 0);
+      })()
+    : parseInt(v, 10);
+  if (Number.isNaN(n) || n <= 0) return null;
+  const m = Math.floor(n / 60);
+  const s = n % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 };
 
 const getDisplay = (pid, val) => {
@@ -157,11 +167,11 @@ const formatParamValue = (key, value) => {
     case "sets":          return `${value} סטים`;
     case "reps":          return `${value} חזרות`;
     case "rounds":        return `${value} סבבים`;
-    case "work_time":     return `${value}''`;
-    case "rest_time":     return `מנוחה ${value}''`;
-    case "rest_between_sets":      return `מנ׳ סטים ${value}''`;
-    case "rest_between_exercises": return `מנ׳ תרגילים ${value}''`;
-    case "static_hold":            return `${value}'' החזקה`;
+    case "work_time":              return fmtTime(value) || String(value);
+    case "rest_time":              return `מנוחה ${fmtTime(value) || value}`;
+    case "rest_between_sets":      return `מנ׳ סטים ${fmtTime(value) || value}`;
+    case "rest_between_exercises": return `מנ׳ תרגילים ${fmtTime(value) || value}`;
+    case "static_hold":            return `${fmtTime(value) || value} החזקה`;
     case "weight":
     case "weight_kg":     return `${value} ק"ג`;
     case "rpe":           return `RPE ${value}`;
