@@ -168,6 +168,7 @@ function describeSub(sub) {
 export default function ExerciseCard({
   exercise, onToggleComplete, onEdit, onDelete, onRename,
   canEdit = false, isCoach = false, plan, traineeProgress,
+  setLog, onSetLogChange, onSetToggleDone,
 }) {
   const queryClient = useQueryClient();
   const [renamingExercise, setRenamingExercise] = useState(false);
@@ -328,6 +329,64 @@ export default function ExerciseCard({
         {metaSegs.length > 0 && (
           <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
             {metaSegs.join(' · ')}
+          </div>
+        )}
+
+        {/* Per-set tracker — trainee view only, when the exercise is
+            multi-set. One row per set: numeric input for reps/seconds
+            and an orange-bordered ✓ that flips to filled when the set
+            is done. Last toggle that completes the exercise also
+            fires the existing onToggleComplete via onSetToggleDone. */}
+        {!canEdit && (parseInt(exercise.sets, 10) || 0) > 1 && onSetLogChange && onSetToggleDone && (
+          <div style={{ marginTop: 8 }}>
+            {Array.from({ length: parseInt(exercise.sets, 10) || 1 }, (_, i) => {
+              const log = (setLog && setLog[i]) || {};
+              const targetReps = exercise.reps && exercise.reps !== '0' ? exercise.reps : null;
+              const targetTime = exercise.work_time && exercise.work_time !== '0' ? exercise.work_time : null;
+              const placeholder = targetReps || targetTime || '';
+              const unit = targetReps ? 'חזרות' : targetTime ? 'שניות' : '';
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 0',
+                  borderBottom: i < (parseInt(exercise.sets, 10) - 1) ? '1px solid #F9F9F9' : 'none',
+                }}>
+                  <span style={{ fontSize: 12, color: '#888', minWidth: 36 }}>
+                    סט {i + 1}
+                  </span>
+                  <input
+                    type="number"
+                    placeholder={String(placeholder)}
+                    value={log.reps_completed ?? ''}
+                    onChange={(e) => onSetLogChange(exercise.id, i, 'reps_completed', e.target.value)}
+                    style={{
+                      width: 64, padding: '6px 8px', border: '1px solid #F0E4D0',
+                      borderRadius: 8, fontSize: 14, textAlign: 'center',
+                      background: 'white', outline: 'none',
+                      direction: 'ltr',
+                    }}
+                  />
+                  {unit && (
+                    <span style={{ fontSize: 11, color: '#888' }}>{unit}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onSetToggleDone(exercise, i)}
+                    aria-label={log.done ? 'בטל סט' : 'סמן סט כבוצע'}
+                    style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: log.done ? '#FF6F20' : 'white',
+                      border: '2px solid #FF6F20',
+                      color: log.done ? 'white' : '#FF6F20',
+                      fontSize: 14, fontWeight: 700, lineHeight: 1,
+                      cursor: 'pointer', flexShrink: 0,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      marginRight: 'auto',
+                    }}
+                  >✓</button>
+                </div>
+              );
+            })}
           </div>
         )}
 

@@ -16,6 +16,20 @@ import { toast } from "sonner";
 import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificationTriggers";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { createDuplicatedExecution } from "@/lib/workoutExecutionApi";
+
+// End-of-workout multi-select chips. Stored verbatim into
+// workout_executions.feedback_chips (TEXT[]).
+const FEEDBACK_OPTIONS = [
+  'האימון היה מושלם 💯',
+  'צריך להגביר עצימות 🔥',
+  'היה קשה מדי 😤',
+  'אהבתי את התרגילים ❤️',
+  'צריך יותר מנוחה 😴',
+  'הרגשתי חזק 💪',
+  'היה קצר מדי ⏱',
+  'בדיוק בשבילי 🎯',
+];
 
 // Defensive parser for array-shaped fields. The codebase has at least
 // three persisted shapes in the wild for goal_focus / weekly_days:
@@ -333,7 +347,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [tempPlanName, setTempPlanName] = useState(plan.plan_name || "");
   const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
-  const [sectionFeedbackData, setSectionFeedbackData] = useState({ sectionId: null, sectionName: "", rating: 7, notes: "" });
+  // Section feedback now captures TWO 1-10 sliders (control = how
+  // in-control the trainee felt, challenge = how hard it was). The
+  // section's stored rating is their average — keeps sectionRatings
+  // a flat number map for the existing summary average calc.
+  const [sectionFeedbackData, setSectionFeedbackData] = useState({
+    sectionId: null, sectionName: "",
+    control: 7, challenge: 7, notes: "",
+  });
   const [sectionRatings, setSectionRatings] = useState({});
   const [completedSections, setCompletedSections] = useState(new Set());
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
@@ -341,6 +362,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [showMetadataEditor, setShowMetadataEditor] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const celebrationFiredRef = useRef(false);
+  // Per-set logs for the trainee execution flow.
+  // Shape: { [exerciseId]: { [setIndex]: { reps_completed, done } } }
+  // Persisted to exercise_set_logs at workout-finish time.
+  const [setLogs, setSetLogs] = useState({});
+  // End-of-workout multi-select feedback chips + free-text. Saved to
+  // workout_executions.feedback_chips / .notes.
+  const [feedbackChips, setFeedbackChips] = useState([]);
+  const [feedbackText, setFeedbackText] = useState('');
   // Guard: gates the section/summary popups + the celebration overlay
   // so they only fire after the trainee has actually toggled at least
   // one exercise in this session. Prevents the popup-on-mount bug
@@ -678,8 +707,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         setSectionFeedbackData({
           sectionId: section.id,
           sectionName: section.section_name,
-          rating: 7,
-          notes: ""
+          control: 7,
+          challenge: 7,
+          notes: "",
         });
         setShowSectionFeedbackDialog(true);
 
@@ -745,8 +775,27 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
 
+    // Per-set completion %, falling back to per-exercise when no
+    // set logs were tracked. Mirrors saveWorkoutExecution's calc so
+    // the popup and the persisted row agree.
+    let pctTotalSets = 0;
+    let pctDoneSets = 0;
+    for (const ex of currentExercisesList) {
+      if (!ex) continue;
+      const n = Math.max(1, parseInt(ex.sets, 10) || 1);
+      pctTotalSets += n;
+      const log = setLogs[ex.id] || {};
+      for (let i = 0; i < n; i++) if (log[i]?.done) pctDoneSets++;
+    }
+    const completionPct = pctTotalSets > 0
+      ? Math.round((pctDoneSets / pctTotalSets) * 100)
+      : (currentExercisesList.length > 0
+          ? Math.round((completed.length / currentExercisesList.length) * 100)
+          : 0);
+
     setSummaryData({
       averageRating,
+      completionPct,
       totalExercises,
       totalSets,
       totalWorkTime: formatTimeStat(totalWorkSeconds),
@@ -841,6 +890,50 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       data: { completed: newCompletedState }
     });
   };
+
+  // Per-set logging helpers. Local state only — persisted in
+  // saveWorkoutExecution to exercise_set_logs once the trainee finishes.
+  const updateSetLog = React.useCallback((exId, setIdx, field, value) => {
+    setSetLogs((prev) => ({
+      ...prev,
+      [exId]: {
+        ...(prev[exId] || {}),
+        [setIdx]: { ...((prev[exId] || {})[setIdx] || {}), [field]: value },
+      },
+    }));
+  }, []);
+
+  // Toggle a single set's done flag. When the toggle flips the LAST
+  // remaining set into done, the exercise as a whole becomes
+  // completed — that triggers the existing section-feedback /
+  // workout-summary popups via handleToggleComplete.
+  const toggleSetDone = React.useCallback((exercise, setIdx) => {
+    const exId = exercise.id;
+    const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
+    const current = setLogs[exId] || {};
+    const cur = current[setIdx] || {};
+    const nextDone = !cur.done;
+    const nextLogs = {
+      ...current,
+      [setIdx]: { ...cur, done: nextDone },
+    };
+    setSetLogs((prev) => ({ ...prev, [exId]: nextLogs }));
+
+    // Did this toggle just complete the exercise? (every set done)
+    let doneCount = 0;
+    for (let i = 0; i < totalSets; i++) {
+      if (nextLogs[i]?.done) doneCount++;
+    }
+    const exerciseFullyDone = doneCount === totalSets;
+
+    if (exerciseFullyDone && !exercise.completed) {
+      handleToggleComplete(exercise);
+    } else if (!exerciseFullyDone && exercise.completed) {
+      // Untoggling a set when the exercise was already complete
+      // un-marks the exercise too.
+      handleToggleComplete(exercise);
+    }
+  }, [setLogs, handleToggleComplete]);
 
   const handleSaveSection = async (sectionData) => {
     if (!sectionData || !sectionData.section_name) {
@@ -980,20 +1073,35 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       const traineeId = plan.assigned_to || plan.created_by;
       if (!traineeId) {
         console.warn('[saveWorkoutExecution] no trainee id on plan');
-        return;
+        return null;
       }
 
-      const completedCount = exercises.filter((e) => e && e.completed).length;
-      const completionPct = exercises.length > 0
-        ? Math.round((completedCount / exercises.length) * 100)
-        : 0;
+      // Per-set completion gives a more accurate completion %, falling
+      // back to per-exercise when no set logs exist (e.g. coach
+      // toggled the legacy checkbox flow).
+      let totalSets = 0;
+      let doneSets = 0;
+      for (const ex of exercises) {
+        if (!ex) continue;
+        const n = Math.max(1, parseInt(ex.sets, 10) || 1);
+        totalSets += n;
+        const log = setLogs[ex.id] || {};
+        for (let i = 0; i < n; i++) {
+          if (log[i]?.done) doneSets++;
+        }
+      }
+      const completionPct = totalSets > 0
+        ? Math.round((doneSets / totalSets) * 100)
+        : (exercises.length > 0
+            ? Math.round((exercises.filter(e => e && e.completed).length / exercises.length) * 100)
+            : 0);
 
       const ratingValues = Object.values(sectionRatings);
       const avg = ratingValues.length > 0
         ? Math.round((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) * 10) / 10
         : null;
 
-      const { error } = await supabase
+      const { data: execRow, error } = await supabase
         .from('workout_executions')
         .insert({
           trainee_id: traineeId,
@@ -1003,17 +1111,50 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           self_rating: avg,
           completion_percent: completionPct,
           section_ratings: sectionRatings,
-          notes: null,
-        });
+          notes: feedbackText || null,
+          feedback_chips: feedbackChips.length > 0 ? feedbackChips : null,
+        })
+        .select()
+        .single();
 
-      if (error) {
-        console.warn('[saveWorkoutExecution] failed:', error.message);
+      if (error || !execRow) {
+        console.warn('[saveWorkoutExecution] failed:', error?.message);
         toast.error('שגיאה בשמירת הציון');
-      } else if (avg != null) {
-        toast.success(`✅ הציון ${avg} נשמר`);
+        return null;
       }
+
+      // Persist per-set logs against the just-created execution.
+      // Best-effort — if set logs fail to write, the execution row
+      // still lands so the score chart updates.
+      const setLogRows = [];
+      for (const [exerciseId, sets] of Object.entries(setLogs)) {
+        for (const [setIdxStr, log] of Object.entries(sets || {})) {
+          if (!log) continue;
+          const reps = log.reps_completed != null && log.reps_completed !== ''
+            ? parseInt(log.reps_completed, 10)
+            : null;
+          if (!log.done && (reps == null || Number.isNaN(reps))) continue;
+          setLogRows.push({
+            execution_id: execRow.id,
+            exercise_id: exerciseId,
+            set_number: parseInt(setIdxStr, 10) + 1,
+            reps_completed: Number.isFinite(reps) ? reps : null,
+            completed: !!log.done,
+          });
+        }
+      }
+      if (setLogRows.length > 0) {
+        const { error: logErr } = await supabase
+          .from('exercise_set_logs')
+          .insert(setLogRows);
+        if (logErr) console.warn('[saveWorkoutExecution] set logs failed:', logErr.message);
+      }
+
+      if (avg != null) toast.success(`✅ הציון ${avg} נשמר`);
+      return execRow;
     } catch (err) {
       console.warn('[saveWorkoutExecution]', err);
+      return null;
     }
   };
 
@@ -1505,6 +1646,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 showEditButtons={canEdit}
                 isCoach={isCoach}
                 plan={plan}
+                setLogs={setLogs}
+                onSetLogChange={updateSetLog}
+                onSetToggleDone={toggleSetDone}
                 onOpenExecution={(ex) => {
                   setExecutionExercise(ex);
                   setShowExecutionModal(true);
@@ -1736,60 +1880,125 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                     </div>
 
                     <div style={{
-                      textAlign: 'center', padding: '20px',
+                      textAlign: 'center', padding: '16px 20px',
                       background: 'rgba(255,111,32,0.12)', borderRadius: 16,
-                      border: '2px solid #FF6F20', marginBottom: 16
+                      border: '2px solid #FF6F20', marginBottom: 12
                     }}>
                       <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>
-                        הציון שלך לאימון הזה
+                        ציון
                       </div>
                       <div style={{ fontSize: 48, fontWeight: 700, color: '#FF6F20', lineHeight: 1 }}>
                         {summaryData.averageRating != null ? summaryData.averageRating.toFixed(1) : '—'}
+                        <span style={{ fontSize: 18, color: '#bbb', fontWeight: 600 }}>/10</span>
                       </div>
-                      <div style={{ fontSize: 13, color: '#bbb', marginTop: 4 }}>
-                        מתוך 10
+                      {summaryData.completionPct != null && (
+                        <div style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>
+                          השלמה: {summaryData.completionPct}%
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Multi-select feedback chips. Selection is local to
+                        the dialog and persisted into
+                        workout_executions.feedback_chips on save. */}
+                    <div style={{ direction: 'rtl' }}>
+                      <div style={{ fontSize: 12, color: '#bbb', marginBottom: 6, textAlign: 'right' }}>
+                        איך הרגשת באימון?
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-start' }}>
+                        {FEEDBACK_OPTIONS.map((opt) => {
+                          const sel = feedbackChips.includes(opt);
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => setFeedbackChips((prev) =>
+                                prev.includes(opt)
+                                  ? prev.filter((c) => c !== opt)
+                                  : [...prev, opt]
+                              )}
+                              style={{
+                                padding: '6px 12px', borderRadius: 999,
+                                fontSize: 12, fontWeight: 600,
+                                border: sel ? 'none' : '1px solid #3a3a3a',
+                                background: sel ? '#FF6F20' : 'transparent',
+                                color: sel ? 'white' : '#ddd',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    <div className="flex gap-3 pt-2">
-                        <Button
-                onClick={() => setShowSummaryDialog(false)}
-                variant="outline"
-                className="flex-1 h-12 rounded-xl font-bold border-gray-700 text-gray-200 bg-transparent hover:bg-gray-800 hover:text-white">
+                    <Textarea
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="הוסף הערה חופשית..."
+                      className="min-h-[60px] text-sm bg-[#252525] text-white border-[#3a3a3a] resize-none"
+                      dir="rtl"
+                    />
 
-                            חזור לאימון
-                        </Button>
-                        <Button
-                onClick={async () => {
-                  // Try both saves; swallow errors so navigation still
-                  // happens (the toast inside each save tells the user
-                  // when one fails). Navigation back lets the parent's
-                  // handleWorkoutFinished invalidate query caches so
-                  // the improvement graph picks up the new point.
-                  try { await saveWorkoutExecution(); } catch (e) { console.warn(e); }
-                  try { await saveWorkoutHistory(true); } catch (e) { console.warn(e); }
-                  setShowSummaryDialog(false);
-
-                  // Notify Coach (best-effort, doesn't block navigation)
-                  if (plan.created_by) {
-                    try {
-                      await base44.entities.Notification.create({
-                        user_id: plan.created_by,
-                        type: 'workout_completion',
-                        title: 'אימון הושלם בהצלחה! 🏆',
-                        message: `המתאמן ${plan.assigned_to_name || 'המתאמן'} השלים את אימון "${plan.plan_name}"`,
-                        is_read: false
-                      });
-                    } catch (e) {console.error(e);}
-                  }
-
-                  if (onBack) onBack();
-                }}
-                className="flex-[2] h-12 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all"
-                style={{ backgroundColor: '#FF6F20' }}>
-
-                            סיום אימון
-                        </Button>
+                    <div className="flex flex-col gap-2 pt-2">
+                      <Button
+                        onClick={async () => {
+                          // Save → close → navigate back (the executions
+                          // list view) so the trainee can see their fresh
+                          // result land in the chart + folder.
+                          try { await saveWorkoutExecution(); } catch (e) { console.warn(e); }
+                          try { await saveWorkoutHistory(true); } catch (e) { console.warn(e); }
+                          if (plan.created_by) {
+                            try {
+                              await base44.entities.Notification.create({
+                                user_id: plan.created_by,
+                                type: 'workout_completion',
+                                title: 'אימון הושלם בהצלחה! 🏆',
+                                message: `המתאמן ${plan.assigned_to_name || 'המתאמן'} השלים את אימון "${plan.plan_name}"`,
+                                is_read: false,
+                              });
+                            } catch (e) { console.error(e); }
+                          }
+                          setShowSummaryDialog(false);
+                          if (onBack) onBack();
+                        }}
+                        className="w-full h-12 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all"
+                        style={{ backgroundColor: '#FF6F20' }}>
+                        👁 צפה בתוצאות
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          // Save the current execution, then queue a fresh
+                          // duplicated row so the trainee can re-run the
+                          // same workout next session. Both writes are
+                          // best-effort.
+                          try { await saveWorkoutExecution(); } catch (e) { console.warn(e); }
+                          try { await saveWorkoutHistory(true); } catch (e) { console.warn(e); }
+                          const traineeId = plan.assigned_to || plan.created_by;
+                          if (traineeId && plan.id) {
+                            try {
+                              await createDuplicatedExecution({
+                                planId: plan.id,
+                                traineeId,
+                                note: 'שוכפל מתוך פופ-אפ סיום',
+                              });
+                            } catch (e) { console.warn('[duplicate-on-finish]', e); }
+                          }
+                          setShowSummaryDialog(false);
+                          if (onBack) onBack();
+                        }}
+                        variant="outline"
+                        className="w-full h-12 rounded-xl font-bold border-[#3a3a3a] text-gray-200 bg-transparent hover:bg-gray-800 hover:text-white">
+                        📋 שכפל לשיפור
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setShowSummaryDialog(false)}
+                        className="w-full text-gray-500 text-xs font-bold hover:text-gray-300 transition-colors mt-1"
+                      >
+                        חזור לאימון
+                      </button>
                     </div>
                 </div>
           }
@@ -1866,30 +2075,41 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               <p className="text-base font-black" style={{ color: '#FF6F20' }}>{sectionFeedbackData.sectionName}</p>
             </div>
 
-            <div style={{ marginBottom: 20, direction: 'rtl' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, textAlign: 'center' }}>
-                איך אתה מרגיש לגבי הסקשן הזה?
-              </div>
-              <div style={{
-                fontSize: 36, fontWeight: 700, color: '#FF6F20',
-                textAlign: 'center', marginBottom: 8
-              }}>
-                {Number(sectionFeedbackData.rating).toFixed(1)}
+            <div style={{ marginBottom: 16, direction: 'rtl' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                כמה שליטה הרגשת? 💪
               </div>
               <input
-                type="range"
-                min="1" max="10" step="0.5"
-                value={sectionFeedbackData.rating}
-                onChange={(e) => setSectionFeedbackData({ ...sectionFeedbackData, rating: parseFloat(e.target.value) })}
+                type="range" min="1" max="10" step="0.5"
+                value={sectionFeedbackData.control}
+                onChange={(e) => setSectionFeedbackData({ ...sectionFeedbackData, control: parseFloat(e.target.value) })}
                 style={{ width: '100%', accentColor: '#FF6F20' }}
               />
-              <div style={{
-                display: 'flex', justifyContent: 'space-between',
-                fontSize: 11, color: '#888', marginTop: 4
-              }}>
-                <span>קשה</span>
-                <span>בסדר</span>
-                <span>מעולה</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888', marginTop: 4 }}>
+                <span>מינימלית</span>
+                <span style={{ fontSize: 24, fontWeight: 900, color: '#FF6F20' }}>
+                  {Number(sectionFeedbackData.control).toFixed(1)}
+                </span>
+                <span>מלאה</span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 12, direction: 'rtl' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                כמה זה אתגר אותך? 🔥
+              </div>
+              <input
+                type="range" min="1" max="10" step="0.5"
+                value={sectionFeedbackData.challenge}
+                onChange={(e) => setSectionFeedbackData({ ...sectionFeedbackData, challenge: parseFloat(e.target.value) })}
+                style={{ width: '100%', accentColor: '#FF6F20' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888', marginTop: 4 }}>
+                <span>קל מאוד</span>
+                <span style={{ fontSize: 24, fontWeight: 900, color: '#FF6F20' }}>
+                  {Number(sectionFeedbackData.challenge).toFixed(1)}
+                </span>
+                <span>קשה מאוד</span>
               </div>
             </div>
 
@@ -1926,9 +2146,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   store nothing and progression is unblocked. */}
               <Button
                 onClick={() => {
+                  const sectionAvg = (
+                    Number(sectionFeedbackData.control || 0)
+                    + Number(sectionFeedbackData.challenge || 0)
+                  ) / 2;
                   const newRatings = {
                     ...sectionRatings,
-                    [sectionFeedbackData.sectionId]: sectionFeedbackData.rating,
+                    [sectionFeedbackData.sectionId]: sectionAvg,
                   };
                   setSectionRatings(newRatings);
                   setShowSectionFeedbackDialog(false);

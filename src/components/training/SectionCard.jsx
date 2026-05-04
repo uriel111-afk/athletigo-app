@@ -30,6 +30,9 @@ export default function SectionCard({
   onOpenExecution,
   onRenameSection,
   onRenameExercise,
+  setLogs = {},
+  onSetLogChange,
+  onSetToggleDone,
   showEditButtons = false,
   isCoach = false,
   plan,
@@ -225,6 +228,9 @@ export default function SectionCard({
                       isCoach={isCoach}
                       plan={plan}
                       traineeProgress={traineeProgressByExercise[exercise.id]}
+                      setLog={setLogs[exercise.id]}
+                      onSetLogChange={onSetLogChange}
+                      onSetToggleDone={onSetToggleDone}
                     />
                   ))}
                 </div>

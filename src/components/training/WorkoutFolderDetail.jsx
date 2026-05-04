@@ -70,7 +70,13 @@ function ImprovementChart({ data, height, gradientId = 'workoutGrad' }) {
             background: '#1a1a1a', border: 'none', borderRadius: 10,
             color: 'white', fontSize: 12,
           }}
-          formatter={(v) => [`${Number(v).toFixed(1)}/10`, 'ציון']}
+          formatter={(v, name) => {
+            if (name === 'completionScaled') {
+              const pct = Math.round(Number(v) * 10);
+              return [`${pct}%`, 'השלמה'];
+            }
+            return [`${Number(v).toFixed(1)}/10`, 'ציון'];
+          }}
           labelStyle={{ color: ORANGE, fontWeight: 700 }}
           cursor={{ stroke: ORANGE, strokeWidth: 1, strokeDasharray: '4 4' }}
         />
@@ -83,6 +89,21 @@ function ImprovementChart({ data, height, gradientId = 'workoutGrad' }) {
           fill={`url(#${gradientId})`}
           dot={{ fill: ORANGE, r: 5, strokeWidth: 2, stroke: 'white' }}
           activeDot={{ r: 8, fill: ORANGE, stroke: 'white', strokeWidth: 2 }}
+          connectNulls
+        />
+        {/* Completion %, normalized to the same 0..10 axis as score so
+            both lines share a Y range. Tooltip de-normalizes back to %
+            via the formatter above. */}
+        <Area
+          type="monotone"
+          dataKey="completionScaled"
+          stroke="#3B82F6"
+          strokeWidth={2}
+          strokeDasharray="4 4"
+          fill="transparent"
+          dot={{ fill: '#3B82F6', r: 3, strokeWidth: 1, stroke: 'white' }}
+          activeDot={{ r: 6, fill: '#3B82F6', stroke: 'white', strokeWidth: 2 }}
+          connectNulls
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -449,11 +470,18 @@ export default function WorkoutFolderDetail({
     () => completed
       .slice()
       .sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at))
-      .filter((e) => e.self_rating != null)
-      .map((e) => ({
-        date: formatShort(e.executed_at),
-        score: Number(e.self_rating),
-      })),
+      .filter((e) => e.self_rating != null || (e.completion_percent ?? 0) > 0)
+      .map((e) => {
+        const completionPct = e.completion_percent != null ? Number(e.completion_percent) : 0;
+        return {
+          date: formatShort(e.executed_at),
+          score: e.self_rating != null ? Number(e.self_rating) : null,
+          completion: completionPct,
+          // Same 0..10 axis as score; the chart's tooltip formatter
+          // de-normalizes this back to a 0..100% string.
+          completionScaled: completionPct / 10,
+        };
+      }),
     [completed]
   );
 
