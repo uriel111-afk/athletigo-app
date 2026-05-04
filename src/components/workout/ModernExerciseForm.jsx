@@ -793,7 +793,14 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
               return (
                 <button key={p.id} type="button"
                   onClick={() => {
-                    if (isEdit) return;
+                    // Toggle: tapping the open tab closes it; tapping
+                    // a closed tab opens it (and seeds a default when
+                    // the field is unset). No "first tap is a no-op"
+                    // path — every tap flips visibility.
+                    if (isEdit) {
+                      setEditingParam(null);
+                      return;
+                    }
                     setEditingParam(p.id);
                     if (!isConf && !hasVal(subEx[field]) && p.defaultValue && p.defaultValue !== "_container") {
                       update(field, String(p.defaultValue));
