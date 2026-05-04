@@ -833,14 +833,18 @@ function ExerciseEditor({ data, onSave, onClose }) {
         key={paramId}
         onClick={() => toggleParam(paramId)}
         style={{
-          padding: "5px 10px",
-          borderRadius: "20px",
-          fontSize: "11px",
+          padding: "8px 4px",
+          borderRadius: 10,
+          fontSize: 11,
           fontWeight: 600,
           cursor: "pointer",
           background: isSelected ? "#FF6F20" : "white",
           color: isSelected ? "white" : "#666",
-          border: isSelected ? "none" : "1px solid #E8E0D8",
+          border: isSelected ? "none" : "1px solid #E5E7EB",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
         {paramId}
@@ -991,11 +995,16 @@ function ExerciseEditor({ data, onSave, onClose }) {
             }}
           />
 
-          {/* All params — compact small chips */}
+          {/* All params — 4-col grid. Locked layout (no flex-wrap, no
+              caller-conditional variants) so this editor and
+              ModernExerciseForm look identical regardless of which
+              entry point opened them. */}
           <div style={{
-            display: "flex", flexWrap: "wrap",
-            gap: "5px", marginBottom: "12px",
-            direction: "rtl",
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 8,
+            marginBottom: 16,
+            direction: 'rtl',
           }}>
             {PARAM_CATEGORIES.flatMap(cat => cat.params).map(renderChip)}
           </div>

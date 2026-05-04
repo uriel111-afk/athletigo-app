@@ -737,12 +737,13 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
               params row above so the form looks the same regardless of
               whether the user is editing a top-level exercise or a
               nested sub-exercise inside a container (tabata /
-              exercise_list). */}
+              exercise_list). marginBottom matches the main grid (16)
+              so the rhythm is uniform across every entry point. */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
             gap: 8,
-            marginBottom: 12,
+            marginBottom: 16,
           }}>
             {SUB_PARAMS.map((p) => {
               const isConf = confirmed.has(p.id);
