@@ -361,6 +361,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [summaryData, setSummaryData] = useState(null);
   const [showMetadataEditor, setShowMetadataEditor] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  // Plan header card open/closed. Tap on the title row toggles it.
+  // When collapsed, only the title + ערוך button remain visible
+  // inside the card; the progress bar sits OUTSIDE the card so it
+  // stays visible regardless of state.
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const celebrationFiredRef = useRef(false);
   // Per-set logs for the trainee execution flow.
   // Shape: { [exerciseId]: { [setIndex]: { reps_completed, done } } }
@@ -1347,7 +1352,23 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       }}>
         <div style={{ height: 5, background: '#FF6F20' }} />
 
-        <div style={{ padding: '20px 20px 14px' }}>
+        {/* Title row — clickable to toggle the card open/closed.
+            ערוך button stops propagation so it doesn't collapse the
+            card while opening the metadata editor. The chevron sits
+            beside the button and reflects current state. */}
+        <div
+          onClick={() => setHeaderCollapsed((v) => !v)}
+          role="button"
+          tabIndex={0}
+          aria-expanded={!headerCollapsed}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setHeaderCollapsed((v) => !v);
+            }
+          }}
+          style={{ padding: '20px 20px 14px', cursor: 'pointer' }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 12 }}>
             <h2 style={{
               margin: 0,
@@ -1365,52 +1386,60 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             }}>
               {plan?.plan_name || 'תכנית אימון'}
             </h2>
-            {canEdit && (
-              <button
-                onClick={() => setShowMetadataEditor(true)}
-                style={{
-                  background: '#FFF0E4',
-                  border: '1.5px solid #FF6F20',
-                  color: '#FF6F20',
-                  padding: '8px 16px',
-                  borderRadius: 999,
-                  fontSize: 15,
-                  fontWeight: 600,
-                  fontFamily: 'Barlow, sans-serif',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  flexShrink: 0,
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 20h9" />
-                  <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                ערוך
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {canEdit && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMetadataEditor(true); }}
+                  style={{
+                    background: '#FFF0E4',
+                    border: '1.5px solid #FF6F20',
+                    color: '#FF6F20',
+                    padding: '8px 16px',
+                    borderRadius: 999,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    fontFamily: 'Barlow, sans-serif',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                  </svg>
+                  ערוך
+                </button>
+              )}
+              <span aria-hidden style={{ fontSize: 12, color: '#ccc', marginRight: 4 }}>
+                {headerCollapsed ? '▼' : '▲'}
+              </span>
+            </div>
           </div>
-          <p style={{ margin: 0, fontSize: 16, color: '#888', fontFamily: 'Barlow, sans-serif' }}>
-            {`${goalFocusItems.length > 0 ? goalFocusItems.join(', ') + ' · ' : ''}${weeklyDaysItems.length || 0} פעמים בשבוע · ${plan?.duration_weeks || 0} שבועות · רמה ${plan?.difficulty_level || 'מתחיל'}`}
-          </p>
-          {plan?.description && (
-            <p style={{
-              margin: '6px 0 0',
-              fontSize: 15,
-              color: '#888',
-              fontFamily: 'Barlow, sans-serif',
-              fontStyle: 'italic',
-              lineHeight: 1.5,
-              paddingBottom: 4,
-            }}>
-              {plan.description}
-            </p>
+          {!headerCollapsed && (
+            <>
+              <p style={{ margin: 0, fontSize: 16, color: '#888', fontFamily: 'Barlow, sans-serif' }}>
+                {`${goalFocusItems.length > 0 ? goalFocusItems.join(', ') + ' · ' : ''}${weeklyDaysItems.length || 0} פעמים בשבוע · ${plan?.duration_weeks || 0} שבועות · רמה ${plan?.difficulty_level || 'מתחיל'}`}
+              </p>
+              {plan?.description && (
+                <p style={{
+                  margin: '6px 0 0',
+                  fontSize: 15,
+                  color: '#888',
+                  fontFamily: 'Barlow, sans-serif',
+                  fontStyle: 'italic',
+                  lineHeight: 1.5,
+                  paddingBottom: 4,
+                }}>
+                  {plan.description}
+                </p>
+              )}
+            </>
           )}
         </div>
 
-        {goalFocusItems.length > 0 && (
+        {!headerCollapsed && goalFocusItems.length > 0 && (
           <div style={{ padding: '0 20px 16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {goalFocusItems.map((tag, i) => (
               <span key={i} style={{
@@ -1426,7 +1455,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </div>
         )}
 
-        {weeklyDaysItems.length > 0 && (
+        {!headerCollapsed && weeklyDaysItems.length > 0 && (
           <div style={{ padding: '0 20px 16px' }}>
             <p style={{ margin: '0 0 10px', fontSize: 13, color: '#888', fontWeight: 600, letterSpacing: '0.3px', fontFamily: 'Barlow, sans-serif' }}>
               ימי אימון
@@ -1452,38 +1481,44 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </div>
         )}
 
-        <div style={{ padding: '0 20px 18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 15, color: '#888', fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>התקדמות</span>
-            <span style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif' }}>{Math.round(progressPct || 0)}%</span>
+        {/* Bottom stats — תרגילים / סקשנים / ביצועים. Hidden when
+            the card is collapsed; shown by default. "ביצועים" comes
+            from the execution-count useQuery hoisted near the other
+            top-level queries. */}
+        {!headerCollapsed && (
+          <div style={{ display: 'flex', padding: '16px 20px', borderTop: '1px solid #F0E4D0', background: '#FFFCF8' }}>
+            {[
+              { value: exercises.length, label: 'תרגילים' },
+              { value: sections.length, label: 'סקשנים' },
+              { value: executionCount, label: 'ביצועים' },
+            ].map((stat, i, arr) => (
+              <React.Fragment key={stat.label}>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: 36, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
+                  <div style={{ fontSize: 15, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
+                </div>
+                {i < arr.length - 1 && <div style={{ width: 1, background: '#F0E4D0' }} />}
+              </React.Fragment>
+            ))}
           </div>
-          <div style={{ height: 8, background: '#F5EDDB', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              width: `${Math.max(2, Math.round(progressPct || 0))}%`,
-              height: '100%', background: '#FF6F20', borderRadius: 999,
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-        </div>
+        )}
+      </div>
 
-        {/* Bottom stats — תרגילים / סקשנים / ביצועים. "ביצועים"
-            counts past workout_executions rows for this plan via the
-            execution-count useQuery hoisted near the other top-level
-            queries. Updates as the user finishes more workouts. */}
-        <div style={{ display: 'flex', padding: '16px 20px', borderTop: '1px solid #F0E4D0', background: '#FFFCF8' }}>
-          {[
-            { value: exercises.length, label: 'תרגילים' },
-            { value: sections.length, label: 'סקשנים' },
-            { value: executionCount, label: 'ביצועים' },
-          ].map((stat, i, arr) => (
-            <React.Fragment key={stat.label}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: 36, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ fontSize: 15, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
-              </div>
-              {i < arr.length - 1 && <div style={{ width: 1, background: '#F0E4D0' }} />}
-            </React.Fragment>
-          ))}
+      {/* Progress bar — always visible, sits OUTSIDE the header card
+          so it stays in view whether the card is collapsed or not. */}
+      <div style={{ padding: '0 20px', marginBottom: 16, marginTop: -8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: '#aaa' }}>התקדמות</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#FF6F20' }}>
+            {Math.round(progressPct || 0)}%
+          </span>
+        </div>
+        <div style={{ height: 6, background: '#F5EDDB', borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{
+            width: `${Math.max(2, Math.round(progressPct || 0))}%`,
+            height: '100%', background: '#FF6F20', borderRadius: 999,
+            transition: 'width 0.4s ease',
+          }} />
         </div>
       </div>
 
