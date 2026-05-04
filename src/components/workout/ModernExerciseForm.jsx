@@ -147,6 +147,36 @@ const getDisplay = (pid, val) => {
   }
 };
 
+// Stacked-summary formatter — used by the row list under the chip
+// grid. Each row renders [label][value]; this returns the value side
+// with units. Accepts both internal ids (weight_kg, work_time) and
+// the DB-side aliases (weight) so callers don't have to care.
+const formatParamValue = (key, value) => {
+  if (!hasVal(value)) return "";
+  switch (key) {
+    case "sets":          return `${value} סטים`;
+    case "reps":          return `${value} חזרות`;
+    case "rounds":        return `${value} סבבים`;
+    case "work_time":     return `${value}''`;
+    case "rest_time":     return `מנוחה ${value}''`;
+    case "rest_between_sets":      return `מנ׳ סטים ${value}''`;
+    case "rest_between_exercises": return `מנ׳ תרגילים ${value}''`;
+    case "static_hold":            return `${value}'' החזקה`;
+    case "weight":
+    case "weight_kg":     return `${value} ק"ג`;
+    case "rpe":           return `RPE ${value}`;
+    case "tempo":         return `טמפו ${value}`;
+    case "body_position": return String(value);
+    case "equipment":     return Array.isArray(value) ? value.join(", ") : String(value);
+    case "side":          return String(value);
+    case "grip":          return String(value);
+    case "range_of_motion": return String(value);
+    case "notes":         return "יש דגשים";
+    case "video_url":     return "וידאו";
+    default:              return String(value);
+  }
+};
+
 // ── Default options for selection params ──────────────────────────────
 const DEFAULTS = {
   body_position: ["עמידה", "ישיבה", "שכיבה על גב", "שכיבה על בטן", "שכיבה על צד", "תלייה", "תמיכה", "טבעות", "מקבילים", "פראלטים"],
@@ -1181,15 +1211,18 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     (p) => editingParams.has(p.id) && !CONTAINER_PARAMS.has(p.id)
   );
 
-  // One-liner of every populated parameter — drawn under the chip
-  // grid so the coach sees a running preview of the prescription
-  // even when several panels are open at once.
-  const summaryParts = ALL_PARAMETERS
+  // Stacked summary rows — one row per populated parameter, drawn
+  // under the chip grid so the coach sees a running label-and-value
+  // breakdown of the prescription. Order follows ALL_PARAMETERS so
+  // the rows match the chip grid sequence.
+  const summaryRows = ALL_PARAMETERS
     .filter((p) => !CONTAINER_PARAMS.has(p.id))
     .map((p) => {
       const val = exercise[getDbField(p.id)];
       if (!hasVal(val)) return null;
-      return getDisplay(p.id, val) || null;
+      const formatted = formatParamValue(p.id, val);
+      if (!formatted) return null;
+      return { id: p.id, label: p.label, value: formatted };
     })
     .filter(Boolean);
 
@@ -1251,6 +1284,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 onClick={readOnly ? undefined : () => handleParamClick(p.id)}
                 disabled={readOnly}
                 style={{
+                  position: 'relative',
                   padding: '8px 4px',
                   borderRadius: 8,
                   border,
@@ -1269,6 +1303,20 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 }}
                 className={readOnly ? '' : 'active:scale-[0.97] transition-all'}
               >
+                {/* Saved-but-closed indicator dot — drawn on top-left
+                    so it's visible regardless of the chip's two-row
+                    inner layout. Hidden while the panel is open
+                    (the solid orange chip already conveys focus). */}
+                {isConf && !isEdit && !isCont && (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: 'absolute', top: 3, left: 3,
+                      width: 5, height: 5, borderRadius: '50%',
+                      background: '#FF6F20',
+                    }}
+                  />
+                )}
                 {isConf && !isEdit && !isCont ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -1301,23 +1349,39 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         </div>
       </div>
 
-      {/* ── Summary line — one-shot preview of every populated
-            parameter, drawn under the chip grid. Stays visible
-            regardless of how many panels are open so the coach can
-            sanity-check the prescription as they fill it. ───── */}
-      {!readOnly && summaryParts.length > 0 && (
+      {/* ── Stacked summary rows — one row per populated parameter,
+            drawn under the chip grid. Each row shows the param label
+            (orange) and its formatted value (dark) so the coach can
+            scan the prescription at a glance regardless of how many
+            panels are open. Same order as the chip grid. ───── */}
+      {!readOnly && summaryRows.length > 0 && (
         <div style={{
-          padding: '8px 12px',
-          margin: '0 4px 12px',
-          background: '#FFF9F2',
-          border: '1px dashed #F0E4D0',
-          borderRadius: 10,
-          fontSize: 12,
-          color: '#666',
-          lineHeight: 1.6,
+          marginTop: 0,
+          marginBottom: 12,
+          padding: '0 4px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
           direction: 'rtl',
         }}>
-          {summaryParts.join(' · ')}
+          {summaryRows.map((row) => (
+            <div key={row.id} style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 12px',
+              background: '#FFF5EE',
+              borderRadius: 8,
+              border: '1px solid #FFE5D0',
+            }}>
+              <span style={{ fontSize: 13, color: '#FF6F20', fontWeight: 600 }}>
+                {row.label}
+              </span>
+              <span style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 700 }}>
+                {row.value}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
