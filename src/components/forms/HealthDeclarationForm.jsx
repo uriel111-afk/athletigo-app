@@ -214,7 +214,14 @@ export default function HealthDeclarationForm({
             .eq('id', traineeId)
             .maybeSingle();
           const promote = !row?.client_status || row.client_status === 'onboarding';
-          const update = { health_declaration_signed_at: new Date().toISOString() };
+          // Write both flag shapes so either signal alone stops the
+          // auto-open re-prompt on TraineeHome:
+          //   • _at TIMESTAMPTZ (canonical, set by 2026-04-30 migration)
+          //   • _signed BOOLEAN (added by 2026-05-04 migration)
+          const update = {
+            health_declaration_signed: true,
+            health_declaration_signed_at: new Date().toISOString(),
+          };
           if (promote) update.client_status = 'casual';
           await supabase
             .from('users')

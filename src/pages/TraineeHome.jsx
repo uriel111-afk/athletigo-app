@@ -531,15 +531,15 @@ export default function TraineeHome() {
   useEffect(() => {
     if (autoHealthShownRef.current) return;
     if (!user?.id) return;
-    // Fast-check column from users table — set the moment the trainee
-    // signs the form. Avoids a re-prompt while the health_declarations
-    // query is still loading.
+    // Two-column guard — either signal alone is sufficient. Neither
+    // column needs to be present in the cached user row for the gate
+    // to work; whichever one the trainee's database has populated
+    // suppresses the prompt.
+    if (user?.health_declaration_signed === true) return;
     if (user?.health_declaration_signed_at) return;
     // localStorage defense layer — if the DB writes from a previous
     // sign attempt silently failed (RLS / network), this per-user
-    // flag still suppresses the auto-open on this device. The form
-    // sets it on every successful sign; users.health_declaration_signed_at
-    // remains the canonical truth across devices.
+    // flag still suppresses the auto-open on this device.
     try {
       if (localStorage.getItem(`athletigo_health_signed_${user.id}`)) return;
     } catch {}
