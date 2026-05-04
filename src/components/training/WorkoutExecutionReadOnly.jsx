@@ -113,45 +113,93 @@ function ExerciseRow({ exercise, completed, savedLogs }) {
         </div>
       </div>
 
-      {sets > 1 && (
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10,
-          paddingTop: 10, borderTop: '1px dashed #EEE',
-        }}>
-          {Array.from({ length: sets }, (_, i) => i + 1).map((n) => {
-            const setRow = savedLogs?.[n];
-            const difficulty = setRow?.difficulty_rating;
-            return (
-              <label key={n} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              }}>
-                <span style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>
-                  סט {n}
-                </span>
-                <input
-                  type="number"
-                  value={valueFromLog(setRow, mode) ?? ''}
-                  placeholder={targetStr}
-                  disabled
-                  style={{
-                    width: 64, height: 36, textAlign: 'center',
-                    border: '1px solid #E5E5E5',
-                    borderRadius: 8, fontSize: 14, fontWeight: 700,
-                    background: '#FAFAFA', color: DARK, outline: 'none',
-                  }}
-                />
-                {difficulty != null && (
-                  <span style={{
-                    fontSize: 10, color: ORANGE, fontWeight: 600, marginTop: 2,
-                  }}>
-                    קושי {difficulty}/10
+      {sets > 1 && (() => {
+        // Materialize each set as { set_number, reps_completed,
+        // difficulty_rating, completed }. Missing rows render as
+        // an em-dash row so coach + trainee see exactly which sets
+        // were skipped vs which were logged.
+        const setLogs = Array.from({ length: sets }, (_, i) => {
+          const n = i + 1;
+          const row = savedLogs?.[n] || {};
+          return {
+            set_number: n,
+            reps_completed: row.reps_completed ?? null,
+            difficulty_rating: row.difficulty_rating ?? null,
+            completed: !!row.completed,
+            time_completed: row.time_completed ?? null,
+            weight_used: row.weight_used ?? null,
+          };
+        });
+        const valueLabel = (log) => {
+          const v = valueFromLog(log, mode);
+          if (v == null || v === '' || v === 0 || v === '0') return null;
+          const unit = modeLabel(mode);
+          return `${v} ${unit}`;
+        };
+        const totalReps = setLogs.reduce((a, b) => a + (Number(b.reps_completed) || 0), 0);
+        const ratedSets = setLogs.filter((l) => l.difficulty_rating != null);
+        const avgDiff = ratedSets.length > 0
+          ? ratedSets.reduce((a, b) => a + Number(b.difficulty_rating || 0), 0) / ratedSets.length
+          : null;
+
+        return (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #EEE' }}>
+            {setLogs.map((log) => {
+              const label = valueLabel(log);
+              return (
+                <div key={log.set_number} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '6px 0',
+                  borderBottom: '1px solid #F9F9F9',
+                }}>
+                  <span style={{ fontSize: 12, color: '#888', minWidth: 40 }}>
+                    סט {log.set_number}
                   </span>
-                )}
-              </label>
-            );
-          })}
-        </div>
-      )}
+                  <span style={{
+                    flex: 1, fontSize: 14, fontWeight: 700, color: DARK,
+                    textAlign: 'right', minWidth: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {label || '—'}
+                  </span>
+                  {log.difficulty_rating != null && (
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, color: ORANGE,
+                      background: '#FFF5EE', padding: '2px 8px',
+                      borderRadius: 999, flexShrink: 0,
+                    }}>
+                      קושי {log.difficulty_rating}/10
+                    </span>
+                  )}
+                  {log.completed && (
+                    <span style={{ color: GREEN, fontSize: 14, flexShrink: 0 }}>✓</span>
+                  )}
+                </div>
+              );
+            })}
+
+            {(totalReps > 0 || avgDiff != null) && (
+              <div style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                background: '#FFF5EE',
+                borderRadius: 8,
+                fontSize: 12,
+                color: ORANGE,
+                fontWeight: 600,
+              }}>
+                {[
+                  totalReps > 0 ? `סה"כ: ${totalReps} ${modeLabel(mode)}` : null,
+                  avgDiff != null ? `קושי ממוצע: ${avgDiff.toFixed(1)}/10` : null,
+                ].filter(Boolean).join(' · ')}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {note && (
         <div style={{ marginTop: 10 }}>
