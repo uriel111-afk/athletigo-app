@@ -164,8 +164,8 @@ export default function SectionCard({
                     }
                   }}
                   style={{
-                    fontSize: isTraineeView ? 22 : 16,
-                    fontWeight: isTraineeView ? 700 : 900,
+                    fontSize: isTraineeView ? 22 : 18,
+                    fontWeight: 700,
                     color: '#1a1a1a',
                     fontFamily: 'Barlow, sans-serif',
                     border: 'none',
@@ -182,8 +182,8 @@ export default function SectionCard({
                   {...(showEditButtons ? longPressRename : {})}
                   className="leading-tight truncate"
                   style={{
-                    fontSize: isTraineeView ? 22 : 16,
-                    fontWeight: isTraineeView ? 700 : 900,
+                    fontSize: isTraineeView ? 22 : 18,
+                    fontWeight: 700,
                     color: isTraineeView ? '#1a1a1a' : style.text,
                     fontFamily: 'Barlow, sans-serif',
                     cursor: showEditButtons ? 'pointer' : 'default',
@@ -245,48 +245,17 @@ export default function SectionCard({
         {expanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
             <div className="px-3 pb-4 pt-3 bg-white border-t" style={{ borderColor: style.border }}>
-              {exercises.length === 0 ? (
-                <div className="text-center py-6 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200 mb-3">
-                  אין תרגילים בסקשן זה
-                </div>
-              ) : (
-                <div className="space-y-3 mb-4">
-                  {exercises.filter(Boolean).map((exercise) => (
-                    <ExerciseCard
-                      key={exercise.id || Math.random()}
-                      exercise={exercise}
-                      onToggleComplete={onToggleComplete}
-                      onEdit={() => onEditExercise(exercise)}
-                      onDelete={() => onDeleteExercise(exercise.id)}
-                      onRename={onRenameExercise}
-                      canEdit={showEditButtons}
-                      isCoach={isCoach}
-                      plan={plan}
-                      traineeProgress={traineeProgressByExercise[exercise.id]}
-                      setLog={setLogs[exercise.id]}
-                      onSetLogChange={onSetLogChange}
-                      onSetToggleDone={onSetToggleDone}
-                    />
-                  ))}
-                </div>
-              )}
-              {onAddExercise && showEditButtons && (
-                <div className="pt-3 border-t border-gray-100">
-                  <Button onClick={onAddExercise} variant="ghost" className="w-full h-12 border border-dashed border-gray-300 rounded-xl text-gray-500 hover:text-[#FF6F20] hover:border-[#FF6F20] hover:bg-orange-50 transition-all text-sm font-bold">
-                    <Plus className="w-4 h-4 ml-2" />
-                    הוסף תרגיל לסקשן
-                  </Button>
-                </div>
-              )}
 
-              {/* Coach notes — coach-edit mode only. Saves on blur to
-                  training_sections.coach_notes. Local textarea state
-                  keeps typing snappy; only diffs commit to Supabase. */}
+              {/* Coach notes — coach-edit mode only. Lives ABOVE the
+                  exercise list so the rationale/dגשים for the section
+                  reads first, before the prescribed exercises. Saves
+                  on blur to training_sections.coach_notes; local state
+                  keeps typing snappy. */}
               {showEditButtons && (
                 <div style={{
-                  padding: '12px 16px',
-                  borderTop: '1px solid #F0E4D0',
-                  marginTop: 8,
+                  paddingBottom: 12,
+                  marginBottom: 12,
+                  borderBottom: '1px solid #F0E4D0',
                 }}>
                   <div style={{
                     fontSize: 12, color: '#888',
@@ -320,6 +289,40 @@ export default function SectionCard({
                       outline: 'none',
                     }}
                   />
+                </div>
+              )}
+
+              {exercises.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200 mb-3">
+                  אין תרגילים בסקשן זה
+                </div>
+              ) : (
+                <div className="space-y-3 mb-4">
+                  {exercises.filter(Boolean).map((exercise) => (
+                    <ExerciseCard
+                      key={exercise.id || Math.random()}
+                      exercise={exercise}
+                      onToggleComplete={onToggleComplete}
+                      onEdit={() => onEditExercise(exercise)}
+                      onDelete={() => onDeleteExercise(exercise.id)}
+                      onRename={onRenameExercise}
+                      canEdit={showEditButtons}
+                      isCoach={isCoach}
+                      plan={plan}
+                      traineeProgress={traineeProgressByExercise[exercise.id]}
+                      setLog={setLogs[exercise.id]}
+                      onSetLogChange={onSetLogChange}
+                      onSetToggleDone={onSetToggleDone}
+                    />
+                  ))}
+                </div>
+              )}
+              {onAddExercise && showEditButtons && (
+                <div className="pt-3 border-t border-gray-100">
+                  <Button onClick={onAddExercise} variant="ghost" className="w-full h-12 border border-dashed border-gray-300 rounded-xl text-gray-500 hover:text-[#FF6F20] hover:border-[#FF6F20] hover:bg-orange-50 transition-all text-sm font-bold">
+                    <Plus className="w-4 h-4 ml-2" />
+                    הוסף תרגיל לסקשן
+                  </Button>
                 </div>
               )}
             </div>
