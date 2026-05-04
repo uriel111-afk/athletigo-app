@@ -2280,10 +2280,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   store nothing and progression is unblocked. */}
               <Button
                 onClick={() => {
-                  const sectionAvg = (
-                    Number(sectionFeedbackData.control || 0)
-                    + Number(sectionFeedbackData.challenge || 0)
-                  ) / 2;
+                  const control = Number(sectionFeedbackData.control || 0);
+                  const challenge = Number(sectionFeedbackData.challenge || 0);
+                  // Round to 1 decimal at the section level so the
+                  // workout-level average (Math.round(sum/n * 10) / 10)
+                  // doesn't compound a long float into a misleading
+                  // figure on the graph tooltip.
+                  const sectionAvg = parseFloat(((control + challenge) / 2).toFixed(1));
                   const newRatings = {
                     ...sectionRatings,
                     [sectionFeedbackData.sectionId]: sectionAvg,

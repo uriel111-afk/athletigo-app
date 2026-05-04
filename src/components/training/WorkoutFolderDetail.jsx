@@ -676,21 +676,30 @@ export default function WorkoutFolderDetail({
   }, [completed]);
 
   const chartData = useMemo(
-    () => completed
-      .slice()
-      .sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at))
-      .filter((e) => e.self_rating != null || (e.completion_percent ?? 0) > 0)
-      .map((e) => {
-        const completionPct = e.completion_percent != null ? Number(e.completion_percent) : 0;
-        return {
-          date: formatShort(e.executed_at),
-          score: e.self_rating != null ? Number(e.self_rating) : null,
-          completion: completionPct,
-          // Same 0..10 axis as score; the chart's tooltip formatter
-          // de-normalizes this back to a 0..100% string.
-          completionScaled: completionPct / 10,
-        };
-      }),
+    () => {
+      const built = completed
+        .slice()
+        .sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at))
+        .filter((e) => e.self_rating != null || (e.completion_percent ?? 0) > 0)
+        .map((e) => {
+          const completionPct = e.completion_percent != null ? Number(e.completion_percent) : 0;
+          return {
+            date: formatShort(e.executed_at),
+            score: e.self_rating != null ? Number(e.self_rating) : null,
+            completion: completionPct,
+            // Same 0..10 axis as score; the chart's tooltip formatter
+            // de-normalizes this back to a 0..100% string.
+            completionScaled: completionPct / 10,
+          };
+        });
+      // Diagnostic — shows in the browser console how many of the
+      // raw executions actually carry a numeric self_rating, vs how
+      // many hit the chart. Helps spot stuck "graph empty after save"
+      // bugs without redeploying.
+      const withScore = completed.filter((e) => e.self_rating != null).length;
+      console.log('[GRAPH] executions:', completed.length, '· with self_rating:', withScore, '· chart points:', built.length);
+      return built;
+    },
     [completed]
   );
 
