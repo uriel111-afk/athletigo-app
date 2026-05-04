@@ -193,27 +193,36 @@ export default function SectionCard({
                   {section.section_name}
                 </h3>
               )}
+              {/* Subtitle: only the exercise count + a "הושלם" tag
+                  when relevant. The category text was dropped because
+                  coaches often name sections after their category,
+                  which made the line read as a duplicate of the title.
+                  Count restyled to 15px / 700 / brand orange so the
+                  number reads at a glance. */}
               <div
                 style={{
-                  fontSize: isTraineeView ? 13 : 12,
-                  fontWeight: 500,
-                  color: isTraineeView ? '#888' : style.subText,
                   marginTop: 2,
-                  display: 'block',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 8,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   maxWidth: '100%',
                 }}
               >
-                {(section.category || 'כללי')}
-                {' · '}
-                {exercises.length} תרגילים
+                <span style={{
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: '#FF6F20',
+                  fontFamily: 'Barlow Condensed, sans-serif',
+                }}>
+                  {exercises.length} תרגילים
+                </span>
                 {section.completed && (
-                  <>
-                    {' · '}
-                    <span className="text-green-500 font-bold">הושלם</span>
-                  </>
+                  <span className="text-green-500 font-bold" style={{ fontSize: 12 }}>
+                    הושלם
+                  </span>
                 )}
               </div>
             </div>
