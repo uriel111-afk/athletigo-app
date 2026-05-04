@@ -536,6 +536,14 @@ export default function TraineeHome() {
     // signs the form. Avoids a re-prompt while the health_declarations
     // query is still loading.
     if (user?.health_declaration_signed_at) return;
+    // localStorage defense layer — if the DB writes from a previous
+    // sign attempt silently failed (RLS / network), this per-user
+    // flag still suppresses the auto-open on this device. The form
+    // sets it on every successful sign; users.health_declaration_signed_at
+    // remains the canonical truth across devices.
+    try {
+      if (localStorage.getItem(`athletigo_health_signed_${user.id}`)) return;
+    } catch {}
     if (hasSignedHealth !== false) return; // null=loading, true=already signed
     // onboarding completion can land in either column depending on
     // when the row was migrated; accept both.

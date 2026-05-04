@@ -235,6 +235,17 @@ export default function HealthDeclarationForm({
         queryClient.invalidateQueries({ queryKey: ['health-declarations'] });
       } catch {}
 
+      // localStorage defense layer — if the DB writes above silently
+      // failed (RLS / network), the per-user flag here still
+      // suppresses the form from re-opening on this device. The
+      // canonical truth is still users.health_declaration_signed_at;
+      // this is just a backup gate the auto-open useEffect reads.
+      try {
+        if (trainee?.id) {
+          localStorage.setItem(`athletigo_health_signed_${trainee.id}`, new Date().toISOString());
+        }
+      } catch {}
+
       // Link the declaration to the session. When autoConfirmSession
       // is true (legacy/no-price flow), also flip status to 'confirmed'
       // and notify the coach. When false, the caller is gating

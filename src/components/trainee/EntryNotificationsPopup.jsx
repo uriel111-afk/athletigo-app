@@ -42,6 +42,29 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
 
   const traineeId = trainee?.id;
 
+  // localStorage defense layer — when a dismiss action's DB write
+  // fails silently (RLS / network), the id stored here still
+  // suppresses the notification on the next entry. Keys are
+  // notification ids (UUIDs); the array is bounded to last 200
+  // entries so the storage doesn't grow forever.
+  const DISMISSED_KEY = 'dismissed_notifications';
+  const readDismissed = () => {
+    try {
+      const raw = localStorage.getItem(DISMISSED_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
+  };
+  const pushDismissed = (id) => {
+    try {
+      const arr = readDismissed();
+      if (arr.includes(id)) return;
+      arr.push(id);
+      const trimmed = arr.slice(-200);
+      localStorage.setItem(DISMISSED_KEY, JSON.stringify(trimmed));
+    } catch {}
+  };
+
   const fetchNotifs = useCallback(async () => {
     if (!traineeId) return;
     setLoading(true);
@@ -59,7 +82,11 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
         setNotifs([]);
         return;
       }
-      setNotifs(data || []);
+      // Filter out anything already dismissed locally — covers the
+      // "DB write failed but trainee tapped dismiss" edge case.
+      const dismissed = readDismissed();
+      const filtered = (data || []).filter((n) => !dismissed.includes(n.id));
+      setNotifs(filtered);
     } finally {
       setLoading(false);
     }
@@ -75,7 +102,10 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
     }
   }, [loading, notifs.length, onClose]);
 
-  const removeLocal = (id) => setNotifs(prev => prev.filter(n => n.id !== id));
+  const removeLocal = (id) => {
+    pushDismissed(id);
+    setNotifs(prev => prev.filter(n => n.id !== id));
+  };
 
   const markRead = async (id) => {
     setBusyId(id);
@@ -88,6 +118,9 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
       removeLocal(id);
     } catch (e) {
       console.warn('[EntryNotifs] mark read failed:', e?.message);
+      // Still suppress locally so a transient DB failure doesn't
+      // re-prompt on the next entry.
+      removeLocal(id);
       toast.error('שגיאה בעדכון');
     } finally { setBusyId(null); }
   };
@@ -107,6 +140,7 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
       removeLocal(id);
     } catch (e) {
       console.warn('[EntryNotifs] mark handled failed:', e?.message);
+      removeLocal(id);
       toast.error('שגיאה בעדכון');
     } finally { setBusyId(null); }
   };
@@ -123,6 +157,7 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
       removeLocal(id);
     } catch (e) {
       console.warn('[EntryNotifs] delete failed:', e?.message);
+      removeLocal(id);
       toast.error('שגיאה במחיקה');
     } finally { setBusyId(null); }
   };
