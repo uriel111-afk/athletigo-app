@@ -266,12 +266,14 @@ export default function ExerciseCard({
 }) {
   const queryClient = useQueryClient();
   const [renamingExercise, setRenamingExercise] = useState(false);
-  // Tap on the exercise name opens a bottom sheet with the full
-  // prescription (params as readable rows + coach description).
-  // Long-press on the name still opens the inline rename input
-  // when canEdit && onRename, so the two gestures don't conflict —
-  // tap = open sheet, long-press = rename.
+  // showDetail — opens the centered detail modal via the ⛶ button
+  // on the card header.
+  // collapsed — collapses the trainee body (per-set rows / summary /
+  // feedback) but keeps the title + meta + coach note + container
+  // (tabata / exercise_list) blocks visible. Tap anywhere on the
+  // header row (except the ⛶ button) toggles.
   const [showDetail, setShowDetail] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const longPressRename = useLongPress(() => {
     if (canEdit && onRename) setRenamingExercise(true);
   });
@@ -412,26 +414,56 @@ export default function ExerciseCard({
             }}
           />
         ) : (
+          // Header row — tap toggles collapse, ⛶ opens the detail
+          // modal (stops propagation so the toggle doesn't also fire).
+          // Long-press on the name still opens the inline rename
+          // input when canEdit && onRename.
           <div
-            onClick={() => setShowDetail(true)}
-            {...(canEdit ? longPressRename : {})}
+            onClick={() => setCollapsed((v) => !v)}
             role="button"
             tabIndex={0}
+            aria-expanded={!collapsed}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                setShowDetail(true);
+                setCollapsed((v) => !v);
               }
             }}
             style={{
-              fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 4,
-              textDecoration: completed ? 'line-through' : 'none',
-              textDecorationColor: completed ? '#FF6F20' : 'transparent',
-              cursor: 'pointer',
-              userSelect: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 8, marginBottom: 4, cursor: 'pointer', userSelect: 'none',
             }}
           >
-            {exercise.exercise_name || exercise.name || 'תרגיל'}
+            <div
+              {...(canEdit ? longPressRename : {})}
+              style={{
+                flex: 1, minWidth: 0,
+                fontSize: 18, fontWeight: 700, color: '#1a1a1a',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                textDecoration: completed ? 'line-through' : 'none',
+                textDecorationColor: completed ? '#FF6F20' : 'transparent',
+              }}
+            >
+              {exercise.exercise_name || exercise.name || 'תרגיל'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
+                aria-label="פרטי תרגיל"
+                title="פרטי תרגיל"
+                style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: '#FFF5EE', border: '1px solid #FFE5D0',
+                  color: '#FF6F20', fontSize: 16, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: 0, lineHeight: 1,
+                }}
+              >⛶</button>
+              <span aria-hidden style={{ fontSize: 12, color: '#ccc' }}>
+                {collapsed ? '▼' : '▲'}
+              </span>
+            </div>
           </div>
         )}
 
@@ -453,13 +485,14 @@ export default function ExerciseCard({
         )}
 
         {/* Per-set tracker — trainee view only, when the exercise is
-            multi-set. One block per set: the input row (reps + ✓),
-            then a conditional 1-10 difficulty prompt that surfaces
-            the moment the set's ✓ flips on, replaced by a "קושי N/10"
-            chip with a clear ✕ once the trainee picks a number.
-            Last ✓ that completes the exercise also fires the
-            existing onToggleComplete via onSetToggleDone. */}
-        {!canEdit && (parseInt(exercise.sets, 10) || 0) > 1 && onSetLogChange && onSetToggleDone && (() => {
+            multi-set AND the card isn't collapsed. One block per set:
+            the input row (reps + ✓), then a conditional 1-10
+            difficulty prompt that surfaces the moment the set's ✓
+            flips on, replaced by a "קושי N/10" chip with a clear ✕
+            once the trainee picks a number. Last ✓ that completes
+            the exercise also fires the existing onToggleComplete via
+            onSetToggleDone. */}
+        {!canEdit && !collapsed && (parseInt(exercise.sets, 10) || 0) > 1 && onSetLogChange && onSetToggleDone && (() => {
           const totalSets = parseInt(exercise.sets, 10) || 1;
           const allSetsDone = Array.from({ length: totalSets }, (_, i) => (setLog && setLog[i] && setLog[i].done))
             .every(Boolean);
@@ -690,20 +723,28 @@ export default function ExerciseCard({
           </div>
         )}
 
-        <input
-          type="text"
-          placeholder="הוסף משוב לתרגיל (אופציונלי)"
-          value={feedback}
-          onChange={(e) => queueSave(e.target.value)}
-          style={{
-            marginTop: 8, width: '100%', padding: '8px 10px',
-            border: '1px solid #F0E4D0', borderRadius: 8,
-            fontSize: 15, fontFamily: 'inherit', background: '#FFF9F0',
-            direction: 'rtl', boxSizing: 'border-box', outline: 'none',
-          }}
-        />
-        {savingFeedback && (
-          <div style={{ fontSize: 11, color: '#FF6F20', marginTop: 2 }}>שומר משוב...</div>
+        {/* Feedback input — hidden when the card is collapsed
+            (single-tap on the header) so a clean closed state shows
+            only name + meta + sub-list. Coach view (canEdit=true)
+            never sees the collapse toggle and always renders this. */}
+        {!collapsed && (
+          <>
+            <input
+              type="text"
+              placeholder="הוסף משוב לתרגיל (אופציונלי)"
+              value={feedback}
+              onChange={(e) => queueSave(e.target.value)}
+              style={{
+                marginTop: 8, width: '100%', padding: '8px 10px',
+                border: '1px solid #F0E4D0', borderRadius: 8,
+                fontSize: 15, fontFamily: 'inherit', background: '#FFF9F0',
+                direction: 'rtl', boxSizing: 'border-box', outline: 'none',
+              }}
+            />
+            {savingFeedback && (
+              <div style={{ fontSize: 11, color: '#FF6F20', marginTop: 2 }}>שומר משוב...</div>
+            )}
+          </>
         )}
       </div>
 
@@ -961,55 +1002,133 @@ export default function ExerciseCard({
 
             {/* Per-set inputs in the modal — trainee only, when the
                 exercise is multi-set and the per-set wiring is plumbed.
-                Bound to the same setLog / handlers as the inline rows
-                on the card body, so toggling here also updates the
-                main card. */}
+                Each set is its own padded card so the trainee can
+                tap inside and fill comfortably even on a small screen.
+                Done sets flip to an orange-tinted background; an
+                un-rated done set surfaces the 1-10 difficulty buttons
+                inside the same card. Bound to the same setLog /
+                handlers as the inline rows on the card body, so the
+                two views stay in sync. */}
             {!canEdit
               && (parseInt(exercise.sets, 10) || 0) > 1
               && onSetLogChange && onSetToggleDone && (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#888', marginBottom: 12 }}>
-                  מילוי סטים
+                <div style={{
+                  fontSize: 15, fontWeight: 700, color: '#1a1a1a',
+                  marginBottom: 16, display: 'flex',
+                  justifyContent: 'space-between', alignItems: 'baseline',
+                }}>
+                  <span>סטים</span>
+                  {(exercise.reps || exercise.work_time) && (
+                    <span style={{ fontSize: 13, color: '#888', fontWeight: 400 }}>
+                      יעד: {exercise.reps || exercise.work_time} {exercise.reps ? 'חזרות' : 'שניות'}
+                    </span>
+                  )}
                 </div>
                 {Array.from({ length: parseInt(exercise.sets, 10) || 1 }, (_, i) => {
                   const log = (setLog && setLog[i]) || {};
                   const placeholder = (exercise.reps && exercise.reps !== '0' && exercise.reps)
                     || (exercise.work_time && exercise.work_time !== '0' && exercise.work_time)
                     || '';
+                  const unitLabel = exercise.reps ? 'חזרות' : exercise.work_time ? 'שניות' : '';
+                  const isDone = !!log.done;
+                  const showDifficultyPrompt = isDone && (log.difficulty == null);
                   return (
                     <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '10px 0', borderBottom: '1px solid #F5F5F5',
+                      background: isDone ? '#FFF5EE' : '#FAFAFA',
+                      border: `1.5px solid ${isDone ? '#FF6F20' : '#F0E4D0'}`,
+                      borderRadius: 14,
+                      padding: '14px 16px',
+                      marginBottom: 10,
+                      transition: 'all 0.2s ease',
                     }}>
-                      <span style={{ fontSize: 14, color: '#aaa', minWidth: 44 }}>סט {i + 1}</span>
-                      <input
-                        type="number"
-                        placeholder={String(placeholder)}
-                        value={log.reps_completed ?? ''}
-                        onChange={(e) => onSetLogChange(exercise.id, i, 'reps_completed', e.target.value)}
-                        style={{
-                          flex: 1, height: 48, fontSize: 18, fontWeight: 700,
-                          border: '1.5px solid #F0E4D0', borderRadius: 10,
-                          textAlign: 'center', background: '#FAFAFA',
-                          outline: 'none', direction: 'ltr',
-                          boxSizing: 'border-box', padding: '0 8px',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => onSetToggleDone(exercise, i)}
-                        aria-label={log.done ? 'בטל סט' : 'סמן סט כבוצע'}
-                        style={{
-                          width: 40, height: 40, borderRadius: '50%',
-                          background: log.done ? '#FF6F20' : 'white',
-                          border: '2px solid #FF6F20',
-                          color: log.done ? 'white' : '#FF6F20',
-                          fontSize: 18, fontWeight: 700, cursor: 'pointer',
-                          boxShadow: log.done ? '0 4px 12px rgba(255,111,32,0.3)' : 'none',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          padding: 0, lineHeight: 1,
-                        }}
-                      >✓</button>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        marginBottom: showDifficultyPrompt || log.difficulty != null ? 10 : 0,
+                      }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: '50%',
+                          background: '#FF6F20', color: 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 14, fontWeight: 800, flexShrink: 0,
+                        }}>
+                          {i + 1}
+                        </div>
+                        <input
+                          type="number"
+                          placeholder={String(placeholder)}
+                          value={log.reps_completed ?? ''}
+                          onChange={(e) => onSetLogChange(exercise.id, i, 'reps_completed', e.target.value)}
+                          style={{
+                            flex: 1, height: 56, fontSize: 24, fontWeight: 900,
+                            border: 'none', background: 'transparent',
+                            textAlign: 'center', color: '#1a1a1a',
+                            outline: 'none', direction: 'ltr',
+                            boxSizing: 'border-box', padding: 0, minWidth: 0,
+                          }}
+                        />
+                        {unitLabel && (
+                          <span style={{ fontSize: 14, color: '#888', flexShrink: 0 }}>
+                            {unitLabel}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onSetToggleDone(exercise, i)}
+                          aria-label={isDone ? 'בטל סט' : 'סמן סט כבוצע'}
+                          style={{
+                            width: 44, height: 44, borderRadius: '50%',
+                            background: isDone ? '#FF6F20' : 'white',
+                            border: '2px solid #FF6F20',
+                            color: isDone ? 'white' : '#FF6F20',
+                            fontSize: 20, fontWeight: 700, cursor: 'pointer',
+                            flexShrink: 0,
+                            boxShadow: isDone ? '0 4px 16px rgba(255,111,32,0.35)' : 'none',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            padding: 0, lineHeight: 1,
+                          }}
+                        >✓</button>
+                      </div>
+
+                      {showDifficultyPrompt && (
+                        <div>
+                          <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                            כמה היה קשה?
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => onSetLogChange(exercise.id, i, 'difficulty', n)}
+                                style={{
+                                  width: 34, height: 34, borderRadius: '50%',
+                                  border: '1px solid #F0E4D0', background: 'white',
+                                  color: '#1a1a1a', fontSize: 13, fontWeight: 600,
+                                  cursor: 'pointer', flexShrink: 0,
+                                  padding: 0, lineHeight: 1,
+                                }}
+                              >{n}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {log.difficulty != null && (
+                        <div style={{ fontSize: 13, color: '#FF6F20', fontWeight: 600 }}>
+                          קושי: {log.difficulty}/10
+                          <button
+                            type="button"
+                            onClick={() => onSetLogChange(exercise.id, i, 'difficulty', null)}
+                            aria-label="נקה דירוג קושי"
+                            style={{
+                              background: 'none', border: 'none',
+                              color: '#ccc', cursor: 'pointer',
+                              marginRight: 6, fontSize: 13,
+                            }}
+                          >✕</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
