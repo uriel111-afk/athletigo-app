@@ -1044,7 +1044,11 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       }
     }
     setConfirmedParams(conf);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Re-hydrate when the parent swaps in a different exercise. Without
+    // this, opening exercise B after editing A would keep A's chip set
+    // (the [] deps version only fired once per mount). Container fields
+    // are still hydrated above; this keeps the cycle stable per id.
+  }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isContainer = confirmedParams.has("exercise_list") || confirmedParams.has("tabata");
   const containerType = confirmedParams.has("tabata") ? "tabata" : confirmedParams.has("exercise_list") ? "list" : null;
@@ -1150,10 +1154,15 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   };
 
   const handleRemoveParam = (paramId) => {
-    // Toggle visibility only — the underlying value stays in the
-    // exercise object so re-tapping the param restores what the
-    // coach already typed. The save flow writes every populated
-    // field; "hidden" params with values get persisted harmlessly.
+    // Explicit "clear" — null the underlying field value so the chip
+    // returns to its empty state (no orange tint, no dot indicator,
+    // no row in the summary list). Closes the panel and drops the
+    // confirmed badge. Triggered by the red X in the panel header
+    // and by the "✕ נקה" button in the panel footer.
+    if (!CONTAINER_PARAMS.has(paramId)) {
+      const field = getDbField(paramId);
+      updateEx(field, null);
+    }
     setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
     setEditingParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
   };
@@ -1429,6 +1438,23 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               getOptions={getOptions}
               onAddCustom={handleAddCustom}
             />
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => handleRemoveParam(def.id)}
+                style={{
+                  padding: '4px 10px',
+                  background: 'none',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: '#9CA3AF',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕ נקה
+              </button>
+            </div>
           </div>
         </div>
       ))}
