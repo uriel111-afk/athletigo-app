@@ -337,62 +337,168 @@ export default function ExerciseCard({
         )}
 
         {/* Per-set tracker — trainee view only, when the exercise is
-            multi-set. One row per set: numeric input for reps/seconds
-            and an orange-bordered ✓ that flips to filled when the set
-            is done. Last toggle that completes the exercise also
-            fires the existing onToggleComplete via onSetToggleDone. */}
-        {!canEdit && (parseInt(exercise.sets, 10) || 0) > 1 && onSetLogChange && onSetToggleDone && (
-          <div style={{ marginTop: 8 }}>
-            {Array.from({ length: parseInt(exercise.sets, 10) || 1 }, (_, i) => {
-              const log = (setLog && setLog[i]) || {};
-              const targetReps = exercise.reps && exercise.reps !== '0' ? exercise.reps : null;
-              const targetTime = exercise.work_time && exercise.work_time !== '0' ? exercise.work_time : null;
-              const placeholder = targetReps || targetTime || '';
-              const unit = targetReps ? 'חזרות' : targetTime ? 'שניות' : '';
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '8px 0',
-                  borderBottom: i < (parseInt(exercise.sets, 10) - 1) ? '1px solid #F9F9F9' : 'none',
-                }}>
-                  <span style={{ fontSize: 12, color: '#888', minWidth: 36 }}>
-                    סט {i + 1}
-                  </span>
-                  <input
-                    type="number"
-                    placeholder={String(placeholder)}
-                    value={log.reps_completed ?? ''}
-                    onChange={(e) => onSetLogChange(exercise.id, i, 'reps_completed', e.target.value)}
-                    style={{
-                      width: 64, padding: '6px 8px', border: '1px solid #F0E4D0',
-                      borderRadius: 8, fontSize: 14, textAlign: 'center',
-                      background: 'white', outline: 'none',
-                      direction: 'ltr',
-                    }}
-                  />
-                  {unit && (
-                    <span style={{ fontSize: 11, color: '#888' }}>{unit}</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onSetToggleDone(exercise, i)}
-                    aria-label={log.done ? 'בטל סט' : 'סמן סט כבוצע'}
-                    style={{
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: log.done ? '#FF6F20' : 'white',
-                      border: '2px solid #FF6F20',
-                      color: log.done ? 'white' : '#FF6F20',
-                      fontSize: 14, fontWeight: 700, lineHeight: 1,
-                      cursor: 'pointer', flexShrink: 0,
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      marginRight: 'auto',
-                    }}
-                  >✓</button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+            multi-set. One block per set: the input row (reps + ✓),
+            then a conditional 1-10 difficulty prompt that surfaces
+            the moment the set's ✓ flips on, replaced by a "קושי N/10"
+            chip with a clear ✕ once the trainee picks a number.
+            Last ✓ that completes the exercise also fires the
+            existing onToggleComplete via onSetToggleDone. */}
+        {!canEdit && (parseInt(exercise.sets, 10) || 0) > 1 && onSetLogChange && onSetToggleDone && (() => {
+          const totalSets = parseInt(exercise.sets, 10) || 1;
+          const allSetsDone = Array.from({ length: totalSets }, (_, i) => (setLog && setLog[i] && setLog[i].done))
+            .every(Boolean);
+          return (
+            <div style={{ marginTop: 8 }}>
+              {Array.from({ length: totalSets }, (_, i) => {
+                const log = (setLog && setLog[i]) || {};
+                const targetReps = exercise.reps && exercise.reps !== '0' ? exercise.reps : null;
+                const targetTime = exercise.work_time && exercise.work_time !== '0' ? exercise.work_time : null;
+                const placeholder = targetReps || targetTime || '';
+                const unit = targetReps ? 'חזרות' : targetTime ? 'שניות' : '';
+                const isLast = i === totalSets - 1;
+                return (
+                  <div key={i} style={{
+                    padding: '8px 0',
+                    borderBottom: isLast ? 'none' : '1px solid #F9F9F9',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: '#888', minWidth: 36 }}>
+                        סט {i + 1}
+                      </span>
+                      <input
+                        type="number"
+                        placeholder={String(placeholder)}
+                        value={log.reps_completed ?? ''}
+                        onChange={(e) => onSetLogChange(exercise.id, i, 'reps_completed', e.target.value)}
+                        style={{
+                          width: 64, padding: '6px 8px', border: '1px solid #F0E4D0',
+                          borderRadius: 8, fontSize: 14, textAlign: 'center',
+                          background: 'white', outline: 'none',
+                          direction: 'ltr',
+                        }}
+                      />
+                      {unit && (
+                        <span style={{ fontSize: 11, color: '#888' }}>{unit}</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onSetToggleDone(exercise, i)}
+                        aria-label={log.done ? 'בטל סט' : 'סמן סט כבוצע'}
+                        style={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: log.done ? '#FF6F20' : 'white',
+                          border: '2px solid #FF6F20',
+                          color: log.done ? 'white' : '#FF6F20',
+                          fontSize: 14, fontWeight: 700, lineHeight: 1,
+                          cursor: 'pointer', flexShrink: 0,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          marginRight: 'auto',
+                        }}
+                      >✓</button>
+                    </div>
+
+                    {/* Difficulty prompt — shows once a set is marked
+                        done and no rating has been picked yet. */}
+                    {log.done && (log.difficulty == null) && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '8px 0', flexWrap: 'wrap',
+                      }}>
+                        <span style={{ fontSize: 11, color: '#888', width: '100%' }}>
+                          כמה היה קשה?
+                        </span>
+                        {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => onSetLogChange(exercise.id, i, 'difficulty', n)}
+                            style={{
+                              width: 28, height: 28,
+                              borderRadius: '50%',
+                              border: '1px solid #F0E4D0',
+                              background: 'white',
+                              color: '#1a1a1a',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                              padding: 0,
+                            }}
+                          >{n}</button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Picked rating — orange chip with a clear ✕ that
+                        nulls the difficulty so the prompt re-appears. */}
+                    {log.difficulty != null && (
+                      <div style={{
+                        fontSize: 11, color: '#FF6F20', fontWeight: 600,
+                        padding: '4px 0',
+                      }}>
+                        קושי: {log.difficulty}/10
+                        <button
+                          type="button"
+                          onClick={() => onSetLogChange(exercise.id, i, 'difficulty', null)}
+                          aria-label="נקה דירוג קושי"
+                          style={{
+                            marginRight: 6,
+                            background: 'none',
+                            border: 'none',
+                            color: '#ccc',
+                            cursor: 'pointer',
+                            fontSize: 11,
+                          }}
+                        >✕</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Per-exercise stats — appears once every set is done.
+                  Completion% compares total typed reps against the
+                  prescribed sets×reps target; avg difficulty is the
+                  arithmetic mean of all rated sets. */}
+              {allSetsDone && (() => {
+                const logs = Array.from({ length: totalSets }, (_, i) => (setLog && setLog[i]) || {});
+                const withDifficulty = logs.filter((l) => l.difficulty != null);
+                const avgDifficulty = withDifficulty.length > 0
+                  ? (withDifficulty.reduce((a, b) => a + Number(b.difficulty || 0), 0) / withDifficulty.length).toFixed(1)
+                  : null;
+                const totalReps = logs.reduce((a, b) => a + (parseInt(b.reps_completed, 10) || 0), 0);
+                const targetReps = totalSets * (parseInt(exercise.reps, 10) || 0);
+                const completionPct = targetReps > 0
+                  ? Math.round((totalReps / targetReps) * 100)
+                  : null;
+                if (completionPct == null && avgDifficulty == null) return null;
+                return (
+                  <div style={{
+                    padding: '8px 12px',
+                    background: '#FFF5EE',
+                    borderRadius: 8,
+                    marginTop: 8,
+                    fontSize: 12,
+                  }}>
+                    {completionPct != null && (
+                      <span style={{ color: '#1a1a1a' }}>
+                        השלמה: {completionPct}%
+                      </span>
+                    )}
+                    {completionPct != null && avgDifficulty != null && (
+                      <span style={{ color: '#888' }}> · </span>
+                    )}
+                    {avgDifficulty != null && (
+                      <span style={{ color: '#FF6F20', fontWeight: 600 }}>
+                        קושי ממוצע: {avgDifficulty}/10
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })()}
 
         {coachNote && (
           <div style={{ fontSize: 13, color: '#666', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>

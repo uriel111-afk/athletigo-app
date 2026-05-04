@@ -118,27 +118,38 @@ function ExerciseRow({ exercise, completed, savedLogs }) {
           display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10,
           paddingTop: 10, borderTop: '1px dashed #EEE',
         }}>
-          {Array.from({ length: sets }, (_, i) => i + 1).map((n) => (
-            <label key={n} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            }}>
-              <span style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>
-                סט {n}
-              </span>
-              <input
-                type="number"
-                value={valueFromLog(savedLogs?.[n], mode) ?? ''}
-                placeholder={targetStr}
-                disabled
-                style={{
-                  width: 64, height: 36, textAlign: 'center',
-                  border: '1px solid #E5E5E5',
-                  borderRadius: 8, fontSize: 14, fontWeight: 700,
-                  background: '#FAFAFA', color: DARK, outline: 'none',
-                }}
-              />
-            </label>
-          ))}
+          {Array.from({ length: sets }, (_, i) => i + 1).map((n) => {
+            const setRow = savedLogs?.[n];
+            const difficulty = setRow?.difficulty_rating;
+            return (
+              <label key={n} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              }}>
+                <span style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>
+                  סט {n}
+                </span>
+                <input
+                  type="number"
+                  value={valueFromLog(setRow, mode) ?? ''}
+                  placeholder={targetStr}
+                  disabled
+                  style={{
+                    width: 64, height: 36, textAlign: 'center',
+                    border: '1px solid #E5E5E5',
+                    borderRadius: 8, fontSize: 14, fontWeight: 700,
+                    background: '#FAFAFA', color: DARK, outline: 'none',
+                  }}
+                />
+                {difficulty != null && (
+                  <span style={{
+                    fontSize: 10, color: ORANGE, fontWeight: 600, marginTop: 2,
+                  }}>
+                    קושי {difficulty}/10
+                  </span>
+                )}
+              </label>
+            );
+          })}
         </div>
       )}
 

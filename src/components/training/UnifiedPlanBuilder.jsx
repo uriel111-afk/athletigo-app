@@ -1133,13 +1133,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           const reps = log.reps_completed != null && log.reps_completed !== ''
             ? parseInt(log.reps_completed, 10)
             : null;
-          if (!log.done && (reps == null || Number.isNaN(reps))) continue;
+          const difficulty = log.difficulty != null && log.difficulty !== ''
+            ? parseInt(log.difficulty, 10)
+            : null;
+          if (!log.done && (reps == null || Number.isNaN(reps)) && difficulty == null) continue;
           setLogRows.push({
             execution_id: execRow.id,
             exercise_id: exerciseId,
             set_number: parseInt(setIdxStr, 10) + 1,
             reps_completed: Number.isFinite(reps) ? reps : null,
             completed: !!log.done,
+            difficulty_rating: Number.isFinite(difficulty) ? difficulty : null,
           });
         }
       }
