@@ -847,7 +847,11 @@ function ExerciseNameInput({ value, onChange }) {
 }
 
 export default function ModernExerciseForm({ exercise, onChange, readOnly = false }) {
-  const [editingParam, setEditingParam] = useState(null);
+  // Set of currently-open param panels. Tapping a tab toggles its
+  // entry in this set; multiple panels can be open simultaneously.
+  // Closing a panel auto-confirms the value if one is set, so the
+  // chip flips to its orange "saved" state without an extra click.
+  const [editingParams, setEditingParams] = useState(() => new Set());
   const [confirmedParams, setConfirmedParams] = useState(new Set());
   const [addValueDialog, setAddValueDialog] = useState({ isOpen: false, type: null, label: "" });
 
@@ -1056,49 +1060,62 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
   // ── Param handlers ──────────────────────────────────────────────────
   const handleParamClick = (paramId) => {
-    // Double-click on currently editing param → remove it
-    if (editingParam === paramId) {
-      handleRemoveParam(paramId);
-      return;
-    }
-
-    // Click on confirmed param → re-open for editing (existing behavior)
-    // Click on unconfirmed param → start editing (existing behavior)
-
-    // Container params: toggle & confirm immediately
+    // Container params (tabata / exercise_list) keep their existing
+    // confirm-on-click behavior — they don't expose an inline editor
+    // panel so they shouldn't enter the editingParams set.
     if (CONTAINER_PARAMS.has(paramId)) {
       if (confirmedParams.has(paramId)) {
-        // Remove container
         setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
         updateEx("sub_exercises", []);
       } else {
-        // Remove the OTHER container first
         const other = paramId === "tabata" ? "exercise_list" : "tabata";
-        setConfirmedParams((prev) => { const n = new Set(prev); n.delete(other); n.add(paramId); return n; });
+        setConfirmedParams((prev) => {
+          const n = new Set(prev); n.delete(other); n.add(paramId); return n;
+        });
         if (!subExercises.length) updateEx("sub_exercises", []);
       }
-      setEditingParam(null);
+      setEditingParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
       return;
     }
 
-    setEditingParam(paramId);
-    const field = getDbField(paramId);
-    if (!confirmedParams.has(paramId) && !hasVal(exercise[field])) {
-      const param = ALL_PARAMETERS.find((p) => p.id === paramId);
-      if (param?.defaultValue && param.defaultValue !== "_container") {
-        updateEx(field, String(param.defaultValue));
+    setEditingParams((prev) => {
+      const n = new Set(prev);
+      if (n.has(paramId)) {
+        // Tab is open → close + auto-confirm if a value is present.
+        n.delete(paramId);
+        const field = getDbField(paramId);
+        if (
+          hasVal(exercise[field])
+          || ["notes", "equipment", "grip", "video_url"].includes(paramId)
+        ) {
+          setConfirmedParams((c) => new Set([...c, paramId]));
+        }
+      } else {
+        // Tab is closed → open it + seed default if no value yet.
+        n.add(paramId);
+        const field = getDbField(paramId);
+        if (!confirmedParams.has(paramId) && !hasVal(exercise[field])) {
+          const param = ALL_PARAMETERS.find((p) => p.id === paramId);
+          if (param?.defaultValue && param.defaultValue !== "_container") {
+            updateEx(field, String(param.defaultValue));
+          }
+        }
       }
-    }
+      return n;
+    });
   };
 
-  const handleConfirm = () => {
-    if (!editingParam) return;
-    const field = getDbField(editingParam);
-    if (hasVal(exercise[field]) || ["notes", "equipment", "grip", "video_url"].includes(editingParam)) {
-      setConfirmedParams((prev) => new Set([...prev, editingParam]));
-      setEditingParam(null);
-    } else {
-      toast.error("נא למלא ערך לפני אישור");
+  // X button inside an open panel — closes only that panel, auto-
+  // confirming whatever value is in the exercise object so the chip
+  // flips to its saved state.
+  const handleClosePanel = (paramId) => {
+    setEditingParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
+    const field = getDbField(paramId);
+    if (
+      hasVal(exercise[field])
+      || ["notes", "equipment", "grip", "video_url"].includes(paramId)
+    ) {
+      setConfirmedParams((prev) => new Set([...prev, paramId]));
     }
   };
 
@@ -1108,7 +1125,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     // coach already typed. The save flow writes every populated
     // field; "hidden" params with values get persisted harmlessly.
     setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
-    if (editingParam === paramId) setEditingParam(null);
+    setEditingParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
   };
 
   // ── Sub-exercise handlers ───────────────────────────────────────────
@@ -1157,7 +1174,24 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     ]);
   };
 
-  const editDef = editingParam ? ALL_PARAMETERS.find((p) => p.id === editingParam) : null;
+  // Open-panel descriptors (skipping container params, which don't
+  // render an inline editor). Order follows ALL_PARAMETERS so the
+  // panels stack in the same visual order as the chip grid.
+  const openParamDefs = ALL_PARAMETERS.filter(
+    (p) => editingParams.has(p.id) && !CONTAINER_PARAMS.has(p.id)
+  );
+
+  // One-liner of every populated parameter — drawn under the chip
+  // grid so the coach sees a running preview of the prescription
+  // even when several panels are open at once.
+  const summaryParts = ALL_PARAMETERS
+    .filter((p) => !CONTAINER_PARAMS.has(p.id))
+    .map((p) => {
+      const val = exercise[getDbField(p.id)];
+      if (!hasVal(val)) return null;
+      return getDisplay(p.id, val) || null;
+    })
+    .filter(Boolean);
 
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
@@ -1194,7 +1228,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           {ALL_PARAMETERS.map((p) => {
             const isCont = CONTAINER_PARAMS.has(p.id);
             const isConf = confirmedParams.has(p.id);
-            const isEdit = editingParam === p.id;
+            const isEdit = editingParams.has(p.id);
             const Icon = p.icon;
             const field = getDbField(p.id);
             const val = exercise[field];
@@ -1267,36 +1301,73 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         </div>
       </div>
 
-      {/* ── Active Param Editor Panel — hidden in read-only ───── */}
-      {!readOnly && editDef && !CONTAINER_PARAMS.has(editingParam) && (
-        <div className="mx-1 mb-3 bg-white border-2 border-[#FF6F20]/30 rounded-2xl overflow-hidden shadow-lg">
+      {/* ── Summary line — one-shot preview of every populated
+            parameter, drawn under the chip grid. Stays visible
+            regardless of how many panels are open so the coach can
+            sanity-check the prescription as they fill it. ───── */}
+      {!readOnly && summaryParts.length > 0 && (
+        <div style={{
+          padding: '8px 12px',
+          margin: '0 4px 12px',
+          background: '#FFF9F2',
+          border: '1px dashed #F0E4D0',
+          borderRadius: 10,
+          fontSize: 12,
+          color: '#666',
+          lineHeight: 1.6,
+          direction: 'rtl',
+        }}>
+          {summaryParts.join(' · ')}
+        </div>
+      )}
+
+      {/* ── Open Param Panels — one per entry in editingParams,
+            stacked in ALL_PARAMETERS order. The X button closes a
+            single panel without clearing its value (handleClosePanel
+            auto-confirms). The trash button clears the saved value
+            and closes the panel. ───── */}
+      {!readOnly && openParamDefs.map((def) => (
+        <div
+          key={def.id}
+          className="mx-1 mb-3 bg-white border-2 border-[#FF6F20]/30 rounded-2xl overflow-hidden shadow-lg"
+        >
           <div className="bg-[#FFF7ED] px-3 py-2.5 flex items-center justify-between border-b border-[#FF6F20]/10">
             <div className="flex items-center gap-2">
-              <editDef.icon size={16} className="text-[#FF6F20]" />
-              <span className="text-sm font-black text-gray-800">{editDef.label}</span>
+              <def.icon size={16} className="text-[#FF6F20]" />
+              <span className="text-sm font-black text-gray-800">{def.label}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => handleRemoveParam(editingParam)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50">
+              <button
+                type="button"
+                onClick={() => handleRemoveParam(def.id)}
+                aria-label="הסר פרמטר"
+                title="הסר פרמטר"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50"
+              >
                 <X size={14} />
               </button>
-              <button type="button" onClick={handleConfirm}
-                className="w-10 h-10 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-md active:scale-95 transition-all">
+              <button
+                type="button"
+                onClick={() => handleClosePanel(def.id)}
+                aria-label="סגור פאנל"
+                title="סגור פאנל"
+                className="w-10 h-10 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-md active:scale-95 transition-all"
+              >
                 <Check size={18} strokeWidth={3} />
               </button>
             </div>
           </div>
           <div className="p-3" style={{ overflow: 'visible' }}>
             <ParamInputRenderer
-              paramId={editingParam}
-              value={exercise[getDbField(editingParam)]}
-              onChange={(v) => updateEx(getDbField(editingParam), v)}
+              paramId={def.id}
+              value={exercise[getDbField(def.id)]}
+              onChange={(v) => updateEx(getDbField(def.id), v)}
               getOptions={getOptions}
               onAddCustom={handleAddCustom}
             />
           </div>
         </div>
-      )}
+      ))}
 
       {/* ── Container: Sub-Exercises (read-only collapses to a
             numbered list; edit mode keeps DnD + add button) ──── */}

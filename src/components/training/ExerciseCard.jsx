@@ -105,7 +105,14 @@ function buildMetaSegments(ex) {
     const tempo = formatTempo(ex.tempo);
     if (tempo) segs.push(`טמפו ${tempo}`);
   }
-  if (ex.equipment) segs.push(`ציוד: ${ex.equipment}`);
+  // Surface every other coach-set parameter so the trainee can see
+  // exactly what was prescribed without opening the editor. Hidden
+  // empty values stay hidden — only set fields appear.
+  if (ex.body_position) segs.push(ex.body_position);
+  if (ex.equipment) segs.push(ex.equipment);
+  if (ex.side) segs.push(ex.side);
+  if (ex.grip) segs.push(ex.grip);
+  if (ex.range_of_motion) segs.push(ex.range_of_motion);
   return segs;
 }
 
@@ -241,6 +248,17 @@ export default function ExerciseCard({
   const exList = extractExerciseList(exercise);
   const coachNote = exercise.description || exercise.notes || exercise.coach_notes || null;
   const completed = !!exercise.completed;
+  const showEditButtons = !!canEdit && (!!onEdit || !!onDelete);
+  const handleDeleteClick = (e) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    if (!onDelete) return;
+    if (!window.confirm('למחוק תרגיל זה?')) return;
+    onDelete();
+  };
+  const handleEditClick = (e) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    if (onEdit) onEdit();
+  };
 
   return (
     <div style={{
@@ -308,7 +326,7 @@ export default function ExerciseCard({
         )}
 
         {metaSegs.length > 0 && (
-          <div style={{ fontSize: 14, color: '#555', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
             {metaSegs.join(' · ')}
           </div>
         )}
@@ -384,6 +402,49 @@ export default function ExerciseCard({
           <div style={{ fontSize: 11, color: '#FF6F20', marginTop: 2 }}>שומר משוב...</div>
         )}
       </div>
+
+      {showEditButtons && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 4,
+          alignItems: 'center', justifyContent: 'flex-start',
+          flexShrink: 0,
+        }}>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={handleEditClick}
+              aria-label="ערוך תרגיל"
+              title="ערוך תרגיל"
+              style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: '#FFF7ED', border: '1px solid #FFD9C2',
+                color: '#FF6F20', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 14, lineHeight: 1, padding: 0,
+              }}
+            >
+              ✏️
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              aria-label="מחק תרגיל"
+              title="מחק תרגיל"
+              style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: '#FEF2F2', border: '1px solid #FCA5A5',
+                color: '#DC2626', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 14, lineHeight: 1, padding: 0,
+              }}
+            >
+              🗑️
+            </button>
+          )}
+        </div>
+      )}
 
       {showNotePopup && (
         <ExerciseNotePopup
