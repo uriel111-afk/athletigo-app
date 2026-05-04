@@ -11,6 +11,7 @@ import PageLoader from "@/components/PageLoader";
 import PermGate from "@/components/PermGate";
 import FullscreenChart from "@/components/FullscreenChart";
 import GoalsOverviewChart from "@/components/charts/GoalsOverviewChart";
+import BaselineGraph from "@/components/charts/BaselineGraph";
 
 // Visual progress dashboard for the trainee.
 // 4 stat cards on top → baseline JPS chart → personal records bar →
@@ -599,43 +600,13 @@ function ProgressInner() {
               ))}
             </div>
 
-            {/* Baseline JPS line chart — one line per technique */}
-            {baselineData.length > 0 && techNames.length > 0 && (
-              <div style={card}>
-                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
-                  📈 התקדמות JPS לפי טכניקה
-                </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={baselineData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
-                    <XAxis dataKey="date" fontSize={11} />
-                    <YAxis domain={[0, 'auto']} fontSize={11} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    {techNames.map((tech, i) => {
-                      const label = TECH_LABELS[tech] || tech;
-                      const color = TECH_COLORS[i % TECH_COLORS.length];
-                      return (
-                        <Line key={tech} type="monotone" dataKey={label} name={label}
-                          stroke={color} strokeWidth={2.5} connectNulls
-                          dot={{ r: 5, fill: color, stroke: 'white', strokeWidth: 2 }}
-                          activeDot={{ r: 7, fill: color, stroke: 'white', strokeWidth: 2 }} />
-                      );
-                    })}
-                  </LineChart>
-                </ResponsiveContainer>
-                <div style={{
-                  display: 'flex', justifyContent: 'center', gap: 16,
-                  marginTop: 8, fontSize: 12, color: '#1A1A1A', flexWrap: 'wrap',
-                }}>
-                  {techNames.map((tech, i) => {
-                    const label = TECH_LABELS[tech] || tech;
-                    const color = TECH_COLORS[i % TECH_COLORS.length];
-                    return (
-                      <span key={tech}><span style={{ color }}>●</span> {label}</span>
-                    );
-                  })}
-                </div>
-              </div>
+            {/* Baseline JPS — upgraded shared component. Per-technique
+                filter chips + headline JPS שיא + 🥇/🥈/🥉 personal-record
+                ladder. Reads the same baselinesArr the page already
+                fetches and uses the same technique/value fallbacks
+                internally. */}
+            {baselinesArr.length > 0 && (
+              <BaselineGraph measurements={baselinesArr} />
             )}
 
             {/* Records bar chart */}
