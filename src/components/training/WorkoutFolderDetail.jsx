@@ -4,6 +4,10 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabaseClient';
+import { base44 } from '@/api/base44Client';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 import FullscreenChart from '@/components/FullscreenChart';
@@ -198,14 +202,98 @@ function ImprovementGraph({ data, executionsCount }) {
 
 function MasterCard({
   plan, sectionsCount, exercisesCount, isCoach, hasExecutions,
-  onActivate, onEditPlan, onDuplicateExecution,
+  onActivate, onEditPlan, onDuplicateExecution, onPlanDeleted,
 }) {
-  // Coach edits the master plan; trainee runs it. Tap target = whole
-  // card to give a generous hit area.
   const traineeLabel = hasExecutions ? 'בצע שוב' : 'התחל אימון';
   const handleCardTap = isCoach
     ? () => onEditPlan && onEditPlan(plan)
     : () => onActivate && onActivate();
+
+  // Plan-level action menu (coach only). The 3-dots button opens
+  // a bottom sheet with: copy-to-trainee → opens a second sheet
+  // with the coach's roster; edit → existing onEditPlan; duplicate
+  // → inserts a new training_plans row; delete → cascade delete +
+  // navigate back.
+  const queryClient = useQueryClient();
+  const [showPlanMenu, setShowPlanMenu] = useState(false);
+  const [showCopyToTrainee, setShowCopyToTrainee] = useState(false);
+
+  const { data: trainees = [] } = useQuery({
+    queryKey: ['plan-menu-trainees'],
+    queryFn: async () => {
+      const me = await base44.auth.me().catch(() => null);
+      if (!me?.id) return [];
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .eq('role', 'trainee')
+        .eq('coach_id', me.id)
+        .order('full_name');
+      return data || [];
+    },
+    enabled: showCopyToTrainee || showPlanMenu,
+  });
+
+  const handlePlanAction = async (action) => {
+    setShowPlanMenu(false);
+    if (action === 'edit') {
+      onEditPlan && onEditPlan(plan);
+      return;
+    }
+    if (action === 'duplicate') {
+      try {
+        const { id, created_at, ...rest } = plan;
+        const { error } = await supabase
+          .from('training_plans')
+          .insert({ ...rest, plan_name: `${plan.plan_name || 'תוכנית'} (עותק)` });
+        if (error) throw error;
+        toast.success('התוכנית שוכפלה ✅');
+        queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+        queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      } catch (e) {
+        toast.error('שכפול נכשל: ' + (e?.message || 'נסה שוב'));
+      }
+      return;
+    }
+    if (action === 'copy') {
+      setShowCopyToTrainee(true);
+      return;
+    }
+    if (action === 'delete') {
+      if (!window.confirm(`למחוק את "${plan.plan_name || ''}" לצמיתות? לא ניתן לשחזר.`)) return;
+      try {
+        await supabase.from('exercises').delete().eq('training_plan_id', plan.id);
+        await supabase.from('training_sections').delete().eq('training_plan_id', plan.id);
+        await supabase.from('workout_executions').delete().eq('plan_id', plan.id);
+        const { error } = await supabase.from('training_plans').delete().eq('id', plan.id);
+        if (error) throw error;
+        toast.success('התוכנית נמחקה');
+        queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+        queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+        if (onPlanDeleted) onPlanDeleted();
+      } catch (e) {
+        toast.error('מחיקה נכשלה: ' + (e?.message || 'נסה שוב'));
+      }
+    }
+  };
+
+  const copyPlanToTrainee = async (traineeId) => {
+    try {
+      const { id, created_at, ...rest } = plan;
+      const { error } = await supabase
+        .from('training_plans')
+        .insert({ ...rest, assigned_to: traineeId });
+      if (error) throw error;
+      toast.success('התוכנית הועתקה בהצלחה ✅');
+      queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+    } catch (e) {
+      toast.error('העתקה נכשלה: ' + (e?.message || 'נסה שוב'));
+    } finally {
+      setShowCopyToTrainee(false);
+    }
+  };
+
   return (
     <div
       onClick={handleCardTap}
@@ -230,6 +318,22 @@ function MasterCard({
       }}>
         תוכנית המאמן
       </span>
+      {isCoach && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setShowPlanMenu(true); }}
+          aria-label="פעולות תוכנית"
+          style={{
+            position: 'absolute', top: 10, right: 12,
+            width: 36, height: 36, borderRadius: '50%',
+            background: '#F5F5F5', border: 'none',
+            fontSize: 22, lineHeight: 1, cursor: 'pointer',
+            color: '#888',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0,
+          }}
+        >⋮</button>
+      )}
       <div style={{ fontSize: 13, color: '#6366F1', fontWeight: 700, marginBottom: 6 }}>
         🎯 תוכנית המאמן
       </div>
@@ -310,6 +414,113 @@ function MasterCard({
               📋 שכפל אימון
             </button>
           )}
+        </>
+      )}
+
+      {/* Action menu — bottom sheet */}
+      {showPlanMenu && (
+        <>
+          <div
+            onClick={(e) => { e.stopPropagation(); setShowPlanMenu(false); }}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.4)', zIndex: 200,
+            }}
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0,
+              background: 'white', borderRadius: '20px 20px 0 0',
+              padding: '24px 20px 40px', zIndex: 201, direction: 'rtl',
+              cursor: 'default',
+            }}
+          >
+            <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 999, margin: '0 auto 20px' }} />
+            <div style={{ fontSize: 16, fontWeight: 700, color: DARK, marginBottom: 16 }}>
+              {plan.plan_name || 'תוכנית'}
+            </div>
+            {[
+              { icon: '📋', label: 'העתק למתאמן אחר', action: 'copy', color: DARK },
+              { icon: '✏️', label: 'ערוך תוכנית', action: 'edit', color: DARK },
+              { icon: '📄', label: 'שכפל תוכנית', action: 'duplicate', color: DARK },
+              { icon: '🗑️', label: 'מחק תוכנית', action: 'delete', color: '#DC2626' },
+            ].map((item) => (
+              <button
+                key={item.action}
+                type="button"
+                onClick={() => handlePlanAction(item.action)}
+                style={{
+                  width: '100%', padding: '16px',
+                  background: 'white', border: 'none',
+                  borderBottom: '1px solid #F5F5F5',
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  fontSize: 16, color: item.color,
+                  cursor: 'pointer', direction: 'rtl', textAlign: 'right',
+                }}
+              >
+                <span style={{ fontSize: 20 }}>{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Copy-to-trainee picker — second sheet */}
+      {showCopyToTrainee && (
+        <>
+          <div
+            onClick={(e) => { e.stopPropagation(); setShowCopyToTrainee(false); }}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.4)', zIndex: 202,
+            }}
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0,
+              background: 'white', borderRadius: '20px 20px 0 0',
+              padding: '24px 20px 40px', zIndex: 203,
+              maxHeight: '70vh', overflowY: 'auto', direction: 'rtl',
+              cursor: 'default',
+            }}
+          >
+            <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 999, margin: '0 auto 20px' }} />
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: DARK }}>בחר מתאמן</div>
+            {trainees.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: 14 }}>
+                אין מתאמנים זמינים
+              </div>
+            ) : (
+              trainees.map((trainee) => (
+                <button
+                  key={trainee.id}
+                  type="button"
+                  onClick={() => copyPlanToTrainee(trainee.id)}
+                  style={{
+                    width: '100%', padding: '14px 16px',
+                    background: 'white', border: 'none',
+                    borderBottom: '1px solid #F5F5F5',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    fontSize: 15, color: DARK, cursor: 'pointer',
+                    direction: 'rtl', textAlign: 'right',
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    background: ORANGE, color: 'white',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, fontWeight: 700, flexShrink: 0,
+                  }}>
+                    {trainee.full_name?.[0] || '?'}
+                  </div>
+                  {trainee.full_name}
+                </button>
+              ))
+            )}
+          </div>
         </>
       )}
     </div>
@@ -553,6 +764,7 @@ export default function WorkoutFolderDetail({
           onActivate={() => setActiveMode('active')}
           onEditPlan={onEditPlan}
           onDuplicateExecution={onDuplicateExecution}
+          onPlanDeleted={onBack}
         />
 
         {completed.length > 0 && (
