@@ -1189,6 +1189,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         console.warn('[saveWorkoutExecution] auto-PR check threw:', e?.message);
       }
 
+      // Belt-and-suspenders cache invalidation so the improvement
+      // graph (in WorkoutFolderDetail / Progress) updates the moment
+      // the save lands, even if the trainee doesn't navigate back
+      // through the parent's onWorkoutFinished hook.
+      try {
+        queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
+        queryClient.invalidateQueries({ queryKey: ['workout-executions', plan.id] });
+        queryClient.invalidateQueries({ queryKey: ['executions', plan.id] });
+        queryClient.invalidateQueries({ queryKey: ['execution-count', plan.id] });
+      } catch {}
+
       if (avg != null) toast.success(`✅ הציון ${avg} נשמר`);
       return execRow;
     } catch (err) {
@@ -2149,7 +2160,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             transform: 'translateX(-50%)',
             maxHeight: 'calc(100vh - 200px)',
             overflowY: 'auto',
-            zIndex: 200,
+            // Above the trainee "סיים אימון" bottom bar (z-50) and the
+            // plan-action sheets (z-1000) added by other surfaces. The
+            // Radix overlay sits one layer below at zIndex 999 so the
+            // backdrop click still dismisses cleanly.
+            zIndex: 1000,
+            pointerEvents: 'auto',
           }}>
 
           {/* Top-left close button — discards rating, closes popup,
