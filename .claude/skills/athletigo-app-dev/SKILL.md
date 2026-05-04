@@ -14,6 +14,7 @@ description: >
 | Hosting | Vercel (auto-deploy from GitHub main) |
 | Repo | github.com/uriel111-afk/athletigo-app |
 | Domain | athletigo-coach.com |
+| PWA | manifest.json + service worker |
 
 ## Key IDs
 | Item | Value |
@@ -26,14 +27,13 @@ description: >
 
 ## Deploy Command (always end prompts with this)
 ```
-npm run build && git add -A && git commit -m "fix/feat: description" && git push origin main
-curl --ssl-no-revoke -X POST "https://api.vercel.com/v1/integrations/deploy/prj_5UisHw6yXTG36RgmN7UDIfqbbngM/27hqgYETQd"
+npm run build && git add -A && git commit -m "fix/feat: description" && git push origin main && curl --ssl-no-revoke -X POST "https://api.vercel.com/v1/integrations/deploy/prj_5UisHw6yXTG36RgmN7UDIfqbbngM/27hqgYETQd"
 ```
 
 ## Database Schema
 
 ### users
-id, full_name, email, phone, role, coach_id, birth_date, 
+id, full_name, email, phone, role, coach_id, birth_date,
 client_status, onboarding_completed, onboarding_completed_at,
 onboarding_summary, health_declaration_signed, health_declaration_signed_at,
 height, weight, fitness_level, goal_focus TEXT[], weekly_days TEXT[],
@@ -48,7 +48,7 @@ duration_weeks, start_date, description, status, created_at
 
 ### training_sections
 id, training_plan_id, name, category, sort_order, color,
-coach_notes, created_at
+coach_notes TEXT, created_at
 
 ### exercises
 id, section_id, plan_id, name, sort_order,
@@ -60,70 +60,120 @@ video_url, description, tabata_data, created_at
 ### workout_executions
 id, trainee_id, plan_id, workout_template_id (nullable),
 executed_at, self_rating NUMERIC, completion_percent NUMERIC,
-section_ratings JSONB, notes, feedback_chips TEXT[], created_at
+section_ratings JSONB, notes TEXT, feedback_chips TEXT[], created_at
 
 ### exercise_set_logs
 id, execution_id, exercise_id, set_number,
 reps_completed, time_completed, weight_used,
-completed BOOLEAN, difficulty_rating INTEGER, notes, created_at
+completed BOOLEAN DEFAULT false,
+difficulty_rating INTEGER,
+notes TEXT, created_at
 
 ### goals
-id, trainee_id, title, description, progress NUMERIC,
-status ('פעיל'/'הושג'/'בוטל'), source, created_at
+id, trainee_id, title TEXT, description TEXT,
+progress NUMERIC DEFAULT 0,
+status TEXT ('פעיל'/'הושג'/'בוטל'),
+source TEXT DEFAULT 'manual', created_at
 
 ### measurements
-id, user_id (or trainee_id), date, weight_kg, height_cm,
-body_fat, notes, created_at
+id, user_id, date, weight_kg, height_cm, body_fat, notes, created_at
 
 ### notifications
-id, user_id, type, title, message, is_read, created_at
+id, user_id, type, title, message, is_read BOOLEAN DEFAULT false, created_at
 
 ### health_declarations
 id, trainee_id, signed_at, content, created_at
 
 ## CRITICAL Column Names
 - rest_time (NOT rest)
-- work_time (NOT work)  
+- work_time (NOT work)
 - plan_name (NOT name for training_plans)
 - training_sections (NOT plan_sections)
 - training_plan_id (NOT plan_id in sections)
 - tabata_data (NOT tabata_config)
 - body_position (NOT position)
 - client_status (NOT status for users)
+- workout_template_id IS nullable — always upsert with onConflict:'id'
 
 ## Client Status Flow
 ```
-onboarding → casual (מזדמן) → active (פעיל) → suspended → graduated
+onboarding → casual → active → suspended → graduated
 ```
-- 'onboarding' = English canonical value (not Hebrew)
+- 'onboarding' = English canonical value
 - After onboarding + health declaration → 'casual'
-- Coach changes status manually after that
+- Coach changes status manually
+
+## RLS Policies (important)
+- Coaches can INSERT workout_executions for their trainees:
+  EXISTS (SELECT 1 FROM users WHERE users.id = workout_executions.trainee_id AND users.coach_id = auth.uid())
 
 ## Key Components Map
 
-### Training Flow (most important)
+### Training Flow
 ```
-UnifiedPlanBuilder.jsx     — THE workout view for coach+trainee
-  canEdit=true, isCoach=true  → coach editor
-  canEdit=false, isCoach=false → trainee active workout
-  
-SectionCard.jsx            — collapsible section with exercises
-ExerciseCard.jsx           — exercise with per-set inputs
-ModernExerciseForm.jsx     — exercise parameter editor
-WorkoutFolderDetail.jsx    — folder detail (graph + master + executions)
+UnifiedPlanBuilder.jsx      — THE single workout view
+  canEdit=true isCoach=true   → coach editor (edit buttons, add section)
+  canEdit=false isCoach=false → trainee active workout (checkboxes, ratings)
+
+SectionCard.jsx             — collapsible section
+  - border-RIGHT (not left) with unique color by index
+  - coach_notes textarea above exercises (below section name)
+  - section name: 18px bold, shown ONCE only
+  - 10-color palette by index, never from DB
+
+ExerciseCard.jsx            — exercise with per-set inputs
+  - Per-set: reps input + ✓ button + difficulty 1-10 rating
+  - After all sets done: summary row (השלמה% + קושי ממוצע)
+
+ModernExerciseForm.jsx      — exercise parameter editor
+  - 4-column grid tabs (never horizontal scroll)
+  - No default tab selected (activeParam starts null)
+  - Toggle tab: tap again to close
+  - Multi-open tabs simultaneously
+  - Time picker: shows minutes:seconds
+  - "נקה" button to clear each parameter
+  - Parameters summary as stacked rows below tabs
+
+WorkoutFolderDetail.jsx     — folder detail
+  - Improvement graph: dual line (orange=score, blue=completion%)
+  - Master card labeled "תוכנית המאמן"
+  - Execution cards: blank→"התחל אימון▶", completed→read-only accordion
+
 WorkoutExecutionReadOnly.jsx — completed workout view
-SwipeableCard.jsx          — swipe-left to reveal actions
+  - Shows per-set values + difficulty ratings
+  - Section rating badges
+
+SwipeableCard.jsx           — swipe-left reveals edit+delete (coach only)
+FullscreenChart.jsx         — fullscreen modal for any graph
 ```
 
 ### Pages
 ```
-Dashboard.jsx              — Coach home
-TraineeProfile.jsx         — Coach views trainee
-Workouts.jsx               — Trainee "אימונים" tab
-TrainingPlans.jsx          — Coach plans list
-Progress.jsx               — Progress + graphs
-Onboarding.jsx             — New trainee onboarding (6 steps)
-Login.jsx                  — Login screen
+Dashboard.jsx               — Coach home
+TraineeProfile.jsx          — Coach views trainee (plans tab = folder view)
+Workouts.jsx + WorkoutsInner — Trainee "אימונים" tab
+TrainingPlans.jsx           — Coach plans list
+Progress.jsx                — 6 graphs dashboard
+Onboarding.jsx              — 6-step onboarding
+Login.jsx                   — Login (logo 130px, mobile install prompt)
+```
+
+## Section Colors (10 unique, by index)
+```jsx
+const SECTION_COLORS = [
+  '#FF6F20', // כתום מותג
+  '#1E3A5F', // נייבי כהה
+  '#22c55e', // ירוק
+  '#FF6F20CC',// כתום שקוף
+  '#0EA5E9', // תכלת
+  '#F59E0B', // זהב
+  '#7C3AED', // סגול
+  '#EF4444', // אדום
+  '#0D9488', // טורקיז
+  '#1E3A5F99' // נייבי בהיר
+];
+// ALWAYS use: SECTION_COLORS[sectionIndex % SECTION_COLORS.length]
+// NEVER use section.color from DB
 ```
 
 ## Design System
@@ -131,77 +181,62 @@ Login.jsx                  — Login screen
 |---|---|
 | Primary | #FF6F20 orange |
 | Background | white |
-| Text | #1a1a1a |
+| Text primary | #1a1a1a |
 | Text secondary | #888 |
 | Border | #F0E4D0 |
 | Font | Barlow / Barlow Condensed |
 | Direction | RTL always |
-| Section colors | 10-color palette, unique per section, border-RIGHT |
+| Section border | RIGHT side, 3px solid, color by index |
 
-### Section Color Palette
-```jsx
-const SECTION_COLORS = [
-  '#FF6F20','#3B82F6','#22c55e','#A855F7','#EF4444',
-  '#F59E0B','#06B6D4','#EC4899','#84CC16','#F97316'
-];
-```
+## Workout Execution Flow (complete)
 
-## Completed Features (as of May 2026)
+### Active workout (trainee):
+1. Open folder → tap "התחל אימון"
+2. Sections collapsible, exercises listed
+3. Each exercise: per-set rows (if sets>1)
+   - Input: reps completed
+   - Button: ✓ mark done (turns orange)
+   - After ✓: show 1-10 difficulty rating buttons
+   - After rating: show "קושי X/10" chip with ✕ to clear
+4. All sets done → summary: "השלמה: XX% · קושי ממוצע: X.X/10"
+5. All exercises in section done → section popup:
+   - Slider 1: כמה שליטה הרגשת? (1-10)
+   - Slider 2: כמה זה אתגר אותך? (1-10)
+   - Section score = average of both
+6. All sections done → workout completion popup (dark #1a1a1a):
+   - Score: orange 48px
+   - 8 feedback chips (multi-select)
+   - Free text textarea
+   - Buttons: "צפה בתוצאות" + "שכפל לשיפור"
+7. Save: workout_executions + exercise_set_logs (with difficulty_rating)
 
-### Workout Flow (complete)
-- Folder hierarchy: list → folder detail → active workout
-- Per-set inputs with reps completed
-- Per-set difficulty rating 1-10 (after marking set done)
-- Section completion popup: 2 sliders (שליטה + אתגר)
-- Workout completion: chips feedback + free text + dual graph
-- Save to workout_executions + exercise_set_logs
-- Duplicate workout button (coach + trainee)
-- Improvement graph: orange=score, blue=completion%
-- Read-only view for completed executions
+### Graphs:
+- Orange line = self_rating (manual score)
+- Blue dashed line = completion_percent/10 (normalized)
+- Tooltip: "ציון: X | השלמה: XX%"
 
-### Plan Editor (complete)
-- UnifiedPlanBuilder: single component for all views
-- Section: collapsible, color border-right, coach notes field
-- Exercise: ModernExerciseForm with 4-col tab grid
-- Parameter tabs: multi-open, toggle to close, no default selected
-- Time picker: shows minutes:seconds
-- Parameters summary rows below exercise
-- Long-press rename section/exercise
-- Swipe-left delete on cards (coach only)
-- PlanMetadataEditor bottom sheet (goals, days, difficulty, duration, start_date)
+## Onboarding Flow
+Step 1: פרטים (name, phone, birth_date, address, emergency contact)
+Step 2: מדידות (height_cm, weight_kg) → also inserts into measurements table
+Step 3: יעדים (training_goals TEXT[]) → also seeds goals table with source='onboarding'
+Step 4: אודות (fitness_experience, frequency, challenges, preferences)
+Step 5: הצהרת בריאות → signs health_declarations + sets client_status='casual'
+Step 6: סיום → generates onboarding_summary via generateTraineeSummary()
 
-### Trainee Experience (complete)
-- Onboarding 6 steps → saves to users + measurements + goals
-- Story summary → users.onboarding_summary → "היכרות" tab
-- Profile tabs: היכרות, יעדים, מדידות, מסמכים, פרטים
-- Status: onboarding → casual after health declaration
+Auto-redirect: if onboarding_completed=false AND client_status='onboarding' → /onboarding
 
-### Coach Experience (complete)  
-- TraineeProfile with folder view in "תוכניות" tab
-- New trainee: 3 fields only (name + email + password)
-- Coach can edit/delete plans from trainee profile
-- Coach can duplicate workout for trainee
-- RLS: coaches can INSERT workout_executions for their trainees
-
-### Graphs (complete)
-- 6 graphs on Progress page: summary cards, improvement, goals bars, weight line, weekly attendance, training type donut
-- All graphs: tap to open fullscreen (FullscreenChart.jsx)
-- Dual-line improvement graph: score + completion%
-
-## Known Pending Issues
-- Parameter "?" display (field name mismatch — needs investigation)
-- Workout popup fires on mount (hasInteractedRef guard added, verify)
-- Supabase disk I/O approaching limit (optimize queries)
+## Add New Trainee (simplified)
+Coach enters: full_name + email + password only.
+Created with: role='trainee', client_status='onboarding', onboarding_completed=false
+Trainee logs in → auto-redirected to onboarding.
 
 ## Prompt Writing Rules
-
-1. Always specify exact file: `File: src/components/training/SectionCard.jsx`
-2. Use grep to find location before changing: `grep -n "term" file.jsx`
-3. Include correct DB column names
-4. Always end with build+commit+deploy command
-5. Keep prompts focused — one file when possible
-6. For SQL: print it separately for manual Supabase execution
-7. Never use wrong column names (see CRITICAL section above)
+1. Specify exact file path
+2. Use grep -n to find location first
+3. Keep prompts focused (one file when possible)
+4. Always end with deploy command
+5. Print SQL separately for manual Supabase execution
+6. Never use wrong column names
 
 ## Formatting Rule
 STRICT: Never mix Hebrew and English on the same line.
