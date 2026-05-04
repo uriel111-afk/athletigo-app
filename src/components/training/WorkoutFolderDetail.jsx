@@ -207,10 +207,10 @@ function MasterCard({
         padding: '2px 10px', borderRadius: 999,
         letterSpacing: 0.5, border: '1px solid #DDD6FE',
       }}>
-        אימון אב
+        תוכנית המאמן
       </span>
       <div style={{ fontSize: 13, color: '#6366F1', fontWeight: 700, marginBottom: 6 }}>
-        🎯 אימון אב
+        🎯 תוכנית המאמן
       </div>
       <div style={{ fontSize: 18, fontWeight: 800, color: DARK, marginBottom: 4, paddingLeft: 64 }}>
         {plan.plan_name || plan.title || 'תוכנית'}
