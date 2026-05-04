@@ -206,7 +206,6 @@ export default function TraineeHome() {
   // dedicated "המסלולים שלי" section below.
   const [myTracks, setMyTracks] = useState([]);
   const [trackMilestones, setTrackMilestones] = useState({});
-  const [expandedTrack, setExpandedTrack] = useState(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1392,128 +1391,10 @@ export default function TraineeHome() {
           </div>
         )}
 
-        {/* My Tracks — coach-assigned skill tracks with progress + milestones.
-            Hidden when the coach has turned off "מעקב התקדמות".
-            Also hidden for casual trainees (no plan yet). */}
-        {!isCasual && perms.view_progress && myTracks.length > 0 && (
-          <div style={{
-            background: 'white', borderRadius: 16,
-            padding: 14, margin: '12px 14px 0',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-            direction: 'rtl',
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>🛤️ המסלולים שלי</div>
-            {myTracks.map(track => {
-              const milestones = (trackMilestones && trackMilestones[track.id]) || [];
-              const goalVal = Number(track.goal_value) || 0;
-              const curVal = Number(track.current_value) || 0;
-              const startVal = Number(track.start_value) || 0;
-              const pct = goalVal > 0 ? Math.min(100, Math.round(curVal / goalVal * 100)) : 0;
-              const trkColor = track.color || '#FF6F20';
-              const isOpen = expandedTrack === track.id;
-              return (
-                <div
-                  key={track.id}
-                  onClick={() => setExpandedTrack(isOpen ? null : track.id)}
-                  style={{
-                    background: '#FFF9F0', borderRadius: 14,
-                    padding: 12, marginBottom: 8,
-                    borderRight: `4px solid ${trkColor}`,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 20 }}>{track.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>{track.name}</div>
-                      <div style={{ fontSize: 11, color: '#888' }}>יעד: {track.goal || '—'}</div>
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: trkColor }}>{pct}%</div>
-                  </div>
-
-                  <div style={{ position: 'relative', marginBottom: 4, padding: '6px 8px 6px 14px' }}>
-                    <div style={{
-                      background: '#F0E4D0', borderRadius: 6,
-                      height: 10, overflow: 'hidden',
-                    }}>
-                      <div style={{
-                        background: trkColor,
-                        height: '100%', width: `${pct}%`,
-                        borderRadius: 6,
-                        transition: 'width 0.5s ease',
-                      }} />
-                    </div>
-                    {milestones.map(m => {
-                      const mPct = goalVal > 0 ? Math.min(100, (m.value / goalVal) * 100) : 0;
-                      return (
-                        <div key={m.id} style={{
-                          position: 'absolute',
-                          left: `${mPct}%`, top: 4,
-                          transform: 'translateX(-50%)',
-                          width: m.reached_at ? 14 : 10,
-                          height: m.reached_at ? 14 : 10,
-                          borderRadius: '50%',
-                          background: m.reached_at ? '#16a34a' : 'white',
-                          border: m.reached_at ? '2px solid white' : `2px solid ${trkColor}`,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-                          zIndex: 2,
-                        }} title={m.label || ''} />
-                      );
-                    })}
-                    <div style={{ position: 'absolute', left: 0, top: 1, fontSize: 16, zIndex: 2 }}>⭐</div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#888', marginTop: 2 }}>
-                    <span>{startVal} {track.goal_unit || ''}</span>
-                    <span style={{ color: trkColor, fontWeight: 600 }}>{curVal} {track.goal_unit || ''}</span>
-                    <span>⭐ {goalVal || '?'} {track.goal_unit || ''}</span>
-                  </div>
-
-                  {isOpen && (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid #F0E4D0' }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>📍 נקודות ציון</div>
-                      {milestones.length === 0 && (
-                        <div style={{ fontSize: 11, color: '#888' }}>אין נקודות ציון עדיין</div>
-                      )}
-                      {milestones.map((m, i) => (
-                        <div key={m.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16 }}>
-                            <div style={{
-                              width: 10, height: 10, borderRadius: '50%',
-                              background: m.reached_at ? '#16a34a' : '#E8E0D8',
-                            }} />
-                            {i < milestones.length - 1 && (
-                              <div style={{
-                                width: 2, height: 16,
-                                background: m.reached_at ? '#16a34a' : '#E8E0D8',
-                              }} />
-                            )}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 500 }}>
-                              {m.value} {track.goal_unit || ''}{m.label ? ` — ${m.label}` : ''}
-                            </div>
-                            {m.reached_at && (
-                              <div style={{ fontSize: 10, color: '#16a34a' }}>
-                                ✓ {new Date(m.reached_at).toLocaleDateString('he-IL')}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                        <div style={{ width: 16, textAlign: 'center' }}>⭐</div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: trkColor }}>
-                          {goalVal || '?'} {track.goal_unit || ''} — {track.goal || 'יעד'}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {/* "המסלולים שלי" section removed. The myTracks state +
+            skill_tracks query are kept because the challenge card
+            above still consumes them to show track-context on a
+            track-derived challenge. */}
 
         {/* Book Session Button */}
         <div style={{padding:'14px 14px 6px'}}>
