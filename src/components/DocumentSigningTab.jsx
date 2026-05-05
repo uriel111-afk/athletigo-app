@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, CheckCircle, Download, Eye, ChevronDown, ChevronUp, AlertTriangle, Trash2 } from "lucide-react";
+import { Loader2, FileText, CheckCircle, Download, Eye, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -285,11 +285,11 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     });
   }
 
-  // Pending placeholders for the two built-in types when no row of that type
-  // exists yet (lets the trainee see them as call-to-action items).
-  if (!grouped.has('cooperation_agreement')) {
-    docs.unshift({ key: 'cooperation_agreement_new', docType: 'cooperation_agreement', label: 'הסכם שיתוף פעולה', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null, badge: null });
-  }
+  // Pending placeholder for the mandatory health declaration when no
+  // row of that type exists yet (so the trainee always sees the
+  // call-to-action card). The cooperation agreement is no longer a
+  // default — it only appears once a coach explicitly sends one via
+  // the "+ הוסף מסמך לחתימה" picker.
   if (!grouped.has('health_declaration')) {
     docs.push({ key: 'health_declaration_new', docType: 'health_declaration', label: 'הצהרת בריאות', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null, badge: null });
   }
@@ -302,6 +302,13 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
   // top-level "+ הוסף מסמך לחתימה" menu on TraineeProfile.)
 
   const handleDeleteDocument = async (docId, isSigned) => {
+    if (!docId) {
+      // Placeholder row with no DB record yet — nothing to soft-delete.
+      // Hide the button removed the doc.record?.id gate, so this is a
+      // safety net for future placeholder document types.
+      toast.info('אין מה למחוק — המסמך עוד לא נשלח');
+      return;
+    }
     if (isSigned) {
       const confirmed = window.confirm('האם למחוק מסמך חתום? פעולה זו אינה הפיכה.');
       if (!confirmed) return;
@@ -407,6 +414,10 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
         const canSign = !isSigned;
         const isAgreementType = typeof doc.docType === 'string' && doc.docType.startsWith('agreement_');
         const isPendingAgreement = isAgreementType && doc.record && doc.record.status === 'pending';
+        // Health declaration is mandatory and can never be deleted —
+        // it's the legal gate for training. The trash button hides on
+        // every health-declaration row regardless of signed state.
+        const isHealthDeclaration = doc.docType === 'health_declaration';
 
         // Pending agreement rows get a prominent CTA layout — body is already
         // rendered into doc.metadata.body_rendered, so the dedicated dialog
@@ -436,11 +447,18 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                 style={{ background: '#FF6F20', color: '#FFFFFF' }}>
                 חתום על ההסכם
               </Button>
-              {isCoach && (
-                <button onClick={() => handleDeleteDocument(doc.record.id, false)}
-                  className="p-1 rounded-full hover:bg-red-50 transition-colors" title="מחק מסמך">
-                  <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
-                </button>
+              {isCoach && !isHealthDeclaration && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.record?.id, false); }}
+                  title="מחק מסמך"
+                  style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    border: 'none', background: '#FEE2E2',
+                    color: '#DC2626', fontSize: 16,
+                    cursor: 'pointer', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >🗑️</button>
               )}
             </div>
           );
@@ -467,11 +485,18 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                 <span className="font-bold text-sm text-gray-900">{doc.label}</span>
               </div>
               <div className="flex items-center gap-2">
-                {isCoach && doc.record?.id && (
-                  <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.record.id, isSigned); }}
-                    className="p-1 rounded-full hover:bg-red-50 transition-colors" title="מחק מסמך">
-                    <Trash2 className="w-4 h-4 text-red-400 hover:text-red-600" />
-                  </button>
+                {isCoach && !isHealthDeclaration && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.record?.id, isSigned); }}
+                    title="מחק מסמך"
+                    style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      border: 'none', background: '#FEE2E2',
+                      color: '#DC2626', fontSize: 16,
+                      cursor: 'pointer', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >🗑️</button>
                 )}
                 {/* Status / lifecycle badge */}
                 {doc.badge === 'current' && (
