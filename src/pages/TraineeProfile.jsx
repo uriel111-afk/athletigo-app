@@ -947,6 +947,11 @@ function buildLiveNarrativeSummary(u) {
 }
 
 function IntroTab({ user }) {
+  // Defensive top-level guard. The tab-set normally only renders once
+  // the parent user fetch resolves, but during a fast tab switch the
+  // first render can land before the new trainee row is in the cache —
+  // bailing here keeps every downstream optional-chain shrug-safe.
+  if (!user) return null;
   const challenges  = parseList(user?.current_challenges);
   const preferences = parseList(user?.training_preferences);
   // Accept both column-name aliases — different installs use
@@ -3884,7 +3889,9 @@ export default function TraineeProfile() {
                   preferred_frequency/current_challenges/
                   training_preferences/additional_notes). */}
               <TabsContent value="intro" className="space-y-4 w-full" dir="rtl">
-                <IntroTab user={user} />
+                <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב ההיכרות נכשלה. נסה לרענן את הדף.</div>}>
+                  <IntroTab user={user} />
+                </ErrorBoundary>
               </TabsContent>
 
               <TabsContent value="goals" className="space-y-4 w-full" dir="rtl">
