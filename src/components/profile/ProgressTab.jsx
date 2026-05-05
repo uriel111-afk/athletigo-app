@@ -5,6 +5,7 @@ import { AuthContext } from '@/lib/AuthContext';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   ReferenceLine, ReferenceDot, Legend,
+  BarChart, Bar, Cell,
 } from 'recharts';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
@@ -126,6 +127,80 @@ const findAchievedGoalsForExercise = (goals, exerciseName) => {
       normalizeExerciseName(g.exercise_name) === target
   );
 };
+
+// Top-of-tab summary card — horizontal BarChart of each exercise's
+// best record (top 8). Replaces the older StepMilestones master chart
+// that was failing to render reliably across viewports. Self-contained
+// empty state so the parent doesn't need to gate it.
+function RecordsSummaryChart({ records }) {
+  if (!records?.length) return (
+    <div style={{
+      background: 'white', borderRadius: 16, padding: 24,
+      textAlign: 'center', border: '1px solid #F0E4D0',
+    }}>
+      <div style={{ fontSize: 32, marginBottom: 8 }}>🏆</div>
+      <div style={{ fontSize: 15, color: '#aaa' }}>עוד אין שיאים</div>
+      <div style={{ fontSize: 12, color: '#ccc', marginTop: 4 }}>השיאים יופיעו לאחר ביצוע אימונים</div>
+    </div>
+  );
+
+  const byExercise = records.reduce((acc, r) => {
+    const name = r.exercise_name || r.name || r.exercise?.name || 'לא ידוע';
+    const val = parseFloat(r.value || r.reps || 0);
+    if (!Number.isFinite(val)) return acc;
+    if (!acc[name] || val > acc[name]) acc[name] = val;
+    return acc;
+  }, {});
+
+  const chartData = Object.entries(byExercise)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  return (
+    <div style={{
+      background: 'white', borderRadius: 16, padding: 16,
+      border: '1px solid #F0E4D0',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+      marginBottom: 16,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>סקירת שיאים</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ textAlign: 'center', background: '#FFF5EE', borderRadius: 10, padding: '8px 12px' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#FF6F20' }}>{records.length}</div>
+            <div style={{ fontSize: 10, color: '#aaa' }}>שיאים</div>
+          </div>
+          <div style={{ textAlign: 'center', background: '#F0FDF4', borderRadius: 10, padding: '8px 12px' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#22c55e' }}>{chartData.length}</div>
+            <div style={{ fontSize: 10, color: '#aaa' }}>תרגילים</div>
+          </div>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={Math.max(chartData.length * 44, 120)}>
+        <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 0 }}>
+          <XAxis type="number" tick={false} axisLine={false} tickLine={false} />
+          <YAxis
+            type="category" dataKey="name"
+            tick={{ fontSize: 12, fill: '#1a1a1a' }}
+            axisLine={false} tickLine={false} width={90}
+          />
+          <Tooltip
+            contentStyle={{ background: '#1a1a1a', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
+            formatter={(v) => [`${v} חזרות`, 'שיא']}
+            cursor={{ fill: 'rgba(255,111,32,0.05)' }}
+          />
+          <Bar dataKey="value" radius={[0, 8, 8, 0]} background={{ fill: '#FFF0E8', radius: [0, 8, 8, 0] }}>
+            {chartData.map((_, i) => (
+              <Cell key={i} fill={i === 0 ? '#FF6F20' : i === 1 ? '#FF9A5C' : '#FFB87A'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 // Personal records tab — master chart with per-exercise filter pills,
 // stats row, and inline-expandable folders per exercise. Each folder
@@ -532,246 +607,7 @@ export default function ProgressTab({ traineeId }) {
         🏆 שיא חדש
       </button>
 
-      {records.length === 0 && (
-        <div style={{
-          padding: 40, textAlign: 'center', color: '#888',
-          background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 14,
-        }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>🏆</div>
-          <div style={{ fontSize: 15 }}>עוד אין שיאים</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>שיאים יופיעו כאן אחרי הזנה ראשונה</div>
-        </div>
-      )}
-
-      {records.length > 0 && (
-        // Full-width breakout — escapes every horizontal padding above
-        // it (TraineeProfile px-4, Tabs gutters, this component) and
-        // pins the chart to the actual viewport edges on mobile.
-        // overflow is left visible so chips never get clipped on the
-        // right; the SVG and text children all size themselves to the
-        // content area so no horizontal scroll is introduced.
-        <div style={{
-          marginLeft: 'calc(-50vw + 50%)',
-          marginRight: 'calc(-50vw + 50%)',
-          width: '100vw',
-          padding: 0,
-          marginBottom: 16,
-        }}>
-        <div style={{
-          background: CARD_BG, borderRadius: 0,
-          borderTop: `1px solid ${BORDER}`,
-          borderBottom: `1px solid ${BORDER}`,
-          padding: '16px 0',
-          position: 'relative',
-        }}>
-        {/* Active-goal progress banner — only when a single exercise
-            is filtered and that exercise has an active goal. Anchors
-            the trainee on starting → current → target. */}
-        {filterExercise !== 'all' && (() => {
-          const goal = findGoalForExercise(goalsData, filterExercise);
-          if (!goal) return null;
-          const target = parseFloat(goal.target_value);
-          const start = Number(goal.starting_value) || 0;
-          if (!Number.isFinite(target)) return null;
-          const filterNorm = normalizeExerciseName(filterExercise);
-          const exRecs = records.filter(
-            r => normalizeExerciseName(r.name || r.exercise_name) === filterNorm
-          );
-          const current = exRecs.length
-            ? Math.max(...exRecs.map(r => Number(r.value) || 0))
-            : start;
-          const span = Math.max(0, target - start);
-          const made = Math.max(0, current - start);
-          const pct = span > 0 ? Math.max(0, Math.min(100, (made / span) * 100)) : 0;
-          const colorIdx = exerciseNames.indexOf(filterExercise);
-          const color = EXERCISE_COLORS[colorIdx >= 0 ? colorIdx % EXERCISE_COLORS.length : 0];
-          return (
-            <div style={{
-              margin: '0 16px 16px',
-              padding: 12,
-              background: `${color}15`,
-              borderRadius: 12,
-              border: `1px solid ${color}33`,
-            }}>
-              <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>{filterExercise}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, height: 8, background: '#F0E4D0', borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${pct}%`, height: '100%', background: color,
-                    transition: 'width 0.5s',
-                  }} />
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 700, color }}>{Math.round(pct)}%</div>
-              </div>
-              <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-                {current} מתוך {target} {goal.target_unit ? goal.target_unit : ''} (התחלת ב-{start})
-              </div>
-            </div>
-          );
-        })()}
-
-          {/* Header row — title + minimize button. Button sits on the
-              left in RTL (visual top-left) so it never collides with
-              the title text. Padding 0 16px because the parent card
-              now has no horizontal padding (full-width chart). */}
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginBottom: 12,
-            padding: '0 16px',
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>📊 סקירת שיאים</div>
-            <button
-              type="button"
-              onClick={() => setChartMinimized(m => !m)}
-              aria-label={chartMinimized ? 'הצג גרף' : 'מזער גרף'}
-              style={{
-                width: 28, height: 28, borderRadius: 8,
-                border: '1px solid #F0E4D0', background: '#FFFFFF',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'all 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#FFF5EE';
-                e.currentTarget.style.borderColor = '#FF6F20';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#FFFFFF';
-                e.currentTarget.style.borderColor = '#F0E4D0';
-              }}
-            >
-              {chartMinimized
-                ? <ChevronDown size={16} color="#555" />
-                : <ChevronUp size={16} color="#555" />}
-            </button>
-          </div>
-
-          {/* Filter chips — flex-wrap so long names render fully on
-              their own line instead of being truncated. Each Chip
-              keeps whiteSpace:nowrap internally; the row wraps. No
-              overflow rules so a long chip never gets clipped. */}
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 6,
-            justifyContent: 'flex-start',
-            width: '100%',
-            marginBottom: 12,
-            padding: '0 16px',
-            boxSizing: 'border-box',
-            overflow: 'visible',
-          }}>
-            <Chip
-              size="sm"
-              selected={filterExercise === 'all'}
-              onClick={() => setFilterExercise('all')}
-              label="הכל"
-            />
-            {exerciseNames.map(name => (
-              <Chip
-                key={name}
-                size="sm"
-                selected={filterExercise === name}
-                onClick={() => setFilterExercise(name)}
-                label={name}
-              />
-            ))}
-          </div>
-
-          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-
-          {chartMinimized ? (
-            <div style={{
-              padding: '20px 0 8px',
-              textAlign: 'center', color: '#888', fontSize: 12,
-            }}>
-              הגרף ממוזער
-            </div>
-          ) : (
-            // Edge-to-edge wrapper for StepMilestones. The parent card
-            // now has padding:0 horizontally — this wrapper spans the
-            // full 100vw and the SVG fills its width. Title text is
-            // padded 16px so it doesn't kiss the screen edge.
-            <div style={{
-              background: '#FFFEFC',
-              borderTop: '1px solid #F5E8D5',
-              borderBottom: '1px solid #F5E8D5',
-              margin: 0,
-              padding: '14px 0 10px',
-            }}>
-              <div style={{ padding: '0 16px 10px', fontSize: 16, fontWeight: 500, color: '#1a1a1a' }}>
-                התקדמות שיאים
-              </div>
-              <StepMilestones {...chartProps} yLabel={stepYLabel} />
-            </div>
-          )}
-
-          {/* Stats row — three full-width cards under the chart. */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 8,
-            margin: '16px 16px 0',
-          }}>
-            {[
-              { val: stats.total, label: 'שיאים' },
-              { val: stats.exercises, label: 'תרגילים' },
-              { val: stats.personalBests, label: 'שיאים אישיים' },
-            ].map((s, i) => (
-              <div
-                key={i}
-                style={{
-                  borderRadius: 12,
-                  border: `1px solid ${BORDER}`,
-                  padding: 12,
-                  background: '#FFFFFF',
-                  textAlign: 'center',
-                }}
-              >
-                <div style={{ fontSize: 24, fontWeight: 700, color: O }}>{s.val}</div>
-                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pinned point panel — shows up after a tap on a dot.
-              Mobile-friendly: stays put until the trainee dismisses
-              it. Hidden when nothing's selected. */}
-          {selectedPoint && (
-            <div style={{
-              margin: '12px 16px 0',
-              padding: 12,
-              background: '#FFF8F2',
-              borderRadius: 10,
-              border: `1px solid ${selectedPoint.color || BORDER}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 10,
-            }}>
-              <div>
-                <div style={{ fontSize: 12, color: '#888' }}>{selectedPoint.date}</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#1A1A1A' }}>
-                  {selectedPoint.exerciseName}: {selectedPoint.value}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPoint(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#888',
-                  fontSize: 20,
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                }}
-                aria-label="סגור"
-              >×</button>
-            </div>
-          )}
-        </div>
-        </div>
-      )}
+      <RecordsSummaryChart records={records} />
 
       {/* Per-day folder view — sits between the master chart and
           the per-exercise folders. Mirrors the chip filter so a
