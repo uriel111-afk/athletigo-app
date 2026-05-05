@@ -3735,60 +3735,89 @@ export default function TraineeProfile() {
           /* Coach viewing trainee profile — full header */
           <div style={{ backgroundColor: '#FF6F20' }}>
             <div className="px-4 pt-3 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black overflow-hidden flex-shrink-0">
-                  {user.profile_image ? (
-                    <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
-                  ) : (
-                    <img
-                      src="/logoR.png"
-                      alt="AthletiGo"
-                      style={{ width: 32, height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
-                      onError={(e) => {
-                        const wrap = e.currentTarget.parentElement;
-                        if (!wrap) return;
-                        e.currentTarget.style.display = 'none';
-                        wrap.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+              {/* Outer flex with justify-between so the status badge
+                  is anchored to the far end (visual left in RTL),
+                  while the avatar+name+subtitle group lives on the
+                  starting (right) side. */}
+              <div className="flex items-center gap-3" style={{ justifyContent: 'space-between' }}>
+                <div className="flex items-center gap-3" style={{ minWidth: 0, flex: 1 }}>
+                  {/* Avatar — pixel-perfect copy of the פרטים-tab
+                      PersonalTab avatar (see line 1430): 72×72 orange
+                      circle, 3px white border, soft orange shadow,
+                      profile_image when present, else /logoR.png with
+                      brightness-invert filter and an initials onError
+                      net. */}
+                  <div style={{
+                    width: 72, height: 72, borderRadius: '50%',
+                    background: '#FF6F20',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    border: '3px solid white',
+                    boxShadow: '0 2px 12px rgba(255,111,32,0.3)',
+                  }}>
+                    {user.profile_image ? (
+                      <img
+                        src={user.profile_image}
+                        alt={user.full_name || ''}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <img
+                        src="/logoR.png"
+                        alt="AthletiGo"
+                        style={{
+                          width: 48, height: 48, objectFit: 'contain',
+                          filter: 'brightness(0) invert(1)',
+                        }}
+                        onError={(e) => {
+                          const wrap = e.currentTarget.parentElement;
+                          if (!wrap) return;
+                          e.currentTarget.style.display = 'none';
+                          const fallback = document.createElement('span');
+                          fallback.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
+                          fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Barlow Condensed,sans-serif';
+                          wrap.appendChild(fallback);
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 20 }}>
                       {user.full_name}
                     </h2>
-                    {/* Status badge — only renders for the four
-                        canonical statuses (legacy Hebrew values are
-                        skipped). Click opens the change-status menu. */}
-                    {isCoach && currentStatusOpt && (
-                      <button
-                        type="button"
-                        onClick={() => setStatusMenuOpen(true)}
-                        title="לחץ לשינוי סטטוס"
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 4,
-                          padding: '2px 9px', borderRadius: 999,
-                          background: currentStatusOpt.badgeBg,
-                          color: currentStatusOpt.badgeFg,
-                          border: `1px solid ${currentStatusOpt.borderColor}`,
-                          fontSize: 11, fontWeight: 700,
-                          cursor: 'pointer', flexShrink: 0,
-                          fontFamily: "'Heebo', 'Assistant', sans-serif",
-                        }}
-                      >
-                        <span aria-hidden>{currentStatusOpt.icon}</span>
-                        {currentStatusOpt.label}
-                      </button>
-                    )}
+                    <p className="text-white/70 text-[11px] mt-0.5">
+                      {user.age ? user.age + ' שנים' : ''}{user.age && user.phone ? ' • ' : ''}{user.phone || ''}
+                    </p>
+                    <p className="text-white/50 text-[10px] mt-1 italic leading-tight">
+                      {MOTIVATION[Math.floor((new Date().getFullYear() * 366 + Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000)) % MOTIVATION.length)]}
+                    </p>
                   </div>
-                  <p className="text-white/70 text-[11px] mt-0.5">
-                    {user.age ? user.age + ' שנים' : ''}{user.age && user.phone ? ' • ' : ''}{user.phone || ''}
-                  </p>
-                  <p className="text-white/50 text-[10px] mt-1 italic leading-tight">
-                    {MOTIVATION[Math.floor((new Date().getFullYear() * 366 + Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000)) % MOTIVATION.length)]}
-                  </p>
                 </div>
+                {/* Status badge — pulled out of the inline name row
+                    to its own slot at the far end (visual left in
+                    RTL). Coach-only; only renders for the four
+                    canonical statuses. */}
+                {isCoach && currentStatusOpt && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusMenuOpen(true)}
+                    title="לחץ לשינוי סטטוס"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '4px 10px', borderRadius: 999,
+                      background: currentStatusOpt.badgeBg,
+                      color: currentStatusOpt.badgeFg,
+                      border: `1px solid ${currentStatusOpt.borderColor}`,
+                      fontSize: 11, fontWeight: 700,
+                      cursor: 'pointer', flexShrink: 0,
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    <span aria-hidden>{currentStatusOpt.icon}</span>
+                    {currentStatusOpt.label}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -3815,19 +3844,40 @@ export default function TraineeProfile() {
 
               {/* Profile row */}
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-white font-black overflow-hidden flex-shrink-0 text-lg shadow-lg shadow-black/10">
+                {/* Avatar — pixel-perfect copy of the פרטים-tab
+                    PersonalTab avatar (see line 1430): 72×72 orange
+                    circle, 3px white border, soft orange shadow. */}
+                <div style={{
+                  width: 72, height: 72, borderRadius: '50%',
+                  background: '#FF6F20',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  overflow: 'hidden',
+                  border: '3px solid white',
+                  boxShadow: '0 2px 12px rgba(255,111,32,0.3)',
+                }}>
                   {user.profile_image ? (
-                    <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
+                    <img
+                      src={user.profile_image}
+                      alt={user.full_name || ''}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   ) : (
                     <img
                       src="/logoR.png"
                       alt="AthletiGo"
-                      style={{ width: 32, height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                      style={{
+                        width: 48, height: 48, objectFit: 'contain',
+                        filter: 'brightness(0) invert(1)',
+                      }}
                       onError={(e) => {
                         const wrap = e.currentTarget.parentElement;
                         if (!wrap) return;
                         e.currentTarget.style.display = 'none';
-                        wrap.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
+                        const fallback = document.createElement('span');
+                        fallback.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
+                        fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Barlow Condensed,sans-serif';
+                        wrap.appendChild(fallback);
                       }}
                     />
                   )}
