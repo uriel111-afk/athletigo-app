@@ -74,6 +74,7 @@ import Clocks from './pages/Clocks';
 import SkillTracks from './pages/SkillTracks';
 import Challenges from './pages/Challenges';
 import Workouts from './pages/Workouts';
+import Journal from './pages/Journal';
 import __Layout from './Layout.jsx';
 
 
@@ -105,6 +106,7 @@ export const PAGES = {
     "SkillTracks": SkillTracks,
     "Challenges": Challenges,
     "Workouts": Workouts,
+    "Journal": Journal,
 }
 
 export const pagesConfig = {
