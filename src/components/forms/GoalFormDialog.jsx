@@ -47,6 +47,23 @@ const BLOCKERS = [
   "אחר"
 ];
 
+// Visual goal-category picker shown on step 1 — same 8 categories
+// the GoalsTab v2 NewGoalSheet uses, kept in sync intentionally.
+// Picking a preset writes formData.goal_preset → goal_type DB column
+// and pre-fills formData.unit. Hebrew exercise-equipment buckets
+// (חבל / מקל / …) live in the GOAL_TYPES Select on step 2 and write
+// to the 'category' column — they're orthogonal axes, not duplicates.
+const GOAL_PRESETS = [
+  { type: 'distance',     icon: '🏃', label: 'ריצה / מרחק',  unit: 'ק"מ' },
+  { type: 'reps',         icon: '💪', label: 'כוח / חזרות',   unit: 'חזרות' },
+  { type: 'weight_loss',  icon: '⚖️', label: 'ירידה במשקל',  unit: 'ק"ג' },
+  { type: 'weight_gain',  icon: '📈', label: 'עלייה במסה',   unit: 'ק"ג' },
+  { type: 'skill',        icon: '🎯', label: 'מיומנות',      unit: 'שלב' },
+  { type: 'time',         icon: '⏱',  label: 'שיפור זמן',    unit: 'שניות' },
+  { type: 'body',         icon: '📏', label: 'מדדי גוף',     unit: 'ס"מ' },
+  { type: 'custom',       icon: '✨', label: 'יעד אחר',      unit: '' },
+];
+
 export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName, editingGoal = null, onSuccess, prefill = null }) {
   const queryClient = useQueryClient();
 
@@ -56,6 +73,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
   const defaultFormData = {
     goal_name: prefill?.exerciseName ? `${prefill.exerciseName} – יעד חדש` : "",
     goal_type: "",
+    goal_preset: "",
     exercise_name: prefill?.exerciseName || "",
     current_value: prefill?.startingValue != null ? String(prefill.startingValue) : "",
     target_value: "",
@@ -68,9 +86,13 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
     extra_notes: ""
   };
 
+  // editingGoal can come from either form lineage — the v2 NewGoalSheet
+  // writes the English preset key to goals.goal_type, so we read that
+  // back into goal_preset when editing.
   const currentDefaults = editingGoal ? {
     goal_name: editingGoal.goal_name || editingGoal.title || "",
-    goal_type: editingGoal.goal_type || editingGoal.category || "",
+    goal_type: editingGoal.category || "",
+    goal_preset: editingGoal.goal_type || "",
     exercise_name: editingGoal.exercise_name || "",
     current_value: editingGoal.current_value || "",
     target_value: editingGoal.target_value || "",
@@ -93,6 +115,22 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
 
   const hasChanges = JSON.stringify(formData) !== JSON.stringify(currentDefaults);
   const { confirmClose, ConfirmDialog } = useCloseConfirm(hasChanges, () => { clearDraft(); onClose(); });
+
+  // Two-step flow:
+  //   1 = visual GOAL_PRESETS picker (only for fresh "new goal")
+  //   2 = full form (existing fields, unchanged)
+  // Edit mode and any draft-restored / preset-already-chosen state
+  // skip directly to step 2 so the trainee never has to re-pick.
+  const [step, setStep] = useState(editingGoal || formData?.goal_preset ? 2 : 1);
+  // Reset step every time the dialog reopens so a fresh "+ יעד חדש"
+  // tap always lands on the picker, but reopening to edit lands on
+  // the form.
+  useEffect(() => {
+    if (isOpen) setStep(editingGoal || formData?.goal_preset ? 2 : 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editingGoal?.id]);
+
+  const selectedPreset = GOAL_PRESETS.find((p) => p.type === formData?.goal_preset) || null;
 
   const createGoalMutation = useMutation({
     mutationFn: (data) => base44.entities.Goal.create(data),
@@ -169,6 +207,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
       title: formData.goal_name || formData.title || "",
       description: formData.description || null,
       category: formData.goal_type || formData.category || null,
+      goal_type: formData.goal_preset || (editingGoal && !formData.goal_preset ? editingGoal.goal_type : null) || null,
       exercise_name: exerciseName || null,
       starting_value: startingValue,
       current_value: formData.current_value ? parseFloat(formData.current_value) : null,
@@ -234,7 +273,82 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
             </DialogTitle>
           </DialogHeader>
 
+        {/* Step 1 — visual GOAL_PRESETS picker. Picking a preset
+            stores the English category key + pre-fills the unit, then
+            advances to step 2 so the trainee never sees a blank form. */}
+        {step === 1 && (
+          <div className="py-2" dir="rtl">
+            <div className="text-base font-bold mb-3 text-gray-800">איזה סוג יעד?</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {GOAL_PRESETS.map((preset) => {
+                const isSelected = formData.goal_preset === preset.type;
+                return (
+                  <button
+                    key={preset.type}
+                    type="button"
+                    onClick={() => {
+                      setFormData({
+                        ...formData,
+                        goal_preset: preset.type,
+                        unit: formData.unit || preset.unit,
+                      });
+                      setStep(2);
+                    }}
+                    style={{
+                      padding: '20px 16px', borderRadius: 16, cursor: 'pointer',
+                      background: isSelected ? '#FFF5EE' : 'white',
+                      border: isSelected ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    }}
+                  >
+                    <span style={{ fontSize: 36 }}>{preset.icon}</span>
+                    <span style={{
+                      fontSize: 14, fontWeight: 700,
+                      color: isSelected ? '#FF6F20' : '#1a1a1a',
+                    }}>
+                      {preset.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex pt-5">
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                className="flex-1 rounded-xl h-12 font-bold border-gray-300"
+              >
+                ביטול
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
         <div className="space-y-5 py-2">
+          {/* Selected-preset chip + back arrow — visible only when the
+              user actually came through step 1 (i.e. picked a preset).
+              On edit mode without a preset on the row, no chip shows. */}
+          {(selectedPreset || !editingGoal) && (
+            <div className="flex items-center gap-3 -mb-1" dir="rtl">
+              {!editingGoal && (
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  aria-label="חזרה לבחירת סוג יעד"
+                  className="text-gray-500 hover:text-[#FF6F20] text-xl leading-none px-1"
+                >→</button>
+              )}
+              {selectedPreset && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFF5EE] border border-[#FFD9C0]">
+                  <span style={{ fontSize: 18 }}>{selectedPreset.icon}</span>
+                  <span className="text-sm font-bold text-[#FF6F20]">{selectedPreset.label}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 1. Goal Name */}
           <div className="space-y-2">
             <Label className="font-bold text-base">שם היעד *</Label>
@@ -406,15 +520,16 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
             >
               ביטול
             </Button>
-            <Button 
-              onClick={handleSubmit} 
-              disabled={isLoading} 
+            <Button
+              onClick={handleSubmit}
+              disabled={isLoading}
               className="flex-1 rounded-xl h-12 font-bold bg-[#FF6F20] hover:bg-[#e65b12] text-white"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'שמור יעד'}
             </Button>
           </div>
         </div>
+        )}
         </DialogContent>
       </Dialog>
     </>
