@@ -3737,10 +3737,21 @@ export default function TraineeProfile() {
             <div className="px-4 pt-3 pb-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/25 border-2 border-white/50 flex items-center justify-center text-white text-lg font-black overflow-hidden flex-shrink-0">
-                  {user.profile_image
-                    ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
-                    : (user.full_name?.[0]?.toUpperCase() || 'U')
-                  }
+                  {user.profile_image ? (
+                    <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <img
+                      src="/logoR.png"
+                      alt="AthletiGo"
+                      style={{ width: 32, height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                      onError={(e) => {
+                        const wrap = e.currentTarget.parentElement;
+                        if (!wrap) return;
+                        e.currentTarget.style.display = 'none';
+                        wrap.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -3805,10 +3816,21 @@ export default function TraineeProfile() {
               {/* Profile row */}
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-white font-black overflow-hidden flex-shrink-0 text-lg shadow-lg shadow-black/10">
-                  {user.profile_image
-                    ? <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
-                    : (user.full_name?.[0]?.toUpperCase() || 'U')
-                  }
+                  {user.profile_image ? (
+                    <img src={user.profile_image} alt={user.full_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <img
+                      src="/logoR.png"
+                      alt="AthletiGo"
+                      style={{ width: 32, height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                      onError={(e) => {
+                        const wrap = e.currentTarget.parentElement;
+                        if (!wrap) return;
+                        e.currentTarget.style.display = 'none';
+                        wrap.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white/70 text-[11px] sm:text-xs font-medium mb-0.5">
