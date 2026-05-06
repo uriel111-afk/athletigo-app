@@ -36,7 +36,8 @@ import {
   Zap,
   Clock,
   Flame,
-  Route
+  Route,
+  BookOpen
   } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import TimerFooterBar from "@/components/TimerFooterBar";
@@ -190,6 +191,7 @@ export default function Layout({ children, currentPageName }) {
     { title: "התראות", url: createPageUrl("Notifications"), icon: Bell, section: "daily", showBadge: true },
     // ── ניהול תוכן ──
     { title: "כל התוכניות", url: createPageUrl("TrainingPlans"), icon: ClipboardList, section: "content" },
+    { title: "מחברת אימונים", url: createPageUrl("Journal"), icon: BookOpen, section: "content" },
     { title: "אתגרי אימון", url: createPageUrl("Challenges"), icon: Flame, section: "content" },
     { title: "מסלולים", url: createPageUrl("SkillTracks"), icon: Route, section: "content" },
     { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, section: "content" },
@@ -227,6 +229,12 @@ export default function Layout({ children, currentPageName }) {
       title: "התקדמות",
       url: createPageUrl("Progress"),
       icon: TrendingUp,
+      section: "trainee"
+    },
+    {
+      title: "מחברת אימונים",
+      url: createPageUrl("Journal"),
+      icon: BookOpen,
       section: "trainee"
     },
 
@@ -545,7 +553,6 @@ export default function Layout({ children, currentPageName }) {
                 const PLAN_TAB     = { to: createPageUrl("MyWorkoutLog"),    emoji: '📋', label: 'תוכניות' };
                 const SESSIONS_TAB = { to: createPageUrl("TraineeSessions"), emoji: '📅', label: 'מפגשים' };
                 const RECORDS_TAB  = { to: createPageUrl("Progress"),        emoji: '🏆', label: 'שיאים' };
-                const JOURNAL_TAB  = { to: createPageUrl("Journal"),         emoji: '📓', label: 'מחברת' };
                 const PROFILE_TAB  = { to: createPageUrl("TraineeProfile"),  emoji: '👤', label: 'פרופיל' };
 
                 // Trim trainee nav by client_status + permissions:
@@ -575,17 +582,12 @@ export default function Layout({ children, currentPageName }) {
                   // gated by <PermGate perm="view_training_plan">).
                   if (traineePerms?.view_training_plan !== false) middle.push(SESSIONS_TAB);
                   if (traineePerms?.view_progress      !== false) middle.push(RECORDS_TAB);
-                  // Journal — מחברת — always available regardless of
-                  // training-plan permissions; it's the trainee's own
-                  // free-form log, not gated by coach unlocks.
-                  middle.push(JOURNAL_TAB);
                   traineeNav = [HOME_TAB, ...middle, PROFILE_TAB];
                 }
                 const navItems = isCoach ? [
                   { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
                   { to: createPageUrl("TrainingPlans"),emoji: '📋', label: 'תוכניות' },
-                  { to: createPageUrl("Journal"),      emoji: '📓', label: 'מחברת' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
                   { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
                 ] : traineeNav;
