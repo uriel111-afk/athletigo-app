@@ -35,11 +35,11 @@ const BODY_TYPES_NOW = [
   { id: 'thin',       label: 'רזה',           emoji: '🏃' },
   { id: 'average',    label: 'ממוצע',         emoji: '🧍' },
   { id: 'athletic',   label: 'אתלטי',         emoji: '💪' },
-  { id: 'overweight', label: 'עם עודף משקל',  emoji: '🐻' },
+  { id: 'overweight', label: 'עם עודף משקל',  emoji: '🙆‍♂️' },
 ];
 
 const BODY_TYPES_GOAL = [
-  { id: 'lean',      label: 'רזה ומוגדר',  emoji: '🏊' },
+  { id: 'lean',      label: 'הצרת היקפים',  emoji: '🏊' },
   { id: 'athletic',  label: 'אתלטי וחזק',  emoji: '💪' },
   { id: 'muscular',  label: 'שרירי',       emoji: '🏋️' },
   { id: 'healthy',   label: 'בריא ומאוזן',  emoji: '🧘' },
@@ -100,8 +100,30 @@ const EXPERIENCE_OPTIONS = [
 ];
 
 const FREQUENCIES     = ['1-2', '3-4', '5-6', 'כל יום'];
-const ALL_CHALLENGES  = ['חוסר זמן', 'חוסר מוטיבציה', 'חוסר ידע', 'כאבים/פציעות', 'חוסר ביטחון', 'אין ציוד', 'תזונה'];
-const ALL_PREFERENCES = ['אווירה טובה', 'תוצאות מדידות', 'למידת מיומנויות', 'אתגר גופני', 'הנאה', 'ליווי צמוד', 'גמישות בשעות', 'אימון בבית'];
+
+// Challenge / motivation chip-tab grids for step 4. Stored as keys
+// (e.g. 'consistency') in current_challenges / training_preferences
+// so the labels can change without breaking the array values.
+const CHALLENGE_OPTIONS = [
+  { key: 'consistency', label: 'עקביות באימונים', icon: '🔄' },
+  { key: 'motivation',  label: 'מוטיבציה',         icon: '🔥' },
+  { key: 'time',        label: 'חוסר זמן',         icon: '⏰' },
+  { key: 'energy',      label: 'חוסר אנרגיה',      icon: '⚡' },
+  { key: 'technique',   label: 'טכניקה נכונה',     icon: '🎯' },
+  { key: 'pain',        label: 'כאבים / פציעות',    icon: '🩹' },
+  { key: 'nutrition',   label: 'תזונה',            icon: '🥗' },
+  { key: 'other',       label: 'אחר',              icon: '✨' },
+];
+const IMPORTANT_OPTIONS = [
+  { key: 'results',    label: 'תוצאות מהירות',     icon: '📈' },
+  { key: 'fun',        label: 'כיף ועניין',        icon: '😄' },
+  { key: 'health',     label: 'בריאות לטווח ארוך', icon: '❤️' },
+  { key: 'strength',   label: 'בניית כוח',         icon: '💪' },
+  { key: 'technique',  label: 'שיפור טכניקה',      icon: '🎯' },
+  { key: 'community',  label: 'חיבור חברתי',       icon: '🤝' },
+  { key: 'mental',     label: 'בריאות נפשית',      icon: '🧠' },
+  { key: 'other',      label: 'אחר',               icon: '✨' },
+];
 const REFERRAL_OPTIONS = [
   { id: 'friend',    label: 'חבר/ה' },
   { id: 'instagram', label: 'אינסטגרם' },
@@ -1177,39 +1199,83 @@ export default function Onboarding() {
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>מה האתגר הכי גדול כרגע?</div>
-              <ChipGroup style={{ marginBottom: 8 }}>
-                {ALL_CHALLENGES.map(c => (
-                  <Chip key={c}
-                    selected={selectedChallenges.includes(c)}
-                    onClick={() => setSelectedChallenges(prev =>
-                      prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
-                    )}
-                    label={c}
-                  />
-                ))}
-              </ChipGroup>
-              <textarea value={challengesDescription} onChange={e => setChallengesDescription(e.target.value)}
-                placeholder="נשמח לשמוע עוד..." rows={2}
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>מה האתגר הכי גדול שלך?</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {CHALLENGE_OPTIONS.map(opt => {
+                  const active = selectedChallenges.includes(opt.key);
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setSelectedChallenges(prev =>
+                        prev.includes(opt.key) ? prev.filter(x => x !== opt.key) : [...prev, opt.key]
+                      )}
+                      style={{
+                        padding: '14px 12px',
+                        borderRadius: 14,
+                        cursor: 'pointer',
+                        background: active ? '#FFF5EE' : 'white',
+                        border: active ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ fontSize: 28 }}>{opt.icon}</span>
+                      <span style={{
+                        fontSize: 13, fontWeight: 600,
+                        color: active ? '#FF6F20' : '#1a1a1a',
+                        textAlign: 'center',
+                      }}>
+                        {opt.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={cardStyle}>
               <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>מה הדבר הכי חשוב באימון?</div>
-              <ChipGroup style={{ marginBottom: 8 }}>
-                {ALL_PREFERENCES.map(p => (
-                  <Chip key={p}
-                    selected={selectedPreferences.includes(p)}
-                    onClick={() => setSelectedPreferences(prev =>
-                      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-                    )}
-                    label={p}
-                  />
-                ))}
-              </ChipGroup>
-              <textarea value={preferencesDescription} onChange={e => setPreferencesDescription(e.target.value)}
-                placeholder="נשמח לשמוע עוד..." rows={2}
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {IMPORTANT_OPTIONS.map(opt => {
+                  const active = selectedPreferences.includes(opt.key);
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setSelectedPreferences(prev =>
+                        prev.includes(opt.key) ? prev.filter(x => x !== opt.key) : [...prev, opt.key]
+                      )}
+                      style={{
+                        padding: '14px 12px',
+                        borderRadius: 14,
+                        cursor: 'pointer',
+                        background: active ? '#FFF5EE' : 'white',
+                        border: active ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ fontSize: 28 }}>{opt.icon}</span>
+                      <span style={{
+                        fontSize: 13, fontWeight: 600,
+                        color: active ? '#FF6F20' : '#1a1a1a',
+                        textAlign: 'center',
+                      }}>
+                        {opt.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={cardStyle}>
