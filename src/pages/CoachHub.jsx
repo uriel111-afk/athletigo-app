@@ -292,9 +292,10 @@ export default function CoachHub() {
           gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 6,
           background: '#1a1a1a',
-          borderRadius: 16,
-          padding: 6,
+          borderRadius: 20,
+          padding: '6px',
           marginBottom: 16,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
         }}>
           {[
             { label: 'מקצועי', icon: '💼', path: '/dashboard' },
@@ -309,25 +310,25 @@ export default function CoachHub() {
                 type="button"
                 onClick={() => navigate(tab.path)}
                 style={{
-                  padding: '10px 4px',
-                  borderRadius: 12,
+                  padding: '12px 4px',
+                  borderRadius: 14,
                   border: 'none',
                   cursor: 'pointer',
                   background: isActive ? '#FF6F20' : 'transparent',
-                  boxShadow: isActive ? '0 4px 12px rgba(255,111,32,0.4)' : 'none',
+                  boxShadow: isActive ? '0 4px 16px rgba(255,111,32,0.4)' : 'none',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 5,
                   transition: 'all 0.2s ease',
                 }}
               >
-                <span style={{ fontSize: 18 }}>{tab.icon}</span>
+                <span style={{ fontSize: 22 }}>{tab.icon}</span>
                 <span style={{
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: 700,
-                  color: isActive ? 'white' : '#888',
-                  letterSpacing: '0.3px',
+                  color: isActive ? 'white' : '#666',
+                  letterSpacing: '0.2px',
                 }}>
                   {tab.label}
                 </span>

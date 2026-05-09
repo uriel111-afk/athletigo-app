@@ -380,7 +380,16 @@ export default function Dashboard() {
       <PopupNotificationManager />
 
       <div className="flex flex-col" dir="rtl" style={BG}>
-        <div className="max-w-md mx-auto w-full pt-1 pb-1">
+        {/* Inner column locks to viewport-minus-chrome so the quick-
+            access grid (flex:1) can expand into any leftover space.
+            Uses minHeight (not height) + overflow:visible so a few
+            extra px of content can still scroll instead of getting
+            clipped — the fill goal is "no dead space", not "no
+            scrolling at any cost". */}
+        <div
+          className="max-w-md mx-auto w-full pt-1 pb-1"
+          style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 116px)' }}
+        >
 
           {/* App switcher — only renders for the Life OS coach. */}
           <AppSwitcher />
@@ -603,58 +612,47 @@ export default function Dashboard() {
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 8,
+                gap: 10,
                 padding: '0 8px',
                 marginBottom: 12,
+                flex: 1,
               }}>
                 {quickItems.map((q) => (
                   <button
                     key={q.label}
                     onClick={q.action}
                     style={{
-                      padding: '12px 6px',
-                      borderRadius: 12,
+                      aspectRatio: '1',
+                      borderRadius: 16,
                       cursor: 'pointer',
                       background: 'white',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
                       border: '1px solid #F0E4D0',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 6,
+                      justifyContent: 'center',
+                      gap: 8,
                       position: 'relative',
+                      padding: 4,
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <div style={{
-                      width: 36, height: 36,
-                      borderRadius: 10,
-                      background: '#FFF5EE',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 18,
-                      lineHeight: 1,
-                    }}>
-                      {q.emoji}
-                    </div>
+                    <span style={{ fontSize: 28, lineHeight: 1 }}>{q.emoji}</span>
                     <span style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: '#1a1a1a',
-                      textAlign: 'center',
-                      lineHeight: 1.2,
+                      fontSize: 11, fontWeight: 700,
+                      color: '#1a1a1a', textAlign: 'center',
+                      lineHeight: 1.2, padding: '0 4px',
                     }}>
                       {q.label}
                     </span>
-                    {q.badge != null && (
+                    {q.badge != null && q.badge > 0 && (
                       <div style={{
-                        position: 'absolute', top: 4, left: 4,
-                        minWidth: 16, height: 16, padding: '0 4px',
-                        borderRadius: 8, background: '#dc2626',
-                        color: 'white', fontSize: 9, fontWeight: 700,
+                        position: 'absolute', top: 8, left: 8,
+                        width: 18, height: 18, borderRadius: '50%',
+                        background: '#FF6F20', color: 'white',
+                        fontSize: 10, fontWeight: 700,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: '1.5px solid white',
                       }}>{q.badge}</div>
                     )}
                   </button>
