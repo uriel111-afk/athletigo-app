@@ -380,15 +380,19 @@ export default function Dashboard() {
       <PopupNotificationManager />
 
       <div className="flex flex-col" dir="rtl" style={BG}>
-        {/* Inner column locks to viewport-minus-chrome so the quick-
-            access grid (flex:1) can expand into any leftover space.
-            Uses minHeight (not height) + overflow:visible so a few
-            extra px of content can still scroll instead of getting
-            clipped — the fill goal is "no dead space", not "no
-            scrolling at any cost". */}
+        {/* Inner column locks to viewport-minus-chrome (top header +
+            bottom nav ≈ 116px) and clips overflow so the dashboard
+            never scrolls — the quick-access grid below uses flex:1
+            to absorb leftover vertical space instead. */}
         <div
-          className="max-w-md mx-auto w-full pt-1 pb-1"
-          style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 116px)' }}
+          className="max-w-md mx-auto w-full"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: 'calc(100vh - 116px)',
+            padding: '8px 12px 0',
+            overflow: 'hidden',
+          }}
         >
 
           {/* App switcher — only renders for the Life OS coach. */}
@@ -396,8 +400,20 @@ export default function Dashboard() {
 
           {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════
                 Container overflow:visible so the rotated 84×84
-                squares can spill past the 210×210 box corners. */}
-          <SectionHeader title="פעולות ליבה" />
+                squares can spill past the 210×210 box corners.
+                Inline title — bigger Barlow than the shared
+                SectionHeader component to anchor the screen. */}
+          <div style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: '#1a1a1a',
+            marginBottom: 10,
+            marginTop: 4,
+            fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+            letterSpacing: '-0.3px',
+          }}>
+            פעולות ליבה
+          </div>
           <div style={{
             position: 'relative',
             width: 210, height: 210,
@@ -612,18 +628,20 @@ export default function Dashboard() {
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 10,
-                padding: '0 8px',
-                marginBottom: 12,
+                gridTemplateRows: 'repeat(2, 1fr)',
+                gap: 8,
                 flex: 1,
+                marginBottom: 8,
+                minHeight: 0,
               }}>
                 {quickItems.map((q) => (
                   <button
                     key={q.label}
                     onClick={q.action}
                     style={{
-                      aspectRatio: '1',
-                      borderRadius: 16,
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: 14,
                       cursor: 'pointer',
                       background: 'white',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
@@ -632,23 +650,23 @@ export default function Dashboard() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 8,
+                      gap: 6,
                       position: 'relative',
                       padding: 4,
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <span style={{ fontSize: 28, lineHeight: 1 }}>{q.emoji}</span>
+                    <span style={{ fontSize: 26, lineHeight: 1 }}>{q.emoji}</span>
                     <span style={{
                       fontSize: 11, fontWeight: 700,
                       color: '#1a1a1a', textAlign: 'center',
-                      lineHeight: 1.2, padding: '0 4px',
+                      lineHeight: 1.2,
                     }}>
                       {q.label}
                     </span>
                     {q.badge != null && q.badge > 0 && (
                       <div style={{
-                        position: 'absolute', top: 8, left: 8,
+                        position: 'absolute', top: 6, left: 6,
                         width: 18, height: 18, borderRadius: '50%',
                         background: '#FF6F20', color: 'white',
                         fontSize: 10, fontWeight: 700,

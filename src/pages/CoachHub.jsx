@@ -290,12 +290,12 @@ export default function CoachHub() {
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 6,
-          background: '#1a1a1a',
-          borderRadius: 20,
-          padding: '6px',
-          marginBottom: 16,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          gap: 4,
+          background: '#1E1E2E',
+          borderRadius: 18,
+          padding: '5px',
+          marginBottom: 14,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
         }}>
           {[
             { label: 'מקצועי', icon: '💼', path: '/dashboard' },
@@ -303,32 +303,40 @@ export default function CoachHub() {
             { label: 'צמיחה', icon: '📈', path: '/lifeos' },
             { label: 'אישי',   icon: '🌟', path: '/personal' },
           ].map((tab) => {
-            const isActive = location.pathname === tab.path;
+            // Treat the bare "/" as /dashboard so the מקצועי pill
+            // lights up on the legacy landing route too.
+            const isActive = location.pathname === tab.path
+              || (tab.path === '/dashboard' && location.pathname === '/');
             return (
               <button
                 key={tab.path}
                 type="button"
                 onClick={() => navigate(tab.path)}
                 style={{
-                  padding: '12px 4px',
-                  borderRadius: 14,
+                  padding: '11px 4px',
+                  borderRadius: 13,
                   border: 'none',
                   cursor: 'pointer',
-                  background: isActive ? '#FF6F20' : 'transparent',
-                  boxShadow: isActive ? '0 4px 16px rgba(255,111,32,0.4)' : 'none',
+                  background: isActive
+                    ? 'linear-gradient(135deg, #FF6F20, #FF9A5C)'
+                    : 'transparent',
+                  boxShadow: isActive
+                    ? '0 4px 14px rgba(255,111,32,0.45)'
+                    : 'none',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 5,
+                  gap: 4,
                   transition: 'all 0.2s ease',
                 }}
               >
-                <span style={{ fontSize: 22 }}>{tab.icon}</span>
+                <span style={{ fontSize: 20 }}>{tab.icon}</span>
                 <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
+                  fontSize: 10,
+                  fontWeight: 800,
                   color: isActive ? 'white' : '#666',
-                  letterSpacing: '0.2px',
+                  letterSpacing: '0.3px',
+                  fontFamily: "'Barlow', 'Heebo', sans-serif",
                 }}>
                   {tab.label}
                 </span>
