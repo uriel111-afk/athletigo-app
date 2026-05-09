@@ -56,6 +56,8 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
   const [docFallback, setDocFallback] = useState(null);
   const [error, setError] = useState(null);
 
+  const [signedDocFallback, setSignedDocFallback] = useState(null);
+
   useEffect(() => {
     if (!isOpen || !traineeId) return;
     let cancelled = false;
@@ -63,12 +65,24 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
     setError(null);
     setRecord(null);
     setDocFallback(null);
+    setSignedDocFallback(null);
     (async () => {
-      // Primary source — health_declarations row (the canonical table
-      // every save writes to). Fallback to the documents row for the
-      // signature file_url + any answers the user might have only
-      // mirrored into document_data on legacy installs.
-      const [decRes, docRes] = await Promise.all([
+      // Three-source lookup. Older signed rows live in only one of
+      // these tables, so the viewer must check all three before it
+      // declares "no signed declaration" — that mismatch is what
+      // produced the "לא נמצאה" toast for users who clearly had a
+      // green "חתום ✓" badge on the docs list (the badge is computed
+      // off signed_documents, but the viewer used to ignore it).
+      //
+      //   1. health_declarations  — canonical PAR-Q row (flat columns)
+      //   2. documents            — metadata mirror (no answers)
+      //   3. signed_documents     — full payload mirror with
+      //                             document_data.questions + signature_data
+      //
+      // The documents query intentionally does NOT filter on `type` —
+      // older installs wrote slightly different `type` strings or used
+      // `name` instead, and `.eq('type', ...)` made the row invisible.
+      const [decRes, docRes, sigRes] = await Promise.all([
         supabase.from('health_declarations')
           .select('*')
           .eq('trainee_id', traineeId)
@@ -78,22 +92,32 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
         supabase.from('documents')
           .select('*')
           .eq('trainee_id', traineeId)
-          .eq('type', 'health_declaration')
+          .or('type.eq.health_declaration,name.ilike.%הצהרת בריאות%')
           .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase.from('signed_documents')
+          .select('*')
+          .eq('trainee_id', traineeId)
+          .eq('document_type', 'health_declaration')
+          .or('status.is.null,status.eq.signed')
+          .order('signed_at', { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle(),
       ]);
       if (cancelled) return;
+      // health_declarations is the only failure that should bubble up
+      // — the others are best-effort fallbacks and a missing row /
+      // 4xx there shouldn't surface a red error to the user.
       if (decRes.error) {
         setError(decRes.error.message || 'שגיאה בטעינת ההצהרה');
       } else {
         setRecord(decRes.data || null);
         setDocFallback(docRes.data || null);
-        // Spec asks for explicit logging while debugging save paths.
-        // Stays in production — useful when a coach reports a missing
-        // declaration; one click and they can copy the console.
+        setSignedDocFallback(sigRes.data || null);
         console.log('[HealthDec] loaded:', decRes.data);
         console.log('[HealthDec] doc:', docRes.data);
+        console.log('[HealthDec] signed_doc:', sigRes.data);
       }
       setLoading(false);
     })();
@@ -114,19 +138,48 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
   // (older rows that only mirrored answers into the documents table's
   // JSONB column). Fields not present in either resolve to undefined
   // → the badge renders as "לא נענה".
-  const docData = (() => {
-    const raw = docFallback?.document_data;
+  const parseJson = (raw) => {
     if (!raw) return null;
     if (typeof raw === 'string') {
       try { return JSON.parse(raw); } catch { return null; }
     }
     return raw;
+  };
+  const docData = parseJson(docFallback?.document_data);
+  // signed_documents.document_data is structured as
+  // { questions: [{ key, label, answer }, ...], additional_notes,
+  //   declaration_confirmed, signed_name }. Flatten the questions
+  // array into the same shape health_declarations exposes (one
+  // boolean per key) so the QUESTIONS render loop below works
+  // unchanged.
+  const sigData = parseJson(signedDocFallback?.document_data);
+  const sigFlattened = (() => {
+    if (!sigData) return null;
+    const flat = { ...sigData };
+    if (Array.isArray(sigData.questions)) {
+      for (const q of sigData.questions) {
+        if (q && q.key) flat[q.key] = !!q.answer;
+      }
+    }
+    if (sigData.signed_name && !flat.full_name) flat.full_name = sigData.signed_name;
+    return flat;
   })();
-  const merged = record || docData?.answers || docData || null;
-  const signedAt = merged?.signed_at || merged?.created_at || record?.created_at;
+  const merged = record
+    || docData?.answers
+    || docData
+    || sigFlattened
+    || null;
+  const signedAt = merged?.signed_at
+    || signedDocFallback?.signed_at
+    || merged?.created_at
+    || record?.created_at
+    || signedDocFallback?.created_at;
   // signature_data (new canonical, base64 data URL) takes precedence
   // over the legacy signature_url. Both render the same way in <img>.
+  // Falls through health_declarations → signed_documents → documents
+  // so any of the three save paths satisfies the signature panel.
   const signatureUrl = record?.signature_data || record?.signature_url
+    || signedDocFallback?.signature_data
     || merged?.signature_data || merged?.signature_url
     || docFallback?.file_url;
 
