@@ -291,11 +291,11 @@ export default function CoachHub() {
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 4,
-          background: '#1E1E2E',
-          borderRadius: 18,
-          padding: '5px',
+          background: '#1a1a1a',
+          borderRadius: 20,
+          padding: '6px',
           marginBottom: 14,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          boxShadow: '0 6px 24px rgba(0,0,0,0.2)',
         }}>
           {[
             { label: 'מקצועי', icon: '💼', path: '/dashboard' },
@@ -314,14 +314,12 @@ export default function CoachHub() {
                 onClick={() => navigate(tab.path)}
                 style={{
                   padding: '11px 4px',
-                  borderRadius: 13,
+                  borderRadius: 14,
                   border: 'none',
                   cursor: 'pointer',
-                  background: isActive
-                    ? 'linear-gradient(135deg, #FF6F20, #FF9A5C)'
-                    : 'transparent',
+                  background: isActive ? '#FF6F20' : 'transparent',
                   boxShadow: isActive
-                    ? '0 4px 14px rgba(255,111,32,0.45)'
+                    ? '0 4px 16px rgba(255,111,32,0.4)'
                     : 'none',
                   display: 'flex',
                   flexDirection: 'column',
@@ -330,10 +328,10 @@ export default function CoachHub() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                <span style={{ fontSize: 20 }}>{tab.icon}</span>
+                <span style={{ fontSize: isActive ? 24 : 22 }}>{tab.icon}</span>
                 <span style={{
                   fontSize: 10,
-                  fontWeight: 800,
+                  fontWeight: isActive ? 800 : 700,
                   color: isActive ? 'white' : '#666',
                   letterSpacing: '0.3px',
                   fontFamily: "'Barlow', 'Heebo', sans-serif",
