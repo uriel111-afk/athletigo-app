@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { formatTime } from "@/lib/formatTime";
 import { motion } from "framer-motion";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { base44 } from "@/api/base44Client";
@@ -254,7 +255,7 @@ function describeSub(sub) {
   const bits = [];
   if (sub.reps) bits.push(`${sub.reps} חזרות`);
   if (sub.sets) bits.push(`${sub.sets} סטים`);
-  if (sub.time || sub.work_time) bits.push(`${sub.time || sub.work_time}"`);
+  if (sub.time || sub.work_time) bits.push(formatTime(sub.time || sub.work_time));
   if (sub.weight) bits.push(`${sub.weight} ק"ג`);
   return { name, detail: bits.join(' · ') || null };
 }
@@ -1021,7 +1022,7 @@ export default function ExerciseCard({
                   <span>סטים</span>
                   {(exercise.reps || exercise.work_time) && (
                     <span style={{ fontSize: 13, color: '#888', fontWeight: 400 }}>
-                      יעד: {exercise.reps || exercise.work_time} {exercise.reps ? 'חזרות' : 'שניות'}
+                      יעד: {exercise.reps ? `${exercise.reps} חזרות` : formatTime(exercise.work_time)}
                     </span>
                   )}
                 </div>

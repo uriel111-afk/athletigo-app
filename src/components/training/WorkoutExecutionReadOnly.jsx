@@ -3,6 +3,7 @@ import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import {
   getExecutionWithSetLogs, indexSetLogs, valueFromLog,
 } from '@/lib/workoutExecutionApi';
+import { formatTime } from '@/lib/formatTime';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -33,12 +34,12 @@ function buildParamsLine(ex) {
   const main = [];
   if (hasNumeric(ex.sets))            main.push(`${ex.sets} סטים`);
   if (hasNumeric(ex.reps))            main.push(`${ex.reps} חזרות`);
-  else if (hasNumeric(ex.work_time))  main.push(`${ex.work_time} שניות`);
+  else if (hasNumeric(ex.work_time))  main.push(formatTime(ex.work_time));
   else if (hasNumeric(ex.rounds))     main.push(`${ex.rounds} סבבים`);
-  else if (hasNumeric(ex.static_hold_time)) main.push(`${ex.static_hold_time} החזקה`);
+  else if (hasNumeric(ex.static_hold_time)) main.push(`${formatTime(ex.static_hold_time)} החזקה`);
 
   const extras = [];
-  if (hasNumeric(ex.rest_time)) extras.push(`מנוחה ${ex.rest_time}''`);
+  if (hasNumeric(ex.rest_time)) extras.push(`מנוחה ${formatTime(ex.rest_time)}`);
   if (hasNumeric(ex.weight))    extras.push(`${ex.weight} ק״ג`);
   if (hasNumeric(ex.rpe))       extras.push(`RPE ${ex.rpe}`);
   if (ex.tempo)                 extras.push(`טמפו ${ex.tempo}`);

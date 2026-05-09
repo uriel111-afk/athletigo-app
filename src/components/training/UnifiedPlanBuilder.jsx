@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -1003,7 +1004,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       const items = (b.block_exercises || []);
       const displayEx = items.slice(0, 3).map(ex => ex.name).join(" • ") + (items.length > 3 ? ` (+${items.length - 3})` : "");
       
-      return `עבודה: ${b.work_time}ש׳ | מנוחה: ${b.rest_time}ש׳ | סבבים: ${b.rounds} | בין סבבים: ${b.rest_between_rounds}ש׳ | סטים: ${b.sets}\nתרגילים: ${displayEx}`;
+      return `עבודה: ${formatTime(b.work_time)} | מנוחה: ${formatTime(b.rest_time)} | סבבים: ${b.rounds} | בין סבבים: ${formatTime(b.rest_between_rounds)} | סטים: ${b.sets}\nתרגילים: ${displayEx}`;
     }
 
     // Multiple blocks - Show up to 2
@@ -1012,7 +1013,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       const items = (b.block_exercises || []);
       const exList = items.slice(0, 3).map(ex => ex.name).join(" • ");
       const remaining = items.length > 3 ? "…" : "";
-      return `${name}: עבודה ${b.work_time}ש׳/מנוחה ${b.rest_time}ש׳ | סבבים ${b.rounds} | סטים ${b.sets} | ${exList}${remaining}`;
+      return `${name}: עבודה ${formatTime(b.work_time)}/מנוחה ${formatTime(b.rest_time)} | סבבים ${b.rounds} | סטים ${b.sets} | ${exList}${remaining}`;
     }).join("\n");
 
     if (blocks.length > 2) {

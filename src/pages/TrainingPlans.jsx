@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
@@ -1136,14 +1137,14 @@ function getExerciseParams(ex) {
   if (ex.reps)                  params.push(`${ex.reps} חזרות`);
   if (ex.weight)                params.push(`${ex.weight} ק"ג`);
   if (ex.work_time || ex.duration)
-                                params.push(`עבודה ${ex.work_time || ex.duration}״`);
-  if (ex.rest_time)             params.push(`מנוחה ${ex.rest_time}״`);
-  if (ex.rest_between_sets)     params.push(`מנו׳ סטים ${ex.rest_between_sets}״`);
-  if (ex.rest_between_exercises)params.push(`מנו׳ תרגילים ${ex.rest_between_exercises}״`);
+                                params.push(`עבודה ${formatTime(ex.work_time || ex.duration)}`);
+  if (ex.rest_time)             params.push(`מנוחה ${formatTime(ex.rest_time)}`);
+  if (ex.rest_between_sets)     params.push(`מנו׳ סטים ${formatTime(ex.rest_between_sets)}`);
+  if (ex.rest_between_exercises)params.push(`מנו׳ תרגילים ${formatTime(ex.rest_between_exercises)}`);
   if (ex.rpe)                   params.push(`RPE ${ex.rpe}`);
   if (ex.tempo)                 params.push(`טמפו ${ex.tempo}`);
   if (ex.static_hold_time || ex.static_hold || ex.hold_time)
-                                params.push(`החזקה ${ex.static_hold_time || ex.static_hold || ex.hold_time}״`);
+                                params.push(`החזקה ${formatTime(ex.static_hold_time || ex.static_hold || ex.hold_time)}`);
   if (ex.body_position)         params.push(ex.body_position);
   if (ex.equipment)             params.push(Array.isArray(ex.equipment) ? ex.equipment.join(', ') : ex.equipment);
   if (ex.grip)                  params.push(ex.grip);
@@ -1337,7 +1338,7 @@ function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, sel
                         <div style={{ marginTop: 6, padding: 8, background: '#FFF5EE', borderRadius: 8 }}>
                           <div style={{ fontSize: 11, color: '#FF6F20' }}>⏱ טבטה</div>
                           <div style={{ fontSize: 12, color: '#888' }}>
-                            {ex.tabata_data.work_time || 20}״ עבודה / {ex.tabata_data.rest_time || 10}״ מנוחה
+                            {formatTime(ex.tabata_data.work_time || 20)} עבודה / {formatTime(ex.tabata_data.rest_time || 10)} מנוחה
                             {ex.tabata_data.sets && ` × ${ex.tabata_data.sets} סטים`}
                           </div>
                         </div>
