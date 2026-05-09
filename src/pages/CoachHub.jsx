@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { LIFEOS_COLORS, LIFEOS_CARD, COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
@@ -58,6 +58,7 @@ function pickDailyFocus({ openLeads, daysSinceContent, pendingTasks }) {
 
 export default function CoachHub() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isLoadingAuth } = useContext(AuthContext);
 
   const [summary, setSummary] = useState({ income: 0, expenses: 0, net: 0 });
@@ -282,40 +283,57 @@ export default function CoachHub() {
           <span style={{ fontSize: 18 }}>←</span>
         </div>
 
-        {/* Four hub cards with badges (4th = personal, coming soon) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-          <HubCard
-            emoji="💼"
-            title="מקצועי"
-            subtitle="מתאמנים ותוכניות"
-            badge={loaded && activeTraineesCount > 0 ? `${activeTraineesCount} פעילים` : null}
-            onClick={() => navigate('/dashboard')}
-            primary
-          />
-          <HubCard
-            emoji="📊"
-            title="פיננסי"
-            subtitle="תקציב ויעדים"
-            badge={loaded && summary.income > 0 ? `${fmt(summary.income)}₪` : null}
-            onClick={() => navigate('/lifeos')}
-          />
-          <HubCard
-            emoji="🚀"
-            title="צמיחה"
-            subtitle="לידים והזדמנויות"
-            badge={loaded && (openLeads > 0 || overview.unpublishedContent > 0)
-              ? `${openLeads} לידים · ${overview.unpublishedContent} תוכן`
-              : null}
-            badgeColor={openLeads > 0 ? LIFEOS_COLORS.error : null}
-            onClick={() => navigate('/lifeos/leads')}
-          />
-          <HubCard
-            emoji="❤️"
-            title="אישי"
-            subtitle="הרגלים, קשרים, התפתחות"
-            badge="צ׳ק-אין"
-            onClick={() => navigate('/personal')}
-          />
+        {/* App tabs — sleek dark pill strip. Active pill = current
+            route's app (matched via pathname prefix so nested pages
+            still highlight their parent app). Compact so the hub
+            stays no-scroll on mobile. */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 6,
+          background: '#1a1a1a',
+          borderRadius: 16,
+          padding: 6,
+          marginBottom: 16,
+        }}>
+          {[
+            { label: 'מקצועי', icon: '💼', path: '/dashboard' },
+            { label: 'פיננסי', icon: '💰', path: '/lifeos/leads' },
+            { label: 'צמיחה', icon: '📈', path: '/lifeos' },
+            { label: 'אישי',   icon: '🌟', path: '/personal' },
+          ].map((tab) => {
+            const isActive = location.pathname === tab.path;
+            return (
+              <button
+                key={tab.path}
+                type="button"
+                onClick={() => navigate(tab.path)}
+                style={{
+                  padding: '10px 4px',
+                  borderRadius: 12,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: isActive ? '#FF6F20' : 'transparent',
+                  boxShadow: isActive ? '0 4px 12px rgba(255,111,32,0.4)' : 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{tab.icon}</span>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: isActive ? 'white' : '#888',
+                  letterSpacing: '0.3px',
+                }}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Overview KPIs — across all 3 apps ──────────────────── */}

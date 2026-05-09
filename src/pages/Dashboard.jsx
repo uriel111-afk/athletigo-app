@@ -585,7 +585,7 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (large 2-col cards) ═══════ */}
+          {/* ═══ SECTION 4 — גישה מהירה (compact 4-col, fits no-scroll) ═══════ */}
           <SectionHeader title="גישה מהירה" />
           {(() => {
             const pendingReminders = reminders.filter(r => !r.is_read).length;
@@ -602,57 +602,59 @@ export default function Dashboard() {
             return (
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 12,
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 8,
                 padding: '0 8px',
-                marginBottom: 16,
+                marginBottom: 12,
               }}>
                 {quickItems.map((q) => (
                   <button
                     key={q.label}
                     onClick={q.action}
                     style={{
-                      padding: '20px 16px',
-                      borderRadius: 16,
+                      padding: '12px 6px',
+                      borderRadius: 12,
                       cursor: 'pointer',
                       background: 'white',
-                      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
                       border: '1px solid #F0E4D0',
                       display: 'flex',
                       flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: 10,
+                      alignItems: 'center',
+                      gap: 6,
                       position: 'relative',
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
                     <div style={{
-                      width: 44, height: 44,
-                      borderRadius: 12,
+                      width: 36, height: 36,
+                      borderRadius: 10,
                       background: '#FFF5EE',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 22,
+                      fontSize: 18,
                       lineHeight: 1,
                     }}>
                       {q.emoji}
                     </div>
-                    <div style={{
-                      fontSize: 15,
+                    <span style={{
+                      fontSize: 10,
                       fontWeight: 700,
                       color: '#1a1a1a',
-                      fontFamily: 'Barlow, sans-serif',
+                      textAlign: 'center',
+                      lineHeight: 1.2,
                     }}>
                       {q.label}
-                    </div>
+                    </span>
                     {q.badge != null && (
                       <div style={{
-                        position: 'absolute', top: 12, left: 12,
-                        minWidth: 20, height: 20, padding: '0 6px',
-                        borderRadius: 10, background: '#dc2626',
-                        color: 'white', fontSize: 11, fontWeight: 700,
+                        position: 'absolute', top: 4, left: 4,
+                        minWidth: 16, height: 16, padding: '0 4px',
+                        borderRadius: 8, background: '#dc2626',
+                        color: 'white', fontSize: 9, fontWeight: 700,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: '1.5px solid white',
                       }}>{q.badge}</div>
                     )}
                   </button>
