@@ -741,10 +741,19 @@ export default function Sessions() {
           return false;
         }
       } else if (filterStatus === "month") {
+        // Explicit 1st → last-day boundaries (start-of-day on the 1st,
+        // end-of-day on the last). Matches the count derived in
+        // currentMonthSessions so badge ↔ list always agree.
         try {
+          if (!session.date) return false;
           const d = new Date(session.date);
+          if (Number.isNaN(d.getTime())) return false;
           const now = new Date();
-          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          endOfMonth.setHours(23, 59, 59, 999);
+          return d >= startOfMonth && d <= endOfMonth;
         } catch {
           return false;
         }
@@ -843,19 +852,31 @@ export default function Sessions() {
 
   const completedSessions = filteredSessions.filter((s) => s.status === 'התקיים');
 
-  // Calculate current month sessions
-  const currentMonthSessions = filteredSessions.filter((s) => {
-    try {
-      if (!s.date) return false;
-      const sessionDate = new Date(s.date);
-      const now = new Date();
-      return sessionDate.getMonth() === now.getMonth() &&
-      sessionDate.getFullYear() === now.getFullYear() &&
-      s.status === 'התקיים';
-    } catch {
-      return false;
-    }
-  });
+  // Current-month sessions — derives from the raw `sessions` array
+  // (NOT `filteredSessions`) so the "החודש" badge counts every
+  // session from the 1st to the last day of the current month
+  // regardless of which other filter is active. Sorted ascending
+  // (1st → last day) so the rendered list reads chronologically.
+  // Soft-deleted rows are excluded; status is intentionally NOT
+  // restricted (badge previously only counted 'התקיים', which made
+  // the number disagree with what the filter-tab actually shows).
+  const currentMonthSessions = (() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    endOfMonth.setHours(23, 59, 59, 999);
+    return (sessions || [])
+      .filter((s) => {
+        if (!s) return false;
+        if (s.status === 'deleted' || s.deleted_at) return false;
+        if (!s.date) return false;
+        const d = new Date(s.date);
+        if (Number.isNaN(d.getTime())) return false;
+        return d >= startOfMonth && d <= endOfMonth;
+      })
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  })();
 
   const getStatusColor = (status) => {
     switch (status) {
