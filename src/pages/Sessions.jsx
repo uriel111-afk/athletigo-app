@@ -1246,149 +1246,160 @@ export default function Sessions() {
             style={{ background: 'radial-gradient(circle, #FF6F20 0%, transparent 70%)' }} />
             
             <div className="relative">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-4 mb-3">
-                    <div
-                      className="flex items-center justify-center w-16 h-16 rounded-3xl"
-                      style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', boxShadow: '0 6px 16px rgba(255, 111, 32, 0.35)' }}>
+              {/* Title row — full width so it never gets covered by the
+                  action buttons on narrow screens. */}
+              <div className="mb-3">
+                <div className="flex items-center gap-4 mb-3">
+                  <div
+                    className="flex items-center justify-center w-16 h-16 rounded-3xl"
+                    style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', boxShadow: '0 6px 16px rgba(255, 111, 32, 0.35)' }}>
 
-                      <Calendar className="w-9 h-9 text-white" />
-                    </div>
-                    <div>
-                      <h1 className="text-4xl md:text-5xl font-black leading-tight"
-                      style={{
-                        background: 'linear-gradient(135deg, #000000 0%, #4D4D4D 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                        fontFamily: 'Montserrat, Heebo, sans-serif'
-                      }}>
-                        מפגשים ואימונים
-                      </h1>
-                      <p className="text-xl font-medium mt-1" style={{ color: '#7D7D7D' }}>
-                        📅 לוח זמנים מלא ומסודר
-                      </p>
-                    </div>
+                    <Calendar className="w-9 h-9 text-white" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1 w-24 rounded-full" style={{ background: 'linear-gradient(90deg, #FF6F20 0%, #FF8F50 100%)' }} />
-                    <div className="h-1 w-12 rounded-full" style={{ backgroundColor: '#E6E6E6' }} />
-                    <div className="h-1 w-6 rounded-full" style={{ backgroundColor: '#E6E6E6' }} />
+                  <div>
+                    <h1 className="text-4xl md:text-5xl font-black leading-tight"
+                    style={{
+                      background: 'linear-gradient(135deg, #000000 0%, #4D4D4D 100%)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      fontFamily: 'Montserrat, Heebo, sans-serif'
+                    }}>
+                      מפגשים ואימונים
+                    </h1>
+                    <p className="text-xl font-medium mt-1" style={{ color: '#7D7D7D' }}>
+                      📅 לוח זמנים מלא ומסודר
+                    </p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2">
-                  {activeView === 'sessions' && (
-                    <button
-                      type="button"
-                      onClick={() => sessionSel.isSelecting ? sessionSel.clearSelection() : sessionSel.startSelecting()}
-                      style={{
-                        height: 44, padding: '0 14px', borderRadius: 14,
-                        border: '1px solid #F0E4D0',
-                        background: sessionSel.isSelecting ? '#FFF5EE' : 'white',
-                        color: sessionSel.isSelecting ? '#FF6F20' : '#888',
-                        fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
-                      }}
-                    >
-                      {sessionSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
-                    </button>
-                  )}
-                  <Button
-                    onClick={() => setActiveView(activeView === 'sessions' ? 'groups' : 'sessions')}
-                    variant="outline"
-                    className="flex items-center gap-2 h-11 px-4 rounded-2xl font-bold"
-                  >
-                    <Users className="w-4 h-4" />
-                    {activeView === 'sessions' ? 'קבוצות' : 'מפגשים'}
-                  </Button>
-                  {activeView === 'sessions' ? (
-                    <Button
-                      onClick={() => { if (coachLoading || !coach) { toast.error("אנא המתן לטעינת הנתונים"); return; } setEditingSession(null); setShowSessionDialog(true); }}
-                      disabled={coachLoading || !coach}
-                      className="flex items-center gap-2 h-11 px-4 rounded-2xl font-black text-white shadow-xl hover:shadow-2xl"
-                      style={{ backgroundColor: '#FF6F20' }}
-                    >
-                      <Plus className="w-5 h-5" />קבע מפגש
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => { setEditingGroup(null); setGroupForm({ name: '', description: '' }); setShowGroupDialog(true); }}
-                      className="flex items-center gap-2 h-11 px-4 rounded-2xl font-black text-white shadow-xl"
-                      style={{ backgroundColor: '#4CAF50' }}
-                    >
-                      <Plus className="w-5 h-5" />קבוצה חדשה
-                    </Button>
-                  )}
+                  <div className="h-1 w-24 rounded-full" style={{ background: 'linear-gradient(90deg, #FF6F20 0%, #FF8F50 100%)' }} />
+                  <div className="h-1 w-12 rounded-full" style={{ backgroundColor: '#E6E6E6' }} />
+                  <div className="h-1 w-6 rounded-full" style={{ backgroundColor: '#E6E6E6' }} />
                 </div>
+              </div>
+
+              {/* Action buttons — own row below the title so the title is
+                  never hidden by them on small viewports. */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {activeView === 'sessions' && (
+                  <button
+                    type="button"
+                    onClick={() => sessionSel.isSelecting ? sessionSel.clearSelection() : sessionSel.startSelecting()}
+                    style={{
+                      flex: 1, padding: '10px 8px',
+                      borderRadius: 12,
+                      border: '1.5px solid #F0E4D0',
+                      background: sessionSel.isSelecting ? '#FFF5EE' : 'white',
+                      color: sessionSel.isSelecting ? '#FF6F20' : '#1a1a1a',
+                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    {sessionSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setActiveView(activeView === 'sessions' ? 'groups' : 'sessions')}
+                  style={{
+                    flex: 1, padding: '10px 8px',
+                    borderRadius: 12,
+                    border: '1.5px solid #F0E4D0',
+                    background: 'white',
+                    color: '#1a1a1a',
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  }}
+                >
+                  {activeView === 'sessions' ? 'קבוצות' : 'מפגשים'}
+                </button>
+                {activeView === 'sessions' ? (
+                  <button
+                    type="button"
+                    onClick={() => { if (coachLoading || !coach) { toast.error("אנא המתן לטעינת הנתונים"); return; } setEditingSession(null); setShowSessionDialog(true); }}
+                    disabled={coachLoading || !coach}
+                    style={{
+                      flex: 1, padding: '10px 8px',
+                      borderRadius: 12, border: 'none',
+                      background: (coachLoading || !coach) ? '#cccccc' : '#FF6F20',
+                      color: 'white',
+                      fontSize: 13, fontWeight: 700,
+                      cursor: (coachLoading || !coach) ? 'not-allowed' : 'pointer',
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    + קבע מפגש
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingGroup(null); setGroupForm({ name: '', description: '' }); setShowGroupDialog(true); }}
+                    style={{
+                      flex: 1, padding: '10px 8px',
+                      borderRadius: 12, border: 'none',
+                      background: '#4CAF50',
+                      color: 'white',
+                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    + קבוצה חדשה
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Stats Tabs */}
-          <div className="mb-8 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-            <div className="inline-grid grid-cols-4 gap-2 md:gap-3 p-1.5" style={{ minWidth: 'fit-content' }}>
-              <button
-                onClick={() => setFilterStatus(filterStatus === 'today' ? 'all' : 'today')}
-                className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
-                style={{
-                  backgroundColor: filterStatus === 'today' ? '#FF6F20' : '#FFFFFF',
-                  color: filterStatus === 'today' ? '#FFFFFF' : '#FF6F20',
-                  border: '2px solid #FF6F20',
-                  boxShadow: filterStatus === 'today' ? '0 2px 8px rgba(255, 111, 32, 0.35)' : '0 2px 8px rgba(255, 111, 32, 0.15)'
-                }}>
-
-                <span className="text-xl">🔥</span>
-                <span className="text-lg md:text-2xl font-black">{todaySessions.length}</span>
-                <span className="text-[8px] md:text-xs leading-tight">היום</span>
-              </button>
-
-              <button
-                onClick={() => setFilterStatus(filterStatus === 'month' ? 'all' : 'month')}
-                className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
-                style={{
-                  backgroundColor: filterStatus === 'month' ? '#9C27B0' : '#FFFFFF',
-                  color: filterStatus === 'month' ? '#FFFFFF' : '#9C27B0',
-                  border: '2px solid #9C27B0',
-                  boxShadow: filterStatus === 'month' ? '0 2px 8px rgba(156, 39, 176, 0.35)' : '0 2px 8px rgba(156, 39, 176, 0.12)'
-                }}>
-
-                <span className="text-xl">📊</span>
-                <span className="text-lg md:text-2xl font-black">{currentMonthSessions.length}</span>
-                <span className="text-[8px] md:text-xs leading-tight">החודש</span>
-              </button>
-
-              <button
-                onClick={() => setFilterStatus(filterStatus === 'upcoming' ? 'all' : 'upcoming')}
-                className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
-                style={{
-                  backgroundColor: filterStatus === 'upcoming' ? '#9C27B0' : '#FFFFFF',
-                  color: filterStatus === 'upcoming' ? '#FFFFFF' : '#9C27B0',
-                  border: `2px solid ${filterStatus === 'upcoming' ? '#9C27B0' : '#E1BEE7'}`,
-                  boxShadow: filterStatus === 'upcoming' ? '0 2px 8px rgba(156, 39, 176, 0.25)' : 'none'
-                }}>
-
-                <span className="text-xl">📆</span>
-                <span className="text-lg md:text-2xl font-black">{upcomingSessions.length}</span>
-                <span className="text-[8px] md:text-xs leading-tight">קרובים</span>
-              </button>
-
-              <button
-                onClick={() => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed')}
-                className="flex-col gap-1 px-1 py-2 md:px-4 md:py-3 rounded-xl transition-all font-bold flex items-center justify-center min-w-[60px] md:min-w-0"
-                style={{
-                  backgroundColor: filterStatus === 'completed' ? '#4CAF50' : '#FFFFFF',
-                  color: filterStatus === 'completed' ? '#FFFFFF' : '#4CAF50',
-                  border: `2px solid ${filterStatus === 'completed' ? '#4CAF50' : '#C8E6C9'}`,
-                  boxShadow: filterStatus === 'completed' ? '0 2px 8px rgba(76, 175, 80, 0.25)' : 'none'
-                }}>
-
-                <span className="text-xl">✅</span>
-                <span className="text-lg md:text-2xl font-black">{completedSessions.length}</span>
-                <span className="text-[8px] md:text-xs leading-tight">הושלמו</span>
-              </button>
-            </div>
+          {/* Stats Tabs — large 4-col grid; tap toggles the filter on/off */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 8,
+            marginBottom: 20,
+          }}>
+            {[
+              { key: 'today',     label: 'היום',    count: todaySessions.length },
+              { key: 'upcoming',  label: 'קרובים',  count: upcomingSessions.length },
+              { key: 'month',     label: 'החודש',   count: currentMonthSessions.length },
+              { key: 'completed', label: 'הושלמו',  count: completedSessions.length },
+            ].map((tab) => {
+              const active = filterStatus === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setFilterStatus(active ? 'all' : tab.key)}
+                  style={{
+                    padding: '14px 8px',
+                    borderRadius: 14,
+                    cursor: 'pointer',
+                    background: active ? '#FF6F20' : 'white',
+                    boxShadow: active
+                      ? '0 4px 12px rgba(255,111,32,0.3)'
+                      : '0 2px 8px rgba(0,0,0,0.04)',
+                    border: active ? 'none' : '1px solid #F0E4D0',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 6,
+                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  }}
+                >
+                  <div style={{
+                    fontSize: 24, fontWeight: 900,
+                    color: active ? 'white' : '#1a1a1a',
+                    lineHeight: 1,
+                  }}>
+                    {tab.count || 0}
+                  </div>
+                  <div style={{
+                    fontSize: 12, fontWeight: 700,
+                    color: active ? 'rgba(255,255,255,0.9)' : '#888',
+                  }}>
+                    {tab.label}
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           {/* Search & Filters - Minimal */}
