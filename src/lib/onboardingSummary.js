@@ -133,6 +133,13 @@ const GOAL_CATEGORY_TAILS = {
   skill:    'נעבוד על מיומנויות שידהימו אותך.',
 };
 
+// Gender-aware verb / adjective picker. trainee.gender is 'male' /
+// 'female' / 'other' (or empty / legacy). Female gets the inflected
+// form; everything else (male / other / unknown) falls back to the
+// masculine default since Hebrew has no neutral and the masculine is
+// the conventional default in such a case.
+const G = (trainee, female, male) => (trainee?.gender === 'female' ? female : male);
+
 export function generateTraineeSummary(trainee) {
   if (!trainee) return '';
 
@@ -142,6 +149,10 @@ export function generateTraineeSummary(trainee) {
   // (questionnaire output) or already-Hebrew strings (legacy rows).
   const firstName = (trainee.full_name || '').split(/\s+/).filter(Boolean)[0] || 'שם';
   const age = calcAge(trainee.birth_date);
+  const youAre  = G(trainee, 'את',     'אתה');
+  const joined  = G(trainee, 'הצטרפה', 'הצטרף');
+  const started = G(trainee, 'התחילה', 'התחיל');
+  const yourPossessive = G(trainee, 'שלה', 'שלו');
 
   const goalsRaw = Array.isArray(trainee.training_goals)
     ? trainee.training_goals
@@ -156,7 +167,11 @@ export function generateTraineeSummary(trainee) {
 
   const lines = [];
   // ── Greeting ─────────────────────────────────────────────────
+  // "שהצטרפת" reads identically for masculine + feminine in 2nd
+  // person past, so the greeting itself stays neutral. The
+  // narrative line that follows picks up the gendered form.
   lines.push(`היי ${firstName}, איזה כיף שהצטרפת אלינו! 😊`);
+  lines.push(`${firstName} ${joined} ל-AthletiGo — בוא${trainee?.gender === 'female' ? 'י' : ''} נבנה ביחד תוכנית.`);
 
   // ── Age + experience ────────────────────────────────────────
   // Gender-neutral phrasing: "בגיל N" instead of "את/ה בן/בת N".
@@ -182,7 +197,7 @@ export function generateTraineeSummary(trainee) {
   // ── Frequency ──────────────────────────────────────────────
   if (trainee.preferred_frequency) {
     const freq = labelize(FREQUENCY_LABELS, trainee.preferred_frequency);
-    lines.push(`את/ה רוצה להתאמן ${freq} פעמים בשבוע — מעולה, נתאים את הקצב.`);
+    lines.push(`${youAre} ${G(trainee, 'רוצה', 'רוצה')} להתאמן ${freq} פעמים בשבוע — מעולה, נתאים את הקצב.`);
   }
 
   // ── Challenges + free-text ─────────────────────────────────
@@ -242,7 +257,7 @@ export function generateTraineeSummary(trainee) {
   }
 
   // ── Closer ─────────────────────────────────────────────────
-  lines.push('\nהמסע מתחיל עכשיו — ואנחנו כאן איתך בכל צעד. 💪');
+  lines.push(`\n${started} את המסע ${yourPossessive} עכשיו — ואנחנו כאן איתך בכל צעד. 💪`);
 
   return lines.join('\n');
 }

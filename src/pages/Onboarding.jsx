@@ -134,6 +134,15 @@ const REFERRAL_OPTIONS = [
 ];
 const RELATION_OPTIONS = ['הורה', 'אפוטרופוס', 'בן/בת זוג', 'אח/ות', 'חבר', 'אחר'];
 
+// Gender chip group in step 1 — drives the storytelling summary's
+// Hebrew grammar (verbs / adjectives) so the coach popup reads
+// naturally instead of falling back to slashed forms.
+const GENDER_OPTIONS = [
+  { key: 'male',   label: 'זכר',  icon: '👨' },
+  { key: 'female', label: 'נקבה', icon: '👩' },
+  { key: 'other',  label: 'אחר',  icon: '🧑' },
+];
+
 // Quick pre-health chips for step 5. 'הכל תקין' is mutually exclusive
 // with the rest — selecting it clears any concern chips, and selecting
 // any concern chip clears 'הכל תקין'.
@@ -264,6 +273,7 @@ export default function Onboarding() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [gender, setGender] = useState('');
   const [address, setAddress] = useState('');
   const [referralSource, setReferralSource] = useState('');
   const [emergencyName, setEmergencyName] = useState('');
@@ -296,6 +306,12 @@ export default function Onboarding() {
   const [challengesDescription, setChallengesDescription] = useState('');
   const [selectedPreferences, setSelectedPreferences] = useState([]);
   const [preferencesDescription, setPreferencesDescription] = useState('');
+  // Per-chip free-text expansions — keyed by the chip's option `key`,
+  // saved as users.challenge_details / users.preference_details JSONB.
+  // Only chips that are currently selected get a textarea; deselecting
+  // a chip preserves its expansion in state so re-selecting restores it.
+  const [challengeDetails, setChallengeDetails] = useState({});
+  const [preferenceDetails, setPreferenceDetails] = useState({});
   const [additionalNotes, setAdditionalNotes] = useState('');
 
   // Step 5: health — quick chips ('הכל תקין' / 'כאבי גב' / ...) plus a
@@ -368,6 +384,7 @@ export default function Onboarding() {
         setPhone(u.phone || '');
         setEmail(u.email || authUser.email || '');
         setBirthDate(u.birth_date ? String(u.birth_date).slice(0, 10) : '');
+        setGender(u.gender || '');
         setAddress(u.address || '');
         setReferralSource(u.referral_source || '');
         setEmergencyName(u.emergency_contact_name || '');
@@ -409,12 +426,34 @@ export default function Onboarding() {
               : []);
         setSelectedChallenges(ch);
         setChallengesDescription(u.challenges_description || '');
+        // challenge_details / preference_details — JSONB columns may
+        // arrive as object, JSON string, or null.
+        const parseJsonObj = (raw) => {
+          if (!raw) return {};
+          if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+          if (typeof raw === 'string') {
+            try { const v = JSON.parse(raw); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+            catch { return {}; }
+          }
+          return {};
+        };
+        setChallengeDetails(parseJsonObj(u.challenge_details));
         const pr = Array.isArray(u.training_preferences) ? u.training_preferences
           : (typeof u.training_preferences === 'string' && u.training_preferences.trim().startsWith('[')
               ? (() => { try { return JSON.parse(u.training_preferences); } catch { return []; } })()
               : []);
         setSelectedPreferences(pr);
         setPreferencesDescription(u.preferences_description || '');
+        const parseJsonObj2 = (raw) => {
+          if (!raw) return {};
+          if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+          if (typeof raw === 'string') {
+            try { const v = JSON.parse(raw); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+            catch { return {}; }
+          }
+          return {};
+        };
+        setPreferenceDetails(parseJsonObj2(u.preference_details));
         setAdditionalNotes(u.additional_notes || '');
         const note = u.pre_health_note || '';
         setPreHealthNote(note);
@@ -531,6 +570,7 @@ export default function Onboarding() {
         phone: phone.trim(),
         email: email.trim(),
         birth_date: birthDate,
+        gender,
         address: address.trim(),
         referral_source: referralSource,
         emergency_contact_name: emergencyName.trim(),
@@ -602,14 +642,27 @@ export default function Onboarding() {
       const fbCombined = experienceDetails.trim()
         ? (chipsJoin ? `${chipsJoin} · ${experienceDetails.trim()}` : experienceDetails.trim())
         : chipsJoin;
+      // Strip expansion entries for chips that aren't selected — keeps
+      // the JSONB blob in sync with the chip selection so a later
+      // reload doesn't show ghost text under chips the user removed.
+      const filterDetails = (details, selected) =>
+        Object.fromEntries(
+          Object.entries(details || {})
+            .filter(([k, v]) => selected.includes(k) && (v || '').trim())
+            .map(([k, v]) => [k, v.trim()])
+        );
+      const challengeDetailsClean = filterDetails(challengeDetails, selectedChallenges);
+      const preferenceDetailsClean = filterDetails(preferenceDetails, selectedPreferences);
       await safeUpdate(userId, buildPayload({
         fitness_background: fbCombined,
         fitness_experience: fitnessLevel,
         preferred_frequency: frequency,
         current_challenges: selectedChallenges,
         challenges_description: challengesDescription.trim(),
+        challenge_details: challengeDetailsClean,
         training_preferences: selectedPreferences,
         preferences_description: preferencesDescription.trim(),
+        preference_details: preferenceDetailsClean,
         additional_notes: additionalNotes.trim(),
       }));
       goNext();
@@ -872,6 +925,35 @@ export default function Onboarding() {
                   <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>תאריך לידה *</div>
                   <input value={birthDate} onChange={e => setBirthDate(e.target.value)}
                     type="date" style={inputStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 6 }}>מגדר</div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {GENDER_OPTIONS.map(opt => {
+                      const active = gender === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => setGender(active ? '' : opt.key)}
+                          style={{
+                            flex: 1, padding: '12px 8px', borderRadius: 12, cursor: 'pointer',
+                            background: active ? '#FFF5EE' : 'white',
+                            border: active ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                          }}
+                        >
+                          <span style={{ fontSize: 24 }}>{opt.icon}</span>
+                          <span style={{
+                            fontSize: 13, fontWeight: 700,
+                            color: active ? '#FF6F20' : '#1a1a1a',
+                          }}>
+                            {opt.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1204,35 +1286,52 @@ export default function Onboarding() {
                 {CHALLENGE_OPTIONS.map(opt => {
                   const active = selectedChallenges.includes(opt.key);
                   return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => setSelectedChallenges(prev =>
-                        prev.includes(opt.key) ? prev.filter(x => x !== opt.key) : [...prev, opt.key]
+                    <div key={opt.key}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedChallenges(prev =>
+                          prev.includes(opt.key) ? prev.filter(x => x !== opt.key) : [...prev, opt.key]
+                        )}
+                        style={{
+                          width: '100%',
+                          padding: '14px 12px',
+                          borderRadius: 14,
+                          cursor: 'pointer',
+                          background: active ? '#FFF5EE' : 'white',
+                          border: active ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 8,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span style={{ fontSize: 28 }}>{opt.icon}</span>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600,
+                          color: active ? '#FF6F20' : '#1a1a1a',
+                          textAlign: 'center',
+                        }}>
+                          {opt.label}
+                        </span>
+                      </button>
+                      {active && (
+                        <textarea
+                          placeholder={`ספר/י יותר על "${opt.label}"...`}
+                          value={challengeDetails[opt.key] || ''}
+                          onChange={e => setChallengeDetails(prev => ({ ...prev, [opt.key]: e.target.value }))}
+                          rows={2}
+                          style={{
+                            width: '100%', padding: '8px 12px',
+                            border: '1px solid #FFE5D0', borderRadius: 8,
+                            fontSize: 13, fontFamily: 'inherit', direction: 'rtl',
+                            resize: 'none', marginTop: 8, background: '#FFF9F5',
+                            boxSizing: 'border-box',
+                          }}
+                        />
                       )}
-                      style={{
-                        padding: '14px 12px',
-                        borderRadius: 14,
-                        cursor: 'pointer',
-                        background: active ? '#FFF5EE' : 'white',
-                        border: active ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <span style={{ fontSize: 28 }}>{opt.icon}</span>
-                      <span style={{
-                        fontSize: 13, fontWeight: 600,
-                        color: active ? '#FF6F20' : '#1a1a1a',
-                        textAlign: 'center',
-                      }}>
-                        {opt.label}
-                      </span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1244,35 +1343,52 @@ export default function Onboarding() {
                 {IMPORTANT_OPTIONS.map(opt => {
                   const active = selectedPreferences.includes(opt.key);
                   return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => setSelectedPreferences(prev =>
-                        prev.includes(opt.key) ? prev.filter(x => x !== opt.key) : [...prev, opt.key]
+                    <div key={opt.key}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPreferences(prev =>
+                          prev.includes(opt.key) ? prev.filter(x => x !== opt.key) : [...prev, opt.key]
+                        )}
+                        style={{
+                          width: '100%',
+                          padding: '14px 12px',
+                          borderRadius: 14,
+                          cursor: 'pointer',
+                          background: active ? '#FFF5EE' : 'white',
+                          border: active ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 8,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span style={{ fontSize: 28 }}>{opt.icon}</span>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600,
+                          color: active ? '#FF6F20' : '#1a1a1a',
+                          textAlign: 'center',
+                        }}>
+                          {opt.label}
+                        </span>
+                      </button>
+                      {active && (
+                        <textarea
+                          placeholder={`ספר/י יותר על "${opt.label}"...`}
+                          value={preferenceDetails[opt.key] || ''}
+                          onChange={e => setPreferenceDetails(prev => ({ ...prev, [opt.key]: e.target.value }))}
+                          rows={2}
+                          style={{
+                            width: '100%', padding: '8px 12px',
+                            border: '1px solid #FFE5D0', borderRadius: 8,
+                            fontSize: 13, fontFamily: 'inherit', direction: 'rtl',
+                            resize: 'none', marginTop: 8, background: '#FFF9F5',
+                            boxSizing: 'border-box',
+                          }}
+                        />
                       )}
-                      style={{
-                        padding: '14px 12px',
-                        borderRadius: 14,
-                        cursor: 'pointer',
-                        background: active ? '#FFF5EE' : 'white',
-                        border: active ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <span style={{ fontSize: 28 }}>{opt.icon}</span>
-                      <span style={{
-                        fontSize: 13, fontWeight: 600,
-                        color: active ? '#FF6F20' : '#1a1a1a',
-                        textAlign: 'center',
-                      }}>
-                        {opt.label}
-                      </span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1379,9 +1495,24 @@ export default function Onboarding() {
                 trainee={{ id: userId, full_name: fullName, birth_date: birthDate }}
                 coachId={coachId}
                 autoConfirmSession={false}
-                onSigned={() => {
+                onSigned={async () => {
                   setHealthSigned(true);
                   setShowHealthForm(false);
+                  // Lock in the lifecycle fields the moment the health
+                  // form is signed — even if the trainee closes the tab
+                  // before tapping "סיום" on step 6, AuthContext will
+                  // route them to /trainee-home next time. Best-effort:
+                  // step 6's completeOnboarding() also writes these (with
+                  // retries) so a failure here is non-fatal.
+                  try {
+                    await safeUpdate(userId, {
+                      onboarding_completed: true,
+                      onboarding_completed_at: new Date().toISOString(),
+                      client_status: 'casual',
+                    });
+                  } catch (e) {
+                    console.warn('[Onboarding] post-health lifecycle write failed:', e?.message);
+                  }
                   setStep('confirm');
                 }}
               />
