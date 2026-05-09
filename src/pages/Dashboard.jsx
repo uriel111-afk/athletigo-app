@@ -451,11 +451,11 @@ export default function Dashboard() {
                   gap: 4,
                   transform: 'rotate(-45deg)',
                 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.15, padding: '0 4px' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.15, padding: '0 4px' }}>
                     {btn.label}
                   </span>
                   <span style={{
-                    fontSize: 32,
+                    fontSize: 34,
                     lineHeight: 1,
                     color: btn.orange ? '#FF6F20' : undefined,
                     fontWeight: btn.orange ? 700 : undefined,
@@ -656,9 +656,9 @@ export default function Dashboard() {
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <span style={{ fontSize: 18, lineHeight: 1 }}>{q.emoji}</span>
+                    <span style={{ fontSize: 16, lineHeight: 1 }}>{q.emoji}</span>
                     <span style={{
-                      fontSize: 11, fontWeight: 700,
+                      fontSize: 9, fontWeight: 700,
                       color: '#1a1a1a', textAlign: 'center',
                       lineHeight: 1.2,
                     }}>

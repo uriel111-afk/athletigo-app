@@ -313,7 +313,7 @@ export default function CoachHub() {
                 type="button"
                 onClick={() => navigate(tab.path)}
                 style={{
-                  padding: '11px 4px',
+                  padding: '16px 4px',
                   borderRadius: 14,
                   border: 'none',
                   cursor: 'pointer',
@@ -328,9 +328,9 @@ export default function CoachHub() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                <span style={{ fontSize: isActive ? 24 : 22 }}>{tab.icon}</span>
+                <span style={{ fontSize: 28 }}>{tab.icon}</span>
                 <span style={{
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: isActive ? 800 : 700,
                   color: isActive ? 'white' : '#666',
                   letterSpacing: '0.3px',
