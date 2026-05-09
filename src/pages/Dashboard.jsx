@@ -476,33 +476,6 @@ export default function Dashboard() {
           )}
 
 
-          {/* ═══ SECTION 2 — מטריקות מרכזיות (4-col row) ═══════ */}
-          <SectionHeader title="מטריקות" />
-          <div className="grid grid-cols-4 px-2" style={{ gap: 6, marginBottom: 10 }}>
-            {[
-              { label: "לידים חדשים",    value: newLeadsCount,         color: "#dc2626", rgb: "220,38,38",   to: createPageUrl("Leads") + "?filter=new" },
-              { label: "מפגשים קרובים",  value: upcomingSessionsCount, color: "#7F47B5", rgb: "127,71,181",  to: createPageUrl("Sessions") + "?status=upcoming" },
-              { label: "מתאמנים פעילים", value: activeClientsCount,    color: "#16a34a", rgb: "22,163,74",   to: createPageUrl("AllUsers") + "?filter=active" },
-              { label: "תוכניות פעילות", value: activePlansCount,      color: "#FF6F20", rgb: "255,111,32",  to: createPageUrl("TrainingPlans") },
-            ].map((m) => (
-              <button key={m.label} onClick={() => navigate(m.to)}
-                className="bg-white flex flex-col items-center cursor-pointer transition-all active:scale-[0.97]"
-                style={{
-                  borderRadius: 12,
-                  padding: '10px 4px',
-                  border: '1px solid rgba(0,0,0,0.04)',
-                  boxShadow: `0 3px 10px rgba(${m.rgb}, 0.12)`,
-                }}>
-                {statsLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-gray-300" />
-                ) : (
-                  <span className="leading-none" style={{ color: m.color, fontSize: 28, fontWeight: 500 }}>{m.value}</span>
-                )}
-                <span className="mt-1 text-center leading-tight" style={{ color: '#1a1a1a', fontSize: 11, fontWeight: 600 }}>{m.label}</span>
-              </button>
-            ))}
-          </div>
-
           {/* ═══ SECTION 3 — מתאמנים (hidden — keeps the home screen
                 no-scroll. The full trainees list lives in /AllUsers.) */}
           {false && trainees.length > 0 && (
@@ -612,7 +585,7 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (circular icons) ═══════ */}
+          {/* ═══ SECTION 4 — גישה מהירה (large 2-col cards) ═══════ */}
           <SectionHeader title="גישה מהירה" />
           {(() => {
             const pendingReminders = reminders.filter(r => !r.is_read).length;
@@ -626,44 +599,64 @@ export default function Dashboard() {
               { label: "תזכורות",   emoji: "⏰",   action: () => setShowReminders(true), badge: pendingReminders > 0 ? pendingReminders : null },
               { label: "התראות",    emoji: "🔔",   action: () => navigate(createPageUrl("Notifications")) },
             ];
-            const renderItem = (q) => (
-              <button key={q.label} onClick={q.action}
-                className="flex flex-col items-center bg-transparent border-none cursor-pointer active:scale-[0.95] transition-transform"
-                style={{ background: 'transparent', gap: 4 }}>
-                <div style={{
-                  position: 'relative',
-                  width: 54, height: 54,
-                  borderRadius: 14,
-                  background: 'white',
-                  boxShadow: '0 3px 10px rgba(255,111,32,0.14)',
-                  border: '1px solid rgba(0,0,0,0.04)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 24,
-                  lineHeight: 1,
-                }}>
-                  {q.emoji}
-                  {q.badge != null && (
-                    <div style={{
-                      position: 'absolute', top: 4, right: 4,
-                      minWidth: 16, height: 16, padding: '0 4px',
-                      borderRadius: 8, background: '#dc2626',
-                      color: 'white', fontSize: 9, fontWeight: 700,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: '1.5px solid white',
-                    }}>{q.badge}</div>
-                  )}
-                </div>
-                <span style={{ color: '#1a1a1a', fontSize: 12, fontWeight: 600 }}>{q.label}</span>
-              </button>
-            );
             return (
-              <div className="px-2 pb-2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div className="flex justify-around items-start" style={{ gap: 8 }}>
-                  {quickItems.slice(0, 4).map(renderItem)}
-                </div>
-                <div className="flex justify-around items-start" style={{ gap: 8 }}>
-                  {quickItems.slice(4).map(renderItem)}
-                </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 12,
+                padding: '0 8px',
+                marginBottom: 16,
+              }}>
+                {quickItems.map((q) => (
+                  <button
+                    key={q.label}
+                    onClick={q.action}
+                    style={{
+                      padding: '20px 16px',
+                      borderRadius: 16,
+                      cursor: 'pointer',
+                      background: 'white',
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                      border: '1px solid #F0E4D0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      position: 'relative',
+                    }}
+                    className="active:scale-[0.97] transition-transform"
+                  >
+                    <div style={{
+                      width: 44, height: 44,
+                      borderRadius: 12,
+                      background: '#FFF5EE',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                      lineHeight: 1,
+                    }}>
+                      {q.emoji}
+                    </div>
+                    <div style={{
+                      fontSize: 15,
+                      fontWeight: 700,
+                      color: '#1a1a1a',
+                      fontFamily: 'Barlow, sans-serif',
+                    }}>
+                      {q.label}
+                    </div>
+                    {q.badge != null && (
+                      <div style={{
+                        position: 'absolute', top: 12, left: 12,
+                        minWidth: 20, height: 20, padding: '0 6px',
+                        borderRadius: 10, background: '#dc2626',
+                        color: 'white', fontSize: 11, fontWeight: 700,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>{q.badge}</div>
+                    )}
+                  </button>
+                ))}
               </div>
             );
           })()}
