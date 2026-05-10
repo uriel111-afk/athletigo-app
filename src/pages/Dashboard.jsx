@@ -398,73 +398,90 @@ export default function Dashboard() {
           {/* App switcher — only renders for the Life OS coach. */}
           <AppSwitcher />
 
-          {/* ═══ SECTION 1 — פעולות ליבה (diamond layout) ═══════
-                Container overflow:visible so the rotated 84×84
-                squares can spill past the 210×210 box corners.
-                Inline title — bigger Barlow than the shared
-                SectionHeader component to anchor the screen. */}
-          <div style={{
-            fontSize: 16,
-            fontWeight: 800,
-            color: '#1a1a1a',
-            marginBottom: 10,
-            marginTop: 4,
-            fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
-            letterSpacing: '-0.3px',
-          }}>
-            פעולות ליבה
-          </div>
-          <div style={{
-            position: 'relative',
-            width: 230, height: 230,
-            margin: '0 auto 12px',
-            overflow: 'visible',
-          }}>
-            {[
-              // The + is a text character (not an emoji) so it stays orange.
-              { label: "הוסף מתאמן",  emoji: "+",  orange: true,  onClick: () => setIsAddTraineeOpen(true),    pos: { top: 0,   left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
-              { label: "הוסף ליד",    emoji: "👥",                onClick: () => setIsLeadDialogOpen(true),     pos: { top: 69,  right: 0,    transform: 'rotate(45deg)' } },
-              { label: "בנה תוכנית",  emoji: "📋",                onClick: () => setIsPlanDialogOpen(true),     pos: { top: 69,  left: 0,     transform: 'rotate(45deg)' } },
-              { label: "קבע מפגש",    emoji: "📅",                onClick: () => setIsSessionDialogOpen(true), pos: { top: 138, left: '50%', transform: 'translateX(-50%) rotate(45deg)' } },
-            ].map((btn) => (
-              <button
-                key={btn.label}
-                onClick={btn.onClick}
-                style={{
-                  position: 'absolute',
-                  width: 92, height: 92,
-                  background: 'white',
-                  borderRadius: 14,
-                  boxShadow: '0 4px 14px rgba(255,111,32,0.18)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  overflow: 'visible',
-                  ...btn.pos,
-                }}
-                className="hover:shadow-lg active:scale-[0.97] transition-all"
-              >
-                <div style={{
-                  width: '100%', height: '100%',
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center',
-                  gap: 4,
-                  transform: 'rotate(-45deg)',
-                }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.15, padding: '0 4px' }}>
-                    {btn.label}
-                  </span>
-                  <span style={{
-                    fontSize: 36,
-                    lineHeight: 1,
-                    color: btn.orange ? '#FF6F20' : undefined,
-                    fontWeight: btn.orange ? 700 : undefined,
+          {/* ═══ SECTION 1 — פעולות ליבה (110×110 diamond grid in 340px box) ═══════
+                Container overflow:visible so the rotated 110×110
+                squares can spill past the 340×* box corners. */}
+          <div style={{ padding: '16px 12px 8px' }}>
+            <h3 style={{
+              textAlign: 'right',
+              fontSize: 17,
+              fontWeight: 700,
+              color: '#1a1a1a',
+              margin: '0 6px 12px',
+              fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+            }}>
+              פעולות ליבה
+            </h3>
+            <div style={{
+              position: 'relative',
+              height: 340,
+              margin: '0 auto',
+              overflow: 'visible',
+            }}>
+              {[
+                // The + is a text character (not an emoji) so it stays orange.
+                { line1: 'הוסף', line2: 'מתאמן',  emoji: '+',  orange: true, iconSize: 32, iconWeight: 300, iconColor: '#FF6F20',
+                  onClick: () => setIsAddTraineeOpen(true),
+                  pos: { top: 25, left: '50%', marginLeft: -55 } },
+                { line1: 'הוסף', line2: 'ליד',     emoji: '👥', iconSize: 28,
+                  onClick: () => setIsLeadDialogOpen(true),
+                  pos: { top: 115, right: 30 } },
+                { line1: 'בנה',  line2: 'תוכנית',  emoji: '📋', iconSize: 28,
+                  onClick: () => setIsPlanDialogOpen(true),
+                  pos: { top: 115, left: 30 } },
+                { line1: 'קבע',  line2: 'מפגש',    emoji: '📅', iconSize: 28,
+                  onClick: () => setIsSessionDialogOpen(true),
+                  pos: { top: 205, left: '50%', marginLeft: -55 } },
+              ].map((btn) => (
+                <button
+                  key={`${btn.line1}-${btn.line2}`}
+                  onClick={btn.onClick}
+                  style={{
+                    position: 'absolute',
+                    width: 110, height: 110,
+                    background: 'white',
+                    borderRadius: 16,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    overflow: 'visible',
+                    transform: 'rotate(45deg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    ...btn.pos,
+                  }}
+                  className="active:scale-[0.97] transition-all"
+                >
+                  <div style={{
+                    transform: 'rotate(-45deg)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
                   }}>
-                    {btn.emoji}
-                  </span>
-                </div>
-              </button>
-            ))}
+                    <div style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: '#1a1a1a',
+                      lineHeight: 1.15,
+                      textAlign: 'center',
+                    }}>
+                      {btn.line1}<br />{btn.line2}
+                    </div>
+                    <span style={{
+                      fontSize: btn.iconSize,
+                      lineHeight: 1,
+                      color: btn.iconColor || undefined,
+                      fontWeight: btn.iconWeight || undefined,
+                    }}>
+                      {btn.emoji}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* ═══ SECTION — תזכורות מעקב (plan follow-ups, 48h after send) ═══ */}
@@ -611,7 +628,18 @@ export default function Dashboard() {
           <RecentPaymentsCard coachId={coach?.id} />
 
           {/* ═══ SECTION 4 — גישה מהירה (compact 4-col, fits no-scroll) ═══════ */}
-          <SectionHeader title="גישה מהירה" />
+          <div style={{ padding: '14px 14px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
+              <span style={{
+                fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+                fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+              }}>
+                גישה מהירה
+              </span>
+              <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
+            </div>
+          </div>
           {(() => {
             const pendingReminders = reminders.filter(r => !r.is_read).length;
             const quickItems = [
@@ -628,23 +656,19 @@ export default function Dashboard() {
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, 1fr)',
-                gridTemplateRows: 'repeat(2, 1fr)',
-                gap: 8,
-                flex: 1,
-                marginBottom: 8,
-                minHeight: 0,
+                gap: 7,
+                padding: '0 14px 18px',
               }}>
                 {quickItems.map((q) => (
                   <button
                     key={q.label}
                     onClick={q.action}
                     style={{
-                      width: '100%',
-                      height: '100%',
-                      borderRadius: 14,
+                      aspectRatio: 1,
+                      borderRadius: 12,
                       cursor: 'pointer',
                       background: 'white',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
                       border: '1px solid #F0E4D0',
                       display: 'flex',
                       flexDirection: 'column',
@@ -652,13 +676,13 @@ export default function Dashboard() {
                       justifyContent: 'center',
                       gap: 6,
                       position: 'relative',
-                      padding: '6px 4px',
+                      padding: 0,
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <span style={{ fontSize: 16, lineHeight: 1 }}>{q.emoji}</span>
+                    <span style={{ fontSize: 36, lineHeight: 1, color: '#FF6F20' }}>{q.emoji}</span>
                     <span style={{
-                      fontSize: 11, fontWeight: 700,
+                      fontSize: 13, fontWeight: 700,
                       color: '#1a1a1a', textAlign: 'center',
                       lineHeight: 1.2,
                     }}>

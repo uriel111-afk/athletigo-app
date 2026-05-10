@@ -40,20 +40,33 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
   return (
     <button
       onClick={onClick}
-      className="relative p-2 rounded-xl transition-all hover:bg-gray-100"
-      style={{ border: '1px solid #E0E0E0', overflow: 'visible' }}
+      style={{
+        width: 40, height: 40,
+        borderRadius: '50%',
+        background: 'white',
+        border: '1px solid #F0E4D0',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer',
+        position: 'relative',
+        overflow: 'visible',
+      }}
     >
-      <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#FF6F20' : '#7D7D7D' }} />
+      <Bell size={20} style={{ color: '#FF6F20' }} />
       {unreadCount > 0 && (
         <span
-          className="absolute rounded-full flex items-center justify-center font-bold"
           style={{
-            top: 2, right: 2,
-            backgroundColor: '#FF3B30', color: 'white',
-            boxShadow: '0 1px 4px rgba(255, 59, 48, 0.4)',
-            minWidth: 16, height: 16, padding: '0 3px',
-            fontSize: 9, lineHeight: '16px',
-            border: '2px solid white',
+            position: 'absolute',
+            top: -2, right: -2,
+            width: 16, height: 16,
+            borderRadius: '50%',
+            background: '#dc2626',
+            color: 'white',
+            fontSize: 9,
+            fontWeight: 700,
+            lineHeight: '16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1.5px solid white',
+            padding: 0,
           }}
         >
           {unreadCount > 9 ? '9+' : unreadCount}

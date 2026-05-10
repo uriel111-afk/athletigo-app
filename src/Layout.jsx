@@ -416,14 +416,23 @@ export default function Layout({ children, currentPageName }) {
             direction: 'rtl',
           }}>
             <div className="flex items-center justify-between">
-              {/* Right (RTL start): hamburger menu */}
+              {/* Right (RTL start): hamburger menu — unified spec */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="rounded-xl"
-                style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', border: '0.5px solid #F0E4D0' }}
+                style={{
+                  width: 40, height: 40,
+                  borderRadius: '50%',
+                  background: 'white',
+                  border: '1px solid #F0E4D0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                  position: 'relative',
+                }}
                 aria-label="תפריט"
               >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                {mobileMenuOpen
+                  ? <X size={20} style={{ color: '#FF6F20' }} />
+                  : <Menu size={20} style={{ color: '#FF6F20' }} />}
               </button>
 
               {/* Center: triangle + ATHLETIGO wordmark image as two
@@ -453,13 +462,11 @@ export default function Layout({ children, currentPageName }) {
               {/* Left (RTL end): mentor chat trigger (coach only) +
                   notification bell. Trainees don't have an AI mentor
                   surface yet, so the chat icon is gated to coach. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'visible' }}>
-                {user && isCoach ? <MentorChatIconButton size={32} /> : null}
-                <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
-                  {user ? (
-                    <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
-                  ) : null}
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'visible' }}>
+                {user && isCoach ? <MentorChatIconButton size={40} /> : null}
+                {user ? (
+                  <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
+                ) : null}
               </div>
             </div>
           </header>

@@ -287,24 +287,24 @@ export default function CoachHub() {
             route's app (matched via pathname prefix so nested pages
             still highlight their parent app). Compact so the hub
             stays no-scroll on mobile. */}
+        {/* App-tab chips — RTL visual order: מקצועי → פיננסי → צמיחה → אישי
+            (פיננסי + צמיחה swapped vs. earlier order, per May 2026 spec). */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 4,
-          background: '#1a1a1a',
-          borderRadius: 20,
-          padding: '6px',
-          marginBottom: 14,
-          boxShadow: '0 6px 24px rgba(0,0,0,0.2)',
+          padding: '16px 12px 10px',
+          display: 'flex',
+          gap: 8,
+          justifyContent: 'center',
+          background: 'white',
+          borderBottom: '1px solid #FFF0E4',
+          marginBottom: 12,
+          marginInline: -16,
         }}>
           {[
-            { label: 'מקצועי', icon: '💼', path: '/dashboard' },
-            { label: 'פיננסי', icon: '💰', path: '/lifeos/leads' },
-            { label: 'צמיחה', icon: '📈', path: '/lifeos' },
-            { label: 'אישי',   icon: '🌟', path: '/personal' },
+            { label: 'מקצועי', path: '/dashboard' },
+            { label: 'פיננסי', path: '/lifeos/leads' },
+            { label: 'צמיחה', path: '/lifeos' },
+            { label: 'אישי',  path: '/personal' },
           ].map((tab) => {
-            // Treat the bare "/" as /dashboard so the מקצועי pill
-            // lights up on the legacy landing route too.
             const isActive = location.pathname === tab.path
               || (tab.path === '/dashboard' && location.pathname === '/');
             return (
@@ -313,31 +313,19 @@ export default function CoachHub() {
                 type="button"
                 onClick={() => navigate(tab.path)}
                 style={{
-                  padding: '16px 4px',
-                  borderRadius: 14,
+                  padding: '10px 18px',
+                  borderRadius: 22,
                   border: 'none',
                   cursor: 'pointer',
-                  background: isActive ? '#FF6F20' : 'transparent',
-                  boxShadow: isActive
-                    ? '0 4px 16px rgba(255,111,32,0.4)'
-                    : 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  transition: 'all 0.2s ease',
+                  fontSize: 14,
+                  fontWeight: isActive ? 700 : 600,
+                  background: isActive ? '#FF6F20' : '#FFF9F0',
+                  color: isActive ? 'white' : '#888',
+                  transition: 'all 0.2s',
+                  fontFamily: "'Barlow', 'Heebo', sans-serif",
                 }}
               >
-                <span style={{ fontSize: 28 }}>{tab.icon}</span>
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: isActive ? 800 : 700,
-                  color: isActive ? 'white' : '#666',
-                  letterSpacing: '0.3px',
-                  fontFamily: "'Barlow', 'Heebo', sans-serif",
-                }}>
-                  {tab.label}
-                </span>
+                {tab.label}
               </button>
             );
           })}

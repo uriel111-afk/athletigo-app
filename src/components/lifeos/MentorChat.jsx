@@ -62,11 +62,11 @@ const SUGGESTIONS = [
 // open request without prop drilling or context.
 export const MENTOR_CHAT_OPEN_EVENT = 'mentor-chat-open';
 
-// Compact icon button intended for layout headers. Renders a round
-// dark dot with a 💬 inside; on click, dispatches the global open
-// event. Drop one of these next to the bell in any header — there's
-// no state to wire up.
-export function MentorChatIconButton({ size = 32, title = 'שאל את המנטור' }) {
+// Compact icon button intended for layout headers. Unified header
+// look (May 2026): white circle with cream border, orange icon —
+// matches the bell + hamburger so the three header circles read as
+// a single set instead of one black-bubble outlier.
+export function MentorChatIconButton({ size = 40, title = 'שאל את המנטור' }) {
   return (
     <button
       type="button"
@@ -74,15 +74,15 @@ export function MentorChatIconButton({ size = 32, title = 'שאל את המנט�
       aria-label={title}
       title={title}
       style={{
-        width: size, height: size, borderRadius: 999,
-        border: 'none',
-        backgroundColor: '#1A1A1A', color: '#FFFFFF',
+        width: size, height: size, borderRadius: '50%',
+        background: 'white',
+        border: '1px solid #F0E4D0',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'pointer', flexShrink: 0,
-        boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+        position: 'relative',
       }}
     >
-      <MessageCircle size={Math.round(size * 0.55)} />
+      <MessageCircle size={20} style={{ color: '#FF6F20' }} />
     </button>
   );
 }
