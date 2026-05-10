@@ -425,7 +425,7 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            height: 320,
+            height: 305,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
@@ -434,23 +434,23 @@ export default function Dashboard() {
               // The + is a text character (not an emoji) so it stays orange.
               { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 28, iconWeight: 300, iconColor: '#FF6F20',
                 onClick: () => setIsAddTraineeOpen(true),
-                pos: { top: 0, left: '50%', marginLeft: -57 } },
+                pos: { top: 0, left: '50%', marginLeft: -52 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 105, right: 25 } },
+                pos: { top: 100, right: 20 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 105, left: 25 } },
+                pos: { top: 100, left: 20 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 210, left: '50%', marginLeft: -57 } },
+                pos: { top: 200, left: '50%', marginLeft: -52 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
                 onClick={btn.onClick}
                 style={{
                   position: 'absolute',
-                  width: 115, height: 115,
+                  width: 105, height: 105,
                   background: 'white',
                   borderRadius: 14,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',

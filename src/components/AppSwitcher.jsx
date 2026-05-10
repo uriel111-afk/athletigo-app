@@ -55,6 +55,11 @@ export default function AppSwitcher() {
             key={app.key}
             type="button"
             onClick={() => navigate(app.to)}
+            // Bulletproof border removal — index.css has a leftover
+            // Vite default `button { border: 1px solid transparent }`
+            // and a `:hover` rule that flips border-color. Spelling
+            // out border / borderWidth / borderStyle / borderColor /
+            // outline / boxShadow inline beats anything global.
             style={{
               padding: '10px 18px',
               borderRadius: 22,
@@ -62,10 +67,14 @@ export default function AppSwitcher() {
               fontWeight: active ? 700 : 600,
               background: active ? '#FF6F20' : '#FFF9F0',
               color: active ? 'white' : '#888',
-              border: 'none',
+              border: '0',
+              borderWidth: '0',
+              borderStyle: 'none',
+              borderColor: 'transparent',
+              outline: 'none',
+              boxShadow: 'none',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              outline: 'none',
               fontFamily: "'Barlow', 'Heebo', sans-serif",
             }}
           >
