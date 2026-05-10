@@ -439,7 +439,7 @@ export default function Dashboard() {
               // The + is a text character (not an emoji) so it stays orange.
               { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 32, iconWeight: 300, iconColor: '#FF6F20',
                 onClick: () => setIsAddTraineeOpen(true),
-                pos: { top: 0, left: '50%', marginLeft: -57 } },
+                pos: { top: 0, left: '50%', marginLeft: -55 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
                 pos: { top: 85, right: 18 } },
@@ -448,7 +448,7 @@ export default function Dashboard() {
                 pos: { top: 85, left: 18 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 170, left: '50%', marginLeft: -57 } },
+                pos: { top: 170, left: '50%', marginLeft: -55 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
@@ -463,7 +463,7 @@ export default function Dashboard() {
                 }}
                 style={{
                   position: 'absolute',
-                  width: 115, height: 115,
+                  width: 110, height: 110,
                   background: 'white',
                   borderRadius: 14,
                   // Layered shadow — orange halo (brand) under a
