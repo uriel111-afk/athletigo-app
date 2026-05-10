@@ -168,29 +168,48 @@ export default function PackageFormDialog({
     if (isOpen) {
       setStep(isEditMode ? 3 : (traineeId ? 2 : 1));
       setPickedTrainee(null);
+      setSearchQuery('');
     }
   }, [isOpen, isEditMode, traineeId]);
 
-  // Coach's trainees — used only by step 1 dropdown. Skipped when
-  // we already have a prefilled trainee (no point firing the query).
+  // Coach's trainees — step 1 picker. Loads EVERY user in the
+  // system (excluding the coach themselves), no role / status /
+  // coach_id filter. Reason: trainee rows in this app inconsistently
+  // populate coach_id (NULL on most legacy rows), so a strict filter
+  // surfaced "אין מתאמנים פעילים" even when the coach had dozens of
+  // active trainees. The coach picks the right person from the full
+  // list; the search box below trims the picker fast.
+  const [searchQuery, setSearchQuery] = useState('');
   const { data: coachTrainees = [] } = useQuery({
     queryKey: ['package-wizard-trainees', coach?.id],
     queryFn: async () => {
-      if (!coach?.id) return [];
+      console.log('[loadAllTrainees] starting for coach:', coach?.id);
       const { data, error } = await supabase
         .from('users')
-        .select('id, full_name')
-        .eq('coach_id', coach.id)
+        .select('id, full_name, email, phone, role, coach_id, client_status, avatar_url')
         .order('full_name', { ascending: true });
       if (error) {
-        console.warn('[AddPackageWizard] trainees query failed:', error.message);
+        console.error('[loadAllTrainees] error:', error);
         return [];
       }
-      return data || [];
+      const filtered = (data || []).filter((u) => u.id !== coach?.id);
+      console.log('[loadAllTrainees] total users:', data?.length);
+      console.log('[loadAllTrainees] after filter (excluding coach):', filtered.length);
+      return filtered;
     },
     enabled: isOpen && !isEditMode && !traineeId && !!coach?.id,
     initialData: [],
   });
+
+  const filteredTrainees = (() => {
+    if (!searchQuery) return coachTrainees;
+    const q = searchQuery.toLowerCase();
+    return coachTrainees.filter((t) => (
+      t.full_name?.toLowerCase().includes(q) ||
+      t.email?.toLowerCase().includes(q) ||
+      t.phone?.includes(q)
+    ));
+  })();
 
   const initialData = editingPackage ? {
     package_type: editingPackage.package_type || "personal",
@@ -460,27 +479,70 @@ export default function PackageFormDialog({
         {step === 1 && (
           <div className="space-y-3 mt-2">
             <p className="text-sm text-gray-500 text-center">בחר מתאמן</p>
-            <div className="max-h-[60vh] overflow-y-auto pr-1">
-              {coachTrainees.length === 0 ? (
-                <div className="text-center text-sm text-gray-500 py-8">
-                  אין מתאמנים פעילים. הוסף מתאמן תחילה.
+            <input
+              type="search"
+              placeholder="חפש לפי שם, אימייל או טלפון..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: '1px solid #E8E0D8',
+                fontSize: 14,
+                marginBottom: 10,
+                direction: 'rtl',
+                outline: 'none',
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingLeft: 4 }}>
+              {filteredTrainees.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', color: '#888', fontSize: 14 }}>
+                  {searchQuery ? 'לא נמצאו תוצאות' : 'אין משתמשים במערכת'}
                 </div>
               ) : (
-                coachTrainees.map((t) => (
+                filteredTrainees.map((t) => (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => selectTrainee(t.id, t.full_name)}
-                    className="w-full flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-[#FF6F20] mb-2 active:scale-[0.98] transition-all"
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      marginBottom: 6,
+                      background: 'white',
+                      border: '1px solid #E8E0D8',
+                      borderRadius: 10,
+                      textAlign: 'right',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      flexDirection: 'row-reverse',
+                      transition: 'all 0.15s',
+                    }}
+                    className="hover:border-[#FF6F20] active:scale-[0.98]"
                   >
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black"
-                      style={{ background: '#FF6F20' }}>
-                      {(t.full_name || '?')[0]}
+                    <div style={{
+                      width: 40, height: 40,
+                      borderRadius: '50%',
+                      background: '#FFF9F0',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16, fontWeight: 700, color: '#FF6F20',
+                      flexShrink: 0,
+                    }}>
+                      {t.full_name?.[0] || '?'}
                     </div>
-                    <div className="text-right flex-1 font-bold text-sm text-gray-900">
-                      {t.full_name}
+                    <div style={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.full_name || 'ללא שם'}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.email || t.phone || 'ללא פרטי קשר'}
+                      </div>
                     </div>
-                    <ChevronLeft size={18} className="text-gray-300" />
                   </button>
                 ))
               )}
