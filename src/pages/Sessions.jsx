@@ -1840,14 +1840,77 @@ export default function Sessions() {
                 icon: '✓', label: 'הושלם', primary: true,
                 onClick: async () => {
                   const ids = Array.from(sessionSel.selectedIds);
+                  // Bulk completion was previously a raw status flip and
+                  // skipped both auto-link to a package + balance
+                  // deduction — coaches who used multi-select kept
+                  // wondering why their package counters didn't move.
+                  // We now mirror the per-row flow:
+                  //   1. flip status → 'completed'
+                  //   2. if session has no service_id, find newest
+                  //      active package for that trainee and link it
+                  //   3. let deductSessionFromService bump used_sessions,
+                  //      log the transaction, and surface "last session"
+                  //      / "package complete" toasts.
                   try {
+                    let deductedCount = 0;
                     for (const id of ids) {
-                      await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
+                      const { data: session } = await supabase
+                        .from('sessions')
+                        .select('id, trainee_id, service_id, status, was_deducted')
+                        .eq('id', id)
+                        .maybeSingle();
+                      if (!session) continue;
+
+                      await supabase
+                        .from('sessions')
+                        .update({ status: 'completed' })
+                        .eq('id', id);
+
+                      // Auto-link to the trainee's newest active package
+                      // if the session isn't already linked. Prefers
+                      // packages with remaining capacity; group packages
+                      // skip deduction by themselves inside the helper.
+                      let serviceId = session.service_id;
+                      if (!serviceId && session.trainee_id) {
+                        const { data: candidates } = await supabase
+                          .from('client_services')
+                          .select('id, total_sessions, used_sessions, package_type, status')
+                          .eq('trainee_id', session.trainee_id)
+                          .in('status', ['active', 'פעיל'])
+                          .order('created_at', { ascending: false });
+                        const usable = (candidates || []).find((p) => {
+                          if (p.package_type === 'group') return true;
+                          const total = Number(p.total_sessions || 0);
+                          const used = Number(p.used_sessions || 0);
+                          return total === 0 || used < total;
+                        });
+                        if (usable) {
+                          await supabase
+                            .from('sessions')
+                            .update({ service_id: usable.id })
+                            .eq('id', id);
+                          serviceId = usable.id;
+                        }
+                      }
+
+                      if (serviceId) {
+                        const result = await deductSessionFromService(
+                          { ...session, service_id: serviceId },
+                          user?.id,
+                        );
+                        if (result?.deducted) deductedCount += 1;
+                      }
                     }
                     queryClient.invalidateQueries({ queryKey: ['sessions'] });
                     queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
                     queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
-                    toast.success(`${ids.length} מפגשים עודכנו`);
+                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
+                    invalidateDashboard(queryClient);
+                    toast.success(
+                      deductedCount > 0
+                        ? `${ids.length} מפגשים עודכנו · ${deductedCount} קוזזו מחבילה`
+                        : `${ids.length} מפגשים עודכנו`,
+                    );
                     sessionSel.clearSelection();
                   } catch (e) { toast.error('שגיאה בעדכון'); }
                 },
