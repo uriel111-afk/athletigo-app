@@ -411,21 +411,26 @@ export default function Dashboard() {
           {/* App switcher — only renders for the Life OS coach. */}
           <AppSwitcher />
 
-          {/* ═══ SECTION 1 — פעולות ליבה (final spec: 100×100 in 290px box) ═══════ */}
-          <h3 style={{
-            textAlign: 'right',
-            fontSize: 15,
-            fontWeight: 700,
-            color: '#1a1a1a',
-            margin: '12px 16px 8px',
-            fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
-          }}>
-            פעולות ליבה
-          </h3>
+          {/* ═══ SECTION 1 — פעולות ליבה (tight 280px, final spec) ═══════ */}
+          <div style={{ padding: '4px 12px 8px' }}>
+            <h3 style={{
+              textAlign: 'right',
+              fontSize: 17,
+              fontWeight: 700,
+              color: '#1a1a1a',
+              margin: '8px 16px 12px',
+              fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+              // Stays above the diamond layer so the rotated 115×115
+              // top-tip can't visually cover the title text.
+              position: 'relative',
+              zIndex: 2,
+            }}>
+              פעולות ליבה
+            </h3>
           <div style={{
             position: 'relative',
             width: '100%',
-            height: 330,
+            height: 280,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
@@ -437,13 +442,13 @@ export default function Dashboard() {
                 pos: { top: 0, left: '50%', marginLeft: -57 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 110, right: 8 } },
+                pos: { top: 85, right: 18 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 110, left: 8 } },
+                pos: { top: 85, left: 18 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 215, left: '50%', marginLeft: -57 } },
+                pos: { top: 170, left: '50%', marginLeft: -57 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
@@ -506,6 +511,7 @@ export default function Dashboard() {
                 </div>
               </button>
             ))}
+          </div>
           </div>
 
           {/* ═══ SECTION — תזכורות מעקב (plan follow-ups, 48h after send) ═══ */}
