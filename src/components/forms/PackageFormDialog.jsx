@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { AuthContext } from "@/lib/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Package, User, Users, Monitor, ChevronLeft, Plus, Minus } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
@@ -15,6 +15,7 @@ import { syncPackageToIncome } from "@/lib/lifeos/lifeos-api";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import DraftPrompt from "@/components/DraftPrompt";
+import { PAYMENT_METHODS, toHebrewPaymentMethod } from "@/lib/paymentMethods";
 
 const TYPES = [
   { id: "personal", label: "אישי", desc: "מפגשי 1-על-1", icon: User, color: "#FF6F20" },
@@ -32,7 +33,7 @@ const INITIAL_DATA = {
   start_date: "",
   expires_at: "",
   payment_status: "ממתין לתשלום",
-  payment_method: "credit",
+  payment_method: "אשראי",
   notes_internal: "",
   status: "active",
 };
@@ -74,12 +75,65 @@ const NumPicker = ({ value, onChange, min = 1, max = 99, label }) => {
 export default function PackageFormDialog({
   isOpen, onClose, traineeId, traineeName,
   editingPackage = null, isCoachView = true,
+  // mode prop — 'edit' keeps the existing single-screen edit form
+  // (back-compat — the user explicitly requires this not to break).
+  // 'create' shows the 3-step wizard. When unset, derived from
+  // editingPackage so existing call sites that don't pass `mode` keep
+  // their previous behavior.
+  mode,
 }) {
   const queryClient = useQueryClient();
   const { user: coach } = useContext(AuthContext);
 
-  const [step, setStep] = useState(editingPackage ? 2 : 1);
+  const isEditMode = mode === 'edit' || (!mode && !!editingPackage);
+  // Step layout:
+  //   1 — pick trainee (CREATE only, no prefilled traineeId)
+  //   2 — pick type (CREATE only)
+  //   3 — fill details (BOTH modes)
+  // Edit jumps straight to 3; create jumps straight to 2 if a
+  // trainee was prefilled (TraineeProfile case).
+  const initialStep = isEditMode ? 3 : (traineeId ? 2 : 1);
+  const [step, setStep] = useState(initialStep);
   const [saving, setSaving] = useState(false);
+
+  // Locally-picked trainee (only used in CREATE mode when no
+  // traineeId was passed in). Hydrated from the prop so downstream
+  // code can read a single `effectiveTraineeId` regardless of which
+  // entry point opened the wizard.
+  const [pickedTrainee, setPickedTrainee] = useState(null);
+  const effectiveTraineeId = traineeId || pickedTrainee?.id || null;
+  const effectiveTraineeName = traineeName || pickedTrainee?.full_name || null;
+
+  // Reset internal step + trainee selection whenever the dialog opens
+  // again — covers the case where the same component instance is
+  // reused across different "+ הוסף חבילה" clicks.
+  useEffect(() => {
+    if (isOpen) {
+      setStep(isEditMode ? 3 : (traineeId ? 2 : 1));
+      setPickedTrainee(null);
+    }
+  }, [isOpen, isEditMode, traineeId]);
+
+  // Coach's trainees — used only by step 1 dropdown. Skipped when
+  // we already have a prefilled trainee (no point firing the query).
+  const { data: coachTrainees = [] } = useQuery({
+    queryKey: ['package-wizard-trainees', coach?.id],
+    queryFn: async () => {
+      if (!coach?.id) return [];
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .eq('coach_id', coach.id)
+        .order('full_name', { ascending: true });
+      if (error) {
+        console.warn('[AddPackageWizard] trainees query failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: isOpen && !isEditMode && !traineeId && !!coach?.id,
+    initialData: [],
+  });
 
   const initialData = editingPackage ? {
     package_type: editingPackage.package_type || "personal",
@@ -87,17 +141,23 @@ export default function PackageFormDialog({
     sessions_count: editingPackage.sessions_count || editingPackage.total_sessions || 10,
     frequency_per_week: editingPackage.frequency_per_week || 2,
     duration_months: editingPackage.duration_months || 1,
-    price: editingPackage.price?.toString() || "",
+    price: editingPackage.price?.toString() || editingPackage.final_price?.toString() || "",
     start_date: editingPackage.start_date?.split("T")[0] || new Date().toISOString().split("T")[0],
     expires_at: editingPackage.expires_at || "",
     payment_status: editingPackage.payment_status || "ממתין לתשלום",
-    payment_method: editingPackage.payment_method || "credit",
+    // Legacy English values get mapped to their Hebrew equivalent so
+    // the dropdown always shows a selected option for old rows.
+    payment_method: toHebrewPaymentMethod(editingPackage.payment_method) || "אשראי",
     notes_internal: editingPackage.notes_internal || "",
     status: normalizePackageStatus(editingPackage.status),
   } : { ...INITIAL_DATA, start_date: new Date().toISOString().split("T")[0] };
 
-  const scopeKey = `${traineeId ?? 'no-trainee'}_${editingPackage?.id ?? 'new'}`;
-  const draftCtx = traineeId ? { traineeId, traineeName } : null;
+  // Draft scope: stable per (trainee + package) pair so an in-flight
+  // create on one trainee doesn't leak into another. Edits use the
+  // package id; new wizard sessions key off whichever trainee is
+  // currently picked (or 'no-trainee' for the brand-new flow).
+  const scopeKey = `${effectiveTraineeId ?? 'no-trainee'}_${editingPackage?.id ?? 'new'}`;
+  const draftCtx = effectiveTraineeId ? { traineeId: effectiveTraineeId, traineeName: effectiveTraineeName } : null;
   const {
     data: form, setData: setForm,
     hasDraft, keepDraft, discardDraft, clearDraft,
@@ -112,6 +172,12 @@ export default function PackageFormDialog({
     const names = { personal: "חבילה אישית", group: "מנוי קבוצתי", online: "חבילה אונליין" };
     set("package_type", type);
     if (!form.package_name) set("package_name", names[type]);
+    // Step 3 is the details form (was step 2 in the pre-wizard flow).
+    setStep(3);
+  };
+
+  const selectTrainee = (id, name) => {
+    setPickedTrainee({ id, full_name: name });
     setStep(2);
   };
 
@@ -124,10 +190,23 @@ export default function PackageFormDialog({
   };
 
   const handleSave = async () => {
+    // Wizard-side diagnostic logs — surface entry context + full
+    // form snapshot so a coach reporting "save did nothing" can copy
+    // the console straight to me without explaining the flow.
+    console.log('[AddPackageWizard] entry:', {
+      prefilledTraineeId: traineeId || null,
+      mode: isEditMode ? 'edit' : 'create',
+      effectiveTraineeId,
+    });
+    console.log('[AddPackageWizard] form data:', JSON.stringify(form, null, 2));
     console.log('[PackageForm] save clicked', { editingId: editingPackage?.id, form });
 
     if (!form.package_name) {
       toast.error("נא למלא שם חבילה");
+      return;
+    }
+    if (!effectiveTraineeId && !isEditMode) {
+      toast.error("יש לבחור מתאמן");
       return;
     }
 
@@ -136,9 +215,15 @@ export default function PackageFormDialog({
     const isOnline = form.package_type === "online";
     const expiresAt = (isGroup || isOnline) ? (form.expires_at || calcExpiry()) : form.expires_at || null;
 
+    // Single price input → write to all three legacy columns (price /
+    // final_price / base_price) so historical UI that reads any of
+    // them keeps rendering. discount_value is forced to 0 since the
+    // unified wizard doesn't expose discounts (per May 2026 spec).
+    const priceNum = form.price ? parseFloat(form.price) : null;
+
     const data = {
-      trainee_id: traineeId,
-      trainee_name: traineeName || null,
+      trainee_id: effectiveTraineeId,
+      trainee_name: effectiveTraineeName || null,
       coach_id: coach?.id || null,
       created_by: coach?.id || null,
       package_name: form.package_name,
@@ -151,8 +236,10 @@ export default function PackageFormDialog({
       sessions_remaining: (isPersonal || isOnline) ? form.sessions_count - (editingPackage?.used_sessions || 0) : null,
       frequency_per_week: form.frequency_per_week || null,
       duration_months: (isGroup || isOnline) ? form.duration_months : null,
-      price: form.price ? parseFloat(form.price) : null,
-      final_price: form.price ? parseFloat(form.price) : null,
+      price: priceNum,
+      final_price: priceNum,
+      base_price: priceNum,
+      discount_value: 0,
       payment_method: form.payment_method || null,
       payment_status: form.payment_status,
       start_date: form.start_date || null,
@@ -197,6 +284,7 @@ export default function PackageFormDialog({
       }
 
       console.log('[PackageForm] DB response:', { result, error });
+      console.log('[AddPackageWizard] save result:', { data: result, error });
 
       if (error) {
         console.error('[PackageForm] supabase error:', error);
@@ -311,9 +399,51 @@ export default function PackageFormDialog({
             </DialogTitle>
           </DialogHeader>
 
-        {/* ── Step 1: Choose type ─────────────────────────── */}
+        {/* ── Step 1: Pick trainee (CREATE-only, no prefilled trainee) ─── */}
         {step === 1 && (
           <div className="space-y-3 mt-2">
+            <p className="text-sm text-gray-500 text-center">בחר מתאמן</p>
+            <div className="max-h-[60vh] overflow-y-auto pr-1">
+              {coachTrainees.length === 0 ? (
+                <div className="text-center text-sm text-gray-500 py-8">
+                  אין מתאמנים פעילים. הוסף מתאמן תחילה.
+                </div>
+              ) : (
+                coachTrainees.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => selectTrainee(t.id, t.full_name)}
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-[#FF6F20] mb-2 active:scale-[0.98] transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black"
+                      style={{ background: '#FF6F20' }}>
+                      {(t.full_name || '?')[0]}
+                    </div>
+                    <div className="text-right flex-1 font-bold text-sm text-gray-900">
+                      {t.full_name}
+                    </div>
+                    <ChevronLeft size={18} className="text-gray-300" />
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Choose type ─────────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-3 mt-2">
+            {effectiveTraineeName && (
+              <div className="flex items-center gap-2 mb-1">
+                <button onClick={() => !traineeId && setStep(1)} className="text-[10px] font-bold text-gray-400 hover:text-[#FF6F20]">
+                  {!traineeId && "← שנה מתאמן"}
+                </button>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-50 text-[#FF6F20]">
+                  {effectiveTraineeName}
+                </span>
+              </div>
+            )}
             <p className="text-sm text-gray-500 text-center">בחר סוג חבילה</p>
             {TYPES.map(t => {
               const Icon = t.icon;
@@ -335,13 +465,13 @@ export default function PackageFormDialog({
           </div>
         )}
 
-        {/* ── Step 2: Details ─────────────────────────────── */}
-        {step >= 2 && (
+        {/* ── Step 3: Details ─────────────────────────────── */}
+        {step === 3 && (
           <div className="space-y-4 mt-2">
             {/* Type badge */}
             {typeConfig && (
               <div className="flex items-center gap-2 mb-1">
-                <button onClick={() => !editingPackage && setStep(1)} className="text-[10px] font-bold text-gray-400 hover:text-[#FF6F20]">
+                <button onClick={() => !editingPackage && setStep(2)} className="text-[10px] font-bold text-gray-400 hover:text-[#FF6F20]">
                   {!editingPackage && "← שנה סוג"}
                 </button>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: typeConfig.color + "15", color: typeConfig.color }}>
@@ -401,10 +531,9 @@ export default function PackageFormDialog({
                 <Select value={form.payment_method} onValueChange={v => set("payment_method", v)}>
                   <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="credit">אשראי</SelectItem>
-                    <SelectItem value="cash">מזומן</SelectItem>
-                    <SelectItem value="bit">ביט</SelectItem>
-                    <SelectItem value="transfer">העברה</SelectItem>
+                    {PAYMENT_METHODS.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

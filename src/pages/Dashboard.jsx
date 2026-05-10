@@ -250,6 +250,17 @@ export default function Dashboard() {
 
   // ── Handlers ────────────────────────────────────────────────────────
   const handleActionClick = (action) => {
+    // Package action skips the legacy "pick a trainee" pre-dialog —
+    // trainee selection is now step 1 of the unified wizard itself
+    // (May 2026 spec). Other actions (goal/result/measurement/
+    // baseline) still need a pre-pick because their dialogs assume a
+    // selected trainee at mount.
+    if (action === "package") {
+      setSelectedTrainee(null);
+      setPendingAction(null);
+      setIsPackageDialogOpen(true);
+      return;
+    }
     setPendingAction(action);
     setTraineeSearch("");
     setShowSelectTraineeDialog(true);
@@ -766,7 +777,7 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Trainee-specific form dialogs */}
+      {/* Trainee-specific form dialogs (gated on a pre-picked trainee) */}
       {selectedTrainee && (
         <>
           <GoalFormDialog isOpen={isGoalDialogOpen} onClose={() => setIsGoalDialogOpen(false)}
@@ -775,12 +786,20 @@ export default function Dashboard() {
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
           <MeasurementFormDialog isOpen={isMeasurementDialogOpen} onClose={() => setIsMeasurementDialogOpen(false)}
             traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
-          <PackageFormDialog isOpen={isPackageDialogOpen} onClose={() => setIsPackageDialogOpen(false)}
-            traineeId={selectedTrainee.id} traineeName={selectedTrainee.full_name} />
           {/* BaselineFormDialog mounted at App.jsx root — opened via
               openBaselineDialog() in handleTraineeSelect. */}
         </>
       )}
+
+      {/* Add-package wizard — mounted outside the selectedTrainee
+          guard so the dashboard "🎫 חבילה" quick action can open it
+          with no preselected trainee (step 1 picks one). */}
+      <PackageFormDialog
+        isOpen={isPackageDialogOpen}
+        onClose={() => setIsPackageDialogOpen(false)}
+        traineeId={selectedTrainee?.id || null}
+        traineeName={selectedTrainee?.full_name || null}
+      />
 
       <RemindersPanel
         isOpen={showReminders}

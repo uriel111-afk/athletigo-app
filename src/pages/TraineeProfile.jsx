@@ -90,6 +90,7 @@ import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
 import TraineeNotificationsTab from "@/components/profile/TraineeNotificationsTab";
 import { openBaselineDialog } from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
+import PackageFormDialog from "@/components/forms/PackageFormDialog";
 import { notifySessionScheduled } from "@/functions/notificationTriggers";
 import MiniTimerBar from "@/components/MiniTimerBar";
 import BaselineDetailView from "@/components/BaselineDetailView";
@@ -5697,67 +5698,19 @@ export default function TraineeProfile() {
           }}
         />
 
-        {/* Add/Edit Service Dialog */}
-        <Dialog open={showAddService} onOpenChange={setShowAddService}>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>{editingService ? 'ערוך שירות' : 'הוסף שירות'}</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs mb-1 block">סוג שירות</Label>
-                  <Select value={serviceForm.service_type} onValueChange={v => setServiceForm({ ...serviceForm, service_type: v })}>
-                    <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="personal">אישי</SelectItem><SelectItem value="group">קבוצתי</SelectItem><SelectItem value="online">אונליין</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                <div><Label className="text-xs mb-1 block">מודל חיוב</Label>
-                  <Select value={serviceForm.billing_model} onValueChange={v => setServiceForm({ ...serviceForm, billing_model: v })}>
-                    <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="punch_card">כרטיסייה</SelectItem><SelectItem value="subscription">מנוי</SelectItem><SelectItem value="single">חד פעמי</SelectItem></SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div><Label className="text-xs mb-1 block">שם החבילה</Label><Input value={serviceForm.package_name} onChange={e => setServiceForm({ ...serviceForm, package_name: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
-              {serviceForm.billing_model === 'punch_card' && <div><Label className="text-xs mb-1 block">מספר אימונים</Label><Input type="number" value={serviceForm.total_sessions} onChange={e => setServiceForm({ ...serviceForm, total_sessions: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>}
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs mb-1 block">מחיר בסיס (₪)</Label><Input type="number" value={serviceForm.base_price} onChange={e => setServiceForm({ ...serviceForm, base_price: e.target.value, final_price: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
-                <div><Label className="text-xs mb-1 block">מחיר סופי (₪)</Label><Input type="number" value={serviceForm.final_price} onChange={e => setServiceForm({ ...serviceForm, final_price: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
-              </div>
-              <div><Label className="text-xs mb-1 block">תאריך התחלה</Label><Input type="date" value={serviceForm.start_date} onChange={e => setServiceForm({ ...serviceForm, start_date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>
-              {serviceForm.billing_model === 'subscription' && <div><Label className="text-xs mb-1 block">תאריך חיוב הבא</Label><Input type="date" value={serviceForm.next_billing_date} onChange={e => setServiceForm({ ...serviceForm, next_billing_date: e.target.value })} className="rounded-xl" style={{ fontSize: 16 }} /></div>}
-              <div>
-                <Label className="text-xs mb-2 block">אמצעי תשלום</Label>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'6px' }}>
-                  {PAYMENT_METHODS.filter(pm => pm.value !== 'transfer').map(pm => (
-                    <button key={pm.value} type="button"
-                      onClick={() => setServiceForm({ ...serviceForm, payment_method: pm.value })}
-                      style={{
-                        padding:'8px 4px', borderRadius:'10px', cursor:'pointer',
-                        border: serviceForm.payment_method === pm.value ? '2px solid #FF6F20' : '1.5px solid #eee',
-                        background: serviceForm.payment_method === pm.value ? '#FFF0E8' : 'white',
-                        display:'flex', flexDirection:'column', alignItems:'center', gap:'3px',
-                      }}>
-                      <span style={{ fontSize:'18px' }}>{pm.icon}</span>
-                      <span style={{ fontSize:'10px', fontWeight: serviceForm.payment_method === pm.value ? '700' : '500', color: serviceForm.payment_method === pm.value ? '#FF6F20' : '#555' }}>{pm.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs mb-1 block">הערת תשלום <span className="text-gray-400 font-normal">(אופציונלי)</span></Label>
-                <Input value={serviceForm.payment_note} onChange={e => setServiceForm({ ...serviceForm, payment_note: e.target.value })} placeholder="למשל: שולם חצי, שאר בסוף החודש..." className="rounded-xl" style={{ fontSize: 15 }} />
-              </div>
-              <div><Label className="text-xs mb-1 block">סטטוס</Label>
-                <Select value={serviceForm.status} onValueChange={v => setServiceForm({ ...serviceForm, status: v })}>
-                  <SelectTrigger className="rounded-xl h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="active">פעיל</SelectItem><SelectItem value="frozen">מושהה</SelectItem><SelectItem value="completed">הסתיים</SelectItem><SelectItem value="cancelled">בוטל</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleAddOrUpdateService} disabled={createServiceMutation.isPending || updateServiceMutation.isPending} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
-                {createServiceMutation.isPending || updateServiceMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</> : (editingService ? 'עדכן שירות' : 'הוסף שירות')}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Add / Edit package — unified wizard. Replaced the legacy
+            inline <Dialog> (May 2026) so both entry points (Dashboard
+            quick action + this profile tab) drive the same 3-step
+            flow. The wizard handles its own DB save + cache
+            invalidations + draft persistence. */}
+        <PackageFormDialog
+          isOpen={showAddService}
+          onClose={() => { setShowAddService(false); setEditingService(null); }}
+          traineeId={effectiveUser?.id || user?.id || null}
+          traineeName={effectiveUser?.full_name || user?.full_name || null}
+          editingPackage={editingService}
+          mode={editingService ? 'edit' : 'create'}
+        />
 
 
         {/* Password Change Dialog */}
