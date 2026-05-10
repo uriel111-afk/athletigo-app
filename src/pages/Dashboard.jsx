@@ -458,7 +458,7 @@ export default function Dashboard() {
                 }}
                 style={{
                   position: 'absolute',
-                  width: 105, height: 105,
+                  width: 100, height: 100,
                   background: 'white',
                   borderRadius: 14,
                   // Layered shadow — orange halo (brand) under a
