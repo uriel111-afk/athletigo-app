@@ -425,33 +425,32 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            height: 290,
+            height: 320,
             flexShrink: 0,
             margin: '0 auto',
-            padding: '0 12px',
             overflow: 'visible',
           }}>
             {[
               // The + is a text character (not an emoji) so it stays orange.
-              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 24, iconWeight: 300, iconColor: '#FF6F20',
+              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 28, iconWeight: 300, iconColor: '#FF6F20',
                 onClick: () => setIsAddTraineeOpen(true),
-                pos: { top: 0, left: '50%', marginLeft: -50 } },
-              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 22, iconColor: '#7F47B5',
+                pos: { top: 0, left: '50%', marginLeft: -57 } },
+              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 95, right: 20 } },
-              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 22, iconColor: '#EAB308',
+                pos: { top: 105, right: 25 } },
+              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 95, left: 20 } },
-              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 22, iconColor: '#3B82F6',
+                pos: { top: 105, left: 25 } },
+              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 190, left: '50%', marginLeft: -50 } },
+                pos: { top: 210, left: '50%', marginLeft: -57 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
                 onClick={btn.onClick}
                 style={{
                   position: 'absolute',
-                  width: 100, height: 100,
+                  width: 115, height: 115,
                   background: 'white',
                   borderRadius: 14,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
@@ -475,7 +474,7 @@ export default function Dashboard() {
                   gap: 4,
                 }}>
                   <div style={{
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: 700,
                     color: '#1a1a1a',
                     lineHeight: 1.15,
