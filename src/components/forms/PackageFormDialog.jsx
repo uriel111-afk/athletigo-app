@@ -253,8 +253,13 @@ export default function PackageFormDialog({
   };
 
   const selectTrainee = (id, name) => {
+    // Two-stage selection (May 2026 spec): tap highlights, the
+    // "המשך" CTA below the list advances to step 2. Lets the coach
+    // visually confirm the right person before committing.
     setPickedTrainee({ id, full_name: name });
-    setStep(2);
+  };
+  const advanceFromTraineeStep = () => {
+    if (pickedTrainee?.id) setStep(2);
   };
 
   // Auto-calculate expiry for group/online
@@ -477,8 +482,13 @@ export default function PackageFormDialog({
 
         {/* ── Step 1: Pick trainee (CREATE-only, no prefilled trainee) ─── */}
         {step === 1 && (
-          <div className="space-y-3 mt-2">
-            <p className="text-sm text-gray-500 text-center">בחר מתאמן</p>
+          <div className="space-y-3 mt-2" style={{ direction: 'rtl' }}>
+            <div style={{ marginBottom: 4, textAlign: 'right' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#1a1a1a' }}>בחר מתאמן</h3>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                {coachTrainees.length} משתמשים במערכת
+              </div>
+            </div>
             <input
               type="search"
               placeholder="חפש לפי שם, אימייל או טלפון..."
@@ -503,50 +513,86 @@ export default function PackageFormDialog({
                   {searchQuery ? 'לא נמצאו תוצאות' : 'אין משתמשים במערכת'}
                 </div>
               ) : (
-                filteredTrainees.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => selectTrainee(t.id, t.full_name)}
-                    style={{
-                      width: '100%',
-                      padding: 12,
-                      marginBottom: 6,
-                      background: 'white',
-                      border: '1px solid #E8E0D8',
-                      borderRadius: 10,
-                      textAlign: 'right',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      flexDirection: 'row-reverse',
-                      transition: 'all 0.15s',
-                    }}
-                    className="hover:border-[#FF6F20] active:scale-[0.98]"
-                  >
-                    <div style={{
-                      width: 40, height: 40,
-                      borderRadius: '50%',
-                      background: '#FFF9F0',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 16, fontWeight: 700, color: '#FF6F20',
-                      flexShrink: 0,
-                    }}>
-                      {t.full_name?.[0] || '?'}
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {t.full_name || 'ללא שם'}
+                filteredTrainees.map((t) => {
+                  const isSelected = pickedTrainee?.id === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => selectTrainee(t.id, t.full_name)}
+                      style={{
+                        width: '100%',
+                        padding: 12,
+                        marginBottom: 6,
+                        background: isSelected ? '#FFF0E4' : 'white',
+                        border: isSelected ? '2px solid #FF6F20' : '1px solid #E8E0D8',
+                        borderRadius: 10,
+                        textAlign: 'right',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        flexDirection: 'row-reverse',
+                        transition: 'all 0.15s',
+                      }}
+                      className="active:scale-[0.98]"
+                    >
+                      <div style={{
+                        width: 42, height: 42,
+                        borderRadius: '50%',
+                        background: '#FFF0E4',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 16, fontWeight: 700, color: '#FF6F20',
+                        flexShrink: 0, overflow: 'hidden',
+                      }}>
+                        {t.avatar_url ? (
+                          <img
+                            src={t.avatar_url}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ) : (
+                          t.full_name?.[0] || '?'
+                        )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {t.email || t.phone || 'ללא פרטי קשר'}
+                      <div style={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.full_name || 'ללא שם'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#888', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.email || t.phone || 'ללא פרטי קשר'}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))
+                      {isSelected && (
+                        <div style={{
+                          width: 24, height: 24,
+                          borderRadius: '50%',
+                          background: '#FF6F20', color: 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 14, fontWeight: 700, flexShrink: 0,
+                        }}>
+                          ✓
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
               )}
             </div>
+            {/* Continue CTA — disabled until a trainee is highlighted. */}
+            <Button
+              type="button"
+              onClick={advanceFromTraineeStep}
+              disabled={!pickedTrainee?.id}
+              className="w-full h-12 rounded-xl font-bold text-white"
+              style={{
+                background: pickedTrainee?.id ? '#FF6F20' : '#E8E0D8',
+                cursor: pickedTrainee?.id ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {pickedTrainee?.id ? `המשך — ${pickedTrainee.full_name}` : 'בחר מתאמן להמשך'}
+            </Button>
           </div>
         )}
 
