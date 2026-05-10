@@ -22,9 +22,12 @@ import { useWindowSize } from "@/hooks/useWindowSize";
 export default function PageLoader({ size, fullHeight = false, message = "" }) {
   const [progress, setProgress] = useState(0);
   const { width } = useWindowSize();
-  // Responsive default — only applied when the caller didn't
-  // pass an explicit `size` (Layout.jsx still passes 120, etc).
-  const resolvedSize = typeof size === 'number' ? size : (width < 480 ? 160 : 200);
+  // Default 90px to match the boot splash in index.html exactly.
+  // Callers that need a larger logo (Layout.jsx → 120, etc) still
+  // pass `size` explicitly and override.
+  // eslint-disable-next-line no-unused-vars
+  const _w = width; // kept for callers that may rely on responsive sizing later
+  const resolvedSize = typeof size === 'number' ? size : 90;
 
   useEffect(() => {
     const t1 = setTimeout(() => setProgress(30), 100);
@@ -43,23 +46,48 @@ export default function PageLoader({ size, fullHeight = false, message = "" }) {
         justifyContent: "center",
         minHeight: fullHeight ? "100vh" : "60vh",
         width: "100%",
-        background: fullHeight ? "#FDF8F3" : "transparent",
+        background: fullHeight ? "#FFF9F0" : "transparent",
+        fontFamily: "'Barlow', 'Heebo', 'Assistant', system-ui, sans-serif",
         gap: 0,
       }}
     >
+      {/* Pulse keyframes injected once — kept inline so the loader
+          renders correctly even before any Tailwind/PostCSS layer is
+          ready (e.g. test environments, error boundaries). */}
+      <style>{`
+        @keyframes athletigo-loader-pulse {
+          0%, 100% { transform: scale(1);    opacity: 1;   }
+          50%      { transform: scale(1.05); opacity: 0.8; }
+        }
+      `}</style>
       <img
-        src="/logoR.png"
+        src="/logo-transparent.png"
         alt=""
         style={{
           width: resolvedSize,
           height: "auto",
           objectFit: "contain",
-          filter: "brightness(0)",
-          opacity: 0.5,
-          marginBottom: 24,
+          marginBottom: 20,
+          animation: "athletigo-loader-pulse 1.5s ease-in-out infinite",
         }}
-        onError={(e) => { e.currentTarget.style.display = "none"; }}
+        onError={(e) => {
+          // Fallback to the silhouette logo if logo-transparent isn't
+          // there on legacy installs.
+          if (e.currentTarget.src.endsWith('/logo-transparent.png')) {
+            e.currentTarget.src = '/logoR.png';
+            return;
+          }
+          e.currentTarget.style.display = "none";
+        }}
       />
+
+      <div style={{
+        fontFamily: "'Barlow Condensed', 'Barlow', 'Heebo', system-ui, sans-serif",
+        fontSize: 22, fontWeight: 800, letterSpacing: 2,
+        color: '#1a1a1a', marginBottom: 24,
+      }}>
+        ATHLETIGO
+      </div>
 
       <div style={{
         width: 200, height: 3,
@@ -77,7 +105,7 @@ export default function PageLoader({ size, fullHeight = false, message = "" }) {
       </div>
 
       <div style={{
-        marginTop: 8, fontSize: 13, color: "#888", textAlign: "center",
+        marginTop: 8, fontSize: 11, fontWeight: 600, color: "#888", textAlign: "center",
       }}>
         {progress}%
       </div>

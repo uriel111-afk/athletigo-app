@@ -111,6 +111,12 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
     } finally {
       setIsLoadingAuth(false);
+      // Dismiss the boot splash — fires regardless of success/failure
+      // so users never get stuck on the splash if auth errors out.
+      // index.html's listener handles the fade-out + DOM removal.
+      try {
+        window.dispatchEvent(new Event('app-ready'));
+      } catch {}
     }
   };
 

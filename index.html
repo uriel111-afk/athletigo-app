@@ -67,35 +67,46 @@
       document.addEventListener('touchmove', function(e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
     </script>
 
-    <!-- Keyframes for the inline tab/section loader. Lives in
-         index.html so the animation is available from the very
-         first render, before React + Vite are ready to inject
-         CSS modules. Used by src/components/InlineLoader.jsx. -->
+    <!-- Keyframes — `loading-bar` for InlineLoader, `splash-pulse`
+         for the boot splash logo. Lives in index.html so animations
+         are available before React + Vite inject CSS modules. -->
     <style>
       @keyframes loading-bar {
         0%   { transform: translateX(-150%); }
         100% { transform: translateX(300%); }
       }
+      @keyframes splash-pulse {
+        0%, 100% { transform: scale(1);    opacity: 1;   }
+        50%      { transform: scale(1.05); opacity: 0.8; }
+      }
     </style>
   </head>
-  <body style="margin:0;padding:0;background:#FDF8F3;">
+  <body style="margin:0;padding:0;background:#FFF9F0;">
     <div id="root"></div>
 
     <!-- Branded boot splash — sits OUTSIDE #root so React's first
-         render doesn't blow it away. main.jsx finishes the bar to
-         100% and fades it out once the app has painted. -->
+         render doesn't blow it away. main.jsx + AuthContext fire an
+         `app-ready` event once auth + profile are loaded, which
+         finishes the bar to 100% and fades the splash out. The
+         interval pre-fills to 90% to keep motion alive while data
+         loads, then snaps to 100% on the event. -->
     <div id="splash" style="
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: #FDF8F3;
+      background: #FFF9F0;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       z-index: 99999;
       transition: opacity 0.4s ease;
-      font-family: 'Barlow', 'Heebo', 'Assistant', sans-serif;
+      font-family: 'Barlow', 'Heebo', 'Assistant', system-ui, sans-serif;
     ">
-      <img src="/logoR.png" alt="AthletiGo"
-           style="width: 110px; height: auto; margin-bottom: 24px; object-fit: contain; filter: brightness(0);"
-           onerror="this.style.display='none'" />
+      <img src="/logo-transparent.png" alt="AthletiGo"
+           style="width: 90px; height: 90px; margin-bottom: 20px; object-fit: contain; animation: splash-pulse 1.5s ease-in-out infinite;"
+           onerror="this.src='/logoR.png'; this.onerror=null;" />
+      <div style="
+        font-family: 'Barlow Condensed', 'Barlow', 'Heebo', system-ui, sans-serif;
+        font-size: 22px; font-weight: 800; letter-spacing: 2px;
+        color: #1a1a1a; margin-bottom: 24px;
+      ">ATHLETIGO</div>
       <div style="
         width: 200px; height: 3px;
         background: #F0E4D0; border-radius: 2px;
@@ -107,19 +118,42 @@
           transition: width 0.3s ease;
         "></div>
       </div>
-      <div id="splash-percent" style="margin-top: 8px; font-size: 13px; color: #888; text-align: center;">0%</div>
+      <div id="splash-percent" style="margin-top: 8px; font-size: 11px; font-weight: 600; color: #888; text-align: center;">0%</div>
     </div>
     <script>
       (function () {
         var bar = document.getElementById('splash-bar');
         var pct = document.getElementById('splash-percent');
-        if (!bar || !pct) return;
-        // Stage the bar so the user sees motion while React boots.
-        // main.jsx finishes the run with 100% + fade-out as soon as
-        // the app's first commit lands.
-        setTimeout(function () { bar.style.width = '30%'; pct.textContent = '30%'; }, 100);
-        setTimeout(function () { bar.style.width = '60%'; pct.textContent = '60%'; }, 400);
-        setTimeout(function () { bar.style.width = '85%'; pct.textContent = '85%'; }, 800);
+        var splash = document.getElementById('splash');
+        if (!bar || !pct || !splash) return;
+        // Pre-fill bar to 90% over the first ~2s while React + auth
+        // hydrate. App-ready event below snaps to 100% + fades.
+        var progress = 0;
+        var interval = setInterval(function () {
+          if (progress >= 90) return;
+          progress += Math.random() * 12 + 3;
+          if (progress > 90) progress = 90;
+          var rounded = Math.round(progress);
+          bar.style.width = rounded + '%';
+          pct.textContent = rounded + '%';
+        }, 180);
+        window.addEventListener('app-ready', function once() {
+          window.removeEventListener('app-ready', once);
+          clearInterval(interval);
+          bar.style.width = '100%';
+          pct.textContent = '100%';
+          setTimeout(function () {
+            splash.style.opacity = '0';
+            setTimeout(function () { splash.remove(); }, 400);
+          }, 250);
+        });
+        // Safety net — if app-ready never fires (auth error, slow
+        // network), force-fade after 8s so the user is never stuck
+        // at 90%.
+        setTimeout(function () {
+          if (!splash.isConnected) return;
+          window.dispatchEvent(new Event('app-ready'));
+        }, 8000);
       })();
     </script>
 
