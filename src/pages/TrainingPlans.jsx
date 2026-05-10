@@ -583,7 +583,7 @@ export default function TrainingPlans() {
   // flash on realtime invalidates), so the page stays put after first
   // paint even when the coach edits a plan elsewhere.
   if (coachLoading || !coach || plansLoading) {
-    return <PageLoader fullHeight />;
+    return <PageLoader message="טוען תוכניות אימון" />;
   }
 
   return (

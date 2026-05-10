@@ -857,7 +857,7 @@ export default function Reports() {
           </div>
 
           {loading ? (
-            <PageLoader />
+            <PageLoader message="טוען דוחות" />
           ) : (
             <>
               {/* A. Revenue hero — always visible */}

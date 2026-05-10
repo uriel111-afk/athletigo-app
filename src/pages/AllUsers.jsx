@@ -259,7 +259,7 @@ export default function AllUsers() {
   if (traineesLoading) {
     return (
       <ProtectedCoachPage>
-        <PageLoader fullHeight />
+        <PageLoader message="טוען מתאמנים" />
       </ProtectedCoachPage>
     );
   }
@@ -397,7 +397,7 @@ export default function AllUsers() {
 
         {/* D. User cards or empty state */}
         {traineesLoading ? (
-          <PageLoader />
+          <PageLoader message="טוען מתאמנים" />
         ) : filteredTrainees.length === 0 ? (
           <div style={{
             textAlign: 'center', padding: '40px 20px',

@@ -197,7 +197,7 @@ export default function ActivePlans() {
   if (!coach) {
     return (
       <ProtectedCoachPage>
-        <PageLoader />
+        <PageLoader message="טוען תוכניות פעילות" />
       </ProtectedCoachPage>
     );
   }
@@ -250,7 +250,7 @@ export default function ActivePlans() {
 
           {/* Loading */}
           {isLoading && (
-            <PageLoader message="טוען תוכניות..." />
+            <PageLoader message="טוען תוכניות פעילות" />
           )}
 
           {/* Empty State */}

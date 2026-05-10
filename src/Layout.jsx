@@ -272,7 +272,7 @@ export default function Layout({ children, currentPageName }) {
   };
 
   if (loading) {
-    return <PageLoader size={120} fullHeight />;
+    return <PageLoader message="מתחבר..." />;
   }
 
   // Onboarding-redirect logic intentionally removed.

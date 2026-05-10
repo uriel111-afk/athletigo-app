@@ -7,7 +7,7 @@ export default function ProtectedCoachPage({ children }) {
   const { user, isLoadingAuth } = useContext(AuthContext);
 
   if (isLoadingAuth) {
-    return <PageLoader fullHeight />;
+    return <PageLoader message="מתחבר..." />;
   }
 
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';

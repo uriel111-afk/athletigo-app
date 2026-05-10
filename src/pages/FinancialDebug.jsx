@@ -47,7 +47,7 @@ export default function FinancialDebug() {
   console.log("FIN_DEBUG_totalLastMonth", totalLastMonth);
 
   if (isLoading) {
-    return <PageLoader />;
+    return <PageLoader message="טוען נתונים פיננסיים" />;
   }
 
   return (

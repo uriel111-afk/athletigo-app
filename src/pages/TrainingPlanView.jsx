@@ -67,7 +67,7 @@ export default function TrainingPlanView() {
   if (isLoading) {
     return (
       <ProtectedCoachPage>
-        <PageLoader />
+        <PageLoader message="טוען תוכנית אימון" />
       </ProtectedCoachPage>
     );
   }

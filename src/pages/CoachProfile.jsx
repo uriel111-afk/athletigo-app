@@ -287,7 +287,7 @@ export default function CoachProfile() {
   };
 
   if (loading || !user) {
-    return <ProtectedCoachPage><PageLoader /></ProtectedCoachPage>;
+    return <ProtectedCoachPage><PageLoader message="טוען פרופיל מאמן" /></ProtectedCoachPage>;
   }
 
   const initial = (user.full_name || "?").trim().charAt(0);

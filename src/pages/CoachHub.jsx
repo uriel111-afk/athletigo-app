@@ -199,7 +199,7 @@ export default function CoachHub() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  if (isLoadingAuth || !user) return <PageLoader size={120} fullHeight />;
+  if (isLoadingAuth || !user) return <PageLoader message="טוען מרכז המאמן" />;
 
   const firstName = (user.full_name || '').split(' ')[0] || 'אורי';
   const greet = timeGreeting();

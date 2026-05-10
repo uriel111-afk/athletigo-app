@@ -301,7 +301,7 @@ export default function Challenges() {
     fetchAll();
   };
 
-  if (loading) return <ProtectedCoachPage><PageLoader /></ProtectedCoachPage>;
+  if (loading) return <ProtectedCoachPage><PageLoader message="טוען אתגרים" /></ProtectedCoachPage>;
 
   return (
     <ProtectedCoachPage>

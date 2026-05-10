@@ -85,32 +85,29 @@
     <div id="root"></div>
 
     <!-- Branded boot splash — sits OUTSIDE #root so React's first
-         render doesn't blow it away. main.jsx + AuthContext fire an
-         `app-ready` event once auth + profile are loaded, which
-         finishes the bar to 100% and fades the splash out. The
-         interval pre-fills to 90% to keep motion alive while data
-         loads, then snaps to 100% on the event. -->
+         render doesn't blow it away. AuthContext fires an
+         `app-ready` event once auth + profile are loaded; the
+         listener below finishes the bar to 100% and fades the
+         splash out. Visual is identical to <PageLoader message="..." />
+         so the swap React performs is invisible to the user. -->
     <div id="splash" style="
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      position: fixed; inset: 0;
       background: #FFF9F0;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       z-index: 99999;
+      padding: 20px;
       transition: opacity 0.4s ease;
-      font-family: 'Barlow', 'Heebo', 'Assistant', system-ui, sans-serif;
+      font-family: 'Barlow', system-ui, sans-serif;
+      direction: rtl;
     ">
-      <img src="/logo-transparent.png" alt="AthletiGo"
-           style="width: 90px; height: 90px; margin-bottom: 20px; object-fit: contain; animation: splash-pulse 1.5s ease-in-out infinite;"
-           onerror="this.src='/logoR.png'; this.onerror=null;" />
+      <img src="/logoR-black.png" alt="AthletiGo"
+           style="width: 240px; max-width: 70vw; height: auto; margin-bottom: 40px;"
+           onerror="this.style.display='none';" />
       <div style="
-        font-family: 'Barlow Condensed', 'Barlow', 'Heebo', system-ui, sans-serif;
-        font-size: 22px; font-weight: 800; letter-spacing: 2px;
-        color: #1a1a1a; margin-bottom: 24px;
-      ">ATHLETIGO</div>
-      <div style="
-        width: 200px; height: 3px;
-        background: #F0E4D0; border-radius: 2px;
-        overflow: hidden;
+        width: 260px; max-width: 75vw; height: 3px;
+        background: #F5E6D3; border-radius: 2px;
+        overflow: hidden; margin-bottom: 14px;
       ">
         <div id="splash-bar" style="
           height: 100%; width: 0%;
@@ -118,7 +115,8 @@
           transition: width 0.3s ease;
         "></div>
       </div>
-      <div id="splash-percent" style="margin-top: 8px; font-size: 11px; font-weight: 600; color: #888; text-align: center;">0%</div>
+      <div id="splash-percent" style="font-size: 15px; font-weight: 500; color: #999; margin-bottom: 18px;">0%</div>
+      <div style="font-size: 15px; font-weight: 400; color: #888; text-align: center;">טוען...</div>
     </div>
     <script>
       (function () {

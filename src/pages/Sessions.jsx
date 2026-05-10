@@ -1252,7 +1252,7 @@ export default function Sessions() {
   if (isLoading || coachLoading) {
     return (
       <ProtectedCoachPage>
-        <PageLoader fullHeight />
+        <PageLoader message="טוען מפגשים" />
       </ProtectedCoachPage>
     );
   }
@@ -1543,7 +1543,7 @@ export default function Sessions() {
           )}
 
           {/* ═══ SESSIONS VIEW ═══ */}
-          {activeView === 'sessions' && isLoading && <PageLoader />}
+          {activeView === 'sessions' && isLoading && <PageLoader message="טוען מפגשים" />}
 
           {/* Redesigned grouped collapsible cards — default view.
               The legacy 4-section layout is still rendered below

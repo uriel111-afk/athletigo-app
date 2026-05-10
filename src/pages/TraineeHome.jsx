@@ -823,7 +823,7 @@ export default function TraineeHome() {
   };
 
   if (loading) {
-    return <PageLoader />;
+    return <PageLoader message="טוען..." />;
   }
 
   if (loadError) {

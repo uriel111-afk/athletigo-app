@@ -395,7 +395,7 @@ export default function Notifications() {
   };
 
   if (!user) {
-    return <PageLoader />;
+    return <PageLoader message="טוען התראות" />;
   }
 
   const markAllRead = () => markAllAsReadMutation.mutate();
