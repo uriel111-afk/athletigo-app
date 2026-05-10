@@ -425,7 +425,7 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            height: 305,
+            height: 290,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
@@ -437,31 +437,43 @@ export default function Dashboard() {
                 pos: { top: 0, left: '50%', marginLeft: -52 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 100, right: 20 } },
+                pos: { top: 90, right: 50 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 100, left: 20 } },
+                pos: { top: 90, left: 50 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 200, left: '50%', marginLeft: -52 } },
+                pos: { top: 180, left: '50%', marginLeft: -52 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
                 onClick={btn.onClick}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    '0 10px 24px rgba(255, 111, 32, 0.18), 0 4px 8px rgba(0, 0, 0, 0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    '0 6px 16px rgba(255, 111, 32, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06)';
+                }}
                 style={{
                   position: 'absolute',
                   width: 105, height: 105,
                   background: 'white',
                   borderRadius: 14,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  // Layered shadow — orange halo (brand) under a
+                  // crisper black drop, gives the diamond a sense of
+                  // depth without competing with the page surface.
+                  boxShadow: '0 6px 16px rgba(255, 111, 32, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06)',
                   border: 'none',
                   cursor: 'pointer',
                   padding: 0,
                   overflow: 'visible',
                   transform: 'rotate(45deg)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                   ...btn.pos,
                 }}
-                className="active:scale-[0.97] transition-all"
+                className="active:scale-[0.97]"
               >
                 <div style={{
                   position: 'absolute',
