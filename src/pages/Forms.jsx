@@ -241,7 +241,7 @@ export default function Forms() {
   };
 
   if (!user) {
-    return <PageLoader message="טוען..." />;
+    return <PageLoader />;
   }
 
   const formDefs = [

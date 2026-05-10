@@ -265,7 +265,7 @@ function TraineeSessionsInner() {
   };
 
   if (loading) {
-    return <PageLoader message="טוען מפגשים" />;
+    return <PageLoader />;
   }
 
   return (

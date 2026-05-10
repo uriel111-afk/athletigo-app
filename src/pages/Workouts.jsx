@@ -169,7 +169,7 @@ export function WorkoutsInner({
     queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
   };
 
-  if (plansLoading) return <PageLoader message="טוען אימונים" />;
+  if (plansLoading) return <PageLoader />;
 
   // Editing takes precedence over folder/list views — when a coach
   // taps either the folder-card "עריכה" chip or the master-card

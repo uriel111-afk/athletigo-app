@@ -377,7 +377,7 @@ export default function Dashboard() {
   if (!coach) {
     return (
       <ProtectedCoachPage>
-        <PageLoader message="טוען דשבורד" />
+        <PageLoader />
       </ProtectedCoachPage>
     );
   }

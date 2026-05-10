@@ -519,7 +519,7 @@ export default function Onboarding() {
     return () => { cancelled = true; };
   }, [step, user?.id]);
 
-  if (bootstrapping || !user) return <PageLoader message="טוען..." />;
+  if (bootstrapping || !user) return <PageLoader fullHeight />;
 
   const userId = user.id;
   const coachId = user.coach_id || null;

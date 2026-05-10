@@ -3572,7 +3572,7 @@ export default function TraineeProfile() {
   const coreDataLoading = profileLoading || !user || coachLoading;
 
   if (coreDataLoading) {
-    return <PageLoader message="טוען פרופיל מתאמן" />;
+    return <PageLoader />;
   }
 
   const isUrielsAccount = user.email === 'uriel111@gmail.com';

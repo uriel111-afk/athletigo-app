@@ -493,7 +493,7 @@ function MyPlanInner() {
 
   if (!selectedPlan) {
     if (plansLoading) {
-      return <PageLoader message="טוען תוכנית" />;
+      return <PageLoader />;
     }
 
     // Filter Plans & Series

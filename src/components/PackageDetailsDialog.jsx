@@ -10,7 +10,7 @@ import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { Package, Calendar, DollarSign, Activity, ChevronDown, Loader2, Plus, Pause, RefreshCw, Trash2, Edit2 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import InlineLoader from "./InlineLoader";
+import PageLoader from "./PageLoader";
 
 const STATUS_COLORS = {
   "פעיל": "bg-green-100 text-green-800",
@@ -163,7 +163,7 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
           <SectionToggle id="sessions" label="מפגשים מקושרים" icon={Calendar} />
           {section === "sessions" && (
             <div className="bg-white border border-gray-100 rounded-xl p-3 max-h-40 overflow-y-auto">
-              {sessionsLoading ? <InlineLoader message="טוען..." /> : linkedSessions.length === 0 ? (
+              {sessionsLoading ? <PageLoader message="טוען..." /> : linkedSessions.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-2">אין מפגשים מקושרים</p>
               ) : linkedSessions.map(s => (
                 <div key={s.id} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0 text-xs">
@@ -178,7 +178,7 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
           <SectionToggle id="transactions" label="היסטוריית תנועות" icon={Activity} />
           {section === "transactions" && (
             <div className="bg-white border border-gray-100 rounded-xl p-3 max-h-40 overflow-y-auto">
-              {txLoading ? <InlineLoader message="טוען..." /> : transactions.length === 0 ? (
+              {txLoading ? <PageLoader message="טוען..." /> : transactions.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-2">אין תנועות</p>
               ) : transactions.map(t => (
                 <div key={t.id} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0 text-xs">
@@ -193,7 +193,7 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
           <SectionToggle id="payments" label="תשלומים" icon={DollarSign} />
           {section === "payments" && (
             <div className="bg-white border border-gray-100 rounded-xl p-3">
-              {paymentsLoading ? <InlineLoader message="טוען..." /> : (
+              {paymentsLoading ? <PageLoader message="טוען..." /> : (
                 <>
                   {payments.length === 0 && !showPaymentForm && (
                     <p className="text-xs text-gray-400 text-center py-2">אין תשלומים רשומים</p>

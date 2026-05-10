@@ -200,7 +200,7 @@ export default function SkillTracks() {
   const goToList = () => navigate("/skilltracks", { replace: true });
   const goToTrack = (id) => navigate(`/skilltracks?trackId=${id}`);
 
-  if (loading) return <ProtectedCoachPage><PageLoader message="טוען מסלולים" /></ProtectedCoachPage>;
+  if (loading) return <ProtectedCoachPage><PageLoader /></ProtectedCoachPage>;
 
   // ── DETAIL VIEW ──────────────────────────────────────────────────
   if (currentTrack) {

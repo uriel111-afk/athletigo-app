@@ -277,7 +277,7 @@ export default function Leads() {
   // below the filter chips would otherwise paint header + filters
   // first, then flash a spinner where the list will appear.
   if (!coach || isLoading) {
-    return <PageLoader message="טוען לידים" />;
+    return <PageLoader fullHeight />;
   }
 
   return (
@@ -397,7 +397,7 @@ export default function Leads() {
           </div>
 
           {isLoading ? (
-            <PageLoader message="טוען לידים" />
+            <PageLoader message="טוען לידים..." />
           ) : filteredLeads.length === 0 ? (
             <div className="text-center py-12 p-8 rounded-xl" style={{ backgroundColor: '#FAFAFA', border: '1px solid #E0E0E0' }}>
               <Users className="w-12 h-12 mx-auto mb-4" style={{ color: '#E0E0E0' }} />
