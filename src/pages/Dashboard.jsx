@@ -392,18 +392,19 @@ export default function Dashboard() {
       <PopupNotificationManager />
 
       <div className="flex flex-col" dir="rtl" style={BG}>
-        {/* Inner column locks to viewport-minus-chrome (top header +
-            bottom nav ≈ 116px) and clips overflow so the dashboard
-            never scrolls — the quick-access grid below uses flex:1
-            to absorb leftover vertical space instead. */}
+        {/* Inner column — fills the viewport (minHeight, not height)
+            so each section keeps its intrinsic size. The earlier
+            "height + overflow:hidden" lock was squishing the diamond
+            container and clipping the second quick-access row on
+            shorter viewports. Sections that MUST keep their height
+            now carry flex-shrink:0 explicitly. */}
         <div
           className="max-w-md mx-auto w-full"
           style={{
             display: 'flex',
             flexDirection: 'column',
-            height: 'calc(100vh - 116px)',
+            minHeight: 'calc(100vh - 116px)',
             padding: '8px 12px 0',
-            overflow: 'hidden',
           }}
         >
 
@@ -423,7 +424,9 @@ export default function Dashboard() {
           </h3>
           <div style={{
             position: 'relative',
+            width: '100%',
             height: 290,
+            flexShrink: 0,
             margin: '0 auto',
             padding: '0 12px',
             overflow: 'visible',
@@ -477,6 +480,7 @@ export default function Dashboard() {
                     color: '#1a1a1a',
                     lineHeight: 1.15,
                     textAlign: 'center',
+                    whiteSpace: 'nowrap',
                   }}>
                     {btn.line1}<br />{btn.line2}
                   </div>
@@ -637,7 +641,7 @@ export default function Dashboard() {
           <RecentPaymentsCard coachId={coach?.id} />
 
           {/* ═══ SECTION 4 — גישה מהירה (final spec: 78×78, lucide SVG icons) ═══════ */}
-          <div style={{ padding: '8px 14px 12px' }}>
+          <div style={{ padding: '8px 14px 12px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
