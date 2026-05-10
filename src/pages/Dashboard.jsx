@@ -425,7 +425,7 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            height: 290,
+            height: 300,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
@@ -437,13 +437,13 @@ export default function Dashboard() {
                 pos: { top: 0, left: '50%', marginLeft: -52 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 90, right: 50 } },
+                pos: { top: 95, right: 35 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 90, left: 50 } },
+                pos: { top: 95, left: 35 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 180, left: '50%', marginLeft: -52 } },
+                pos: { top: 190, left: '50%', marginLeft: -52 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
