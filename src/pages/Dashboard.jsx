@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   Users, UserPlus, Calendar, ClipboardList, Loader2,
   Target, Plus, Award, Search, Dumbbell, Bell,
-  DollarSign, Ruler, LogOut, Package, Zap, Clock
+  DollarSign, Ruler, LogOut, Package, Zap, Clock,
+  Trophy, AlarmClock, Ticket, Timer,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -409,91 +410,87 @@ export default function Dashboard() {
           {/* App switcher — only renders for the Life OS coach. */}
           <AppSwitcher />
 
-          {/* ═══ SECTION 1 — פעולות ליבה (90×90 diamonds in 290px box, no overlap) ═══════
-                Tight diamond layout — squares are 90×90 with vertical
-                step of 90px (top=0/90/90/180) so adjacent diamonds
-                exactly touch corner-to-corner without overlapping. */}
-          <div style={{ padding: '8px 12px 6px' }}>
-            <h3 style={{
-              textAlign: 'right',
-              fontSize: 15,
-              fontWeight: 700,
-              color: '#1a1a1a',
-              margin: '0 6px 6px',
-              fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
-            }}>
-              פעולות ליבה
-            </h3>
-            <div style={{
-              position: 'relative',
-              height: 290,
-              margin: '0 auto',
-              overflow: 'visible',
-            }}>
-              {[
-                // The + is a text character (not an emoji) so it stays orange.
-                { line1: 'הוסף', line2: 'מתאמן',  emoji: '+',  orange: true, iconSize: 26, iconWeight: 300, iconColor: '#FF6F20',
-                  onClick: () => setIsAddTraineeOpen(true),
-                  pos: { top: 0, left: '50%', marginLeft: -45 } },
-                { line1: 'הוסף', line2: 'ליד',     emoji: '👥', iconSize: 22,
-                  onClick: () => setIsLeadDialogOpen(true),
-                  pos: { top: 90, right: 30 } },
-                { line1: 'בנה',  line2: 'תוכנית',  emoji: '📋', iconSize: 22,
-                  onClick: () => setIsPlanDialogOpen(true),
-                  pos: { top: 90, left: 30 } },
-                { line1: 'קבע',  line2: 'מפגש',    emoji: '📅', iconSize: 22,
-                  onClick: () => setIsSessionDialogOpen(true),
-                  pos: { top: 180, left: '50%', marginLeft: -45 } },
-              ].map((btn) => (
-                <button
-                  key={`${btn.line1}-${btn.line2}`}
-                  onClick={btn.onClick}
-                  style={{
-                    position: 'absolute',
-                    width: 90, height: 90,
-                    background: 'white',
-                    borderRadius: 14,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    overflow: 'visible',
-                    transform: 'rotate(45deg)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    ...btn.pos,
-                  }}
-                  className="active:scale-[0.97] transition-all"
-                >
+          {/* ═══ SECTION 1 — פעולות ליבה (final spec: 100×100 in 290px box) ═══════ */}
+          <h3 style={{
+            textAlign: 'right',
+            fontSize: 15,
+            fontWeight: 700,
+            color: '#1a1a1a',
+            margin: '12px 16px 8px',
+            fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+          }}>
+            פעולות ליבה
+          </h3>
+          <div style={{
+            position: 'relative',
+            height: 290,
+            margin: '0 auto',
+            padding: '0 12px',
+            overflow: 'visible',
+          }}>
+            {[
+              // The + is a text character (not an emoji) so it stays orange.
+              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 24, iconWeight: 300, iconColor: '#FF6F20',
+                onClick: () => setIsAddTraineeOpen(true),
+                pos: { top: 0, left: '50%', marginLeft: -50 } },
+              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 22, iconColor: '#7F47B5',
+                onClick: () => setIsLeadDialogOpen(true),
+                pos: { top: 95, right: 20 } },
+              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 22, iconColor: '#EAB308',
+                onClick: () => setIsPlanDialogOpen(true),
+                pos: { top: 95, left: 20 } },
+              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 22, iconColor: '#3B82F6',
+                onClick: () => setIsSessionDialogOpen(true),
+                pos: { top: 190, left: '50%', marginLeft: -50 } },
+            ].map((btn) => (
+              <button
+                key={`${btn.line1}-${btn.line2}`}
+                onClick={btn.onClick}
+                style={{
+                  position: 'absolute',
+                  width: 100, height: 100,
+                  background: 'white',
+                  borderRadius: 14,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  overflow: 'visible',
+                  transform: 'rotate(45deg)',
+                  ...btn.pos,
+                }}
+                className="active:scale-[0.97] transition-all"
+              >
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  transform: 'rotate(-45deg)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                }}>
                   <div style={{
-                    transform: 'rotate(-45deg)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#1a1a1a',
+                    lineHeight: 1.15,
+                    textAlign: 'center',
                   }}>
-                    <div style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#1a1a1a',
-                      lineHeight: 1.15,
-                      textAlign: 'center',
-                    }}>
-                      {btn.line1}<br />{btn.line2}
-                    </div>
-                    <span style={{
-                      fontSize: btn.iconSize,
-                      lineHeight: 1,
-                      color: btn.iconColor || undefined,
-                      fontWeight: btn.iconWeight || undefined,
-                    }}>
-                      {btn.emoji}
-                    </span>
+                    {btn.line1}<br />{btn.line2}
                   </div>
-                </button>
-              ))}
-            </div>
+                  <span style={{
+                    fontSize: btn.iconSize,
+                    lineHeight: 1,
+                    color: btn.iconColor || undefined,
+                    fontWeight: btn.iconWeight || undefined,
+                  }}>
+                    {btn.emoji}
+                  </span>
+                </div>
+              </button>
+            ))}
           </div>
 
           {/* ═══ SECTION — תזכורות מעקב (plan follow-ups, 48h after send) ═══ */}
@@ -639,9 +636,9 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (true 78×78 squares, 4×2 grid) ═══════ */}
-          <div style={{ padding: '6px 14px 8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          {/* ═══ SECTION 4 — גישה מהירה (final spec: 78×78, lucide SVG icons) ═══════ */}
+          <div style={{ padding: '8px 14px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
                 fontSize: 14, fontWeight: 700, color: '#1a1a1a',
@@ -651,53 +648,61 @@ export default function Dashboard() {
               </span>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
             </div>
-          </div>
-          {(() => {
-            const pendingReminders = reminders.filter(r => !r.is_read).length;
-            const quickItems = [
-              { label: "בייסליין",  emoji: "⚡",   action: () => handleActionClick("baseline") },
-              { label: "יעד",       emoji: "🎯",   action: () => handleActionClick("goal") },
-              { label: "שיא",       emoji: "🏆",   action: () => handleActionClick("result") },
-              { label: "שעונים",    emoji: "⏱️",   action: () => navigate(createPageUrl("Clocks")) },
-              { label: "חבילה",     emoji: "🎫",   action: () => handleActionClick("package") },
-              { label: "מדידה",     emoji: "📐",   action: () => handleActionClick("measurement") },
-              { label: "תזכורות",   emoji: "⏰",   action: () => setShowReminders(true), badge: pendingReminders > 0 ? pendingReminders : null },
-              { label: "התראות",    emoji: "🔔",   action: () => navigate(createPageUrl("Notifications")) },
-            ];
-            return (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 6,
-                padding: '0 14px 8px',
-              }}>
-                {quickItems.map((q) => (
+            {(() => {
+              const pendingReminders = reminders.filter(r => !r.is_read).length;
+              // RTL visual order — first row mimics: שעונים / שיא /
+              // יעד / בייסליין (reading right-to-left). DOM array is
+              // already in the natural visual order; the dir="rtl" on
+              // the page container handles the right-to-left flow.
+              const row1 = [
+                { label: "שעונים",   Icon: Timer,      color: '#888',
+                  action: () => navigate(createPageUrl("Clocks")) },
+                { label: "שיא",       Icon: Trophy,     color: '#EAB308',
+                  action: () => handleActionClick("result") },
+                { label: "יעד",       Icon: Target,     color: '#dc2626',
+                  action: () => handleActionClick("goal") },
+                { label: "בייסליין",  Icon: Zap,        color: '#FF6F20',
+                  action: () => handleActionClick("baseline") },
+              ];
+              const row2 = [
+                { label: "התראות",    Icon: Bell,       color: '#EAB308',
+                  action: () => navigate(createPageUrl("Notifications")) },
+                { label: "תזכורות",   Icon: AlarmClock, color: '#dc2626',
+                  action: () => setShowReminders(true),
+                  badge: pendingReminders > 0 ? pendingReminders : null },
+                { label: "מדידה",     Icon: Ruler,      color: '#3B82F6',
+                  action: () => handleActionClick("measurement") },
+                { label: "חבילה",     Icon: Ticket,     color: '#888',
+                  action: () => handleActionClick("package") },
+              ];
+              const renderCard = (q) => {
+                const IconComp = q.Icon;
+                return (
                   <button
                     key={q.label}
                     onClick={q.action}
                     style={{
-                      // Both aspectRatio and a fixed height keep the
-                      // card a true square — height is the fallback for
-                      // browsers where aspectRatio inside grid cells
-                      // doesn't kick in (older iOS Safari).
+                      // aspectRatio + explicit height — height is the
+                      // fallback for older iOS Safari where aspectRatio
+                      // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
                       height: 78,
-                      borderRadius: 12,
-                      cursor: 'pointer',
                       background: 'white',
+                      borderRadius: 12,
                       boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                      border: '1px solid #F0E4D0',
+                      border: 'none',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 4,
+                      cursor: 'pointer',
                       position: 'relative',
                       padding: 0,
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <span style={{ fontSize: 24, lineHeight: 1 }}>{q.emoji}</span>
+                    <IconComp size={26} color={q.color} strokeWidth={2} />
                     <span style={{
                       fontSize: 11, fontWeight: 700,
                       color: '#1a1a1a', textAlign: 'center',
@@ -715,10 +720,30 @@ export default function Dashboard() {
                       }}>{q.badge}</div>
                     )}
                   </button>
-                ))}
-              </div>
-            );
-          })()}
+                );
+              };
+              return (
+                <>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 8,
+                    marginBottom: 8,
+                  }}>
+                    {row1.map(renderCard)}
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 8,
+                    marginBottom: 8,
+                  }}>
+                    {row2.map(renderCard)}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
 
         </div>
       </div>
