@@ -52,6 +52,63 @@ const normalizePackageStatus = (raw) => {
   return raw;
 };
 
+// Tap-to-select chip group — replaces broken mobile <select> /
+// Radix Select dropdowns. Accepts either a string array (chip label
+// IS the stored value) OR an array of {value, label} pairs (chip
+// label is Hebrew but the stored value is English / preserved).
+function ChipSelect({ label, options, value, onChange, required }) {
+  const normalized = (options || []).map((o) =>
+    typeof o === 'string' ? { value: o, label: o } : o
+  );
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{
+        display: 'block',
+        fontSize: 14,
+        fontWeight: 600,
+        color: '#1a1a1a',
+        marginBottom: 8,
+        textAlign: 'right',
+      }}>
+        {label}{required && ' *'}
+      </label>
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 8,
+        justifyContent: 'flex-start',
+        direction: 'rtl',
+      }}>
+        {normalized.map((opt) => {
+          const isActive = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(opt.value)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: isActive ? 700 : 500,
+                background: isActive ? '#FF6F20' : 'white',
+                color: isActive ? 'white' : '#888',
+                border: isActive ? '1px solid #FF6F20' : '1px solid #E8E0D8',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const NumPicker = ({ value, onChange, min = 1, max = 99, label }) => {
   const v = parseInt(value) || min;
   return (
@@ -524,62 +581,44 @@ export default function PackageFormDialog({
               </div>
             </div>
 
-            {/* Payment */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-gray-500 mb-1 block">שיטת תשלום</Label>
-                <Select value={form.payment_method} onValueChange={v => set("payment_method", v)}>
-                  <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_METHODS.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs text-gray-500 mb-1 block">סטטוס תשלום</Label>
-                <Select value={form.payment_status} onValueChange={v => set("payment_status", v)}>
-                  <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="שולם">שולם</SelectItem>
-                    <SelectItem value="ממתין לתשלום">ממתין</SelectItem>
-                    <SelectItem value="חלקי">חלקי</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Payment method + status — chip selectors. Replaced the
+                Radix <Select> / native <select> dropdowns that failed
+                to open on mobile in nested-dialog scopes. */}
+            <ChipSelect
+              label="שיטת תשלום"
+              required
+              value={form.payment_method}
+              onChange={(v) => set("payment_method", v)}
+              options={PAYMENT_METHODS}
+            />
 
-            {/* Package status — native <select> (not Radix Select)
-                because Radix's portaled options don't always reach
-                inside a stacked dialog. Coach can flip a package
-                between active / frozen / cancelled / completed at
-                any point — no constraint based on trainee status. */}
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">סטטוס חבילה</Label>
-              <select
-                value={form.status}
-                onChange={(e) => set('status', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '1px solid #F0E4D0',
-                  background: '#FFFFFF',
-                  fontSize: 14,
-                  direction: 'rtl',
-                  color: '#1A1A1A',
-                  outline: 'none',
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="active">פעיל ✓</option>
-                <option value="frozen">מוקפא ❄️</option>
-                <option value="cancelled">מבוטל ✕</option>
-                <option value="completed">הסתיים ✓</option>
-              </select>
-            </div>
+            <ChipSelect
+              label="סטטוס תשלום"
+              value={form.payment_status}
+              onChange={(v) => set("payment_status", v)}
+              // Stored value stays "ממתין לתשלום" for back-compat with
+              // existing rows; the chip just shows the short "ממתין".
+              options={[
+                { value: 'שולם',           label: 'שולם' },
+                { value: 'ממתין לתשלום',   label: 'ממתין' },
+                { value: 'חלקי',           label: 'חלקי' },
+              ]}
+            />
+
+            <ChipSelect
+              label="סטטוס חבילה"
+              value={form.status || 'active'}
+              onChange={(v) => set('status', v)}
+              // English values stored in DB (matches the existing
+              // status taxonomy used by Reports / usePackageExpiry /
+              // syncPackageStatus). Hebrew labels are display-only.
+              options={[
+                { value: 'active',    label: 'פעיל' },
+                { value: 'frozen',    label: 'מוקפא' },
+                { value: 'completed', label: 'הסתיים' },
+                { value: 'cancelled', label: 'מבוטל' },
+              ]}
+            />
 
             {/* Notes — coach-only (stored in client_services.notes_internal; RLS masks from trainee) */}
             {isCoachView && (
