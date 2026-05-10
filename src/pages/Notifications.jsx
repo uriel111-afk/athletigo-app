@@ -322,6 +322,44 @@ export default function Notifications() {
     });
   }, [visibleNotifications, filter, filterTrainee]);
 
+  // Grouping by trainee — May 2026 redesign. Each trainee becomes a
+  // collapsible folder; notifications without a parsable trainee_id
+  // (system messages) bucket under "התראות מערכת". Sort: groups with
+  // unread come first, then by total count.
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+  const traineeGroups = useMemo(() => {
+    const acc = new Map();
+    for (const n of filteredNotifications) {
+      const tid = traineeIdFromNotif(n) || 'system';
+      const lookupName = tid !== 'system'
+        ? (n.data?.trainee_name
+            || coachTrainees.find(t => t.id === tid)?.full_name
+            || 'מתאמן')
+        : 'התראות מערכת';
+      if (!acc.has(tid)) {
+        acc.set(tid, { id: tid, name: lookupName, notifications: [], unreadCount: 0 });
+      }
+      const g = acc.get(tid);
+      g.notifications.push(n);
+      if (!n.is_read && n.status !== 'handled') g.unreadCount += 1;
+    }
+    return Array.from(acc.values()).sort((a, b) => {
+      if (a.unreadCount !== b.unreadCount) return b.unreadCount - a.unreadCount;
+      return b.notifications.length - a.notifications.length;
+    });
+  }, [filteredNotifications, coachTrainees]);
+
+  const toggleGroup = (id) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const expandAll  = () => setExpandedGroups(new Set(traineeGroups.map(g => g.id)));
+  const collapseAll = () => setExpandedGroups(new Set());
+
   // Send dialog (coach)
   const { data: trainees = [] } = useQuery({
     queryKey: ['trainees-for-notif'],
@@ -393,6 +431,32 @@ export default function Notifications() {
               <Send className="w-3 h-3" /> שלח
             </button>
           )}
+          {/* Expand / collapse all groups — appear next to the
+              "send" + "mark all read" controls for one-tap overview. */}
+          {traineeGroups.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={expandAll}
+                style={{
+                  background: 'none', border: 'none', color: '#888',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
+                }}
+              >
+                פתח הכל
+              </button>
+              <button
+                type="button"
+                onClick={collapseAll}
+                style={{
+                  background: 'none', border: 'none', color: '#888',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
+                }}
+              >
+                סגור הכל
+              </button>
+            </>
+          )}
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
@@ -444,218 +508,269 @@ export default function Notifications() {
         </div>
       )}
 
-      {/* B. Filter — chip row. Five lifecycle states now: everything,
-          fresh unread, deferred ("ill handle this later"), reminders,
-          handled. status==='deleted' rows are filtered out at the
-          source so they never appear in any tab. */}
+      {/* B. Filter chips — May 2026 spec: 4 lifecycle states. The
+          older 'reminder' chip was folded into 'נדחו' since reminders
+          are a per-row mechanism, not a top-level category. */}
       <div style={{
-        display: 'flex', gap: '6px',
+        display: 'flex', gap: 6,
         padding: '12px 16px',
         direction: 'rtl',
         overflowX: 'auto',
       }}>
         {[
           { id: 'all',      label: 'הכל' },
-          { id: 'unread',   label: 'חדשות' },
+          { id: 'unread',   label: 'חדש' },
           { id: 'deferred', label: 'נדחו' },
-          { id: 'reminder', label: 'תזכורות' },
           { id: 'handled',  label: 'טופלו' },
         ].map(f => (
-          <div
+          <button
             key={f.id}
+            type="button"
             onClick={() => setFilter(f.id)}
             style={{
-              padding: '6px 14px',
-              borderRadius: '20px',
-              fontSize: '12px', fontWeight: 600,
-              cursor: 'pointer', whiteSpace: 'nowrap',
+              padding: '8px 16px',
+              borderRadius: 18,
+              border: 'none',
+              fontSize: 13,
+              fontWeight: filter === f.id ? 700 : 600,
               background: filter === f.id ? '#FF6F20' : 'white',
               color: filter === f.id ? 'white' : '#888',
-              border: filter === f.id ? 'none' : '0.5px solid #F0E4D0',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              outline: 'none',
+              boxShadow: 'none',
             }}
           >
             {f.label}
-          </div>
+          </button>
         ))}
       </div>
 
-      {/* C. Notification cards — clean list */}
-      <div>
-        {filteredNotifications.map(n => (
-          <div
-            key={n.id}
-            onClick={() => {
-              if (notifSel.isSelecting) { notifSel.toggleSelect(n.id); return; }
-              handleNotificationClick(n);
-            }}
-            style={{
-              display: 'flex', alignItems: 'flex-start',
-              gap: '10px', padding: '12px 16px',
-              background: notifSel.isSelecting && notifSel.isSelected(n.id)
-                ? '#FFF5EE'
-                : (n.is_read ? 'transparent' : '#FFF9F0'),
-              borderBottom: '0.5px solid #F8F0E8',
-              cursor: 'pointer', direction: 'rtl',
-            }}
-          >
-            {notifSel.isSelecting && (
-              <SelectCheckbox
-                isSelected={notifSel.isSelected(n.id)}
-                onToggle={() => notifSel.toggleSelect(n.id)}
-              />
-            )}
-            {!n.is_read && !notifSel.isSelecting && (
-              <div style={{
-                width: '8px', height: '8px',
-                borderRadius: '50%',
-                background: '#FF6F20',
-                marginTop: '6px', flexShrink: 0,
-              }} />
-            )}
-
-            <div style={{
-              width: '36px', height: '36px',
-              borderRadius: '10px',
-              background: '#FFF0E4',
-              display: 'flex', alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px', flexShrink: 0,
+      {/* C. Trainee-grouped folders — May 2026 redesign. Each
+          trainee gets a collapsible header (avatar + name + counts +
+          unread badge). Tap to expand → notifications render inline
+          with compact action chips. All existing handlers (markHandled
+          / markDeferred / setReminderTarget / softDelete /
+          markAsRead / navigateToRelevant) are unchanged — only the
+          shell layout moved. */}
+      <div style={{ padding: '0 12px' }}>
+        {traineeGroups.map((group) => {
+          const isExpanded = expandedGroups.has(group.id);
+          return (
+            <div key={group.id} style={{
+              background: 'white',
+              borderRadius: 12,
+              marginBottom: 8,
+              overflow: 'hidden',
+              border: '1px solid #F0E4D0',
             }}>
-              {getNotifIcon(n.type)}
-            </div>
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {/* Coach-side trainee tag: shows whose row this
-                  notification belongs to. Reads data.trainee_name
-                  first; falls back to looking the name up in
-                  coachTrainees by id parsed out of the link. Only
-                  rendered for the coach view. */}
-              {isCoach && (() => {
-                const tid = traineeIdFromNotif(n);
-                const name = n.data?.trainee_name
-                  || (tid ? coachTrainees.find(t => t.id === tid)?.full_name : null);
-                if (!name) return null;
-                return (
-                  <div style={{ fontSize: 12, color: '#FF6F20', fontWeight: 600, marginBottom: 2 }}>
-                    {name}
+              {/* Folder header — tap to toggle */}
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.id)}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  background: group.unreadCount > 0 ? '#FFF9F0' : 'white',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexDirection: 'row-reverse',
+                  cursor: 'pointer',
+                  textAlign: 'right',
+                  outline: 'none',
+                }}
+              >
+                <div style={{
+                  width: 38, height: 38,
+                  borderRadius: '50%',
+                  background: '#FFF0E4',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 15, fontWeight: 700, color: '#FF6F20',
+                  flexShrink: 0,
+                }}>
+                  {group.name?.[0] || '?'}
+                </div>
+                <div style={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 15, fontWeight: 700, color: '#1a1a1a',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {group.name}
                   </div>
-                );
-              })()}
-              {/* Title — bold heading, always rendered if present so the
-                  source/context is visible even when the message body
-                  duplicates it. */}
-              {n.title && (
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    {group.notifications.length} התראות
+                    {group.unreadCount > 0 && ` · ${group.unreadCount} חדשות`}
+                  </div>
+                </div>
+                {group.unreadCount > 0 && (
+                  <div style={{
+                    background: '#FF6F20', color: 'white',
+                    fontSize: 11, fontWeight: 700,
+                    minWidth: 22, height: 22, borderRadius: 11, padding: '0 7px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {group.unreadCount}
+                  </div>
+                )}
                 <div style={{
-                  fontSize: '15px',
-                  fontWeight: n.is_read ? 600 : 700,
-                  color: '#1a1a1a',
-                  lineHeight: 1.4,
-                  marginBottom: n.message && n.message !== n.title ? 3 : 0,
+                  color: '#888', fontSize: 14,
+                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
+                  transition: 'transform 0.2s',
                 }}>
-                  {n.title}
+                  ▼
                 </div>
-              )}
-              {/* Message body — only when distinct from title to avoid
-                  showing the same string twice on rows that only carry
-                  one of the two fields. */}
-              {n.message && n.message !== n.title && (
-                <div style={{
-                  fontSize: '13px',
-                  fontWeight: n.is_read ? 400 : 500,
-                  color: '#666',
-                  lineHeight: 1.4,
-                }}>
-                  {n.message}
-                </div>
-              )}
-              {/* Fallback — neither field, render type so the row
-                  isn't completely blank. */}
-              {!n.title && !n.message && (
-                <div style={{ fontSize: '14px', color: '#888' }}>
-                  {n.type || 'התראה'}
-                </div>
-              )}
-              <div style={{
-                fontSize: '11px', color: '#888',
-                marginTop: '4px',
-                display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
-              }}>
-                <span>{formatRelativeTime(n.created_at)}</span>
-                {n.status === 'handled' && (
-                  <span style={{ color: '#2E7D32' }}>• טופל</span>
-                )}
-                {n.status === 'deferred' && (
-                  <span style={{ color: '#E65100' }}>• נדחה</span>
-                )}
-                {n.status === 'reminder' && n.reminder_at && (
-                  <span style={{ color: '#FF6F20' }}>
-                    • תזכורת ל-
-                    {new Date(n.reminder_at).toLocaleDateString('he-IL')}
-                    {' '}
-                    {new Date(n.reminder_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
+              </button>
 
-              {/* Per-row lifecycle actions. stopPropagation so the
-                  card click (navigateToRelevant) doesn't also fire. */}
-              <div style={{
-                display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8,
-              }}>
-                {n.status !== 'handled' && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); markHandled(n.id); }}
-                    style={{
-                      padding: '4px 10px', borderRadius: 10, fontSize: 12,
-                      cursor: 'pointer', border: '1px solid #F0E4D0',
-                      background: 'white', color: '#2E7D32',
-                    }}
-                  >
-                    ✓ טופל
-                  </button>
-                )}
-                {n.status !== 'deferred' && n.status !== 'handled' && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); markDeferred(n.id); }}
-                    style={{
-                      padding: '4px 10px', borderRadius: 10, fontSize: 12,
-                      cursor: 'pointer', border: '1px solid #F0E4D0',
-                      background: 'white', color: '#E65100',
-                    }}
-                  >
-                    ⏳ מאוחר יותר
-                  </button>
-                )}
-                {n.status !== 'handled' && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setReminderTarget(n.id); }}
-                    style={{
-                      padding: '4px 10px', borderRadius: 10, fontSize: 12,
-                      cursor: 'pointer', border: '1px solid #F0E4D0',
-                      background: 'white', color: '#FF6F20',
-                    }}
-                  >
-                    🔔 תזכורת
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); softDelete(n.id); }}
-                  style={{
-                    padding: '4px 10px', borderRadius: 10, fontSize: 12,
-                    cursor: 'pointer', border: '1px solid #F0E4D0',
-                    background: 'white', color: '#C62828',
-                  }}
-                >
-                  🗑️ מחק
-                </button>
-              </div>
+              {/* Notifications inside this folder */}
+              {isExpanded && (
+                <div style={{ borderTop: '1px solid #F0E4D0' }}>
+                  {group.notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        if (notifSel.isSelecting) { notifSel.toggleSelect(n.id); return; }
+                        handleNotificationClick(n);
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start',
+                        gap: 10, padding: '10px 12px',
+                        background: notifSel.isSelecting && notifSel.isSelected(n.id)
+                          ? '#FFF5EE'
+                          : (n.is_read ? 'white' : '#FFFCF7'),
+                        borderBottom: '1px solid #F8F0E8',
+                        cursor: 'pointer', direction: 'rtl',
+                      }}
+                    >
+                      {notifSel.isSelecting && (
+                        <SelectCheckbox
+                          isSelected={notifSel.isSelected(n.id)}
+                          onToggle={() => notifSel.toggleSelect(n.id)}
+                        />
+                      )}
+                      {!n.is_read && !notifSel.isSelecting && (
+                        <div style={{
+                          width: 6, height: 6, borderRadius: '50%',
+                          background: '#FF6F20',
+                          marginTop: 8, flexShrink: 0,
+                        }} />
+                      )}
+                      <div style={{ fontSize: 18, flexShrink: 0, lineHeight: 1, marginTop: 2 }}>
+                        {getNotifIcon(n.type)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {n.title && (
+                          <div style={{
+                            fontSize: 13,
+                            fontWeight: n.is_read ? 600 : 700,
+                            color: '#1a1a1a', lineHeight: 1.35,
+                            marginBottom: n.message && n.message !== n.title ? 2 : 0,
+                          }}>
+                            {n.title}
+                          </div>
+                        )}
+                        {n.message && n.message !== n.title && (
+                          <div style={{
+                            fontSize: 12,
+                            fontWeight: n.is_read ? 400 : 500,
+                            color: '#666', lineHeight: 1.4,
+                          }}>
+                            {n.message}
+                          </div>
+                        )}
+                        {!n.title && !n.message && (
+                          <div style={{ fontSize: 13, color: '#888' }}>
+                            {n.type || 'התראה'}
+                          </div>
+                        )}
+                        <div style={{
+                          fontSize: 11, color: '#aaa',
+                          marginTop: 4,
+                          display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                        }}>
+                          <span>{formatRelativeTime(n.created_at)}</span>
+                          {n.status === 'handled' && <span style={{ color: '#2E7D32' }}>• טופל</span>}
+                          {n.status === 'deferred' && <span style={{ color: '#E65100' }}>• נדחה</span>}
+                          {n.status === 'reminder' && n.reminder_at && (
+                            <span style={{ color: '#FF6F20' }}>
+                              • תזכורת ל-{new Date(n.reminder_at).toLocaleDateString('he-IL')}{' '}
+                              {new Date(n.reminder_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Compact action chips — May 2026 spec.
+                            Smaller padding (5×10) + 11px font so 4
+                            chips fit in one row on narrow screens. */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                          {n.status !== 'handled' && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); markHandled(n.id); }}
+                              style={{
+                                padding: '5px 10px', background: 'white',
+                                border: '1px solid #E8E0D8', borderRadius: 14,
+                                fontSize: 11, fontWeight: 600, color: '#16a34a',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                                whiteSpace: 'nowrap', outline: 'none',
+                              }}
+                            >
+                              <span>✓</span><span>טופל</span>
+                            </button>
+                          )}
+                          {n.status !== 'deferred' && n.status !== 'handled' && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); markDeferred(n.id); }}
+                              style={{
+                                padding: '5px 10px', background: 'white',
+                                border: '1px solid #E8E0D8', borderRadius: 14,
+                                fontSize: 11, fontWeight: 600, color: '#888',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                                whiteSpace: 'nowrap', outline: 'none',
+                              }}
+                            >
+                              <span>⏰</span><span>דחה</span>
+                            </button>
+                          )}
+                          {n.status !== 'handled' && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setReminderTarget(n.id); }}
+                              style={{
+                                padding: '5px 10px', background: 'white',
+                                border: '1px solid #E8E0D8', borderRadius: 14,
+                                fontSize: 11, fontWeight: 600, color: '#FF6F20',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                                whiteSpace: 'nowrap', outline: 'none',
+                              }}
+                            >
+                              <span>🔔</span><span>תזכורת</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); softDelete(n.id); }}
+                            style={{
+                              padding: '5px 10px', background: 'white',
+                              border: '1px solid #E8E0D8', borderRadius: 14,
+                              fontSize: 11, fontWeight: 600, color: '#dc2626',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                              whiteSpace: 'nowrap', outline: 'none',
+                            }}
+                          >
+                            <span>🗑️</span><span>מחק</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* D. Empty state */}
         {filteredNotifications.length === 0 && (
