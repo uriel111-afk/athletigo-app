@@ -11,7 +11,7 @@ import { createPageUrl } from '@/utils';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import AppLoader from '@/components/AppLoader';
+import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
@@ -263,7 +263,7 @@ const AuthenticatedApp = () => {
     return (
       <>
         <LoadingProgress isLoading={true} />
-        <AppLoader progress={5} label="מתחבר..." />
+        <PageLoader message="מתחבר..." />
       </>
     );
   }
@@ -296,7 +296,7 @@ const AuthenticatedApp = () => {
     return (
       <>
         <LoadingProgress isLoading={true} />
-        <AppLoader progress={progress} label={label} />
+        <PageLoader message={label || "טוען..."} />
       </>
     );
   }
