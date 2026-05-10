@@ -412,7 +412,7 @@ export default function Dashboard() {
           <AppSwitcher />
 
           {/* ═══ SECTION 1 — פעולות ליבה (tight 280px, final spec) ═══════ */}
-          <div style={{ padding: '4px 12px 8px' }}>
+          <div style={{ padding: '4px 12px 8px', overflow: 'visible' }}>
             <h3 style={{
               textAlign: 'right',
               fontSize: 17,
@@ -489,6 +489,7 @@ export default function Dashboard() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 5,
+                  overflow: 'visible',
                 }}>
                   <div style={{
                     fontSize: 14,
