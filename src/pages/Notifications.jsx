@@ -11,19 +11,27 @@ import PageLoader from "@/components/PageLoader";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 
-// Minimal icon set — keyed off notification type
+// Icon set — keyed off notification type. New entries added 2026-05-10
+// for trainee onboarding / payment / workout-completed / health flows
+// so the cards stop falling back to the generic bell.
 const getNotifIcon = (type) => {
   if (!type) return '🔔';
   if (type === 'birthday') return '🎂';
+  if (type === 'new_trainee' || type === 'onboarding_complete') return '👤';
   if (type === 'package_expiring' || type === 'low_balance' || type === 'renewal_alert') return '⚠️';
   if (type === 'package_expired' || type === 'service_completed') return '🎫';
   if (type?.includes('package') || type?.includes('renewal')) return '🎫';
   if (type === 'session_reminder') return '⏰';
   if (type?.includes('session') || type === 'reschedule_request') return '📅';
+  if (type === 'workout_completed' || type === 'workout_done') return '💪';
   if (type?.includes('plan')) return '📋';
   if (type?.includes('measurement') || type?.includes('baseline') || type === 'metrics_updated') return '📏';
+  if (type === 'goal_achieved') return '🏆';
   if (type?.includes('record') || type?.includes('goal')) return '🏆';
+  if (type === 'payment' || type?.includes('payment')) return '💳';
+  if (type === 'health_declaration' || type?.includes('health')) return '📋';
   if (type === 'new_message' || type === 'coach_message') return '💬';
+  if (type === 'system') return '🔔';
   return '🔔';
 };
 
@@ -533,14 +541,40 @@ export default function Notifications() {
                   </div>
                 );
               })()}
-              <div style={{
-                fontSize: '14px',
-                fontWeight: n.is_read ? 400 : 600,
-                color: '#1a1a1a',
-                lineHeight: 1.4,
-              }}>
-                {n.message || n.title}
-              </div>
+              {/* Title — bold heading, always rendered if present so the
+                  source/context is visible even when the message body
+                  duplicates it. */}
+              {n.title && (
+                <div style={{
+                  fontSize: '15px',
+                  fontWeight: n.is_read ? 600 : 700,
+                  color: '#1a1a1a',
+                  lineHeight: 1.4,
+                  marginBottom: n.message && n.message !== n.title ? 3 : 0,
+                }}>
+                  {n.title}
+                </div>
+              )}
+              {/* Message body — only when distinct from title to avoid
+                  showing the same string twice on rows that only carry
+                  one of the two fields. */}
+              {n.message && n.message !== n.title && (
+                <div style={{
+                  fontSize: '13px',
+                  fontWeight: n.is_read ? 400 : 500,
+                  color: '#666',
+                  lineHeight: 1.4,
+                }}>
+                  {n.message}
+                </div>
+              )}
+              {/* Fallback — neither field, render type so the row
+                  isn't completely blank. */}
+              {!n.title && !n.message && (
+                <div style={{ fontSize: '14px', color: '#888' }}>
+                  {n.type || 'התראה'}
+                </div>
+              )}
               <div style={{
                 fontSize: '11px', color: '#888',
                 marginTop: '4px',
@@ -625,12 +659,14 @@ export default function Notifications() {
 
         {/* D. Empty state */}
         {filteredNotifications.length === 0 && (
-          <div style={{
-            textAlign: 'center', padding: '40px 20px',
-            color: '#888',
-          }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔔</div>
-            <div style={{ fontSize: '14px' }}>אין התראות</div>
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🔔</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#aaa' }}>
+              אין התראות
+            </div>
+            <div style={{ fontSize: 13, color: '#ccc', marginTop: 6 }}>
+              כשיהיו חדשות — הן יופיעו כאן
+            </div>
           </div>
         )}
       </div>
