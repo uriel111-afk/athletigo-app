@@ -290,7 +290,7 @@ export default function CoachHub() {
         {/* App-tab chips — RTL visual order: מקצועי → פיננסי → צמיחה → אישי
             (פיננסי + צמיחה swapped vs. earlier order, per May 2026 spec). */}
         <div style={{
-          padding: '16px 12px 10px',
+          padding: '12px 12px 8px',
           display: 'flex',
           gap: 8,
           justifyContent: 'center',

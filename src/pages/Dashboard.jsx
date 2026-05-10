@@ -409,49 +409,50 @@ export default function Dashboard() {
           {/* App switcher — only renders for the Life OS coach. */}
           <AppSwitcher />
 
-          {/* ═══ SECTION 1 — פעולות ליבה (110×110 diamond grid in 340px box) ═══════
-                Container overflow:visible so the rotated 110×110
-                squares can spill past the 340×* box corners. */}
-          <div style={{ padding: '16px 12px 8px' }}>
+          {/* ═══ SECTION 1 — פעולות ליבה (90×90 diamonds in 290px box, no overlap) ═══════
+                Tight diamond layout — squares are 90×90 with vertical
+                step of 90px (top=0/90/90/180) so adjacent diamonds
+                exactly touch corner-to-corner without overlapping. */}
+          <div style={{ padding: '8px 12px 6px' }}>
             <h3 style={{
               textAlign: 'right',
-              fontSize: 17,
+              fontSize: 15,
               fontWeight: 700,
               color: '#1a1a1a',
-              margin: '0 6px 12px',
+              margin: '0 6px 6px',
               fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
             }}>
               פעולות ליבה
             </h3>
             <div style={{
               position: 'relative',
-              height: 340,
+              height: 290,
               margin: '0 auto',
               overflow: 'visible',
             }}>
               {[
                 // The + is a text character (not an emoji) so it stays orange.
-                { line1: 'הוסף', line2: 'מתאמן',  emoji: '+',  orange: true, iconSize: 32, iconWeight: 300, iconColor: '#FF6F20',
+                { line1: 'הוסף', line2: 'מתאמן',  emoji: '+',  orange: true, iconSize: 26, iconWeight: 300, iconColor: '#FF6F20',
                   onClick: () => setIsAddTraineeOpen(true),
-                  pos: { top: 25, left: '50%', marginLeft: -55 } },
-                { line1: 'הוסף', line2: 'ליד',     emoji: '👥', iconSize: 28,
+                  pos: { top: 0, left: '50%', marginLeft: -45 } },
+                { line1: 'הוסף', line2: 'ליד',     emoji: '👥', iconSize: 22,
                   onClick: () => setIsLeadDialogOpen(true),
-                  pos: { top: 115, right: 30 } },
-                { line1: 'בנה',  line2: 'תוכנית',  emoji: '📋', iconSize: 28,
+                  pos: { top: 90, right: 30 } },
+                { line1: 'בנה',  line2: 'תוכנית',  emoji: '📋', iconSize: 22,
                   onClick: () => setIsPlanDialogOpen(true),
-                  pos: { top: 115, left: 30 } },
-                { line1: 'קבע',  line2: 'מפגש',    emoji: '📅', iconSize: 28,
+                  pos: { top: 90, left: 30 } },
+                { line1: 'קבע',  line2: 'מפגש',    emoji: '📅', iconSize: 22,
                   onClick: () => setIsSessionDialogOpen(true),
-                  pos: { top: 205, left: '50%', marginLeft: -55 } },
+                  pos: { top: 180, left: '50%', marginLeft: -45 } },
               ].map((btn) => (
                 <button
                   key={`${btn.line1}-${btn.line2}`}
                   onClick={btn.onClick}
                   style={{
                     position: 'absolute',
-                    width: 110, height: 110,
+                    width: 90, height: 90,
                     background: 'white',
-                    borderRadius: 16,
+                    borderRadius: 14,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                     border: 'none',
                     cursor: 'pointer',
@@ -470,10 +471,10 @@ export default function Dashboard() {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 4,
                   }}>
                     <div style={{
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: 700,
                       color: '#1a1a1a',
                       lineHeight: 1.15,
@@ -638,9 +639,9 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (compact 4-col, fits no-scroll) ═══════ */}
-          <div style={{ padding: '14px 14px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          {/* ═══ SECTION 4 — גישה מהירה (true 78×78 squares, 4×2 grid) ═══════ */}
+          <div style={{ padding: '6px 14px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
                 fontSize: 14, fontWeight: 700, color: '#1a1a1a',
@@ -667,15 +668,20 @@ export default function Dashboard() {
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 7,
-                padding: '0 14px 18px',
+                gap: 6,
+                padding: '0 14px 8px',
               }}>
                 {quickItems.map((q) => (
                   <button
                     key={q.label}
                     onClick={q.action}
                     style={{
-                      aspectRatio: 1,
+                      // Both aspectRatio and a fixed height keep the
+                      // card a true square — height is the fallback for
+                      // browsers where aspectRatio inside grid cells
+                      // doesn't kick in (older iOS Safari).
+                      aspectRatio: '1 / 1',
+                      height: 78,
                       borderRadius: 12,
                       cursor: 'pointer',
                       background: 'white',
@@ -685,15 +691,15 @@ export default function Dashboard() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 6,
+                      gap: 4,
                       position: 'relative',
                       padding: 0,
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <span style={{ fontSize: 36, lineHeight: 1, color: '#FF6F20' }}>{q.emoji}</span>
+                    <span style={{ fontSize: 24, lineHeight: 1 }}>{q.emoji}</span>
                     <span style={{
-                      fontSize: 13, fontWeight: 700,
+                      fontSize: 11, fontWeight: 700,
                       color: '#1a1a1a', textAlign: 'center',
                       lineHeight: 1.2,
                     }}>
