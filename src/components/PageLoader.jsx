@@ -38,8 +38,8 @@ export default function PageLoader({ message = "טוען..." }) {
         src="/logoR-black.png"
         alt="AthletiGo"
         style={{
-          width: 200,
-          maxWidth: "60vw",
+          width: 160,
+          maxWidth: "50vw",
           height: "auto",
           opacity: 0.5,
           marginBottom: 40,
