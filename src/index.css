@@ -145,6 +145,19 @@ button:focus-visible {
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  /* Android font clipping fix — Barlow Condensed glyphs run
+     slightly past their declared box on some Android WebViews,
+     leaving sliver-shaped clip lines on the sides of bold digits.
+     Antialias + grayscale smoothing collapses sub-pixel artefacts;
+     optimizeLegibility lets the renderer use the kerning table
+     instead of the default tight pack so digits no longer fight
+     their neighbours. */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   /* Mobile-first touch targets */
   button, a, [role="button"] {
     min-height: 44px;

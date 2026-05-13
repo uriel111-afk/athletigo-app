@@ -610,8 +610,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
                   onClick={() => setPickingField(f.k)}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    minWidth: 46, padding: '4px 6px', cursor: 'pointer',
+                    minWidth: 64, padding: '4px 10px', cursor: 'pointer',
                     background: 'transparent', border: 'none',
+                    overflow: 'visible',
                     WebkitTapHighlightColor: 'transparent',
                   }}
                 >
@@ -620,7 +621,9 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
                     fontSize: 32, fontWeight: 700,
                     color: '#FF6F20',
                     fontFamily: "'Barlow Condensed', sans-serif",
-                    lineHeight: 1, textAlign: 'center',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '0.5px',
+                    lineHeight: 1.2, textAlign: 'center',
                   }}>{cfg[f.k]}</span>
                   {f.u && (
                     <span style={{ pointerEvents: 'none', fontSize: 11, fontWeight: 600, color: '#888', marginTop: 1 }}>
@@ -968,7 +971,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               fontSize: 42, fontWeight: 800,
               fontVariantNumeric: 'tabular-nums',
               color: isWork ? '#FFFFFF' : '#1A1A1A',
-              lineHeight: 1,
+              lineHeight: 1.15,
             }}>
               {Math.max(1, phase.round)}/{cfg.rounds}
             </span>
@@ -988,7 +991,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               fontSize: 42, fontWeight: 800,
               fontVariantNumeric: 'tabular-nums',
               color: isWork ? '#FFFFFF' : '#1A1A1A',
-              lineHeight: 1,
+              lineHeight: 1.15,
             }}>
               {Math.max(1, phase.set)}/{cfg.sets}
             </span>
@@ -1056,7 +1059,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             fontSize: 72, fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
             fontFamily: "'Barlow Condensed', sans-serif",
-            lineHeight: 1,
+            letterSpacing: '0.5px',
+            lineHeight: 1.15,
             color: isWork ? '#FFFFFF' : '#FF6F20',
           }}>
             {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
