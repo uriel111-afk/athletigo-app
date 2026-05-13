@@ -136,8 +136,8 @@ export default function SectionCard({
         className="w-full p-4 cursor-pointer transition-colors hover:bg-gray-50"
         onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
               style={{ backgroundColor: style.iconBg }}
@@ -181,14 +181,18 @@ export default function SectionCard({
               ) : (
                 <h3
                   {...(showEditButtons ? longPressRename : {})}
-                  className="leading-tight truncate"
+                  className="leading-tight"
                   style={{
                     fontSize: isTraineeView ? 22 : 20,
                     fontWeight: 700,
                     color: isTraineeView ? '#1a1a1a' : style.text,
-                    fontFamily: 'Barlow, sans-serif',
+                    fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
                     cursor: showEditButtons ? 'pointer' : 'default',
                     userSelect: 'none',
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    letterSpacing: '0.3px',
                   }}
                 >
                   {section.section_name}
@@ -329,7 +333,9 @@ export default function SectionCard({
                       onToggleComplete={onToggleComplete}
                       onEdit={() => onEditExercise(exercise)}
                       onDelete={() => onDeleteExercise(exercise.id)}
+                      onDuplicate={onDuplicateExercise ? () => onDuplicateExercise(exercise) : null}
                       onRename={onRenameExercise}
+                      mode={showEditButtons ? 'coach' : 'trainee'}
                       canEdit={showEditButtons}
                       isCoach={isCoach}
                       plan={plan}
