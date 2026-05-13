@@ -4,7 +4,13 @@ import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useSessionStats } from "../components/hooks/useSessionStats";
-import { deductSessionFromService, restoreSessionToService } from "../components/hooks/useServiceDeduction";
+import {
+  deductSessionFromService,
+  restoreSessionToService,
+  deductSessionFromAllParticipants,
+  restoreSessionFromAllParticipants,
+  syncSessionParticipants,
+} from "../components/hooks/useServiceDeduction";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { Button } from "@/components/ui/button";
@@ -395,28 +401,47 @@ export default function Sessions() {
       }
     }
 
+    // Pull off the dialog-only `additional_participants` array — it's
+    // not a column on sessions and needs its own write into the
+    // session_participants table after the row exists.
+    const { additional_participants, ...sessionDataNoExtras } = sessionData;
+
     // Status precedence:
     //   1) sessionData.status === 'הושלם' (coach logged a past
     //      session — keep as completed, no approval needed)
     //   2) casual trainee → 'pending_approval' (needs trainee gate)
     //   3) default → 'ממתין לאישור'
     const fullSessionData = {
-      ...sessionData,
-      location: sessionData.location || "לא צוין",
-      duration: sessionData.duration || 60,
+      ...sessionDataNoExtras,
+      location: sessionDataNoExtras.location || "לא צוין",
+      duration: sessionDataNoExtras.duration || 60,
       coach_id: coach.id,
-      status: sessionData.status === 'הושלם'
+      status: sessionDataNoExtras.status === 'הושלם'
         ? 'הושלם'
         : (traineeStatus === 'casual' ? 'pending_approval' : 'ממתין לאישור'),
     };
 
+    let savedId = null;
     if (editingSession) {
       await updateSessionMutation.mutateAsync({
         id: editingSession.id,
-        data: sessionData
+        data: sessionDataNoExtras,
       });
+      savedId = editingSession.id;
     } else {
-      await createSessionMutation.mutateAsync(fullSessionData);
+      const created = await createSessionMutation.mutateAsync(fullSessionData);
+      savedId = created?.id || null;
+    }
+
+    // Persist the additional-participants picker into the dedicated
+    // table. Run after the session row exists so the FK lands. Errors
+    // here log but don't block — the session itself already saved.
+    if (savedId && Array.isArray(additional_participants)) {
+      try {
+        await syncSessionParticipants(savedId, additional_participants);
+      } catch (e) {
+        console.warn('[Sessions] participants sync failed:', e?.message);
+      }
     }
   };
 
@@ -498,6 +523,10 @@ export default function Sessions() {
       if (session.service_id) {
         await deductSessionFromService(session, user?.id);
       }
+      // Additional participants — deduct each one against their own
+      // package independently (rows in `session_participants` with
+      // deducted=false get bumped, marked, and audit-logged).
+      await deductSessionFromAllParticipants(session, user?.id);
 
       // Notify each participant that the session was completed
       for (const participant of session.participants || []) {
@@ -546,6 +575,8 @@ export default function Sessions() {
       if (session.service_id) {
         await restoreSessionToService(session, user?.id);
       }
+      // Reverse the multi-participant rows in the same shape.
+      await restoreSessionFromAllParticipants(session, user?.id);
 
       toast.success("סטטוס עודכן וזיכויים הוחזרו");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });

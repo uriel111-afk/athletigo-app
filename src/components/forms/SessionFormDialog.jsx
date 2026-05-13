@@ -93,6 +93,15 @@ export default function SessionFormDialog({
 
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [availableServices, setAvailableServices] = useState([]);
+  // Additional-participants picker — drives the session_participants
+  // table rather than the existing JSONB participants. Shape per row:
+  //   { id?, trainee_id, trainee_name, package_id, package_name,
+  //     package_remaining, deducted }
+  // Rows with deducted=true are read-only (audit-trail protection).
+  const [additionalParticipants, setAdditionalParticipants] = useState([]);
+  // Per-trainee cache of their active packages so each row's package
+  // dropdown can populate without re-querying on every render.
+  const [packagesByTrainee, setPackagesByTrainee] = useState({});
   // Completion guard for the inline status pills row at the top of
   // the dialog. Holds the editingSession + price snapshot when the
   // coach taps 'הושלם' on a paid-but-unpaid row.
@@ -122,6 +131,89 @@ export default function SessionFormDialog({
     };
     fetchServices();
   }, [sessionForm.participants.length, sessionForm.session_type]);
+
+  // Load existing session_participants rows when editing — enriches
+  // each row with trainee + package names so the dropdowns render the
+  // saved selections rather than empty strings.
+  useEffect(() => {
+    if (!editingSession?.id) {
+      setAdditionalParticipants([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: rows, error } = await supabase
+        .from('session_participants')
+        .select('id, trainee_id, package_id, deducted')
+        .eq('session_id', editingSession.id);
+      if (cancelled) return;
+      if (error || !rows) {
+        if (error) console.warn('[SessionForm] load participants failed:', error.message);
+        setAdditionalParticipants([]);
+        return;
+      }
+      if (rows.length === 0) { setAdditionalParticipants([]); return; }
+      const traineeIds = [...new Set(rows.map(r => r.trainee_id).filter(Boolean))];
+      const pkgIds = [...new Set(rows.map(r => r.package_id).filter(Boolean))];
+      const [usersRes, pkgsRes] = await Promise.all([
+        traineeIds.length
+          ? supabase.from('users').select('id, full_name').in('id', traineeIds)
+          : Promise.resolve({ data: [] }),
+        pkgIds.length
+          ? supabase.from('client_services')
+              .select('id, package_name, service_type, total_sessions, used_sessions, status')
+              .in('id', pkgIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+      if (cancelled) return;
+      const tMap = Object.fromEntries((usersRes.data || []).map(u => [u.id, u]));
+      const pMap = Object.fromEntries((pkgsRes.data || []).map(p => [p.id, p]));
+      setAdditionalParticipants(rows.map(r => {
+        const pkg = pMap[r.package_id];
+        return {
+          id: r.id,
+          trainee_id: r.trainee_id,
+          trainee_name: tMap[r.trainee_id]?.full_name || '',
+          package_id: r.package_id || null,
+          package_name: pkg ? (pkg.package_name || pkg.service_type || null) : null,
+          package_remaining: pkg ? Math.max(0, (pkg.total_sessions || 0) - (pkg.used_sessions || 0)) : null,
+          deducted: !!r.deducted,
+        };
+      }));
+    })();
+    return () => { cancelled = true; };
+  }, [editingSession?.id]);
+
+  // Lazy-fetch packages for a trainee when their row is configured.
+  // Cached by trainee id so the same trainee in two rows hits Supabase
+  // only once.
+  const ensurePackagesForTrainee = async (traineeId) => {
+    if (!traineeId || packagesByTrainee[traineeId]) return;
+    try {
+      const { data } = await supabase
+        .from('client_services')
+        .select('id, package_name, service_type, total_sessions, used_sessions, status')
+        .eq('trainee_id', traineeId)
+        .in('status', ['active', 'פעיל']);
+      setPackagesByTrainee(prev => ({ ...prev, [traineeId]: data || [] }));
+    } catch (e) {
+      console.warn('[SessionForm] packages fetch failed:', e?.message);
+    }
+  };
+
+  const addAdditionalParticipant = () => {
+    setAdditionalParticipants(prev => [
+      ...prev,
+      { trainee_id: '', trainee_name: '', package_id: null, package_name: null, package_remaining: null, deducted: false },
+    ]);
+  };
+  const updateAdditionalParticipant = (idx, patch) => {
+    setAdditionalParticipants(prev => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+    if (patch.trainee_id) ensurePackagesForTrainee(patch.trainee_id);
+  };
+  const removeAdditionalParticipant = (idx) => {
+    setAdditionalParticipants(prev => prev.filter((_, i) => i !== idx));
+  };
   const [guestForm, setGuestForm] = useState({
     full_name: "",
     phone: "",
@@ -284,6 +376,13 @@ export default function SessionFormDialog({
     if (sessionForm.service_id) {
       sessionDataWithStatus.service_id = sessionForm.service_id;
     }
+
+    // Additional-participants picker → parent strips this field
+    // before insert and writes the rows separately into
+    // session_participants once the session row exists.
+    sessionDataWithStatus.additional_participants = additionalParticipants
+      .filter(p => p.trainee_id)
+      .map(p => ({ trainee_id: p.trainee_id, package_id: p.package_id || null }));
 
     console.log("[SessionForm] Sending to parent:", JSON.stringify(sessionDataWithStatus));
     setSaving(true);
@@ -740,6 +839,111 @@ export default function SessionFormDialog({
               </div>
             </div>
           )}
+
+          {/* Additional participants — per-row package picker that
+              drives the session_participants table. Independent of
+              the JSONB participants above so a coach can deduct
+              from a guest's package without listing them as a main
+              attendee. */}
+          <div>
+            <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
+              👥 משתתפים נוספים — קיזוז חבילה אוטומטי
+            </Label>
+            <div className="space-y-2">
+              {additionalParticipants.map((p, idx) => {
+                const pkgs = packagesByTrainee[p.trainee_id] || [];
+                const isDeducted = p.deducted;
+                // Saved rows whose trainee hasn't been re-fetched
+                // yet: kick off the lazy load so the package
+                // dropdown can populate.
+                if (p.trainee_id && !packagesByTrainee[p.trainee_id]) {
+                  ensurePackagesForTrainee(p.trainee_id);
+                }
+                return (
+                  <div
+                    key={p.id || `new-${idx}`}
+                    className="flex flex-wrap gap-2 items-center p-2 rounded-xl border"
+                    style={{
+                      borderColor: isDeducted ? '#16a34a' : '#E0E0E0',
+                      background: isDeducted ? '#F0FDF4' : '#FAFAFA',
+                    }}
+                  >
+                    <select
+                      value={p.trainee_id || ''}
+                      disabled={isDeducted}
+                      onChange={(e) => {
+                        const t = trainees.find(x => x.id === e.target.value);
+                        updateAdditionalParticipant(idx, {
+                          trainee_id: e.target.value || '',
+                          trainee_name: t?.full_name || '',
+                          package_id: null,
+                          package_name: null,
+                          package_remaining: null,
+                        });
+                      }}
+                      className="flex-1 min-w-[140px] rounded-lg border p-2 text-sm bg-white"
+                      style={{ borderColor: '#E0E0E0' }}
+                    >
+                      <option value="">בחר מתאמן</option>
+                      {trainees.map(t => (
+                        <option key={t.id} value={t.id}>{t.full_name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={p.package_id || ''}
+                      disabled={isDeducted || !p.trainee_id}
+                      onChange={(e) => {
+                        const pkg = pkgs.find(x => x.id === e.target.value);
+                        updateAdditionalParticipant(idx, {
+                          package_id: e.target.value || null,
+                          package_name: pkg ? (pkg.package_name || pkg.service_type || null) : null,
+                          package_remaining: pkg ? Math.max(0, (pkg.total_sessions || 0) - (pkg.used_sessions || 0)) : null,
+                        });
+                      }}
+                      className="flex-1 min-w-[140px] rounded-lg border p-2 text-sm bg-white"
+                      style={{ borderColor: '#E0E0E0' }}
+                    >
+                      <option value="">בחר חבילה (אופציונלי)</option>
+                      {pkgs.map(pkg => {
+                        const remaining = Math.max(0, (pkg.total_sessions || 0) - (pkg.used_sessions || 0));
+                        return (
+                          <option key={pkg.id} value={pkg.id}>
+                            {pkg.package_name || pkg.service_type || 'חבילה'} · נותרו {remaining}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {isDeducted ? (
+                      <span
+                        className="text-xs font-bold px-2 py-1 rounded-full"
+                        style={{ background: '#16a34a', color: 'white' }}
+                      >
+                        קוזז ✓
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => removeAdditionalParticipant(idx)}
+                        className="px-2 py-1 rounded-full text-red-500 hover:bg-red-50"
+                        aria-label="הסר משתתף"
+                      >×</button>
+                    )}
+                  </div>
+                );
+              })}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addAdditionalParticipant}
+                className="w-full text-sm"
+              >
+                + הוסף משתתף לקיזוז
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              כשהמפגש יסומן "הושלם" — הקיזוז ירוץ אוטומטית לכל משתתף ברשימה לפי החבילה שנבחרה. ללא חבילה: ייבחר אוטומטית הכרטיסייה הפעילה הוותיקה ביותר של המשתתף.
+            </p>
+          </div>
 
           <div>
             <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
