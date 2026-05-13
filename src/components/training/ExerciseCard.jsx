@@ -41,19 +41,26 @@ function getVariant(exercise) {
 // legacy paths that earlier editor versions wrote to.
 function getSubExercises(exercise) {
   const td = parseTabataData(exercise.tabata_data);
-  if (td && Array.isArray(td.sub_exercises) && td.sub_exercises.length) {
-    return td.sub_exercises;
+  if (td && typeof td === 'object') {
+    // The canonical key, plus every other plausible name the editor
+    // has used over time — pick the first array we find that is non-empty.
+    for (const key of ['sub_exercises', 'exercises', 'items', 'children', 'block_exercises', 'list']) {
+      if (Array.isArray(td[key]) && td[key].length) return td[key];
+    }
+    // Nested blocks structure (legacy)
+    if (Array.isArray(td.blocks)) {
+      const out = [];
+      td.blocks.forEach(b => (b.block_exercises || b.exercises || []).forEach(be => out.push(be)));
+      if (out.length) return out;
+    }
   }
-  if (td && Array.isArray(td.blocks)) {
-    const out = [];
-    td.blocks.forEach(b => (b.block_exercises || []).forEach(be => out.push(be)));
-    if (out.length) return out;
-  }
+  // Direct columns on the exercise row
   for (const key of ['sub_exercises', 'superset_exercises', 'combo_exercises', 'tabata_exercises', 'exercises']) {
     const v = exercise[key];
     if (Array.isArray(v) && v.length) return v;
   }
-  if (typeof exercise.exercise_list === 'string') {
+  // exercise_list — TEXT-serialised JSON in this DB
+  if (typeof exercise.exercise_list === 'string' && exercise.exercise_list.trim()) {
     try {
       const parsed = JSON.parse(exercise.exercise_list);
       if (Array.isArray(parsed) && parsed.length) return parsed;
@@ -225,8 +232,22 @@ function ActionButton({ icon, label, color, borderColor, onClick }) {
 }
 
 function SubExerciseItem({ index, sub, accentColor, accentTint }) {
-  const name = sub.name || sub.exercise_name || `תרגיל ${index}`;
-  const desc = sub.description || sub.notes || null;
+  // The editor has used several different field names for the sub-
+  // exercise display name over time. Try them all, treat empty/
+  // whitespace as missing, and fall back to a numeric placeholder
+  // so an item is never visually blank.
+  const pickName = (...candidates) => {
+    for (const c of candidates) {
+      if (typeof c === 'string' && c.trim()) return c.trim();
+    }
+    return null;
+  };
+  const name = pickName(
+    sub?.name, sub?.exercise_name, sub?.exerciseName,
+    sub?.title, sub?.label, sub?.displayName,
+    sub?.exercise?.name, sub?.exercise?.exercise_name,
+  ) || `תרגיל ${index}`;
+  const desc = sub.description || sub.notes || sub.coach_notes || null;
   const reps   = hasValue(sub.reps)      ? `${sub.reps} חז׳` : null;
   const weight = hasValue(sub.weight)    ? `${sub.weight} ק״ג` : null;
   const rest   = toSeconds(sub.rest_time);
@@ -309,6 +330,25 @@ export default function ExerciseCard({
   const td = parseTabataData(exercise.tabata_data);
   const subExercises = getSubExercises(exercise);
   const description = exercise.description || exercise.notes || exercise.coach_notes || null;
+
+  // Diagnostic logger — fires once per render of a container exercise
+  // so the actual sub_exercises shape lands in DevTools when the bug
+  // we're chasing has empty items. Keep cheap & guarded so production
+  // doesn't get spammed by normal-mode rows.
+  if ((variant === 'tabata' || variant === 'list') && typeof window !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.log('[ExerciseCard]', {
+      name,
+      mode: exercise.mode,
+      variant,
+      tabata_data_type: typeof exercise.tabata_data,
+      tabata_data_parsed: td,
+      sub_exercises_keys: td && typeof td === 'object' ? Object.keys(td) : null,
+      sub_exercises_resolved: subExercises,
+      sub_exercises_count: subExercises.length,
+      first_sub_keys: subExercises[0] ? Object.keys(subExercises[0]) : null,
+    });
+  }
 
   // Summary line under the title — variant-specific so each card
   // type advertises the params that matter for its execution model.
@@ -724,7 +764,13 @@ export default function ExerciseCard({
               </div>
             )}
 
-            {/* Action buttons — coach mode only */}
+            {/* Action buttons — coach mode only.
+                שנה שם renders unconditionally so the row always has the
+                4th action; if `onRename` isn't wired by the parent the
+                inline rename still updates local state and discards on
+                blur. שכפל also renders for every variant (the
+                normal-only gate was over-strict — coaches asked to
+                duplicate supersets/tabata too). */}
             {isCoachMode && (
               <div style={{
                 marginTop: 12,
@@ -741,7 +787,7 @@ export default function ExerciseCard({
                     onClick={() => onEdit(exercise)}
                   />
                 )}
-                {onDuplicate && variant === 'normal' && (
+                {onDuplicate && (
                   <ActionButton
                     icon="⧉"
                     label="שכפל"
@@ -750,15 +796,13 @@ export default function ExerciseCard({
                     onClick={() => onDuplicate(exercise)}
                   />
                 )}
-                {onRename && (
-                  <ActionButton
-                    icon="✎"
-                    label="שנה שם"
-                    color="#555"
-                    borderColor="#F0E4D0"
-                    onClick={() => setRenaming(true)}
-                  />
-                )}
+                <ActionButton
+                  icon="✎"
+                  label="שנה שם"
+                  color="#555"
+                  borderColor="#F0E4D0"
+                  onClick={() => setRenaming(true)}
+                />
                 {onDelete && (
                   <ActionButton
                     icon="🗑"
