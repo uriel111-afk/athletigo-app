@@ -23,18 +23,9 @@ const STATUS_MAP = {
 const DAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 const MONTHS = ['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
 
-// Trainee-visible package statuses. Cancelled / expired / completed
-// are hidden because they no longer affect the trainee's balance.
-// "ליעפ" is the legacy reversed-Hebrew variant of "פעיל" that turned
-// up in a handful of older rows — left in the whitelist so those
-// trainees see their package while the data is normalised.
-const VISIBLE_PACKAGE_STATUSES = new Set([
-  'active', 'פעיל', 'ליעפ',
-  'unpaid',
-  'paused',
-  'frozen',
-]);
-
+// Display-only label map — purely for prettier Hebrew rendering of
+// English status strings. NOT a filter. Unknown statuses fall through
+// to the raw value so every package is still rendered.
 const STATUS_LABEL = {
   active: 'פעיל',
   'פעיל': 'פעיל',
@@ -42,6 +33,9 @@ const STATUS_LABEL = {
   unpaid: 'לא שולם',
   paused: 'מושהה',
   frozen: 'מוקפא',
+  cancelled: 'בוטל',
+  expired: 'פג תוקף',
+  completed: 'הסתיים',
 };
 
 function formatPkgDate(d) {
@@ -115,9 +109,10 @@ function TraineeSessionsInner() {
         const coaches = await base44.entities.User.filter({ id: services[0].created_by });
         if (coaches.length > 0) setCoach(coaches[0]);
       }
-      const visible = services.filter(s =>
-        VISIBLE_PACKAGE_STATUSES.has(s.status)
-      ).map(s => ({
+      // No status filtering — show every package linked to this
+      // trainee, regardless of status. Display labels live in
+      // STATUS_LABEL but never gate visibility.
+      const visible = services.map(s => ({
         ...s,
         remaining: Math.max(0, (s.total_sessions || 0) - (s.used_sessions || 0)),
       }));

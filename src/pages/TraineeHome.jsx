@@ -27,16 +27,6 @@ import EntryNotificationsPopup from "../components/trainee/EntryNotificationsPop
 import ActivityHeatmap from "@/components/charts/ActivityHeatmap";
 import { useQueryClient } from "@tanstack/react-query";
 
-// Trainee-visible package statuses — mirrors TraineeSessions. Anything
-// cancelled / expired / completed is hidden because it can't drive a
-// new booking. "ליעפ" is a legacy reversed-Hebrew variant of "פעיל".
-const VISIBLE_PACKAGE_STATUSES = new Set([
-  'active', 'פעיל', 'ליעפ',
-  'unpaid',
-  'paused',
-  'frozen',
-]);
-
 // "השיאים שלי" surface for the trainee home — pulls the latest
 // personal_records row + total PB count for this trainee. Renders
 // nothing while loading or when no records exist. Click navigates
@@ -390,7 +380,8 @@ export default function TraineeHome() {
             const coaches = await base44.entities.User.filter({ id: services[0].created_by });
             if (coaches.length > 0) setCoach(coaches[0]);
           }
-          setActiveServices(services.filter(s => VISIBLE_PACKAGE_STATUSES.has(s.status)));
+          // No status filtering — surface every linked package.
+          setActiveServices(services);
 
           // Load unread notifications
           try {
@@ -806,7 +797,7 @@ export default function TraineeHome() {
         // the cancelled status but the package badge stays stale.
         try {
           const services = await base44.entities.ClientService.filter({ trainee_id: user.id });
-          setActiveServices(services.filter(s => VISIBLE_PACKAGE_STATUSES.has(s.status)));
+          setActiveServices(services);
           console.log('[REFRESH] after cancel — sessions:', mySessions.length, 'active services:', services.length);
         } catch (e) { console.warn('[TraineeHome] refresh after cancel:', e); }
         toast.success("המפגש בוטל והיתרה הוחזרה לחבילה");
