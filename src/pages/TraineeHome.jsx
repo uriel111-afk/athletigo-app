@@ -27,6 +27,16 @@ import EntryNotificationsPopup from "../components/trainee/EntryNotificationsPop
 import ActivityHeatmap from "@/components/charts/ActivityHeatmap";
 import { useQueryClient } from "@tanstack/react-query";
 
+// Trainee-visible package statuses — mirrors TraineeSessions. Anything
+// cancelled / expired / completed is hidden because it can't drive a
+// new booking. "ליעפ" is a legacy reversed-Hebrew variant of "פעיל".
+const VISIBLE_PACKAGE_STATUSES = new Set([
+  'active', 'פעיל', 'ליעפ',
+  'unpaid',
+  'paused',
+  'frozen',
+]);
+
 // "השיאים שלי" surface for the trainee home — pulls the latest
 // personal_records row + total PB count for this trainee. Renders
 // nothing while loading or when no records exist. Click navigates
@@ -359,12 +369,28 @@ export default function TraineeHome() {
         setUser(currentUser);
         
         if (currentUser) {
-          const services = await base44.entities.ClientService.filter({ trainee_id: currentUser.id });
+          // Direct supabase read so the console surfaces both the raw
+          // rows and any RLS / network error — a thrown error from the
+          // base44 wrapper looks identical to an RLS-silenced empty
+          // array, which is the exact ambiguity we're trying to debug.
+          const { data: rawServices, error: servicesError } = await supabase
+            .from('client_services')
+            .select('*')
+            .eq('trainee_id', currentUser.id);
+          console.log('[TraineeHome] packages query result:', {
+            trainee_id: currentUser.id,
+            email: currentUser.email,
+            count: rawServices?.length ?? 0,
+            data: rawServices,
+            error: servicesError,
+          });
+          const services = rawServices || [];
+
           if (services.length > 0 && services[0].created_by) {
             const coaches = await base44.entities.User.filter({ id: services[0].created_by });
             if (coaches.length > 0) setCoach(coaches[0]);
           }
-          setActiveServices(services.filter(s => s.status === 'פעיל' || s.status === 'active'));
+          setActiveServices(services.filter(s => VISIBLE_PACKAGE_STATUSES.has(s.status)));
 
           // Load unread notifications
           try {
@@ -780,7 +806,7 @@ export default function TraineeHome() {
         // the cancelled status but the package badge stays stale.
         try {
           const services = await base44.entities.ClientService.filter({ trainee_id: user.id });
-          setActiveServices(services.filter(s => s.status === 'פעיל' || s.status === 'active'));
+          setActiveServices(services.filter(s => VISIBLE_PACKAGE_STATUSES.has(s.status)));
           console.log('[REFRESH] after cancel — sessions:', mySessions.length, 'active services:', services.length);
         } catch (e) { console.warn('[TraineeHome] refresh after cancel:', e); }
         toast.success("המפגש בוטל והיתרה הוחזרה לחבילה");

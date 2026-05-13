@@ -23,6 +23,34 @@ const STATUS_MAP = {
 const DAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 const MONTHS = ['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
 
+// Trainee-visible package statuses. Cancelled / expired / completed
+// are hidden because they no longer affect the trainee's balance.
+// "ליעפ" is the legacy reversed-Hebrew variant of "פעיל" that turned
+// up in a handful of older rows — left in the whitelist so those
+// trainees see their package while the data is normalised.
+const VISIBLE_PACKAGE_STATUSES = new Set([
+  'active', 'פעיל', 'ליעפ',
+  'unpaid',
+  'paused',
+  'frozen',
+]);
+
+const STATUS_LABEL = {
+  active: 'פעיל',
+  'פעיל': 'פעיל',
+  'ליעפ': 'פעיל',
+  unpaid: 'לא שולם',
+  paused: 'מושהה',
+  frozen: 'מוקפא',
+};
+
+function formatPkgDate(d) {
+  if (!d) return null;
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toLocaleDateString('he-IL');
+}
+
 function formatDate(d) {
   const date = new Date(d);
   return `יום ${DAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]}`;
@@ -67,20 +95,33 @@ function TraineeSessionsInner() {
       setUser(currentUser);
       if (!currentUser) return;
 
-      // Get coach + packages
-      const services = await base44.entities.ClientService.filter({ trainee_id: currentUser.id });
+      // Direct supabase read so we surface RLS / empty-result distinctions
+      // in the console. The base44 wrapper throws-on-error and would mask
+      // an RLS-silenced empty array vs a real network failure.
+      const { data: rawServices, error: servicesError } = await supabase
+        .from('client_services')
+        .select('*')
+        .eq('trainee_id', currentUser.id);
+      console.log('[TraineeSessions] packages query result:', {
+        trainee_id: currentUser.id,
+        email: currentUser.email,
+        count: rawServices?.length ?? 0,
+        data: rawServices,
+        error: servicesError,
+      });
+      const services = rawServices || [];
+
       if (services.length > 0 && services[0].created_by) {
         const coaches = await base44.entities.User.filter({ id: services[0].created_by });
         if (coaches.length > 0) setCoach(coaches[0]);
       }
-      const active = services.filter(s =>
-        (s.status === 'פעיל' || s.status === 'active') &&
-        s.total_sessions > 0
+      const visible = services.filter(s =>
+        VISIBLE_PACKAGE_STATUSES.has(s.status)
       ).map(s => ({
         ...s,
-        remaining: (s.total_sessions || 0) - (s.used_sessions || 0),
+        remaining: Math.max(0, (s.total_sessions || 0) - (s.used_sessions || 0)),
       }));
-      setActivePackages(active);
+      setActivePackages(visible);
 
       // Get all sessions for this trainee
       const allSessions = await base44.entities.Session.filter({}, '-date', 500);
@@ -328,27 +369,47 @@ function TraineeSessionsInner() {
         padding: '12px 14px 80px',
         WebkitOverflowScrolling: 'touch'
       }}>
-        {/* Active package balance */}
-        {activePackages.length > 0 && activePackages[0].remaining > 0 && (
-          <div style={{
-            background: '#FFF0E8', borderRadius: '14px',
-            padding: '14px 16px', marginBottom: '12px',
-            border: '1px solid #FFD0A0',
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <div>
-              <div style={{ fontSize: '13px', color: '#CC4A00', fontWeight: '700', marginBottom: '2px' }}>
-                יתרת חבילה פעילה
-              </div>
-              <div style={{ fontSize: '24px', fontWeight: '900', color: '#FF6F20' }}>
-                {activePackages[0].remaining} מפגשים
-              </div>
-              {activePackages[0].package_name && (
-                <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>{activePackages[0].package_name}</div>
-              )}
-            </div>
-            <div style={{ fontSize: '32px' }}>📦</div>
+        {/* Packages — full list. Each card shows name, balance,
+            status, and start/end window when present. */}
+        {activePackages.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            {activePackages.map((pkg) => {
+              const total = parseInt(pkg.total_sessions || 0);
+              const used = parseInt(pkg.used_sessions || 0);
+              const start = formatPkgDate(pkg.start_date);
+              const end   = formatPkgDate(pkg.end_date);
+              const statusLabel = STATUS_LABEL[pkg.status] || pkg.status || '';
+              return (
+                <div key={pkg.id} style={{
+                  background: '#FFF0E8', borderRadius: '14px',
+                  padding: '14px 16px', marginBottom: '8px',
+                  border: '1px solid #FFD0A0',
+                  display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', color: '#CC4A00', fontWeight: '700', marginBottom: '2px' }}>
+                      {pkg.package_name || 'חבילה'}
+                    </div>
+                    {total > 0 ? (
+                      <div style={{ fontSize: '22px', fontWeight: '900', color: '#FF6F20', lineHeight: 1.1 }}>
+                        {pkg.remaining}
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#CC4A00' }}> / {total} מפגשים</span>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#FF6F20' }}>מנוי</div>
+                    )}
+                    <div style={{ fontSize: 11, color: '#7a7a7a', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {statusLabel && <span>{statusLabel}</span>}
+                      {used > 0 && total > 0 && <span>בוצעו {used}</span>}
+                      {start && <span>החל מ-{start}</span>}
+                      {end && <span>עד {end}</span>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '32px', marginRight: 8 }}>📦</div>
+                </div>
+              );
+            })}
           </div>
         )}
 
