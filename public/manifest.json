@@ -5,7 +5,7 @@
   "start_url": "/login",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFFFF",
+  "background_color": "#FFF9F0",
   "theme_color": "#FF6F20",
   "icons": [
     { "src": "/icon-72.png?v=18",  "sizes": "72x72",  "type": "image/png", "purpose": "any" },

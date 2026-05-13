@@ -67,93 +67,18 @@
       document.addEventListener('touchmove', function(e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
     </script>
 
-    <!-- Keyframes — `loading-bar` for InlineLoader, `splash-pulse`
-         for the boot splash logo. Lives in index.html so animations
-         are available before React + Vite inject CSS modules. -->
+    <!-- Keyframes — `loading-bar` for InlineLoader. Lives in
+         index.html so animations are available before React + Vite
+         inject CSS modules. -->
     <style>
       @keyframes loading-bar {
         0%   { transform: translateX(-150%); }
         100% { transform: translateX(300%); }
       }
-      @keyframes splash-pulse {
-        0%, 100% { transform: scale(1);    opacity: 1;   }
-        50%      { transform: scale(1.05); opacity: 0.8; }
-      }
     </style>
   </head>
   <body style="margin:0;padding:0;background:#FFF9F0;">
     <div id="root"></div>
-
-    <!-- Branded boot splash — sits OUTSIDE #root so React's first
-         render doesn't blow it away. main.jsx + AuthContext fire an
-         `app-ready` event once auth + profile are loaded, which
-         finishes the bar to 100% and fades the splash out. The
-         interval pre-fills to 90% to keep motion alive while data
-         loads, then snaps to 100% on the event. -->
-    <div id="splash" style="
-      position: fixed; inset: 0;
-      background: #FFF9F0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      z-index: 99999;
-      padding: 20px;
-      transition: opacity 0.4s ease;
-      font-family: 'Barlow', system-ui, sans-serif;
-      direction: rtl;
-    ">
-      <img src="/logoR-black.png" alt="AthletiGo"
-           style="width: 160px; max-width: 50vw; height: auto; opacity: 0.5; margin-bottom: 40px;"
-           onerror="this.style.display='none';" />
-      <div style="
-        width: 260px; max-width: 75vw; height: 3px;
-        background: #F5E6D3; border-radius: 2px;
-        overflow: hidden; margin-bottom: 14px;
-      ">
-        <div id="splash-bar" style="
-          height: 100%; width: 0%;
-          background: #FF6F20; border-radius: 2px;
-          transition: width 0.3s ease;
-        "></div>
-      </div>
-      <div id="splash-percent" style="font-size: 15px; font-weight: 500; color: #999; margin-bottom: 18px;">0%</div>
-      <div style="font-size: 15px; font-weight: 400; color: #888; text-align: center;">טוען...</div>
-    </div>
-    <script>
-      (function () {
-        var bar = document.getElementById('splash-bar');
-        var pct = document.getElementById('splash-percent');
-        var splash = document.getElementById('splash');
-        if (!bar || !pct || !splash) return;
-        // Pre-fill bar to 90% over the first ~2s while React + auth
-        // hydrate. App-ready event below snaps to 100% + fades.
-        var progress = 0;
-        var interval = setInterval(function () {
-          if (progress >= 90) return;
-          progress += Math.random() * 12 + 3;
-          if (progress > 90) progress = 90;
-          var rounded = Math.round(progress);
-          bar.style.width = rounded + '%';
-          pct.textContent = rounded + '%';
-        }, 180);
-        window.addEventListener('app-ready', function once() {
-          window.removeEventListener('app-ready', once);
-          clearInterval(interval);
-          bar.style.width = '100%';
-          pct.textContent = '100%';
-          setTimeout(function () {
-            splash.style.opacity = '0';
-            setTimeout(function () { splash.remove(); }, 400);
-          }, 250);
-        });
-        // Safety net — if app-ready never fires (auth error, slow
-        // network), force-fade after 8s so the user is never stuck
-        // at 90%.
-        setTimeout(function () {
-          if (!splash.isConnected) return;
-          window.dispatchEvent(new Event('app-ready'));
-        }, 8000);
-      })();
-    </script>
 
     <script type="module" src="/src/main.jsx"></script>
   </body>
