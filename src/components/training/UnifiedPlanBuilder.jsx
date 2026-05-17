@@ -1888,7 +1888,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px' }}>
+      <div className="max-w-7xl mx-auto w-full" style={{ padding: canEdit ? '12px 16px' : '8px' }}>
 
         {canEdit &&
         <div className="mb-4 md:mb-6 w-full flex gap-2">
@@ -1905,7 +1905,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </div>
         }
 
-        <div className="space-y-3 md:space-y-6 mb-20 md:mb-24 w-full">
+        <div className={`w-full ${canEdit ? 'space-y-3 md:space-y-6 mb-20 md:mb-24' : 'space-y-2 mb-24'}`}>
           {sections.filter(Boolean).map((section, index) => {
             const sectionExercises = getExercisesBySection(section.id);
             console.log('[UPB] rendering section:', section.id, 'exercises:', sectionExercises?.length);
@@ -2500,36 +2500,28 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </DialogContent>
       </Dialog>
       
-      {/* Finish Button — only for trainees doing workout, not coaches editing */}
+      {/* Finish Button — trainee-only. Standalone bottom-fixed button
+          on a transparent container; the duplicate progress bar that
+          used to live here was removed (the header progress bar at
+          line ~1873 is the single source of truth). bg-black wrapper
+          dropped per design feedback — orange-on-white reads cleanly
+          and matches the brand. */}
       {!canEdit && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black p-4 z-50" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}>
-          {/* Thin progress bar: fill #FF6F20 on #FFE5D0 track */}
-          {exercisesTotal > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{
-                height: 6, width: '100%', background: '#FFE5D0',
-                borderRadius: 999, overflow: 'hidden',
-              }}>
-                <div style={{
-                  height: '100%', width: `${progressPct}%`,
-                  background: '#FF6F20', transition: 'width 0.25s ease',
-                }} />
-              </div>
-              <div style={{
-                color: '#FFE5D0',
-                fontSize: 12,
-                fontWeight: 700,
-                marginTop: 4,
-                textAlign: 'center',
-                letterSpacing: 0.5,
-              }}>
-                {exercisesDone} / {exercisesTotal} תרגילים · {progressPct}% הושלם
-              </div>
-            </div>
-          )}
-          <Button
-            className="w-full h-12 font-bold text-lg"
-            style={{ backgroundColor: 'black', color: '#FF6F20', border: '2px solid #FF6F20' }}
+        <div style={{
+          position: 'fixed',
+          bottom: 0, left: 0, right: 0,
+          padding: '8px',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+          // Soft cream — matches the app's primary surface so the
+          // fixed strip reads as page chrome rather than a separate
+          // dark dock. Top fade hint keeps content underneath from
+          // looking abruptly cut.
+          background: '#FFF9F0',
+          boxShadow: '0 -6px 12px rgba(0,0,0,0.04)',
+          zIndex: 50,
+        }}>
+          <button
+            type="button"
             onClick={() => {
               const completedExercises = exercises.filter(e => e.completed);
               if (completedExercises.length > 0) {
@@ -2538,9 +2530,22 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 toast.error("יש להשלים לפחות תרגיל אחד לפני סיום האימון");
               }
             }}
+            style={{
+              width: '100%',
+              background: '#FF6F20',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: 12,
+              padding: 14,
+              fontSize: 15,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+              boxShadow: '0 6px 16px rgba(255,111,32,0.28)',
+            }}
           >
             סיים אימון
-          </Button>
+          </button>
         </div>
       )}
 

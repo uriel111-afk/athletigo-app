@@ -111,7 +111,7 @@ export default function SectionCard({
         ? {
             backgroundColor: style.bg,
             borderRadius: 14,
-            marginBottom: 10,
+            marginBottom: 6,
             borderRight: `4px solid ${style.accent}`,
           }
         : {
@@ -121,7 +121,8 @@ export default function SectionCard({
           }}
     >
       <div
-        className="w-full p-4 cursor-pointer transition-colors hover:bg-gray-50"
+        className={`w-full cursor-pointer transition-colors hover:bg-gray-50 ${isTraineeView ? '' : 'p-4'}`}
+        style={isTraineeView ? { padding: '10px 12px' } : undefined}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-start justify-between">
@@ -260,7 +261,7 @@ export default function SectionCard({
       <AnimatePresence>
         {expanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
-            <div className="px-3 pb-4 pt-3 bg-white border-t" style={{ borderColor: style.border }}>
+            <div className={`bg-white border-t ${isTraineeView ? '' : 'px-3 pb-4 pt-3'}`} style={{ borderColor: style.border, ...(isTraineeView ? { padding: '8px 10px 10px' } : {}) }}>
 
               {/* Coach notes — coach-edit mode only. Lives ABOVE the
                   exercise list so the rationale/dגשים for the section

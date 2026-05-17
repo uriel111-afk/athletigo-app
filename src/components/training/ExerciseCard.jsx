@@ -507,14 +507,14 @@ export default function ExerciseCard({
       borderRadius: 11,
       border: `1.5px solid ${colors.border}`,
       overflow: 'hidden',
-      marginBottom: 7,
+      marginBottom: isCoachMode ? 7 : 5,
       background: '#FFFFFF',
       display: 'flex',
       direction: 'rtl',
     }}>
       {/* Left vertical stripe */}
       <div style={{
-        width: 6,
+        width: isCoachMode ? 6 : 4,
         background: colors.stripe,
         flexShrink: 0,
       }} aria-hidden />
@@ -536,7 +536,7 @@ export default function ExerciseCard({
             display: 'flex',
             alignItems: 'flex-start',
             gap: 10,
-            padding: '12px 13px',
+            padding: isCoachMode ? '12px 13px' : '10px 11px',
             cursor: 'pointer',
             userSelect: 'none',
           }}
@@ -630,7 +630,7 @@ export default function ExerciseCard({
           <div style={{
             background: '#FAFAFA',
             borderTop: `1px solid ${colors.border}`,
-            padding: '12px 13px',
+            padding: isCoachMode ? '12px 13px' : '10px 11px',
           }}>
             {/* Tabata — coach mode keeps the legacy detailed view
                 (badge, full grid, total-time tile, sub list). */}
