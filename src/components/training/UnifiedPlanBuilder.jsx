@@ -383,6 +383,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // Shape: { [exerciseId]: { [setIndex]: { reps_completed, done } } }
   // Persisted to exercise_set_logs at workout-finish time.
   const [setLogs, setSetLogs] = useState({});
+  // Per-drill-per-set marks for list-variant exercises (כל דריל בכל סט
+  // נסמן בנפרד). Local state only — NOT persisted to DB in this phase
+  // (exercise_set_logs has no drill_index column). The aggregate
+  // exercise.completed flag is still derived from "all drills × all
+  // sets marked" so the section-feedback popup fires correctly.
+  // Shape: { [exerciseId]: { [setIndex]: { [drillIndex]: true } } }
+  const [drillSetLogs, setDrillSetLogs] = useState({});
   // End-of-workout multi-select feedback chips + free-text. Saved to
   // workout_executions.feedback_chips / .notes.
   const [feedbackChips, setFeedbackChips] = useState([]);
@@ -1037,6 +1044,44 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       handleToggleComplete(exercise);
     }
   }, [setLogs, handleToggleComplete]);
+
+  // List-variant per-drill-per-set toggle. Maintains drillSetLogs and
+  // — like toggleSetDone — flips exercise.completed when every (drill,
+  // set) cell is checked, or when un-checking one drops the exercise
+  // back below the threshold after it was complete. The completion
+  // computation runs against the next state (not the React state we
+  // just queued) so the flip happens in the same tick as the toggle.
+  const toggleDrillSetDone = React.useCallback((exercise, setIdx, drillIdx, totalDrills, totalSets) => {
+    const exId = exercise.id;
+    const exLogs = drillSetLogs[exId] || {};
+    const sLogs = exLogs[setIdx] || {};
+    const wasDone = !!sLogs[drillIdx];
+
+    const nextSetLogs = { ...sLogs };
+    if (wasDone) delete nextSetLogs[drillIdx];
+    else nextSetLogs[drillIdx] = true;
+
+    const nextExLogs = { ...exLogs, [setIdx]: nextSetLogs };
+
+    console.log('[ExerciseCard] toggle drill set:', { exId, setIdx, drillIdx, newState: !wasDone });
+
+    let allDone = true;
+    outer:
+    for (let s = 0; s < totalSets; s++) {
+      for (let d = 0; d < totalDrills; d++) {
+        if (!nextExLogs[s]?.[d]) { allDone = false; break outer; }
+      }
+    }
+    console.log('[ExerciseCard] all done?', allDone);
+
+    setDrillSetLogs((prev) => ({ ...prev, [exId]: nextExLogs }));
+
+    if (allDone && !exercise.completed) {
+      handleToggleComplete(exercise);
+    } else if (!allDone && exercise.completed) {
+      handleToggleComplete(exercise);
+    }
+  }, [drillSetLogs, handleToggleComplete]);
 
   const handleSaveSection = async (sectionData) => {
     if (!sectionData || !sectionData.section_name) {
@@ -1910,6 +1955,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 setLogs={setLogs}
                 onSetLogChange={updateSetLog}
                 onSetToggleDone={toggleSetDone}
+                drillSetLogs={drillSetLogs}
+                onDrillSetToggleDone={toggleDrillSetDone}
                 onOpenExecution={(ex) => {
                   setExecutionExercise(ex);
                   setShowExecutionModal(true);

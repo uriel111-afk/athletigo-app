@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
+import { useClock } from "@/contexts/ClockContext";
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -126,6 +127,66 @@ function formatParamValue(def, raw) {
   }
   if (Array.isArray(raw)) return raw.filter(Boolean).join(', ');
   return String(raw);
+}
+
+// Maps a sub-exercise (the row inside tabata_data.sub_exercises) to
+// the abstract { type, value, label } shape used by the list-variant
+// table. The schema has no target_type/target_value columns, so we
+// derive the type from whichever prescribed field is populated:
+//   reps     → "X חזרות" (or sub.reps_label if the coach overrode it,
+//              e.g. "X קפיצות" for jump-rope drills)
+//   work_time→ "X שניות"
+//   distance → "X מטר"   (JSONB-only, no column needed)
+//   weight   → "X ק״ג"
+// Returns null when no recognisable target exists, so the caller can
+// render a dash without guessing units.
+function getDrillTarget(sub) {
+  if (!sub) return null;
+  if (hasValue(sub.reps)) {
+    const label = (typeof sub.reps_label === 'string' && sub.reps_label.trim()) ? sub.reps_label.trim() : 'חזרות';
+    return { type: 'reps', value: sub.reps, label, display: `${sub.reps} ${label}` };
+  }
+  const work = toSeconds(sub.work_time);
+  if (work != null) {
+    return { type: 'time', value: work, label: 'שניות', display: `${work} שניות` };
+  }
+  if (hasValue(sub.distance)) {
+    return { type: 'distance', value: sub.distance, label: 'מטר', display: `${sub.distance} מטר` };
+  }
+  if (hasValue(sub.weight)) {
+    return { type: 'weight', value: sub.weight, label: 'ק״ג', display: `${sub.weight} ק״ג` };
+  }
+  return null;
+}
+
+// Pulls a stable display name from a sub-exercise across the many
+// legacy field names different editor versions wrote.
+function getDrillName(sub, index) {
+  const candidates = [sub?.name, sub?.exercise_name, sub?.exerciseName, sub?.title, sub?.label, sub?.displayName];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+  return `תרגיל ${index + 1}`;
+}
+
+// Resolves the prescribed columns for a normal-variant set table.
+// Returns an ordered list of { key, label, value } — only columns with
+// a meaningful prescribed value appear, so a bodyweight rep-only
+// exercise renders just חזרות/✓ without empty משקל/זמן cells. `time`
+// reads work_time (the seconds the trainee should hold/work per set).
+function resolveNormalColumns(exercise) {
+  const cols = [];
+  if (hasValue(exercise.reps)) {
+    cols.push({ key: 'reps', label: 'חזרות', value: String(exercise.reps) });
+  }
+  if (hasValue(exercise.weight)) {
+    cols.push({ key: 'weight', label: 'משקל', value: String(exercise.weight) });
+  }
+  const workSec = toSeconds(exercise.work_time);
+  if (workSec != null) {
+    cols.push({ key: 'time', label: 'זמן', value: String(workSec) });
+  }
+  return cols;
 }
 
 // ── Sub components ────────────────────────────────────────────────
@@ -310,8 +371,14 @@ export default function ExerciseCard({
   setLog,
   onSetLogChange: _onSetLogChange,
   onSetToggleDone,
+  // Per-drill-per-set state for list-variant exercises. Each cell is
+  // a boolean inside drillSetLog[setIdx][drillIdx]. Local-state only —
+  // not persisted to exercise_set_logs (no drill_index column).
+  drillSetLog,
+  onDrillSetToggleDone,
 }) {
   const queryClient = useQueryClient();
+  const clock = useClock();
   const [expanded, setExpanded] = useState(false);
   const [renaming, setRenaming] = useState(false);
 
@@ -561,8 +628,9 @@ export default function ExerciseCard({
             borderTop: `1px solid ${colors.border}`,
             padding: '12px 13px',
           }}>
-            {/* Tabata badge + grid */}
-            {variant === 'tabata' && (
+            {/* Tabata — coach mode keeps the legacy detailed view
+                (badge, full grid, total-time tile, sub list). */}
+            {variant === 'tabata' && isCoachMode && (
               <>
                 <div style={{
                   background: '#EFF6FF',
@@ -653,8 +721,126 @@ export default function ExerciseCard({
               </>
             )}
 
-            {/* List/superset variant */}
-            {variant === 'list' && (
+            {/* Tabata — trainee minimal layout: setting tiles (2 per
+                row) + numbered drill list + "הפעל שעון טבטה" button
+                that hands the timing off to the shared ClockContext
+                (FloatingClockBar shows the running timer above the
+                bottom nav). No per-set checkboxes — the timer drives
+                completion, not manual taps. */}
+            {variant === 'tabata' && !isCoachMode && (() => {
+              const workSec = parseInt(td?.work_time ?? td?.work_sec ?? 0, 10) || 0;
+              const restSec = parseInt(td?.rest_time ?? td?.rest_sec ?? 0, 10) || 0;
+              const rounds = parseInt(td?.rounds ?? 0, 10) || 0;
+              const sets = parseInt(td?.sets ?? 1, 10) || 1;
+              const setRest = parseInt(td?.rest_between_sets ?? 0, 10) || 0;
+              const canStart = workSec > 0 && rounds > 0 && typeof clock?.startTabata === 'function';
+
+              const tiles = [
+                workSec > 0 && { label: 'עבודה', value: workSec, unit: 'שנ׳', color: '#3B82F6' },
+                restSec > 0 && { label: 'מנוחה', value: restSec, unit: 'שנ׳', color: '#888' },
+                rounds > 0 && { label: 'סבבים', value: rounds, unit: null },
+                sets > 0 && { label: 'סטים', value: sets, unit: null },
+                setRest > 0 && { label: 'מנוחה בין סטים', value: setRest, unit: 'שנ׳', color: '#888' },
+              ].filter(Boolean);
+
+              return (
+                <>
+                  {tiles.length > 0 && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: 8,
+                      marginBottom: 10,
+                    }}>
+                      {tiles.map((t, i) => (
+                        <ParamChip
+                          key={i}
+                          label={t.label}
+                          value={t.value}
+                          unit={t.unit}
+                          valueColor={t.color}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {subExercises.length > 0 && (
+                    <div style={{
+                      border: '1px solid #F2EDE3',
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      background: '#FFFFFF',
+                      marginBottom: 10,
+                    }}>
+                      <div style={{
+                        background: '#FFF9F0',
+                        padding: '8px 12px',
+                        fontSize: 11, fontWeight: 700, color: '#999',
+                      }}>
+                        תרגילים בסבב
+                      </div>
+                      {subExercises.map((sub, i) => (
+                        <div key={sub.id || `sub-${i}`} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 12px',
+                          borderTop: '1px solid #F2EDE3',
+                          fontSize: 13, color: '#1a1a1a',
+                        }}>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: '50%',
+                            background: '#FFF5EE', color: '#FF6F20',
+                            fontSize: 12, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            flexShrink: 0,
+                          }}>{i + 1}</div>
+                          <div style={{ flex: 1, fontWeight: 600, wordBreak: 'break-word' }}>
+                            {getDrillName(sub, i)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!canStart) return;
+                      clock.startTabata({
+                        workTime: workSec,
+                        restTime: restSec,
+                        rounds,
+                        sets,
+                        setRest,
+                      });
+                    }}
+                    disabled={!canStart}
+                    style={{
+                      width: '100%',
+                      height: 44,
+                      borderRadius: 10,
+                      border: 'none',
+                      background: canStart ? '#FF6F20' : '#E5E7EB',
+                      color: canStart ? '#FFFFFF' : '#999',
+                      fontSize: 15, fontWeight: 700,
+                      cursor: canStart ? 'pointer' : 'not-allowed',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <span aria-hidden style={{ fontSize: 16 }}>⏱</span>
+                    הפעל שעון טבטה
+                  </button>
+
+                  <CoachNoteBox text={description} />
+                </>
+              );
+            })()}
+
+            {/* List/superset variant — coach mode retains the legacy
+                cards so the editor view is unchanged. */}
+            {variant === 'list' && isCoachMode && (
               <>
                 <div style={{
                   display: 'grid',
@@ -708,8 +894,116 @@ export default function ExerciseCard({
               </>
             )}
 
-            {/* Normal variant */}
-            {variant === 'normal' && (
+            {/* List/superset variant — trainee dynamic table. Columns:
+                תרגיל | יעד | סט 1 | ... | סט N. Each cell in the set
+                columns is an independent checkbox tracked in
+                drillSetLog[setIdx][drillIdx]. Completion of all
+                (drill × set) cells flips exercise.completed via the
+                parent's onDrillSetToggleDone, which in turn drives
+                the existing section-feedback popup logic. */}
+            {variant === 'list' && !isCoachMode && (() => {
+              const drills = subExercises;
+              const restSec = toSeconds(td?.rest_between_sets) ?? toSeconds(exercise.rest_time);
+              const isDrillSetDone = (di, si) => !!(drillSetLog?.[si]?.[di]);
+              const handleDrillToggle = (di, si) => {
+                if (typeof onDrillSetToggleDone !== 'function') return;
+                onDrillSetToggleDone(exercise, si, di, drills.length, totalSets);
+              };
+              return (
+                <>
+                  {drills.length === 0 ? (
+                    <div style={{
+                      padding: 16, textAlign: 'center',
+                      background: '#FFFFFF', borderRadius: 10,
+                      border: '1px dashed #e9d5ff',
+                      fontSize: 13, color: '#888',
+                    }}>אין תרגילים ברשימה</div>
+                  ) : (
+                    <div style={{
+                      border: '1px solid #F2EDE3',
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      background: '#FFFFFF',
+                    }}>
+                      {/* Header */}
+                      <div style={{
+                        display: 'flex',
+                        background: '#FFF9F0',
+                        fontSize: 11, fontWeight: 700, color: '#999',
+                      }}>
+                        <div style={{ flex: 2, padding: '8px 10px', textAlign: 'right' }}>תרגיל</div>
+                        <div style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>יעד</div>
+                        {Array.from({ length: totalSets }).map((_, si) => (
+                          <div key={si} style={{ width: 42, padding: '8px 4px', textAlign: 'center' }}>
+                            סט {si + 1}
+                          </div>
+                        ))}
+                      </div>
+                      {/* One row per drill */}
+                      {drills.map((sub, di) => {
+                        const target = getDrillTarget(sub);
+                        return (
+                          <div key={sub.id || `drill-${di}`} style={{
+                            display: 'flex', alignItems: 'center',
+                            fontSize: 12,
+                            borderTop: '1px solid #F2EDE3',
+                          }}>
+                            <div style={{
+                              flex: 2, padding: '10px',
+                              textAlign: 'right', fontWeight: 600,
+                              color: '#1a1a1a', wordBreak: 'break-word',
+                            }}>{getDrillName(sub, di)}</div>
+                            <div style={{
+                              flex: 1, padding: '10px 6px',
+                              textAlign: 'center', color: '#666',
+                            }}>{target ? target.display : '—'}</div>
+                            {Array.from({ length: totalSets }).map((_, si) => (
+                              <div key={si} style={{
+                                width: 42, padding: '8px 4px',
+                                display: 'flex', justifyContent: 'center',
+                                background: isDrillSetDone(di, si) ? '#F0FDF4' : 'transparent',
+                              }}>
+                                <SetCheckbox
+                                  checked={isDrillSetDone(di, si)}
+                                  color={colors.stripe}
+                                  onToggle={() => handleDrillToggle(di, si)}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Inter-set rest banner — same pattern as normal. */}
+                  {totalSets > 1 && restSec != null && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      marginTop: 12,
+                      background: '#FFF9F0',
+                      borderRadius: 8,
+                      padding: 9,
+                    }}>
+                      <span style={{ fontSize: 14, color: '#FF6F20' }} aria-hidden>⏱</span>
+                      <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>
+                        מנוחה {restSec} שנ׳ בין הסטים
+                      </span>
+                    </div>
+                  )}
+
+                  <CoachNoteBox text={description} />
+                </>
+              );
+            })()}
+
+            {/* Normal variant — coach mode keeps the legacy param-chip
+                grid so the prescribed plan reads at a glance during
+                editing. Trainee mode gets the dynamic set table below. */}
+            {variant === 'normal' && isCoachMode && (
               <>
                 <div style={{
                   display: 'grid',
@@ -736,33 +1030,97 @@ export default function ExerciseCard({
               </>
             )}
 
-            {/* Per-set checkbox row — trainee mode, normal variant
-                only (tabata/list have their own execution model
-                that runs through ExerciseExecutionModal). */}
-            {!isCoachMode && variant === 'normal' && totalSets > 0 && (
-              <div style={{
-                marginTop: 12,
-                display: 'flex',
-                gap: 8,
-                flexWrap: 'wrap',
-                alignItems: 'center',
-              }}>
-                <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>סטים:</span>
-                {Array.from({ length: totalSets }).map((_, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{
-                      fontSize: 12, color: '#888', fontFamily: "'Barlow Condensed', sans-serif",
-                      fontWeight: 700, minWidth: 16, textAlign: 'center',
-                    }}>{idx + 1}</span>
-                    <SetCheckbox
-                      checked={isSetDone(idx)}
-                      color={colors.stripe}
-                      onToggle={() => handleSetToggle(idx)}
-                    />
+            {/* Normal variant — trainee table. Columns are derived from
+                whichever prescribed values actually exist on the
+                exercise (reps/weight/time), so a bodyweight reps-only
+                row doesn't render empty משקל/זמן columns. The ✓
+                column is the per-set toggle that drives
+                exercise.completed via the parent's toggleSetDone. */}
+            {variant === 'normal' && !isCoachMode && (() => {
+              const cols = resolveNormalColumns(exercise);
+              const restSec = toSeconds(exercise.rest_time);
+              return (
+                <>
+                  <div style={{
+                    border: '1px solid #F2EDE3',
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    background: '#FFFFFF',
+                  }}>
+                    {/* Header */}
+                    <div style={{
+                      display: 'flex',
+                      background: '#FFF9F0',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#999',
+                    }}>
+                      <div style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>סט</div>
+                      {cols.map(c => (
+                        <div key={c.key} style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>
+                          {c.label}
+                        </div>
+                      ))}
+                      <div style={{ width: 44, padding: '8px 6px', textAlign: 'center' }}>✓</div>
+                    </div>
+                    {/* Set rows */}
+                    {Array.from({ length: totalSets }).map((_, si) => (
+                      <div key={si} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        fontSize: 13,
+                        borderTop: '1px solid #F2EDE3',
+                        background: isSetDone(si) ? '#F0FDF4' : '#FFFFFF',
+                      }}>
+                        <div style={{
+                          flex: 1, padding: '10px 6px', textAlign: 'center',
+                          fontFamily: "'Barlow Condensed', sans-serif",
+                          fontWeight: 700, color: '#666',
+                        }}>{si + 1}</div>
+                        {cols.map(c => (
+                          <div key={c.key} style={{
+                            flex: 1, padding: '10px 6px', textAlign: 'center',
+                            color: '#1a1a1a', fontWeight: 600,
+                          }}>{c.value}</div>
+                        ))}
+                        <div style={{
+                          width: 44, padding: '8px 6px',
+                          display: 'flex', justifyContent: 'center',
+                        }}>
+                          <SetCheckbox
+                            checked={isSetDone(si)}
+                            color={colors.stripe}
+                            onToggle={() => handleSetToggle(si)}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* Inter-set rest banner — only meaningful when there's
+                      more than one set AND a rest_time prescribed. */}
+                  {totalSets > 1 && restSec != null && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      marginTop: 12,
+                      background: '#FFF9F0',
+                      borderRadius: 8,
+                      padding: 9,
+                    }}>
+                      <span style={{ fontSize: 14, color: '#FF6F20' }} aria-hidden>⏱</span>
+                      <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>
+                        מנוחה {restSec} שנ׳ בין הסטים
+                      </span>
+                    </div>
+                  )}
+
+                  <CoachNoteBox text={description} />
+                </>
+              );
+            })()}
 
             {/* Action buttons — coach mode only.
                 שנה שם renders unconditionally so the row always has the

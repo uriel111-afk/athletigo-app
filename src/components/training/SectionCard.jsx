@@ -31,6 +31,8 @@ export default function SectionCard({
   setLogs = {},
   onSetLogChange,
   onSetToggleDone,
+  drillSetLogs = {},
+  onDrillSetToggleDone,
   sectionRating = null,
   showEditButtons = false,
   isCoach = false,
@@ -329,6 +331,8 @@ export default function SectionCard({
                       setLog={setLogs[exercise.id]}
                       onSetLogChange={onSetLogChange}
                       onSetToggleDone={onSetToggleDone}
+                      drillSetLog={drillSetLogs[exercise.id]}
+                      onDrillSetToggleDone={onDrillSetToggleDone}
                     />
                   ))}
                 </div>
