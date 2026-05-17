@@ -357,6 +357,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     control: 7, challenge: 7, notes: "",
   });
   const [sectionRatings, setSectionRatings] = useState({});
+  // Active workout_executions row id for this trainee+plan+today. When
+  // null we INSERT on first save and capture the id; when set we UPDATE
+  // in place. Keeps a single row per (trainee, plan, calendar day) so
+  // re-opening an in-progress workout doesn't fork the execution into
+  // duplicates on the graph.
+  const [currentExecutionId, setCurrentExecutionId] = useState(null);
   // Ref (not state) — checkAndTriggerPopups reads this synchronously
   // to decide whether to fire the section feedback dialog. State
   // would batch the add through React's update queue and a fast
@@ -409,10 +415,57 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     celebrationFiredRef.current = false;
     ratedSectionsRef.current = new Set();
     setSectionRatings({});
+    setCurrentExecutionId(null);
     setShowSectionFeedbackDialog(false);
     setShowSummaryDialog(false);
     setShowCelebration(false);
   }, [plan?.id]);
+
+  // Load today's active workout_executions row (if any) for this
+  // trainee+plan. Pre-fills sectionRatings + ratedSectionsRef so the
+  // section-feedback popup never re-fires on a section that was
+  // already scored, and persistExecution becomes an UPDATE instead
+  // of an INSERT. Trainee-only — coach editing doesn't write
+  // executions. Calendar-day window (>= today 00:00 local) means a
+  // second workout the next day starts a fresh execution row.
+  React.useEffect(() => {
+    if (canEdit) return;
+    if (!plan?.id) return;
+    const traineeId = plan.assigned_to || plan.created_by;
+    if (!traineeId) return;
+
+    const loadActiveExecution = async () => {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const { data, error } = await supabase
+        .from('workout_executions')
+        .select('id, section_ratings, executed_at')
+        .eq('plan_id', plan.id)
+        .eq('trainee_id', traineeId)
+        .gte('executed_at', todayStart.toISOString())
+        .order('executed_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.warn('[UPB] active execution load failed:', error.message);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const exec = data[0];
+        const ratings = exec.section_ratings || {};
+        console.log('[UPB] loaded active execution:', exec.id, 'section_ratings:', ratings);
+        setCurrentExecutionId(exec.id);
+        setSectionRatings(ratings);
+        ratedSectionsRef.current = new Set(Object.keys(ratings));
+      } else {
+        console.log('[UPB] no active execution for today — fresh start');
+      }
+    };
+
+    loadActiveExecution();
+  }, [plan?.id, canEdit, plan?.assigned_to, plan?.created_by]);
 
   // Refetch when the parent profile's tab changes — TraineeProfile
   // dispatches 'tab-changed' on every activeTab flip so users coming
@@ -739,11 +792,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         // Mark immediately — synchronous ref add closes the
         // double-fire window before the dialog even renders.
         ratedSectionsRef.current.add(sectionId);
+        // Re-edit flow: when the trainee un-toggled an exercise and
+        // re-completed the section, the old rating is still in
+        // sectionRatings. Pre-fill the sliders with it so they edit
+        // their previous answer instead of restarting from 7/7.
+        // (For brand-new sections, default both to 7.)
+        const existingRating = sectionRatings[section.id];
+        const initial = existingRating != null ? existingRating : 7;
         setSectionFeedbackData({
           sectionId: section.id,
           sectionName: section.section_name,
-          control: 7,
-          challenge: 7,
+          control: initial,
+          challenge: initial,
           notes: "",
         });
         setShowSectionFeedbackDialog(true);
@@ -915,6 +975,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     // 2. Trigger Popup Checks (only if turning ON)
     if (newCompletedState) {
       checkAndTriggerPopups(exercise.id, true);
+    } else {
+      // Un-completing an exercise — if its section was already rated,
+      // drop the rated-guard so re-completing the section re-opens
+      // the feedback popup. The prior rating stays in sectionRatings
+      // and pre-fills the sliders (see checkAndTriggerPopups).
+      const sectionId = exercise.training_section_id;
+      if (sectionId && ratedSectionsRef.current.has(sectionId)) {
+        ratedSectionsRef.current.delete(sectionId);
+        console.log('[handleToggleComplete] cleared rated-guard for section:', sectionId);
+      }
     }
 
     // 3. Mutate DB
@@ -1101,6 +1171,66 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
   };
 
+  // Single source of truth for writing to workout_executions. Branches
+  // on currentExecutionId: present → UPDATE in place; absent → INSERT
+  // and capture the new id for subsequent writes. self_rating is
+  // re-derived from the ratings being persisted (not from state) so
+  // callers that hold the just-computed map don't race the setState.
+  const persistExecution = React.useCallback(async (nextSectionRatings, finalFields = null) => {
+    const traineeId = plan.assigned_to || plan.created_by;
+    if (!traineeId) {
+      console.warn('[persistExecution] no trainee id on plan');
+      return null;
+    }
+
+    const ratingValues = Object.values(nextSectionRatings || {});
+    const avg = ratingValues.length > 0
+      ? Math.round((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) * 10) / 10
+      : null;
+
+    const payload = {
+      trainee_id: traineeId,
+      workout_template_id: plan.id,
+      plan_id: plan.id,
+      self_rating: avg,
+      section_ratings: nextSectionRatings || {},
+    };
+    if (finalFields) Object.assign(payload, finalFields);
+
+    console.log('[persistExecution] payload:', payload, 'currentExecutionId:', currentExecutionId);
+
+    if (currentExecutionId) {
+      const { data, error } = await supabase
+        .from('workout_executions')
+        .update(payload)
+        .eq('id', currentExecutionId)
+        .select()
+        .single();
+      console.log('[persistExecution] UPDATE result:', { data, error });
+      if (error) {
+        console.error('[persistExecution] UPDATE FAILED:', error);
+        toast.error('שמירה נכשלה: ' + (error.message || 'נסה שוב'));
+        return null;
+      }
+      return data;
+    } else {
+      payload.executed_at = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('workout_executions')
+        .insert(payload)
+        .select()
+        .single();
+      console.log('[persistExecution] INSERT result:', { data, error });
+      if (error) {
+        console.error('[persistExecution] INSERT FAILED:', error);
+        toast.error('שמירה נכשלה: ' + (error.message || 'נסה שוב'));
+        return null;
+      }
+      setCurrentExecutionId(data.id);
+      return data;
+    }
+  }, [plan?.assigned_to, plan?.created_by, plan?.id, currentExecutionId]);
+
   const saveWorkoutExecution = async () => {
     try {
       const traineeId = plan.assigned_to || plan.created_by;
@@ -1129,32 +1259,27 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             ? Math.round((exercises.filter(e => e && e.completed).length / exercises.length) * 100)
             : 0);
 
-      const ratingValues = Object.values(sectionRatings);
-      const avg = ratingValues.length > 0
-        ? Math.round((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) * 10) / 10
-        : null;
+      const execRow = await persistExecution(sectionRatings, {
+        completion_percent: completionPct,
+        notes: feedbackText || null,
+        feedback_chips: feedbackChips.length > 0 ? feedbackChips : null,
+      });
 
-      const { data: execRow, error } = await supabase
-        .from('workout_executions')
-        .insert({
-          trainee_id: traineeId,
-          workout_template_id: plan.id,
-          plan_id: plan.id,
-          executed_at: new Date().toISOString(),
-          self_rating: avg,
-          completion_percent: completionPct,
-          section_ratings: sectionRatings,
-          notes: feedbackText || null,
-          feedback_chips: feedbackChips.length > 0 ? feedbackChips : null,
-        })
-        .select()
-        .single();
-
-      if (error || !execRow) {
-        console.warn('[saveWorkoutExecution] failed:', error?.message);
-        toast.error('שגיאה בשמירת הציון');
+      if (!execRow) {
         return null;
       }
+
+      const avg = execRow.self_rating;
+
+      // Re-finishing the same workout (UPDATE path) — wipe the prior
+      // set logs for this execution so the fresh INSERT below doesn't
+      // duplicate them. Best-effort: a failure here only risks duplicate
+      // rows on the analytics side, not a broken save.
+      const { error: clearErr } = await supabase
+        .from('exercise_set_logs')
+        .delete()
+        .eq('execution_id', execRow.id);
+      if (clearErr) console.warn('[saveWorkoutExecution] prior set-log clear failed:', clearErr.message);
 
       // Persist per-set logs against the just-created execution.
       // Best-effort — if set logs fail to write, the execution row
@@ -2286,7 +2411,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   rating is conceptually optional: the X / ביטול paths
                   store nothing and progression is unblocked. */}
               <Button
-                onClick={() => {
+                onClick={async () => {
                   const control = Number(sectionFeedbackData.control || 0);
                   const challenge = Number(sectionFeedbackData.challenge || 0);
                   // Round to 1 decimal at the section level so the
@@ -2298,6 +2423,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                     ...sectionRatings,
                     [sectionFeedbackData.sectionId]: sectionAvg,
                   };
+
+                  // Write to DB BEFORE closing the popup so a network
+                  // failure leaves the trainee inside the dialog with
+                  // their input intact rather than silently dropping
+                  // the rating. persistExecution surfaces its own
+                  // toast on error.
+                  const saved = await persistExecution(newRatings);
+                  if (!saved) return;
+
                   setSectionRatings(newRatings);
                   setShowSectionFeedbackDialog(false);
                   toast.success(`✅ סקשן "${sectionFeedbackData.sectionName}" הושלם!`);

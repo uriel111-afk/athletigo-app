@@ -3,11 +3,8 @@ import { ChevronDown, Plus, Edit2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
-import { bulkUpsertProgress } from "@/lib/traineeProgressApi";
 import ExerciseCard from "./ExerciseCard";
-import SectionRatingPopup from "./SectionRatingPopup";
 import { getSectionType } from "@/lib/sectionTypes";
 import { getSectionColor } from "@/lib/plansApi";
 import { useLongPress } from "@/lib/useLongPress";
@@ -41,8 +38,6 @@ export default function SectionCard({
   traineeProgressByExercise = {},
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
-  const [showRating, setShowRating] = useState(false);
-  const [sectionRated, setSectionRated] = useState(false);
   const [renamingSection, setRenamingSection] = useState(false);
   const longPressRename = useLongPress(() => {
     if (showEditButtons && onRenameSection) setRenamingSection(true);
@@ -77,15 +72,6 @@ export default function SectionCard({
       setSavingNotes(false);
     }
   };
-
-  useEffect(() => {
-    if (showEditButtons) return;
-    if (!exercises || exercises.length === 0) return;
-    const allDone = exercises.every(ex => ex && ex.completed);
-    if (allDone && !showRating && !sectionRated) {
-      setShowRating(true);
-    }
-  }, [exercises, showEditButtons, showRating, sectionRated]);
 
   if (!section) return null;
 
@@ -360,43 +346,6 @@ export default function SectionCard({
         )}
       </AnimatePresence>
 
-      {showRating && (
-        <SectionRatingPopup
-          sectionName={section.section_name || section.title || 'הסקשן'}
-          onSubmit={async (challenge, control, note) => {
-            try {
-              const sectionExercises = (exercises || []).filter(e => e && e.training_section_id === section.id);
-              const traineeId = (await base44.auth.me())?.id || null;
-              const planId = plan?.id || null;
-              await Promise.all(
-                sectionExercises.map(ex =>
-                  base44.entities.Exercise.update(ex.id, {
-                    control_rating: control,
-                    difficulty_rating: challenge,
-                  })
-                )
-              );
-              if (note && traineeId) {
-                await bulkUpsertProgress(
-                  sectionExercises.map(ex => ({
-                    trainee_id: traineeId,
-                    exercise_id: ex.id,
-                    plan_id: planId,
-                    feedback: note,
-                  }))
-                );
-              }
-              toast.success('הדירוג נשמר');
-            } catch (err) {
-              console.warn('[SectionCard] rating save failed:', err?.message);
-              toast.error('שגיאה בשמירה, נסה שוב');
-            } finally {
-              setSectionRated(true);
-              setShowRating(false);
-            }
-          }}
-        />
-      )}
     </div>
   );
 }
