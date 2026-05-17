@@ -770,7 +770,20 @@ export default function ExerciseCard({
                     </div>
                   )}
 
-                  {subExercises.length > 0 && (
+                  {subExercises.length === 0 ? (
+                    // Defensive: tabata without sub_exercises is rare
+                    // but legal (the coach defined the timer but not
+                    // the rotation). Show a soft notice instead of an
+                    // empty gap so the trainee knows the timer is the
+                    // whole point.
+                    <div style={{
+                      padding: 12, textAlign: 'center',
+                      background: '#FFFFFF', borderRadius: 10,
+                      border: '1px dashed #F2EDE3',
+                      fontSize: 12, color: '#888',
+                      marginBottom: 10,
+                    }}>אין רשימת תרגילים מוגדרת לסבב — הפעל את השעון לפי ההגדרות</div>
+                  ) : (
                     <div style={{
                       border: '1px solid #F2EDE3',
                       borderRadius: 10,
