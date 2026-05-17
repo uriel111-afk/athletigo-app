@@ -14,6 +14,13 @@ export const ActiveTimerProvider = ({ children }) => {
   // TimerFooterBar only renders when a timer is active AND the user
   // explicitly minimized it (tap of the minimize button or nav-away).
   const [isMinimized, setIsMinimized] = useState(false);
+  // One-shot prefill bus for the Tabata overlay. Producers (e.g.
+  // ExerciseCard's "הפעל שעון טבטה") drop a cfg here right before
+  // setShowTabata(true); TabataTimer consumes it on mount and
+  // immediately clears it so a subsequent plain entry from /clocks
+  // falls back to the localStorage 'tb3' cfg untouched. Shape:
+  //   { prep, work, rest, rb, rounds, sets, source: 'workout_exercise' }
+  const [pendingTabataCfg, setPendingTabataCfg] = useState(null);
 
   // Legacy single-slot getter — prefer tabata since it has richer info.
   const liveTimer = liveTimerTabata || liveTimerClock;
@@ -52,6 +59,8 @@ export const ActiveTimerProvider = ({ children }) => {
     setShowTabata,
     isMinimized,
     setIsMinimized,
+    pendingTabataCfg,
+    setPendingTabataCfg,
   };
 
   return (

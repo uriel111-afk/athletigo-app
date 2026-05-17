@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
-import { useClock } from "@/contexts/ClockContext";
+import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -378,7 +378,11 @@ export default function ExerciseCard({
   onDrillSetToggleDone,
 }) {
   const queryClient = useQueryClient();
-  const clock = useClock();
+  // Tabata launch hands cfg → ActiveTimerContext.pendingTabataCfg,
+  // then opens the TabataTimer overlay on its SETTINGS screen so the
+  // trainee verifies + sets prep-time, instead of jumping straight to
+  // a running timer.
+  const activeTimer = useActiveTimer();
   const [expanded, setExpanded] = useState(false);
   const [renaming, setRenaming] = useState(false);
 
@@ -733,7 +737,9 @@ export default function ExerciseCard({
               const rounds = parseInt(td?.rounds ?? 0, 10) || 0;
               const sets = parseInt(td?.sets ?? 1, 10) || 1;
               const setRest = parseInt(td?.rest_between_sets ?? 0, 10) || 0;
-              const canStart = workSec > 0 && rounds > 0 && typeof clock?.startTabata === 'function';
+              const canStart = workSec > 0 && rounds > 0
+                && typeof activeTimer?.setPendingTabataCfg === 'function'
+                && typeof activeTimer?.setShowTabata === 'function';
 
               const tiles = [
                 workSec > 0 && { label: 'עבודה', value: workSec, unit: 'שנ׳', color: '#3B82F6' },
@@ -807,13 +813,24 @@ export default function ExerciseCard({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!canStart) return;
-                      clock.startTabata({
-                        workTime: workSec,
-                        restTime: restSec,
+                      // Map coach-prescribed tabata_data → TabataTimer's
+                      // internal cfg shape ({prep, work, rest, rb, rounds,
+                      // sets}). prep stays at the timer's default 10s
+                      // unless the trainee changes it on the settings
+                      // screen. `source` lets the settings screen show
+                      // the "מאמן" banner.
+                      const prefill = {
+                        prep: 10,
+                        work: workSec,
+                        rest: restSec,
+                        rb: setRest,
                         rounds,
                         sets,
-                        setRest,
-                      });
+                        source: 'workout_exercise',
+                      };
+                      console.log('[TabataClock] prefilling with coach values:', prefill);
+                      activeTimer.setPendingTabataCfg(prefill);
+                      activeTimer.setShowTabata(true);
                     }}
                     disabled={!canStart}
                     style={{

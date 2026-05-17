@@ -90,7 +90,45 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // Defensive context access — guarantees minimize works even if a parent
   // forgets to pass onMinimize / setLiveTimer.
   const navigate = useNavigate();
-  const { setLiveTimerTabata, setShowTabata, setIsMinimized, showTabata } = useActiveTimer();
+  const {
+    setLiveTimerTabata, setShowTabata, setIsMinimized, showTabata,
+    pendingTabataCfg, setPendingTabataCfg,
+  } = useActiveTimer();
+
+  // Coach-prefill banner: stays on the settings screen until the
+  // overlay closes (showTabata=false). The cfg itself merges into the
+  // existing `tb3` localStorage values so any unspecified field
+  // (notably `prep`) keeps whatever the trainee last chose; the
+  // overrides only touch work/rest/rounds/sets/rb. One-shot: we wipe
+  // pendingTabataCfg the moment we apply it, so the next plain entry
+  // from /clocks falls back to the saved cfg untouched.
+  const [fromExercise, setFromExercise] = useState(false);
+  useEffect(() => {
+    if (!pendingTabataCfg) return;
+    console.log('[TabataTimer] consuming pendingTabataCfg:', pendingTabataCfg);
+    setCfg((prev) => {
+      const merged = {
+        ...prev,
+        prep: pendingTabataCfg.prep ?? prev.prep,
+        work: pendingTabataCfg.work ?? prev.work,
+        rest: pendingTabataCfg.rest ?? prev.rest,
+        rb: pendingTabataCfg.rb ?? prev.rb,
+        rounds: pendingTabataCfg.rounds ?? prev.rounds,
+        sets: pendingTabataCfg.sets ?? prev.sets,
+      };
+      console.log('[TabataTimer] cfg merged:', merged);
+      return merged;
+    });
+    setFromExercise(pendingTabataCfg.source === 'workout_exercise');
+    setScreen('settings');
+    setPendingTabataCfg(null);
+  }, [pendingTabataCfg, setPendingTabataCfg]);
+
+  // Reset the banner flag when the overlay closes so the next plain
+  // entry from /clocks starts clean.
+  useEffect(() => {
+    if (!showTabata) setFromExercise(false);
+  }, [showTabata]);
   // Role-aware destination — coach to /dashboard, trainee to /trainee-home
   let _user = null;
   try { _user = useAuth()?.user; } catch {}
@@ -179,7 +217,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   }, [screen]);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
-  useEffect(() => { cfgRef.current = cfg; localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }, [cfg]);
+  useEffect(() => {
+    cfgRef.current = cfg;
+    // Skip persistence while a coach-prefill is active so the next
+    // plain entry from /clocks still reflects the trainee's own saved
+    // cfg, not whatever the last workout exercise prescribed. Any
+    // tweaks the trainee makes on top of the prefill stay session-
+    // local — when they re-enter without a prefill the saved values
+    // are intact.
+    if (fromExercise) return;
+    localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+  }, [cfg, fromExercise]);
   useEffect(() => { screenRef.current = screen; }, [screen]);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
 
@@ -595,6 +643,18 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       <div style={{ background: '#FFF9F0', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 12, direction: 'rtl', overflow: 'hidden' }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: '#FF6F20', marginBottom: 4 }}>⏱ טבטה</div>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>הגדר את האימון שלך</div>
+
+        {fromExercise && (
+          <div style={{
+            width: '100%', maxWidth: 360,
+            background: '#FFF0E4', color: '#B5651A',
+            fontSize: 12, fontWeight: 600,
+            padding: '8px 12px', borderRadius: 8,
+            marginBottom: 10, textAlign: 'center',
+          }}>
+            הערכים הוגדרו ע"י המאמן · אפשר לשנות
+          </div>
+        )}
 
         <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {fields.map(f => (
