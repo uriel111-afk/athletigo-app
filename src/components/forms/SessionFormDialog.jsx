@@ -15,7 +15,7 @@ import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { supabase } from "@/lib/supabaseClient";
 import SessionStatusPicker from "@/components/sessions/SessionStatusPicker";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
 import { DraftBanner } from "@/components/DraftBanner";
@@ -61,6 +61,46 @@ export default function SessionFormDialog({
 }) {
   const { user: currentCoach } = useContext(AuthContext);
   const queryClient = useQueryClient();
+
+  // Trainee picker source — loads ALL users in the system except the
+  // coach themselves. Mirrors PackageFormDialog's loader. Bypasses
+  // whatever filtered list the parent passes via `trainees`: too many
+  // legacy rows have role=NULL / coach_id=NULL, and a strict filter
+  // upstream surfaced "אין מתאמנים זמינים" even when the coach had
+  // dozens of real trainees. effectiveTrainees prefers this internal
+  // list; falls back to the prop only if the load fails/empty.
+  const [searchQuery, setSearchQuery] = useState('');
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['session-dialog-all-users', currentCoach?.id],
+    queryFn: async () => {
+      console.log('[loadAllUsers] starting for coach:', currentCoach?.id);
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, full_name, email, phone, role, coach_id, client_status, avatar_url')
+        .order('full_name', { ascending: true });
+      if (error) {
+        console.error('[loadAllUsers] error:', error);
+        return [];
+      }
+      const filtered = (data || []).filter((u) => u.id !== currentCoach?.id);
+      console.log('[loadAllUsers] total:', data?.length, 'after excluding coach:', filtered.length);
+      return filtered;
+    },
+    enabled: isOpen && !!currentCoach?.id,
+    initialData: [],
+  });
+
+  const effectiveTrainees = (allUsers && allUsers.length > 0) ? allUsers : trainees;
+
+  const filteredTrainees = (() => {
+    if (!searchQuery) return effectiveTrainees;
+    const q = searchQuery.toLowerCase();
+    return effectiveTrainees.filter((t) => (
+      t.full_name?.toLowerCase().includes(q) ||
+      t.email?.toLowerCase().includes(q) ||
+      t.phone?.includes(q)
+    ));
+  })();
 
   const initialData = editingSession ? {
     date: editingSession.date || "",
@@ -764,14 +804,22 @@ export default function SessionFormDialog({
                 </div>
               </div>
             )}
+            <Input
+              type="search"
+              placeholder="חפש לפי שם, אימייל או טלפון..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="rounded-xl mb-2"
+              style={{ border: '1px solid #E0E0E0', direction: 'rtl' }}
+            />
             <div className="p-4 rounded-xl overflow-y-auto" style={{ backgroundColor: '#FAFAFA', border: '2px solid #E0E0E0', maxHeight: '40vh', minHeight: 120 }}>
-              {trainees.length === 0 ? (
+              {filteredTrainees.length === 0 ? (
                 <p className="text-sm text-center py-4" style={{ color: '#7D7D7D' }}>
-                  אין מתאמנים זמינים
+                  {searchQuery ? 'לא נמצאו תוצאות' : 'אין משתמשים במערכת'}
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {trainees.map((trainee) => {
+                  {filteredTrainees.map((trainee) => {
                     const isSelected = sessionForm.participants.some(p => p.trainee_id === trainee.id);
                     return (
                       <button
@@ -794,9 +842,16 @@ export default function SessionFormDialog({
                                 color: isSelected ? 'white' : '#FF6F20'
                               }}
                             >
-                              {trainee.full_name?.[0]}
+                              {trainee.full_name?.[0] || '?'}
                             </div>
-                            <span className="font-bold text-base">{trainee.full_name}</span>
+                            <div className="text-right">
+                              <div className="font-bold text-base">{trainee.full_name || 'ללא שם'}</div>
+                              {(trainee.email || trainee.phone) && (
+                                <div className="text-xs" style={{ color: isSelected ? 'rgba(255,255,255,0.85)' : '#888' }}>
+                                  {trainee.email || trainee.phone}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           {isSelected && <Check className="w-6 h-6" />}
                         </div>
@@ -872,7 +927,7 @@ export default function SessionFormDialog({
                       value={p.trainee_id || ''}
                       disabled={isDeducted}
                       onChange={(e) => {
-                        const t = trainees.find(x => x.id === e.target.value);
+                        const t = effectiveTrainees.find(x => x.id === e.target.value);
                         updateAdditionalParticipant(idx, {
                           trainee_id: e.target.value || '',
                           trainee_name: t?.full_name || '',
@@ -885,7 +940,7 @@ export default function SessionFormDialog({
                       style={{ borderColor: '#E0E0E0' }}
                     >
                       <option value="">בחר מתאמן</option>
-                      {trainees.map(t => (
+                      {effectiveTrainees.map(t => (
                         <option key={t.id} value={t.id}>{t.full_name}</option>
                       ))}
                     </select>
