@@ -732,11 +732,29 @@ export default function ExerciseCard({
                 bottom nav). No per-set checkboxes — the timer drives
                 completion, not manual taps. */}
             {variant === 'tabata' && !isCoachMode && (() => {
-              const workSec = parseInt(td?.work_time ?? td?.work_sec ?? 0, 10) || 0;
-              const restSec = parseInt(td?.rest_time ?? td?.rest_sec ?? 0, 10) || 0;
-              const rounds = parseInt(td?.rounds ?? 0, 10) || 0;
-              const sets = parseInt(td?.sets ?? 1, 10) || 1;
-              const setRest = parseInt(td?.rest_between_sets ?? 0, 10) || 0;
+              // Multi-source read: prefer the canonical
+              // tabata_data.clock_settings (new), fall back to legacy
+              // top-level tabata_data keys (work_time/work_sec/...)
+              // for rows saved with the old shape, finally fall back
+              // to the direct exercise columns (work_time/rest_time/
+              // rounds/sets). Two existing tabata rows in production
+              // landed without clock_settings — the column fallback
+              // keeps them working. rest_between_sets has no DB
+              // column, so only the JSONB sources matter for it.
+              const cs = td?.clock_settings || null;
+              const pickInt = (...candidates) => {
+                for (const c of candidates) {
+                  if (c == null || c === '') continue;
+                  const n = parseInt(c, 10);
+                  if (Number.isFinite(n)) return n;
+                }
+                return 0;
+              };
+              const workSec = pickInt(cs?.work_seconds, td?.work_time, td?.work_sec, exercise?.work_time);
+              const restSec = pickInt(cs?.rest_seconds, td?.rest_time, td?.rest_sec, exercise?.rest_time);
+              const rounds  = pickInt(cs?.rounds, td?.rounds, exercise?.rounds);
+              const sets    = pickInt(cs?.sets,   td?.sets,   exercise?.sets) || 1;
+              const setRest = pickInt(cs?.rest_between_sets, td?.rest_between_sets);
               const canStart = workSec > 0 && rounds > 0
                 && typeof activeTimer?.setPendingTabataCfg === 'function'
                 && typeof activeTimer?.setShowTabata === 'function';

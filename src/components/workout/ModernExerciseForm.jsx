@@ -1046,6 +1046,14 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         }
       } catch {}
     }
+    // When hydrating an existing tabata exercise, surface the five
+    // clock-setting chips so the coach sees them populated (with the
+    // exercise's stored values, or defaults from the auto-fill effect
+    // for chips whose value is still empty). Mirrors the behavior of
+    // first picking tabata via handleParamClick.
+    if (conf.has("tabata")) {
+      ['sets', 'rounds', 'work_time', 'rest_time', 'rest_between_sets'].forEach((p) => conf.add(p));
+    }
     // Legacy superset/combo exercises
     if (!conf.has("exercise_list") && !conf.has("tabata")) {
       const legacy = exercise.superset_exercises || exercise.combo_exercises;
@@ -1109,6 +1117,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     }
   }, [confirmedParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The five timer fields that define how a tabata exercise behaves.
+  // Auto-added to confirmedParams the moment the coach picks tabata so
+  // they don't have to remember to enable each chip — without these,
+  // the trainee's clock tiles render blank and "הפעל שעון טבטה" is
+  // disabled (canStart needs work_time>0 && rounds>0).
+  const TABATA_CLOCK_PARAMS = ['sets', 'rounds', 'work_time', 'rest_time', 'rest_between_sets'];
+
   // ── Param handlers ──────────────────────────────────────────────────
   const handleParamClick = (paramId) => {
     // Container params (tabata / exercise_list) keep their existing
@@ -1121,7 +1136,16 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       } else {
         const other = paramId === "tabata" ? "exercise_list" : "tabata";
         setConfirmedParams((prev) => {
-          const n = new Set(prev); n.delete(other); n.add(paramId); return n;
+          const n = new Set(prev);
+          n.delete(other);
+          n.add(paramId);
+          // Picking tabata also activates the 5 clock-setting chips
+          // so the auto-fill effect below populates their defaults
+          // (sets=3, rounds=3, work_time=30, rest_time=30, rb=60).
+          if (paramId === 'tabata') {
+            TABATA_CLOCK_PARAMS.forEach((p) => n.add(p));
+          }
+          return n;
         });
         if (!subExercises.length) updateEx("sub_exercises", []);
       }

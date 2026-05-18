@@ -1162,13 +1162,35 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     let tabataData = null;
     const subExercises = exerciseData.sub_exercises || [];
 
-    if (subExercises.length > 0) {
-      // Container exercise — serialize sub-exercises to tabata_data
+    if (subExercises.length > 0 || exerciseData.mode === "טבטה") {
+      // Container exercise — serialize sub-exercises to tabata_data.
+      // Tabata also gets clock_settings duplicated into the JSONB
+      // alongside the existing direct columns (work_time/rest_time/
+      // rounds/sets). Reads in ExerciseCard trainee prefer the JSONB
+      // copy and fall back to columns, so writes here cover both
+      // legacy rows (column-only) and the new canonical shape.
+      // rest_between_sets has no DB column, so the JSONB is its only
+      // home — that's the main reason this block exists.
       const containerType = exerciseData.mode === "טבטה" ? "tabata" : "list";
-      tabataData = JSON.stringify({
+      const tdPayload = {
         container_type: containerType,
         sub_exercises: subExercises,
-      });
+      };
+      if (exerciseData.mode === "טבטה") {
+        const toInt = (v) => {
+          if (v == null || v === '') return null;
+          const n = parseInt(v, 10);
+          return Number.isFinite(n) ? n : null;
+        };
+        tdPayload.clock_settings = {
+          work_seconds:      toInt(exerciseData.work_time),
+          rest_seconds:      toInt(exerciseData.rest_time),
+          rounds:            toInt(exerciseData.rounds),
+          sets:              toInt(exerciseData.sets),
+          rest_between_sets: toInt(exerciseData.rest_between_sets),
+        };
+      }
+      tabataData = JSON.stringify(tdPayload);
       tabataPreview = subExercises
         .map((s) => s.exercise_name || "תת-תרגיל")
         .join(" • ");
