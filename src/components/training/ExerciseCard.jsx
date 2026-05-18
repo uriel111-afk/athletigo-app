@@ -421,39 +421,74 @@ export default function ExerciseCard({
     });
   }
 
-  // Summary line under the title — variant-specific so each card
-  // type advertises the params that matter for its execution model.
+  // Summary line under the title. Must match exactly the params the
+  // open card surfaces: every filled column is rendered, in a fixed
+  // human-readable order, joined by " · ". Container variants
+  // (tabata/list) also append a "{count} תרגילים · {type}" suffix
+  // derived from tabata_data.sub_exercises (parsed defensively since
+  // the column is sometimes TEXT-serialised JSON).
   const summary = (() => {
     if (completed) return '✓ הושלם';
-    if (variant === 'tabata') {
-      // Multi-source: mirrors the trainee tabata tiles read order so
-      // a row saved with the new clock_settings JSONB AND a legacy
-      // row whose timer params live in top-level tabata_data or in
-      // the direct exercise columns all render a populated summary.
-      const cs = td?.clock_settings || null;
-      const work   = cs?.work_seconds ?? td?.work_time ?? td?.work_sec ?? exercise?.work_time ?? null;
-      const sets   = cs?.sets         ?? td?.sets      ?? exercise?.sets   ?? null;
-      const rounds = cs?.rounds       ?? td?.rounds    ?? exercise?.rounds ?? null;
-      const bits = [];
-      if (sets)   bits.push(`${sets} סטים`);
-      if (rounds && rounds !== sets) bits.push(`${rounds} סבבים`);
-      if (work)   bits.push(`עבודה ${work} שנ׳`);
-      return bits.join(' · ');
-    }
-    if (variant === 'list') {
-      const rounds = td?.rounds ?? exercise.sets ?? exercise.rounds ?? null;
+
+    const cs = td?.clock_settings || null;
+    const bits = [];
+
+    // Sets — direct column, or clock_settings.sets in a tabata row
+    const setsVal = cs?.sets ?? exercise.sets;
+    if (hasValue(setsVal)) bits.push(`${setsVal} סטים`);
+
+    // Reps
+    if (hasValue(exercise.reps)) bits.push(`${exercise.reps} חזרות`);
+
+    // Weight — quoted gershayim to match the in-app convention
+    if (hasValue(exercise.weight)) bits.push(`${exercise.weight} ק"ג`);
+
+    // work_time — column or tabata clock_settings.work_seconds
+    const workVal = cs?.work_seconds ?? exercise.work_time;
+    const workSec = toSeconds(workVal);
+    if (workSec != null) bits.push(`עבודה ${workSec} שנ'`);
+
+    // rest_time — column or tabata clock_settings.rest_seconds
+    const restVal = cs?.rest_seconds ?? exercise.rest_time;
+    const restSec = toSeconds(restVal);
+    if (restSec != null) bits.push(`מנוחה ${restSec} שנ'`);
+
+    // rest_between_sets — JSONB-only (no DB column); read from clock
+    // settings or top-level tabata_data for legacy rows
+    const rbsVal = cs?.rest_between_sets ?? td?.rest_between_sets ?? exercise.rest_between_sets;
+    const rbsSec = toSeconds(rbsVal);
+    if (rbsSec != null) bits.push(`מנוחה בין סטים ${rbsSec} שנ'`);
+
+    // rest_between_exercises — direct column
+    const rbeSec = toSeconds(exercise.rest_between_exercises);
+    if (rbeSec != null) bits.push(`מנוחה בין תרגילים ${rbeSec} שנ'`);
+
+    // Rounds — column or tabata clock_settings.rounds
+    const roundsVal = cs?.rounds ?? exercise.rounds;
+    if (hasValue(roundsVal)) bits.push(`${roundsVal} סבבים`);
+
+    // Static hold time
+    const shtSec = toSeconds(exercise.static_hold_time);
+    if (shtSec != null) bits.push(`החזקה ${shtSec} שנ'`);
+
+    // RPE
+    if (hasValue(exercise.rpe)) bits.push(`RPE ${exercise.rpe}`);
+
+    // Tempo — opaque string like "X-Y-Z-W"
+    if (hasValue(exercise.tempo)) bits.push(`טמפו ${exercise.tempo}`);
+
+    // Container suffix: count of sub-exercises + variant label. parseTabataData
+    // already ran (td) and getSubExercises walks every legacy shape — so the
+    // count comes from a single trusted source even for old TEXT-serialised rows.
+    if (variant === 'tabata' || variant === 'list') {
       const count = subExercises.length;
-      const bits = [];
-      if (rounds) bits.push(`${rounds} סבבים`);
-      if (count)  bits.push(`${count} תרגילים`);
-      return bits.join(' · ');
+      if (count > 0) {
+        bits.push(`${count} תרגילים`);
+        bits.push(variant === 'tabata' ? 'טבטה' : 'סופרסט');
+      }
     }
-    const sets   = hasValue(exercise.sets) ? `${exercise.sets} סטים` : null;
-    const reps   = hasValue(exercise.reps) ? `${exercise.reps} חז׳` : null;
-    const rest   = toSeconds(exercise.rest_time);
-    const restL  = rest ? `מנוחה ${rest} שנ׳` : null;
-    const rpe    = hasValue(exercise.rpe) ? `RPE ${exercise.rpe}` : null;
-    return [sets, reps, restL, rpe].filter(Boolean).join(' · ');
+
+    return bits.join(' · ');
   })();
 
   // Per-set checkbox row state (trainee mode). The parent owns the
