@@ -433,15 +433,11 @@ export default function ExerciseCard({
     const cs = td?.clock_settings || null;
     const bits = [];
 
-    // Sets — direct column, or clock_settings.sets in a tabata row
-    const setsVal = cs?.sets ?? exercise.sets;
-    if (hasValue(setsVal)) bits.push(`${setsVal} סטים`);
-
-    // Reps
-    if (hasValue(exercise.reps)) bits.push(`${exercise.reps} חזרות`);
-
-    // Weight — quoted gershayim to match the in-app convention
-    if (hasValue(exercise.weight)) bits.push(`${exercise.weight} ק"ג`);
+    // Order is fixed by spec: work_time → rest_time → rounds → sets →
+    // rest_between_sets first (the timer-shaped params people scan
+    // for at a glance), then the remaining body-params in their
+    // prior relative order. Skipping logic is unchanged — only
+    // filled params reach the bits array.
 
     // work_time — column or tabata clock_settings.work_seconds
     const workVal = cs?.work_seconds ?? exercise.work_time;
@@ -453,19 +449,29 @@ export default function ExerciseCard({
     const restSec = toSeconds(restVal);
     if (restSec != null) bits.push(`מנוחה ${restSec} שנ'`);
 
+    // Rounds — column or tabata clock_settings.rounds
+    const roundsVal = cs?.rounds ?? exercise.rounds;
+    if (hasValue(roundsVal)) bits.push(`${roundsVal} סבבים`);
+
+    // Sets — direct column, or clock_settings.sets in a tabata row
+    const setsVal = cs?.sets ?? exercise.sets;
+    if (hasValue(setsVal)) bits.push(`${setsVal} סטים`);
+
     // rest_between_sets — JSONB-only (no DB column); read from clock
     // settings or top-level tabata_data for legacy rows
     const rbsVal = cs?.rest_between_sets ?? td?.rest_between_sets ?? exercise.rest_between_sets;
     const rbsSec = toSeconds(rbsVal);
     if (rbsSec != null) bits.push(`מנוחה בין סטים ${rbsSec} שנ'`);
 
+    // Reps
+    if (hasValue(exercise.reps)) bits.push(`${exercise.reps} חזרות`);
+
+    // Weight — quoted gershayim to match the in-app convention
+    if (hasValue(exercise.weight)) bits.push(`${exercise.weight} ק"ג`);
+
     // rest_between_exercises — direct column
     const rbeSec = toSeconds(exercise.rest_between_exercises);
     if (rbeSec != null) bits.push(`מנוחה בין תרגילים ${rbeSec} שנ'`);
-
-    // Rounds — column or tabata clock_settings.rounds
-    const roundsVal = cs?.rounds ?? exercise.rounds;
-    if (hasValue(roundsVal)) bits.push(`${roundsVal} סבבים`);
 
     // Static hold time
     const shtSec = toSeconds(exercise.static_hold_time);
