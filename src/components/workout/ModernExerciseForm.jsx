@@ -1053,6 +1053,15 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     // first picking tabata via handleParamClick.
     if (conf.has("tabata")) {
       ['sets', 'rounds', 'work_time', 'rest_time', 'rest_between_sets'].forEach((p) => conf.add(p));
+      // Auto-open the five inline editor panels too — the summary row
+      // only shows the value as static text; the input lives inside
+      // the panel. Without this the coach has to tap each chip to
+      // edit a value, which felt like the field was read-only.
+      setEditingParams((prev) => {
+        const n = new Set(prev);
+        ['sets', 'rounds', 'work_time', 'rest_time', 'rest_between_sets'].forEach((p) => n.add(p));
+        return n;
+      });
     }
     // Legacy superset/combo exercises
     if (!conf.has("exercise_list") && !conf.has("tabata")) {
@@ -1149,7 +1158,18 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         });
         if (!subExercises.length) updateEx("sub_exercises", []);
       }
-      setEditingParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
+      setEditingParams((prev) => {
+        const n = new Set(prev);
+        n.delete(paramId);
+        // Tabata: also open inline editor panels for the 5 clock
+        // fields so the coach can edit them immediately instead of
+        // having to tap each chip first. Without this the timer
+        // settings render only as static summary rows.
+        if (paramId === 'tabata' && !confirmedParams.has('tabata')) {
+          TABATA_CLOCK_PARAMS.forEach((p) => n.add(p));
+        }
+        return n;
+      });
       return;
     }
 
