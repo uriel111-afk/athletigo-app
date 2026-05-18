@@ -106,11 +106,15 @@ const PARAM_DEFS = [
   { key: 'sets',                   label: 'סטים',              unit: 'סטים' },
   { key: 'reps',                   label: 'חזרות',             unit: 'חז׳' },
   { key: 'weight',                 label: 'משקל',              unit: 'ק״ג' },
-  { key: 'rest_time',              label: 'מנוחה בין סטים',     unit: 'שנ׳', isTime: true },
+  // rest_time is the plain "rest" param (between sets in normal mode,
+  // between rounds in tabata). Used to share its label with
+  // rest_between_sets — fixed to plain 'מנוחה' so the two distinct
+  // fields never render under the same label.
+  { key: 'rest_time',              label: 'מנוחה',              unit: 'שנ׳', isTime: true },
   { key: 'work_time',              label: 'זמן עבודה',          unit: 'שנ׳', isTime: true },
   { key: 'rest_between_sets',      label: 'מנוחה בין סטים',     unit: 'שנ׳', isTime: true },
   { key: 'rest_between_exercises', label: 'מנוחה בין תרגילים', unit: 'שנ׳', isTime: true },
-  { key: 'static_hold_time',       label: 'החזקה סטטית',        unit: 'שנ׳', isTime: true },
+  { key: 'static_hold_time',       label: 'החזקה',              unit: 'שנ׳', isTime: true },
   { key: 'rpe',                    label: 'RPE',               unit: '/ 10' },
   { key: 'tempo',                  label: 'טמפו',              unit: null },
   { key: 'side',                   label: 'צד',                unit: null },
@@ -190,6 +194,35 @@ function resolveNormalColumns(exercise) {
 }
 
 // ── Sub components ────────────────────────────────────────────────
+
+// Vertical list row for the open-card body. Spec'd layout:
+// label (14 / #888) on the right (RTL), value (17 / 500 / #1a1a1a) +
+// unit (12 / 400 / #888) on the left, with a hairline separator.
+// `isLast` drops the bottom border so the last row in a group sits
+// flush against whatever follows it (sub-exercises list / coach note).
+function ParamListRow({ label, value, unit, isLast }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: 10,
+      padding: '11px 0',
+      borderBottom: isLast ? 'none' : '0.5px solid #F4EDE0',
+      direction: 'rtl',
+    }}>
+      <span style={{ fontSize: 14, color: '#888' }}>{label}</span>
+      <span>
+        <span style={{ fontSize: 17, fontWeight: 500, color: '#1a1a1a' }}>{value}</span>
+        {unit && (
+          <span style={{ fontSize: 12, fontWeight: 400, color: '#888', marginInlineStart: 4 }}>
+            {unit}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
 
 function ParamChip({ label, value, unit, valueColor }) {
   return (
@@ -421,71 +454,96 @@ export default function ExerciseCard({
     });
   }
 
-  // Summary line under the title. Must match exactly the params the
-  // open card surfaces: every filled column is rendered, in a fixed
-  // human-readable order, joined by " · ". Container variants
-  // (tabata/list) also append a "{count} תרגילים · {type}" suffix
-  // derived from tabata_data.sub_exercises (parsed defensively since
-  // the column is sometimes TEXT-serialised JSON).
-  const summary = (() => {
-    if (completed) return '✓ הושלם';
-
+  // Single source of truth for the param items rendered on this card.
+  // Returns an ordered array where each entry has:
+  //   key   — stable identifier (param column name)
+  //   pill  — short Hebrew text for the closed-card pill
+  //   label — fuller label for the open-card list row
+  //   value — the numeric/string value as a plain string
+  //   unit  — optional unit suffix for the list row (שנ' / ק"ג ...)
+  // Only filled params are returned — skipping happens here, callers
+  // just map. Order is the spec'd "timer params first, body params
+  // after" sequence and is identical for both the pills and the
+  // expanded list rows.
+  const buildParamItems = () => {
     const cs = td?.clock_settings || null;
-    const bits = [];
+    const items = [];
 
-    // Order is fixed by spec: work_time → rest_time → rounds → sets →
-    // rest_between_sets first (the timer-shaped params people scan
-    // for at a glance), then the remaining body-params in their
-    // prior relative order. Skipping logic is unchanged — only
-    // filled params reach the bits array.
+    const workSec = toSeconds(cs?.work_seconds ?? exercise.work_time);
+    if (workSec != null) items.push({
+      key: 'work_time', label: 'זמן עבודה', value: String(workSec), unit: 'שנ\'',
+      pill: `עבודה ${workSec} שנ'`,
+    });
 
-    // work_time — column or tabata clock_settings.work_seconds
-    const workVal = cs?.work_seconds ?? exercise.work_time;
-    const workSec = toSeconds(workVal);
-    if (workSec != null) bits.push(`עבודה ${workSec} שנ'`);
+    const restSec = toSeconds(cs?.rest_seconds ?? exercise.rest_time);
+    if (restSec != null) items.push({
+      key: 'rest_time', label: 'מנוחה', value: String(restSec), unit: 'שנ\'',
+      pill: `מנוחה ${restSec} שנ'`,
+    });
 
-    // rest_time — column or tabata clock_settings.rest_seconds
-    const restVal = cs?.rest_seconds ?? exercise.rest_time;
-    const restSec = toSeconds(restVal);
-    if (restSec != null) bits.push(`מנוחה ${restSec} שנ'`);
-
-    // Rounds — column or tabata clock_settings.rounds
     const roundsVal = cs?.rounds ?? exercise.rounds;
-    if (hasValue(roundsVal)) bits.push(`${roundsVal} סבבים`);
+    if (hasValue(roundsVal)) items.push({
+      key: 'rounds', label: 'מספר סבבים', value: String(roundsVal), unit: null,
+      pill: `${roundsVal} סבבים`,
+    });
 
-    // Sets — direct column, or clock_settings.sets in a tabata row
     const setsVal = cs?.sets ?? exercise.sets;
-    if (hasValue(setsVal)) bits.push(`${setsVal} סטים`);
+    if (hasValue(setsVal)) items.push({
+      key: 'sets', label: 'מספר סטים', value: String(setsVal), unit: null,
+      pill: `${setsVal} סטים`,
+    });
 
-    // rest_between_sets — JSONB-only (no DB column); read from clock
-    // settings or top-level tabata_data for legacy rows
-    const rbsVal = cs?.rest_between_sets ?? td?.rest_between_sets ?? exercise.rest_between_sets;
-    const rbsSec = toSeconds(rbsVal);
-    if (rbsSec != null) bits.push(`מנוחה בין סטים ${rbsSec} שנ'`);
+    // rest_between_sets — no DB column; from clock_settings or legacy
+    // top-level tabata_data.
+    const rbsSec = toSeconds(cs?.rest_between_sets ?? td?.rest_between_sets ?? exercise.rest_between_sets);
+    if (rbsSec != null) items.push({
+      key: 'rest_between_sets', label: 'מנוחה בין סטים', value: String(rbsSec), unit: 'שנ\'',
+      pill: `בין סטים ${rbsSec} שנ'`,
+    });
 
-    // Reps
-    if (hasValue(exercise.reps)) bits.push(`${exercise.reps} חזרות`);
-
-    // Weight — quoted gershayim to match the in-app convention
-    if (hasValue(exercise.weight)) bits.push(`${exercise.weight} ק"ג`);
-
-    // rest_between_exercises — direct column
     const rbeSec = toSeconds(exercise.rest_between_exercises);
-    if (rbeSec != null) bits.push(`מנוחה בין תרגילים ${rbeSec} שנ'`);
+    if (rbeSec != null) items.push({
+      key: 'rest_between_exercises', label: 'מנוחה בין תרגילים', value: String(rbeSec), unit: 'שנ\'',
+      pill: `בין תרגילים ${rbeSec} שנ'`,
+    });
 
-    // Static hold time
+    if (hasValue(exercise.reps)) items.push({
+      key: 'reps', label: 'חזרות', value: String(exercise.reps), unit: null,
+      pill: `${exercise.reps} חזרות`,
+    });
+
+    if (hasValue(exercise.weight)) items.push({
+      key: 'weight', label: 'משקל', value: String(exercise.weight), unit: 'ק"ג',
+      pill: `${exercise.weight} ק"ג`,
+    });
+
     const shtSec = toSeconds(exercise.static_hold_time);
-    if (shtSec != null) bits.push(`החזקה ${shtSec} שנ'`);
+    if (shtSec != null) items.push({
+      key: 'static_hold_time', label: 'החזקה', value: String(shtSec), unit: 'שנ\'',
+      pill: `החזקה ${shtSec} שנ'`,
+    });
 
-    // RPE
-    if (hasValue(exercise.rpe)) bits.push(`RPE ${exercise.rpe}`);
+    if (hasValue(exercise.rpe)) items.push({
+      key: 'rpe', label: 'RPE', value: String(exercise.rpe), unit: null,
+      pill: `RPE ${exercise.rpe}`,
+    });
 
-    // Tempo — opaque string like "X-Y-Z-W"
-    if (hasValue(exercise.tempo)) bits.push(`טמפו ${exercise.tempo}`);
+    if (hasValue(exercise.tempo)) items.push({
+      key: 'tempo', label: 'טמפו', value: String(exercise.tempo), unit: null,
+      pill: `טמפו ${exercise.tempo}`,
+    });
 
-    // Container suffix: count of sub-exercises + variant label. parseTabataData
-    // already ran (td) and getSubExercises walks every legacy shape — so the
-    // count comes from a single trusted source even for old TEXT-serialised rows.
+    return items;
+  };
+
+  const paramItems = buildParamItems();
+
+  // Closed-card pill bits — for the title-line indicator. Includes the
+  // tabata/list container suffix when applicable. completed wins
+  // outright (a single "הושלם" pill).
+  const summaryPills = (() => {
+    if (completed) return ['✓ הושלם'];
+    const bits = paramItems.map((it) => it.pill);
     if (variant === 'tabata' || variant === 'list') {
       const count = subExercises.length;
       if (count > 0) {
@@ -493,8 +551,7 @@ export default function ExerciseCard({
         bits.push(variant === 'tabata' ? 'טבטה' : 'סופרסט');
       }
     }
-
-    return bits.join(' · ');
+    return bits;
   })();
 
   // Per-set checkbox row state (trainee mode). The parent owns the
@@ -649,15 +706,29 @@ export default function ExerciseCard({
                 {name}
               </div>
             )}
-            {summary && (
+            {summaryPills.length > 0 && (
               <div style={{
-                fontSize: 13,
-                color: completed ? '#16a34a' : '#888',
-                fontWeight: completed ? 600 : 400,
-                marginTop: 3,
-                lineHeight: 1.4,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                marginTop: 5,
+                direction: 'rtl',
               }}>
-                {summary}
+                {summaryPills.map((text, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: 'inline-block',
+                      background: completed ? '#DCFCE7' : '#FFF0E4',
+                      color: completed ? '#15803D' : '#993C1D',
+                      fontSize: 12,
+                      padding: '4px 9px',
+                      borderRadius: 8,
+                      whiteSpace: 'nowrap',
+                      fontWeight: 500,
+                    }}
+                  >{text}</span>
+                ))}
               </div>
             )}
           </div>
@@ -694,28 +765,19 @@ export default function ExerciseCard({
                   ⏱ פרוטוקול טבטה
                 </div>
 
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                  gap: 8,
-                  marginBottom: 10,
-                }}>
-                  {hasValue(td?.work_time ?? td?.work_sec) && (
-                    <ParamChip label="עבודה" value={td.work_time ?? td.work_sec} unit="שנ׳" valueColor="#3B82F6" />
-                  )}
-                  {hasValue(td?.rest_time ?? td?.rest_sec) && (
-                    <ParamChip label="מנוחה" value={td.rest_time ?? td.rest_sec} unit="שנ׳" valueColor="#888" />
-                  )}
-                  {hasValue(td?.rounds) && (
-                    <ParamChip label="סבבים" value={td.rounds} unit={null} />
-                  )}
-                  {hasValue(td?.sets) && (
-                    <ParamChip label="סטים" value={td.sets} unit={null} />
-                  )}
-                  {hasValue(td?.rest_between_sets) && (
-                    <ParamChip label="מנוחה בין סטים" value={td.rest_between_sets} unit="שנ׳" valueColor="#888" />
-                  )}
-                </div>
+                {paramItems.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    {paramItems.map((it, i) => (
+                      <ParamListRow
+                        key={it.key}
+                        label={it.label}
+                        value={it.value}
+                        unit={it.unit}
+                        isLast={i === paramItems.length - 1}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 {tabataTotal && (
                   <div style={{
@@ -805,30 +867,17 @@ export default function ExerciseCard({
                 && typeof activeTimer?.setPendingTabataCfg === 'function'
                 && typeof activeTimer?.setShowTabata === 'function';
 
-              const tiles = [
-                workSec > 0 && { label: 'עבודה', value: workSec, unit: 'שנ׳', color: '#3B82F6' },
-                restSec > 0 && { label: 'מנוחה', value: restSec, unit: 'שנ׳', color: '#888' },
-                rounds > 0 && { label: 'סבבים', value: rounds, unit: null },
-                sets > 0 && { label: 'סטים', value: sets, unit: null },
-                setRest > 0 && { label: 'מנוחה בין סטים', value: setRest, unit: 'שנ׳', color: '#888' },
-              ].filter(Boolean);
-
               return (
                 <>
-                  {tiles.length > 0 && (
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      gap: 8,
-                      marginBottom: 10,
-                    }}>
-                      {tiles.map((t, i) => (
-                        <ParamChip
-                          key={i}
-                          label={t.label}
-                          value={t.value}
-                          unit={t.unit}
-                          valueColor={t.color}
+                  {paramItems.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      {paramItems.map((it, i) => (
+                        <ParamListRow
+                          key={it.key}
+                          label={it.label}
+                          value={it.value}
+                          unit={it.unit}
+                          isLast={i === paramItems.length - 1}
                         />
                       ))}
                     </div>
@@ -936,25 +985,19 @@ export default function ExerciseCard({
                 cards so the editor view is unchanged. */}
             {variant === 'list' && isCoachMode && (
               <>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: 8,
-                  marginBottom: 10,
-                }}>
-                  {hasValue(exercise.sets) && (
-                    <ParamChip label="סטים" value={exercise.sets} unit="סטים" />
-                  )}
-                  {hasValue(exercise.rounds) && (
-                    <ParamChip label="סבבים" value={exercise.rounds} unit={null} />
-                  )}
-                  {hasValue(td?.rounds) && !hasValue(exercise.rounds) && (
-                    <ParamChip label="סבבים" value={td.rounds} unit={null} />
-                  )}
-                  {hasValue(td?.rest_between_sets) && (
-                    <ParamChip label="מנוחה בין סטים" value={td.rest_between_sets} unit="שנ׳" />
-                  )}
-                </div>
+                {paramItems.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    {paramItems.map((it, i) => (
+                      <ParamListRow
+                        key={it.key}
+                        label={it.label}
+                        value={it.value}
+                        unit={it.unit}
+                        isLast={i === paramItems.length - 1}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 {subExercises.length > 0 && (
                   <div style={{
@@ -1094,31 +1137,24 @@ export default function ExerciseCard({
               );
             })()}
 
-            {/* Normal variant — coach mode keeps the legacy param-chip
-                grid so the prescribed plan reads at a glance during
-                editing. Trainee mode gets the dynamic set table below. */}
+            {/* Normal variant — coach mode now shares the same vertical
+                list layout as the trainee tabata tiles below: one row
+                per filled param, in the shared `paramItems` order. */}
             {variant === 'normal' && isCoachMode && (
               <>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: 8,
-                }}>
-                  {PARAM_DEFS.map(def => {
-                    const raw = exercise[def.key];
-                    if (!hasValue(raw)) return null;
-                    const value = formatParamValue(def, raw);
-                    if (value == null) return null;
-                    return (
-                      <ParamChip
-                        key={def.key}
-                        label={def.label}
-                        value={value}
-                        unit={def.unit}
+                {paramItems.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    {paramItems.map((it, i) => (
+                      <ParamListRow
+                        key={it.key}
+                        label={it.label}
+                        value={it.value}
+                        unit={it.unit}
+                        isLast={i === paramItems.length - 1}
                       />
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
 
                 <CoachNoteBox text={description} />
               </>
