@@ -1296,10 +1296,21 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const savedOrder = Array.isArray(exercise.param_order)
     ? exercise.param_order.filter((id) => filledIds.includes(id))
     : [];
-  const orderedIds = [
-    ...savedOrder,
-    ...filledIds.filter((id) => !savedOrder.includes(id)),
-  ];
+  // Tabata mode locks the summary rows to a fixed sequence
+  // (work → rest → rounds → sets → rest-between). param_order from
+  // drag-to-reorder is intentionally ignored here — the spec freezes
+  // the layout so the timer params always read in the same order.
+  // Any non-tabata param that somehow ended up in a tabata exercise
+  // gets appended after the five timer fields.
+  const orderedIds = confirmedParams.has('tabata')
+    ? [
+        ...TABATA_FIELD_ORDER.filter((id) => filledIds.includes(id)),
+        ...filledIds.filter((id) => !TABATA_FIELD_ORDER.includes(id)),
+      ]
+    : [
+        ...savedOrder,
+        ...filledIds.filter((id) => !savedOrder.includes(id)),
+      ];
   const summaryRows = orderedIds.map(buildRow).filter(Boolean);
 
   // HTML5 drag handlers — refs (not state) so cross-row hover events
