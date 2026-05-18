@@ -426,9 +426,14 @@ export default function ExerciseCard({
   const summary = (() => {
     if (completed) return '✓ הושלם';
     if (variant === 'tabata') {
-      const work = td?.work_time ?? td?.work_sec ?? null;
-      const sets = td?.sets ?? td?.rounds ?? null;
-      const rounds = td?.rounds ?? null;
+      // Multi-source: mirrors the trainee tabata tiles read order so
+      // a row saved with the new clock_settings JSONB AND a legacy
+      // row whose timer params live in top-level tabata_data or in
+      // the direct exercise columns all render a populated summary.
+      const cs = td?.clock_settings || null;
+      const work   = cs?.work_seconds ?? td?.work_time ?? td?.work_sec ?? exercise?.work_time ?? null;
+      const sets   = cs?.sets         ?? td?.sets      ?? exercise?.sets   ?? null;
+      const rounds = cs?.rounds       ?? td?.rounds    ?? exercise?.rounds ?? null;
       const bits = [];
       if (sets)   bits.push(`${sets} סטים`);
       if (rounds && rounds !== sets) bits.push(`${rounds} סבבים`);

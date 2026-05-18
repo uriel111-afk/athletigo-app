@@ -1256,10 +1256,23 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
   // Open-panel descriptors (skipping container params, which don't
   // render an inline editor). Order follows ALL_PARAMETERS so the
-  // panels stack in the same visual order as the chip grid.
-  const openParamDefs = ALL_PARAMETERS.filter(
-    (p) => editingParams.has(p.id) && !CONTAINER_PARAMS.has(p.id)
-  );
+  // panels stack in the same visual order as the chip grid — except
+  // in tabata mode, where the 5 timer fields read top-to-bottom in a
+  // fixed work → rest → rounds → sets → rest-between sequence (the
+  // ALL_PARAMETERS positions of those 5 ids scatter them among other
+  // params, which made the tabata editor look randomly ordered).
+  const TABATA_FIELD_ORDER = ['work_time', 'rest_time', 'rounds', 'sets', 'rest_between_sets'];
+  const openParamDefs = (() => {
+    const base = ALL_PARAMETERS.filter(
+      (p) => editingParams.has(p.id) && !CONTAINER_PARAMS.has(p.id)
+    );
+    if (!confirmedParams.has('tabata')) return base;
+    const idx = (id) => {
+      const i = TABATA_FIELD_ORDER.indexOf(id);
+      return i === -1 ? 999 : i;
+    };
+    return [...base].sort((a, b) => idx(a.id) - idx(b.id));
+  })();
 
   // Stacked summary rows — one row per populated parameter, drawn
   // under the chip grid. Default order follows ALL_PARAMETERS, but
