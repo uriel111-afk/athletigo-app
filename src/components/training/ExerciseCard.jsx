@@ -538,17 +538,34 @@ export default function ExerciseCard({
 
   const paramItems = buildParamItems();
 
-  // Closed-card pill bits — for the title-line indicator. Includes the
-  // tabata/list container suffix when applicable. completed wins
-  // outright (a single "הושלם" pill).
+  // Closed-card pill bits — for the title-line indicator. completed
+  // wins outright (a single "הושלם" pill). Tabata collapses to a
+  // single summary pill ("טבטה · {rounds} סבבים · {count} תרגילים")
+  // since the OPEN card already lays out the full clock values; the
+  // closed card duplicates were too dense to scan. Other variants
+  // (including סופרסט) keep the per-param pill list as before.
   const summaryPills = (() => {
     if (completed) return ['✓ הושלם'];
+
+    if (variant === 'tabata') {
+      // Rounds: prefer the canonical tabata_data.clock_settings,
+      // fall back to the legacy top-level tabata_data.rounds, then
+      // to the exercise column.
+      const cs = td?.clock_settings || null;
+      const rounds = cs?.rounds ?? td?.rounds ?? exercise?.rounds ?? null;
+      const count = subExercises.length;
+      const parts = ['טבטה'];
+      if (hasValue(rounds))  parts.push(`${rounds} סבבים`);
+      if (count > 0)         parts.push(`${count} תרגילים`);
+      return [parts.join(' · ')];
+    }
+
     const bits = paramItems.map((it) => it.pill);
-    if (variant === 'tabata' || variant === 'list') {
+    if (variant === 'list') {
       const count = subExercises.length;
       if (count > 0) {
         bits.push(`${count} תרגילים`);
-        bits.push(variant === 'tabata' ? 'טבטה' : 'סופרסט');
+        bits.push('סופרסט');
       }
     }
     return bits;
