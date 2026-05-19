@@ -153,12 +153,18 @@ export default function SectionCard({
             userSelect: 'none',
           }}
         >
+          {/* Title area — NOT a flex:1 item. Takes its natural content
+              width so the name can never be squeezed to zero by the
+              outer row's coach-actions cluster. If everything still
+              doesn't fit on a very narrow row, the chevron at the END
+              of the outer flex line is the one that overflows, NOT
+              the name. */}
           <div style={{
-            flex: 1, minWidth: 0,
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            flexWrap: 'wrap',
+            flexShrink: 0,
+            minWidth: 0,
           }}>
             {renamingSection && showEditButtons ? (
               <input
@@ -185,18 +191,17 @@ export default function SectionCard({
                   outline: 'none',
                   padding: '2px 0',
                   direction: 'rtl',
-                  flex: '1 1 120px',
+                  width: '160px',
                 }}
               />
             ) : (
-              // Section name is the PRIMARY element — natural intrinsic
-              // width, never collapsed by flex math. nowrap stops the
-              // mid-word break ("תנועתי / ות"); overflow + ellipsis +
-              // maxWidth:100% only kick in for pathologically long
-              // names that exceed the container by themselves. NO
-              // flex:1 — the previous commit's flex:1+minWidth:0 reset
-              // flex-basis to 0 and let siblings consume all the row,
-              // hiding the name entirely.
+              // Section name: natural width via nowrap. No maxWidth tied
+              // to the parent (that was the previous bug — when the
+              // parent shrunk to 0 via flex math, maxWidth:100% became
+              // 0% and overflow:hidden clipped everything to invisible).
+              // The viewport-relative safety net `maxWidth: 60vw` only
+              // truncates pathologically long names; short / medium
+              // names render at their natural intrinsic width.
               <span
                 {...(showEditButtons ? longPressRename : {})}
                 style={{
@@ -208,7 +213,8 @@ export default function SectionCard({
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  maxWidth: '100%',
+                  maxWidth: '60vw',
+                  display: 'inline-block',
                 }}
                 title={section.section_name}
               >{section.section_name}</span>
