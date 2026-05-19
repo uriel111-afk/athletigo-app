@@ -34,6 +34,34 @@ function parseTabataData(raw) {
 function getVariant(exercise) {
   if (exercise.mode === 'טבטה') return 'tabata';
   if (['סופרסט', 'קומבו', 'רשימה'].includes(exercise.mode)) return 'list';
+  // Fallback — the row's mode is missing or a custom string but
+  // tabata_data carries real sub-exercises. Treat it as a container
+  // (clock+subs+toggles layout) instead of falling through to the
+  // numeric-fill "normal" layout. container_type hints between
+  // tabata and list when present; otherwise the presence of a
+  // work/rounds prescription tilts toward tabata, else list.
+  const td = parseTabataData(exercise.tabata_data);
+  if (td && typeof td === 'object') {
+    let hasSubs = false;
+    for (const key of ['sub_exercises', 'exercises', 'items', 'children', 'block_exercises', 'list']) {
+      if (Array.isArray(td[key]) && td[key].length > 0) { hasSubs = true; break; }
+    }
+    if (!hasSubs && Array.isArray(td.blocks)) {
+      for (const b of td.blocks) {
+        const inner = b?.block_exercises || b?.exercises || [];
+        if (Array.isArray(inner) && inner.length > 0) { hasSubs = true; break; }
+      }
+    }
+    if (hasSubs) {
+      if (td.container_type === 'tabata') return 'tabata';
+      if (td.container_type === 'list' || td.container_type === 'superset' || td.container_type === 'combo') return 'list';
+      if (hasValue(td.work_time) || hasValue(td.rounds) || hasValue(td.work_seconds) ||
+          hasValue(td?.clock_settings?.work_seconds) || hasValue(td?.clock_settings?.rounds)) {
+        return 'tabata';
+      }
+      return 'list';
+    }
+  }
   return 'normal';
 }
 
@@ -647,13 +675,13 @@ export default function ExerciseCard({
     const NUM_FONT = "'Barlow Condensed', 'Arial Narrow', sans-serif";
     const SANS_FONT = "'Barlow', system-ui, sans-serif";
 
-    // Tabata closed-card summary — single pill, the exercise count
-    // from the parsed sub_exercises array. The full protocol
-    // (rounds / work / rest / sets / rest-between) is shown in the
-    // open card; on the closed card a single "{N} תרגילים" reads
-    // cleanly and matches the storyboard.
+    // Container-variant (tabata + superset/list) closed-card summary
+    // — single pill, the exercise count from the parsed sub_exercises
+    // array. The full clock/protocol is shown in the open card; on
+    // the closed card a single "{N} תרגילים" reads cleanly and
+    // matches the storyboard.
     const tabataClosedPills = (() => {
-      if (variant !== 'tabata') return null;
+      if (variant !== 'tabata' && variant !== 'list') return null;
       const count = subExercises.length;
       if (count <= 0) return [];
       return [{ text: `${count} תרגילים`, emphasized: false }];
@@ -835,7 +863,7 @@ export default function ExerciseCard({
             every other variant gets the standard param list rows.
             buildParamItems still drives the non-tabata path so the
             data + ordering remain untouched. */}
-        {expanded && variant === 'tabata' && (() => {
+        {expanded && (variant === 'tabata' || variant === 'list') && (() => {
           const cs = td?.clock_settings || null;
           const work = toSeconds(cs?.work_seconds ?? td?.work_time ?? exercise.work_time);
           const rest = toSeconds(cs?.rest_seconds ?? td?.rest_time ?? exercise.rest_time);
@@ -1068,7 +1096,7 @@ export default function ExerciseCard({
           );
         })()}
 
-        {expanded && variant !== 'tabata' && (paramItems.length > 0 || subExercises.length > 0) && (() => {
+        {expanded && variant === 'normal' && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
           const hasWorkTimeParam = paramItems.some((it) => it.key === 'work_time');
