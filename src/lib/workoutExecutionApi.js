@@ -146,6 +146,37 @@ export function readSectionRating(v) {
   return { avg: null, control: null, challenge: null, notes: '' };
 }
 
+// Per-exercise execution summary read helper. Mirror of the writer
+// in UnifiedPlanBuilder.saveWorkoutExecution. Returns a fully-shaped
+// object (all keys present, nulls/zeros for missing) so callers can
+// destructure without conditional chaining. Tolerates execRow without
+// the column (old rows pre step 2) and missing per-exercise keys
+// (exercises the trainee never touched on that run).
+export function readExerciseSummary(execRow, exerciseId) {
+  const map = execRow && execRow.exercise_summaries;
+  const v = map && typeof map === 'object' ? map[exerciseId] : null;
+  if (!v || typeof v !== 'object') {
+    return {
+      planned_sets: null,
+      done_sets: 0,
+      planned_reps: null,
+      total_reps_done: 0,
+      total_reps_target: null,
+      completion_pct: null,
+      avg_difficulty: null,
+    };
+  }
+  return {
+    planned_sets: v.planned_sets ?? null,
+    done_sets: Number(v.done_sets) || 0,
+    planned_reps: v.planned_reps ?? null,
+    total_reps_done: Number(v.total_reps_done) || 0,
+    total_reps_target: v.total_reps_target ?? null,
+    completion_pct: v.completion_pct ?? null,
+    avg_difficulty: v.avg_difficulty ?? null,
+  };
+}
+
 export function indexSetLogs(logs) {
   const byExercise = {};
   for (const log of logs || []) {

@@ -1341,10 +1341,57 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             ? Math.round((exercises.filter(e => e && e.completed).length / exercises.length) * 100)
             : 0);
 
+      // Per-exercise execution summary — derived from the same in-memory
+      // setLogs + exercises arrays the completion calc above just used,
+      // so no extra DB read. Written as JSONB on the same workout_executions
+      // row via the existing single UPDATE/INSERT. Exercises the trainee
+      // never touched (no set entries at all) are skipped so the JSONB
+      // stays compact. Read it back via readExerciseSummary(). Step 2
+      // plumbing — no UI surfaces this yet.
+      const exerciseSummaries = {};
+      for (const exercise of exercises) {
+        if (!exercise || !exercise.id) continue;
+        const logs = setLogs[exercise.id] || {};
+        const setEntries = Object.values(logs).filter(Boolean);
+        if (setEntries.length === 0) continue;
+        const doneSetsExc = setEntries.filter((s) => s.done).length;
+        const plannedSets = Number(exercise.sets) || null;
+        const plannedReps = Number(exercise.reps) || null;
+        const totalRepsDone = setEntries.reduce(
+          (sum, s) => sum + (Number(s.reps_completed) || 0),
+          0,
+        );
+        const totalRepsTarget = (plannedSets != null && plannedReps != null)
+          ? plannedSets * plannedReps
+          : null;
+        const diffs = setEntries
+          .map((s) => Number(s.difficulty))
+          .filter((n) => !Number.isNaN(n) && n > 0);
+        const avgDifficulty = diffs.length
+          ? parseFloat((diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(1))
+          : null;
+        let excCompletionPct = null;
+        if (totalRepsTarget) {
+          excCompletionPct = Math.min(100, Math.round((totalRepsDone / totalRepsTarget) * 100));
+        } else if (plannedSets) {
+          excCompletionPct = Math.round((doneSetsExc / plannedSets) * 100);
+        }
+        exerciseSummaries[exercise.id] = {
+          planned_sets: plannedSets,
+          done_sets: doneSetsExc,
+          planned_reps: plannedReps,
+          total_reps_done: totalRepsDone,
+          total_reps_target: totalRepsTarget,
+          completion_pct: excCompletionPct,
+          avg_difficulty: avgDifficulty,
+        };
+      }
+
       const execRow = await persistExecution(sectionRatings, {
         completion_percent: completionPct,
         notes: feedbackText || null,
         feedback_chips: feedbackChips.length > 0 ? feedbackChips : null,
+        exercise_summaries: exerciseSummaries,
       });
 
       if (!execRow) {
