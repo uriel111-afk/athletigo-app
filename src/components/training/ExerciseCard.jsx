@@ -647,22 +647,16 @@ export default function ExerciseCard({
     const NUM_FONT = "'Barlow Condensed', 'Arial Narrow', sans-serif";
     const SANS_FONT = "'Barlow', system-ui, sans-serif";
 
-    // Tabata-specific closed pills — emphasizes the rounds pill on a
-    // warmer bg so the protocol's headline number reads first. Other
-    // variants fall through to the shared summaryPills array.
+    // Tabata closed-card summary — single pill, the exercise count
+    // from the parsed sub_exercises array. The full protocol
+    // (rounds / work / rest / sets / rest-between) is shown in the
+    // open card; on the closed card a single "{N} תרגילים" reads
+    // cleanly and matches the storyboard.
     const tabataClosedPills = (() => {
       if (variant !== 'tabata') return null;
-      const cs = td?.clock_settings || null;
-      const rounds = cs?.rounds ?? td?.rounds ?? exercise?.rounds ?? null;
-      const work = toSeconds(cs?.work_seconds ?? td?.work_time ?? exercise.work_time);
-      const rest = toSeconds(cs?.rest_seconds ?? td?.rest_time ?? exercise.rest_time);
       const count = subExercises.length;
-      const items = [];
-      if (hasValue(rounds)) items.push({ text: `${rounds} סבבים`, emphasized: true });
-      if (work != null) items.push({ text: `${work} שנ' עבודה` });
-      if (rest != null) items.push({ text: `${rest} שנ' מנוחה` });
-      if (count > 0) items.push({ text: `${count} תרגילים` });
-      return items;
+      if (count <= 0) return [];
+      return [{ text: `${count} תרגילים`, emphasized: false }];
     })();
 
     const closedPills = tabataClosedPills
@@ -704,15 +698,18 @@ export default function ExerciseCard({
               changes the state; the coach sees the same pill but no
               fill inputs. */}
           {(() => {
+            // Unified derived status — for EVERY variant (including
+            // tabata) status is computed from setLog toggles now that
+            // tabata has a simple ✓-סטים row of its own. No more
+            // exercise.completed fallback for tabata.
             const doneCount = (() => {
-              if (variant === 'tabata') return null;
               let n = 0;
               for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
               return n;
             })();
-            const kind = variant === 'tabata'
-              ? (completed ? 'done' : 'none')
-              : (doneCount === 0 ? 'none' : doneCount >= totalSets ? 'done' : 'partial');
+            const kind = doneCount === 0
+              ? 'none'
+              : doneCount >= totalSets ? 'done' : 'partial';
             const cfg = ({
               none:    { dot: 'transparent', dotBorder: '1.5px solid #ccc', text: 'לא בוצע', color: '#888',    bg: '#F7F3EA', borderC: '#E8DEC4' },
               partial: { dot: '#E0A030',     dotBorder: 'none',             text: 'חלקי',     color: '#b8821f', bg: '#FFF6E6', borderC: '#F0D9A8' },
@@ -948,6 +945,125 @@ export default function ExerciseCard({
                   })}
                 </div>
               )}
+
+              {/* Trainee ✓-סטים toggle row — the ONLY input on a tabata
+                  exercise. Same visual + handler as the normal sets
+                  fill row; the trainee never enters reps or seconds
+                  for tabata. Coach view skips this branch (read-only).
+                  Box count = totalSets (already min(1, exercise.sets)). */}
+              {!isCoachMode && (() => {
+                let doneSetsTabata = 0;
+                for (let i = 0; i < totalSets; i++) if (isSetDone(i)) doneSetsTabata++;
+                const pctTabata = totalSets > 0
+                  ? Math.round((doneSetsTabata / totalSets) * 100)
+                  : 0;
+                const summaryDoneT = pctTabata >= 100;
+                return (
+                  <>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      gap: 12,
+                      padding: '11px 0',
+                      borderTop: '1px solid #EFE9D8',
+                      direction: 'rtl',
+                      marginTop: subExercises.length > 0 ? 4 : 0,
+                    }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'baseline',
+                        gap: 6,
+                        flexShrink: 0,
+                      }}>
+                        <span style={{
+                          fontFamily: NUM_FONT,
+                          fontSize: 24, fontWeight: 700,
+                          color: '#1a1a1a', lineHeight: 1,
+                        }}>{totalSets}</span>
+                        <span style={{
+                          fontFamily: SANS_FONT,
+                          fontSize: 13, fontWeight: 600, color: '#777',
+                        }}>סטים</span>
+                      </span>
+                      <div style={{
+                        flex: 1,
+                        display: 'flex',
+                        gap: 6,
+                        justifyContent: 'flex-end',
+                      }}>
+                        {Array.from({ length: totalSets }).map((_, idx) => {
+                          const done = isSetDone(idx);
+                          return (
+                            <div key={idx} style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                            }}>
+                              <span style={{
+                                fontSize: 9, color: '#999',
+                                marginBottom: 3,
+                                fontFamily: SANS_FONT,
+                                fontWeight: 600,
+                                lineHeight: 1,
+                              }}>סט {idx + 1}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleSetToggle(idx); }}
+                                aria-checked={done}
+                                role="checkbox"
+                                style={{
+                                  width: 42, height: 38, borderRadius: 8,
+                                  border: done ? '2px solid #4CAF50' : '2px dashed #C9B89A',
+                                  background: done ? '#F1FAF1' : '#FCFBF7',
+                                  color: '#2e7d32',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: 18, fontWeight: 900, lineHeight: 1,
+                                  padding: 0,
+                                  flexShrink: 0,
+                                }}
+                              >{done ? '✓' : ''}</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Live summary — sets-only for tabata (no reps /
+                        time totals because there's no numeric input). */}
+                    <div style={{
+                      marginTop: 12,
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      background: summaryDoneT ? '#F1FAF1' : '#FFF4E6',
+                      border: `1px solid ${summaryDoneT ? '#BFE3BF' : '#FFD9B0'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      direction: 'rtl',
+                    }}>
+                      <div style={{
+                        fontSize: 12,
+                        color: '#555',
+                        fontFamily: SANS_FONT,
+                        fontWeight: 600,
+                      }}>
+                        {doneSetsTabata}/{totalSets} סטים
+                      </div>
+                      <div style={{
+                        fontFamily: NUM_FONT,
+                        fontSize: 24,
+                        fontWeight: 700,
+                        lineHeight: 1,
+                        color: summaryDoneT ? '#2e7d32' : '#FF6F20',
+                      }}>{pctTabata}%</div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           );
         })()}
