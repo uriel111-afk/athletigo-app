@@ -557,6 +557,302 @@ function SectionProgressGraph({ plan, completed }) {
   );
 }
 
+// Single unified progress graph — replaces ImprovementGraph +
+// ExerciseProgressGraph + SectionProgressGraph at the bottom of the
+// page. Two selectors (רמה / מדד) recompute the series from the
+// already-loaded `completed` array + plan.sections.exercises. No new
+// queries; every metric flows through readExerciseSummary /
+// readSectionRating so legacy executions without exercise_summaries
+// gracefully drop out of the series instead of crashing on toFixed.
+function UnifiedProgressGraph({ plan, completed }) {
+  const NUM_FONT = "'Barlow Condensed', 'Arial Narrow', sans-serif";
+  const SANS_FONT = "'Barlow', system-ui, sans-serif";
+
+  const allExercises = useMemo(() => {
+    const out = [];
+    for (const section of plan?.sections || []) {
+      for (const ex of section?.exercises || []) {
+        if (ex && ex.id) {
+          out.push({ id: ex.id, name: ex.exercise_name || ex.name || 'תרגיל' });
+        }
+      }
+    }
+    return out;
+  }, [plan]);
+
+  const [level, setLevel] = useState('all');
+  const [metric, setMetric] = useState('pct');
+
+  const sortedExecs = useMemo(
+    () => (completed || []).slice().sort(
+      (a, b) => new Date(a.executed_at) - new Date(b.executed_at),
+    ),
+    [completed],
+  );
+
+  // Pull the numeric value for a given execution × level × metric.
+  // Returns null for "no data" — callers filter those out so the
+  // chart and aggregates never reach a null .toFixed.
+  const valueFor = (exec, lvl, met) => {
+    if (!exec) return null;
+    if (lvl === 'all') {
+      if (met === 'pct') {
+        const v = exec.completion_percent;
+        return v != null && Number.isFinite(Number(v)) ? Number(v) : null;
+      }
+      if (met === 'reps') {
+        const map = exec.exercise_summaries;
+        if (!map || typeof map !== 'object') return null;
+        let total = 0;
+        let any = false;
+        for (const exId of Object.keys(map)) {
+          const s = readExerciseSummary(exec, exId);
+          if (Number.isFinite(s.total_reps_done) && s.total_reps_done > 0) {
+            total += s.total_reps_done;
+            any = true;
+          }
+        }
+        return any ? total : null;
+      }
+      if (met === 'difficulty') {
+        const v = exec.self_rating;
+        return v != null && Number.isFinite(Number(v)) ? Number(v) : null;
+      }
+    } else {
+      const s = readExerciseSummary(exec, lvl);
+      if (met === 'pct') {
+        return Number.isFinite(s.completion_pct) ? s.completion_pct : null;
+      }
+      if (met === 'reps') {
+        return Number.isFinite(s.total_reps_done) && s.total_reps_done > 0
+          ? s.total_reps_done : null;
+      }
+      if (met === 'difficulty') {
+        return Number.isFinite(s.avg_difficulty) ? s.avg_difficulty : null;
+      }
+    }
+    return null;
+  };
+
+  const chartData = useMemo(() => (
+    sortedExecs
+      .map((e) => ({ date: formatShort(e.executed_at), value: valueFor(e, level, metric) }))
+      .filter((p) => p.value != null)
+  ), [sortedExecs, level, metric]);
+
+  const yDomain = metric === 'pct' ? [0, 100]
+    : metric === 'difficulty' ? [0, 10]
+    : [0, 'auto'];
+
+  const formatVal = (v) => {
+    if (v == null || !Number.isFinite(Number(v))) return '—';
+    if (metric === 'pct') return `${Math.round(Number(v))}%`;
+    if (metric === 'difficulty') return `${Number(v).toFixed(1)}/10`;
+    return `${Math.round(Number(v))}`;
+  };
+
+  const metricNoun = metric === 'pct' ? 'אחוז הצלחה'
+    : metric === 'reps' ? 'חזרות שבוצעו'
+    : 'ציון קושי';
+
+  const tiles = useMemo(() => {
+    const vals = chartData.map((p) => p.value).filter((v) => Number.isFinite(Number(v)));
+    if (vals.length === 0) return { best: null, avg: null, trend: null };
+    const best = Math.max(...vals);
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const trend = vals.length >= 2 ? vals[vals.length - 1] - vals[0] : 0;
+    return { best, avg, trend };
+  }, [chartData]);
+
+  const latestPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+  const prevPoint = chartData.length >= 2 ? chartData[chartData.length - 2] : null;
+  const change = (latestPoint && prevPoint && latestPoint.value != null && prevPoint.value != null)
+    ? latestPoint.value - prevPoint.value
+    : null;
+
+  const chipStyle = (active) => ({
+    flexShrink: 0,
+    padding: '6px 12px',
+    borderRadius: 999,
+    border: active ? `1px solid ${ORANGE}` : '1px solid #E5E5E5',
+    background: active ? '#FFF5EE' : 'white',
+    color: active ? ORANGE : '#666',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    fontFamily: SANS_FONT,
+  });
+
+  const captionStyle = {
+    fontSize: 11, color: '#888', fontWeight: 700,
+    flexShrink: 0, paddingInlineEnd: 4,
+    fontFamily: SANS_FONT,
+  };
+
+  return (
+    <div style={{
+      background: '#FFFFFF',
+      borderTop: '1px solid #F0E4D0',
+      padding: '20px 12px 28px',
+      direction: 'rtl',
+      width: '100%',
+      boxSizing: 'border-box',
+    }}>
+      <div style={{
+        fontSize: 18, fontWeight: 800, color: DARK,
+        marginBottom: 14, paddingInline: 4,
+        fontFamily: SANS_FONT,
+      }}>
+        התקדמות
+      </div>
+
+      {/* רמה — workout-wide or per-exercise selection */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        overflowX: 'auto', paddingBottom: 6, marginBottom: 8,
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'thin',
+      }}>
+        <span style={captionStyle}>רמה</span>
+        <button type="button" onClick={() => setLevel('all')} style={chipStyle(level === 'all')}>
+          כל האימון
+        </button>
+        {allExercises.map((ex) => (
+          <button key={ex.id} type="button"
+            onClick={() => setLevel(ex.id)}
+            style={chipStyle(level === ex.id)}
+          >{ex.name}</button>
+        ))}
+      </div>
+
+      {/* מדד — which numeric series to plot */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        marginBottom: 14, flexWrap: 'wrap',
+      }}>
+        <span style={captionStyle}>מדד</span>
+        <button type="button" onClick={() => setMetric('pct')} style={chipStyle(metric === 'pct')}>
+          אחוז הצלחה
+        </button>
+        <button type="button" onClick={() => setMetric('reps')} style={chipStyle(metric === 'reps')}>
+          חזרות
+        </button>
+        <button type="button" onClick={() => setMetric('difficulty')} style={chipStyle(metric === 'difficulty')}>
+          קושי
+        </button>
+      </div>
+
+      {chartData.length === 0 ? (
+        <div style={{
+          padding: '32px 8px', textAlign: 'center', color: '#888', fontSize: 13,
+          background: '#FAFAFA', borderRadius: 12, border: '1px solid #F0F0F0',
+          fontFamily: SANS_FONT,
+        }}>
+          עדיין אין נתונים למדד הזה
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F5E6D8" vertical={false} />
+            <XAxis
+              dataKey="date" tick={{ fontSize: 12, fill: '#AAA' }}
+              axisLine={false} tickLine={false}
+            />
+            <YAxis
+              domain={yDomain} tick={{ fontSize: 12, fill: '#AAA' }}
+              axisLine={false} tickLine={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'white', border: `1px solid ${ORANGE}`,
+                borderRadius: 10, color: DARK, fontSize: 13,
+              }}
+              labelStyle={{ color: ORANGE, fontWeight: 700 }}
+              formatter={(v) => [formatVal(v), metricNoun]}
+              cursor={{ stroke: ORANGE, strokeWidth: 1, strokeDasharray: '4 4' }}
+            />
+            <Line
+              type="monotone" dataKey="value"
+              stroke={ORANGE} strokeWidth={3}
+              dot={{ fill: ORANGE, r: 6, strokeWidth: 2, stroke: 'white' }}
+              activeDot={{ r: 9, fill: ORANGE, stroke: 'white', strokeWidth: 2 }}
+              connectNulls={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+
+      {chartData.length > 0 && (
+        <>
+          {/* 3 metric tiles — שיא / ממוצע / מגמה */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
+            marginTop: 18, paddingInline: 4,
+          }}>
+            {[
+              { label: 'שיא',    value: formatVal(tiles.best),                              color: DARK },
+              { label: 'ממוצע',  value: formatVal(tiles.avg),                               color: DARK },
+              { label: 'מגמה',   value: tiles.trend != null
+                ? `${tiles.trend > 0 ? '↑ ' : tiles.trend < 0 ? '↓ ' : ''}${formatVal(Math.abs(tiles.trend))}`
+                : '—',
+                color: tiles.trend > 0 ? '#16a34a' : tiles.trend < 0 ? '#dc2626' : DARK },
+            ].map((t) => (
+              <div key={t.label} style={{
+                background: '#FFF8EF', border: '1px solid #EFE0C8',
+                borderRadius: 10, padding: '10px 8px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 11, color: '#888', fontFamily: SANS_FONT, marginBottom: 4 }}>{t.label}</div>
+                <div style={{
+                  fontFamily: NUM_FONT, fontSize: 22, fontWeight: 700,
+                  color: t.color, lineHeight: 1,
+                }}>{t.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Latest point detail */}
+          {latestPoint && (
+            <div style={{
+              marginTop: 14, padding: '10px 12px',
+              background: '#FFF5EE', border: `1px solid #FFE5D0`,
+              borderRadius: 10,
+              fontFamily: SANS_FONT,
+              paddingInline: 14,
+            }}>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                פירוט — {latestPoint.date}
+              </div>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8,
+              }}>
+                <span style={{ fontSize: 13, color: '#555', fontWeight: 600 }}>
+                  {metricNoun}
+                </span>
+                <span style={{
+                  fontFamily: NUM_FONT, fontSize: 22, fontWeight: 700, color: ORANGE,
+                  lineHeight: 1,
+                }}>
+                  {formatVal(latestPoint.value)}
+                </span>
+              </div>
+              {change != null && (
+                <div style={{
+                  fontSize: 12,
+                  color: change > 0 ? '#16a34a' : change < 0 ? '#dc2626' : '#888',
+                  marginTop: 4, fontWeight: 600,
+                }}>
+                  {change > 0 ? '↑' : change < 0 ? '↓' : '·'} {formatVal(Math.abs(change))} מהביצוע הקודם
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function MasterCard({
   plan, sectionsCount, exercisesCount, isCoach, hasExecutions,
   onActivate, onEditPlan, onDuplicateExecution, onPlanDeleted,
@@ -1114,14 +1410,6 @@ export default function WorkoutFolderDetail({
       </div>
 
       <div style={{ padding: 16 }}>
-        <ImprovementGraph data={chartData} executionsCount={completed.length} />
-
-        <ExerciseProgressGraph plan={plan} completed={completed} />
-
-        <SectionProgressGraph plan={plan} completed={completed} />
-
-        <GradientDivider />
-
         <MasterCard
           plan={plan}
           sectionsCount={sectionsCount}
@@ -1171,6 +1459,11 @@ export default function WorkoutFolderDetail({
           </>
         )}
       </div>
+
+      {/* Unified progress graph — full-bleed, last block on the page.
+          Replaces the previous three separate graphs. Outside the
+          padded inner div so it spans the entire viewport width. */}
+      <UnifiedProgressGraph plan={plan} completed={completed} />
     </div>
   );
 }
