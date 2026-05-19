@@ -86,13 +86,23 @@ export default function SectionCard({
   const sectionColor = getSectionColor(index);
   const isTraineeView = !showEditButtons;
 
-  // ── Trainee lined-page card ───────────────────────────────────────
-  // Step A of the trainee-view rewrite: outer paper card per section
-  // with a thin white "page header" band, a clickable section row,
-  // and the exercise list rendered below with a vertical margin rule.
-  // Coach view branches below this return and is unchanged.
-  if (isTraineeView) {
+  // ── Lined-page card (coach + trainee) ─────────────────────────────
+  // Step A2: the lined-page block became the sole render path. Coach
+  // gets extra controls — section-action icons on the row, an "ערוך"
+  // button per exercise, and a "+ הוסף תרגיל" affordance at the bottom
+  // of the expanded body — all wired to the existing handlers (same
+  // ones the previous coach render used). The old coach render below
+  // is no longer reachable but is left in place for safety; can be
+  // removed in a follow-up once visual parity is confirmed.
+  {
     const ratingObj = readSectionRating(sectionRating);
+    const coachIconBtnStyle = {
+      width: 28, height: 28, borderRadius: 6,
+      border: 'none', background: 'transparent',
+      color: '#8a7250', cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 0, fontSize: 14, lineHeight: 1,
+    };
     return (
       <div style={{
         background: '#FCFBF7',
@@ -130,12 +140,46 @@ export default function SectionCard({
           }}
         >
           <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{
-              fontSize: 17, fontWeight: 500, color: '#1a1a1a',
-              fontFamily: "'Barlow', system-ui, sans-serif",
-              lineHeight: 1.2,
-              wordBreak: 'break-word',
-            }}>{section.section_name}</span>
+            {renamingSection && showEditButtons ? (
+              <input
+                autoFocus
+                defaultValue={section.section_name}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={(e) => {
+                  const next = e.target.value.trim();
+                  setRenamingSection(false);
+                  if (next && next !== section.section_name && onRenameSection) {
+                    onRenameSection(section.id, next);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.target.blur();
+                  if (e.key === 'Escape') { e.target.value = section.section_name; e.target.blur(); }
+                }}
+                style={{
+                  fontSize: 17, fontWeight: 500, color: '#1a1a1a',
+                  fontFamily: "'Barlow', system-ui, sans-serif",
+                  border: 'none',
+                  borderBottom: '2px solid #FF6F20',
+                  background: 'transparent',
+                  outline: 'none',
+                  padding: '2px 0',
+                  direction: 'rtl',
+                  flex: 1,
+                  minWidth: 120,
+                }}
+              />
+            ) : (
+              <span
+                {...(showEditButtons ? longPressRename : {})}
+                style={{
+                  fontSize: 17, fontWeight: 500, color: '#1a1a1a',
+                  fontFamily: "'Barlow', system-ui, sans-serif",
+                  lineHeight: 1.2,
+                  wordBreak: 'break-word',
+                }}
+              >{section.section_name}</span>
+            )}
             <span style={{ fontSize: 12, color: '#a8895a' }}>
               · {exercises.length} תרגילים
             </span>
@@ -158,6 +202,55 @@ export default function SectionCard({
               </span>
             )}
           </div>
+          {/* Coach controls — inline icon cluster reusing the existing
+              SectionCard handlers (move/edit/duplicate/delete/rename).
+              No new editor or backend code; each button just forwards
+              to the prop already wired by UnifiedPlanBuilder. */}
+          {showEditButtons && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}
+            >
+              {onMoveSection && (
+                <>
+                  <button type="button" aria-label="העלה סקשן" title="העלה סקשן"
+                    disabled={isFirstSection}
+                    onClick={() => onMoveSection(-1)}
+                    style={{ ...coachIconBtnStyle, opacity: isFirstSection ? 0.3 : 1 }}
+                  >↑</button>
+                  <button type="button" aria-label="הורד סקשן" title="הורד סקשן"
+                    disabled={isLastSection}
+                    onClick={() => onMoveSection(1)}
+                    style={{ ...coachIconBtnStyle, opacity: isLastSection ? 0.3 : 1 }}
+                  >↓</button>
+                </>
+              )}
+              {onEditSection && (
+                <button type="button" aria-label="ערוך סקשן" title="ערוך סקשן"
+                  onClick={() => onEditSection(section)}
+                  style={coachIconBtnStyle}
+                ><Edit2 size={14} /></button>
+              )}
+              {onRenameSection && (
+                <button type="button" aria-label="שנה שם סקשן" title="שנה שם סקשן"
+                  onClick={() => setRenamingSection(true)}
+                  style={coachIconBtnStyle}
+                >✎</button>
+              )}
+              {onDuplicateSection && (
+                <button type="button" aria-label="שכפל סקשן" title="שכפל סקשן"
+                  onClick={() => onDuplicateSection(section)}
+                  style={coachIconBtnStyle}
+                >📋</button>
+              )}
+              {onDeleteSection && (
+                <button type="button" aria-label="מחק סקשן" title="מחק סקשן"
+                  onClick={() => onDeleteSection(section.id)}
+                  style={{ ...coachIconBtnStyle, color: '#dc2626' }}
+                ><Trash2 size={14} /></button>
+              )}
+            </div>
+          )}
           <span aria-hidden style={{
             color: '#C9A24A',
             fontSize: 14,
@@ -205,8 +298,8 @@ export default function SectionCard({
                       onDelete={() => onDeleteExercise(exercise.id)}
                       onDuplicate={onDuplicateExercise ? () => onDuplicateExercise(exercise) : null}
                       onRename={onRenameExercise}
-                      mode="trainee"
-                      canEdit={false}
+                      mode={showEditButtons ? 'coach' : 'trainee'}
+                      canEdit={showEditButtons}
                       isCoach={isCoach}
                       plan={plan}
                       traineeProgress={traineeProgressByExercise[exercise.id]}
@@ -218,6 +311,30 @@ export default function SectionCard({
                     />
                   ))
                 )}
+
+                {/* Coach: add-exercise affordance at the bottom of the
+                    expanded body. Reuses onAddExercise verbatim. */}
+                {showEditButtons && onAddExercise && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onAddExercise(); }}
+                    style={{
+                      width: '100%',
+                      background: 'transparent',
+                      border: 'none',
+                      borderTop: '1px dashed #E5DFC9',
+                      padding: '12px 36px 12px 16px',
+                      textAlign: 'right',
+                      direction: 'rtl',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#FF6F20',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + הוסף תרגיל לסקשן
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
@@ -225,7 +342,9 @@ export default function SectionCard({
       </div>
     );
   }
-  // ── End trainee lined-page card ───────────────────────────────────
+  // ── End lined-page card ───────────────────────────────────────────
+  // The block below this point is the legacy coach render. It is no
+  // longer reachable because the lined-page block above always returns.
   const style = isTraineeView
     ? {
         bg: '#FFFEFC',

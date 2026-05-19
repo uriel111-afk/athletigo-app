@@ -630,12 +630,16 @@ export default function ExerciseCard({
 
   // ── Render ──────────────────────────────────────────────────────
 
-  // Trainee lined-page row (step A of the trainee-view rewrite). Flat
-  // row design — no outer card, no left stripe — so the section card's
-  // hairline borders produce the lined-notebook effect. Display only:
-  // the master ○ still toggles exercise.completed but the per-set grid
-  // is removed in this step and will return in a later phase.
-  if (!isCoachMode) {
+  // Lined-page row — single render path for coach + trainee (step A2).
+  // Flat row design (no outer card, no left stripe) so the section
+  // card's hairline borders produce the lined-notebook effect. The
+  // master ○ still toggles exercise.completed. Coach gets an extra
+  // "ערוך" pill that calls onEdit — the SAME prop the previous coach
+  // render used at the bottom ActionButton row — so the existing
+  // editor flow (ModernExerciseForm via UnifiedPlanBuilder) opens
+  // exactly as before, no editor changes. Step-A display-only rule
+  // still holds: no per-set grid, no live % bar, no graphs here.
+  {
     return (
       <div style={{ direction: 'rtl' }}>
         {/* Closed/header row — always shown; tapping toggles expand */}
@@ -664,22 +668,25 @@ export default function ExerciseCard({
           {/* Master ○ marker — visually styled per the lined-page spec
               (19px circle, #ccc unchecked, green when complete). Click
               behavior preserved: parent's onToggleComplete still drives
-              exercise.completed. Stops propagation so the tap doesn't
-              also expand the row. */}
+              exercise.completed. Coach mode disables the toggle so the
+              indicator becomes purely informational (matches the
+              previous coach behavior). */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              if (isCoachMode) return;
               if (onToggleComplete) onToggleComplete(exercise);
             }}
             aria-checked={completed}
             role="checkbox"
+            disabled={isCoachMode}
             style={{
               width: 19, height: 19, borderRadius: '50%',
               border: completed ? 'none' : '1.5px solid #ccc',
               background: completed ? '#16a34a' : 'transparent',
               color: '#FFFFFF',
-              cursor: 'pointer',
+              cursor: isCoachMode ? 'default' : 'pointer',
               padding: 0, flexShrink: 0, marginTop: 2,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 900, lineHeight: 1,
@@ -720,6 +727,30 @@ export default function ExerciseCard({
               </div>
             )}
           </div>
+
+          {/* Coach "ערוך" — forwards to the existing onEdit prop, which
+              the parent (SectionCard → UnifiedPlanBuilder) already wires
+              to setEditingExercise + setShowExerciseDialog(true). Opens
+              ModernExerciseForm exactly as before. */}
+          {isCoachMode && onEdit && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onEdit(exercise); }}
+              aria-label="ערוך תרגיל"
+              style={{
+                background: '#FFF5EE',
+                border: '1px solid #FFE5D0',
+                color: '#FF6F20',
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '3px 10px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                flexShrink: 0,
+                marginTop: 1,
+              }}
+            >ערוך</button>
+          )}
 
           <span aria-hidden style={{
             color: '#C9A24A',
