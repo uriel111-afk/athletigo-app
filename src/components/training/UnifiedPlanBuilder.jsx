@@ -2453,11 +2453,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             transform: 'translateX(-50%)',
             maxHeight: 'calc(100vh - 200px)',
             overflowY: 'auto',
-            // Above the trainee "סיים אימון" bottom bar (z-50) and the
-            // plan-action sheets (z-1000) added by other surfaces. The
-            // Radix overlay sits one layer below at zIndex 999 so the
-            // backdrop click still dismisses cleanly.
-            zIndex: 1000,
+            // Intentionally NO zIndex override here. The shadcn Dialog
+            // primitive renders DialogOverlay at z-[11000] and the
+            // content's default inline zIndex is 11001 (see
+            // src/components/ui/dialog.jsx). A previous override of
+            // zIndex: 1000 here put the content BELOW the overlay,
+            // so the 60%-opacity black backdrop painted on top of the
+            // sliders/X/buttons and ate every tap. Let the primitive's
+            // default win — content above overlay, fully interactive.
             pointerEvents: 'auto',
           }}>
 
