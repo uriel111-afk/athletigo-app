@@ -96,6 +96,19 @@ export default function SectionCard({
   // removed in a follow-up once visual parity is confirmed.
   {
     const ratingObj = readSectionRating(sectionRating);
+    // softTint converts a hex color (with or without an alpha suffix)
+    // into a low-opacity rgba so the section row gets a faint wash of
+    // the section's accent color without us hand-picking 10 pastels.
+    const softTint = (hex, alpha = 0.1) => {
+      if (typeof hex !== 'string') return 'rgba(255,248,239,1)';
+      const base = hex.slice(0, 7);
+      const r = parseInt(base.slice(1, 3), 16) || 0;
+      const g = parseInt(base.slice(3, 5), 16) || 0;
+      const b = parseInt(base.slice(5, 7), 16) || 0;
+      return `rgba(${r},${g},${b},${alpha})`;
+    };
+    const accentColor = sectionColor;
+    const sectionRowBg = softTint(accentColor, 0.1);
     const coachIconBtnStyle = {
       width: 28, height: 28, borderRadius: 6,
       border: 'none', background: 'transparent',
@@ -107,6 +120,7 @@ export default function SectionCard({
       <div style={{
         background: '#FCFBF7',
         border: '0.5px solid #E5DFC9',
+        borderRight: `4px solid ${accentColor}`,
         borderRadius: 10,
         overflow: 'hidden',
         marginBottom: 8,
@@ -132,7 +146,7 @@ export default function SectionCard({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 10,
-            background: '#FFF8EF',
+            background: sectionRowBg,
             borderBottom: expanded ? 'none' : '2px solid #E8DEC4',
             padding: '12px 36px 12px 16px',
             cursor: 'pointer',
@@ -180,7 +194,7 @@ export default function SectionCard({
                 }}
               >{section.section_name}</span>
             )}
-            <span style={{ fontSize: 12, color: '#a8895a' }}>
+            <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>
               · {exercises.length} תרגילים
             </span>
             {ratingObj.avg != null && (
@@ -289,10 +303,11 @@ export default function SectionCard({
                     אין תרגילים בסקשן זה
                   </div>
                 ) : (
-                  exercises.filter(Boolean).map((exercise) => (
+                  exercises.filter(Boolean).map((exercise, idx) => (
                     <ExerciseCard
                       key={exercise.id || Math.random()}
                       exercise={exercise}
+                      exerciseIndex={idx + 1}
                       onToggleComplete={onToggleComplete}
                       onEdit={() => onEditExercise(exercise)}
                       onDelete={() => onDeleteExercise(exercise.id)}

@@ -386,6 +386,10 @@ function SubExerciseItem({ index, sub, accentColor, accentTint }) {
 
 export default function ExerciseCard({
   exercise,
+  // 1-based position of this exercise inside its section. Drives the
+  // orange index square on the header band. SectionCard passes it from
+  // the .map() iteration; absent → square is hidden.
+  exerciseIndex,
   // Shared callbacks
   onToggleComplete,
   onEdit,
@@ -630,19 +634,48 @@ export default function ExerciseCard({
 
   // ── Render ──────────────────────────────────────────────────────
 
-  // Lined-page row — single render path for coach + trainee (step A2).
-  // Flat row design (no outer card, no left stripe) so the section
-  // card's hairline borders produce the lined-notebook effect. The
-  // master ○ still toggles exercise.completed. Coach gets an extra
-  // "ערוך" pill that calls onEdit — the SAME prop the previous coach
-  // render used at the bottom ActionButton row — so the existing
-  // editor flow (ModernExerciseForm via UnifiedPlanBuilder) opens
-  // exactly as before, no editor changes. Step-A display-only rule
-  // still holds: no per-set grid, no live % bar, no graphs here.
+  // Lined-page row — single render path for coach + trainee (step A3).
+  // Header band has bg #FBF6EE with an orange index square +
+  // borderTop separator between consecutive exercises. Numbers in
+  // param rows + tabata boxes use Barlow Condensed at one size (24px
+  // / 700 / #1a1a1a); trailing word/unit uses the brand sans at 14px
+  // / 600 / #777. Tabata variant has its own closed pills and a
+  // 5-box open layout. Coach gets an "ערוך" pill that calls onEdit.
   {
+    // Fonts kept inline so every number on this card lines up
+    // visually — same family, same size, same weight, same color.
+    const NUM_FONT = "'Barlow Condensed', 'Arial Narrow', sans-serif";
+    const SANS_FONT = "'Barlow', system-ui, sans-serif";
+
+    // Tabata-specific closed pills — emphasizes the rounds pill on a
+    // warmer bg so the protocol's headline number reads first. Other
+    // variants fall through to the shared summaryPills array.
+    const tabataClosedPills = (() => {
+      if (variant !== 'tabata') return null;
+      const cs = td?.clock_settings || null;
+      const rounds = cs?.rounds ?? td?.rounds ?? exercise?.rounds ?? null;
+      const work = toSeconds(cs?.work_seconds ?? td?.work_time ?? exercise.work_time);
+      const rest = toSeconds(cs?.rest_seconds ?? td?.rest_time ?? exercise.rest_time);
+      const count = subExercises.length;
+      const items = [];
+      if (hasValue(rounds)) items.push({ text: `${rounds} סבבים`, emphasized: true });
+      if (work != null) items.push({ text: `${work} שנ' עבודה` });
+      if (rest != null) items.push({ text: `${rest} שנ' מנוחה` });
+      if (count > 0) items.push({ text: `${count} תרגילים` });
+      return items;
+    })();
+
+    const closedPills = tabataClosedPills
+      ? tabataClosedPills
+      : summaryPills.map((t) => ({ text: t, emphasized: false }));
+
     return (
-      <div style={{ direction: 'rtl' }}>
-        {/* Closed/header row — always shown; tapping toggles expand */}
+      <div style={{
+        background: '#FBF6EE',
+        borderTop: '2px solid #E8DEC4',
+        direction: 'rtl',
+      }}>
+        {/* Header band — always shown; tapping toggles expand */}
         <div
           onClick={() => setExpanded(v => !v)}
           role="button"
@@ -659,18 +692,12 @@ export default function ExerciseCard({
             alignItems: 'flex-start',
             gap: 10,
             padding: '11px 36px 11px 16px',
-            borderBottom: '1px solid #EDE6D4',
             cursor: 'pointer',
             userSelect: 'none',
-            background: 'transparent',
           }}
         >
-          {/* Master ○ marker — visually styled per the lined-page spec
-              (19px circle, #ccc unchecked, green when complete). Click
-              behavior preserved: parent's onToggleComplete still drives
-              exercise.completed. Coach mode disables the toggle so the
-              indicator becomes purely informational (matches the
-              previous coach behavior). */}
+          {/* Master ○ — preserves existing onToggleComplete behavior.
+              Coach mode disables the toggle so it's informational. */}
           <button
             type="button"
             onClick={(e) => {
@@ -693,19 +720,39 @@ export default function ExerciseCard({
             }}
           >{completed ? '✓' : ''}</button>
 
+          {/* Orange index square — small numeric badge anchoring this
+              exercise in the section. Hidden when exerciseIndex prop
+              wasn't passed (defensive fallback). */}
+          {exerciseIndex != null && (
+            <span style={{
+              width: 24, height: 24,
+              background: '#FF6F20',
+              color: '#FFFFFF',
+              borderRadius: 4,
+              fontFamily: NUM_FONT,
+              fontSize: 14,
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginTop: 1,
+              lineHeight: 1,
+            }} aria-hidden>{exerciseIndex}</span>
+          )}
+
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontSize: 15,
               fontWeight: 500,
               color: completed ? '#aaa' : '#1a1a1a',
               textDecoration: completed ? 'line-through' : 'none',
-              fontFamily: "'Barlow', system-ui, sans-serif",
+              fontFamily: SANS_FONT,
               lineHeight: 1.3,
               wordBreak: 'break-word',
             }}>{name}</div>
-            {/* Closed-state summary pills — hidden when open since the
-                expanded body shows the full ordered list. */}
-            {!expanded && summaryPills.length > 0 && (
+            {/* Closed-state summary pills — hidden when open. */}
+            {!expanded && closedPills.length > 0 && (
               <div style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -713,25 +760,23 @@ export default function ExerciseCard({
                 marginTop: 4,
                 direction: 'rtl',
               }}>
-                {summaryPills.map((text, i) => (
+                {closedPills.map((p, i) => (
                   <span key={i} style={{
-                    background: '#FFF0E4',
+                    background: p.emphasized ? '#FFE8D6' : '#FFF0E4',
                     color: '#993C1D',
                     fontSize: 11,
-                    fontWeight: 500,
+                    fontWeight: p.emphasized ? 700 : 500,
                     padding: '2px 7px',
                     borderRadius: 6,
                     whiteSpace: 'nowrap',
-                  }}>{text}</span>
+                  }}>{p.text}</span>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Coach "ערוך" — forwards to the existing onEdit prop, which
-              the parent (SectionCard → UnifiedPlanBuilder) already wires
-              to setEditingExercise + setShowExerciseDialog(true). Opens
-              ModernExerciseForm exactly as before. */}
+          {/* Coach "ערוך" — forwards to the existing onEdit prop, opens
+              ModernExerciseForm via UnifiedPlanBuilder. */}
           {isCoachMode && onEdit && (
             <button
               type="button"
@@ -748,6 +793,7 @@ export default function ExerciseCard({
                 cursor: 'pointer',
                 flexShrink: 0,
                 marginTop: 1,
+                fontFamily: SANS_FONT,
               }}
             >ערוך</button>
           )}
@@ -763,33 +809,155 @@ export default function ExerciseCard({
           }}>▼</span>
         </div>
 
-        {/* Open body — param list rows, display only. Reuses the same
-            buildParamItems output the closed pills use, so the data and
-            order are identical. */}
-        {expanded && paramItems.length > 0 && (
-          <div style={{
-            padding: '0 36px 0 16px',
-            borderBottom: '1px solid #EDE6D4',
-            direction: 'rtl',
-          }}>
-            {paramItems.map((it, i) => (
-              <div key={it.key} style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: 6,
-                padding: '10px 0',
-                borderBottom: i === paramItems.length - 1 ? 'none' : '1px solid #EFE9D8',
-                direction: 'rtl',
-              }}>
-                <span style={{ fontSize: 17, fontWeight: 500, color: '#1a1a1a' }}>{it.value}</span>
-                {it.unit && (
-                  <span style={{ fontSize: 12, fontWeight: 400, color: '#999' }}>{it.unit}</span>
-                )}
-                {it.descriptor && (
-                  <span style={{ fontSize: 15, fontWeight: 500, color: '#777' }}>{it.descriptor}</span>
-                )}
+        {/* Open body — tabata gets the 5-box layout + sub-exercises;
+            every other variant gets the standard param list rows.
+            buildParamItems still drives the non-tabata path so the
+            data + ordering remain untouched. */}
+        {expanded && variant === 'tabata' && (() => {
+          const cs = td?.clock_settings || null;
+          const work = toSeconds(cs?.work_seconds ?? td?.work_time ?? exercise.work_time);
+          const rest = toSeconds(cs?.rest_seconds ?? td?.rest_time ?? exercise.rest_time);
+          const rounds = cs?.rounds ?? td?.rounds ?? exercise?.rounds ?? null;
+          const sets = cs?.sets ?? exercise?.sets ?? null;
+          const rbs = toSeconds(cs?.rest_between_sets ?? td?.rest_between_sets ?? exercise?.rest_between_sets);
+          const boxBase = {
+            background: '#FFF8EF',
+            border: '1px solid #EFE0C8',
+            borderRadius: 8,
+            padding: '10px 12px',
+            textAlign: 'center',
+          };
+          const boxHi = {
+            ...boxBase,
+            background: '#FFF0E4',
+            border: '1px solid #FFD0AC',
+          };
+          const labelStyle = {
+            fontSize: 11,
+            color: '#888',
+            marginBottom: 4,
+            fontWeight: 500,
+            fontFamily: SANS_FONT,
+          };
+          const numStyle = {
+            fontFamily: NUM_FONT,
+            fontSize: 24,
+            fontWeight: 700,
+            color: '#1a1a1a',
+            lineHeight: 1,
+          };
+          const unitStyle = {
+            fontSize: 12,
+            color: '#777',
+            marginTop: 2,
+            fontWeight: 600,
+            fontFamily: SANS_FONT,
+          };
+          const Box = ({ label, value, unit, highlight }) => (
+            <div style={highlight ? boxHi : boxBase}>
+              <div style={labelStyle}>{label}</div>
+              <div style={numStyle}>{value}</div>
+              {unit && <div style={unitStyle}>{unit}</div>}
+            </div>
+          );
+          return (
+            <div style={{ padding: '0 36px 12px 16px', direction: 'rtl' }}>
+              {/* Row 1 — work / rest / rounds */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                {work != null && <Box label="עבודה" value={work} unit="שניות" highlight />}
+                {rest != null && <Box label="מנוחה" value={rest} unit="שניות" />}
+                {hasValue(rounds) && <Box label="סבבים" value={rounds} />}
               </div>
-            ))}
+              {/* Row 2 — sets / rest between sets */}
+              {(hasValue(sets) || rbs != null) && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 12 }}>
+                  {hasValue(sets) && <Box label="מספר סטים" value={sets} />}
+                  {rbs != null && <Box label="מנוחה בין סטים" value={rbs} unit="שניות" />}
+                </div>
+              )}
+              {/* Sub-exercises — numbered round badges, parsed via
+                  the existing getSubExercises helper (handles the TEXT
+                  JSONB shape with try/catch). */}
+              {subExercises.length > 0 && (
+                <div>
+                  {subExercises.map((sub, i) => {
+                    const target = getDrillTarget(sub);
+                    return (
+                      <div key={i} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 0',
+                        borderBottom: i === subExercises.length - 1 ? 'none' : '1px solid #EFE9D8',
+                      }}>
+                        <span style={{
+                          width: 26, height: 26,
+                          background: '#FFF0E4',
+                          color: '#FF6F20',
+                          borderRadius: '50%',
+                          fontFamily: NUM_FONT,
+                          fontSize: 13, fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }} aria-hidden>{i + 1}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 14, fontWeight: 500, color: '#1a1a1a',
+                            fontFamily: SANS_FONT,
+                          }}>
+                            {getDrillName(sub, i)}
+                          </div>
+                          {target?.display && (
+                            <div style={{
+                              fontSize: 12, color: '#888', marginTop: 2,
+                              fontFamily: SANS_FONT,
+                            }}>
+                              {target.display}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {expanded && variant !== 'tabata' && paramItems.length > 0 && (
+          <div style={{ padding: '0 36px 8px 16px', direction: 'rtl' }}>
+            {paramItems.map((it, i) => {
+              const trailing = [it.unit, it.descriptor].filter(Boolean).join(' ');
+              return (
+                <div key={it.key} style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 6,
+                  padding: '10px 0',
+                  borderBottom: i === paramItems.length - 1 ? 'none' : '1px solid #EFE9D8',
+                  direction: 'rtl',
+                }}>
+                  <span style={{
+                    fontFamily: NUM_FONT,
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: '#1a1a1a',
+                    lineHeight: 1,
+                  }}>{it.value}</span>
+                  {trailing && (
+                    <span style={{
+                      fontFamily: SANS_FONT,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#777',
+                    }}>{trailing}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
