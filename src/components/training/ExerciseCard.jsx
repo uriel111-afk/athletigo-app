@@ -466,25 +466,6 @@ export default function ExerciseCard({
   const subExercises = getSubExercises(exercise);
   const description = exercise.description || exercise.notes || exercise.coach_notes || null;
 
-  // Diagnostic logger — fires once per render of a container exercise
-  // so the actual sub_exercises shape lands in DevTools when the bug
-  // we're chasing has empty items. Keep cheap & guarded so production
-  // doesn't get spammed by normal-mode rows.
-  if ((variant === 'tabata' || variant === 'list') && typeof window !== 'undefined') {
-    // eslint-disable-next-line no-console
-    console.log('[ExerciseCard]', {
-      name,
-      mode: exercise.mode,
-      variant,
-      tabata_data_type: typeof exercise.tabata_data,
-      tabata_data_parsed: td,
-      sub_exercises_keys: td && typeof td === 'object' ? Object.keys(td) : null,
-      sub_exercises_resolved: subExercises,
-      sub_exercises_count: subExercises.length,
-      first_sub_keys: subExercises[0] ? Object.keys(subExercises[0]) : null,
-    });
-  }
-
   // Single source of truth for the param items rendered on this card.
   // Returns an ordered array where each entry has:
   //   key   — stable identifier (param column name)

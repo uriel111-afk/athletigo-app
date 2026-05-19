@@ -409,13 +409,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   const queryClient = useQueryClient();
 
-  // Identity log — fires on every mount with the plan id we received.
-  // Lets the coach (with DevTools open) confirm whether the prop
-  // actually carries an id when "ערוך תוכנית" is clicked.
-  React.useEffect(() => {
-    console.log('[UPB] mount — plan id:', plan?.id, 'name:', plan?.plan_name || plan?.name);
-  }, [plan?.id]);
-
   // Reset all popup-related refs/state when the plan switches under us
   // (the parent may reuse the same instance with a different plan).
   // Without this, hasInteractedRef from a prior plan would let the
@@ -472,7 +465,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         for (const sid of Object.keys(rawRatings)) {
           ratings[sid] = readSectionRating(rawRatings[sid]);
         }
-        console.log('[UPB] loaded active execution:', exec.id, 'section_ratings:', ratings);
         setCurrentExecutionId(exec.id);
         setSectionRatings(ratings);
         ratedSectionsRef.current = new Set(Object.keys(ratings));
@@ -496,14 +488,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 done: !!row.completed,
               };
             }
-            console.log('[UPB] restored setLogs for', Object.keys(restored).length, 'exercise(s)');
             setSetLogs(restored);
           }
         } catch (e) {
           console.warn('[UPB] set-log resume failed:', e?.message);
         }
-      } else {
-        console.log('[UPB] no active execution for today — fresh start');
       }
     };
 
@@ -532,14 +521,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     queryFn: async () => {
       try {
         const rows = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id }, 'order');
-        console.log('[UPB] sections query OK:', rows?.length, 'rows for plan', plan.id);
         return rows;
       } catch (e) {
         console.warn('[UPB] sections query with order failed, retrying without sort:', e?.message);
         try {
           const data = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id });
           const sorted = data.sort((a, b) => (a.order || 0) - (b.order || 0));
-          console.log('[UPB] sections retry OK:', sorted?.length, 'rows');
           return sorted;
         } catch (err) {
           console.error('[UPB] sections retry FAILED:', err?.message);
@@ -555,14 +542,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     queryFn: async () => {
       try {
         const rows = await base44.entities.Exercise.filter({ training_plan_id: plan.id }, 'order');
-        console.log('[UPB] exercises query OK:', rows?.length, 'rows for plan', plan.id);
         return rows;
       } catch (e) {
         console.warn('[UPB] exercises query with order failed, retrying without sort:', e?.message);
         try {
           const data = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
           const sorted = data.sort((a, b) => (a.order || 0) - (b.order || 0));
-          console.log('[UPB] exercises retry OK:', sorted?.length, 'rows');
           return sorted;
         } catch (err) {
           console.error('[UPB] exercises retry FAILED:', err?.message);
@@ -594,23 +579,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     enabled: !!plan?.id,
   });
   const executionCount = executionsData?.length || 0;
-
-  // Summary log on every data change — surfaces the query state at a
-  // glance: how many sections / exercises landed, whether the queries
-  // are still running, and whether either one errored. With these
-  // logs in place, an "editor opens empty" report is one console paste
-  // away from a diagnosis.
-  React.useEffect(() => {
-    console.log('[UPB] data state:', {
-      planId: plan?.id,
-      sectionsCount: sections?.length || 0,
-      exercisesCount: exercises?.length || 0,
-      sectionsLoading,
-      exercisesLoading,
-      sectionsError: sectionsError?.message,
-      exercisesError: exercisesError?.message,
-    });
-  }, [plan?.id, sections, exercises, sectionsLoading, exercisesLoading, sectionsError, exercisesError]);
 
   const updatePlanMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.TrainingPlan.update(id, data),
@@ -1102,8 +1070,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
     const nextExLogs = { ...exLogs, [setIdx]: nextSetLogs };
 
-    console.log('[ExerciseCard] toggle drill set:', { exId, setIdx, drillIdx, newState: !wasDone });
-
     let allDone = true;
     outer:
     for (let s = 0; s < totalSets; s++) {
@@ -1111,7 +1077,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         if (!nextExLogs[s]?.[d]) { allDone = false; break outer; }
       }
     }
-    console.log('[ExerciseCard] all done?', allDone);
 
     setDrillSetLogs((prev) => ({ ...prev, [exId]: nextExLogs }));
 
@@ -1524,7 +1489,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     const t = setTimeout(() => {
       const fn = saveExecRef.current;
       if (typeof fn === 'function') {
-        console.log('[UPB] autosave firing');
         fn();
       }
     }, 3000);
@@ -2055,7 +2019,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         <div className={`w-full ${canEdit ? 'space-y-3 md:space-y-6 mb-20 md:mb-24' : 'space-y-2 mb-24'}`}>
           {sections.filter(Boolean).map((section, index) => {
             const sectionExercises = getExercisesBySection(section.id);
-            console.log('[UPB] rendering section:', section.id, 'exercises:', sectionExercises?.length);
             return (
               <SectionCard
                 key={section.id}
@@ -2464,6 +2427,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       <Dialog open={showSectionFeedbackDialog} onOpenChange={(open) => {
         if (!open) {
           setShowSectionFeedbackDialog(false);
+          // Mirror what the previous custom X did before it was
+          // removed: clear the current-section ref so the next
+          // section's popup opens with fresh state.
+          setCurrentSection(null);
           setTimeout(async () => {
             const freshExercises = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
             const allExercisesComplete = freshExercises.every((e) => e.completed);
@@ -2494,38 +2461,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             pointerEvents: 'auto',
           }}>
 
-          {/* Top-left close button — discards rating, closes popup,
-              still re-checks "all done" so the workout summary fires
-              if every exercise is now complete. */}
-          <button
-            type="button"
-            onClick={() => {
-              setShowSectionFeedbackDialog(false);
-              setCurrentSection(null);
-              setTimeout(async () => {
-                const freshExercises = await base44.entities.Exercise.filter({ training_plan_id: plan.id });
-                const allExercisesComplete = freshExercises.every((e) => e.completed);
-                if (allExercisesComplete) {
-                  showWorkoutSummary(freshExercises);
-                }
-              }, 500);
-            }}
-            style={{
-              position: 'absolute',
-              top: 12, left: 12,
-              width: 32, height: 32,
-              borderRadius: '50%',
-              border: '1px solid #E5E7EB',
-              background: 'white',
-              fontSize: 16,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#6B7280',
-            }}
-            aria-label="סגור"
-          >✕</button>
+          {/* Close X removed — shadcn's <DialogContent> already renders
+              its own corner close button which triggers onOpenChange,
+              which runs the same close + re-check flow above. */}
 
           <DialogHeader>
             <DialogTitle className="text-lg font-black text-center">סיימת סקשן! 🎯</DialogTitle>
