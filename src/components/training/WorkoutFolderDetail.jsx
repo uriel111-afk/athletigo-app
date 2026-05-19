@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { base44 } from '@/api/base44Client';
+import { readExerciseSummary } from '@/lib/workoutExecutionApi';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 import FullscreenChart from '@/components/FullscreenChart';
@@ -197,6 +198,155 @@ function ImprovementGraph({ data, executionsCount }) {
         <ImprovementChart data={data} height={340} gradientId="workoutGradFs" />
       </FullscreenChart>
     </>
+  );
+}
+
+// Per-exercise completion trend — additive sibling to ImprovementGraph.
+// Reads the same `completed` array (no extra query) and pulls the
+// per-exercise summary stored on workout_executions.exercise_summaries
+// (step 2 plumbing). Selector chips are derived from
+// plan.sections[*].exercises so coaches/trainees see the real exercise
+// names; falls back to summary keys if the prop doesn't carry the
+// nested shape. Renders nothing when no exercise has data yet, so it
+// never adds visual noise on a fresh plan.
+function ExerciseProgressGraph({ plan, completed }) {
+  const allExercises = useMemo(() => {
+    const fromPlan = [];
+    for (const section of plan?.sections || []) {
+      for (const ex of section?.exercises || []) {
+        if (ex && ex.id) {
+          fromPlan.push({
+            id: ex.id,
+            name: ex.exercise_name || ex.name || 'תרגיל',
+          });
+        }
+      }
+    }
+    if (fromPlan.length > 0) return fromPlan;
+    // Fallback — derive ids from the summaries we already have.
+    const ids = new Set();
+    for (const e of completed || []) {
+      const map = e?.exercise_summaries;
+      if (map && typeof map === 'object') {
+        for (const id of Object.keys(map)) ids.add(id);
+      }
+    }
+    return Array.from(ids).map((id) => ({ id, name: 'תרגיל' }));
+  }, [plan, completed]);
+
+  const exercisesWithData = useMemo(() => {
+    return allExercises.filter((ex) => (
+      (completed || []).some((e) => readExerciseSummary(e, ex.id).completion_pct != null)
+    ));
+  }, [allExercises, completed]);
+
+  const [selectedId, setSelectedId] = useState(null);
+  // Derived selection — first chip is the default until the user picks
+  // something. Avoids a useEffect just to seed state.
+  const effectiveSelectedId = selectedId ?? exercisesWithData[0]?.id ?? null;
+
+  if (exercisesWithData.length === 0) return null;
+
+  const chartData = (completed || [])
+    .slice()
+    .sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at))
+    .map((e) => {
+      const s = readExerciseSummary(e, effectiveSelectedId);
+      if (s.completion_pct == null) return null;
+      return {
+        date: formatShort(e.executed_at),
+        completion: Number(s.completion_pct),
+      };
+    })
+    .filter(Boolean);
+
+  return (
+    <div style={{
+      background: 'white',
+      borderRadius: 16,
+      padding: '16px 14px',
+      marginBottom: 16,
+      border: '1px solid #FFE5D0',
+      boxShadow: '0 4px 16px rgba(255,111,32,0.06)',
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: DARK, marginBottom: 4 }}>
+        התקדמות לפי תרגיל
+      </div>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 12 }}>
+        אחוז ההשלמה של התרגיל לאורך הביצועים
+      </div>
+
+      {/* Chip selector — horizontally scrollable so a long exercise
+          roster doesn't blow up the card height. */}
+      <div style={{
+        display: 'flex', gap: 8,
+        overflowX: 'auto', paddingBottom: 4,
+        marginBottom: 12,
+      }}>
+        {exercisesWithData.map((ex) => {
+          const active = ex.id === effectiveSelectedId;
+          return (
+            <button
+              key={ex.id}
+              type="button"
+              onClick={() => setSelectedId(ex.id)}
+              style={{
+                flexShrink: 0,
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: active ? `1px solid ${ORANGE}` : '1px solid #E5E5E5',
+                background: active ? '#FFF5EE' : 'white',
+                color: active ? ORANGE : '#666',
+                fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              {ex.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {chartData.length === 0 ? (
+        <div style={{
+          padding: '18px 8px', textAlign: 'center',
+          color: '#888', fontSize: 12,
+          background: '#FAFAFA', borderRadius: 10,
+          border: '1px solid #F0F0F0',
+        }}>
+          עדיין אין נתונים לתרגיל הזה
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F5E6D8" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#AAA' }} axisLine={false} tickLine={false} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#AAA' }} axisLine={false} tickLine={false} ticks={[0, 25, 50, 75, 100]} />
+            <Tooltip
+              contentStyle={{
+                background: 'white',
+                border: `1px solid ${ORANGE}`,
+                borderRadius: 10,
+                color: DARK,
+                fontSize: 12,
+              }}
+              labelStyle={{ color: ORANGE, fontWeight: 700 }}
+              formatter={(v) => [`${Math.round(Number(v))}%`, 'השלמה']}
+              cursor={{ stroke: ORANGE, strokeWidth: 1, strokeDasharray: '4 4' }}
+            />
+            <Line
+              type="monotone"
+              dataKey="completion"
+              stroke={ORANGE}
+              strokeWidth={2.5}
+              dot={{ fill: ORANGE, r: 4, strokeWidth: 2, stroke: 'white' }}
+              activeDot={{ r: 7, fill: ORANGE, stroke: 'white', strokeWidth: 2 }}
+              connectNulls
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </div>
   );
 }
 
@@ -758,6 +908,8 @@ export default function WorkoutFolderDetail({
 
       <div style={{ padding: 16 }}>
         <ImprovementGraph data={chartData} executionsCount={completed.length} />
+
+        <ExerciseProgressGraph plan={plan} completed={completed} />
 
         <GradientDivider />
 
