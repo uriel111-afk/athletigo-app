@@ -630,6 +630,141 @@ export default function ExerciseCard({
 
   // ── Render ──────────────────────────────────────────────────────
 
+  // Trainee lined-page row (step A of the trainee-view rewrite). Flat
+  // row design — no outer card, no left stripe — so the section card's
+  // hairline borders produce the lined-notebook effect. Display only:
+  // the master ○ still toggles exercise.completed but the per-set grid
+  // is removed in this step and will return in a later phase.
+  if (!isCoachMode) {
+    return (
+      <div style={{ direction: 'rtl' }}>
+        {/* Closed/header row — always shown; tapping toggles expand */}
+        <div
+          onClick={() => setExpanded(v => !v)}
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setExpanded(v => !v);
+            }
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+            padding: '11px 36px 11px 16px',
+            borderBottom: '1px solid #EDE6D4',
+            cursor: 'pointer',
+            userSelect: 'none',
+            background: 'transparent',
+          }}
+        >
+          {/* Master ○ marker — visually styled per the lined-page spec
+              (19px circle, #ccc unchecked, green when complete). Click
+              behavior preserved: parent's onToggleComplete still drives
+              exercise.completed. Stops propagation so the tap doesn't
+              also expand the row. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onToggleComplete) onToggleComplete(exercise);
+            }}
+            aria-checked={completed}
+            role="checkbox"
+            style={{
+              width: 19, height: 19, borderRadius: '50%',
+              border: completed ? 'none' : '1.5px solid #ccc',
+              background: completed ? '#16a34a' : 'transparent',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              padding: 0, flexShrink: 0, marginTop: 2,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 900, lineHeight: 1,
+            }}
+          >{completed ? '✓' : ''}</button>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 15,
+              fontWeight: 500,
+              color: completed ? '#aaa' : '#1a1a1a',
+              textDecoration: completed ? 'line-through' : 'none',
+              fontFamily: "'Barlow', system-ui, sans-serif",
+              lineHeight: 1.3,
+              wordBreak: 'break-word',
+            }}>{name}</div>
+            {/* Closed-state summary pills — hidden when open since the
+                expanded body shows the full ordered list. */}
+            {!expanded && summaryPills.length > 0 && (
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 4,
+                marginTop: 4,
+                direction: 'rtl',
+              }}>
+                {summaryPills.map((text, i) => (
+                  <span key={i} style={{
+                    background: '#FFF0E4',
+                    color: '#993C1D',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    padding: '2px 7px',
+                    borderRadius: 6,
+                    whiteSpace: 'nowrap',
+                  }}>{text}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span aria-hidden style={{
+            color: '#C9A24A',
+            fontSize: 13,
+            lineHeight: 1,
+            transition: 'transform 0.2s',
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            flexShrink: 0,
+            marginTop: 4,
+          }}>▼</span>
+        </div>
+
+        {/* Open body — param list rows, display only. Reuses the same
+            buildParamItems output the closed pills use, so the data and
+            order are identical. */}
+        {expanded && paramItems.length > 0 && (
+          <div style={{
+            padding: '0 36px 0 16px',
+            borderBottom: '1px solid #EDE6D4',
+            direction: 'rtl',
+          }}>
+            {paramItems.map((it, i) => (
+              <div key={it.key} style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 6,
+                padding: '10px 0',
+                borderBottom: i === paramItems.length - 1 ? 'none' : '1px solid #EFE9D8',
+                direction: 'rtl',
+              }}>
+                <span style={{ fontSize: 17, fontWeight: 500, color: '#1a1a1a' }}>{it.value}</span>
+                {it.unit && (
+                  <span style={{ fontSize: 12, fontWeight: 400, color: '#999' }}>{it.unit}</span>
+                )}
+                {it.descriptor && (
+                  <span style={{ fontSize: 15, fontWeight: 500, color: '#777' }}>{it.descriptor}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{
       borderRadius: 11,

@@ -85,6 +85,147 @@ export default function SectionCard({
   // row. Returns a flat hex string (with optional alpha suffix).
   const sectionColor = getSectionColor(index);
   const isTraineeView = !showEditButtons;
+
+  // ── Trainee lined-page card ───────────────────────────────────────
+  // Step A of the trainee-view rewrite: outer paper card per section
+  // with a thin white "page header" band, a clickable section row,
+  // and the exercise list rendered below with a vertical margin rule.
+  // Coach view branches below this return and is unchanged.
+  if (isTraineeView) {
+    const ratingObj = readSectionRating(sectionRating);
+    return (
+      <div style={{
+        background: '#FCFBF7',
+        border: '0.5px solid #E5DFC9',
+        borderRadius: 10,
+        overflow: 'hidden',
+        marginBottom: 8,
+        direction: 'rtl',
+      }}>
+        {/* Thin white "page header" band with the brand-orange rule. */}
+        <div style={{ background: '#FFFFFF', borderBottom: '3px solid #FF6F20', height: 6 }} aria-hidden />
+
+        {/* Section row — clickable header. Bottom border only when
+            collapsed; once expanded the row sits directly on top of
+            the exercise list and the 2px line would create a hard
+            seam against the first 1px exercise hairline. */}
+        <div
+          onClick={() => setExpanded(!expanded)}
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); }
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            background: '#FFF8EF',
+            borderBottom: expanded ? 'none' : '2px solid #E8DEC4',
+            padding: '12px 36px 12px 16px',
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: 17, fontWeight: 500, color: '#1a1a1a',
+              fontFamily: "'Barlow', system-ui, sans-serif",
+              lineHeight: 1.2,
+              wordBreak: 'break-word',
+            }}>{section.section_name}</span>
+            <span style={{ fontSize: 12, color: '#a8895a' }}>
+              · {exercises.length} תרגילים
+            </span>
+            {ratingObj.avg != null && (
+              <span style={{
+                marginInlineStart: 6,
+                background: '#FFF5EE',
+                border: '1px solid #FFE5D0',
+                borderRadius: 999,
+                padding: '2px 8px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#FF6F20',
+                whiteSpace: 'nowrap',
+              }}>⭐ {Number(ratingObj.avg).toFixed(1)}/10</span>
+            )}
+            {section.completed && (
+              <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, marginInlineStart: 4 }}>
+                הושלם
+              </span>
+            )}
+          </div>
+          <span aria-hidden style={{
+            color: '#C9A24A',
+            fontSize: 14,
+            lineHeight: 1,
+            transition: 'transform 0.2s',
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            flexShrink: 0,
+          }}>▼</span>
+        </div>
+
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div style={{ position: 'relative' }}>
+                {/* Vertical margin rule — the thin orange line you'd see
+                    on a lined notebook page. Positioned 20px from the
+                    right edge so it falls in the margin between page
+                    border and the exercise content. */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0, bottom: 0,
+                  right: 20,
+                  width: 1,
+                  background: '#E8A98C',
+                  opacity: 0.4,
+                  pointerEvents: 'none',
+                }} aria-hidden />
+
+                {exercises.length === 0 ? (
+                  <div style={{ padding: '14px 16px', color: '#a8895a', fontSize: 13 }}>
+                    אין תרגילים בסקשן זה
+                  </div>
+                ) : (
+                  exercises.filter(Boolean).map((exercise) => (
+                    <ExerciseCard
+                      key={exercise.id || Math.random()}
+                      exercise={exercise}
+                      onToggleComplete={onToggleComplete}
+                      onEdit={() => onEditExercise(exercise)}
+                      onDelete={() => onDeleteExercise(exercise.id)}
+                      onDuplicate={onDuplicateExercise ? () => onDuplicateExercise(exercise) : null}
+                      onRename={onRenameExercise}
+                      mode="trainee"
+                      canEdit={false}
+                      isCoach={isCoach}
+                      plan={plan}
+                      traineeProgress={traineeProgressByExercise[exercise.id]}
+                      setLog={setLogs[exercise.id]}
+                      onSetLogChange={onSetLogChange}
+                      onSetToggleDone={onSetToggleDone}
+                      drillSetLog={drillSetLogs[exercise.id]}
+                      onDrillSetToggleDone={onDrillSetToggleDone}
+                    />
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+  // ── End trainee lined-page card ───────────────────────────────────
   const style = isTraineeView
     ? {
         bg: '#FFFEFC',
