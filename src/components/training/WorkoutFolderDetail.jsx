@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { base44 } from '@/api/base44Client';
-import { readExerciseSummary } from '@/lib/workoutExecutionApi';
+import { readExerciseSummary, readSectionRating } from '@/lib/workoutExecutionApi';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 import FullscreenChart from '@/components/FullscreenChart';
@@ -345,6 +345,191 @@ function ExerciseProgressGraph({ plan, completed }) {
             />
           </LineChart>
         </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+// Per-section control/challenge trend — additive sibling to
+// ExerciseProgressGraph. Reads workout_executions.section_ratings via
+// readSectionRating, which normalizes the legacy number shape (avg
+// only) and the new object shape ({ control, challenge, avg, notes })
+// into one record. Legacy rows contribute only the avg line; the
+// control/challenge series skip nulls with connectNulls=false so the
+// gap is visible (not falsely interpolated).
+function SectionProgressGraph({ plan, completed }) {
+  const allSections = useMemo(() => {
+    const fromPlan = [];
+    for (const section of plan?.sections || []) {
+      if (section && section.id) {
+        fromPlan.push({
+          id: section.id,
+          name: section.section_name || section.name || 'סקשן',
+        });
+      }
+    }
+    if (fromPlan.length > 0) return fromPlan;
+    // Fallback — derive section ids from section_ratings keys across
+    // the loaded executions. Names default to "סקשן" since the prop
+    // didn't surface them.
+    const ids = new Set();
+    for (const e of completed || []) {
+      const map = e?.section_ratings;
+      if (map && typeof map === 'object') {
+        for (const id of Object.keys(map)) ids.add(id);
+      }
+    }
+    return Array.from(ids).map((id) => ({ id, name: 'סקשן' }));
+  }, [plan, completed]);
+
+  const sectionsWithData = useMemo(() => {
+    return allSections.filter((s) => (
+      (completed || []).some((e) => readSectionRating(e?.section_ratings?.[s.id]).avg != null)
+    ));
+  }, [allSections, completed]);
+
+  const [selectedId, setSelectedId] = useState(null);
+  const effectiveSelectedId = selectedId ?? sectionsWithData[0]?.id ?? null;
+
+  if (sectionsWithData.length === 0) return null;
+
+  const chartData = (completed || [])
+    .slice()
+    .sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at))
+    .map((e) => {
+      const r = readSectionRating(e?.section_ratings?.[effectiveSelectedId]);
+      if (r.avg == null && r.control == null && r.challenge == null) return null;
+      return {
+        date: formatShort(e.executed_at),
+        avg: r.avg,
+        control: r.control,
+        challenge: r.challenge,
+      };
+    })
+    .filter(Boolean);
+
+  return (
+    <div style={{
+      background: 'white',
+      borderRadius: 16,
+      padding: '16px 14px',
+      marginBottom: 16,
+      border: '1px solid #FFE5D0',
+      boxShadow: '0 4px 16px rgba(255,111,32,0.06)',
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: DARK, marginBottom: 4 }}>
+        התקדמות לפי סקשן — שליטה מול אתגר
+      </div>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 12 }}>
+        ממוצע, שליטה ואתגר לאורך הביצועים (0-10)
+      </div>
+
+      <div style={{
+        display: 'flex', gap: 8,
+        overflowX: 'auto', paddingBottom: 4,
+        marginBottom: 12,
+      }}>
+        {sectionsWithData.map((s) => {
+          const active = s.id === effectiveSelectedId;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSelectedId(s.id)}
+              style={{
+                flexShrink: 0,
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: active ? `1px solid ${ORANGE}` : '1px solid #E5E5E5',
+                background: active ? '#FFF5EE' : 'white',
+                color: active ? ORANGE : '#666',
+                fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              {s.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {chartData.length === 0 ? (
+        <div style={{
+          padding: '18px 8px', textAlign: 'center',
+          color: '#888', fontSize: 12,
+          background: '#FAFAFA', borderRadius: 10,
+          border: '1px solid #F0F0F0',
+        }}>
+          עדיין אין נתונים לסקשן הזה
+        </div>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F5E6D8" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#AAA' }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: '#AAA' }} axisLine={false} tickLine={false} ticks={[0, 2, 4, 6, 8, 10]} />
+              <Tooltip
+                contentStyle={{
+                  background: 'white',
+                  border: `1px solid ${ORANGE}`,
+                  borderRadius: 10,
+                  color: DARK,
+                  fontSize: 12,
+                }}
+                labelStyle={{ color: ORANGE, fontWeight: 700 }}
+                formatter={(v, name) => {
+                  const label = name === 'avg' ? 'ממוצע' : name === 'control' ? 'שליטה' : 'אתגר';
+                  return [v != null ? `${Number(v).toFixed(1)}/10` : '—', label];
+                }}
+                cursor={{ stroke: ORANGE, strokeWidth: 1, strokeDasharray: '4 4' }}
+              />
+              <Line
+                type="monotone" dataKey="avg"
+                stroke={ORANGE} strokeWidth={2.5}
+                dot={{ fill: ORANGE, r: 4, strokeWidth: 2, stroke: 'white' }}
+                activeDot={{ r: 7, fill: ORANGE, stroke: 'white', strokeWidth: 2 }}
+                connectNulls={false}
+              />
+              <Line
+                type="monotone" dataKey="control"
+                stroke="#4CAF50" strokeWidth={2}
+                dot={{ fill: '#4CAF50', r: 3, strokeWidth: 2, stroke: 'white' }}
+                activeDot={{ r: 6, fill: '#4CAF50', stroke: 'white', strokeWidth: 2 }}
+                connectNulls={false}
+              />
+              <Line
+                type="monotone" dataKey="challenge"
+                stroke="#E0A030" strokeWidth={2}
+                dot={{ fill: '#E0A030', r: 3, strokeWidth: 2, stroke: 'white' }}
+                activeDot={{ r: 6, fill: '#E0A030', stroke: 'white', strokeWidth: 2 }}
+                connectNulls={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+
+          {/* Explicit legend — Recharts' built-in Legend reads poorly
+              on small mobile cards. Three colored bars in a row keeps
+              the mapping obvious without taking vertical space. */}
+          <div style={{
+            display: 'flex', gap: 16, justifyContent: 'center',
+            marginTop: 6, flexWrap: 'wrap',
+            fontSize: 11, color: '#666',
+          }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 14, height: 3, background: ORANGE, borderRadius: 2 }} />
+              ממוצע
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 14, height: 3, background: '#4CAF50', borderRadius: 2 }} />
+              שליטה
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 14, height: 3, background: '#E0A030', borderRadius: 2 }} />
+              אתגר
+            </span>
+          </div>
+        </>
       )}
     </div>
   );
@@ -910,6 +1095,8 @@ export default function WorkoutFolderDetail({
         <ImprovementGraph data={chartData} executionsCount={completed.length} />
 
         <ExerciseProgressGraph plan={plan} completed={completed} />
+
+        <SectionProgressGraph plan={plan} completed={completed} />
 
         <GradientDivider />
 
