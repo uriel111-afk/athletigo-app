@@ -693,8 +693,18 @@ export default function ExerciseCard({
 
     return (
       <div style={{
-        background: '#FBF6EE',
-        borderTop: '2px solid #E8DEC4',
+        // Option-C separation: open = warm cream wrapper + 4px orange
+        // right rail; closed = white wrapper + 4px grey right rail +
+        // a 1px hairline outer border. Both states are rounded 8 and
+        // separated from the next exercise by a real 12px gap, so the
+        // list reads as a stack of distinct units rather than a
+        // continuous lined page.
+        background: expanded ? '#F8F3E9' : '#FFFFFF',
+        border: expanded ? 'none' : '1px solid #EDE6D4',
+        borderRight: expanded ? '4px solid #FF6F20' : '4px solid #D8D8D8',
+        borderRadius: 8,
+        marginBottom: 12,
+        overflow: 'hidden',
         direction: 'rtl',
       }}>
         {/* Header band — always shown; tapping toggles expand */}
@@ -714,6 +724,10 @@ export default function ExerciseCard({
             alignItems: 'flex-start',
             gap: 10,
             padding: '11px 36px 11px 16px',
+            // Darker cream band only when the card is open — it
+            // marks the row as the active title for the body below.
+            // Closed cards inherit the wrapper's white surface.
+            background: expanded ? '#F0E9D6' : 'transparent',
             cursor: 'pointer',
             userSelect: 'none',
           }}
@@ -1015,9 +1029,13 @@ export default function ExerciseCard({
                       </span>
                       <div style={{
                         flex: 1,
+                        minWidth: 0,
                         display: 'flex',
                         gap: 6,
-                        justifyContent: 'flex-end',
+                        overflowX: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                        paddingBottom: 4,
+                        scrollbarWidth: 'thin',
                       }}>
                         {Array.from({ length: totalSets }).map((_, idx) => {
                           const done = isSetDone(idx);
@@ -1026,6 +1044,8 @@ export default function ExerciseCard({
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
+                              flexShrink: 0,
+                              width: 40,
                             }}>
                               <span style={{
                                 fontSize: 9, color: '#999',
@@ -1040,7 +1060,7 @@ export default function ExerciseCard({
                                 aria-checked={done}
                                 role="checkbox"
                                 style={{
-                                  width: 42, height: 38, borderRadius: 8,
+                                  width: 40, height: 38, borderRadius: 8,
                                   border: done ? '2px solid #4CAF50' : '2px dashed #C9B89A',
                                   background: done ? '#F1FAF1' : '#FCFBF7',
                                   color: '#2e7d32',
@@ -1152,7 +1172,7 @@ export default function ExerciseCard({
           // Box dimensions are spec'd at 42×36 with 8px radius. Sets
           // toggle box and reps input box share these so the row reads
           // as a consistent grid of "set 1 / set 2 / set 3 …" tiles.
-          const BOX_W = 42;
+          const BOX_W = 40;
           const BOX_H = 38;
 
           // Live-summary numbers — only meaningful when the trainee
@@ -1212,16 +1232,32 @@ export default function ExerciseCard({
                   borderBottom: rowBorder,
                   direction: 'rtl',
                 };
+                // Horizontal-scroll track for the N boxes. flex:1 +
+                // minWidth:0 so the track can shrink (otherwise the
+                // boxes' fixed widths would push the row wider than
+                // the card on many-set exercises). overflow-x:auto +
+                // no flex-wrap means: ≤5 boxes fit naturally with no
+                // scrollbar; >5 boxes scroll horizontally on one
+                // consistent line. paddingBottom keeps the slim
+                // scrollbar from overlapping the box bottoms.
                 const boxesGroupStyle = {
                   flex: 1,
+                  minWidth: 0,
                   display: 'flex',
                   gap: 6,
-                  justifyContent: 'flex-end',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  paddingBottom: 4,
+                  scrollbarWidth: 'thin',
                 };
+                // Box column = caption above + box below. flexShrink:0
+                // so the box can never be squeezed below BOX_W.
                 const boxColStyle = {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
+                  flexShrink: 0,
+                  width: BOX_W,
                 };
 
                 // Trainee "סטים" row — label right, N tap-boxes left.
@@ -1335,67 +1371,45 @@ export default function ExerciseCard({
                           return (
                             <div key={idx} style={boxColStyle}>
                               <span style={setCaptionStyle}>{caption}</span>
-                              <div style={{
-                                width: 52, height: BOX_H, borderRadius: 8,
-                                border: '2px solid #FF6F20',
-                                background: '#FFFFFF',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '0 4px',
-                                gap: 2,
-                                boxSizing: 'border-box',
-                                flexShrink: 0,
-                              }}>
-                                <input
-                                  type="number"
-                                  inputMode="numeric"
-                                  value={current != null && current !== '' ? current : ''}
-                                  onChange={(e) => {
-                                    if (typeof onSetLogChange !== 'function') return;
-                                    const raw = e.target.value;
-                                    if (raw === '') {
-                                      onSetLogChange(exercise.id, idx, 'time_completed', null);
-                                      return;
-                                    }
-                                    const parsed = parseInt(raw, 10);
-                                    onSetLogChange(
-                                      exercise.id, idx,
-                                      'time_completed',
-                                      Number.isFinite(parsed) ? parsed : null,
-                                    );
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  placeholder={String(workTimeTarget || '')}
-                                  style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    height: '100%',
-                                    border: 'none',
-                                    outline: 'none',
-                                    background: 'transparent',
-                                    color: '#1a1a1a',
-                                    textAlign: 'center',
-                                    fontFamily: NUM_FONT,
-                                    fontSize: 20,
-                                    fontWeight: 700,
-                                    lineHeight: 1,
-                                    padding: 0,
-                                    direction: 'ltr',
-                                    appearance: 'textfield',
-                                    MozAppearance: 'textfield',
-                                    boxSizing: 'border-box',
-                                  }}
-                                />
-                                <span style={{
-                                  fontSize: 9,
-                                  color: '#888',
-                                  fontFamily: SANS_FONT,
-                                  fontWeight: 600,
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={current != null && current !== '' ? current : ''}
+                                onChange={(e) => {
+                                  if (typeof onSetLogChange !== 'function') return;
+                                  const raw = e.target.value;
+                                  if (raw === '') {
+                                    onSetLogChange(exercise.id, idx, 'time_completed', null);
+                                    return;
+                                  }
+                                  const parsed = parseInt(raw, 10);
+                                  onSetLogChange(
+                                    exercise.id, idx,
+                                    'time_completed',
+                                    Number.isFinite(parsed) ? parsed : null,
+                                  );
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder={String(workTimeTarget || '')}
+                                style={{
+                                  width: BOX_W, height: BOX_H, borderRadius: 8,
+                                  border: '2px solid #FF6F20',
+                                  background: '#FFFFFF',
+                                  color: '#1a1a1a',
+                                  textAlign: 'center',
+                                  fontFamily: NUM_FONT,
+                                  fontSize: 20,
+                                  fontWeight: 700,
                                   lineHeight: 1,
+                                  outline: 'none',
+                                  padding: 0,
+                                  direction: 'ltr',
+                                  appearance: 'textfield',
+                                  MozAppearance: 'textfield',
                                   flexShrink: 0,
-                                }}>שנ׳</span>
-                              </div>
+                                  boxSizing: 'border-box',
+                                }}
+                              />
                             </div>
                           );
                         })}
