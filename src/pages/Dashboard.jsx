@@ -513,7 +513,7 @@ export default function Dashboard() {
                     return (
                       <div
                         key={trainee.id}
-                        onClick={() => navigate(`/trainee/${trainee.id}`)}
+                        onClick={() => navigate(createPageUrl('TraineeProfile') + `?userId=${encodeURIComponent(trainee.id)}`)}
                         style={{
                           width: '120px',
                           flexShrink: 0,
