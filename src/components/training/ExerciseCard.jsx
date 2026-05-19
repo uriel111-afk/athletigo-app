@@ -955,7 +955,15 @@ export default function ExerciseCard({
         {expanded && variant !== 'tabata' && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
+          const hasWorkTimeParam = paramItems.some((it) => it.key === 'work_time');
+          // Time-based exercise: a work_time prescription with no reps
+          // target → the trainee enters actual seconds achieved per set
+          // (persisted via the existing time_completed column on
+          // exercise_set_logs, documented in workoutExecutionApi.js).
+          const isTimeBased = hasWorkTimeParam && !hasRepsParam;
           const showFill = !isCoachMode && hasSetsParam;
+          const workTimeItem = paramItems.find((it) => it.key === 'work_time') || null;
+          const workTimeTarget = workTimeItem ? (parseInt(workTimeItem.value, 10) || 0) : 0;
 
           // Right-side "<number> <word>" label shared by every row —
           // big Barlow Condensed number first (RTL DOM order = right),
@@ -1001,24 +1009,35 @@ export default function ExerciseCard({
           // toggle box and reps input box share these so the row reads
           // as a consistent grid of "set 1 / set 2 / set 3 …" tiles.
           const BOX_W = 42;
-          const BOX_H = 36;
+          const BOX_H = 38;
 
           // Live-summary numbers — only meaningful when the trainee
-          // set-fill is in play.
+          // set-fill is in play. Reps-type and time-type exercises
+          // accumulate different totals; we compute both up front so
+          // the summary pill can pick the right axis.
           let doneSets = 0;
           let repsDone = 0;
+          let timeDone = 0;
           if (showFill) {
             for (let i = 0; i < totalSets; i++) {
               if (isSetDone(i)) doneSets++;
-              const v = parseInt(setLog?.[i]?.reps_completed, 10);
-              if (!Number.isNaN(v) && v > 0) repsDone += v;
+              const r = parseInt(setLog?.[i]?.reps_completed, 10);
+              if (!Number.isNaN(r) && r > 0) repsDone += r;
+              const t = parseInt(setLog?.[i]?.time_completed, 10);
+              if (!Number.isNaN(t) && t > 0) timeDone += t;
             }
           }
           const repsTarget = hasRepsParam && hasValue(exercise.reps)
             ? totalSets * (parseInt(exercise.reps, 10) || 0)
             : null;
+          const timeTarget = isTimeBased && workTimeTarget > 0
+            ? totalSets * workTimeTarget
+            : null;
           const pct = (() => {
             if (!showFill) return null;
+            if (isTimeBased && timeTarget && timeTarget > 0) {
+              return Math.min(100, Math.round((timeDone / timeTarget) * 100));
+            }
             if (repsTarget && repsTarget > 0) {
               return Math.min(100, Math.round((repsDone / repsTarget) * 100));
             }
@@ -1036,30 +1055,45 @@ export default function ExerciseCard({
                 const rowBorder = isLast ? 'none' : '1px solid #EFE9D8';
                 const trailing = [it.unit, it.descriptor].filter(Boolean).join(' ');
 
+                // Storyboard layout for every fill row: label hard-right
+                // (flex-shrink:0, natural width), boxes hard-left
+                // (flex:1, justify-content: flex-end), both aligned at
+                // flex-end so the boxes' bottom lines up with the label's
+                // baseline. 11px vertical padding, hairline between rows.
+                const fillRowStyle = {
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  gap: 12,
+                  padding: '11px 0',
+                  borderBottom: rowBorder,
+                  direction: 'rtl',
+                };
+                const boxesGroupStyle = {
+                  flex: 1,
+                  display: 'flex',
+                  gap: 6,
+                  justifyContent: 'flex-end',
+                };
+                const boxColStyle = {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                };
+
                 // Trainee "סטים" row — label right, N tap-boxes left.
                 if (showFill && it.key === 'sets') {
                   return (
-                    <div key={it.key} style={{
-                      display: 'flex',
-                      alignItems: 'flex-end',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      padding: '12px 0',
-                      borderBottom: rowBorder,
-                      direction: 'rtl',
-                    }}>
+                    <div key={it.key} style={fillRowStyle}>
                       {renderInlineNumberLabel(it.value, it.descriptor)}
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <div style={boxesGroupStyle}>
                         {Array.from({ length: totalSets }).map((_, idx) => {
                           const done = isSetDone(idx);
                           return (
-                            <div key={idx} style={{
-                              display: 'flex', flexDirection: 'column', alignItems: 'center',
-                            }}>
+                            <div key={idx} style={boxColStyle}>
                               <span style={setCaptionStyle}>סט {idx + 1}</span>
                               <button
                                 type="button"
-                                onClick={() => handleSetToggle(idx)}
+                                onClick={(e) => { e.stopPropagation(); handleSetToggle(idx); }}
                                 aria-checked={done}
                                 role="checkbox"
                                 style={{
@@ -1073,6 +1107,7 @@ export default function ExerciseCard({
                                   justifyContent: 'center',
                                   fontSize: 18, fontWeight: 900, lineHeight: 1,
                                   padding: 0,
+                                  flexShrink: 0,
                                 }}
                               >{done ? '✓' : ''}</button>
                             </div>
@@ -1086,23 +1121,13 @@ export default function ExerciseCard({
                 // Trainee "חזרות" row — label right, N reps inputs left.
                 if (showFill && it.key === 'reps') {
                   return (
-                    <div key={it.key} style={{
-                      display: 'flex',
-                      alignItems: 'flex-end',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      padding: '12px 0',
-                      borderBottom: rowBorder,
-                      direction: 'rtl',
-                    }}>
+                    <div key={it.key} style={fillRowStyle}>
                       {renderInlineNumberLabel(it.value, it.descriptor)}
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <div style={boxesGroupStyle}>
                         {Array.from({ length: totalSets }).map((_, idx) => {
                           const current = setLog?.[idx]?.reps_completed;
                           return (
-                            <div key={idx} style={{
-                              display: 'flex', flexDirection: 'column', alignItems: 'center',
-                            }}>
+                            <div key={idx} style={boxColStyle}>
                               <span style={setCaptionStyle}>סט {idx + 1}</span>
                               <input
                                 type="number"
@@ -1138,8 +1163,95 @@ export default function ExerciseCard({
                                   direction: 'ltr',
                                   appearance: 'textfield',
                                   MozAppearance: 'textfield',
+                                  flexShrink: 0,
+                                  boxSizing: 'border-box',
                                 }}
                               />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Trainee "זמן" row — time-based exercises only. Replaces
+                // the work_time display row when there's no reps target.
+                // Writes to the existing exercise_set_logs.time_completed
+                // column via onSetLogChange. Caption is "בפועל" for a
+                // single set, "סט {i+1}" for multi-set time work.
+                if (showFill && isTimeBased && it.key === 'work_time') {
+                  return (
+                    <div key={it.key} style={fillRowStyle}>
+                      {renderInlineNumberLabel(it.value, [it.unit, it.descriptor].filter(Boolean).join(' '))}
+                      <div style={boxesGroupStyle}>
+                        {Array.from({ length: totalSets }).map((_, idx) => {
+                          const current = setLog?.[idx]?.time_completed;
+                          const caption = totalSets === 1 ? 'בפועל' : `סט ${idx + 1}`;
+                          return (
+                            <div key={idx} style={boxColStyle}>
+                              <span style={setCaptionStyle}>{caption}</span>
+                              <div style={{
+                                width: 52, height: BOX_H, borderRadius: 8,
+                                border: '2px solid #FF6F20',
+                                background: '#FFFFFF',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '0 4px',
+                                gap: 2,
+                                boxSizing: 'border-box',
+                                flexShrink: 0,
+                              }}>
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  value={current != null && current !== '' ? current : ''}
+                                  onChange={(e) => {
+                                    if (typeof onSetLogChange !== 'function') return;
+                                    const raw = e.target.value;
+                                    if (raw === '') {
+                                      onSetLogChange(exercise.id, idx, 'time_completed', null);
+                                      return;
+                                    }
+                                    const parsed = parseInt(raw, 10);
+                                    onSetLogChange(
+                                      exercise.id, idx,
+                                      'time_completed',
+                                      Number.isFinite(parsed) ? parsed : null,
+                                    );
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder={String(workTimeTarget || '')}
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    height: '100%',
+                                    border: 'none',
+                                    outline: 'none',
+                                    background: 'transparent',
+                                    color: '#1a1a1a',
+                                    textAlign: 'center',
+                                    fontFamily: NUM_FONT,
+                                    fontSize: 20,
+                                    fontWeight: 700,
+                                    lineHeight: 1,
+                                    padding: 0,
+                                    direction: 'ltr',
+                                    appearance: 'textfield',
+                                    MozAppearance: 'textfield',
+                                    boxSizing: 'border-box',
+                                  }}
+                                />
+                                <span style={{
+                                  fontSize: 9,
+                                  color: '#888',
+                                  fontFamily: SANS_FONT,
+                                  fontWeight: 600,
+                                  lineHeight: 1,
+                                  flexShrink: 0,
+                                }}>שנ׳</span>
+                              </div>
                             </div>
                           );
                         })}
@@ -1186,7 +1298,9 @@ export default function ExerciseCard({
                     fontFamily: SANS_FONT,
                     fontWeight: 600,
                   }}>
-                    {repsTarget && repsTarget > 0 ? (
+                    {isTimeBased && timeTarget && timeTarget > 0 ? (
+                      <>{timeDone}/{timeTarget} שנ׳ · </>
+                    ) : repsTarget && repsTarget > 0 ? (
                       <>{repsDone}/{repsTarget} חזרות · </>
                     ) : null}
                     {doneSets}/{totalSets} סטים

@@ -483,7 +483,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         try {
           const { data: setLogRows, error: logsErr } = await supabase
             .from('exercise_set_logs')
-            .select('exercise_id, set_number, reps_completed, completed')
+            .select('exercise_id, set_number, reps_completed, time_completed, completed')
             .eq('execution_id', exec.id);
           if (!logsErr && Array.isArray(setLogRows) && setLogRows.length > 0) {
             const restored = {};
@@ -492,6 +492,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               if (!restored[row.exercise_id]) restored[row.exercise_id] = {};
               restored[row.exercise_id][idx] = {
                 reps_completed: row.reps_completed,
+                time_completed: row.time_completed,
                 done: !!row.completed,
               };
             }
@@ -1445,15 +1446,25 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           const reps = log.reps_completed != null && log.reps_completed !== ''
             ? parseInt(log.reps_completed, 10)
             : null;
+          const timeC = log.time_completed != null && log.time_completed !== ''
+            ? parseInt(log.time_completed, 10)
+            : null;
           const difficulty = log.difficulty != null && log.difficulty !== ''
             ? parseInt(log.difficulty, 10)
             : null;
-          if (!log.done && (reps == null || Number.isNaN(reps)) && difficulty == null) continue;
+          // Skip empty rows — nothing the trainee actually touched on
+          // this set. time_completed counts as "touched" for time-based
+          // exercises just like reps_completed does for reps-based ones.
+          if (!log.done
+              && (reps == null || Number.isNaN(reps))
+              && (timeC == null || Number.isNaN(timeC))
+              && difficulty == null) continue;
           setLogRows.push({
             execution_id: execRow.id,
             exercise_id: exerciseId,
             set_number: parseInt(setIdxStr, 10) + 1,
             reps_completed: Number.isFinite(reps) ? reps : null,
+            time_completed: Number.isFinite(timeC) ? timeC : null,
             completed: !!log.done,
             difficulty_rating: Number.isFinite(difficulty) ? difficulty : null,
           });
