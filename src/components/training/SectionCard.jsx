@@ -8,6 +8,7 @@ import ExerciseCard from "./ExerciseCard";
 import { getSectionType } from "@/lib/sectionTypes";
 import { getSectionColor } from "@/lib/plansApi";
 import { useLongPress } from "@/lib/useLongPress";
+import { readSectionRating } from "@/lib/workoutExecutionApi";
 
 export default function SectionCard({
   section,
@@ -216,17 +217,23 @@ export default function SectionCard({
                 {/* Saved section rating — trainee view only. Renders
                     once the trainee submits the section feedback
                     sliders so the score they gave is visible on the
-                    closed card. */}
-                {!showEditButtons && sectionRating != null && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    background: '#FFF5EE', border: '1px solid #FFE5D0',
-                    borderRadius: 999, padding: '3px 10px',
-                    fontSize: 12, fontWeight: 700, color: '#FF6F20',
-                  }}>
-                    ⭐ {Number(sectionRating).toFixed(1)}/10
-                  </span>
-                )}
+                    closed card. readSectionRating tolerates both the
+                    legacy number shape and the new object shape; the
+                    chip always shows the .avg. */}
+                {!showEditButtons && (() => {
+                  const r = readSectionRating(sectionRating);
+                  if (r.avg == null) return null;
+                  return (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: '#FFF5EE', border: '1px solid #FFE5D0',
+                      borderRadius: 999, padding: '3px 10px',
+                      fontSize: 12, fontWeight: 700, color: '#FF6F20',
+                    }}>
+                      ⭐ {Number(r.avg).toFixed(1)}/10
+                    </span>
+                  );
+                })()}
                 {section.completed && (
                   <span className="text-green-500 font-bold" style={{ fontSize: 12 }}>
                     הושלם

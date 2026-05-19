@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import {
   getExecutionWithSetLogs, indexSetLogs, valueFromLog,
+  readSectionRating,
 } from '@/lib/workoutExecutionApi';
 import { formatTime } from '@/lib/formatTime';
 
@@ -322,7 +323,7 @@ export default function WorkoutExecutionReadOnly({
           )}
 
           {(plan?.sections || []).map((section) => {
-            const rating = sectionRatings[section.id];
+            const ratingObj = readSectionRating(sectionRatings[section.id]);
             return (
               <div key={section.id} style={{
                 background: 'white', borderRadius: 14,
@@ -337,7 +338,7 @@ export default function WorkoutExecutionReadOnly({
                   <div style={{ fontSize: 15, fontWeight: 900, color: DARK }}>
                     {section.section_name || 'סקשן'}
                   </div>
-                  {rating != null && (
+                  {ratingObj.avg != null && (
                     <span style={{
                       background: '#FFF5EE',
                       color: ORANGE,
@@ -345,7 +346,7 @@ export default function WorkoutExecutionReadOnly({
                       padding: '2px 10px', borderRadius: 999,
                       fontSize: 12, fontWeight: 800,
                     }}>
-                      {Number(rating).toFixed(1)}
+                      {Number(ratingObj.avg).toFixed(1)}
                     </span>
                   )}
                 </div>

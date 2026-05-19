@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificationTriggers";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { createDuplicatedExecution } from "@/lib/workoutExecutionApi";
+import { createDuplicatedExecution, readSectionRating } from "@/lib/workoutExecutionApi";
 
 // End-of-workout multi-select chips. Stored verbatim into
 // workout_executions.feedback_chips (TEXT[]).
@@ -348,10 +348,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [tempPlanName, setTempPlanName] = useState(plan.plan_name || "");
   const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
-  // Section feedback now captures TWO 1-10 sliders (control = how
-  // in-control the trainee felt, challenge = how hard it was). The
-  // section's stored rating is their average — keeps sectionRatings
-  // a flat number map for the existing summary average calc.
+  // Section feedback captures TWO 1-10 sliders (control = how
+  // in-control the trainee felt, challenge = how hard it was) plus a
+  // free-text notes field. As of step 1 of the progress rewrite, the
+  // FULL object `{ control, challenge, avg, notes }` is persisted into
+  // workout_executions.section_ratings JSONB — not just the avg.
+  // Readers go through readSectionRating() so legacy number-shaped
+  // rows still surface the avg chip with null splits and empty notes.
   const [sectionFeedbackData, setSectionFeedbackData] = useState({
     sectionId: null, sectionName: "",
     control: 7, challenge: 7, notes: "",
@@ -461,7 +464,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
       if (data && data.length > 0) {
         const exec = data[0];
-        const ratings = exec.section_ratings || {};
+        const rawRatings = exec.section_ratings || {};
+        // Normalize either shape to the object form so every later
+        // reader (popup pre-fill, avg compute, SectionCard chip) can
+        // assume a consistent {control, challenge, avg, notes} entry.
+        const ratings = {};
+        for (const sid of Object.keys(rawRatings)) {
+          ratings[sid] = readSectionRating(rawRatings[sid]);
+        }
         console.log('[UPB] loaded active execution:', exec.id, 'section_ratings:', ratings);
         setCurrentExecutionId(exec.id);
         setSectionRatings(ratings);
@@ -801,17 +811,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         ratedSectionsRef.current.add(sectionId);
         // Re-edit flow: when the trainee un-toggled an exercise and
         // re-completed the section, the old rating is still in
-        // sectionRatings. Pre-fill the sliders with it so they edit
-        // their previous answer instead of restarting from 7/7.
-        // (For brand-new sections, default both to 7.)
-        const existingRating = sectionRatings[section.id];
-        const initial = existingRating != null ? existingRating : 7;
+        // sectionRatings. Pre-fill the sliders + notes with the prior
+        // values so they edit their previous answer instead of
+        // restarting from 7/7. Legacy rows only carry an avg (split is
+        // null) — fall back to the avg for both sliders in that case.
+        const existing = readSectionRating(sectionRatings[section.id]);
+        const fallback = existing.avg != null ? existing.avg : 7;
         setSectionFeedbackData({
           sectionId: section.id,
           sectionName: section.section_name,
-          control: initial,
-          challenge: initial,
-          notes: "",
+          control: existing.control != null ? existing.control : fallback,
+          challenge: existing.challenge != null ? existing.challenge : fallback,
+          notes: existing.notes || "",
         });
         setShowSectionFeedbackDialog(true);
 
@@ -861,7 +872,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     const avgRPE = rpeValues.length > 0 ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1) : "-";
 
     const effectiveRatings = ratingsMap || sectionRatings;
-    const ratingValues = Object.values(effectiveRatings);
+    const ratingValues = Object.values(effectiveRatings)
+      .map((v) => readSectionRating(v).avg)
+      .filter((v) => v != null);
     const averageRating = ratingValues.length > 0
       ? Math.round((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) * 10) / 10
       : null;
@@ -1250,7 +1263,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       return null;
     }
 
-    const ratingValues = Object.values(nextSectionRatings || {});
+    const ratingValues = Object.values(nextSectionRatings || {})
+      .map((v) => readSectionRating(v).avg)
+      .filter((v) => v != null);
     const avg = ratingValues.length > 0
       ? Math.round((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) * 10) / 10
       : null;
@@ -2488,9 +2503,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   // doesn't compound a long float into a misleading
                   // figure on the graph tooltip.
                   const sectionAvg = parseFloat(((control + challenge) / 2).toFixed(1));
+                  const notes = sectionFeedbackData.notes || '';
+                  // Persist the full object — avg stays for back-compat
+                  // and the existing chip reader; control/challenge/notes
+                  // unlock later steps without another schema change.
                   const newRatings = {
                     ...sectionRatings,
-                    [sectionFeedbackData.sectionId]: sectionAvg,
+                    [sectionFeedbackData.sectionId]: {
+                      control, challenge, avg: sectionAvg, notes,
+                    },
                   };
 
                   // Write to DB BEFORE closing the popup so a network

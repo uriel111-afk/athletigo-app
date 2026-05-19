@@ -121,6 +121,31 @@ export async function saveCompletedWorkout({
   return exec;
 }
 
+// The section_ratings JSONB shape grew an object form in step 1 of the
+// progress-tracking rewrite. Old rows: `{ [sid]: number }` where number
+// is avg(control, challenge). New rows: `{ [sid]: { control, challenge,
+// avg, notes } }`. Every read site must go through this normalizer so
+// old number-shaped rows still render the avg chip without code branching
+// at every call site. avg is the canonical 0-10 score to display; the
+// other fields are null/'' on legacy rows.
+export function readSectionRating(v) {
+  if (v == null) {
+    return { avg: null, control: null, challenge: null, notes: '' };
+  }
+  if (typeof v === 'number') {
+    return { avg: v, control: null, challenge: null, notes: '' };
+  }
+  if (typeof v === 'object') {
+    return {
+      avg: v.avg != null ? Number(v.avg) : null,
+      control: v.control != null ? Number(v.control) : null,
+      challenge: v.challenge != null ? Number(v.challenge) : null,
+      notes: typeof v.notes === 'string' ? v.notes : '',
+    };
+  }
+  return { avg: null, control: null, challenge: null, notes: '' };
+}
+
 export function indexSetLogs(logs) {
   const byExercise = {};
   for (const log of logs || []) {
