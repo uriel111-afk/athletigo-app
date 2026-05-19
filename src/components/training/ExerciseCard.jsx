@@ -195,31 +195,30 @@ function resolveNormalColumns(exercise) {
 
 // ── Sub components ────────────────────────────────────────────────
 
-// Vertical list row for the open-card body. Spec'd layout:
-// label (14 / #888) on the right (RTL), value (17 / 500 / #1a1a1a) +
-// unit (12 / 400 / #888) on the left, with a hairline separator.
-// `isLast` drops the bottom border so the last row in a group sits
-// flush against whatever follows it (sub-exercises list / coach note).
-function ParamListRow({ label, value, unit, isLast }) {
+// Vertical list row for the open-card body. Single RTL cell laid out
+// as "<value> <unit> <descriptor>" so the row reads number-first in
+// Hebrew (e.g. "8 סטים", "60 שנ׳ מנוחה", '40 ק"ג'). Previous design
+// split the row into a right-label / left-value pair, which in RTL
+// reading order produced "<word> <number>" — the bug this row fixes.
+// `isLast` drops the bottom border so the last row sits flush against
+// whatever follows it (sub-exercises list / coach note).
+function ParamListRow({ value, unit, descriptor, isLast }) {
   return (
     <div style={{
       display: 'flex',
       alignItems: 'baseline',
-      justifyContent: 'space-between',
-      gap: 10,
+      gap: 6,
       padding: '11px 0',
       borderBottom: isLast ? 'none' : '0.5px solid #F4EDE0',
       direction: 'rtl',
     }}>
-      <span style={{ fontSize: 14, color: '#888' }}>{label}</span>
-      <span>
-        <span style={{ fontSize: 17, fontWeight: 500, color: '#1a1a1a' }}>{value}</span>
-        {unit && (
-          <span style={{ fontSize: 12, fontWeight: 400, color: '#888', marginInlineStart: 4 }}>
-            {unit}
-          </span>
-        )}
-      </span>
+      <span style={{ fontSize: 17, fontWeight: 500, color: '#1a1a1a' }}>{value}</span>
+      {unit && (
+        <span style={{ fontSize: 12, fontWeight: 400, color: '#888' }}>{unit}</span>
+      )}
+      {descriptor && (
+        <span style={{ fontSize: 14, color: '#888' }}>{descriptor}</span>
+      )}
     </div>
   );
 }
@@ -457,10 +456,13 @@ export default function ExerciseCard({
   // Single source of truth for the param items rendered on this card.
   // Returns an ordered array where each entry has:
   //   key   — stable identifier (param column name)
-  //   pill  — short Hebrew text for the closed-card pill
-  //   label — fuller label for the open-card list row
-  //   value — the numeric/string value as a plain string
-  //   unit  — optional unit suffix for the list row (שנ' / ק"ג ...)
+  //   value      — the numeric/string value as a plain string
+  //   unit       — optional unit suffix (שנ' / ק"ג ...)
+  //   descriptor — optional Hebrew noun that clarifies which param this is
+  //   display    — single canonical "<value> <unit> <descriptor>" string,
+  //                shared by the closed-card pills, the open-card row, and
+  //                any summary surface — so all three read identically and
+  //                always number-first in Hebrew RTL.
   // Only filled params are returned — skipping happens here, callers
   // just map. Order is the spec'd "timer params first, body params
   // after" sequence and is identical for both the pills and the
@@ -469,69 +471,75 @@ export default function ExerciseCard({
     const cs = td?.clock_settings || null;
     const items = [];
 
+    // Compose number-first Hebrew: "<value> <unit> <descriptor>".
+    // Drops null/empty pieces so a unit-less row reads as just
+    // "<value> <descriptor>" and a descriptor-less row reads as
+    // "<value> <unit>". One source of truth for every surface.
+    const fmt = (v, u, d) => [v, u, d].filter(Boolean).join(' ');
+
     const workSec = toSeconds(cs?.work_seconds ?? exercise.work_time);
-    if (workSec != null) items.push({
-      key: 'work_time', label: 'זמן עבודה', value: String(workSec), unit: 'שנ\'',
-      pill: `עבודה ${workSec} שנ'`,
-    });
+    if (workSec != null) {
+      const value = String(workSec), unit = 'שנ\'', descriptor = 'עבודה';
+      items.push({ key: 'work_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+    }
 
     const restSec = toSeconds(cs?.rest_seconds ?? exercise.rest_time);
-    if (restSec != null) items.push({
-      key: 'rest_time', label: 'מנוחה', value: String(restSec), unit: 'שנ\'',
-      pill: `מנוחה ${restSec} שנ'`,
-    });
+    if (restSec != null) {
+      const value = String(restSec), unit = 'שנ\'', descriptor = 'מנוחה';
+      items.push({ key: 'rest_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+    }
 
     const roundsVal = cs?.rounds ?? exercise.rounds;
-    if (hasValue(roundsVal)) items.push({
-      key: 'rounds', label: 'מספר סבבים', value: String(roundsVal), unit: null,
-      pill: `${roundsVal} סבבים`,
-    });
+    if (hasValue(roundsVal)) {
+      const value = String(roundsVal), descriptor = 'סבבים';
+      items.push({ key: 'rounds', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
+    }
 
     const setsVal = cs?.sets ?? exercise.sets;
-    if (hasValue(setsVal)) items.push({
-      key: 'sets', label: 'מספר סטים', value: String(setsVal), unit: null,
-      pill: `${setsVal} סטים`,
-    });
+    if (hasValue(setsVal)) {
+      const value = String(setsVal), descriptor = 'סטים';
+      items.push({ key: 'sets', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
+    }
 
     // rest_between_sets — no DB column; from clock_settings or legacy
     // top-level tabata_data.
     const rbsSec = toSeconds(cs?.rest_between_sets ?? td?.rest_between_sets ?? exercise.rest_between_sets);
-    if (rbsSec != null) items.push({
-      key: 'rest_between_sets', label: 'מנוחה בין סטים', value: String(rbsSec), unit: 'שנ\'',
-      pill: `בין סטים ${rbsSec} שנ'`,
-    });
+    if (rbsSec != null) {
+      const value = String(rbsSec), unit = 'שנ\'', descriptor = 'בין סטים';
+      items.push({ key: 'rest_between_sets', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+    }
 
     const rbeSec = toSeconds(exercise.rest_between_exercises);
-    if (rbeSec != null) items.push({
-      key: 'rest_between_exercises', label: 'מנוחה בין תרגילים', value: String(rbeSec), unit: 'שנ\'',
-      pill: `בין תרגילים ${rbeSec} שנ'`,
-    });
+    if (rbeSec != null) {
+      const value = String(rbeSec), unit = 'שנ\'', descriptor = 'בין תרגילים';
+      items.push({ key: 'rest_between_exercises', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+    }
 
-    if (hasValue(exercise.reps)) items.push({
-      key: 'reps', label: 'חזרות', value: String(exercise.reps), unit: null,
-      pill: `${exercise.reps} חזרות`,
-    });
+    if (hasValue(exercise.reps)) {
+      const value = String(exercise.reps), descriptor = 'חזרות';
+      items.push({ key: 'reps', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
+    }
 
-    if (hasValue(exercise.weight)) items.push({
-      key: 'weight', label: 'משקל', value: String(exercise.weight), unit: 'ק"ג',
-      pill: `${exercise.weight} ק"ג`,
-    });
+    if (hasValue(exercise.weight)) {
+      const value = String(exercise.weight), unit = 'ק"ג';
+      items.push({ key: 'weight', value, unit, descriptor: null, display: fmt(value, unit, null) });
+    }
 
     const shtSec = toSeconds(exercise.static_hold_time);
-    if (shtSec != null) items.push({
-      key: 'static_hold_time', label: 'החזקה', value: String(shtSec), unit: 'שנ\'',
-      pill: `החזקה ${shtSec} שנ'`,
-    });
+    if (shtSec != null) {
+      const value = String(shtSec), unit = 'שנ\'', descriptor = 'החזקה';
+      items.push({ key: 'static_hold_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+    }
 
-    if (hasValue(exercise.rpe)) items.push({
-      key: 'rpe', label: 'RPE', value: String(exercise.rpe), unit: null,
-      pill: `RPE ${exercise.rpe}`,
-    });
+    if (hasValue(exercise.rpe)) {
+      const value = String(exercise.rpe), descriptor = 'RPE';
+      items.push({ key: 'rpe', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
+    }
 
-    if (hasValue(exercise.tempo)) items.push({
-      key: 'tempo', label: 'טמפו', value: String(exercise.tempo), unit: null,
-      pill: `טמפו ${exercise.tempo}`,
-    });
+    if (hasValue(exercise.tempo)) {
+      const value = String(exercise.tempo), descriptor = 'טמפו';
+      items.push({ key: 'tempo', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
+    }
 
     return items;
   };
@@ -560,7 +568,7 @@ export default function ExerciseCard({
       return [parts.join(' · ')];
     }
 
-    const bits = paramItems.map((it) => it.pill);
+    const bits = paramItems.map((it) => it.display);
     if (variant === 'list') {
       const count = subExercises.length;
       if (count > 0) {
@@ -787,9 +795,9 @@ export default function ExerciseCard({
                     {paramItems.map((it, i) => (
                       <ParamListRow
                         key={it.key}
-                        label={it.label}
                         value={it.value}
                         unit={it.unit}
+                        descriptor={it.descriptor}
                         isLast={i === paramItems.length - 1}
                       />
                     ))}
@@ -891,9 +899,9 @@ export default function ExerciseCard({
                       {paramItems.map((it, i) => (
                         <ParamListRow
                           key={it.key}
-                          label={it.label}
                           value={it.value}
                           unit={it.unit}
+                          descriptor={it.descriptor}
                           isLast={i === paramItems.length - 1}
                         />
                       ))}
@@ -1007,9 +1015,9 @@ export default function ExerciseCard({
                     {paramItems.map((it, i) => (
                       <ParamListRow
                         key={it.key}
-                        label={it.label}
                         value={it.value}
                         unit={it.unit}
+                        descriptor={it.descriptor}
                         isLast={i === paramItems.length - 1}
                       />
                     ))}
@@ -1164,9 +1172,9 @@ export default function ExerciseCard({
                     {paramItems.map((it, i) => (
                       <ParamListRow
                         key={it.key}
-                        label={it.label}
                         value={it.value}
                         unit={it.unit}
+                        descriptor={it.descriptor}
                         isLast={i === paramItems.length - 1}
                       />
                     ))}
