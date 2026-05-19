@@ -130,9 +130,31 @@ function ImprovementGraph({ data, executionsCount }) {
     );
   }
 
-  const latest = data[data.length - 1].score;
-  const prev = data.length >= 2 ? data[data.length - 2].score : null;
-  const trend = prev != null ? Number((latest - prev).toFixed(2)) : 0;
+  // chartData admits executions where self_rating is null but
+  // completion_percent > 0 (so the line still draws something for
+  // toggle-only workouts like tabata). `score` on those points is
+  // null — we must NOT call toFixed on it. Walk back to find the
+  // latest point that actually has a numeric score for the header
+  // big number; trend is only meaningful when both endpoints have
+  // scores.
+  const lastWithScore = (() => {
+    for (let i = data.length - 1; i >= 0; i--) {
+      if (data[i].score != null) return data[i];
+    }
+    return null;
+  })();
+  const latest = lastWithScore ? lastWithScore.score : null;
+  const prev = (() => {
+    if (!lastWithScore) return null;
+    const lastIdx = data.indexOf(lastWithScore);
+    for (let i = lastIdx - 1; i >= 0; i--) {
+      if (data[i].score != null) return data[i].score;
+    }
+    return null;
+  })();
+  const trend = (latest != null && prev != null)
+    ? Number((latest - prev).toFixed(2))
+    : 0;
 
   return (
     <>
@@ -167,7 +189,7 @@ function ImprovementGraph({ data, executionsCount }) {
             <div style={{
               fontSize: 40, fontWeight: 900, color: ORANGE, lineHeight: 1,
             }}>
-              {latest.toFixed(1)}
+              {latest != null ? latest.toFixed(1) : '—'}
             </div>
             <div style={{ fontSize: 11, color: '#888', textAlign: 'center' }}>
               מתוך 10

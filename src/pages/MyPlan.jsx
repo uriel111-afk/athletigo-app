@@ -131,29 +131,38 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
         )}
 
         {/* Plan score + session comparison — derived from exercise_executions */}
-        {scoreData && scoreData.sessions && scoreData.sessions.length > 0 && (
+        {scoreData && scoreData.sessions && scoreData.sessions.length > 0 && (() => {
+          // Defensive — toggle-only tabata/superset workouts can land a
+          // session row with a null avg (no numeric reps/time logs to
+          // average). Skip the score chip + bar entirely when there's
+          // no usable numeric data; otherwise toFixed on null throws
+          // and ErrorBoundary takes over the whole app.
+          const scored = scoreData.sessions.filter((s) => s && s.avg != null);
+          const overall = scoreData.overall != null ? scoreData.overall : null;
+          if (overall == null && scored.length === 0) return null;
+          return (
           <div className="pt-3 border-t border-[#E0E0E0] mt-3" onClick={(e) => e.stopPropagation()} style={{ direction: 'rtl' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: scoreData.sessions.length > 1 ? 10 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: scored.length > 1 ? 10 : 0 }}>
               <span style={{ fontSize: 12, color: '#888' }}>ציון:</span>
               <span style={{
                 fontSize: 14, fontWeight: 600,
-                color: scoreData.overall >= 7 ? '#16a34a' : scoreData.overall >= 4 ? '#EAB308' : '#dc2626',
+                color: overall == null ? '#888' : overall >= 7 ? '#16a34a' : overall >= 4 ? '#EAB308' : '#dc2626',
               }}>
-                {scoreData.overall.toFixed(1)}/10
+                {overall != null ? `${overall.toFixed(1)}/10` : '—'}
               </span>
               <span style={{ fontSize: 11, color: '#aaa', marginRight: 'auto' }}>
                 {scoreData.sessions.length} ביצוע{scoreData.sessions.length > 1 ? 'ים' : ''}
               </span>
             </div>
-            {scoreData.sessions.length > 1 && (
+            {scored.length > 1 && (
               <div style={{ background: 'white', borderRadius: 14, padding: 14, border: '1px solid #F0E4D0' }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📈 התקדמות</div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 100 }}>
-                  {scoreData.sessions.slice(-8).map((s, i) => (
+                  {scored.slice(-8).map((s, i) => (
                     <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>{s.avg.toFixed(1)}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{Number(s.avg).toFixed(1)}</div>
                       <div style={{
-                        height: `${(s.avg / 10) * 80}px`,
+                        height: `${(Number(s.avg) / 10) * 80}px`,
                         background: '#FF6F20',
                         borderRadius: '4px 4px 0 0',
                         margin: '4px auto',
@@ -168,7 +177,8 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
