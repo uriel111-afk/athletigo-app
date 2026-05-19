@@ -153,7 +153,7 @@ export default function SectionCard({
             userSelect: 'none',
           }}
         >
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 6 }}>
             {renamingSection && showEditButtons ? (
               <input
                 autoFocus
@@ -171,7 +171,7 @@ export default function SectionCard({
                   if (e.key === 'Escape') { e.target.value = section.section_name; e.target.blur(); }
                 }}
                 style={{
-                  fontSize: 17, fontWeight: 500, color: '#1a1a1a',
+                  fontSize: 16, fontWeight: 700, color: '#1a1a1a',
                   fontFamily: "'Barlow', system-ui, sans-serif",
                   border: 'none',
                   borderBottom: '2px solid #FF6F20',
@@ -180,21 +180,34 @@ export default function SectionCard({
                   padding: '2px 0',
                   direction: 'rtl',
                   flex: 1,
-                  minWidth: 120,
+                  minWidth: 0,
                 }}
               />
             ) : (
+              // Single-line title with ellipsis fallback. white-space:
+              // nowrap + overflow ellipsis prevents the mid-word break
+              // (תנועתיות → "תנועתי / ות") the previous wordBreak rule
+              // produced. flex:1/minWidth:0 lets the span shrink so
+              // siblings (count / rating / completed) stay on the row.
               <span
                 {...(showEditButtons ? longPressRename : {})}
                 style={{
-                  fontSize: 17, fontWeight: 500, color: '#1a1a1a',
+                  fontSize: 16, fontWeight: 700, color: '#1a1a1a',
                   fontFamily: "'Barlow', system-ui, sans-serif",
                   lineHeight: 1.2,
-                  wordBreak: 'break-word',
+                  flex: 1,
+                  minWidth: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
+                title={section.section_name}
               >{section.section_name}</span>
             )}
-            <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>
+            <span style={{
+              fontSize: 12, color: accentColor, fontWeight: 600,
+              flexShrink: 0, whiteSpace: 'nowrap',
+            }}>
               · {exercises.length} תרגילים
             </span>
             {ratingObj.avg != null && (
@@ -208,10 +221,15 @@ export default function SectionCard({
                 fontWeight: 700,
                 color: '#FF6F20',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}>⭐ {Number(ratingObj.avg).toFixed(1)}/10</span>
             )}
             {section.completed && (
-              <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, marginInlineStart: 4 }}>
+              <span style={{
+                fontSize: 11, color: '#16a34a', fontWeight: 700,
+                marginInlineStart: 4,
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}>
                 הושלם
               </span>
             )}
