@@ -153,7 +153,13 @@ export default function SectionCard({
             userSelect: 'none',
           }}
         >
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <div style={{
+            flex: 1, minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexWrap: 'wrap',
+          }}>
             {renamingSection && showEditButtons ? (
               <input
                 autoFocus
@@ -171,7 +177,7 @@ export default function SectionCard({
                   if (e.key === 'Escape') { e.target.value = section.section_name; e.target.blur(); }
                 }}
                 style={{
-                  fontSize: 16, fontWeight: 700, color: '#1a1a1a',
+                  fontSize: 18, fontWeight: 700, color: '#1a1a1a',
                   fontFamily: "'Barlow', system-ui, sans-serif",
                   border: 'none',
                   borderBottom: '2px solid #FF6F20',
@@ -179,33 +185,36 @@ export default function SectionCard({
                   outline: 'none',
                   padding: '2px 0',
                   direction: 'rtl',
-                  flex: 1,
-                  minWidth: 0,
+                  flex: '1 1 120px',
                 }}
               />
             ) : (
-              // Single-line title with ellipsis fallback. white-space:
-              // nowrap + overflow ellipsis prevents the mid-word break
-              // (תנועתיות → "תנועתי / ות") the previous wordBreak rule
-              // produced. flex:1/minWidth:0 lets the span shrink so
-              // siblings (count / rating / completed) stay on the row.
+              // Section name is the PRIMARY element — natural intrinsic
+              // width, never collapsed by flex math. nowrap stops the
+              // mid-word break ("תנועתי / ות"); overflow + ellipsis +
+              // maxWidth:100% only kick in for pathologically long
+              // names that exceed the container by themselves. NO
+              // flex:1 — the previous commit's flex:1+minWidth:0 reset
+              // flex-basis to 0 and let siblings consume all the row,
+              // hiding the name entirely.
               <span
                 {...(showEditButtons ? longPressRename : {})}
                 style={{
-                  fontSize: 16, fontWeight: 700, color: '#1a1a1a',
                   fontFamily: "'Barlow', system-ui, sans-serif",
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#1a1a1a',
                   lineHeight: 1.2,
-                  flex: 1,
-                  minWidth: 0,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
+                  maxWidth: '100%',
                 }}
                 title={section.section_name}
               >{section.section_name}</span>
             )}
             <span style={{
-              fontSize: 12, color: accentColor, fontWeight: 600,
+              fontSize: 13, color: accentColor, fontWeight: 600,
               flexShrink: 0, whiteSpace: 'nowrap',
             }}>
               · {exercises.length} תרגילים
