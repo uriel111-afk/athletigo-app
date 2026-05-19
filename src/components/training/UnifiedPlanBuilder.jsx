@@ -476,6 +476,31 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         setCurrentExecutionId(exec.id);
         setSectionRatings(ratings);
         ratedSectionsRef.current = new Set(Object.keys(ratings));
+
+        // Resume per-set state from the persisted exercise_set_logs
+        // rows attached to this execution. Lets the trainee close the
+        // tab mid-workout and re-open without losing what they ticked.
+        try {
+          const { data: setLogRows, error: logsErr } = await supabase
+            .from('exercise_set_logs')
+            .select('exercise_id, set_number, reps_completed, completed')
+            .eq('execution_id', exec.id);
+          if (!logsErr && Array.isArray(setLogRows) && setLogRows.length > 0) {
+            const restored = {};
+            for (const row of setLogRows) {
+              const idx = Math.max(0, (Number(row.set_number) || 1) - 1);
+              if (!restored[row.exercise_id]) restored[row.exercise_id] = {};
+              restored[row.exercise_id][idx] = {
+                reps_completed: row.reps_completed,
+                done: !!row.completed,
+              };
+            }
+            console.log('[UPB] restored setLogs for', Object.keys(restored).length, 'exercise(s)');
+            setSetLogs(restored);
+          }
+        } catch (e) {
+          console.warn('[UPB] set-log resume failed:', e?.message);
+        }
       } else {
         console.log('[UPB] no active execution for today — fresh start');
       }
@@ -1467,6 +1492,33 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       return null;
     }
   };
+
+  // Silent autosave — every change to setLogs starts a 3s timer; if
+  // another change lands the timer resets, so the save fires once
+  // the trainee pauses. Trainee-only (canEdit=false): the coach is
+  // read-only here and never mutates set logs. We deliberately skip
+  // the first render where setLogs is still {} so we don't INSERT a
+  // blank workout_executions row before the trainee has touched
+  // anything. Using a ref to hold the latest saveWorkoutExecution
+  // closure avoids re-firing the effect on every render just because
+  // the function identity changed.
+  const saveExecRef = React.useRef(null);
+  saveExecRef.current = saveWorkoutExecution;
+  React.useEffect(() => {
+    if (canEdit) return;
+    if (!plan?.id) return;
+    const traineeId = plan.assigned_to || plan.created_by;
+    if (!traineeId) return;
+    if (!setLogs || Object.keys(setLogs).length === 0) return;
+    const t = setTimeout(() => {
+      const fn = saveExecRef.current;
+      if (typeof fn === 'function') {
+        console.log('[UPB] autosave firing');
+        fn();
+      }
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [setLogs, canEdit, plan?.id, plan?.assigned_to, plan?.created_by]);
 
   // After a workout finishes, walk every set log on this execution,
   // pick the best reps_completed per exercise, and compare against the

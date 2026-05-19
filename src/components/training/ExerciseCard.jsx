@@ -405,7 +405,7 @@ export default function ExerciseCard({
   traineeProgress,
   // Per-set state — driven by parent UnifiedPlanBuilder.
   setLog,
-  onSetLogChange: _onSetLogChange,
+  onSetLogChange,
   onSetToggleDone,
   // Per-drill-per-set state for list-variant exercises. Each cell is
   // a boolean inside drillSetLog[setIdx][drillIdx]. Local-state only —
@@ -696,29 +696,54 @@ export default function ExerciseCard({
             userSelect: 'none',
           }}
         >
-          {/* Master ○ — preserves existing onToggleComplete behavior.
-              Coach mode disables the toggle so it's informational. */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isCoachMode) return;
-              if (onToggleComplete) onToggleComplete(exercise);
-            }}
-            aria-checked={completed}
-            role="checkbox"
-            disabled={isCoachMode}
-            style={{
-              width: 19, height: 19, borderRadius: '50%',
-              border: completed ? 'none' : '1.5px solid #ccc',
-              background: completed ? '#16a34a' : 'transparent',
-              color: '#FFFFFF',
-              cursor: isCoachMode ? 'default' : 'pointer',
-              padding: 0, flexShrink: 0, marginTop: 2,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 900, lineHeight: 1,
-            }}
-          >{completed ? '✓' : ''}</button>
+          {/* Derived status pill — replaces the old empty ○. Read-only
+              indicator for BOTH coach and trainee. State is derived
+              from setLog (per-set done flags) for normal/list variants,
+              and from exercise.completed for tabata (no per-set tracking).
+              The trainee's set-fill UI in the open body is what
+              changes the state; the coach sees the same pill but no
+              fill inputs. */}
+          {(() => {
+            const doneCount = (() => {
+              if (variant === 'tabata') return null;
+              let n = 0;
+              for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
+              return n;
+            })();
+            const kind = variant === 'tabata'
+              ? (completed ? 'done' : 'none')
+              : (doneCount === 0 ? 'none' : doneCount >= totalSets ? 'done' : 'partial');
+            const cfg = ({
+              none:    { dot: 'transparent', dotBorder: '1.5px solid #ccc', text: 'לא בוצע', color: '#888',    bg: '#F7F3EA', borderC: '#E8DEC4' },
+              partial: { dot: '#E0A030',     dotBorder: 'none',             text: 'חלקי',     color: '#b8821f', bg: '#FFF6E6', borderC: '#F0D9A8' },
+              done:    { dot: '#4CAF50',     dotBorder: 'none',             text: 'הושלם',    color: '#2e7d32', bg: '#EAF7EA', borderC: '#BFE0BF' },
+            })[kind];
+            return (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '3px 8px',
+                borderRadius: 999,
+                background: cfg.bg,
+                border: `1px solid ${cfg.borderC}`,
+                color: cfg.color,
+                fontSize: 11,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                marginTop: 1,
+                fontFamily: SANS_FONT,
+              }} aria-label={cfg.text}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: cfg.dot, border: cfg.dotBorder, flexShrink: 0,
+                  display: 'inline-block',
+                }} aria-hidden />
+                {cfg.text}
+              </span>
+            );
+          })()}
 
           {/* Orange index square — small numeric badge anchoring this
               exercise in the section. Hidden when exerciseIndex prop
@@ -927,39 +952,230 @@ export default function ExerciseCard({
           );
         })()}
 
-        {expanded && variant !== 'tabata' && paramItems.length > 0 && (
-          <div style={{ padding: '0 36px 8px 16px', direction: 'rtl' }}>
-            {paramItems.map((it, i) => {
-              const trailing = [it.unit, it.descriptor].filter(Boolean).join(' ');
-              return (
-                <div key={it.key} style={{
+        {expanded && variant !== 'tabata' && paramItems.length > 0 && (() => {
+          const hasSetsParam = paramItems.some((it) => it.key === 'sets');
+          const hasRepsParam = paramItems.some((it) => it.key === 'reps');
+          const showFill = !isCoachMode && hasSetsParam;
+          const setLabelStyle = {
+            fontSize: 9, color: '#888', fontFamily: SANS_FONT,
+            fontWeight: 600, marginBottom: 3, lineHeight: 1,
+          };
+          const trailingLabelStyle = {
+            fontFamily: SANS_FONT, fontSize: 14, fontWeight: 600, color: '#777',
+          };
+
+          // Live summary numbers — only meaningful when set-fill is in
+          // play (trainee + the exercise actually has a sets param).
+          let doneSets = 0;
+          let repsDone = 0;
+          if (showFill) {
+            for (let i = 0; i < totalSets; i++) {
+              if (isSetDone(i)) doneSets++;
+              const v = parseInt(setLog?.[i]?.reps_completed, 10);
+              if (!Number.isNaN(v) && v > 0) repsDone += v;
+            }
+          }
+          const repsTarget = hasRepsParam && hasValue(exercise.reps)
+            ? totalSets * (parseInt(exercise.reps, 10) || 0)
+            : null;
+          const pct = (() => {
+            if (!showFill) return null;
+            if (repsTarget && repsTarget > 0) {
+              return Math.min(100, Math.round((repsDone / repsTarget) * 100));
+            }
+            if (totalSets > 0) {
+              return Math.round((doneSets / totalSets) * 100);
+            }
+            return 0;
+          })();
+          const summaryDone = pct != null && pct >= 100;
+
+          return (
+            <div style={{ padding: '0 36px 8px 16px', direction: 'rtl' }}>
+              {paramItems.map((it, i) => {
+                const isLast = i === paramItems.length - 1;
+                const rowBorder = isLast ? 'none' : '1px solid #EFE9D8';
+                const trailing = [it.unit, it.descriptor].filter(Boolean).join(' ');
+
+                // Trainee set-fill: tappable ✓ boxes per set
+                if (showFill && it.key === 'sets') {
+                  return (
+                    <div key={it.key} style={{
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '10px 0',
+                      borderBottom: rowBorder,
+                      direction: 'rtl',
+                    }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {Array.from({ length: totalSets }).map((_, idx) => {
+                          const done = isSetDone(idx);
+                          return (
+                            <div key={idx} style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            }}>
+                              <span style={setLabelStyle}>סט {idx + 1}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSetToggle(idx)}
+                                aria-checked={done}
+                                role="checkbox"
+                                style={{
+                                  width: 36, height: 36, borderRadius: 8,
+                                  border: done ? '2px solid #4CAF50' : '2px dashed #C9B89A',
+                                  background: done ? '#F1FAF1' : 'transparent',
+                                  color: '#2e7d32',
+                                  cursor: 'pointer',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: 18, fontWeight: 900, lineHeight: 1,
+                                  padding: 0,
+                                }}
+                              >{done ? '✓' : ''}</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <span style={trailingLabelStyle}>סטים</span>
+                    </div>
+                  );
+                }
+
+                // Trainee set-fill: per-set reps input
+                if (showFill && it.key === 'reps') {
+                  return (
+                    <div key={it.key} style={{
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '10px 0',
+                      borderBottom: rowBorder,
+                      direction: 'rtl',
+                    }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {Array.from({ length: totalSets }).map((_, idx) => {
+                          const current = setLog?.[idx]?.reps_completed;
+                          return (
+                            <div key={idx} style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            }}>
+                              <span style={setLabelStyle}>סט {idx + 1}</span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={current != null && current !== '' ? current : ''}
+                                onChange={(e) => {
+                                  if (typeof onSetLogChange !== 'function') return;
+                                  const raw = e.target.value;
+                                  if (raw === '') {
+                                    onSetLogChange(exercise.id, idx, 'reps_completed', null);
+                                    return;
+                                  }
+                                  const parsed = parseInt(raw, 10);
+                                  onSetLogChange(
+                                    exercise.id, idx,
+                                    'reps_completed',
+                                    Number.isFinite(parsed) ? parsed : null,
+                                  );
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder={String(exercise.reps || '')}
+                                style={{
+                                  width: 46, height: 36, borderRadius: 8,
+                                  border: '2px solid #FF6F20',
+                                  background: '#FFFFFF',
+                                  color: '#1a1a1a',
+                                  textAlign: 'center',
+                                  fontFamily: NUM_FONT,
+                                  fontSize: 22, fontWeight: 700,
+                                  lineHeight: 1,
+                                  outline: 'none',
+                                  padding: 0,
+                                  direction: 'ltr',
+                                  appearance: 'textfield',
+                                  MozAppearance: 'textfield',
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <span style={trailingLabelStyle}>חזרות</span>
+                    </div>
+                  );
+                }
+
+                // Standard display row — coach view or any non-fill param
+                return (
+                  <div key={it.key} style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 6,
+                    padding: '10px 0',
+                    borderBottom: rowBorder,
+                    direction: 'rtl',
+                  }}>
+                    <span style={{
+                      fontFamily: NUM_FONT,
+                      fontSize: 24,
+                      fontWeight: 700,
+                      color: '#1a1a1a',
+                      lineHeight: 1,
+                    }}>{it.value}</span>
+                    {trailing && (
+                      <span style={{
+                        fontFamily: SANS_FONT,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#777',
+                      }}>{trailing}</span>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Live trainee summary — pill below the set-fill rows.
+                  Green tint when 100%, amber otherwise. Hidden for
+                  coach (no fill inputs) and for exercises without a
+                  sets param (no per-set state to summarize). */}
+              {showFill && (
+                <div style={{
+                  marginTop: 10,
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  background: summaryDone ? '#F1FAF1' : '#FFF8EF',
+                  border: `1px solid ${summaryDone ? '#A5D9A0' : '#EFE0C8'}`,
                   display: 'flex',
-                  alignItems: 'baseline',
-                  gap: 6,
-                  padding: '10px 0',
-                  borderBottom: i === paramItems.length - 1 ? 'none' : '1px solid #EFE9D8',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
                   direction: 'rtl',
                 }}>
-                  <span style={{
+                  <div style={{
+                    fontSize: 12,
+                    color: '#555',
+                    fontFamily: SANS_FONT,
+                    fontWeight: 600,
+                  }}>
+                    {repsTarget && repsTarget > 0 ? (
+                      <>{repsDone}/{repsTarget} חזרות · </>
+                    ) : null}
+                    {doneSets}/{totalSets} סטים
+                  </div>
+                  <div style={{
                     fontFamily: NUM_FONT,
                     fontSize: 24,
                     fontWeight: 700,
-                    color: '#1a1a1a',
                     lineHeight: 1,
-                  }}>{it.value}</span>
-                  {trailing && (
-                    <span style={{
-                      fontFamily: SANS_FONT,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: '#777',
-                    }}>{trailing}</span>
-                  )}
+                    color: summaryDone ? '#2e7d32' : '#FF6F20',
+                  }}>{pct}%</div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
       </div>
     );
   }
