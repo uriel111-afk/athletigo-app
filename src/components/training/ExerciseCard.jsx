@@ -952,7 +952,7 @@ export default function ExerciseCard({
           );
         })()}
 
-        {expanded && variant !== 'tabata' && paramItems.length > 0 && (() => {
+        {expanded && variant !== 'tabata' && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
           const showFill = !isCoachMode && hasSetsParam;
@@ -1171,6 +1171,73 @@ export default function ExerciseCard({
                     lineHeight: 1,
                     color: summaryDone ? '#2e7d32' : '#FF6F20',
                   }}>{pct}%</div>
+                </div>
+              )}
+
+              {/* Sub-exercises list — only for variant 'list' (superset
+                  / קומבו / רשימה). Reuses the same numbered-badge
+                  layout the tabata branch uses for consistency. The
+                  getSubExercises helper handles the JSON.parse-with-
+                  try/catch on the TEXT tabata_data column; the
+                  rendered name + target come from the existing
+                  getDrillName + getDrillTarget helpers. Empty /
+                  unparseable arrays render nothing (no crash). */}
+              {variant === 'list' && subExercises.length > 0 && (
+                <div style={{
+                  marginTop: paramItems.length > 0 ? 12 : 0,
+                  paddingTop: paramItems.length > 0 ? 12 : 0,
+                  borderTop: paramItems.length > 0 ? '1px solid #EFE9D8' : 'none',
+                }}>
+                  <div style={{
+                    fontSize: 11,
+                    color: '#888',
+                    marginBottom: 6,
+                    fontFamily: SANS_FONT,
+                    fontWeight: 600,
+                  }}>
+                    תרגילי הסופרסט
+                  </div>
+                  {subExercises.map((sub, i) => {
+                    const target = getDrillTarget(sub);
+                    const isLastSub = i === subExercises.length - 1;
+                    return (
+                      <div key={i} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 0',
+                        borderBottom: isLastSub ? 'none' : '1px solid #EFE9D8',
+                      }}>
+                        <span style={{
+                          width: 26, height: 26,
+                          background: '#FFF0E4',
+                          color: '#FF6F20',
+                          borderRadius: '50%',
+                          fontFamily: NUM_FONT,
+                          fontSize: 13, fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }} aria-hidden>{i + 1}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 14, fontWeight: 500, color: '#1a1a1a',
+                            fontFamily: SANS_FONT,
+                          }}>
+                            {getDrillName(sub, i)}
+                          </div>
+                          {target?.display && (
+                            <div style={{
+                              fontSize: 12, color: '#888', marginTop: 2,
+                              fontFamily: SANS_FONT,
+                            }}>
+                              {target.display}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -42,6 +42,7 @@ export default function SectionCard({
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
   const [renamingSection, setRenamingSection] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const longPressRename = useLongPress(() => {
     if (showEditButtons && onRenameSection) setRenamingSection(true);
   });
@@ -249,54 +250,36 @@ export default function SectionCard({
               </span>
             )}
           </div>
-          {/* Coach controls — inline icon cluster reusing the existing
-              SectionCard handlers (move/edit/duplicate/delete/rename).
-              No new editor or backend code; each button just forwards
-              to the prop already wired by UnifiedPlanBuilder. */}
+          {/* Single "עריכה" trigger — replaces the previous scattered
+              icon cluster. Tapping toggles a 2-col labeled menu below
+              the section row. Each menu item still calls the existing
+              handler (no editor or DB code reimplemented). */}
           {showEditButtons && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+              aria-expanded={menuOpen}
+              aria-label="פעולות סקשן"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: menuOpen ? '#FFF5EE' : 'transparent',
+                border: `1px solid ${menuOpen ? '#FFD0AC' : '#E8DEC4'}`,
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 12,
+                fontWeight: 600,
+                color: menuOpen ? '#FF6F20' : '#8a7250',
+                cursor: 'pointer',
+                flexShrink: 0,
+                fontFamily: "'Barlow', system-ui, sans-serif",
+                lineHeight: 1,
+              }}
             >
-              {onMoveSection && (
-                <>
-                  <button type="button" aria-label="העלה סקשן" title="העלה סקשן"
-                    disabled={isFirstSection}
-                    onClick={() => onMoveSection(-1)}
-                    style={{ ...coachIconBtnStyle, opacity: isFirstSection ? 0.3 : 1 }}
-                  >↑</button>
-                  <button type="button" aria-label="הורד סקשן" title="הורד סקשן"
-                    disabled={isLastSection}
-                    onClick={() => onMoveSection(1)}
-                    style={{ ...coachIconBtnStyle, opacity: isLastSection ? 0.3 : 1 }}
-                  >↓</button>
-                </>
-              )}
-              {onEditSection && (
-                <button type="button" aria-label="ערוך סקשן" title="ערוך סקשן"
-                  onClick={() => onEditSection(section)}
-                  style={coachIconBtnStyle}
-                ><Edit2 size={14} /></button>
-              )}
-              {onRenameSection && (
-                <button type="button" aria-label="שנה שם סקשן" title="שנה שם סקשן"
-                  onClick={() => setRenamingSection(true)}
-                  style={coachIconBtnStyle}
-                >✎</button>
-              )}
-              {onDuplicateSection && (
-                <button type="button" aria-label="שכפל סקשן" title="שכפל סקשן"
-                  onClick={() => onDuplicateSection(section)}
-                  style={coachIconBtnStyle}
-                >📋</button>
-              )}
-              {onDeleteSection && (
-                <button type="button" aria-label="מחק סקשן" title="מחק סקשן"
-                  onClick={() => onDeleteSection(section.id)}
-                  style={{ ...coachIconBtnStyle, color: '#dc2626' }}
-                ><Trash2 size={14} /></button>
-              )}
-            </div>
+              <span style={{ fontSize: 13 }} aria-hidden>⚙</span>
+              עריכה
+            </button>
           )}
           <span aria-hidden style={{
             color: '#C9A24A',
@@ -307,6 +290,94 @@ export default function SectionCard({
             flexShrink: 0,
           }}>▼</span>
         </div>
+
+        {/* Coach action menu — appears below the section row when the
+            עריכה button is toggled. Each tile calls the existing
+            handler wired by UnifiedPlanBuilder (no new editor / DB /
+            handler code). 2-col grid; "מחק" gets the red-tinted tile. */}
+        {showEditButtons && menuOpen && (() => {
+          const itemBase = {
+            background: '#FCFBF7',
+            border: '1px solid #EFE9D8',
+            borderRadius: 8,
+            padding: '10px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            color: '#1a1a1a',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            textAlign: 'right',
+            direction: 'rtl',
+            fontFamily: "'Barlow', system-ui, sans-serif",
+            width: '100%',
+            lineHeight: 1.2,
+          };
+          const dangerStyle = {
+            ...itemBase,
+            background: '#FCEBEB',
+            border: '1px solid #F5C9C9',
+            color: '#a32d2d',
+          };
+          const iconStyle = (danger) => ({
+            color: danger ? '#a32d2d' : '#FF6F20',
+            fontSize: 16,
+            lineHeight: 1,
+            flexShrink: 0,
+            display: 'inline-block',
+            minWidth: 18,
+            textAlign: 'center',
+          });
+          const Item = ({ icon, label, onClick, danger, disabled }) => (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={(e) => { e.stopPropagation(); if (!disabled) { setMenuOpen(false); onClick(); } }}
+              style={{
+                ...(danger ? dangerStyle : itemBase),
+                opacity: disabled ? 0.35 : 1,
+                cursor: disabled ? 'default' : 'pointer',
+              }}
+            >
+              <span style={iconStyle(danger)} aria-hidden>{icon}</span>
+              <span>{label}</span>
+            </button>
+          );
+          return (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 8,
+                padding: '12px 16px',
+                background: '#FFFFFF',
+                borderBottom: '1px solid #E8DEC4',
+                direction: 'rtl',
+              }}
+            >
+              {onEditSection && (
+                <Item icon="✏" label="ערוך סקשן" onClick={() => onEditSection(section)} />
+              )}
+              {onRenameSection && (
+                <Item icon="✎" label="שנה שם" onClick={() => setRenamingSection(true)} />
+              )}
+              {onDuplicateSection && (
+                <Item icon="📋" label="שכפל" onClick={() => onDuplicateSection(section)} />
+              )}
+              {onMoveSection && (
+                <Item icon="↑" label="הזז למעלה" disabled={isFirstSection} onClick={() => onMoveSection(-1)} />
+              )}
+              {onMoveSection && (
+                <Item icon="↓" label="הזז למטה" disabled={isLastSection} onClick={() => onMoveSection(1)} />
+              )}
+              {onDeleteSection && (
+                <Item icon="🗑" label="מחק" danger onClick={() => onDeleteSection(section.id)} />
+              )}
+            </div>
+          );
+        })()}
 
         <AnimatePresence>
           {expanded && (
