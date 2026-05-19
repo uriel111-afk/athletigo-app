@@ -956,16 +956,55 @@ export default function ExerciseCard({
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
           const showFill = !isCoachMode && hasSetsParam;
-          const setLabelStyle = {
-            fontSize: 9, color: '#888', fontFamily: SANS_FONT,
-            fontWeight: 600, marginBottom: 3, lineHeight: 1,
-          };
-          const trailingLabelStyle = {
-            fontFamily: SANS_FONT, fontSize: 14, fontWeight: 600, color: '#777',
+
+          // Right-side "<number> <word>" label shared by every row —
+          // big Barlow Condensed number first (RTL DOM order = right),
+          // small sans noun second (RTL DOM order = left of number),
+          // wrapped in an inline-flex baseline so the number sits on
+          // the actual text baseline of the trailing word.
+          const renderInlineNumberLabel = (value, trailing) => (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'baseline',
+              gap: 6,
+              flexShrink: 0,
+            }}>
+              <span style={{
+                fontFamily: NUM_FONT,
+                fontSize: 24,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                lineHeight: 1,
+              }}>{value}</span>
+              {trailing && (
+                <span style={{
+                  fontFamily: SANS_FONT,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#777',
+                }}>{trailing}</span>
+              )}
+            </span>
+          );
+
+          // "סט N" caption above each box (9px / #999 / SANS_FONT).
+          const setCaptionStyle = {
+            fontSize: 9,
+            color: '#999',
+            marginBottom: 3,
+            fontFamily: SANS_FONT,
+            fontWeight: 600,
+            lineHeight: 1,
           };
 
-          // Live summary numbers — only meaningful when set-fill is in
-          // play (trainee + the exercise actually has a sets param).
+          // Box dimensions are spec'd at 42×36 with 8px radius. Sets
+          // toggle box and reps input box share these so the row reads
+          // as a consistent grid of "set 1 / set 2 / set 3 …" tiles.
+          const BOX_W = 42;
+          const BOX_H = 36;
+
+          // Live-summary numbers — only meaningful when the trainee
+          // set-fill is in play.
           let doneSets = 0;
           let repsDone = 0;
           if (showFill) {
@@ -991,24 +1030,25 @@ export default function ExerciseCard({
           const summaryDone = pct != null && pct >= 100;
 
           return (
-            <div style={{ padding: '0 36px 8px 16px', direction: 'rtl' }}>
+            <div style={{ padding: '0 36px 10px 16px', direction: 'rtl' }}>
               {paramItems.map((it, i) => {
                 const isLast = i === paramItems.length - 1;
                 const rowBorder = isLast ? 'none' : '1px solid #EFE9D8';
                 const trailing = [it.unit, it.descriptor].filter(Boolean).join(' ');
 
-                // Trainee set-fill: tappable ✓ boxes per set
+                // Trainee "סטים" row — label right, N tap-boxes left.
                 if (showFill && it.key === 'sets') {
                   return (
                     <div key={it.key} style={{
                       display: 'flex',
                       alignItems: 'flex-end',
                       justifyContent: 'space-between',
-                      gap: 10,
-                      padding: '10px 0',
+                      gap: 12,
+                      padding: '12px 0',
                       borderBottom: rowBorder,
                       direction: 'rtl',
                     }}>
+                      {renderInlineNumberLabel(it.value, it.descriptor)}
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {Array.from({ length: totalSets }).map((_, idx) => {
                           const done = isSetDone(idx);
@@ -1016,19 +1056,21 @@ export default function ExerciseCard({
                             <div key={idx} style={{
                               display: 'flex', flexDirection: 'column', alignItems: 'center',
                             }}>
-                              <span style={setLabelStyle}>סט {idx + 1}</span>
+                              <span style={setCaptionStyle}>סט {idx + 1}</span>
                               <button
                                 type="button"
                                 onClick={() => handleSetToggle(idx)}
                                 aria-checked={done}
                                 role="checkbox"
                                 style={{
-                                  width: 36, height: 36, borderRadius: 8,
+                                  width: BOX_W, height: BOX_H, borderRadius: 8,
                                   border: done ? '2px solid #4CAF50' : '2px dashed #C9B89A',
-                                  background: done ? '#F1FAF1' : 'transparent',
+                                  background: done ? '#F1FAF1' : '#FCFBF7',
                                   color: '#2e7d32',
                                   cursor: 'pointer',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
                                   fontSize: 18, fontWeight: 900, lineHeight: 1,
                                   padding: 0,
                                 }}
@@ -1037,23 +1079,23 @@ export default function ExerciseCard({
                           );
                         })}
                       </div>
-                      <span style={trailingLabelStyle}>סטים</span>
                     </div>
                   );
                 }
 
-                // Trainee set-fill: per-set reps input
+                // Trainee "חזרות" row — label right, N reps inputs left.
                 if (showFill && it.key === 'reps') {
                   return (
                     <div key={it.key} style={{
                       display: 'flex',
                       alignItems: 'flex-end',
                       justifyContent: 'space-between',
-                      gap: 10,
-                      padding: '10px 0',
+                      gap: 12,
+                      padding: '12px 0',
                       borderBottom: rowBorder,
                       direction: 'rtl',
                     }}>
+                      {renderInlineNumberLabel(it.value, it.descriptor)}
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {Array.from({ length: totalSets }).map((_, idx) => {
                           const current = setLog?.[idx]?.reps_completed;
@@ -1061,7 +1103,7 @@ export default function ExerciseCard({
                             <div key={idx} style={{
                               display: 'flex', flexDirection: 'column', alignItems: 'center',
                             }}>
-                              <span style={setLabelStyle}>סט {idx + 1}</span>
+                              <span style={setCaptionStyle}>סט {idx + 1}</span>
                               <input
                                 type="number"
                                 inputMode="numeric"
@@ -1083,7 +1125,7 @@ export default function ExerciseCard({
                                 onClick={(e) => e.stopPropagation()}
                                 placeholder={String(exercise.reps || '')}
                                 style={{
-                                  width: 46, height: 36, borderRadius: 8,
+                                  width: BOX_W, height: BOX_H, borderRadius: 8,
                                   border: '2px solid #FF6F20',
                                   background: '#FFFFFF',
                                   color: '#1a1a1a',
@@ -1102,51 +1144,36 @@ export default function ExerciseCard({
                           );
                         })}
                       </div>
-                      <span style={trailingLabelStyle}>חזרות</span>
                     </div>
                   );
                 }
 
-                // Standard display row — coach view or any non-fill param
+                // Standard display row — coach view or any non-fill
+                // param. Label flows naturally to the right side under
+                // RTL with no justify-content tweak.
                 return (
                   <div key={it.key} style={{
                     display: 'flex',
                     alignItems: 'baseline',
-                    gap: 6,
                     padding: '10px 0',
                     borderBottom: rowBorder,
                     direction: 'rtl',
                   }}>
-                    <span style={{
-                      fontFamily: NUM_FONT,
-                      fontSize: 24,
-                      fontWeight: 700,
-                      color: '#1a1a1a',
-                      lineHeight: 1,
-                    }}>{it.value}</span>
-                    {trailing && (
-                      <span style={{
-                        fontFamily: SANS_FONT,
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: '#777',
-                      }}>{trailing}</span>
-                    )}
+                    {renderInlineNumberLabel(it.value, trailing)}
                   </div>
                 );
               })}
 
-              {/* Live trainee summary — pill below the set-fill rows.
-                  Green tint when 100%, amber otherwise. Hidden for
-                  coach (no fill inputs) and for exercises without a
+              {/* Live trainee summary — amber tint <100%, green at
+                  100%. Hidden for coach and for exercises without a
                   sets param (no per-set state to summarize). */}
               {showFill && (
                 <div style={{
-                  marginTop: 10,
-                  padding: '8px 12px',
+                  marginTop: 12,
+                  padding: '10px 12px',
                   borderRadius: 10,
-                  background: summaryDone ? '#F1FAF1' : '#FFF8EF',
-                  border: `1px solid ${summaryDone ? '#A5D9A0' : '#EFE0C8'}`,
+                  background: summaryDone ? '#F1FAF1' : '#FFF4E6',
+                  border: `1px solid ${summaryDone ? '#BFE3BF' : '#FFD9B0'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
