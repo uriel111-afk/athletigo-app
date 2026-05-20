@@ -12,14 +12,24 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { useFormPersistence } from "../hooks/useFormPersistence";
 
-export default function PlanFormDialog({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  trainees = [], 
+export default function PlanFormDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  trainees = [],
   editingPlan = null,
   isLoading = false,
-  hideTraineeSelection = false
+  hideTraineeSelection = false,
+  // Optional seed for the trainee picker when no draft exists for the
+  // current key. Used by the trainee-profile entry point so the viewed
+  // trainee is pre-checked while still allowing the coach to extend
+  // the share to other trainees. Dashboard omits both props → identical
+  // behavior to before.
+  initialSelectedTraineeIds = null,
+  // Suffix appended to the localStorage key for the trainee selection
+  // draft. Lets the trainee-profile flow keep its own draft slot per
+  // trainee instead of colliding with the Dashboard's `plan_trainees_new`.
+  formKeySuffix = ''
 }) {
   const defaultPlanForm = {
     plan_name: "",
@@ -50,10 +60,18 @@ export default function PlanFormDialog({
   
   const [planForm, setPlanForm, clearDraft] = useFormPersistence(formKey, currentDefaults);
   
-  // Separate persistence for selectedTrainees
+  // Separate persistence for selectedTrainees. Default seed order:
+  //   1. editingPlan.assigned_to (edit mode)
+  //   2. initialSelectedTraineeIds prop (trainee-profile entry point)
+  //   3. [] (Dashboard's new-plan flow — identical to prior behavior)
+  // formKeySuffix lets callers scope the draft (e.g. per trainee) so
+  // independent entry points don't share a single localStorage slot.
+  const traineesDraftKey = `plan_trainees_${editingPlan ? editingPlan.id : 'new'}${formKeySuffix ? `_${formKeySuffix}` : ''}`;
   const [selectedTrainees, setSelectedTrainees, clearTraineesDraft] = useFormPersistence(
-    `plan_trainees_${editingPlan ? editingPlan.id : 'new'}`, 
-    editingPlan?.assigned_to ? [editingPlan.assigned_to] : []
+    traineesDraftKey,
+    editingPlan?.assigned_to
+      ? [editingPlan.assigned_to]
+      : (Array.isArray(initialSelectedTraineeIds) ? initialSelectedTraineeIds : [])
   );
 
   const [availableSeries, setAvailableSeries] = useState([]);

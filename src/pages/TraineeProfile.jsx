@@ -2913,6 +2913,20 @@ export default function TraineeProfile() {
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
+  // Full coach roster — used by the trainee-profile plans tab so the
+  // share-to-other-trainees step inside PlanFormDialog can list every
+  // trainee just like the Dashboard's flow does. Shares the same query
+  // key as the Dashboard so the cache is reused (no duplicate fetch).
+  const { data: allTrainees = [] } = useQuery({
+    queryKey: QUERY_KEYS.TRAINEES,
+    queryFn: async () => {
+      const users = await base44.entities.User.list('-created_at', 1000);
+      return users.filter((u) => u.role === 'user' || u.role === 'trainee');
+    },
+    enabled: !!currentUser?.id && isCoach,
+    staleTime: 1000 * 30,
+  });
+
   const createPlanForTraineeMutation = useMutation({
     mutationFn: async ({ planData, selectedTrainees }) => {
       if (!currentUser?.id) throw new Error("פרטי מאמן חסרים");
@@ -4955,6 +4969,37 @@ export default function TraineeProfile() {
                   viewed (so the coach sees the trainee's plans, not
                   their own). */}
               <TabsContent value="plans" className="space-y-4 w-full" dir="rtl">
+                {/* Coach-only entry point into the same plan-creation
+                    flow the Dashboard's "בנה תוכנית" button opens.
+                    Pre-seeds the trainee picker with the currently
+                    viewed trainee, but the share-to-other-trainees
+                    step still renders so the coach can extend to more
+                    trainees in one go. */}
+                {isCoach && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPlanDialog(true)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 24px',
+                      background: '#FF6F20',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 12,
+                      fontSize: 15,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    <span style={{ fontSize: 18, lineHeight: 1, fontWeight: 300 }}>+</span>
+                    הוסף אימון
+                  </button>
+                )}
                 <WorkoutsInner
                   traineeId={user?.id}
                   isCoach={isCoach}
@@ -5655,14 +5700,21 @@ export default function TraineeProfile() {
             so BaselineFormDialog (mounted globally via BaselineManager)
             renders the read-only canonical form. No local popup needed. */}
 
-        {/* Plan Form Dialog — pre-selects current trainee */}
+        {/* Plan Form Dialog — same dialog the Dashboard's "בנה תוכנית"
+            uses, with the viewed trainee pre-checked in the share step.
+            initialSelectedTraineeIds + formKeySuffix make the seed
+            trainee-scoped so each profile keeps its own draft slot. */}
         <PlanFormDialog
           isOpen={showPlanDialog}
           onClose={() => setShowPlanDialog(false)}
           onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
-          trainees={effectiveUser ? [effectiveUser] : user ? [user] : []}
+          trainees={allTrainees}
           isLoading={createPlanForTraineeMutation.isPending}
-          hideTraineeSelection
+          initialSelectedTraineeIds={
+            effectiveUser?.id ? [effectiveUser.id]
+              : (user?.id ? [user.id] : [])
+          }
+          formKeySuffix={effectiveUser?.id || user?.id || 'unknown'}
         />
 
         {/* In-context plan editor — opens over the trainee profile
