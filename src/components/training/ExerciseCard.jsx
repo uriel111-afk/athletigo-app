@@ -63,6 +63,19 @@ function getVariant(exercise) {
       return 'list';
     }
   }
+  // PlanBuilder's legacy list-variant writer drops the sub-exercise
+  // array on the top-level `children` column with no `mode` and no
+  // `tabata_data` populated. Detect that here so the open card runs
+  // the list-coach / list-trainee branches instead of falling
+  // through to the empty "normal" layout.
+  const directList = exercise.children;
+  if (Array.isArray(directList) && directList.length > 0) return 'list';
+  if (typeof directList === 'string' && directList.trim()) {
+    try {
+      const parsed = JSON.parse(directList);
+      if (Array.isArray(parsed) && parsed.length > 0) return 'list';
+    } catch {}
+  }
   return 'normal';
 }
 
@@ -88,6 +101,16 @@ function getSubExercises(exercise) {
   for (const key of ['sub_exercises', 'superset_exercises', 'combo_exercises', 'tabata_exercises', 'exercises']) {
     const v = exercise[key];
     if (Array.isArray(v) && v.length) return v;
+  }
+  // `children` — PlanBuilder's legacy list-variant writer (ListBuilder
+  // widget). Supabase returns this either as a deserialised array or
+  // as the raw JSON-text the column originally held; handle both.
+  if (Array.isArray(exercise.children) && exercise.children.length) return exercise.children;
+  if (typeof exercise.children === 'string' && exercise.children.trim()) {
+    try {
+      const parsed = JSON.parse(exercise.children);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    } catch {}
   }
   // exercise_list — TEXT-serialised JSON in this DB
   if (typeof exercise.exercise_list === 'string' && exercise.exercise_list.trim()) {
