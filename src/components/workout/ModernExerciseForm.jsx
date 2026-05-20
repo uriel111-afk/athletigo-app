@@ -7,7 +7,7 @@ import {
   Plus, Minus, Dumbbell, Clock, Repeat, Layers, Activity, Zap,
   Trash2, Timer, Weight, Hash, Info, Video, Check, X,
   PauseCircle, User, GripVertical,
-  Footprints, Maximize2, ArrowLeftRight, ChevronDown
+  Footprints, Maximize2, ArrowLeftRight, Copy
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -714,7 +714,6 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
     SUB_PARAMS.forEach((p) => { if (hasVal(subEx[getDbField(p.id)])) s.add(p.id); });
     return s;
   });
-  const [expanded, setExpanded] = useState(!subEx?.exercise_name);
 
   const update = (field, val) => onChange(index, { ...subEx, [field]: val });
 
@@ -733,114 +732,112 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
     if (editingParam === pid) setEditingParam(null);
   };
 
-  const confirmedChips = [...confirmed]
-    .map((pid) => getDisplay(pid, subEx[getDbField(pid)]))
-    .filter(Boolean);
-
   const editDef = editingParam ? SUB_PARAMS.find((p) => p.id === editingParam) : null;
 
+  // Always-editable row — no expand/collapse toggle. The name input and
+  // the 4-col param grid render unconditionally so list/tabata builders
+  // never need an "ערוך" tap to start editing.
+  const iconBtnStyle = {
+    width: 32, height: 32,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    flexShrink: 0,
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50/50" onClick={() => setExpanded(!expanded)}>
-        <span className="w-7 h-7 rounded-full bg-[#FF6F20] text-white text-[11px] font-black flex items-center justify-center flex-shrink-0">
-          {index + 1}
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-bold text-gray-900 truncate">{subEx.exercise_name || "תת-תרגיל חדש"}</div>
-          {!expanded && confirmedChips.length > 0 && (
-            <div className="text-[10px] text-gray-400 truncate mt-0.5">{confirmedChips.join(" · ")}</div>
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
+      <div className="px-3 py-3 space-y-3">
+        {/* Top row: index + name input (always editable) + שכפל + מחק */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 36 }}>
+          <span className="w-7 h-7 rounded-full bg-[#FF6F20] text-white text-[11px] font-black flex items-center justify-center flex-shrink-0">
+            {index + 1}
+          </span>
+          <input
+            value={subEx.exercise_name || ""}
+            onChange={(e) => update("exercise_name", e.target.value)}
+            placeholder="שם תת-התרגיל"
+            autoFocus={!subEx.exercise_name}
+            className="flex-1 h-9 text-sm font-bold border-b-2 border-gray-100 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1"
+          />
+          {onDuplicate && (
+            <button type="button" onClick={() => onDuplicate(index)} title="שכפל" aria-label="שכפל"
+              style={{ ...iconBtnStyle, color: '#6b7280' }}>
+              <Copy size={16} />
+            </button>
           )}
-        </div>
-        {onDuplicate && (
-          <button onClick={(e) => { e.stopPropagation(); onDuplicate(index); }}
-            title="שכפל"
-            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 flex-shrink-0 text-sm leading-none">
-            📋
+          <button type="button" onClick={() => onRemove(index)} title="מחק" aria-label="מחק"
+            style={{ ...iconBtnStyle, color: '#dc2626' }}>
+            <Trash2 size={16} />
           </button>
-        )}
-        <button onClick={(e) => { e.stopPropagation(); onRemove(index); }}
-          className="p-1.5 text-red-300 hover:text-red-500 rounded-lg hover:bg-red-50 flex-shrink-0">
-          <Trash2 size={14} />
-        </button>
-        <ChevronDown size={14} className={`text-gray-300 transition-transform flex-shrink-0 ${expanded ? "rotate-180" : ""}`} />
-      </div>
+        </div>
 
-      {/* Body */}
-      {expanded && (
-        <div className="border-t border-gray-100 px-3 py-3 space-y-3">
-          <input value={subEx.exercise_name || ""} onChange={(e) => update("exercise_name", e.target.value)}
-            placeholder="שם תת-התרגיל" autoFocus={!subEx.exercise_name}
-            className="w-full h-9 text-sm font-bold border-b-2 border-gray-100 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1" />
+        {/* Param grid — same 4-col layout as the main params row so the
+            form looks identical between a top-level exercise and a
+            nested sub-exercise inside a container (tabata / list). */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8,
+        }}>
+          {SUB_PARAMS.map((p) => {
+            const isConf = confirmed.has(p.id);
+            const isEdit = editingParam === p.id;
+            const Icon = p.icon;
+            const field = getDbField(p.id);
+            return (
+              <button key={p.id} type="button"
+                onClick={() => {
+                  // Toggle: tapping the open tab closes it; tapping
+                  // a closed tab opens it (and seeds a default when
+                  // the field is unset).
+                  if (isEdit) {
+                    setEditingParam(null);
+                    return;
+                  }
+                  setEditingParam(p.id);
+                  if (!isConf && !hasVal(subEx[field]) && p.defaultValue && p.defaultValue !== "_container") {
+                    update(field, String(p.defaultValue));
+                  }
+                }}
+                className={`flex flex-col items-center gap-0.5 p-1 rounded-lg border h-[36px] transition-all text-[8px] font-bold leading-tight
+                  ${isConf ? "border-green-200 bg-green-50 text-green-700" :
+                    isEdit ? "border-[#FF6F20] bg-orange-50 text-[#FF6F20]" :
+                    "border-gray-100 bg-gray-50/50 text-gray-400"}`}>
+                {isConf ? <Check size={8} strokeWidth={3} className="text-green-500" /> : <Icon size={8} />}
+                <span className="truncate w-full text-center">{isConf ? getDisplay(p.id, subEx[field]).slice(0, 8) : p.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
-          {/* Sub-exercise param grid — same 4-col layout as the main
-              params row above so the form looks the same regardless of
-              whether the user is editing a top-level exercise or a
-              nested sub-exercise inside a container (tabata /
-              exercise_list). marginBottom matches the main grid (16)
-              so the rhythm is uniform across every entry point. */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 8,
-            marginBottom: 16,
-          }}>
-            {SUB_PARAMS.map((p) => {
-              const isConf = confirmed.has(p.id);
-              const isEdit = editingParam === p.id;
-              const Icon = p.icon;
-              const field = getDbField(p.id);
-              return (
-                <button key={p.id} type="button"
-                  onClick={() => {
-                    // Toggle: tapping the open tab closes it; tapping
-                    // a closed tab opens it (and seeds a default when
-                    // the field is unset). No "first tap is a no-op"
-                    // path — every tap flips visibility.
-                    if (isEdit) {
-                      setEditingParam(null);
-                      return;
-                    }
-                    setEditingParam(p.id);
-                    if (!isConf && !hasVal(subEx[field]) && p.defaultValue && p.defaultValue !== "_container") {
-                      update(field, String(p.defaultValue));
-                    }
-                  }}
-                  className={`flex flex-col items-center gap-0.5 p-1 rounded-lg border h-[36px] transition-all text-[8px] font-bold leading-tight
-                    ${isConf ? "border-green-200 bg-green-50 text-green-700" :
-                      isEdit ? "border-[#FF6F20] bg-orange-50 text-[#FF6F20]" :
-                      "border-gray-100 bg-gray-50/50 text-gray-400"}`}>
-                  {isConf ? <Check size={8} strokeWidth={3} className="text-green-500" /> : <Icon size={8} />}
-                  <span className="truncate w-full text-center">{isConf ? getDisplay(p.id, subEx[field]).slice(0, 8) : p.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Active input */}
-          {editDef && (
-            <div className="bg-orange-50/50 border border-[#FF6F20]/20 rounded-xl p-2.5">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <editDef.icon size={12} className="text-[#FF6F20]" />
-                  <span className="text-[11px] font-bold text-gray-700">{editDef.label}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => handleRemoveParam(editingParam)} className="p-1 text-red-400 hover:text-red-600 rounded"><X size={12} /></button>
-                  <button type="button" onClick={handleConfirm}
-                    className="w-7 h-7 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm active:scale-95">
-                    <Check size={12} strokeWidth={3} />
-                  </button>
-                </div>
+        {/* Active input — appears below the grid when a param is tapped */}
+        {editDef && (
+          <div className="bg-orange-50/50 border border-[#FF6F20]/20 rounded-xl p-2.5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <editDef.icon size={12} className="text-[#FF6F20]" />
+                <span className="text-[11px] font-bold text-gray-700">{editDef.label}</span>
               </div>
-              <div style={{ overflow: 'visible' }}>
-                <ParamInputRenderer paramId={editingParam} value={subEx[getDbField(editingParam)]}
-                  onChange={(v) => update(getDbField(editingParam), v)} getOptions={getOptions} onAddCustom={onAddCustom} />
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => handleRemoveParam(editingParam)} className="p-1 text-red-400 hover:text-red-600 rounded"><X size={12} /></button>
+                <button type="button" onClick={handleConfirm}
+                  className="w-7 h-7 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm active:scale-95">
+                  <Check size={12} strokeWidth={3} />
+                </button>
               </div>
             </div>
-          )}
-        </div>
-      )}
+            <div style={{ overflow: 'visible' }}>
+              <ParamInputRenderer paramId={editingParam} value={subEx[getDbField(editingParam)]}
+                onChange={(v) => update(getDbField(editingParam), v)} getOptions={getOptions} onAddCustom={onAddCustom} />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
