@@ -341,6 +341,17 @@ export default function PlanBuilder() {
     const description = difficulty
       ? `[קושי: ${difficulty}]${baseNotes ? '\n' + baseNotes : ''}`
       : (baseNotes || null);
+    // Merge sub-exercise list into tabata_data so the display path
+    // (ExerciseCard.getSubExercises, which checks tabata_data BEFORE
+    // children) shows the latest array after a PlanBuilder save.
+    // Writes to both columns keep the two surfaces in sync.
+    const subExArr = Array.isArray(exerciseData.params["רשימת תרגילים"])
+      ? exerciseData.params["רשימת תרגילים"]
+      : null;
+    const baseTabataData = serializeTabata(exerciseData.params["טבטה"]);
+    const tabataDataFinal = (subExArr && subExArr.length > 0)
+      ? { ...(baseTabataData || {}), sub_exercises: subExArr }
+      : baseTabataData;
     const payload = {
       training_section_id: sec.id,
       training_plan_id: planId,
@@ -364,7 +375,7 @@ export default function PlanBuilder() {
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
       video_url: exerciseData.params["וידאו"] || null,
-      tabata_data: serializeTabata(exerciseData.params["טבטה"]),
+      tabata_data: tabataDataFinal,
       tabata_preview: tabataPreview(exerciseData.params["טבטה"]),
       children: exerciseData.params["רשימת תרגילים"] || null,
       "order": (sec.exercises || []).length,
@@ -397,6 +408,18 @@ export default function PlanBuilder() {
     const description = difficulty
       ? `[קושי: ${difficulty}]${baseNotes ? '\n' + baseNotes : ''}`
       : (baseNotes || null);
+    // Merge sub-exercise list into tabata_data so the display path
+    // (ExerciseCard.getSubExercises, which checks tabata_data BEFORE
+    // children) shows the latest array after a PlanBuilder save.
+    // Carries forward any existing tabata_data fields the coach is
+    // not editing here (clock_settings, container_type, etc.).
+    const subExArr = Array.isArray(exerciseData.params["רשימת תרגילים"])
+      ? exerciseData.params["רשימת תרגילים"]
+      : null;
+    const baseTabataData = serializeTabata(exerciseData.params["טבטה"]);
+    const tabataDataFinal = (subExArr && subExArr.length > 0)
+      ? { ...(baseTabataData || parseTabata(ex?.tabata_data) || {}), sub_exercises: subExArr }
+      : baseTabataData;
     const payload = {
       exercise_name: exerciseData.name,
       name: exerciseData.name,
@@ -418,7 +441,7 @@ export default function PlanBuilder() {
       range_of_motion: exerciseData.params["טווח תנועה"] || null,
       grip: exerciseData.params["אחיזה"] || null,
       video_url: exerciseData.params["וידאו"] || null,
-      tabata_data: serializeTabata(exerciseData.params["טבטה"]),
+      tabata_data: tabataDataFinal,
       tabata_preview: tabataPreview(exerciseData.params["טבטה"]),
       children: exerciseData.params["רשימת תרגילים"] || null,
     };
@@ -527,6 +550,16 @@ export default function PlanBuilder() {
         try { const parsed = JSON.parse(val); if (Array.isArray(parsed)) val = parsed; } catch {}
       }
       p["רשימת תרגילים"] = val;
+    }
+    // Fallback for plans created via UnifiedPlanBuilder/ModernExerciseForm —
+    // sub-exercises live in tabata_data.sub_exercises, NOT in the top-level
+    // `children` column that PlanBuilder's legacy writer uses. Mirrors the
+    // walk order ExerciseCard.getSubExercises uses for the display path.
+    if (!Array.isArray(p["רשימת תרגילים"]) || p["רשימת תרגילים"].length === 0) {
+      const td = parseTabata(ex.tabata_data);
+      if (td && Array.isArray(td.sub_exercises) && td.sub_exercises.length > 0) {
+        p["רשימת תרגילים"] = td.sub_exercises;
+      }
     }
     return p;
   };
@@ -961,41 +994,6 @@ function ExerciseEditor({ data, onSave, onClose }) {
 
         {/* Scrollable middle */}
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0, padding: "12px 16px" }}>
-
-          {/* TEMP DIAG — orange banner reporting the shape of the
-              "רשימת תרגילים" value that reaches the form. Visible
-              to the user without DevTools so we can locate the bug
-              after the previous exerciseToParams JSON-parse fix. */}
-          {params['רשימת תרגילים'] !== undefined && (
-            <div style={{
-              background: '#FFF4E6',
-              border: '2px solid #FF6F20',
-              padding: 8,
-              fontSize: 11,
-              fontFamily: 'monospace',
-              wordBreak: 'break-all',
-              marginBottom: 8,
-              borderRadius: 6,
-              direction: 'ltr',
-              textAlign: 'left',
-            }}>
-              DEBUG type:{typeof params['רשימת תרגילים']}
-              {' '}isArray:{String(Array.isArray(params['רשימת תרגילים']))}
-              {' '}length:{Array.isArray(params['רשימת תרגילים'])
-                ? params['רשימת תרגילים'].length
-                : (typeof params['רשימת תרגילים'] === 'string'
-                    ? params['רשימת תרגילים'].length
-                    : 'n/a')}
-              {' '}preview:{(() => {
-                try {
-                  const v = params['רשימת תרגילים'];
-                  return JSON.stringify(v).slice(0, 200);
-                } catch {
-                  return 'unparseable';
-                }
-              })()}
-            </div>
-          )}
 
           {/* Name — compact */}
           <input
