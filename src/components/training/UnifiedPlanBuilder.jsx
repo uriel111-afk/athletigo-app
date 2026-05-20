@@ -516,6 +516,68 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     loadActiveExecution();
   }, [plan?.id, canEdit, plan?.assigned_to, plan?.created_by]);
 
+  // ── Session-resume (UI state) ───────────────────────────────────────
+  // Persist which exercise is expanded, header collapse, and scroll
+  // position to sessionStorage so a screen-off / app-background restores
+  // the trainee to the same spot. Per-set values are already covered by
+  // exercise_set_logs autosave above — this only handles the UI shell.
+  // Keyed by currentExecutionId so concurrent plans don't collide.
+  // Coach view (canEdit=true) skips this entirely.
+  const uiRestoredRef = useRef(false);
+  // Restore once per execution, after exercises have rendered so the
+  // body has the layout dimensions needed for window.scrollTo to land
+  // on the right pixel.
+  useEffect(() => {
+    if (canEdit || !currentExecutionId || uiRestoredRef.current) return undefined;
+    if (!Array.isArray(exercises) || exercises.length === 0) return undefined;
+    uiRestoredRef.current = true;
+    try {
+      const raw = sessionStorage.getItem(`workout-ui-${currentExecutionId}`);
+      if (!raw) return undefined;
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object') return undefined;
+      if (data.expandedExerciseId !== undefined) setExpandedExerciseId(data.expandedExerciseId);
+      if (typeof data.headerCollapsed === 'boolean') setHeaderCollapsed(data.headerCollapsed);
+      if (typeof data.scrollY === 'number' && data.scrollY > 0) {
+        // Two-RAF wait — gives React + the browser a tick to paint the
+        // expanded card before we scroll to the saved offset.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          window.scrollTo(0, data.scrollY);
+        }));
+      }
+    } catch (e) {
+      console.warn('[UPB] session restore failed:', e?.message);
+    }
+    return undefined;
+  }, [canEdit, currentExecutionId, exercises]);
+
+  // Persist on every UI-state change (throttled) and on backgrounding.
+  // scrollY is captured at write time via window.scrollY — the
+  // visibilitychange / pagehide listeners fire a fresh snapshot at the
+  // moment the user actually leaves, which is what matters most.
+  useEffect(() => {
+    if (canEdit || !currentExecutionId) return undefined;
+    const key = `workout-ui-${currentExecutionId}`;
+    const snapshot = () => {
+      try {
+        sessionStorage.setItem(key, JSON.stringify({
+          expandedExerciseId,
+          headerCollapsed,
+          scrollY: typeof window !== 'undefined' ? window.scrollY : 0,
+        }));
+      } catch {}
+    };
+    const t = setTimeout(snapshot, 300);
+    const onVis = () => { if (document.visibilityState === 'hidden') snapshot(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', snapshot);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', snapshot);
+    };
+  }, [canEdit, currentExecutionId, expandedExerciseId, headerCollapsed]);
+
   // Refetch when the parent profile's tab changes — TraineeProfile
   // dispatches 'tab-changed' on every activeTab flip so users coming
   // back to the plans tab see fresh data instead of cached state.
@@ -855,6 +917,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   };
 
   const showWorkoutSummary = (currentExercisesList, ratingsMap) => {
+    // Workout is finishing — drop the session-resume snapshot so the
+    // trainee's NEXT workout doesn't land scrolled into the middle of
+    // this one. Best-effort: a missing sessionStorage entry is harmless.
+    try {
+      if (currentExecutionId) {
+        sessionStorage.removeItem(`workout-ui-${currentExecutionId}`);
+      }
+    } catch {}
     const completed = currentExercisesList.filter((e) => e.completed);
     const totalExercises = completed.length;
 
