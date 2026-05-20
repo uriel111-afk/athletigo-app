@@ -923,11 +923,16 @@ export default function ExerciseCard({
           }}>▼</span>
         </div>
 
-        {/* Open body — tabata gets the 5-box layout + sub-exercises;
-            every other variant gets the standard param list rows.
-            buildParamItems still drives the non-tabata path so the
-            data + ordering remain untouched. */}
-        {expanded && (variant === 'tabata' || variant === 'list') && (() => {
+        {/* Open body — tabata-only summary tiles (5-box clock layout
+            + the numbered drill list used by both coach and trainee
+            tabata views). List variant USED to share this block, but
+            it now has its own mini-card layout inside the wrapped
+            expanded body further down (variant === 'list' branches at
+            ~1977 and ~2070). Sharing the block doubled the rendering
+            for list variants — the legacy numbered-circle list above
+            the new mini-cards. Restricting the gate to tabata gives
+            list variants exactly one render path. */}
+        {expanded && variant === 'tabata' && (() => {
           const cs = td?.clock_settings || null;
           const work = toSeconds(cs?.work_seconds ?? td?.work_time ?? exercise.work_time);
           const rest = toSeconds(cs?.rest_seconds ?? td?.rest_time ?? exercise.rest_time);
