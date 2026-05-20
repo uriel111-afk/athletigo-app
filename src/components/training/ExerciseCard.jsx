@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, Copy, Trash2 } from "lucide-react";
+import { MoreHorizontal, Copy, Trash2, Edit2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
@@ -775,11 +775,11 @@ export default function ExerciseCard({
         overflow: 'hidden',
         direction: 'rtl',
       }}>
-        {/* Header band — always shown; tapping toggles expand. Two-row
-            layout so the exercise name has the full row width on Row 1
-            and never collapses to one-letter-per-line. Row 2 clusters
-            the secondary controls (status pill, edit, 3-dot menu,
-            chevron) so they don't compete with the name for space. */}
+        {/* Header band — single row, flex space-between. Right cluster
+            (RTL = visual right): 30×30 orange index square + 18px
+            Barlow-700 title that wraps if long. Left cluster: 10×10
+            colored status dot + 3-dot menu (now hosting ערוך) +
+            chevron. Tap toggles expand. */}
         <div
           onClick={() => setExpanded(v => !v)}
           role="button"
@@ -793,51 +793,46 @@ export default function ExerciseCard({
           }}
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            padding: '12px 16px',
-            // Darker cream band only when the card is open — it
-            // marks the row as the active title for the body below.
-            // Closed cards inherit the wrapper's white surface.
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '14px 16px',
             background: expanded ? '#F0E9D6' : 'transparent',
             cursor: 'pointer',
             userSelect: 'none',
           }}
         >
-          {/* ── Row 1: index square + exercise name (full row width) ── */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            {/* Orange index square — small numeric badge anchoring this
-                exercise in the section. Hidden when exerciseIndex prop
-                wasn't passed (defensive fallback). */}
+          {/* ── Right cluster: index + title (+ closed-state pills) ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
             {exerciseIndex != null && (
               <span style={{
-                width: 24, height: 24,
+                width: 30, height: 30,
                 background: '#FF6F20',
                 color: '#FFFFFF',
-                borderRadius: 4,
+                borderRadius: 6,
                 fontFamily: NUM_FONT,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: 700,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                marginTop: 1,
                 lineHeight: 1,
               }} aria-hidden>{exerciseIndex}</span>
             )}
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: 15,
-                fontWeight: 500,
+                fontSize: 18,
+                fontWeight: 700,
                 color: completed ? '#aaa' : '#1a1a1a',
                 textDecoration: completed ? 'line-through' : 'none',
                 fontFamily: SANS_FONT,
                 lineHeight: 1.3,
                 wordBreak: 'break-word',
               }}>{name}</div>
-              {/* Closed-state summary pills — hidden when open. */}
+              {/* Closed-state summary pills — hidden when open. Live
+                  under the title within the right cluster. */}
               {!expanded && closedPills.length > 0 && (
                 <div style={{
                   display: 'flex',
@@ -862,220 +857,160 @@ export default function ExerciseCard({
             </div>
           </div>
 
-          {/* ── Row 2: secondary controls (status / edit / menu / chevron) ── */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 6,
-          }}>
-          {/* Derived status pill — replaces the old empty ○. Read-only
-              indicator for BOTH coach and trainee. State is derived
-              from setLog (per-set done flags) for normal/list variants,
-              and from exercise.completed for tabata (no per-set tracking).
-              The trainee's set-fill UI in the open body is what
-              changes the state; the coach sees the same pill but no
-              fill inputs. */}
-          {(() => {
-            // Display-mode sections skip the derived-completion pill
-            // because there are no per-set toggles for it to read from.
-            // A neutral "תצוגה" badge sits in the same slot so the
-            // header layout stays identical.
-            if (sectionTrackingMode === 'display') {
-              return (
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '3px 8px',
-                  borderRadius: 999,
-                  background: '#F1F2F4',
-                  border: '1px solid #DFE2E6',
-                  color: '#6b7280',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  marginTop: 1,
-                  fontFamily: SANS_FONT,
-                }} aria-label="תצוגה">
-                  <span style={{
-                    width: 7, height: 7, borderRadius: '50%',
-                    background: '#9ca3af', flexShrink: 0,
+          {/* ── Left cluster: status dot + 3-dot menu + chevron ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            {/* Status dot — 10×10 colored circle. Color by computed
+                status (display-mode → neutral, otherwise none/partial/
+                done → gray/orange/green). aria-label carries the Hebrew
+                status text for screen readers; no tap target. */}
+            {(() => {
+              if (sectionTrackingMode === 'display') {
+                return (
+                  <span aria-label="תצוגה" style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: '#9CA3AF', flexShrink: 0,
                     display: 'inline-block',
-                  }} aria-hidden />
-                  תצוגה
-                </span>
-              );
-            }
-            // Unified derived status — for EVERY variant (including
-            // tabata) status is computed from setLog toggles now that
-            // tabata has a simple ✓-סטים row of its own. No more
-            // exercise.completed fallback for tabata.
-            const doneCount = (() => {
-              let n = 0;
-              for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
-              return n;
-            })();
-            const kind = doneCount === 0
-              ? 'none'
-              : doneCount >= totalSets ? 'done' : 'partial';
-            const cfg = ({
-              none:    { dot: 'transparent', dotBorder: '1px solid #ccc',   text: 'לא בוצע', color: '#888',    bg: '#F7F3EA', borderC: '#E8DEC4' },
-              partial: { dot: '#E0A030',     dotBorder: 'none',             text: 'חלקי',     color: '#b8821f', bg: '#FFF6E6', borderC: '#F0D9A8' },
-              done:    { dot: '#4CAF50',     dotBorder: 'none',             text: 'הושלם',    color: '#2e7d32', bg: '#EAF7EA', borderC: '#BFE0BF' },
-            })[kind];
-            return (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '3px 8px',
-                borderRadius: 999,
-                background: cfg.bg,
-                border: `1px solid ${cfg.borderC}`,
-                color: cfg.color,
-                fontSize: 11,
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                marginTop: 1,
-                fontFamily: SANS_FONT,
-              }} aria-label={cfg.text}>
-                <span style={{
-                  width: 7, height: 7, borderRadius: '50%',
-                  background: cfg.dot, border: cfg.dotBorder, flexShrink: 0,
+                  }} />
+                );
+              }
+              const doneCount = (() => {
+                let n = 0;
+                for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
+                return n;
+              })();
+              const kind = doneCount === 0
+                ? 'none'
+                : doneCount >= totalSets ? 'done' : 'partial';
+              const cfg = ({
+                none:    { color: '#9CA3AF', label: 'לא בוצע' },
+                partial: { color: '#FF6F20', label: 'בוצע חלקית' },
+                done:    { color: '#16A34A', label: 'הושלם' },
+              })[kind];
+              return (
+                <span aria-label={cfg.label} style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: cfg.color, flexShrink: 0,
                   display: 'inline-block',
-                }} aria-hidden />
-                {cfg.text}
-              </span>
-            );
-          })()}
+                }} />
+              );
+            })()}
 
-          {/* Coach "ערוך" — forwards to the existing onEdit prop, opens
-              ModernExerciseForm via UnifiedPlanBuilder. */}
-          {isCoachMode && onEdit && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onEdit(exercise); }}
-              aria-label="ערוך תרגיל"
-              style={{
-                background: '#FFF5EE',
-                border: '1px solid #FFE5D0',
-                color: '#FF6F20',
-                fontSize: 11,
-                fontWeight: 700,
-                padding: '3px 10px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                flexShrink: 0,
-                marginTop: 1,
-                fontFamily: SANS_FONT,
-              }}
-            >ערוך</button>
-          )}
-
-          {/* Coach 3-dot menu — שכפל / מחק. Same styling as the sub-
-              exercise menu in ModernExerciseForm so the two surfaces
-              read as one pattern. Trigger renders only when at least
-              one of the two handlers is wired. */}
-          {isCoachMode && (onDuplicate || onDelete) && (
-            <div ref={actionsMenuRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setActionsMenuOpen((v) => !v); }}
-                aria-label="פעולות"
-                aria-expanded={actionsMenuOpen}
-                title="פעולות"
-                style={{
-                  width: 28, height: 22,
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#6b7280',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                }}
-              >
-                <MoreHorizontal size={16} />
-              </button>
-              {actionsMenuOpen && (
-                <div
-                  role="menu"
-                  onClick={(e) => e.stopPropagation()}
+            {/* Coach 3-dot menu — ערוך + שכפל + מחק. Trigger renders
+                when any of the three handlers is wired. */}
+            {isCoachMode && (onEdit || onDuplicate || onDelete) && (
+              <div ref={actionsMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActionsMenuOpen((v) => !v); }}
+                  aria-label="פעולות"
+                  aria-expanded={actionsMenuOpen}
+                  title="פעולות"
                   style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 4px)',
-                    right: 0,
-                    zIndex: 50,
-                    background: '#FFFFFF',
-                    border: '1px solid #E8DEC4',
-                    borderRadius: 12,
-                    boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-                    padding: 8,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    minWidth: 140,
-                    direction: 'rtl',
-                    fontFamily: SANS_FONT,
+                    width: 24, height: 24,
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#6b7280',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
                   }}
                 >
-                  {onDuplicate && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onDuplicate(exercise); }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        width: '100%', padding: '8px 10px',
-                        background: '#FCFBF7', border: '1px solid #EFE9D8',
-                        borderRadius: 8, cursor: 'pointer',
-                        fontSize: 13, fontWeight: 600, color: '#1a1a1a',
-                        textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
-                      }}
-                    >
-                      <Copy size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
-                      <span>שכפל</span>
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActionsMenuOpen(false);
-                        if (window.confirm('למחוק תרגיל זה?')) onDelete(exercise);
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        width: '100%', padding: '8px 10px',
-                        background: '#FCEBEB', border: '1px solid #F5C9C9',
-                        borderRadius: 8, cursor: 'pointer',
-                        fontSize: 13, fontWeight: 600, color: '#a32d2d',
-                        textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
-                      }}
-                    >
-                      <Trash2 size={14} style={{ color: '#a32d2d', flexShrink: 0 }} />
-                      <span>מחק</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                  <MoreHorizontal size={18} />
+                </button>
+                {actionsMenuOpen && (
+                  <div
+                    role="menu"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 4px)',
+                      right: 0,
+                      zIndex: 50,
+                      background: '#FFFFFF',
+                      border: '1px solid #E8DEC4',
+                      borderRadius: 12,
+                      boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                      padding: 8,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      minWidth: 140,
+                      direction: 'rtl',
+                      fontFamily: SANS_FONT,
+                    }}
+                  >
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onEdit(exercise); }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          width: '100%', padding: '8px 10px',
+                          background: '#FCFBF7', border: '1px solid #EFE9D8',
+                          borderRadius: 8, cursor: 'pointer',
+                          fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                          textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                        }}
+                      >
+                        <Edit2 size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
+                        <span>ערוך</span>
+                      </button>
+                    )}
+                    {onDuplicate && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onDuplicate(exercise); }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          width: '100%', padding: '8px 10px',
+                          background: '#FCFBF7', border: '1px solid #EFE9D8',
+                          borderRadius: 8, cursor: 'pointer',
+                          fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                          textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                        }}
+                      >
+                        <Copy size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
+                        <span>שכפל</span>
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActionsMenuOpen(false);
+                          if (window.confirm('למחוק תרגיל זה?')) onDelete(exercise);
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          width: '100%', padding: '8px 10px',
+                          background: '#FCEBEB', border: '1px solid #F5C9C9',
+                          borderRadius: 8, cursor: 'pointer',
+                          fontSize: 13, fontWeight: 600, color: '#a32d2d',
+                          textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                        }}
+                      >
+                        <Trash2 size={14} style={{ color: '#a32d2d', flexShrink: 0 }} />
+                        <span>מחק</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-          <span aria-hidden style={{
-            color: '#C9A24A',
-            fontSize: 13,
-            lineHeight: 1,
-            transition: 'transform 0.2s',
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            flexShrink: 0,
-          }}>▼</span>
+            {/* Chevron — rotates 180° when expanded. */}
+            <span aria-hidden style={{
+              color: '#C9A24A',
+              fontSize: 14,
+              lineHeight: 1,
+              transition: 'transform 0.2s',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              flexShrink: 0,
+            }}>▼</span>
           </div>
-          {/* ── End Row 2 ── */}
         </div>
 
         {/* Open body — tabata-only summary tiles (5-box clock layout
