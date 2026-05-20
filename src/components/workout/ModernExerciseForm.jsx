@@ -7,7 +7,7 @@ import {
   Plus, Minus, Dumbbell, Clock, Repeat, Layers, Activity, Zap,
   Trash2, Timer, Weight, Hash, Info, Video, Check, X,
   PauseCircle, User, GripVertical,
-  Footprints, Maximize2, ArrowLeftRight, Copy
+  Footprints, Maximize2, ArrowLeftRight, Copy, MoreHorizontal
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -714,6 +714,24 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
     SUB_PARAMS.forEach((p) => { if (hasVal(subEx[getDbField(p.id)])) s.add(p.id); });
     return s;
   });
+  // Popover for the row's actions (שכפל / מחק). Closes on item tap,
+  // on outside tap, or on a tap of the trigger when already open.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [menuOpen]);
 
   const update = (field, val) => onChange(index, { ...subEx, [field]: val });
 
@@ -752,7 +770,7 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
       <div className="px-3 py-3 space-y-3">
-        {/* Top row: index + name input (always editable) + שכפל + מחק */}
+        {/* Top row: index + name input + 3-dot actions menu */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 36 }}>
           <span className="w-7 h-7 rounded-full bg-[#FF6F20] text-white text-[11px] font-black flex items-center justify-center flex-shrink-0">
             {index + 1}
@@ -764,16 +782,67 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
             autoFocus={!subEx.exercise_name}
             className="flex-1 h-9 text-sm font-bold border-b-2 border-gray-100 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1"
           />
-          {onDuplicate && (
-            <button type="button" onClick={() => onDuplicate(index)} title="שכפל" aria-label="שכפל"
+          <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button type="button" onClick={() => setMenuOpen((v) => !v)}
+              title="פעולות" aria-label="פעולות" aria-expanded={menuOpen}
               style={{ ...iconBtnStyle, color: '#6b7280' }}>
-              <Copy size={16} />
+              <MoreHorizontal size={18} />
             </button>
-          )}
-          <button type="button" onClick={() => onRemove(index)} title="מחק" aria-label="מחק"
-            style={{ ...iconBtnStyle, color: '#dc2626' }}>
-            <Trash2 size={16} />
-          </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  right: 0,
+                  zIndex: 50,
+                  background: '#FFFFFF',
+                  border: '1px solid #E8DEC4',
+                  borderRadius: 12,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                  padding: 8,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  minWidth: 140,
+                  direction: 'rtl',
+                  fontFamily: "'Barlow', system-ui, sans-serif",
+                }}
+              >
+                {onDuplicate && (
+                  <button type="button"
+                    onClick={() => { setMenuOpen(false); onDuplicate(index); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '8px 10px',
+                      background: '#FCFBF7', border: '1px solid #EFE9D8',
+                      borderRadius: 8, cursor: 'pointer',
+                      fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                      textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                    }}
+                  >
+                    <Copy size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
+                    <span>שכפל</span>
+                  </button>
+                )}
+                <button type="button"
+                  onClick={() => { setMenuOpen(false); onRemove(index); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '8px 10px',
+                    background: '#FCEBEB', border: '1px solid #F5C9C9',
+                    borderRadius: 8, cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600, color: '#a32d2d',
+                    textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                  }}
+                >
+                  <Trash2 size={14} style={{ color: '#a32d2d', flexShrink: 0 }} />
+                  <span>מחק</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Param grid — same 4-col layout as the main params row so the
