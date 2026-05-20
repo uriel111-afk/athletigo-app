@@ -515,7 +515,19 @@ export default function PlanBuilder() {
     if (ex.video_url) p["וידאו"] = ex.video_url;
     const tab = parseTabata(ex.tabata_data) || parseTabata(ex.tabata_config);
     if (tab) p["טבטה"] = tab;
-    if (ex.children) p["רשימת תרגילים"] = ex.children;
+    if (ex.children) {
+      // Supabase returns `children` either as a deserialised array
+      // (JSONB column) or as a JSON-text string (TEXT column / older
+      // entity-wrapper behavior). ListBuilder only knows array +
+      // newline-split string; feed it an array in either case so the
+      // editor renders the existing sub-exercises instead of the
+      // raw JSON blob splitting into one garbled "item".
+      let val = ex.children;
+      if (typeof val === 'string' && val.trim()) {
+        try { const parsed = JSON.parse(val); if (Array.isArray(parsed)) val = parsed; } catch {}
+      }
+      p["רשימת תרגילים"] = val;
+    }
     return p;
   };
 
