@@ -962,6 +962,41 @@ function ExerciseEditor({ data, onSave, onClose }) {
         {/* Scrollable middle */}
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0, padding: "12px 16px" }}>
 
+          {/* TEMP DIAG — orange banner reporting the shape of the
+              "רשימת תרגילים" value that reaches the form. Visible
+              to the user without DevTools so we can locate the bug
+              after the previous exerciseToParams JSON-parse fix. */}
+          {params['רשימת תרגילים'] !== undefined && (
+            <div style={{
+              background: '#FFF4E6',
+              border: '2px solid #FF6F20',
+              padding: 8,
+              fontSize: 11,
+              fontFamily: 'monospace',
+              wordBreak: 'break-all',
+              marginBottom: 8,
+              borderRadius: 6,
+              direction: 'ltr',
+              textAlign: 'left',
+            }}>
+              DEBUG type:{typeof params['רשימת תרגילים']}
+              {' '}isArray:{String(Array.isArray(params['רשימת תרגילים']))}
+              {' '}length:{Array.isArray(params['רשימת תרגילים'])
+                ? params['רשימת תרגילים'].length
+                : (typeof params['רשימת תרגילים'] === 'string'
+                    ? params['רשימת תרגילים'].length
+                    : 'n/a')}
+              {' '}preview:{(() => {
+                try {
+                  const v = params['רשימת תרגילים'];
+                  return JSON.stringify(v).slice(0, 200);
+                } catch {
+                  return 'unparseable';
+                }
+              })()}
+            </div>
+          )}
+
           {/* Name — compact */}
           <input
             value={name}
