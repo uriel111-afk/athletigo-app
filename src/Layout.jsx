@@ -12,6 +12,7 @@ import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import PWANotifications from "@/components/PWANotifications";
 import DataLoader from "@/components/DataLoader";
 import PageLoader from "@/components/PageLoader";
+import { useSmartBack } from "@/hooks/useSmartBack";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,6 +25,7 @@ import {
   TrendingUp,
   Menu,
   X,
+  ArrowRight,
   LogOut,
   DollarSign,
   FileText,
@@ -60,6 +62,13 @@ export default function Layout({ children, currentPageName }) {
   const queryClient = useQueryClient();
   const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const smartBack = useSmartBack();
+  // Smart-back hides on home pages (coach dashboard + trainee home);
+  // everywhere else the user sees a small ← (RTL right-pointing arrow)
+  // in the mobile header. Tap pops the topmost SmartBack handler if
+  // any (open exercise / expanded section), else falls through to
+  // navigate(-1).
+  const isHomeRoute = currentPageName === 'Dashboard' || currentPageName === 'TraineeHome';
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
   // Trainee permissions — only consumed for the bottom-nav trim.
   // The hook returns a friendly default when the row is missing,
@@ -416,24 +425,47 @@ export default function Layout({ children, currentPageName }) {
             direction: 'rtl',
           }}>
             <div className="flex items-center justify-between">
-              {/* Right (RTL start): hamburger menu — unified spec */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                style={{
-                  width: 40, height: 40,
-                  borderRadius: '50%',
-                  background: 'white',
-                  border: '1px solid #F0E4D0',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                  position: 'relative',
-                }}
-                aria-label="תפריט"
-              >
-                {mobileMenuOpen
-                  ? <X size={20} style={{ color: '#FF6F20' }} />
-                  : <Menu size={20} style={{ color: '#FF6F20' }} />}
-              </button>
+              {/* Right (RTL start): smart-back arrow + hamburger menu.
+                  In RTL the first DOM child is the visual rightmost,
+                  so the back arrow sits at the rightmost edge with
+                  the hamburger immediately to its left. The arrow is
+                  hidden on home routes (no point going "back" from
+                  the dashboard). */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {!isHomeRoute && (
+                  <button
+                    type="button"
+                    onClick={smartBack}
+                    aria-label="חזור"
+                    style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: 'transparent', border: 'none',
+                      color: '#1a1a1a', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: 0,
+                    }}
+                  >
+                    <ArrowRight size={20} />
+                  </button>
+                )}
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  style={{
+                    width: 40, height: 40,
+                    borderRadius: '50%',
+                    background: 'white',
+                    border: '1px solid #F0E4D0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer',
+                    position: 'relative',
+                  }}
+                  aria-label="תפריט"
+                >
+                  {mobileMenuOpen
+                    ? <X size={20} style={{ color: '#FF6F20' }} />
+                    : <Menu size={20} style={{ color: '#FF6F20' }} />}
+                </button>
+              </div>
 
               {/* Center: triangle + ATHLETIGO wordmark image as two
                   separate elements, laid out LTR so the triangle sits on

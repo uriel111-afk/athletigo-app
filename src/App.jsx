@@ -49,6 +49,7 @@ import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPopup from './components/NotificationPopup';
 import { supabase } from '@/lib/supabaseClient';
+import { SmartBackProvider } from '@/hooks/useSmartBack';
 
 console.log('[APP] App module loaded', new Date().toISOString());
 
@@ -501,17 +502,25 @@ function App() {
       <ClockProvider>
       <ActiveTimerProvider>
         <Router>
-          {/* AuthProvider is INSIDE Router so its routing useEffect can
-              call useNavigate() directly — no more pendingRedirect /
-              window.location.href bridges. */}
-          <AuthProvider>
-            <NavigationTracker />
-            <GlobalTabata />
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="*" element={<AuthenticatedApp />} />
-            </Routes>
-          </AuthProvider>
+          {/* SmartBackProvider lives just inside Router because its
+              triggerBack uses useNavigate. It exposes a stack-based
+              "close one layer, else navigate(-1)" callback the
+              header's back button drives, plus a useSmartBackHandler
+              hook for components to register transient close
+              actions (open exercise, expanded section, etc.). */}
+          <SmartBackProvider>
+            {/* AuthProvider is INSIDE Router so its routing useEffect can
+                call useNavigate() directly — no more pendingRedirect /
+                window.location.href bridges. */}
+            <AuthProvider>
+              <NavigationTracker />
+              <GlobalTabata />
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="*" element={<AuthenticatedApp />} />
+              </Routes>
+            </AuthProvider>
+          </SmartBackProvider>
         </Router>
         <Toaster />
         <LastSessionAlert />

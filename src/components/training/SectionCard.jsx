@@ -9,6 +9,7 @@ import { getSectionType } from "@/lib/sectionTypes";
 import { getSectionColor } from "@/lib/plansApi";
 import { useLongPress } from "@/lib/useLongPress";
 import { readSectionRating } from "@/lib/workoutExecutionApi";
+import { useSmartBackHandler } from "@/hooks/useSmartBack";
 
 export default function SectionCard({
   section,
@@ -41,6 +42,11 @@ export default function SectionCard({
   traineeProgressByExercise = {},
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
+  // Register the section's collapse as a smart-back close. Stack is
+  // LIFO so any open ExerciseCard inside this section pops first;
+  // only after the open exercise closes does another back press
+  // collapse the section.
+  useSmartBackHandler(expanded, () => setExpanded(false));
   const [renamingSection, setRenamingSection] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const longPressRename = useLongPress(() => {

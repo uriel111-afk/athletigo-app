@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
+import { useSmartBackHandler } from "@/hooks/useSmartBack";
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -448,6 +449,10 @@ export default function ExerciseCard({
   // a running timer.
   const activeTimer = useActiveTimer();
   const [expanded, setExpanded] = useState(false);
+  // Register a smart-back close: when this card is expanded, the
+  // header's back button collapses it first instead of navigating
+  // away from the page.
+  useSmartBackHandler(expanded, () => setExpanded(false));
   const [renaming, setRenaming] = useState(false);
 
   if (!exercise) return null;
