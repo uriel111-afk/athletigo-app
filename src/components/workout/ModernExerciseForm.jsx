@@ -1427,6 +1427,32 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   return (
     <div className="w-full" dir="rtl">
 
+      {/* TEMP DIAG — raw exercise shape arriving from the parent. */}
+      <div style={{
+        background: '#FFD580', padding: 6, fontSize: 10,
+        fontFamily: 'monospace', marginBottom: 4, borderRadius: 4,
+        direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
+      }}>
+        RAW exercise:
+        {' '}has_children={String(!!exercise?.children)}
+        {' '}children_type={typeof exercise?.children}
+        {' '}has_tabata_data={String(!!exercise?.tabata_data)}
+        {' '}tabata_data_type={typeof exercise?.tabata_data}
+        {' '}has_weight={String(!!exercise?.weight)}
+        {' '}weight={String(exercise?.weight)}
+      </div>
+
+      {/* TEMP DIAG — resolved state ModernExerciseForm derived from it. */}
+      <div style={{
+        background: '#FFE4B5', padding: 6, fontSize: 10,
+        fontFamily: 'monospace', marginBottom: 8, borderRadius: 4,
+        direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
+      }}>
+        SUBS resolved:
+        {' '}subExercises.length={subExercises?.length || 0}
+        {' '}confirmedParams={[...(confirmedParams || [])].join('|')}
+      </div>
+
       {/* ── Name with autocomplete (read-only renders static text) ─ */}
       {readOnly ? (
         <div style={{ padding: '0 4px 16px' }}>

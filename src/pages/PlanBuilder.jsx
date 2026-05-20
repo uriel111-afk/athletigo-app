@@ -663,23 +663,7 @@ export default function PlanBuilder() {
                   <SortableSectionBlock key={sec.id} section={sec} sectionIndex={si}
                     onDelete={() => deleteSection(si)}
                     onAddExercise={() => setEditingExercise({ sectionIndex: si, isNew: true, name: "", params: {} })}
-                    onEditExercise={(ei) => setEditingExercise({
-                      sectionIndex: si,
-                      exerciseIndex: ei,
-                      name: sec.exercises[ei]?.exercise_name || sec.exercises[ei]?.name || "",
-                      params: exerciseToParams(sec.exercises[ei]),
-                      // TEMP DIAG — snapshot of the raw DB row at edit
-                      // time so the on-screen banner can show what
-                      // exerciseToParams actually had to work with.
-                      _diag_raw: {
-                        has_children: !!sec.exercises[ei]?.children,
-                        children_type: typeof sec.exercises[ei]?.children,
-                        has_tabata_data: !!sec.exercises[ei]?.tabata_data,
-                        tabata_data_type: typeof sec.exercises[ei]?.tabata_data,
-                        has_weight: !!sec.exercises[ei]?.weight,
-                        weight_value: sec.exercises[ei]?.weight,
-                      },
-                    })}
+                    onEditExercise={(ei) => setEditingExercise({ sectionIndex: si, exerciseIndex: ei, name: sec.exercises[ei]?.exercise_name || sec.exercises[ei]?.name || "", params: exerciseToParams(sec.exercises[ei]) })}
                     onDeleteExercise={(ei) => deleteExercise(si, ei)}
                     expandedExerciseId={expandedExerciseId}
                     setExpandedExerciseId={setExpandedExerciseId} />
@@ -1010,40 +994,6 @@ function ExerciseEditor({ data, onSave, onClose }) {
 
         {/* Scrollable middle */}
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0, padding: "12px 16px" }}>
-
-          {/* TEMP DIAG — raw DB row snapshot captured at edit-tap time. */}
-          <div style={{
-            background: '#FFD580',
-            padding: 6,
-            fontSize: 10,
-            fontFamily: 'monospace',
-            marginBottom: 4,
-            borderRadius: 4,
-            direction: 'ltr',
-            textAlign: 'left',
-            wordBreak: 'break-all',
-          }}>
-            RAW: {JSON.stringify(data._diag_raw || {})}
-          </div>
-
-          {/* TEMP DIAG — what exerciseToParams actually produced. */}
-          <div style={{
-            background: '#FFE4B5',
-            padding: 6,
-            fontSize: 10,
-            fontFamily: 'monospace',
-            marginBottom: 8,
-            borderRadius: 4,
-            direction: 'ltr',
-            textAlign: 'left',
-            wordBreak: 'break-all',
-          }}>
-            DIAG:
-            {' '}data.params keys = {Object.keys(data.params || {}).join(' | ')}
-            {' | '}rt? = {data.params['רשימת תרגילים'] !== undefined ? 'YES' : 'NO'}
-            {' | '}rt.length = {Array.isArray(data.params['רשימת תרגילים']) ? data.params['רשימת תרגילים'].length : 'NOT_ARRAY'}
-            {' | '}weight? = {data.params['משקל (ק״ג)'] !== undefined ? 'YES' : 'NO'}
-          </div>
 
           {/* Name — compact */}
           <input
