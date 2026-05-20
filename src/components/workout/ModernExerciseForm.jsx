@@ -1445,12 +1445,35 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       {/* TEMP DIAG — resolved state ModernExerciseForm derived from it. */}
       <div style={{
         background: '#FFE4B5', padding: 6, fontSize: 10,
-        fontFamily: 'monospace', marginBottom: 8, borderRadius: 4,
+        fontFamily: 'monospace', marginBottom: 4, borderRadius: 4,
         direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
       }}>
         SUBS resolved:
         {' '}subExercises.length={subExercises?.length || 0}
         {' '}confirmedParams={[...(confirmedParams || [])].join('|')}
+      </div>
+
+      {/* TEMP DIAG — parsed shape of exercise.tabata_data so we can see
+          which key the sub-exercise array lives under (the prior banner
+          showed has_tabata_data=true but subExercises.length=0). */}
+      <div style={{
+        background: '#E8F0FF', padding: 6, fontSize: 10,
+        fontFamily: 'monospace', marginBottom: 8, borderRadius: 4,
+        direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
+        whiteSpace: 'pre-wrap',
+      }}>
+        PARSED tabata_data:
+        {' '}{(() => {
+          try {
+            const parsed = typeof exercise?.tabata_data === 'string'
+              ? JSON.parse(exercise.tabata_data)
+              : exercise?.tabata_data;
+            if (!parsed) return 'null';
+            return `keys=[${Object.keys(parsed).join(',')}] firstSample=${JSON.stringify(parsed).slice(0, 400)}`;
+          } catch (e) {
+            return `PARSE_ERROR: ${e.message}`;
+          }
+        })()}
       </div>
 
       {/* ── Name with autocomplete (read-only renders static text) ─ */}
