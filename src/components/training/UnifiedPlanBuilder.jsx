@@ -2078,26 +2078,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </div>
       </div>
 
-      {/* Sections shell — vertical-only padding so each section
-          extends edge-to-edge horizontally. The "+ הוסף סקשן חדש"
-          CTA below keeps its own 16px horizontal padding so it
-          doesn't touch the screen edge. */}
-      <div className="max-w-7xl mx-auto w-full" style={{ padding: canEdit ? '12px 0' : '0' }}>
+      <div className="max-w-7xl mx-auto w-full" style={{ padding: canEdit ? '12px 16px' : '8px' }}>
 
         {canEdit &&
-          <div style={{ padding: '0 16px' }}>
-            <div className="mb-4 md:mb-6 w-full flex gap-2">
-              <Button onClick={(e) => {
-                e.stopPropagation();
-                setEditingSection(null);
-                setShowSectionDialog(true);
-              }}
-              className="flex-1 sm:flex-none rounded-xl py-3 md:py-4 font-bold text-white text-sm md:text-base"
-              style={{ backgroundColor: '#FF6F20' }}>
-                <Plus className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
-                הוסף סקשן חדש
-              </Button>
-            </div>
+        <div className="mb-4 md:mb-6 w-full flex gap-2">
+            <Button onClick={(e) => {
+            e.stopPropagation();
+            setEditingSection(null);
+            setShowSectionDialog(true);
+          }}
+          className="flex-1 sm:flex-none rounded-xl py-3 md:py-4 font-bold text-white text-sm md:text-base"
+          style={{ backgroundColor: '#FF6F20' }}>
+              <Plus className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
+              הוסף סקשן חדש
+            </Button>
           </div>
         }
 

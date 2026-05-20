@@ -143,14 +143,9 @@ export default function SectionCard({
     return (
       <div style={{
         background: '#FCFBF7',
-        // Vertical borders only — the section is rendered edge-to-edge
-        // by its parent (UnifiedPlanBuilder dropped the horizontal
-        // padding around the sections list). The orange right rail
-        // sits flush against the screen edge; no rounded corners
-        // because they'd curve away from the viewport edge.
-        borderTop: '0.5px solid #E5DFC9',
-        borderBottom: '0.5px solid #E5DFC9',
+        border: '0.5px solid #E5DFC9',
         borderRight: `4px solid ${accentColor}`,
+        borderRadius: 10,
         overflow: 'hidden',
         marginBottom: 8,
         direction: 'rtl',
@@ -455,16 +450,8 @@ export default function SectionCard({
                   pointerEvents: 'none',
                 }} aria-hidden />
 
-                {/* Inner padded shell — keeps ExerciseCards + empty
-                    state + display-mode "סיימתי" button 16px in from
-                    the screen edge while the section's background and
-                    orange right rail extend all the way out. The
-                    "+ הוסף תרגיל לסקשן" CTA below this block stays
-                    OUTSIDE so its 1px dashed top-border can span the
-                    section's full width as a visual separator. */}
-                <div style={{ padding: '0 16px' }}>
                 {exercises.length === 0 ? (
-                  <div style={{ padding: '14px 0', color: '#a8895a', fontSize: 13 }}>
+                  <div style={{ padding: '14px 16px', color: '#a8895a', fontSize: 13 }}>
                     אין תרגילים בסקשן זה
                   </div>
                 ) : (
@@ -529,14 +516,8 @@ export default function SectionCard({
                     סיימתי את {section?.section_name || 'הסקשן'}
                   </button>
                 )}
-                </div>
-
                 {/* Coach: add-exercise affordance at the bottom of the
-                    expanded body. Reuses onAddExercise verbatim. Sits
-                    OUTSIDE the inner padded shell so its 1px dashed
-                    top-border spans the full section width as a
-                    separator; its own inner padding (16px right edge)
-                    keeps the text away from the screen edge. */}
+                    expanded body. Reuses onAddExercise verbatim. */}
                 {showEditButtons && onAddExercise && (
                   <button
                     type="button"
