@@ -831,7 +831,7 @@ export default function ExerciseCard({
                   fontFamily: SANS_FONT,
                 }} aria-label="תצוגה">
                   <span style={{
-                    width: 10, height: 10, borderRadius: '50%',
+                    width: 7, height: 7, borderRadius: '50%',
                     background: '#9ca3af', flexShrink: 0,
                     display: 'inline-block',
                   }} aria-hidden />
@@ -852,7 +852,7 @@ export default function ExerciseCard({
               ? 'none'
               : doneCount >= totalSets ? 'done' : 'partial';
             const cfg = ({
-              none:    { dot: 'transparent', dotBorder: '1.5px solid #ccc', text: 'לא בוצע', color: '#888',    bg: '#F7F3EA', borderC: '#E8DEC4' },
+              none:    { dot: 'transparent', dotBorder: '1px solid #ccc',   text: 'לא בוצע', color: '#888',    bg: '#F7F3EA', borderC: '#E8DEC4' },
               partial: { dot: '#E0A030',     dotBorder: 'none',             text: 'חלקי',     color: '#b8821f', bg: '#FFF6E6', borderC: '#F0D9A8' },
               done:    { dot: '#4CAF50',     dotBorder: 'none',             text: 'הושלם',    color: '#2e7d32', bg: '#EAF7EA', borderC: '#BFE0BF' },
             })[kind];
@@ -874,7 +874,7 @@ export default function ExerciseCard({
                 fontFamily: SANS_FONT,
               }} aria-label={cfg.text}>
                 <span style={{
-                  width: 10, height: 10, borderRadius: '50%',
+                  width: 7, height: 7, borderRadius: '50%',
                   background: cfg.dot, border: cfg.dotBorder, flexShrink: 0,
                   display: 'inline-block',
                 }} aria-hidden />
