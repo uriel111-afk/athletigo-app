@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ClipboardList, UserPlus, Check, Calendar } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { useFormPersistence } from "../hooks/useFormPersistence";
 
@@ -38,8 +36,7 @@ export default function PlanFormDialog({
     weekly_days: [],
     difficulty_level: "",
     duration_weeks: 4,
-    assigned_to: "",
-    series_id: ""
+    assigned_to: ""
   };
 
   const currentDefaults = editingPlan ? {
@@ -50,8 +47,7 @@ export default function PlanFormDialog({
     weekly_days: Array.isArray(editingPlan.weekly_days) ? editingPlan.weekly_days : [],
     difficulty_level: editingPlan.difficulty_level || "",
     duration_weeks: typeof editingPlan.duration_weeks === 'number' ? editingPlan.duration_weeks : 4,
-    assigned_to: editingPlan.assigned_to || "",
-    series_id: editingPlan.series_id || ""
+    assigned_to: editingPlan.assigned_to || ""
   } : defaultPlanForm;
 
   const DIFFICULTY_OPTIONS = ['מתחיל', 'בינוני', 'מתקדם', 'מקצועי'];
@@ -74,8 +70,6 @@ export default function PlanFormDialog({
       : (Array.isArray(initialSelectedTraineeIds) ? initialSelectedTraineeIds : [])
   );
 
-  const [availableSeries, setAvailableSeries] = useState([]);
-
   const WEEK_DAYS = [
     "ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"
   ];
@@ -90,18 +84,6 @@ export default function PlanFormDialog({
     { value: 'מיומנות', label: 'מיומנות', icon: '⚡', color: '#FFD700' },
     { value: 'כושר שיא', label: 'שיא', icon: '🏆', color: '#E91E63' }
   ];
-
-  // Fetch Series
-  useEffect(() => {
-    if (isOpen) {
-        base44.entities.ProgramSeries.list().then(res => {
-            setAvailableSeries(res);
-        });
-    }
-  }, [isOpen]);
-
-  // Removed manual reset useEffect in favor of useFormPersistence with keys
-
 
   const toggleDay = (day) => {
     setPlanForm(prev => {
@@ -130,8 +112,7 @@ export default function PlanFormDialog({
       difficulty_level: planForm.difficulty_level || null,
       duration_weeks: typeof planForm.duration_weeks === 'number' && planForm.duration_weeks > 0
         ? planForm.duration_weeks
-        : null,
-      series_id: planForm.series_id || null
+        : null
     };
 
     setSaving(true);
@@ -150,17 +131,6 @@ export default function PlanFormDialog({
       setSaving(false);
     }
   };
-
-  // Filter series:
-  // Show only series that match selected trainee OR are templates
-  const filteredSeries = availableSeries.filter(s => {
-      if (selectedTrainees.length === 1) {
-          // If single trainee selected, show their series + templates
-          return s.assigned_to === selectedTrainees[0] || !s.assigned_to || s.is_template;
-      }
-      // If multiple or none, show only templates (unassigned)
-      return !s.assigned_to || s.is_template;
-  });
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -225,27 +195,6 @@ export default function PlanFormDialog({
               )}
             </div>
           )}
-
-          {/* Series Selection */}
-          <div className="space-y-2">
-            <Label className="text-lg font-bold flex items-center gap-2 text-[#000000]">
-              שיוך לסדרה (אופציונלי)
-            </Label>
-            <Select 
-                value={planForm.series_id || "none"} 
-                onValueChange={(val) => setPlanForm({...planForm, series_id: val === "none" ? "" : val})}
-            >
-              <SelectTrigger className="h-14 rounded-xl border-2 border-gray-200 w-full text-right" dir="rtl">
-                <SelectValue placeholder="בחר סדרה..." />
-              </SelectTrigger>
-              <SelectContent dir="rtl">
-                <SelectItem value="none">-- ללא סדרה --</SelectItem>
-                {filteredSeries.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* 2. Plan Name */}
           <div className="space-y-2">
