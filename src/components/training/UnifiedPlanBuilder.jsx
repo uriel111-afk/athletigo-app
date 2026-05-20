@@ -346,6 +346,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [currentSection, setCurrentSection] = useState(null);
   const [editingPlanName, setEditingPlanName] = useState(false);
   const [tempPlanName, setTempPlanName] = useState(plan.plan_name || "");
+  // One ExerciseCard at a time across the whole workout. Held at the
+  // workout-level so opening a card inside section A collapses any
+  // already-open card in section B. null = nothing expanded.
+  const [expandedExerciseId, setExpandedExerciseId] = useState(null);
   const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
   // Section feedback captures TWO 1-10 sliders (control = how
@@ -2067,6 +2071,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 onSetToggleDone={toggleSetDone}
                 drillSetLogs={drillSetLogs}
                 onDrillSetToggleDone={toggleDrillSetDone}
+                expandedExerciseId={expandedExerciseId}
+                setExpandedExerciseId={setExpandedExerciseId}
                 onOpenExecution={(ex) => {
                   setExecutionExercise(ex);
                   setShowExecutionModal(true);

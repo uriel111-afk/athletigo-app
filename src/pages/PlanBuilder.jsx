@@ -103,6 +103,10 @@ export default function PlanBuilder() {
 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  // One exercise expanded at a time across every section in the
+  // builder. Lifted here so opening a card in section A collapses
+  // any already-open card in section B.
+  const [expandedExerciseId, setExpandedExerciseId] = useState(null);
   const [trainees, setTrainees] = useState([]);
   const [planId, setPlanId] = useState(editPlanId);
 
@@ -615,7 +619,9 @@ export default function PlanBuilder() {
                     onDelete={() => deleteSection(si)}
                     onAddExercise={() => setEditingExercise({ sectionIndex: si, isNew: true, name: "", params: {} })}
                     onEditExercise={(ei) => setEditingExercise({ sectionIndex: si, exerciseIndex: ei, name: sec.exercises[ei]?.exercise_name || sec.exercises[ei]?.name || "", params: exerciseToParams(sec.exercises[ei]) })}
-                    onDeleteExercise={(ei) => deleteExercise(si, ei)} />
+                    onDeleteExercise={(ei) => deleteExercise(si, ei)}
+                    expandedExerciseId={expandedExerciseId}
+                    setExpandedExerciseId={setExpandedExerciseId} />
                 ))}
               </SortableContext>
             </DndContext>
@@ -703,7 +709,7 @@ function SortableSectionBlock(props) {
   );
 }
 
-function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditExercise, onDeleteExercise, dragHandleProps }) {
+function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditExercise, onDeleteExercise, dragHandleProps, expandedExerciseId, setExpandedExerciseId }) {
   const type = getSectionType(section.category);
   const sectionColor = section.color || type.color;
   return (
@@ -730,6 +736,10 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
             isCoach={true}
             onEdit={() => onEditExercise(ei)}
             onDelete={() => onDeleteExercise(ei)}
+            expanded={setExpandedExerciseId ? expandedExerciseId === ex.id : undefined}
+            onToggleExpanded={setExpandedExerciseId
+              ? () => setExpandedExerciseId((prev) => prev === ex.id ? null : ex.id)
+              : undefined}
           />
         </div>
       ))}

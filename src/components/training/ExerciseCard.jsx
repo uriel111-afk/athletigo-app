@@ -441,6 +441,14 @@ export default function ExerciseCard({
   // not persisted to exercise_set_logs (no drill_index column).
   drillSetLog,
   onDrillSetToggleDone,
+  // Optional parent-controlled expand state. When both `expanded` and
+  // `onToggleExpanded` are provided, the card is fully controlled by
+  // the parent (used by the workout views to enforce one-open-at-a-
+  // time across sections). When either is missing, the card falls back
+  // to its own useState so any caller that hasn't opted in keeps the
+  // legacy independent-expand behavior.
+  expanded: externalExpanded,
+  onToggleExpanded,
 }) {
   const queryClient = useQueryClient();
   // Tabata launch hands cfg → ActiveTimerContext.pendingTabataCfg,
@@ -448,10 +456,26 @@ export default function ExerciseCard({
   // trainee verifies + sets prep-time, instead of jumping straight to
   // a running timer.
   const activeTimer = useActiveTimer();
-  const [expanded, setExpanded] = useState(false);
+  // Controlled-or-internal expand. If the parent passes both
+  // `externalExpanded` and `onToggleExpanded`, every existing
+  // setExpanded(...) call site routes through the parent toggle —
+  // which makes the parent's expandedExerciseId the single source of
+  // truth and implicitly collapses any sibling card on a new open.
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpandControlled = externalExpanded !== undefined && typeof onToggleExpanded === 'function';
+  const expanded = isExpandControlled ? !!externalExpanded : internalExpanded;
+  // The toggle is "atomic" in controlled mode — the parent decides
+  // the new value regardless of what the caller passes. All current
+  // call sites are either `setExpanded(v => !v)` (toggle) or
+  // `setExpanded(false)` (close while expanded === true), both of
+  // which map cleanly onto a single onToggleExpanded() call.
+  const setExpanded = isExpandControlled
+    ? () => onToggleExpanded()
+    : setInternalExpanded;
   // Register a smart-back close: when this card is expanded, the
   // header's back button collapses it first instead of navigating
-  // away from the page.
+  // away from the page. Works in both modes because `expanded` and
+  // `setExpanded` already resolve to the active source.
   useSmartBackHandler(expanded, () => setExpanded(false));
   const [renaming, setRenaming] = useState(false);
 

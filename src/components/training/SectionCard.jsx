@@ -40,6 +40,12 @@ export default function SectionCard({
   isCoach = false,
   plan,
   traineeProgressByExercise = {},
+  // Workout-wide expand coordination. When the parent passes these
+  // in, this section's ExerciseCards become controlled and only one
+  // card across the whole workout can be open at a time. Optional —
+  // omit both and the cards self-manage as before.
+  expandedExerciseId,
+  setExpandedExerciseId,
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
   // Register the section's collapse as a smart-back close. Stack is
@@ -433,6 +439,10 @@ export default function SectionCard({
                       onSetToggleDone={onSetToggleDone}
                       drillSetLog={drillSetLogs[exercise.id]}
                       onDrillSetToggleDone={onDrillSetToggleDone}
+                      expanded={setExpandedExerciseId ? expandedExerciseId === exercise.id : undefined}
+                      onToggleExpanded={setExpandedExerciseId
+                        ? () => setExpandedExerciseId((prev) => prev === exercise.id ? null : exercise.id)
+                        : undefined}
                     />
                   ))
                 )}
@@ -726,6 +736,10 @@ export default function SectionCard({
                       onSetToggleDone={onSetToggleDone}
                       drillSetLog={drillSetLogs[exercise.id]}
                       onDrillSetToggleDone={onDrillSetToggleDone}
+                      expanded={setExpandedExerciseId ? expandedExerciseId === exercise.id : undefined}
+                      onToggleExpanded={setExpandedExerciseId
+                        ? () => setExpandedExerciseId((prev) => prev === exercise.id ? null : exercise.id)
+                        : undefined}
                     />
                   ))}
                 </div>
