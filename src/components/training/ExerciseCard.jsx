@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { MoreHorizontal, Copy, Trash2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
@@ -512,6 +513,25 @@ export default function ExerciseCard({
   // `setExpanded` already resolve to the active source.
   useSmartBackHandler(expanded, () => setExpanded(false));
   const [renaming, setRenaming] = useState(false);
+  // 3-dot actions menu (שכפל / מחק). Mirrors the sub-exercise menu
+  // pattern from ModernExerciseForm (a5bd5d1) — closes on outside tap,
+  // item tap, or trigger re-tap.
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const actionsMenuRef = useRef(null);
+  useEffect(() => {
+    if (!actionsMenuOpen) return undefined;
+    const handler = (e) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target)) {
+        setActionsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [actionsMenuOpen]);
 
   if (!exercise) return null;
 
@@ -939,6 +959,97 @@ export default function ExerciseCard({
                 fontFamily: SANS_FONT,
               }}
             >ערוך</button>
+          )}
+
+          {/* Coach 3-dot menu — שכפל / מחק. Same styling as the sub-
+              exercise menu in ModernExerciseForm so the two surfaces
+              read as one pattern. Trigger renders only when at least
+              one of the two handlers is wired. */}
+          {isCoachMode && (onDuplicate || onDelete) && (
+            <div ref={actionsMenuRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setActionsMenuOpen((v) => !v); }}
+                aria-label="פעולות"
+                aria-expanded={actionsMenuOpen}
+                title="פעולות"
+                style={{
+                  width: 28, height: 22,
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {actionsMenuOpen && (
+                <div
+                  role="menu"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    right: 0,
+                    zIndex: 50,
+                    background: '#FFFFFF',
+                    border: '1px solid #E8DEC4',
+                    borderRadius: 12,
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                    padding: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    minWidth: 140,
+                    direction: 'rtl',
+                    fontFamily: SANS_FONT,
+                  }}
+                >
+                  {onDuplicate && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onDuplicate(exercise); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', padding: '8px 10px',
+                        background: '#FCFBF7', border: '1px solid #EFE9D8',
+                        borderRadius: 8, cursor: 'pointer',
+                        fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                        textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                      }}
+                    >
+                      <Copy size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
+                      <span>שכפל</span>
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActionsMenuOpen(false);
+                        if (window.confirm('למחוק תרגיל זה?')) onDelete(exercise);
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', padding: '8px 10px',
+                        background: '#FCEBEB', border: '1px solid #F5C9C9',
+                        borderRadius: 8, cursor: 'pointer',
+                        fontSize: 13, fontWeight: 600, color: '#a32d2d',
+                        textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                      }}
+                    >
+                      <Trash2 size={14} style={{ color: '#a32d2d', flexShrink: 0 }} />
+                      <span>מחק</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           <span aria-hidden style={{
