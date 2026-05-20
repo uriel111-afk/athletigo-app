@@ -775,7 +775,11 @@ export default function ExerciseCard({
         overflow: 'hidden',
         direction: 'rtl',
       }}>
-        {/* Header band — always shown; tapping toggles expand */}
+        {/* Header band — always shown; tapping toggles expand. Two-row
+            layout so the exercise name has the full row width on Row 1
+            and never collapses to one-letter-per-line. Row 2 clusters
+            the secondary controls (status pill, edit, 3-dot menu,
+            chevron) so they don't compete with the name for space. */}
         <div
           onClick={() => setExpanded(v => !v)}
           role="button"
@@ -789,9 +793,9 @@ export default function ExerciseCard({
           }}
           style={{
             display: 'flex',
-            alignItems: 'flex-start',
-            gap: 10,
-            padding: '11px 36px 11px 16px',
+            flexDirection: 'column',
+            gap: 6,
+            padding: '12px 16px',
             // Darker cream band only when the card is open — it
             // marks the row as the active title for the body below.
             // Closed cards inherit the wrapper's white surface.
@@ -800,6 +804,71 @@ export default function ExerciseCard({
             userSelect: 'none',
           }}
         >
+          {/* ── Row 1: index square + exercise name (full row width) ── */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            {/* Orange index square — small numeric badge anchoring this
+                exercise in the section. Hidden when exerciseIndex prop
+                wasn't passed (defensive fallback). */}
+            {exerciseIndex != null && (
+              <span style={{
+                width: 24, height: 24,
+                background: '#FF6F20',
+                color: '#FFFFFF',
+                borderRadius: 4,
+                fontFamily: NUM_FONT,
+                fontSize: 14,
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: 1,
+                lineHeight: 1,
+              }} aria-hidden>{exerciseIndex}</span>
+            )}
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 15,
+                fontWeight: 500,
+                color: completed ? '#aaa' : '#1a1a1a',
+                textDecoration: completed ? 'line-through' : 'none',
+                fontFamily: SANS_FONT,
+                lineHeight: 1.3,
+                wordBreak: 'break-word',
+              }}>{name}</div>
+              {/* Closed-state summary pills — hidden when open. */}
+              {!expanded && closedPills.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 4,
+                  marginTop: 4,
+                  direction: 'rtl',
+                }}>
+                  {closedPills.map((p, i) => (
+                    <span key={i} style={{
+                      background: p.emphasized ? '#FFE8D6' : '#FFF0E4',
+                      color: '#993C1D',
+                      fontSize: 11,
+                      fontWeight: p.emphasized ? 700 : 500,
+                      padding: '2px 7px',
+                      borderRadius: 6,
+                      whiteSpace: 'nowrap',
+                    }}>{p.text}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Row 2: secondary controls (status / edit / menu / chevron) ── */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 6,
+          }}>
           {/* Derived status pill — replaces the old empty ○. Read-only
               indicator for BOTH coach and trainee. State is derived
               from setLog (per-set done flags) for normal/list variants,
@@ -882,61 +951,6 @@ export default function ExerciseCard({
               </span>
             );
           })()}
-
-          {/* Orange index square — small numeric badge anchoring this
-              exercise in the section. Hidden when exerciseIndex prop
-              wasn't passed (defensive fallback). */}
-          {exerciseIndex != null && (
-            <span style={{
-              width: 24, height: 24,
-              background: '#FF6F20',
-              color: '#FFFFFF',
-              borderRadius: 4,
-              fontFamily: NUM_FONT,
-              fontSize: 14,
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: 1,
-              lineHeight: 1,
-            }} aria-hidden>{exerciseIndex}</span>
-          )}
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 15,
-              fontWeight: 500,
-              color: completed ? '#aaa' : '#1a1a1a',
-              textDecoration: completed ? 'line-through' : 'none',
-              fontFamily: SANS_FONT,
-              lineHeight: 1.3,
-              wordBreak: 'break-word',
-            }}>{name}</div>
-            {/* Closed-state summary pills — hidden when open. */}
-            {!expanded && closedPills.length > 0 && (
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 4,
-                marginTop: 4,
-                direction: 'rtl',
-              }}>
-                {closedPills.map((p, i) => (
-                  <span key={i} style={{
-                    background: p.emphasized ? '#FFE8D6' : '#FFF0E4',
-                    color: '#993C1D',
-                    fontSize: 11,
-                    fontWeight: p.emphasized ? 700 : 500,
-                    padding: '2px 7px',
-                    borderRadius: 6,
-                    whiteSpace: 'nowrap',
-                  }}>{p.text}</span>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Coach "ערוך" — forwards to the existing onEdit prop, opens
               ModernExerciseForm via UnifiedPlanBuilder. */}
@@ -1059,8 +1073,9 @@ export default function ExerciseCard({
             transition: 'transform 0.2s',
             transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
             flexShrink: 0,
-            marginTop: 4,
           }}>▼</span>
+          </div>
+          {/* ── End Row 2 ── */}
         </div>
 
         {/* Open body — tabata-only summary tiles (5-box clock layout
