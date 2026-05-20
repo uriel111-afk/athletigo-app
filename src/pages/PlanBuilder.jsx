@@ -107,6 +107,8 @@ export default function PlanBuilder() {
   // builder. Lifted here so opening a card in section A collapses
   // any already-open card in section B.
   const [expandedExerciseId, setExpandedExerciseId] = useState(null);
+  // TEMP DIAG — remove after PlanBuilder expand bug is diagnosed.
+  console.log('[PlanBuilder]', { expandedExerciseId });
   const [trainees, setTrainees] = useState([]);
   const [planId, setPlanId] = useState(editPlanId);
 
@@ -738,7 +740,11 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
             onDelete={() => onDeleteExercise(ei)}
             expanded={setExpandedExerciseId ? expandedExerciseId === ex.id : undefined}
             onToggleExpanded={setExpandedExerciseId
-              ? () => setExpandedExerciseId((prev) => prev === ex.id ? null : ex.id)
+              ? () => {
+                  // TEMP DIAG — remove after PlanBuilder expand bug is diagnosed.
+                  console.log('[PlanBuilder] toggle requested for', ex?.id, 'current state:', expandedExerciseId);
+                  setExpandedExerciseId((prev) => prev === ex.id ? null : ex.id);
+                }
               : undefined}
           />
         </div>

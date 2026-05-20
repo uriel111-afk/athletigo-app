@@ -520,6 +520,19 @@ export default function ExerciseCard({
   const resolvedMode = mode || (canEdit ? 'coach' : 'trainee');
   const isCoachMode = resolvedMode === 'coach';
 
+  // TEMP DIAG — remove after PlanBuilder expand bug is diagnosed.
+  console.log('[ExerciseCard]', {
+    id: exercise?.id,
+    name: exercise?.exercise_name || exercise?.name,
+    variant: getVariant(exercise),
+    expanded,
+    isCoachMode,
+    canEdit,
+    hasChildren: !!exercise?.children,
+    childrenType: typeof exercise?.children,
+    subCount: getSubExercises(exercise).length,
+  });
+
   const variant = getVariant(exercise);
   const completed = !!exercise.completed;
   const colors = completed ? VARIANT_COLORS.done : VARIANT_COLORS[variant];
