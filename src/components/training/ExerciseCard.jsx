@@ -1200,6 +1200,103 @@ export default function ExerciseCard({
           );
         })()}
 
+        {/* List/superset variant — single render path for coach + trainee.
+            The fuller layout (per-sub-set fill table for trainee) lives in
+            the dead-code legacy return at the bottom of the component;
+            this active block handles header+name+pills so the user-visible
+            card finally expands. Trainee per-set fill table is a follow-up. */}
+        {expanded && variant === 'list' && (() => {
+          const drills = subExercises;
+          if (drills.length === 0) {
+            return (
+              <div style={{
+                padding: 16, textAlign: 'center',
+                background: '#FFFFFF', borderRadius: 10,
+                border: '1px dashed #e9d5ff',
+                fontSize: 13, color: '#888',
+                margin: '0 16px 16px',
+              }}>
+                אין תרגילים ברשימה
+              </div>
+            );
+          }
+          return (
+            <div style={{ padding: '0 16px 16px' }}>
+              {/* Parent's own paramItems — kept above sub-cards in coach
+                  mode for editor reference. Trainee skip = same layout
+                  as the prior shipped trainee mini-cards. */}
+              {isCoachMode && paramItems.length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  {paramItems.map((it, i) => (
+                    <ParamListRow
+                      key={it.key}
+                      value={it.value}
+                      unit={it.unit}
+                      descriptor={it.descriptor}
+                      isLast={i === paramItems.length - 1}
+                    />
+                  ))}
+                </div>
+              )}
+              {drills.map((sub, di) => {
+                const subParamItems = buildParamItemsFor(sub, null);
+                return (
+                  <div key={sub.id || `drill-${di}`} style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #F2EDE3',
+                    borderRadius: 12,
+                    padding: 12,
+                    marginBottom: 10,
+                  }}>
+                    {/* Header — orange index square + sub-exercise name */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      marginBottom: subParamItems.length > 0 ? 8 : 0,
+                    }}>
+                      <span style={{
+                        width: 24, height: 24,
+                        background: '#FF6F20', color: '#FFFFFF',
+                        borderRadius: 4,
+                        fontFamily: NUM_FONT,
+                        fontSize: 14, fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>{di + 1}</span>
+                      <span style={{
+                        fontFamily: SANS_FONT,
+                        fontSize: 15, fontWeight: 700, color: '#1a1a1a',
+                        wordBreak: 'break-word',
+                      }}>{getDrillName(sub, di)}</span>
+                    </div>
+                    {/* Inline param pills — closed-card pill style,
+                        scoped to this sub-exercise's prescribed values. */}
+                    {subParamItems.length > 0 && (
+                      <div style={{
+                        display: 'flex', flexWrap: 'wrap', gap: 4,
+                        direction: 'rtl',
+                      }}>
+                        {subParamItems.map((it) => (
+                          <span key={it.key} style={{
+                            background: '#FFF0E4',
+                            color: '#993C1D',
+                            fontSize: 11,
+                            fontWeight: 500,
+                            padding: '2px 7px',
+                            borderRadius: 6,
+                            whiteSpace: 'nowrap',
+                          }}>{it.display}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <CoachNoteBox text={description} />
+            </div>
+          );
+        })()}
+
         {expanded && variant === 'normal' && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
