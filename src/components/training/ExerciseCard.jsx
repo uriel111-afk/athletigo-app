@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, Copy, Trash2, Edit2 } from "lucide-react";
+import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
@@ -759,18 +759,59 @@ export default function ExerciseCard({
       ? tabataClosedPills
       : summaryPills.map((t) => ({ text: t, emphasized: false }));
 
+    // Derived card status — lifted out of the dot IIFE so the outer
+    // wrapper + index square can style themselves by status too. Same
+    // calc as the dot uses: 'display' for display-mode sections, else
+    // 'none' / 'partial' / 'done' from setLog toggles.
+    const cardStatus = (() => {
+      if (sectionTrackingMode === 'display') return 'display';
+      let n = 0;
+      for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
+      if (n === 0) return 'none';
+      if (n >= totalSets) return 'done';
+      return 'partial';
+    })();
+
+    // Premium-Soft outer container styling per status. 'done' lifts to
+    // a soft green-tinted gradient with a green rail; 'partial' adds
+    // an orange-tinted shadow; 'none' is the default cream-white.
+    const wrapperByStatus = (() => {
+      if (expanded) {
+        return {
+          background: '#F8F3E9',
+          border: 'none',
+          borderRight: '4px solid #FF6F20',
+          boxShadow: 'none',
+        };
+      }
+      if (cardStatus === 'done') {
+        return {
+          background: 'linear-gradient(135deg, #FFFFFF 0%, #F0FAF4 100%)',
+          border: 'none',
+          borderRight: '4px solid #16A34A',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(22,163,74,0.1)',
+        };
+      }
+      if (cardStatus === 'partial') {
+        return {
+          background: '#FFFFFF',
+          border: 'none',
+          borderRight: '4px solid #FF6F20',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(255,111,32,0.08)',
+        };
+      }
+      return {
+        background: '#FFFFFF',
+        border: 'none',
+        borderRight: '4px solid #FF6F20',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)',
+      };
+    })();
+
     return (
       <div style={{
-        // Option-C separation: open = warm cream wrapper + 4px orange
-        // right rail; closed = white wrapper + 4px grey right rail +
-        // a 1px hairline outer border. Both states are rounded 8 and
-        // separated from the next exercise by a real 12px gap, so the
-        // list reads as a stack of distinct units rather than a
-        // continuous lined page.
-        background: expanded ? '#F8F3E9' : '#FFFFFF',
-        border: expanded ? 'none' : '1px solid #EDE6D4',
-        borderRight: expanded ? '4px solid #FF6F20' : '4px solid #D8D8D8',
-        borderRadius: 8,
+        ...wrapperByStatus,
+        borderRadius: 10,
         marginBottom: 12,
         overflow: 'hidden',
         direction: 'rtl',
@@ -806,29 +847,35 @@ export default function ExerciseCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
             {exerciseIndex != null && (
               <span style={{
-                width: 30, height: 30,
-                background: '#FF6F20',
+                width: 32, height: 32,
+                background: cardStatus === 'done'
+                  ? 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)'
+                  : 'linear-gradient(135deg, #FF8B47 0%, #FF6F20 100%)',
                 color: '#FFFFFF',
-                borderRadius: 6,
+                borderRadius: 8,
                 fontFamily: NUM_FONT,
-                fontSize: 16,
+                fontSize: 17,
                 fontWeight: 700,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
                 lineHeight: 1,
+                boxShadow: cardStatus === 'done'
+                  ? '0 3px 8px rgba(22,163,74,0.3)'
+                  : '0 3px 8px rgba(255,111,32,0.28)',
               }} aria-hidden>{exerciseIndex}</span>
             )}
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: 18,
+                fontSize: 17,
                 fontWeight: 700,
                 color: completed ? '#aaa' : '#1a1a1a',
                 textDecoration: completed ? 'line-through' : 'none',
                 fontFamily: SANS_FONT,
                 lineHeight: 1.3,
+                letterSpacing: '-0.2px',
                 wordBreak: 'break-word',
               }}>{name}</div>
               {/* Closed-state summary pills — hidden when open. Live
@@ -859,38 +906,45 @@ export default function ExerciseCard({
 
           {/* ── Left cluster: status dot + 3-dot menu + chevron ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            {/* Status dot — 10×10 colored circle. Color by computed
-                status (display-mode → neutral, otherwise none/partial/
-                done → gray/orange/green). aria-label carries the Hebrew
-                status text for screen readers; no tap target. */}
+            {/* Status indicator — 'done' renders a CircleCheck icon at
+                22px in brand green; other states are a 10×10 colored
+                dot with a soft halo shadow. Reuses the lifted
+                `cardStatus` so the dot, the index square, and the
+                outer wrapper all agree on the same value. */}
             {(() => {
-              if (sectionTrackingMode === 'display') {
+              if (cardStatus === 'done') {
+                return (
+                  <CircleCheck aria-label="הושלם" size={22}
+                    style={{ color: '#16A34A', flexShrink: 0 }} />
+                );
+              }
+              if (cardStatus === 'display') {
                 return (
                   <span aria-label="תצוגה" style={{
                     width: 10, height: 10, borderRadius: '50%',
                     background: '#9CA3AF', flexShrink: 0,
                     display: 'inline-block',
+                    boxShadow: '0 0 0 3px rgba(156,163,175,0.18)',
                   }} />
                 );
               }
-              const doneCount = (() => {
-                let n = 0;
-                for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
-                return n;
-              })();
-              const kind = doneCount === 0
-                ? 'none'
-                : doneCount >= totalSets ? 'done' : 'partial';
-              const cfg = ({
-                none:    { color: '#9CA3AF', label: 'לא בוצע' },
-                partial: { color: '#FF6F20', label: 'בוצע חלקית' },
-                done:    { color: '#16A34A', label: 'הושלם' },
-              })[kind];
+              if (cardStatus === 'partial') {
+                return (
+                  <span aria-label="בוצע חלקית" style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: '#FF6F20', flexShrink: 0,
+                    display: 'inline-block',
+                    boxShadow: '0 0 0 3px rgba(255,111,32,0.22), 0 0 10px rgba(255,111,32,0.35)',
+                  }} />
+                );
+              }
+              // cardStatus === 'none'
               return (
-                <span aria-label={cfg.label} style={{
+                <span aria-label="לא בוצע" style={{
                   width: 10, height: 10, borderRadius: '50%',
-                  background: cfg.color, flexShrink: 0,
+                  background: '#9CA3AF', flexShrink: 0,
                   display: 'inline-block',
+                  boxShadow: '0 0 0 3px rgba(156,163,175,0.18)',
                 }} />
               );
             })()}
