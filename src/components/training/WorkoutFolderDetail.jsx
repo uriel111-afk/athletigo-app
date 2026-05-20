@@ -581,7 +581,32 @@ function UnifiedProgressGraph({ plan, completed }) {
   }, [plan]);
 
   const [level, setLevel] = useState('all');
-  const [metric, setMetric] = useState('pct');
+  // 'reps' is the most universal metric across all levels — also the
+  // user-facing default. The `?? 'reps'` fallback in `effectiveMetric`
+  // below means switching level can never leave us on a metric the
+  // new level doesn't support (e.g. 'difficulty' is per-exercise only,
+  // 'control'/'challenge' are workout-wide only).
+  const [metric, setMetric] = useState('reps');
+
+  // Which metrics are valid given the current level.
+  const metricsForLevel = level === 'all'
+    ? ['reps', 'sets', 'control', 'challenge']
+    : ['reps', 'sets', 'difficulty'];
+  const effectiveMetric = metricsForLevel.includes(metric) ? metric : 'reps';
+
+  // Wraps setLevel so that switching context also resets the metric if
+  // the current pick isn't applicable on the new level.
+  const setLevelSafe = (nextLevel) => {
+    const nextValid = nextLevel === 'all'
+      ? ['reps', 'sets', 'control', 'challenge']
+      : ['reps', 'sets', 'difficulty'];
+    if (!nextValid.includes(metric)) setMetric('reps');
+    setLevel(nextLevel);
+  };
+
+  const isScaleMetric = effectiveMetric === 'control'
+    || effectiveMetric === 'challenge'
+    || effectiveMetric === 'difficulty';
 
   const sortedExecs = useMemo(
     () => (completed || []).slice().sort(
@@ -591,41 +616,60 @@ function UnifiedProgressGraph({ plan, completed }) {
   );
 
   // Pull the numeric value for a given execution × level × metric.
-  // Returns null for "no data" — callers filter those out so the
-  // chart and aggregates never reach a null .toFixed.
+  // Returns null for "no data" — callers filter those out so the chart
+  // and aggregates never reach a null .toFixed. Every iteration is
+  // guarded with Number.isFinite so legacy executions missing
+  // exercise_summaries or per-section control/challenge data drop out
+  // of the series silently instead of crashing.
   const valueFor = (exec, lvl, met) => {
     if (!exec) return null;
+
     if (lvl === 'all') {
-      if (met === 'pct') {
-        const v = exec.completion_percent;
-        return v != null && Number.isFinite(Number(v)) ? Number(v) : null;
-      }
       if (met === 'reps') {
         const map = exec.exercise_summaries;
         if (!map || typeof map !== 'object') return null;
-        let total = 0;
-        let any = false;
+        let total = 0; let any = false;
         for (const exId of Object.keys(map)) {
           const s = readExerciseSummary(exec, exId);
           if (Number.isFinite(s.total_reps_done) && s.total_reps_done > 0) {
-            total += s.total_reps_done;
-            any = true;
+            total += s.total_reps_done; any = true;
           }
         }
         return any ? total : null;
       }
-      if (met === 'difficulty') {
-        const v = exec.self_rating;
-        return v != null && Number.isFinite(Number(v)) ? Number(v) : null;
+      if (met === 'sets') {
+        const map = exec.exercise_summaries;
+        if (!map || typeof map !== 'object') return null;
+        let total = 0; let any = false;
+        for (const exId of Object.keys(map)) {
+          const s = readExerciseSummary(exec, exId);
+          if (Number.isFinite(s.done_sets) && s.done_sets > 0) {
+            total += s.done_sets; any = true;
+          }
+        }
+        return any ? total : null;
+      }
+      if (met === 'control' || met === 'challenge') {
+        const ratings = exec.section_ratings;
+        if (!ratings || typeof ratings !== 'object') return null;
+        const vals = [];
+        for (const sid of Object.keys(ratings)) {
+          const r = readSectionRating(ratings[sid]);
+          const v = r[met];
+          if (Number.isFinite(v) && v > 0) vals.push(v);
+        }
+        if (vals.length === 0) return null;
+        return vals.reduce((a, b) => a + b, 0) / vals.length;
       }
     } else {
       const s = readExerciseSummary(exec, lvl);
-      if (met === 'pct') {
-        return Number.isFinite(s.completion_pct) ? s.completion_pct : null;
-      }
       if (met === 'reps') {
         return Number.isFinite(s.total_reps_done) && s.total_reps_done > 0
           ? s.total_reps_done : null;
+      }
+      if (met === 'sets') {
+        return Number.isFinite(s.done_sets) && s.done_sets > 0
+          ? s.done_sets : null;
       }
       if (met === 'difficulty') {
         return Number.isFinite(s.avg_difficulty) ? s.avg_difficulty : null;
@@ -636,24 +680,60 @@ function UnifiedProgressGraph({ plan, completed }) {
 
   const chartData = useMemo(() => (
     sortedExecs
-      .map((e) => ({ date: formatShort(e.executed_at), value: valueFor(e, level, metric) }))
+      .map((e) => ({ date: formatShort(e.executed_at), value: valueFor(e, level, effectiveMetric) }))
       .filter((p) => p.value != null)
-  ), [sortedExecs, level, metric]);
+  ), [sortedExecs, level, effectiveMetric]);
 
-  const yDomain = metric === 'pct' ? [0, 100]
-    : metric === 'difficulty' ? [0, 10]
-    : [0, 'auto'];
+  const yDomain = isScaleMetric ? [0, 10] : [0, 'auto'];
 
+  // Hebrew noun that pairs with the value in tiles + tooltip + detail.
+  // "סטים" reads as "sets" both at workout-wide (סטים שהושלמו) and per
+  // exercise (סטים) — the same noun, different framing handled in the
+  // subtitle below.
+  const metricNoun = (() => {
+    if (effectiveMetric === 'reps') return 'חזרות';
+    if (effectiveMetric === 'sets') return level === 'all' ? 'סטים שהושלמו' : 'סטים';
+    if (effectiveMetric === 'control') return 'שליטה';
+    if (effectiveMetric === 'challenge') return 'אתגר';
+    if (effectiveMetric === 'difficulty') return 'קושי';
+    return '';
+  })();
+
+  // One-line subtitle under the title — removes the previous ambiguity
+  // about what the number on the Y axis actually means.
+  const metricSubtitle = (() => {
+    if (level === 'all') {
+      if (effectiveMetric === 'reps') return 'סך החזרות שביצעת בכל אימון';
+      if (effectiveMetric === 'sets') return 'סך הסטים שהושלמו בכל אימון';
+      if (effectiveMetric === 'control') return 'כמה הרגשת שליטה (1-10)';
+      if (effectiveMetric === 'challenge') return 'כמה האימון אתגר אותך (1-10)';
+    } else {
+      if (effectiveMetric === 'reps') return 'סך החזרות שביצעת בתרגיל זה';
+      if (effectiveMetric === 'sets') return 'סטים שהושלמו בתרגיל זה';
+      if (effectiveMetric === 'difficulty') return 'ממוצע קושי התרגיל (1-10)';
+    }
+    return '';
+  })();
+
+  // formatVal — bare value with unit (used in tooltip).
+  // formatTileVal — concise "value + noun" (used in שיא / ממוצע tiles
+  // and the detail value when no /10 framing needed).
+  // formatDetailVal — for scale metrics adds the explicit "/ 10".
   const formatVal = (v) => {
     if (v == null || !Number.isFinite(Number(v))) return '—';
-    if (metric === 'pct') return `${Math.round(Number(v))}%`;
-    if (metric === 'difficulty') return `${Number(v).toFixed(1)}/10`;
+    if (isScaleMetric) return `${Number(v).toFixed(1)}/10`;
     return `${Math.round(Number(v))}`;
   };
-
-  const metricNoun = metric === 'pct' ? 'אחוז הצלחה'
-    : metric === 'reps' ? 'חזרות שבוצעו'
-    : 'ציון קושי';
+  const formatTileVal = (v) => {
+    if (v == null || !Number.isFinite(Number(v))) return '—';
+    if (isScaleMetric) return `${Number(v).toFixed(1)} ${metricNoun}`;
+    return `${Math.round(Number(v))} ${metricNoun}`;
+  };
+  const formatDetailVal = (v) => {
+    if (v == null || !Number.isFinite(Number(v))) return '—';
+    if (isScaleMetric) return `${Number(v).toFixed(1)} / 10 ${metricNoun}`;
+    return `${Math.round(Number(v))} ${metricNoun}`;
+  };
 
   const tiles = useMemo(() => {
     const vals = chartData.map((p) => p.value).filter((v) => Number.isFinite(Number(v)));
@@ -699,12 +779,19 @@ function UnifiedProgressGraph({ plan, completed }) {
       width: '100%',
       boxSizing: 'border-box',
     }}>
-      <div style={{
-        fontSize: 18, fontWeight: 800, color: DARK,
-        marginBottom: 14, paddingInline: 4,
-        fontFamily: SANS_FONT,
-      }}>
-        התקדמות
+      <div style={{ marginBottom: 14, paddingInline: 4 }}>
+        <div style={{
+          fontSize: 18, fontWeight: 800, color: DARK,
+          fontFamily: SANS_FONT, lineHeight: 1.2,
+        }}>
+          גרף ההתקדמות שלך
+        </div>
+        {metricSubtitle && (
+          <div style={{
+            fontSize: 12, color: '#888', marginTop: 3,
+            fontFamily: SANS_FONT, fontWeight: 500,
+          }}>{metricSubtitle}</div>
+        )}
       </div>
 
       {/* רמה — workout-wide or per-exercise selection */}
@@ -715,32 +802,46 @@ function UnifiedProgressGraph({ plan, completed }) {
         scrollbarWidth: 'thin',
       }}>
         <span style={captionStyle}>רמה</span>
-        <button type="button" onClick={() => setLevel('all')} style={chipStyle(level === 'all')}>
+        <button type="button" onClick={() => setLevelSafe('all')} style={chipStyle(level === 'all')}>
           כל האימון
         </button>
         {allExercises.map((ex) => (
           <button key={ex.id} type="button"
-            onClick={() => setLevel(ex.id)}
+            onClick={() => setLevelSafe(ex.id)}
             style={chipStyle(level === ex.id)}
           >{ex.name}</button>
         ))}
       </div>
 
-      {/* מדד — which numeric series to plot */}
+      {/* מדד — chips depend on the active level; per-exercise gets
+          'קושי' instead of 'שליטה'/'אתגר', and the workout-wide
+          context gets the two section-rating dimensions. */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         marginBottom: 14, flexWrap: 'wrap',
       }}>
         <span style={captionStyle}>מדד</span>
-        <button type="button" onClick={() => setMetric('pct')} style={chipStyle(metric === 'pct')}>
-          אחוז הצלחה
-        </button>
-        <button type="button" onClick={() => setMetric('reps')} style={chipStyle(metric === 'reps')}>
+        <button type="button" onClick={() => setMetric('reps')} style={chipStyle(effectiveMetric === 'reps')}>
           חזרות
         </button>
-        <button type="button" onClick={() => setMetric('difficulty')} style={chipStyle(metric === 'difficulty')}>
-          קושי
+        <button type="button" onClick={() => setMetric('sets')} style={chipStyle(effectiveMetric === 'sets')}>
+          {level === 'all' ? 'סטים שהושלמו' : 'סטים'}
         </button>
+        {level === 'all' && (
+          <>
+            <button type="button" onClick={() => setMetric('control')} style={chipStyle(effectiveMetric === 'control')}>
+              שליטה
+            </button>
+            <button type="button" onClick={() => setMetric('challenge')} style={chipStyle(effectiveMetric === 'challenge')}>
+              אתגר
+            </button>
+          </>
+        )}
+        {level !== 'all' && (
+          <button type="button" onClick={() => setMetric('difficulty')} style={chipStyle(effectiveMetric === 'difficulty')}>
+            קושי
+          </button>
+        )}
       </div>
 
       {chartData.length === 0 ? (
@@ -770,6 +871,9 @@ function UnifiedProgressGraph({ plan, completed }) {
               }}
               labelStyle={{ color: ORANGE, fontWeight: 700 }}
               formatter={(v) => [formatVal(v), metricNoun]}
+              // metricNoun adapts per-metric ("חזרות" / "סטים שהושלמו"
+              // / "שליטה" / "אתגר" / "קושי") so the tooltip always
+              // names the right axis instead of a bare number.
               cursor={{ stroke: ORANGE, strokeWidth: 1, strokeDasharray: '4 4' }}
             />
             <Line
@@ -790,14 +894,23 @@ function UnifiedProgressGraph({ plan, completed }) {
             display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
             marginTop: 18, paddingInline: 4,
           }}>
-            {[
-              { label: 'שיא',    value: formatVal(tiles.best),                              color: DARK },
-              { label: 'ממוצע',  value: formatVal(tiles.avg),                               color: DARK },
-              { label: 'מגמה',   value: tiles.trend != null
-                ? `${tiles.trend > 0 ? '↑ ' : tiles.trend < 0 ? '↓ ' : ''}${formatVal(Math.abs(tiles.trend))}`
-                : '—',
-                color: tiles.trend > 0 ? '#16a34a' : tiles.trend < 0 ? '#dc2626' : DARK },
-            ].map((t) => (
+            {(() => {
+              const trendStr = (() => {
+                if (tiles.trend == null || !Number.isFinite(tiles.trend) || tiles.trend === 0) return '—';
+                const sign = tiles.trend > 0 ? '+' : '−';
+                const abs = Math.abs(tiles.trend);
+                if (isScaleMetric) return `${sign}${abs.toFixed(1)} ${metricNoun}`;
+                return `${sign}${Math.round(abs)} ${metricNoun}`;
+              })();
+              const trendColor = tiles.trend > 0 ? '#16a34a'
+                : tiles.trend < 0 ? '#dc2626'
+                : DARK;
+              return [
+                { label: 'שיא',   value: formatTileVal(tiles.best), color: DARK },
+                { label: 'ממוצע', value: formatTileVal(tiles.avg),  color: DARK },
+                { label: 'מגמה',  value: trendStr,                  color: trendColor },
+              ];
+            })().map((t) => (
               <div key={t.label} style={{
                 background: '#FFF8EF', border: '1px solid #EFE0C8',
                 borderRadius: 10, padding: '10px 8px', textAlign: 'center',
@@ -833,16 +946,18 @@ function UnifiedProgressGraph({ plan, completed }) {
                   fontFamily: NUM_FONT, fontSize: 22, fontWeight: 700, color: ORANGE,
                   lineHeight: 1,
                 }}>
-                  {formatVal(latestPoint.value)}
+                  {formatDetailVal(latestPoint.value)}
                 </span>
               </div>
-              {change != null && (
+              {change != null && Number.isFinite(change) && change !== 0 && (
                 <div style={{
                   fontSize: 12,
-                  color: change > 0 ? '#16a34a' : change < 0 ? '#dc2626' : '#888',
+                  color: change > 0 ? '#16a34a' : '#dc2626',
                   marginTop: 4, fontWeight: 600,
                 }}>
-                  {change > 0 ? '↑' : change < 0 ? '↓' : '·'} {formatVal(Math.abs(change))} מהביצוע הקודם
+                  {change > 0 ? '↑' : '↓'}{' '}
+                  {isScaleMetric ? Math.abs(change).toFixed(1) : Math.round(Math.abs(change))}
+                  {' '}{metricNoun}{' '}מהביצוע הקודם
                 </div>
               )}
             </div>
