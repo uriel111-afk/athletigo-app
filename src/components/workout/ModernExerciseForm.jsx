@@ -18,6 +18,11 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// TEMP DIAG — module-load timestamp. Inlined into the red banner so
+// the user can verify on-screen whether they're on a fresh build or a
+// stale SW cache. Evaluated once at first JS-load of this bundle.
+const __BUILD_AT = new Date().toISOString();
+
 // Drag-handle wrapper for one sub-exercise row. Renders the ⠿ handle
 // to the right of the editor (RTL = visual right). Uses the sub.id so
 // onDragEnd resolves to the array index even when items are reordered.
@@ -1426,6 +1431,18 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
     <div className="w-full" dir="rtl">
+
+      {/* TEMP DIAG — build-time strip so the user can verify whether
+          the PWA service worker is serving stale JS. If this date
+          isn't today, the bundle is cached and a hard refresh /
+          uninstall+reinstall of the PWA is needed. */}
+      <div style={{
+        background: '#ff0000', color: '#fff',
+        padding: 4, fontSize: 11, fontFamily: 'monospace',
+        marginBottom: 4, borderRadius: 4, textAlign: 'center',
+      }}>
+        BUILD: {__BUILD_AT.slice(0, 16)} — if you don't see today's date here, you're on cached version
+      </div>
 
       {/* TEMP DIAG — raw exercise shape arriving from the parent. */}
       <div style={{
