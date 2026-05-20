@@ -1826,16 +1826,18 @@ export default function Onboarding() {
             )}
 
             {/* Final CTA — runs the same completeOnboarding the
-                wizard always used. Only enabled once the pending
-                session (if any) was acted on. The paid branch
-                short-circuits this entirely by navigating away to
-                Grow, so it's effectively the unpaid + no-session
-                paths that land here. */}
+                wizard always used. Always enabled (only blocked by an
+                in-flight save) so a trainee with no pending session
+                or a slow pending-session load can finish onboarding
+                without the button being stuck gray. Pending session
+                rows still render their own card above with their own
+                accept/reject actions; this just no longer gates the
+                final tap. */}
             {healthSigned && (
               <button
                 onClick={completeOnboarding}
-                disabled={savingStep || !pendingResolved}
-                style={primaryBtn(!savingStep && pendingResolved)}
+                disabled={savingStep}
+                style={primaryBtn(!savingStep)}
               >
                 {savingStep ? 'שומר...' : 'סיום ✓'}
               </button>
