@@ -1175,7 +1175,7 @@ export default function Onboarding() {
                 <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>רוצים לפרט עוד?</div>
                 <textarea value={goalsDescription} onChange={e => setGoalsDescription(e.target.value)}
                   placeholder="למשל: להגיע ל-10 עליות מתח רצופות, לרדת 5 קילו תוך 3 חודשים..."
-                  rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 70 }} />
+                  rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }} />
               </div>
             )}
 
@@ -1286,7 +1286,7 @@ export default function Onboarding() {
                 {CHALLENGE_OPTIONS.map(opt => {
                   const active = selectedChallenges.includes(opt.key);
                   return (
-                    <div key={opt.key}>
+                    <div key={opt.key} style={{ gridColumn: active ? '1 / -1' : 'auto' }}>
                       <button
                         type="button"
                         onClick={() => setSelectedChallenges(prev =>
@@ -1321,13 +1321,13 @@ export default function Onboarding() {
                           placeholder={`ספר/י יותר על "${opt.label}"...`}
                           value={challengeDetails[opt.key] || ''}
                           onChange={e => setChallengeDetails(prev => ({ ...prev, [opt.key]: e.target.value }))}
-                          rows={2}
+                          rows={3}
                           style={{
                             width: '100%', padding: '8px 12px',
                             border: '1px solid #FFE5D0', borderRadius: 8,
                             fontSize: 13, fontFamily: 'inherit', direction: 'rtl',
-                            resize: 'none', marginTop: 8, background: '#FFF9F5',
-                            boxSizing: 'border-box',
+                            resize: 'vertical', marginTop: 8, background: '#FFF9F5',
+                            boxSizing: 'border-box', minHeight: 90,
                           }}
                         />
                       )}
@@ -1343,7 +1343,7 @@ export default function Onboarding() {
                 {IMPORTANT_OPTIONS.map(opt => {
                   const active = selectedPreferences.includes(opt.key);
                   return (
-                    <div key={opt.key}>
+                    <div key={opt.key} style={{ gridColumn: active ? '1 / -1' : 'auto' }}>
                       <button
                         type="button"
                         onClick={() => setSelectedPreferences(prev =>
@@ -1378,13 +1378,13 @@ export default function Onboarding() {
                           placeholder={`ספר/י יותר על "${opt.label}"...`}
                           value={preferenceDetails[opt.key] || ''}
                           onChange={e => setPreferenceDetails(prev => ({ ...prev, [opt.key]: e.target.value }))}
-                          rows={2}
+                          rows={3}
                           style={{
                             width: '100%', padding: '8px 12px',
                             border: '1px solid #FFE5D0', borderRadius: 8,
                             fontSize: 13, fontFamily: 'inherit', direction: 'rtl',
-                            resize: 'none', marginTop: 8, background: '#FFF9F5',
-                            boxSizing: 'border-box',
+                            resize: 'vertical', marginTop: 8, background: '#FFF9F5',
+                            boxSizing: 'border-box', minHeight: 90,
                           }}
                         />
                       )}
@@ -1397,8 +1397,8 @@ export default function Onboarding() {
             <div style={cardStyle}>
               <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>הערות</div>
               <textarea value={additionalNotes} onChange={e => setAdditionalNotes(e.target.value)}
-                placeholder="משהו נוסף שחשוב לדעת?" rows={2}
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+                placeholder="משהו נוסף שחשוב לדעת?" rows={3}
+                style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }} />
             </div>
 
             <button onClick={saveStep4} disabled={savingStep} style={primaryBtn(!savingStep)}>
@@ -1474,7 +1474,7 @@ export default function Onboarding() {
                   onChange={e => setPreHealthNote(e.target.value)}
                   placeholder="פירוט — פציעות, מגבלות, תרופות..."
                   rows={3}
-                  style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
+                  style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }}
                 />
               )}
             </div>
