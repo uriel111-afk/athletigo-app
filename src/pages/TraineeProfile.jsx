@@ -3731,10 +3731,56 @@ export default function TraineeProfile() {
       <ErrorBoundary>
         <div className="w-full" dir="rtl"
              style={{ background: '#F2F2F7', minHeight: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          {/* Entry point into the Dashboard's plan-creation flow,
+              surfaced here because the coach-focus-mode return short-
+              circuits before the regular <TabsContent value="plans">
+              block can render the same CTA. Same dialog, same submit
+              path — the trainee is pre-checked in the share step. */}
+          <div style={{ padding: 16 }}>
+            <button
+              type="button"
+              onClick={() => setShowPlanDialog(true)}
+              style={{
+                width: '100%',
+                padding: '12px 24px',
+                background: '#FF6F20',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                fontFamily: "'Heebo', 'Assistant', sans-serif",
+              }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1, fontWeight: 300 }}>+</span>
+              הוסף אימון
+            </button>
+          </div>
           <WorkoutsInner
             traineeId={user?.id}
             isCoach={true}
             showHeader={false}
+          />
+          {/* Plan Form Dialog — duplicated here because the regular
+              return path (where the other mount lives) is unreachable
+              under coach-focus-mode. Both mounts share the same
+              showPlanDialog state, so only one is ever visible. */}
+          <PlanFormDialog
+            isOpen={showPlanDialog}
+            onClose={() => setShowPlanDialog(false)}
+            onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
+            trainees={allTrainees}
+            isLoading={createPlanForTraineeMutation.isPending}
+            initialSelectedTraineeIds={
+              effectiveUser?.id ? [effectiveUser.id]
+                : (user?.id ? [user.id] : [])
+            }
+            formKeySuffix={effectiveUser?.id || user?.id || 'unknown'}
           />
         </div>
       </ErrorBoundary>
