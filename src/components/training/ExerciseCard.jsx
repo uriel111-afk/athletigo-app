@@ -514,8 +514,12 @@ export default function ExerciseCard({
   // just map. Order is the spec'd "timer params first, body params
   // after" sequence and is identical for both the pills and the
   // expanded list rows.
-  const buildParamItems = () => {
-    const cs = td?.clock_settings || null;
+  // Renamed from buildParamItems → buildParamItemsFor so we can call it
+  // for any exercise-shaped object (parent or a sub-exercise inside a
+  // list/tabata container). Defaults preserve the original behavior
+  // when called with no args.
+  const buildParamItemsFor = (src = exercise, srcTd = td) => {
+    const cs = srcTd?.clock_settings || null;
     const items = [];
 
     // Compose number-first Hebrew: "<value> <unit> <descriptor>".
@@ -524,25 +528,25 @@ export default function ExerciseCard({
     // "<value> <unit>". One source of truth for every surface.
     const fmt = (v, u, d) => [v, u, d].filter(Boolean).join(' ');
 
-    const workSec = toSeconds(cs?.work_seconds ?? exercise.work_time);
+    const workSec = toSeconds(cs?.work_seconds ?? src.work_time);
     if (workSec != null) {
       const value = String(workSec), unit = 'שנ\'', descriptor = 'עבודה';
       items.push({ key: 'work_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
     }
 
-    const restSec = toSeconds(cs?.rest_seconds ?? exercise.rest_time);
+    const restSec = toSeconds(cs?.rest_seconds ?? src.rest_time);
     if (restSec != null) {
       const value = String(restSec), unit = 'שנ\'', descriptor = 'מנוחה';
       items.push({ key: 'rest_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
     }
 
-    const roundsVal = cs?.rounds ?? exercise.rounds;
+    const roundsVal = cs?.rounds ?? src.rounds;
     if (hasValue(roundsVal)) {
       const value = String(roundsVal), descriptor = 'סבבים';
       items.push({ key: 'rounds', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
-    const setsVal = cs?.sets ?? exercise.sets;
+    const setsVal = cs?.sets ?? src.sets;
     if (hasValue(setsVal)) {
       const value = String(setsVal), descriptor = 'סטים';
       items.push({ key: 'sets', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
@@ -550,48 +554,48 @@ export default function ExerciseCard({
 
     // rest_between_sets — no DB column; from clock_settings or legacy
     // top-level tabata_data.
-    const rbsSec = toSeconds(cs?.rest_between_sets ?? td?.rest_between_sets ?? exercise.rest_between_sets);
+    const rbsSec = toSeconds(cs?.rest_between_sets ?? srcTd?.rest_between_sets ?? src.rest_between_sets);
     if (rbsSec != null) {
       const value = String(rbsSec), unit = 'שנ\'', descriptor = 'בין סטים';
       items.push({ key: 'rest_between_sets', value, unit, descriptor, display: fmt(value, unit, descriptor) });
     }
 
-    const rbeSec = toSeconds(exercise.rest_between_exercises);
+    const rbeSec = toSeconds(src.rest_between_exercises);
     if (rbeSec != null) {
       const value = String(rbeSec), unit = 'שנ\'', descriptor = 'בין תרגילים';
       items.push({ key: 'rest_between_exercises', value, unit, descriptor, display: fmt(value, unit, descriptor) });
     }
 
-    if (hasValue(exercise.reps)) {
-      const value = String(exercise.reps), descriptor = 'חזרות';
+    if (hasValue(src.reps)) {
+      const value = String(src.reps), descriptor = 'חזרות';
       items.push({ key: 'reps', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
-    if (hasValue(exercise.weight)) {
-      const value = String(exercise.weight), unit = 'ק"ג';
+    if (hasValue(src.weight)) {
+      const value = String(src.weight), unit = 'ק"ג';
       items.push({ key: 'weight', value, unit, descriptor: null, display: fmt(value, unit, null) });
     }
 
-    const shtSec = toSeconds(exercise.static_hold_time);
+    const shtSec = toSeconds(src.static_hold_time);
     if (shtSec != null) {
       const value = String(shtSec), unit = 'שנ\'', descriptor = 'החזקה';
       items.push({ key: 'static_hold_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
     }
 
-    if (hasValue(exercise.rpe)) {
-      const value = String(exercise.rpe), descriptor = 'RPE';
+    if (hasValue(src.rpe)) {
+      const value = String(src.rpe), descriptor = 'RPE';
       items.push({ key: 'rpe', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
-    if (hasValue(exercise.tempo)) {
-      const value = String(exercise.tempo), descriptor = 'טמפו';
+    if (hasValue(src.tempo)) {
+      const value = String(src.tempo), descriptor = 'טמפו';
       items.push({ key: 'tempo', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
     return items;
   };
 
-  const paramItems = buildParamItems();
+  const paramItems = buildParamItemsFor();
 
   // Closed-card pill bits — for the title-line indicator. completed
   // wins outright (a single "הושלם" pill). Tabata collapses to a
@@ -2026,6 +2030,15 @@ export default function ExerciseCard({
                 parent's onDrillSetToggleDone, which in turn drives
                 the existing section-feedback popup logic. */}
             {variant === 'list' && !isCoachMode && (() => {
+              // Per-sub-exercise rendering: each sub becomes its own
+              // mini-card showing its full param pills (built via the
+              // shared buildParamItemsFor helper so the text reads
+              // identically to a normal exercise) plus a per-set toggle
+              // table sized off the sub's own prescribed columns. The
+              // ✓ toggles still write to the existing in-memory
+              // drillSetLog[si][di] matrix, so persistence + completion
+              // semantics stay byte-identical to the prior shared-table
+              // layout — only the visual organisation changes.
               const drills = subExercises;
               const restSec = toSeconds(td?.rest_between_sets) ?? toSeconds(exercise.rest_time);
               const isDrillSetDone = (di, si) => !!(drillSetLog?.[si]?.[di]);
@@ -2033,72 +2046,139 @@ export default function ExerciseCard({
                 if (typeof onDrillSetToggleDone !== 'function') return;
                 onDrillSetToggleDone(exercise, si, di, drills.length, totalSets);
               };
-              return (
-                <>
-                  {drills.length === 0 ? (
+              // Display-mode parent section: no fill controls anywhere
+              // (mirrors the normal-variant gate exactly).
+              const drillsShowFill = sectionTrackingMode !== 'display';
+              if (drills.length === 0) {
+                return (
+                  <>
                     <div style={{
                       padding: 16, textAlign: 'center',
                       background: '#FFFFFF', borderRadius: 10,
                       border: '1px dashed #e9d5ff',
                       fontSize: 13, color: '#888',
                     }}>אין תרגילים ברשימה</div>
-                  ) : (
-                    <div style={{
-                      border: '1px solid #F2EDE3',
-                      borderRadius: 10,
-                      overflow: 'hidden',
-                      background: '#FFFFFF',
-                    }}>
-                      {/* Header */}
-                      <div style={{
-                        display: 'flex',
-                        background: '#FFF9F0',
-                        fontSize: 11, fontWeight: 700, color: '#999',
+                    <CoachNoteBox text={description} />
+                  </>
+                );
+              }
+              return (
+                <>
+                  {drills.map((sub, di) => {
+                    const subParamItems = buildParamItemsFor(sub, null);
+                    const subCols = resolveNormalColumns(sub);
+                    return (
+                      <div key={sub.id || `drill-${di}`} style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #F2EDE3',
+                        borderRadius: 12,
+                        padding: 12,
+                        marginBottom: 10,
                       }}>
-                        <div style={{ flex: 2, padding: '8px 10px', textAlign: 'right' }}>תרגיל</div>
-                        <div style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>יעד</div>
-                        {Array.from({ length: totalSets }).map((_, si) => (
-                          <div key={si} style={{ width: 42, padding: '8px 4px', textAlign: 'center' }}>
-                            סט {si + 1}
-                          </div>
-                        ))}
-                      </div>
-                      {/* One row per drill */}
-                      {drills.map((sub, di) => {
-                        const target = getDrillTarget(sub);
-                        return (
-                          <div key={sub.id || `drill-${di}`} style={{
-                            display: 'flex', alignItems: 'center',
-                            fontSize: 12,
-                            borderTop: '1px solid #F2EDE3',
+                        {/* Sub-exercise header — orange index square + name. */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: subParamItems.length > 0 ? 8 : 0 }}>
+                          <span style={{
+                            width: 24, height: 24,
+                            background: '#FF6F20', color: '#FFFFFF',
+                            borderRadius: 4,
+                            fontFamily: "'Barlow Condensed', 'Arial Narrow', sans-serif",
+                            fontSize: 14, fontWeight: 700,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                          }}>{di + 1}</span>
+                          <span style={{
+                            fontFamily: "'Barlow', system-ui, sans-serif",
+                            fontSize: 15, fontWeight: 700, color: '#1a1a1a',
+                            wordBreak: 'break-word',
+                          }}>{getDrillName(sub, di)}</span>
+                        </div>
+                        {/* Inline param pills — same closed-card pill
+                            style as the parent card, scoped to this
+                            sub-exercise's prescribed values. Skipped
+                            entirely when the sub carries no params. */}
+                        {subParamItems.length > 0 && (
+                          <div style={{
+                            display: 'flex', flexWrap: 'wrap', gap: 4,
+                            marginBottom: drillsShowFill && subCols.length > 0 ? 10 : 0,
+                            direction: 'rtl',
                           }}>
+                            {subParamItems.map((it) => (
+                              <span key={it.key} style={{
+                                background: '#FFF0E4',
+                                color: '#993C1D',
+                                fontSize: 11,
+                                fontWeight: 500,
+                                padding: '2px 7px',
+                                borderRadius: 6,
+                                whiteSpace: 'nowrap',
+                              }}>{it.display}</span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Per-set fill table — shows when the parent
+                            section is in 'full' tracking mode AND this
+                            sub has columns to display. Set count comes
+                            from the parent so drillSetLog keys stay
+                            consistent with the existing completion
+                            calc in toggleDrillSetDone. */}
+                        {drillsShowFill && subCols.length > 0 && (
+                          <div style={{
+                            border: '1px solid #F2EDE3',
+                            borderRadius: 10,
+                            overflow: 'hidden',
+                            background: '#FFFFFF',
+                          }}>
+                            {/* Header */}
                             <div style={{
-                              flex: 2, padding: '10px',
-                              textAlign: 'right', fontWeight: 600,
-                              color: '#1a1a1a', wordBreak: 'break-word',
-                            }}>{getDrillName(sub, di)}</div>
-                            <div style={{
-                              flex: 1, padding: '10px 6px',
-                              textAlign: 'center', color: '#666',
-                            }}>{target ? target.display : '—'}</div>
+                              display: 'flex',
+                              background: '#FFF9F0',
+                              fontSize: 11, fontWeight: 700, color: '#999',
+                            }}>
+                              <div style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>סט</div>
+                              {subCols.map(c => (
+                                <div key={c.key} style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>
+                                  {c.label}
+                                </div>
+                              ))}
+                              <div style={{ width: 44, padding: '8px 6px', textAlign: 'center' }}>✓</div>
+                            </div>
+                            {/* Set rows */}
                             {Array.from({ length: totalSets }).map((_, si) => (
                               <div key={si} style={{
-                                width: 42, padding: '8px 4px',
-                                display: 'flex', justifyContent: 'center',
-                                background: isDrillSetDone(di, si) ? '#F0FDF4' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                fontSize: 13,
+                                borderTop: '1px solid #F2EDE3',
+                                background: isDrillSetDone(di, si) ? '#F0FDF4' : '#FFFFFF',
                               }}>
-                                <SetCheckbox
-                                  checked={isDrillSetDone(di, si)}
-                                  color={colors.stripe}
-                                  onToggle={() => handleDrillToggle(di, si)}
-                                />
+                                <div style={{
+                                  flex: 1, padding: '10px 6px', textAlign: 'center',
+                                  fontFamily: "'Barlow Condensed', sans-serif",
+                                  fontWeight: 700, color: '#666',
+                                }}>{si + 1}</div>
+                                {subCols.map(c => (
+                                  <div key={c.key} style={{
+                                    flex: 1, padding: '10px 6px', textAlign: 'center',
+                                    color: '#1a1a1a', fontWeight: 600,
+                                  }}>{c.value}</div>
+                                ))}
+                                <div style={{
+                                  width: 44, padding: '8px 6px',
+                                  display: 'flex', justifyContent: 'center',
+                                }}>
+                                  <SetCheckbox
+                                    checked={isDrillSetDone(di, si)}
+                                    color={colors.stripe}
+                                    onToggle={() => handleDrillToggle(di, si)}
+                                  />
+                                </div>
                               </div>
                             ))}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    );
+                  })}
 
                   {/* Inter-set rest banner — same pattern as normal. */}
                   {totalSets > 1 && restSec != null && (
