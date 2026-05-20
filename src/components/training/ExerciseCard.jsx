@@ -1976,6 +1976,10 @@ export default function ExerciseCard({
                 cards so the editor view is unchanged. */}
             {variant === 'list' && isCoachMode && (
               <>
+                {/* Parent's own prescribed params (rest_between_sets,
+                    rounds, etc.) — kept for coach reference above the
+                    per-sub list. Sub-cards below mirror the trainee
+                    layout exactly so the two views read identically. */}
                 {paramItems.length > 0 && (
                   <div style={{ marginBottom: 10 }}>
                     {paramItems.map((it, i) => (
@@ -1990,32 +1994,66 @@ export default function ExerciseCard({
                   </div>
                 )}
 
-                {subExercises.length > 0 && (
+                {subExercises.length === 0 ? (
                   <div style={{
-                    border: '1.5px solid #e9d5ff',
-                    borderRadius: 10,
-                    overflow: 'hidden',
+                    padding: 16, textAlign: 'center',
+                    background: '#FFFFFF', borderRadius: 10,
+                    border: '1px dashed #e9d5ff',
+                    fontSize: 13, color: '#888',
                     marginBottom: 10,
-                  }}>
-                    <div style={{
-                      background: '#F5F3FF',
-                      padding: '8px 12px',
-                      fontSize: 13, fontWeight: 700, color: '#7F47B5',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    }}>
-                      <span>📋 רשימת תרגילים</span>
-                      <span style={{ fontWeight: 500 }}>{subExercises.length} תרגילים</span>
-                    </div>
-                    {subExercises.map((sub, i) => (
-                      <SubExerciseItem
-                        key={sub.id || `sub-${i}`}
-                        index={i + 1}
-                        sub={sub}
-                        accentColor="#7F47B5"
-                        accentTint="#F5F3FF"
-                      />
-                    ))}
-                  </div>
+                  }}>אין תרגילים ברשימה</div>
+                ) : (
+                  subExercises.map((sub, di) => {
+                    const subParamItems = buildParamItemsFor(sub, null);
+                    return (
+                      <div key={sub.id || `drill-${di}`} style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #F2EDE3',
+                        borderRadius: 12,
+                        padding: 12,
+                        marginBottom: 10,
+                      }}>
+                        {/* Sub-exercise header — orange index square + name */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: subParamItems.length > 0 ? 8 : 0 }}>
+                          <span style={{
+                            width: 24, height: 24,
+                            background: '#FF6F20', color: '#FFFFFF',
+                            borderRadius: 4,
+                            fontFamily: "'Barlow Condensed', 'Arial Narrow', sans-serif",
+                            fontSize: 14, fontWeight: 700,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                          }}>{di + 1}</span>
+                          <span style={{
+                            fontFamily: "'Barlow', system-ui, sans-serif",
+                            fontSize: 15, fontWeight: 700, color: '#1a1a1a',
+                            wordBreak: 'break-word',
+                          }}>{getDrillName(sub, di)}</span>
+                        </div>
+                        {/* Inline param pills — same closed-card pill
+                            style as the parent card, scoped to this
+                            sub-exercise's prescribed values. */}
+                        {subParamItems.length > 0 && (
+                          <div style={{
+                            display: 'flex', flexWrap: 'wrap', gap: 4,
+                            direction: 'rtl',
+                          }}>
+                            {subParamItems.map((it) => (
+                              <span key={it.key} style={{
+                                background: '#FFF0E4',
+                                color: '#993C1D',
+                                fontSize: 11,
+                                fontWeight: 500,
+                                padding: '2px 7px',
+                                borderRadius: 6,
+                                whiteSpace: 'nowrap',
+                              }}>{it.display}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
 
                 <CoachNoteBox text={description} />
