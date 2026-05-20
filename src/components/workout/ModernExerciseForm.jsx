@@ -18,11 +18,6 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// TEMP DIAG — module-load timestamp. Inlined into the red banner so
-// the user can verify on-screen whether they're on a fresh build or a
-// stale SW cache. Evaluated once at first JS-load of this bundle.
-const __BUILD_AT = new Date().toISOString();
-
 // Drag-handle wrapper for one sub-exercise row. Renders the ⠿ handle
 // to the right of the editor (RTL = visual right). Uses the sub.id so
 // onDragEnd resolves to the array index even when items are reordered.
@@ -117,7 +112,10 @@ const getDbField = (paramId) => DB_MAP[paramId] || paramId;
 
 // ── Value Helpers ─────────────────────────────────────────────────────
 const hasVal = (v) => {
-  if (v === null || v === undefined || v === "" || v === "0") return false;
+  // Numeric 0 has to be excluded here too — without it, a freshly-loaded
+  // exercise whose `weight` column is 0 false-positively adds the
+  // weight_kg chip to confirmedParams in the hydration effect.
+  if (v === null || v === undefined || v === "" || v === "0" || v === 0) return false;
   if (Array.isArray(v)) return v.length > 0;
   if (typeof v === "object") return Object.keys(v).length > 0;
   return true;
@@ -1157,15 +1155,32 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
   const isContainer = confirmedParams.has("exercise_list") || confirmedParams.has("tabata");
   const containerType = confirmedParams.has("tabata") ? "tabata" : confirmedParams.has("exercise_list") ? "list" : null;
-  // Read through every legacy shape so the editor never lands on []
-  // when the row was saved with `children` (current DB column) or
-  // `exercise_list` (older). The hydration effect above also mirrors
-  // these onto sub_exercises so writes go through one canonical path.
-  const subExercises =
-    exercise.sub_exercises ||
-    exercise.children ||
-    exercise.exercise_list ||
-    [];
+  // Read sub-exercises directly from every plausible location on every
+  // render. The hydration effect above also back-fills exercise.sub_exercises
+  // via onChange, but that propagation lags by one render — so the
+  // first-paint of an existing exercise would land on [] without this
+  // in-line deep read. Walks: top-level sub_exercises → children →
+  // exercise_list → parsed tabata_data.sub_exercises / .exercises /
+  // .blocks[*].block_exercises. Returns [] if nothing matched.
+  const subExercises = (() => {
+    if (Array.isArray(exercise.sub_exercises) && exercise.sub_exercises.length > 0) return exercise.sub_exercises;
+    if (Array.isArray(exercise.children) && exercise.children.length > 0) return exercise.children;
+    if (Array.isArray(exercise.exercise_list) && exercise.exercise_list.length > 0) return exercise.exercise_list;
+    if (exercise.tabata_data) {
+      try {
+        const parsed = typeof exercise.tabata_data === 'string'
+          ? JSON.parse(exercise.tabata_data)
+          : exercise.tabata_data;
+        if (parsed && Array.isArray(parsed.sub_exercises) && parsed.sub_exercises.length > 0) return parsed.sub_exercises;
+        if (parsed && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) return parsed.exercises;
+        if (parsed && Array.isArray(parsed.blocks)) {
+          const flat = parsed.blocks.flatMap((b) => b.block_exercises || []);
+          if (flat.length > 0) return flat;
+        }
+      } catch {}
+    }
+    return [];
+  })();
 
   // Auto-set mode based on container
   useEffect(() => {
@@ -1431,67 +1446,6 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // ── RENDER ──────────────────────────────────────────────────────────
   return (
     <div className="w-full" dir="rtl">
-
-      {/* TEMP DIAG — build-time strip so the user can verify whether
-          the PWA service worker is serving stale JS. If this date
-          isn't today, the bundle is cached and a hard refresh /
-          uninstall+reinstall of the PWA is needed. */}
-      <div style={{
-        background: '#ff0000', color: '#fff',
-        padding: 4, fontSize: 11, fontFamily: 'monospace',
-        marginBottom: 4, borderRadius: 4, textAlign: 'center',
-      }}>
-        BUILD: {__BUILD_AT.slice(0, 16)} — if you don't see today's date here, you're on cached version
-      </div>
-
-      {/* TEMP DIAG — raw exercise shape arriving from the parent. */}
-      <div style={{
-        background: '#FFD580', padding: 6, fontSize: 10,
-        fontFamily: 'monospace', marginBottom: 4, borderRadius: 4,
-        direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
-      }}>
-        RAW exercise:
-        {' '}has_children={String(!!exercise?.children)}
-        {' '}children_type={typeof exercise?.children}
-        {' '}has_tabata_data={String(!!exercise?.tabata_data)}
-        {' '}tabata_data_type={typeof exercise?.tabata_data}
-        {' '}has_weight={String(!!exercise?.weight)}
-        {' '}weight={String(exercise?.weight)}
-      </div>
-
-      {/* TEMP DIAG — resolved state ModernExerciseForm derived from it. */}
-      <div style={{
-        background: '#FFE4B5', padding: 6, fontSize: 10,
-        fontFamily: 'monospace', marginBottom: 4, borderRadius: 4,
-        direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
-      }}>
-        SUBS resolved:
-        {' '}subExercises.length={subExercises?.length || 0}
-        {' '}confirmedParams={[...(confirmedParams || [])].join('|')}
-      </div>
-
-      {/* TEMP DIAG — parsed shape of exercise.tabata_data so we can see
-          which key the sub-exercise array lives under (the prior banner
-          showed has_tabata_data=true but subExercises.length=0). */}
-      <div style={{
-        background: '#E8F0FF', padding: 6, fontSize: 10,
-        fontFamily: 'monospace', marginBottom: 8, borderRadius: 4,
-        direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
-        whiteSpace: 'pre-wrap',
-      }}>
-        PARSED tabata_data:
-        {' '}{(() => {
-          try {
-            const parsed = typeof exercise?.tabata_data === 'string'
-              ? JSON.parse(exercise.tabata_data)
-              : exercise?.tabata_data;
-            if (!parsed) return 'null';
-            return `keys=[${Object.keys(parsed).join(',')}] firstSample=${JSON.stringify(parsed).slice(0, 400)}`;
-          } catch (e) {
-            return `PARSE_ERROR: ${e.message}`;
-          }
-        })()}
-      </div>
 
       {/* ── Name with autocomplete (read-only renders static text) ─ */}
       {readOnly ? (
