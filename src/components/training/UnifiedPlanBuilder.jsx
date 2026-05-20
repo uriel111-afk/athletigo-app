@@ -11,6 +11,7 @@ import WorkoutProgressBar from "./WorkoutProgressBar";
 import SectionForm from "../workout/SectionForm";
 import ModernExerciseForm from "../workout/ModernExerciseForm";
 import SectionCard from "./SectionCard";
+import { usePreviousSetData } from "@/hooks/usePreviousSetData";
 import ExerciseExecutionModal from "./ExerciseExecutionModal";
 import ExerciseExecution from "@/components/ExerciseExecution";
 import { toast } from "sonner";
@@ -350,6 +351,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // workout-level so opening a card inside section A collapses any
   // already-open card in section B. null = nothing expanded.
   const [expandedExerciseId, setExpandedExerciseId] = useState(null);
+
   const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
   // Section feedback captures TWO 1-10 sliders (control = how
@@ -370,6 +372,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // re-opening an in-progress workout doesn't fork the execution into
   // duplicates on the graph.
   const [currentExecutionId, setCurrentExecutionId] = useState(null);
+
+  // Per-set previous-performance + personal-record map for the trainee
+  // view. Keyed by exercise.id → setIdx. Excludes the current execution
+  // so a half-filled session never shows itself as "previous". Empty
+  // in coach mode (canEdit=true → hook receives null plan/trainee and
+  // returns {}).
+  const previousSetData = usePreviousSetData(
+    !canEdit ? plan?.id : null,
+    !canEdit ? (plan?.assigned_to || plan?.created_by) : null,
+    currentExecutionId,
+  );
   // Ref (not state) — checkAndTriggerPopups reads this synchronously
   // to decide whether to fire the section feedback dialog. State
   // would batch the add through React's update queue and a fast
@@ -2073,6 +2086,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 onDrillSetToggleDone={toggleDrillSetDone}
                 expandedExerciseId={expandedExerciseId}
                 setExpandedExerciseId={setExpandedExerciseId}
+                previousSetDataByExercise={previousSetData}
                 onToggleTrackingMode={(s) => {
                   const next = (s?.tracking_mode || 'full') === 'full' ? 'display' : 'full';
                   updateSectionMutation.mutate({ id: s.id, data: { tracking_mode: next } });

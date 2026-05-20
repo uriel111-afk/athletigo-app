@@ -454,6 +454,12 @@ export default function ExerciseCard({
   // means the trainee just reads the card — no fill rows, no live
   // status math, just the "תצוגה" indicator.
   sectionTrackingMode = 'full',
+  // Per-set previous + record lookup for THIS exercise. Shape:
+  //   { [setIdx]: { previous_reps, record_reps, previous_time, record_time } }
+  // Provided by the parent (UnifiedPlanBuilder → SectionCard) only on
+  // the trainee path; null/missing on coach + display-mode + first-
+  // ever performance, in which case the indicators silently omit.
+  previousSetData = null,
 }) {
   const queryClient = useQueryClient();
   // Tabata launch hands cfg → ActiveTimerContext.pendingTabataCfg,
@@ -1361,6 +1367,29 @@ export default function ExerciseCard({
                       <div style={boxesGroupStyle}>
                         {Array.from({ length: totalSets }).map((_, idx) => {
                           const current = setLog?.[idx]?.reps_completed;
+                          // Per-set history lookup. `previousSetData`
+                          // arrives as { [idx]: { previous_reps, … } }
+                          // from UnifiedPlanBuilder via SectionCard. A
+                          // partially-filled set (current empty / 0)
+                          // never wins a celebration — only typed
+                          // strictly-greater values do.
+                          const setHistory = previousSetData?.[idx] || null;
+                          const prevReps = setHistory?.previous_reps ?? null;
+                          const recordReps = setHistory?.record_reps ?? null;
+                          const curN = current != null && current !== ''
+                            && Number.isFinite(Number(current)) && Number(current) > 0
+                            ? Number(current) : null;
+                          const beatsPrev = curN != null && prevReps != null && curN > prevReps;
+                          const beatsRecord = curN != null && recordReps != null && curN > recordReps;
+                          const indicator = beatsRecord
+                            ? '🔥 שיא חדש!'
+                            : (prevReps != null && recordReps != null && prevReps !== recordReps)
+                                ? `⟲ ${prevReps} · 🏆 ${recordReps}`
+                                : prevReps != null
+                                  ? `⟲ ${prevReps}`
+                                  : recordReps != null
+                                    ? `🏆 ${recordReps}`
+                                    : null;
                           return (
                             <div key={idx} style={boxColStyle}>
                               <span style={setCaptionStyle}>סט {idx + 1}</span>
@@ -1386,9 +1415,9 @@ export default function ExerciseCard({
                                 placeholder={String(exercise.reps || '')}
                                 style={{
                                   width: BOX_W, height: BOX_H, borderRadius: 8,
-                                  border: '2px solid #FF6F20',
+                                  border: beatsRecord ? '2px solid #16a34a' : '2px solid #FF6F20',
                                   background: '#FFFFFF',
-                                  color: '#1a1a1a',
+                                  color: beatsRecord ? '#16a34a' : beatsPrev ? '#FF6F20' : '#1a1a1a',
                                   textAlign: 'center',
                                   fontFamily: NUM_FONT,
                                   fontSize: 22, fontWeight: 700,
@@ -1400,8 +1429,25 @@ export default function ExerciseCard({
                                   MozAppearance: 'textfield',
                                   flexShrink: 0,
                                   boxSizing: 'border-box',
+                                  boxShadow: beatsRecord
+                                    ? '0 0 0 3px rgba(22, 163, 74, 0.18)'
+                                    : beatsPrev
+                                      ? '0 0 0 3px rgba(255, 111, 32, 0.22)'
+                                      : 'none',
+                                  transition: 'border-color 0.15s, color 0.15s, box-shadow 0.15s',
                                 }}
                               />
+                              {indicator && (
+                                <span style={{
+                                  fontSize: 10,
+                                  color: beatsRecord ? '#16a34a' : '#888',
+                                  fontWeight: beatsRecord ? 800 : 600,
+                                  marginTop: 4,
+                                  whiteSpace: 'nowrap',
+                                  fontFamily: SANS_FONT,
+                                  lineHeight: 1.1,
+                                }}>{indicator}</span>
+                              )}
                             </div>
                           );
                         })}
@@ -1423,6 +1469,25 @@ export default function ExerciseCard({
                         {Array.from({ length: totalSets }).map((_, idx) => {
                           const current = setLog?.[idx]?.time_completed;
                           const caption = totalSets === 1 ? 'בפועל' : `סט ${idx + 1}`;
+                          // Same previous + record indicator as the
+                          // reps path, but driven off time_completed.
+                          const setHistory = previousSetData?.[idx] || null;
+                          const prevTime = setHistory?.previous_time ?? null;
+                          const recordTime = setHistory?.record_time ?? null;
+                          const curN = current != null && current !== ''
+                            && Number.isFinite(Number(current)) && Number(current) > 0
+                            ? Number(current) : null;
+                          const beatsPrev = curN != null && prevTime != null && curN > prevTime;
+                          const beatsRecord = curN != null && recordTime != null && curN > recordTime;
+                          const indicator = beatsRecord
+                            ? '🔥 שיא חדש!'
+                            : (prevTime != null && recordTime != null && prevTime !== recordTime)
+                                ? `⟲ ${prevTime} · 🏆 ${recordTime}`
+                                : prevTime != null
+                                  ? `⟲ ${prevTime}`
+                                  : recordTime != null
+                                    ? `🏆 ${recordTime}`
+                                    : null;
                           return (
                             <div key={idx} style={boxColStyle}>
                               <span style={setCaptionStyle}>{caption}</span>
@@ -1448,9 +1513,9 @@ export default function ExerciseCard({
                                 placeholder={String(workTimeTarget || '')}
                                 style={{
                                   width: BOX_W, height: BOX_H, borderRadius: 8,
-                                  border: '2px solid #FF6F20',
+                                  border: beatsRecord ? '2px solid #16a34a' : '2px solid #FF6F20',
                                   background: '#FFFFFF',
-                                  color: '#1a1a1a',
+                                  color: beatsRecord ? '#16a34a' : beatsPrev ? '#FF6F20' : '#1a1a1a',
                                   textAlign: 'center',
                                   fontFamily: NUM_FONT,
                                   fontSize: 20,
@@ -1463,8 +1528,25 @@ export default function ExerciseCard({
                                   MozAppearance: 'textfield',
                                   flexShrink: 0,
                                   boxSizing: 'border-box',
+                                  boxShadow: beatsRecord
+                                    ? '0 0 0 3px rgba(22, 163, 74, 0.18)'
+                                    : beatsPrev
+                                      ? '0 0 0 3px rgba(255, 111, 32, 0.22)'
+                                      : 'none',
+                                  transition: 'border-color 0.15s, color 0.15s, box-shadow 0.15s',
                                 }}
                               />
+                              {indicator && (
+                                <span style={{
+                                  fontSize: 10,
+                                  color: beatsRecord ? '#16a34a' : '#888',
+                                  fontWeight: beatsRecord ? 800 : 600,
+                                  marginTop: 4,
+                                  whiteSpace: 'nowrap',
+                                  fontFamily: SANS_FONT,
+                                  lineHeight: 1.1,
+                                }}>{indicator}</span>
+                              )}
                             </div>
                           );
                         })}

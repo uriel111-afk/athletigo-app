@@ -53,6 +53,10 @@ export default function SectionCard({
   // completed in one shot for display-only sections (no rating popup).
   onToggleTrackingMode,
   onMarkSectionDoneDisplay,
+  // Map: { [exerciseId]: { [setIdx]: { previous_reps, record_reps,
+  // previous_time, record_time } } }. Optional — when absent each
+  // ExerciseCard renders without the "קודם / שיא" indicators.
+  previousSetDataByExercise = {},
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
   // Register the section's collapse as a smart-back close. Stack is
@@ -476,6 +480,7 @@ export default function SectionCard({
                         ? () => setExpandedExerciseId((prev) => prev === exercise.id ? null : exercise.id)
                         : undefined}
                       sectionTrackingMode={section?.tracking_mode || 'full'}
+                      previousSetData={previousSetDataByExercise[exercise.id] || null}
                     />
                   ))
                 )}
@@ -805,6 +810,7 @@ export default function SectionCard({
                         ? () => setExpandedExerciseId((prev) => prev === exercise.id ? null : exercise.id)
                         : undefined}
                       sectionTrackingMode={section?.tracking_mode || 'full'}
+                      previousSetData={previousSetDataByExercise[exercise.id] || null}
                     />
                   ))}
                 </div>
