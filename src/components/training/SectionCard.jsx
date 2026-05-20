@@ -46,6 +46,13 @@ export default function SectionCard({
   // omit both and the cards self-manage as before.
   expandedExerciseId,
   setExpandedExerciseId,
+  // Tracking-mode controls — provided by UnifiedPlanBuilder.
+  // onToggleTrackingMode flips section.tracking_mode between 'full'
+  // and 'display' via the existing section update mutation.
+  // onMarkSectionDoneDisplay marks every exercise + the section as
+  // completed in one shot for display-only sections (no rating popup).
+  onToggleTrackingMode,
+  onMarkSectionDoneDisplay,
 }) {
   const [expanded, setExpanded] = useState(!showEditButtons);
   // Register the section's collapse as a smart-back close. Stack is
@@ -384,6 +391,31 @@ export default function SectionCard({
               {onMoveSection && (
                 <Item icon="↓" label="הזז למטה" disabled={isLastSection} onClick={() => onMoveSection(1)} />
               )}
+              {/* Section tracking mode toggle. Shows current state as
+                  a small pill on the right of the tile so the coach
+                  can read it without opening anything else. */}
+              {onToggleTrackingMode && (() => {
+                const mode = section?.tracking_mode || 'full';
+                const isFull = mode === 'full';
+                const pillLabel = (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+                    מעקב נתונים
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                      background: isFull ? '#FF6F20' : '#E5E7EB',
+                      color: isFull ? '#FFFFFF' : '#4b5563',
+                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {isFull ? 'מלא' : 'תצוגה'}
+                    </span>
+                  </span>
+                );
+                return <Item icon="🎯" label={pillLabel} onClick={() => onToggleTrackingMode(section)} />;
+              })()}
               {onDeleteSection && (
                 <Item icon="🗑" label="מחק" danger onClick={() => onDeleteSection(section.id)} />
               )}
@@ -443,10 +475,42 @@ export default function SectionCard({
                       onToggleExpanded={setExpandedExerciseId
                         ? () => setExpandedExerciseId((prev) => prev === exercise.id ? null : exercise.id)
                         : undefined}
+                      sectionTrackingMode={section?.tracking_mode || 'full'}
                     />
                   ))
                 )}
 
+                {/* Display-mode "done" button — trainee view only,
+                    only when this section is display-only AND not
+                    yet completed. Skips the rating popup; the parent
+                    handler bulk-marks every exercise + the section
+                    as completed so the overall workout progress and
+                    summary popup still trigger naturally. */}
+                {!showEditButtons
+                  && (section?.tracking_mode || 'full') === 'display'
+                  && !section?.completed
+                  && onMarkSectionDoneDisplay && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onMarkSectionDoneDisplay(section); }}
+                    style={{
+                      width: '100%',
+                      background: '#FF6F20',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 12,
+                      padding: '14px 16px',
+                      margin: '12px 0 4px',
+                      fontSize: 15,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      direction: 'rtl',
+                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    }}
+                  >
+                    סיימתי את {section?.section_name || 'הסקשן'}
+                  </button>
+                )}
                 {/* Coach: add-exercise affordance at the bottom of the
                     expanded body. Reuses onAddExercise verbatim. */}
                 {showEditButtons && onAddExercise && (
@@ -740,6 +804,7 @@ export default function SectionCard({
                       onToggleExpanded={setExpandedExerciseId
                         ? () => setExpandedExerciseId((prev) => prev === exercise.id ? null : exercise.id)
                         : undefined}
+                      sectionTrackingMode={section?.tracking_mode || 'full'}
                     />
                   ))}
                 </div>

@@ -449,6 +449,11 @@ export default function ExerciseCard({
   // legacy independent-expand behavior.
   expanded: externalExpanded,
   onToggleExpanded,
+  // Inherits the parent section's tracking mode. 'full' (default)
+  // keeps the existing set-fill UX and derived status pill. 'display'
+  // means the trainee just reads the card — no fill rows, no live
+  // status math, just the "תצוגה" indicator.
+  sectionTrackingMode = 'full',
 }) {
   const queryClient = useQueryClient();
   // Tabata launch hands cfg → ActiveTimerContext.pendingTabataCfg,
@@ -750,6 +755,37 @@ export default function ExerciseCard({
               changes the state; the coach sees the same pill but no
               fill inputs. */}
           {(() => {
+            // Display-mode sections skip the derived-completion pill
+            // because there are no per-set toggles for it to read from.
+            // A neutral "תצוגה" badge sits in the same slot so the
+            // header layout stays identical.
+            if (sectionTrackingMode === 'display') {
+              return (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '3px 8px',
+                  borderRadius: 999,
+                  background: '#F1F2F4',
+                  border: '1px solid #DFE2E6',
+                  color: '#6b7280',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  marginTop: 1,
+                  fontFamily: SANS_FONT,
+                }} aria-label="תצוגה">
+                  <span style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: '#9ca3af', flexShrink: 0,
+                    display: 'inline-block',
+                  }} aria-hidden />
+                  תצוגה
+                </span>
+              );
+            }
             // Unified derived status — for EVERY variant (including
             // tabata) status is computed from setLog toggles now that
             // tabata has a simple ✓-סטים row of its own. No more
@@ -1135,7 +1171,7 @@ export default function ExerciseCard({
           // (persisted via the existing time_completed column on
           // exercise_set_logs, documented in workoutExecutionApi.js).
           const isTimeBased = hasWorkTimeParam && !hasRepsParam;
-          const showFill = !isCoachMode && hasSetsParam;
+          const showFill = !isCoachMode && hasSetsParam && sectionTrackingMode !== 'display';
           const workTimeItem = paramItems.find((it) => it.key === 'work_time') || null;
           const workTimeTarget = workTimeItem ? (parseInt(workTimeItem.value, 10) || 0) : 0;
 

@@ -2073,6 +2073,52 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 onDrillSetToggleDone={toggleDrillSetDone}
                 expandedExerciseId={expandedExerciseId}
                 setExpandedExerciseId={setExpandedExerciseId}
+                onToggleTrackingMode={(s) => {
+                  const next = (s?.tracking_mode || 'full') === 'full' ? 'display' : 'full';
+                  updateSectionMutation.mutate({ id: s.id, data: { tracking_mode: next } });
+                }}
+                onMarkSectionDoneDisplay={async (s) => {
+                  // Display-only "done" path. Bulk-mark every
+                  // exercise in this section + the section itself
+                  // as completed, then skip the rating popup.
+                  // ratedSectionsRef guard prevents the per-exercise
+                  // checkAndTriggerPopups flow from re-opening the
+                  // popup if a later state shake re-evaluates.
+                  ratedSectionsRef.current.add(s.id);
+                  const sectionExercises = exercises.filter(
+                    (e) => e.training_section_id === s.id
+                  );
+                  for (const ex of sectionExercises) {
+                    if (!ex.completed) {
+                      try {
+                        await updateExerciseMutation.mutateAsync({
+                          id: ex.id, data: { completed: true },
+                        });
+                      } catch (e) {
+                        console.warn('[markSectionDoneDisplay] exercise update failed:', e?.message);
+                      }
+                    }
+                  }
+                  if (!s.completed) {
+                    try {
+                      await updateSectionMutation.mutateAsync({
+                        id: s.id, data: { completed: true },
+                      });
+                    } catch (e) {
+                      console.warn('[markSectionDoneDisplay] section update failed:', e?.message);
+                    }
+                  }
+                  toast.success(`סקשן "${s.section_name}" סומן`);
+                  // If this completion brings the whole workout to
+                  // 100%, trigger the workout-summary popup the same
+                  // way the per-exercise path does.
+                  const updated = exercises.map((e) =>
+                    e.training_section_id === s.id ? { ...e, completed: true } : e
+                  );
+                  if (updated.length > 0 && updated.every((e) => e.completed)) {
+                    setTimeout(() => showWorkoutSummary(updated), 700);
+                  }
+                }}
                 onOpenExecution={(ex) => {
                   setExecutionExercise(ex);
                   setShowExecutionModal(true);
