@@ -10,6 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Stepper, TimePicker, RpeScale, TempoPattern, ChipsMulti, ListBuilder, Tabata, TABATA_DEFAULTS, EQUIPMENT_OPTIONS } from "@/components/ParamWidgets";
 import { SECTION_TYPES, getSectionType, normalizeSectionType } from "@/lib/sectionTypes";
 import CollapsibleSection from "@/components/CollapsibleSection";
+import ExerciseCard from "@/components/training/ExerciseCard";
 import { toast } from "sonner";
 
 // First 4 are auto-created for new plans
@@ -713,62 +714,23 @@ function SectionBlock({ section, sectionIndex, onDelete, onAddExercise, onEditEx
         <button onClick={onAddExercise} style={{ background: "#FFF0E8", color: "#FF6F20", border: "1px solid #FFD0A0", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ תרגיל</button>
         <button onClick={onDelete} style={{ background: "#fee2e2", border: "none", color: "#ef4444", fontSize: 13, width: 28, height: 28, borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>🗑</button>
       </div>
+      {/* Builder rows use the same ExerciseCard the trainee sees so
+          a newly saved exercise renders identically (orange index square,
+          summary pills, chevron, status pill). canEdit=true puts the
+          card into coach mode, which hides the per-set fill rows and
+          surfaces the edit/delete affordances the card already owns. */}
       {section.exercises?.map((ex, ei) => (
-        <div key={ex.id || ei} style={{ padding: "10px 14px", borderBottom: ei < section.exercises.length - 1 ? "1px solid #f5f5f5" : "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{ex.exercise_name || ex.name || "תרגיל"}</div>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
-              {ex.sets && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.sets} סטים</span>}
-              {ex.reps && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.reps} חזרות</span>}
-              {ex.rounds && <span style={{ background: "#FFF0E4", color: "#FF6F20", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.rounds} סבבים</span>}
-              {ex.weight && <span style={{ background: "#F3E8FF", color: "#7F47B5", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🏋 {ex.weight} ק״ג</span>}
-              {ex.work_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>💪 {formatWorkTime(ex.work_time)}</span>}
-              {ex.rest_time && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>😮‍💨 {formatWorkTime(ex.rest_time)}</span>}
-              {ex.rest_between_sets && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>מנוחה {ex.rest_between_sets}״</span>}
-              {ex.rpe && <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>RPE {ex.rpe}</span>}
-              {ex.tempo && <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏲ {ex.tempo}</span>}
-              {(ex.tabata_data || ex.tabata_config) && <span style={{ background: "#E8F5E9", color: "#16a34a", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>⏱ טבטה</span>}
-              {ex.side && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.side}</span>}
-              {ex.body_position && <span style={{ background: "#F3F4F6", color: "#555", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>{ex.body_position}</span>}
-              {ex.video_url && <span style={{ background: "#DBEAFE", color: "#1D4ED8", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🎥 וידאו</span>}
-              {ex.equipment && (Array.isArray(ex.equipment) ? ex.equipment.length > 0 : true) && <span style={{ background: "#F3F4F6", color: "#888", fontSize: 11, padding: "3px 8px", borderRadius: 8, fontWeight: 600 }}>🛠 {Array.isArray(ex.equipment) ? ex.equipment.join(', ') : ex.equipment}</span>}
-            </div>
-            {/* Inline list of sub-exercises ("רשימת תרגילים") — surfaces
-                the children array (or the legacy exercise_list /
-                sub_exercises columns) so circuit/superset rows show
-                the work without opening the param editor. */}
-            {(() => {
-              const raw = ex.children || ex.exercise_list || ex.sub_exercises;
-              let arr = raw;
-              if (typeof arr === 'string') {
-                try { arr = JSON.parse(arr); } catch { return null; }
-              }
-              if (!Array.isArray(arr) || arr.length === 0) return null;
-              return (
-                <div style={{ marginTop: 8, padding: 8, background: '#FDF8F3', borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-                    רשימת תרגילים ({arr.length})
-                  </div>
-                  {arr.map((s, i) => (
-                    <div key={i} style={{
-                      display: 'flex', justifyContent: 'space-between', padding: '4px 0',
-                      borderBottom: i < arr.length - 1 ? '1px solid #F0E4D0' : 'none',
-                      fontSize: 12, direction: 'rtl',
-                    }}>
-                      <span>{i + 1}. {s.name || s.exercise_name || s.label || ''}</span>
-                      <span style={{ color: '#888' }}>
-                        {s.sets ? `${s.sets}S` : ''} {s.reps ? `×${s.reps}` : ''} {s.weight ? `${s.weight}kg` : ''}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => onEditExercise(ei)} style={{ background: "none", border: "none", color: "#999", fontSize: 16, cursor: "pointer" }}>✏️</button>
-            <button onClick={() => onDeleteExercise(ei)} style={{ background: "none", border: "none", color: "#ddd", fontSize: 16, cursor: "pointer" }}>🗑</button>
-          </div>
+        <div key={ex.id || ei}
+             style={{ padding: '8px 10px',
+                      borderBottom: ei < section.exercises.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+          <ExerciseCard
+            exercise={ex}
+            exerciseIndex={ei + 1}
+            canEdit={true}
+            isCoach={true}
+            onEdit={() => onEditExercise(ei)}
+            onDelete={() => onDeleteExercise(ei)}
+          />
         </div>
       ))}
       {section.exercises?.length === 0 && (
