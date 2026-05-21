@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -513,17 +514,23 @@ export default function ExerciseCard({
   // `setExpanded` already resolve to the active source.
   useSmartBackHandler(expanded, () => setExpanded(false));
   const [renaming, setRenaming] = useState(false);
-  // 3-dot actions menu (שכפל / מחק). Mirrors the sub-exercise menu
-  // pattern from ModernExerciseForm (a5bd5d1) — closes on outside tap,
-  // item tap, or trigger re-tap.
+  // 3-dot actions menu (ערוך / שכפל / מחק). Mirrors the sub-exercise
+  // menu pattern from ModernExerciseForm (a5bd5d1) — closes on outside
+  // tap, item tap, or trigger re-tap. The popover renders via a portal
+  // into document.body because the outer card uses overflow:'hidden'
+  // (needed for borderRadius clipping of the right-rail), and an
+  // absolute-positioned child can't escape that. Anchor coords are
+  // captured on the trigger's onClick from the button's bounding rect.
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
-  const actionsMenuRef = useRef(null);
+  const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
+  const actionsMenuRef = useRef(null);        // trigger wrapper
+  const actionsPopoverRef = useRef(null);     // portalled popover
   useEffect(() => {
     if (!actionsMenuOpen) return undefined;
     const handler = (e) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target)) {
-        setActionsMenuOpen(false);
-      }
+      if (actionsMenuRef.current && actionsMenuRef.current.contains(e.target)) return;
+      if (actionsPopoverRef.current && actionsPopoverRef.current.contains(e.target)) return;
+      setActionsMenuOpen(false);
     };
     document.addEventListener('mousedown', handler);
     document.addEventListener('touchstart', handler);
@@ -950,12 +957,19 @@ export default function ExerciseCard({
             })()}
 
             {/* Coach 3-dot menu — ערוך + שכפל + מחק. Trigger renders
-                when any of the three handlers is wired. */}
+                when any of the three handlers is wired. Popover lives
+                in a portal so it can't be clipped by the card's
+                overflow:hidden. */}
             {isCoachMode && (onEdit || onDuplicate || onDelete) && (
-              <div ref={actionsMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+              <div ref={actionsMenuRef} style={{ flexShrink: 0 }}>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setActionsMenuOpen((v) => !v); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setActionsMenuAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                    setActionsMenuOpen((v) => !v);
+                  }}
                   aria-label="פעולות"
                   aria-expanded={actionsMenuOpen}
                   title="פעולות"
@@ -973,19 +987,20 @@ export default function ExerciseCard({
                 >
                   <MoreHorizontal size={18} />
                 </button>
-                {actionsMenuOpen && (
+                {actionsMenuOpen && actionsMenuAnchor && typeof document !== 'undefined' && createPortal(
                   <div
+                    ref={actionsPopoverRef}
                     role="menu"
                     onClick={(e) => e.stopPropagation()}
                     style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 4px)',
-                      right: 0,
-                      zIndex: 50,
+                      position: 'fixed',
+                      top: actionsMenuAnchor.top,
+                      right: actionsMenuAnchor.right,
+                      zIndex: 1000,
                       background: '#FFFFFF',
                       border: '1px solid #E8DEC4',
                       borderRadius: 12,
-                      boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                      boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
                       padding: 8,
                       display: 'flex',
                       flexDirection: 'column',
@@ -1050,7 +1065,8 @@ export default function ExerciseCard({
                         <span>מחק</span>
                       </button>
                     )}
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             )}

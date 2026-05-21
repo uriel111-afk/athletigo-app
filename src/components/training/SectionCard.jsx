@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronDown, Plus, Edit2, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Edit2, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -292,26 +292,22 @@ export default function SectionCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
               aria-expanded={menuOpen}
-              aria-label="פעולות סקשן"
+              aria-label="עריכת סקשן"
+              title="עריכת סקשן"
               style={{
+                width: 32, height: 32,
+                background: 'transparent',
+                border: 'none',
+                color: '#6b7280',
+                cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
-                background: menuOpen ? '#FFF5EE' : 'transparent',
-                border: `1px solid ${menuOpen ? '#FFD0AC' : '#E8DEC4'}`,
-                borderRadius: 6,
-                padding: '4px 10px',
-                fontSize: 12,
-                fontWeight: 600,
-                color: menuOpen ? '#FF6F20' : '#8a7250',
-                cursor: 'pointer',
+                justifyContent: 'center',
+                padding: 0,
                 flexShrink: 0,
-                fontFamily: "'Barlow', system-ui, sans-serif",
-                lineHeight: 1,
               }}
             >
-              <span style={{ fontSize: 13 }} aria-hidden>⚙</span>
-              עריכה
+              <Settings size={18} />
             </button>
           )}
           <span aria-hidden style={{
