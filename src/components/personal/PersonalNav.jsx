@@ -63,7 +63,7 @@ export default function PersonalNav() {
                 cursor: 'pointer',
                 color: PERSONAL_COLORS.textPrimary,
                 fontSize: 14, fontWeight: 700,
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               <span style={{ fontSize: 22 }}>{l.emoji}</span>

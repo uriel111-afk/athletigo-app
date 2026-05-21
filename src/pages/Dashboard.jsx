@@ -382,7 +382,7 @@ export default function Dashboard() {
               fontWeight: 700,
               color: '#1a1a1a',
               margin: '8px 16px 12px',
-              fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+              fontFamily: "'Bebas Neue', sans-serif",
               // Stays above the diamond layer so the rotated 115×115
               // top-tip can't visually cover the title text.
               position: 'relative',
@@ -593,7 +593,7 @@ export default function Dashboard() {
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
                 fontSize: 14, fontWeight: 700, color: '#1a1a1a',
-                fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+                fontFamily: "'Bebas Neue', sans-serif",
               }}>
                 גישה מהירה
               </span>

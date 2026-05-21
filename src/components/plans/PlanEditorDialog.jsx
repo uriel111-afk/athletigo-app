@@ -66,7 +66,7 @@ export default function PlanEditorDialog({
           overflowY: 'auto',
           WebkitOverflowScrolling: 'touch',
           zIndex: 11001,
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}
       >
         {/* Sticky header with trainee context + close button. */}
@@ -94,7 +94,7 @@ export default function PlanEditorDialog({
                 fontSize: 17,
                 fontWeight: 700,
                 color: '#1A1A1A',
-                fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+                fontFamily: "'Bebas Neue', sans-serif",
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

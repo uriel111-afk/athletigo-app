@@ -99,7 +99,7 @@ export default function PaymentResultModal({ onSuccessClose } = {}) {
           padding: '32px 24px',
           boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
           textAlign: 'center',
-          fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, sans-serif",
           direction: 'rtl',
         }}
       >
@@ -174,7 +174,7 @@ const primaryBtnStyle = {
   fontSize: 16,
   fontWeight: 600,
   cursor: 'pointer',
-  fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, sans-serif",
   boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
 };
 
@@ -188,5 +188,5 @@ const secondaryBtnStyle = {
   fontSize: 15,
   fontWeight: 600,
   cursor: 'pointer',
-  fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, sans-serif",
 };

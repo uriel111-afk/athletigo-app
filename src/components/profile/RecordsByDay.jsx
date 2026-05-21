@@ -139,7 +139,7 @@ export default function RecordsByDay({ records, exerciseNames, colors, onRecordC
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 direction: 'rtl',
               }}
               aria-expanded={isOpen}

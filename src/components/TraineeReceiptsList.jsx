@@ -71,7 +71,7 @@ export default function TraineeReceiptsList({ traineeId }) {
               background: '#FFFFFF', border: '1px solid #F0E4D0',
               borderRadius: 12, cursor: r.file_url ? 'pointer' : 'default',
               textAlign: 'right',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >
             <span aria-hidden style={{ fontSize: 20 }}>🧾</span>

@@ -66,7 +66,7 @@ export default function RecentPaymentsCard({ coachId, limit = 5 }) {
       margin: '8px 12px 16px', background: '#FFFFFF',
       borderRadius: 14, padding: '12px 14px',
       boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-      fontFamily: "'Heebo', 'Assistant', sans-serif",
+      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
     }} dir="rtl">
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',

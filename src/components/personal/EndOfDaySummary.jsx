@@ -177,7 +177,7 @@ export default function EndOfDaySummary({ checkin, score = 0, firstName = 'או�
                 border: `1px solid ${PERSONAL_COLORS.border}`,
                 backgroundColor: '#FFFFFF',
                 fontSize: 14, color: PERSONAL_COLORS.textPrimary,
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 outline: 'none', boxSizing: 'border-box', resize: 'vertical',
               }}
             />

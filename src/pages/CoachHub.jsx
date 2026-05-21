@@ -214,7 +214,7 @@ export default function CoachHub() {
       style={{
         minHeight: '100dvh',
         backgroundColor: LIFEOS_COLORS.bg,
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         padding: '24px 16px 40px',
       }}
     >
@@ -322,7 +322,7 @@ export default function CoachHub() {
                   background: isActive ? '#FF6F20' : '#FFF9F0',
                   color: isActive ? 'white' : '#888',
                   transition: 'all 0.2s',
-                  fontFamily: "'Barlow', 'Heebo', sans-serif",
+                  fontFamily: "'Rubik', system-ui, sans-serif",
                 }}
               >
                 {tab.label}

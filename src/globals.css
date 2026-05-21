@@ -1,5 +1,5 @@
 css
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Heebo:wght@300;400;500;600;700;800;900&family=Assistant:wght@300;400;500;600;700;800&family=Open+Sans:wght@300;400;500;600;700;800&display=swap');
+/* Fonts now loaded via index.html (Rubik + Bebas Neue) — no @import needed here. */
 
 @tailwind base;
 @tailwind components;
@@ -24,8 +24,9 @@ css
   --athletigo-success-light: #E8F5E9;
   
   /* Typography */
-  --font-heading: 'Montserrat', 'Heebo', 'Assistant', sans-serif;
-  --font-body: 'Heebo', 'Assistant', sans-serif;
+  --font-heading: 'Rubik', system-ui, -apple-system, sans-serif;
+  --font-body: 'Rubik', system-ui, -apple-system, sans-serif;
+  --font-display: 'Bebas Neue', sans-serif;
   
   /* Spacing System - Premium Air & Space */
   --space-xs: 8px;

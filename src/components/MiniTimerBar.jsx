@@ -126,7 +126,7 @@ export default function MiniTimerBar() {
       {/* Round / phase indicator */}
       {round ? (
         <div style={{
-          fontFamily: "'Barlow Condensed', sans-serif",
+          fontFamily: "'Bebas Neue', sans-serif",
           fontSize: 18, fontWeight: 700, color: text,
           minWidth: 32, textAlign: 'center', flexShrink: 0,
         }}>{round}</div>
@@ -135,7 +135,7 @@ export default function MiniTimerBar() {
       {/* Time */}
       <div style={{
         flex: 1, minWidth: 0, textAlign: 'center',
-        fontFamily: "'Barlow Condensed', sans-serif",
+        fontFamily: "'Bebas Neue', sans-serif",
         fontSize: 28, fontWeight: 700, letterSpacing: 1,
         color: text, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden',
       }}>{display}</div>

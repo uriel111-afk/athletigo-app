@@ -91,7 +91,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
         background: 'rgba(0,0,0,0.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16, direction: 'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <div
@@ -200,7 +200,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
                 background: 'white',
                 fontSize: 14,
                 cursor: busy ? 'default' : 'pointer',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               ביטול
@@ -219,7 +219,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
                 fontSize: 14,
                 fontWeight: 700,
                 cursor: (reasonValid && !busy) ? 'pointer' : 'default',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               {busy ? '...שומר' : 'כן, סמן הושלם בלי תשלום'}

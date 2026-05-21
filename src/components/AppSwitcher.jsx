@@ -75,7 +75,7 @@ export default function AppSwitcher() {
               boxShadow: 'none',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              fontFamily: "'Barlow', 'Heebo', sans-serif",
+              fontFamily: "'Rubik', system-ui, sans-serif",
             }}
           >
             {app.label}

@@ -16,8 +16,8 @@ const MinimizeBtn = ({ onClick }) => (
 );
 
 const BRAND = '#FF6F20';
-const FN = "'Barlow Condensed', system-ui, sans-serif";
-const FL = "'Heebo', sans-serif";
+const FN = "'Bebas Neue', sans-serif, sans-serif";
+const FL = "'Rubik', system-ui, sans-serif";
 const C1 = '#1A1A1A';
 const C2 = '#6B7280';
 const C3 = '#9CA3AF';

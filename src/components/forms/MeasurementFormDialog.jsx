@@ -128,7 +128,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
         <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+          <DialogTitle className="text-xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Rubik, sans-serif' }}>
             {editingMeasurement ? '✏️ ערוך מדידה' : '➕ הוסף מדידה חדשה'}
           </DialogTitle>
         </DialogHeader>

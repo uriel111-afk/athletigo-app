@@ -309,7 +309,7 @@ export default function MentorChat() {
                           backgroundColor: '#FFFFFF',
                           color: LIFEOS_COLORS.textPrimary,
                           fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                          fontFamily: "'Heebo', 'Assistant', sans-serif",
+                          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                         }}
                       >
                         {s}
@@ -428,7 +428,7 @@ export default function MentorChat() {
                     backgroundColor: '#FFFFFF',
                     fontSize: 14,
                     color: LIFEOS_COLORS.textPrimary,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     outline: 'none',
                   }}
                 />

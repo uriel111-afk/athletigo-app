@@ -908,7 +908,7 @@ export default function ProgressTab({ traineeId }) {
           }}>
             <h3 style={{
               fontSize: 18, fontWeight: 700, margin: 0,
-              fontFamily: "'Barlow Condensed', 'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Bebas Neue', sans-serif",
             }}>
               היסטוריית שיאים
             </h3>

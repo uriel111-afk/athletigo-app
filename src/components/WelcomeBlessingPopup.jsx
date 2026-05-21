@@ -26,7 +26,7 @@ export default function WelcomeBlessingPopup({ isOpen, onClose }) {
             maxWidth: 340,
             margin: '0 auto',
             textAlign: 'center',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           {/* X close button — top-left in RTL = visual left */}
@@ -106,7 +106,7 @@ export default function WelcomeBlessingPopup({ isOpen, onClose }) {
               fontSize: 18,
               fontWeight: 600,
               cursor: 'pointer',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >
             קדימה!

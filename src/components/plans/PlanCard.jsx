@@ -35,7 +35,7 @@ function Pill({ icon, label, value }) {
         fontSize: 12,
         color: '#1a1a1a',
         whiteSpace: 'nowrap',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <span aria-hidden>{icon}</span>
@@ -88,7 +88,7 @@ export default function PlanCard({
         transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
         boxShadow: hovered ? '0 4px 12px rgba(255,111,32,0.08)' : 'none',
         transition: 'all 0.2s ease',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       {/* Closed-row header — always visible. Click anywhere except
@@ -110,7 +110,7 @@ export default function PlanCard({
               fontSize: 16,
               fontWeight: 700,
               color: '#1A1A1A',
-              fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+              fontFamily: "'Bebas Neue', sans-serif",
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -334,7 +334,7 @@ export default function PlanCard({
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: 'pointer',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               ✏️ פתח עורך תוכנית

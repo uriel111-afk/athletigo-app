@@ -289,7 +289,7 @@ function Section({ title, accent, children }) {
           fontWeight: 700,
           color: accent || '#666',
           margin: '0 0 8px',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}
       >
         {title}
@@ -381,7 +381,7 @@ function btnStyle(variant, disabled = false) {
     fontSize: 14,
     fontWeight: 700,
     cursor: disabled ? 'default' : 'pointer',
-    fontFamily: "'Heebo', 'Assistant', sans-serif",
+    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   };
   if (variant === 'primary') {
     return { ...base, background: disabled ? '#ccc' : '#FF6F20', color: 'white' };

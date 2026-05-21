@@ -216,7 +216,7 @@ export default function SectionCard({
                 }}
                 style={{
                   fontSize: 18, fontWeight: 700, color: '#1a1a1a',
-                  fontFamily: "'Barlow', system-ui, sans-serif",
+                  fontFamily: "'Rubik', system-ui, sans-serif",
                   border: 'none',
                   borderBottom: '2px solid #FF6F20',
                   background: 'transparent',
@@ -237,7 +237,7 @@ export default function SectionCard({
               <span
                 {...(showEditButtons ? longPressRename : {})}
                 style={{
-                  fontFamily: "'Barlow', system-ui, sans-serif",
+                  fontFamily: "'Rubik', system-ui, sans-serif",
                   fontSize: 18,
                   fontWeight: 700,
                   color: '#1a1a1a',
@@ -345,7 +345,7 @@ export default function SectionCard({
             cursor: 'pointer',
             textAlign: 'right',
             direction: 'rtl',
-            fontFamily: "'Barlow', system-ui, sans-serif",
+            fontFamily: "'Rubik', system-ui, sans-serif",
             width: '100%',
             lineHeight: 1.2,
           };
@@ -522,7 +522,7 @@ export default function SectionCard({
                       fontWeight: 700,
                       cursor: 'pointer',
                       direction: 'rtl',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     סיימתי את {section?.section_name || 'הסקשן'}
@@ -634,7 +634,7 @@ export default function SectionCard({
                     fontSize: isTraineeView ? 22 : 20,
                     fontWeight: 700,
                     color: '#1a1a1a',
-                    fontFamily: 'Barlow, sans-serif',
+                    fontFamily: 'Rubik, sans-serif',
                     border: 'none',
                     borderBottom: '2px solid #FF6F20',
                     background: 'transparent',
@@ -652,7 +652,7 @@ export default function SectionCard({
                     fontSize: isTraineeView ? 22 : 20,
                     fontWeight: 700,
                     color: isTraineeView ? '#1a1a1a' : style.text,
-                    fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
+                    fontFamily: "'Bebas Neue', sans-serif",
                     cursor: showEditButtons ? 'pointer' : 'default',
                     userSelect: 'none',
                     whiteSpace: 'normal',
@@ -686,7 +686,7 @@ export default function SectionCard({
                   fontSize: 16,
                   fontWeight: 700,
                   color: '#FF6F20',
-                  fontFamily: 'Barlow Condensed, sans-serif',
+                  fontFamily: 'Bebas Neue, sans-serif',
                 }}>
                   {exercises.length} תרגילים
                 </span>

@@ -97,7 +97,7 @@ function ChipSelect({ label, options, value, onChange, required }) {
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               {opt.label}
@@ -503,7 +503,7 @@ export default function PackageFormDialog({
                 marginBottom: 10,
                 direction: 'rtl',
                 outline: 'none',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 boxSizing: 'border-box',
               }}
             />

@@ -294,7 +294,7 @@ function ParamChip({ label, value, unit, valueColor }) {
         fontSize: 20,
         fontWeight: 700,
         color: valueColor || '#1a1a1a',
-        fontFamily: "'Barlow Condensed', sans-serif",
+        fontFamily: "'Bebas Neue', sans-serif",
         lineHeight: 1.1,
         letterSpacing: '0.3px',
       }}>
@@ -415,7 +415,7 @@ function SubExerciseItem({ index, sub, accentColor, accentTint }) {
         background: accentTint, color: accentColor,
         fontSize: 13, fontWeight: 700,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0, fontFamily: "'Barlow Condensed', sans-serif",
+        flexShrink: 0, fontFamily: "'Bebas Neue', sans-serif",
       }}>{index}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', wordBreak: 'break-word' }}>
@@ -747,8 +747,8 @@ export default function ExerciseCard({
   {
     // Fonts kept inline so every number on this card lines up
     // visually — same family, same size, same weight, same color.
-    const NUM_FONT = "'Barlow Condensed', 'Arial Narrow', sans-serif";
-    const SANS_FONT = "'Barlow', system-ui, sans-serif";
+    const NUM_FONT = "'Bebas Neue', sans-serif";
+    const SANS_FONT = "'Rubik', system-ui, sans-serif";
 
     // Container-variant (tabata + superset/list) closed-card summary
     // — single pill, the exercise count from the parsed sub_exercises
@@ -2033,7 +2033,7 @@ export default function ExerciseCard({
             ) : (
               <div style={{
                 fontSize: 16, fontWeight: 700,
-                fontFamily: "'Barlow', system-ui, sans-serif",
+                fontFamily: "'Rubik', system-ui, sans-serif",
                 color: completed ? '#aaa' : '#1a1a1a',
                 textDecoration: completed ? 'line-through' : 'none',
                 lineHeight: 1.3,
@@ -2125,7 +2125,7 @@ export default function ExerciseCard({
                     marginBottom: 10,
                   }}>
                     <div style={{
-                      fontFamily: "'Barlow Condensed', sans-serif",
+                      fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 22, fontWeight: 700, color: '#16a34a',
                       lineHeight: 1.1, letterSpacing: '0.5px',
                     }}>
@@ -2259,7 +2259,7 @@ export default function ExerciseCard({
                             background: '#FFF5EE', color: '#FF6F20',
                             fontSize: 12, fontWeight: 700,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontFamily: "'Bebas Neue', sans-serif",
                             flexShrink: 0,
                           }}>{i + 1}</div>
                           <div style={{ flex: 1, fontWeight: 600, wordBreak: 'break-word' }}>
@@ -2364,13 +2364,13 @@ export default function ExerciseCard({
                             width: 24, height: 24,
                             background: '#FF6F20', color: '#FFFFFF',
                             borderRadius: 4,
-                            fontFamily: "'Barlow Condensed', 'Arial Narrow', sans-serif",
+                            fontFamily: "'Bebas Neue', sans-serif",
                             fontSize: 14, fontWeight: 700,
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             flexShrink: 0,
                           }}>{di + 1}</span>
                           <span style={{
-                            fontFamily: "'Barlow', system-ui, sans-serif",
+                            fontFamily: "'Rubik', system-ui, sans-serif",
                             fontSize: 15, fontWeight: 700, color: '#1a1a1a',
                             wordBreak: 'break-word',
                           }}>{getDrillName(sub, di)}</span>
@@ -2464,13 +2464,13 @@ export default function ExerciseCard({
                             width: 24, height: 24,
                             background: '#FF6F20', color: '#FFFFFF',
                             borderRadius: 4,
-                            fontFamily: "'Barlow Condensed', 'Arial Narrow', sans-serif",
+                            fontFamily: "'Bebas Neue', sans-serif",
                             fontSize: 14, fontWeight: 700,
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             flexShrink: 0,
                           }}>{di + 1}</span>
                           <span style={{
-                            fontFamily: "'Barlow', system-ui, sans-serif",
+                            fontFamily: "'Rubik', system-ui, sans-serif",
                             fontSize: 15, fontWeight: 700, color: '#1a1a1a',
                             wordBreak: 'break-word',
                           }}>{getDrillName(sub, di)}</span>
@@ -2536,7 +2536,7 @@ export default function ExerciseCard({
                               }}>
                                 <div style={{
                                   flex: 1, padding: '10px 6px', textAlign: 'center',
-                                  fontFamily: "'Barlow Condensed', sans-serif",
+                                  fontFamily: "'Bebas Neue', sans-serif",
                                   fontWeight: 700, color: '#666',
                                 }}>{si + 1}</div>
                                 {subCols.map(c => (
@@ -2654,7 +2654,7 @@ export default function ExerciseCard({
                       }}>
                         <div style={{
                           flex: 1, padding: '10px 6px', textAlign: 'center',
-                          fontFamily: "'Barlow Condensed', sans-serif",
+                          fontFamily: "'Bebas Neue', sans-serif",
                           fontWeight: 700, color: '#666',
                         }}>{si + 1}</div>
                         {cols.map(c => (

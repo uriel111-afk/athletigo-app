@@ -119,7 +119,7 @@ export default function TraineeSessionBooking({ open, onClose, user, coach }) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl" style={{ backgroundColor: '#FFFFFF' }}>
         <DialogHeader>
-          <DialogTitle className="text-3xl font-black text-center" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+          <DialogTitle className="text-3xl font-black text-center" style={{ color: '#000000', fontFamily: 'Rubik, sans-serif' }}>
             קביעת מפגש חדש
           </DialogTitle>
           <p className="text-center text-sm" style={{ color: '#7D7D7D' }}>

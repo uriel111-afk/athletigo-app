@@ -56,7 +56,7 @@ export default function SessionCardClosed({
     >
       <div style={{
         fontSize: 16, fontWeight: 700, color: '#1A1A1A',
-        fontFamily: "'Barlow', 'Heebo', sans-serif",
+        fontFamily: "'Rubik', system-ui, sans-serif",
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {name}
@@ -97,7 +97,7 @@ function ReadOnlyStatus({ value }) {
       fontSize: 12,
       fontWeight: 600,
       whiteSpace: 'nowrap',
-      fontFamily: "'Heebo', 'Assistant', sans-serif",
+      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
     }}>
       {value}
     </span>

@@ -231,7 +231,7 @@ export default function GlobalSearch({ iconColor }) {
                   flex: 1, border: 'none', outline: 'none',
                   fontSize: 16, fontWeight: 500,
                   color: LIFEOS_COLORS.textPrimary,
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   background: 'transparent',
                 }}
               />

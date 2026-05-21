@@ -352,7 +352,7 @@ const textInput = {
   width: '100%', padding: '10px 12px', borderRadius: 10,
   border: `1px solid ${PERSONAL_COLORS.border}`, backgroundColor: '#FFFFFF',
   fontSize: 14, color: PERSONAL_COLORS.textPrimary,
-  fontFamily: "'Heebo', 'Assistant', sans-serif", outline: 'none', boxSizing: 'border-box',
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif", outline: 'none', boxSizing: 'border-box',
 };
 const btnPrimary = {
   flex: 1, padding: '12px 16px', borderRadius: 12, border: 'none',

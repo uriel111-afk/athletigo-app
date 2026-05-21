@@ -127,7 +127,7 @@ button:focus-visible {
 
   * {
     @apply border-border outline-ring/50;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Rubik', system-ui, -apple-system, sans-serif;
   }
 
   html {
@@ -137,7 +137,7 @@ button:focus-visible {
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Rubik', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     direction: rtl;
     overflow-x: hidden;
@@ -167,7 +167,7 @@ button:focus-visible {
   input, textarea, select {
     min-height: 44px;
     font-size: 16px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Rubik', system-ui, -apple-system, sans-serif;
     touch-action: manipulation;
   }
 
@@ -177,7 +177,15 @@ button:focus-visible {
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Barlow' , 'Barlow Condensed', sans-serif;
+    font-family: 'Rubik', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Display accent — Bebas Neue, for the ATHLETIGO wordmark + large
+     numeric callouts (timer counters, stat tiles). Slight letter-
+     spacing tightens the condensed face on bigger sizes. */
+  .font-display {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 1.5px;
   }
 
   p, span, div {

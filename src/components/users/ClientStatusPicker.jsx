@@ -76,7 +76,7 @@ export default function ClientStatusPicker({
         style={{
           display: 'flex', flexWrap: 'wrap', gap: 6,
           direction: 'rtl',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}
       >
         {optionList.map((key) => {
@@ -103,7 +103,7 @@ export default function ClientStatusPicker({
                 cursor: isDisabled ? 'default' : 'pointer',
                 opacity: isDisabled && !active ? 0.55 : 1,
                 transition: 'all 0.15s',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 whiteSpace: 'nowrap',
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -137,7 +137,7 @@ export default function ClientStatusPicker({
         position: 'relative',
         display: 'inline-block',
         direction: 'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <button
@@ -154,7 +154,7 @@ export default function ClientStatusPicker({
           fontWeight: 700,
           cursor: noDropdown ? 'default' : 'pointer',
           whiteSpace: 'nowrap',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}
         title={isOnboarding ? 'מנוהל אוטומטית' : undefined}
       >
@@ -212,7 +212,7 @@ export default function ClientStatusPicker({
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   gap: 8,
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   borderBottom: '1px solid #F0E4D0',
                 }}
               >

@@ -51,7 +51,7 @@ export default function SimpleSessionAlert({ notif, variant, onClose }) {
         borderRight: `4px solid ${v.color}`,
         overflow: 'hidden',
         animation: 'ssa-rise 0.25s ease-out',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}>
         <div style={{
           padding: '20px 24px',
@@ -80,7 +80,7 @@ export default function SimpleSessionAlert({ notif, variant, onClose }) {
                 flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
                 background: '#FF6F20', color: '#FFFFFF',
                 fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >פרטים</button>
           )}
@@ -91,7 +91,7 @@ export default function SimpleSessionAlert({ notif, variant, onClose }) {
               flex: 1, padding: '10px 14px', borderRadius: 10,
               border: '1px solid #E5E7EB', background: '#FFFFFF',
               color: '#374151', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >הבנתי ✓</button>
         </div>

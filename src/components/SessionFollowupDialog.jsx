@@ -160,7 +160,7 @@ export default function SessionFollowupDialog({ session, onClose }) {
         background: '#FFFFFF', borderRadius: 14,
         boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
         animation: 'sfd-rise 0.25s ease-out',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         overflow: 'hidden',
       }}>
         <div style={{ padding: '20px 24px 16px', textAlign: 'right' }}>
@@ -244,7 +244,7 @@ export default function SessionFollowupDialog({ session, onClose }) {
                   width: '100%', padding: '10px 12px', borderRadius: 12,
                   border: `1px solid ${COLORS.border}`, fontSize: 14,
                   direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box',
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 }}
               />
               <FollowupBtn label="דחה מפגש" color={COLORS.warn}
@@ -269,7 +269,7 @@ function FollowupBtn({ label, color, onClick, disabled }) {
         background: '#FFFFFF', color, fontSize: 14, fontWeight: 800,
         cursor: disabled ? 'wait' : 'pointer', textAlign: 'right',
         opacity: disabled ? 0.6 : 1,
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >{label}</button>
   );

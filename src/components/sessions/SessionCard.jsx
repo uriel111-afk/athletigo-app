@@ -59,7 +59,7 @@ export default function SessionCard({
         transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
         boxShadow: hovered ? '0 4px 12px rgba(255,111,32,0.08)' : 'none',
         direction: 'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
       onClick={() => {
         if (selectable) { onSelectToggle?.(); return; }
@@ -88,14 +88,14 @@ export default function SessionCard({
           <div style={{ minWidth: 0 }}>
             <div style={{
               fontSize: 16, fontWeight: 700, color: '#1A1A1A',
-              fontFamily: "'Barlow', 'Heebo', sans-serif",
+              fontFamily: "'Rubik', system-ui, sans-serif",
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {traineeName}
             </div>
             <div style={{
               fontSize: 13, color: '#888',
-              fontFamily: "'Barlow', 'Heebo', sans-serif",
+              fontFamily: "'Rubik', system-ui, sans-serif",
               marginTop: 2,
             }}>
               {dateLabel}{timeLabel ? ` · ${timeLabel}` : ''}
@@ -195,7 +195,7 @@ export default function SessionCard({
               background: '#FF6F20', color: 'white',
               fontSize: 14, fontWeight: 700,
               cursor: 'pointer',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >📂 פתח את המפגש לעריכה</button>
         </div>
@@ -235,7 +235,7 @@ function PaymentBadge({ session, viewerRole = 'coach' }) {
       fontSize: 11,
       fontWeight: 500,
       whiteSpace: 'nowrap',
-      fontFamily: "'Heebo', 'Assistant', sans-serif",
+      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
     }}>
       {label}
     </span>

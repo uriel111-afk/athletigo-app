@@ -278,7 +278,7 @@ const inputStyle = {
   backgroundColor: '#FFFFFF',
   fontSize: 14,
   color: LIFEOS_COLORS.textPrimary,
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   outline: 'none',
   boxSizing: 'border-box',
 };

@@ -1874,7 +1874,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 12 }}>
             <h2 style={{
               margin: 0,
-              fontFamily: 'Barlow Condensed, sans-serif',
+              fontFamily: 'Bebas Neue, sans-serif',
               fontSize: 32,
               fontWeight: 700,
               color: '#1a1a1a',
@@ -1927,7 +1927,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   margin: '6px 0 0',
                   fontSize: 15,
                   color: '#888',
-                  fontFamily: 'Barlow, sans-serif',
+                  fontFamily: 'Rubik, sans-serif',
                   fontStyle: 'italic',
                   lineHeight: 1.5,
                   paddingBottom: 4,
@@ -1949,7 +1949,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 borderRadius: 999,
                 fontSize: 15,
                 fontWeight: 600,
-                fontFamily: 'Barlow, sans-serif',
+                fontFamily: 'Rubik, sans-serif',
               }}>{tag}</span>
             ))}
           </div>
@@ -1957,7 +1957,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
         {!headerCollapsed && weeklyDaysItems.length > 0 && (
           <div style={{ padding: '0 20px 16px' }}>
-            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#888', fontWeight: 600, letterSpacing: '0.3px', fontFamily: 'Barlow, sans-serif' }}>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#888', fontWeight: 600, letterSpacing: '0.3px', fontFamily: 'Rubik, sans-serif' }}>
               ימי אימון
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -1973,7 +1973,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                     color: isActive ? 'white' : '#C4B79E',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 17, fontWeight: isActive ? 700 : 500,
-                    fontFamily: 'Barlow Condensed, sans-serif', flexShrink: 0,
+                    fontFamily: 'Bebas Neue, sans-serif', flexShrink: 0,
                   }}>{day}</div>
                 );
               })}
@@ -1994,8 +1994,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             ].map((stat, i, arr) => (
               <React.Fragment key={stat.label}>
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 36, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Barlow Condensed, sans-serif', lineHeight: 1 }}>{stat.value}</div>
-                  <div style={{ fontSize: 15, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Barlow, sans-serif' }}>{stat.label}</div>
+                  <div style={{ fontSize: 36, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Bebas Neue, sans-serif', lineHeight: 1 }}>{stat.value}</div>
+                  <div style={{ fontSize: 15, color: '#888', marginTop: 6, fontWeight: 600, fontFamily: 'Rubik, sans-serif' }}>{stat.label}</div>
                 </div>
                 {i < arr.length - 1 && <div style={{ width: 1, background: '#F0E4D0' }} />}
               </React.Fragment>

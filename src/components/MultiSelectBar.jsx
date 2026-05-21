@@ -25,7 +25,7 @@ export function MultiSelectBar({ count, actions, onCancel }) {
         display: 'flex', alignItems: 'center', gap: 10,
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
         maxWidth: '95%', width: 'auto',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <span style={{ color: 'white', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -44,7 +44,7 @@ export function MultiSelectBar({ count, actions, onCancel }) {
               : action.primary ? '#FF6F20' : 'rgba(255,255,255,0.15)',
             color: 'white', fontSize: 13, fontWeight: 500,
             cursor: 'pointer', whiteSpace: 'nowrap',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           {action.icon ? <span style={{ marginLeft: 4 }}>{action.icon}</span> : null}

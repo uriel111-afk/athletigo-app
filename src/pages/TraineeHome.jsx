@@ -147,7 +147,7 @@ const primaryApprovalBtnStyle = {
   fontSize: 16,
   fontWeight: 600,
   cursor: 'pointer',
-  fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, sans-serif",
   boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
 };
 
@@ -1638,7 +1638,7 @@ export default function TraineeHome() {
             background: 'rgba(0,0,0,0.55)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 16, direction: 'rtl',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           <div
@@ -1720,7 +1720,7 @@ export default function TraineeHome() {
                     color: 'white', fontSize: 16, fontWeight: 600,
                     cursor: approvalBusy ? 'default' : 'pointer',
                     marginBottom: 8,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >
                   {approvalBusy ? 'מעביר לתשלום...' : `💳 שלם ${pendingPrice}₪ ואשר`}
@@ -1747,7 +1747,7 @@ export default function TraineeHome() {
                   color: 'white', fontSize: 16, fontWeight: 600,
                   cursor: approvalBusy ? 'default' : 'pointer',
                   marginBottom: 8,
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 }}
               >
                 ✓ אישור המפגש
@@ -1770,7 +1770,7 @@ export default function TraineeHome() {
                     color: '#888', fontSize: 14,
                     cursor: approvalBusy ? 'default' : 'pointer',
                     marginBottom: 8,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >
                   📅 בקש תאריך ושעה אחרים
@@ -1830,7 +1830,7 @@ export default function TraineeHome() {
                     border: 'none', background: 'transparent',
                     color: '#C62828', fontSize: 13,
                     cursor: approvalBusy ? 'default' : 'pointer',
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >
                   ✕ ביטול המפגש
@@ -1858,7 +1858,7 @@ export default function TraineeHome() {
             background: 'rgba(0,0,0,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 16, direction: 'rtl',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           <div
@@ -1935,7 +1935,7 @@ export default function TraineeHome() {
                 background: (rescheduleDate && rescheduleTime && !approvalBusy) ? '#FF6F20' : '#ccc',
                 color: 'white', fontSize: 14, fontWeight: 600,
                 cursor: (rescheduleDate && rescheduleTime && !approvalBusy) ? 'pointer' : 'default',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               📩 שלח בקשה

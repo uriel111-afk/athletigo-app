@@ -264,7 +264,7 @@ export default function FloatingBaselineForm({
               fontSize: 13, direction: 'rtl',
               minHeight: 50, resize: 'vertical',
               background: '#FFF9F0', boxSizing: 'border-box',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               outline: 'none',
             }}
           />
@@ -334,7 +334,7 @@ function NumberCell({ field, formData, onChange, fullWidth }) {
           borderRadius: 10, border: '0.5px solid #F0E4D0',
           fontSize: 14, textAlign: 'center',
           background: '#FFF9F0', boxSizing: 'border-box',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           outline: 'none',
         }}
       />

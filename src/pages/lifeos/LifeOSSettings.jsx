@@ -132,7 +132,7 @@ export default function LifeOSSettings() {
                 width: '100%', padding: '12px 14px', borderRadius: 10,
                 border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
                 fontSize: 20, fontWeight: 800, color: LIFEOS_COLORS.textPrimary,
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 outline: 'none', boxSizing: 'border-box', textAlign: 'center',
               }}
             />

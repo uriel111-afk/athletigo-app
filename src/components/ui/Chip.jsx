@@ -31,7 +31,7 @@ export function Chip({ label, selected, onClick, icon, size = 'md', disabled = f
     padding: dim.padding,
     fontSize: dim.fontSize,
     fontWeight: 500,
-    fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+    fontFamily: "'Rubik', system-ui, sans-serif",
     borderRadius: 999,
     cursor: disabled ? 'default' : 'pointer',
     userSelect: 'none',

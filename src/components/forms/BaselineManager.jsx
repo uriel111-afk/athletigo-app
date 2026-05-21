@@ -173,7 +173,7 @@ export default function BaselineManager() {
               fontSize: 13, fontWeight: 500,
               cursor: 'grab',
               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               touchAction: 'none',
               maxWidth: 200,
               whiteSpace: 'nowrap',

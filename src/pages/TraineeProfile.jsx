@@ -1147,7 +1147,7 @@ function IntroTab({ user }) {
           <div style={{
             fontSize: 14, color: '#1A1A1A', lineHeight: 1.9,
             whiteSpace: 'pre-line',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}>
             {onboardingSummary}
           </div>
@@ -1457,7 +1457,7 @@ function PersonalTab({
                   e.currentTarget.style.display = 'none';
                   const fallback = document.createElement('span');
                   fallback.textContent = initials;
-                  fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Barlow Condensed,sans-serif';
+                  fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Bebas Neue,sans-serif';
                   wrap.appendChild(fallback);
                 }}
               />
@@ -1634,7 +1634,7 @@ function PersonalTab({
                 background: '#FFFFFF', color: '#FF6F20',
                 border: '1px solid #FF6F20',
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >+ הוסף</button>
           </div>
@@ -1676,7 +1676,7 @@ const cardStyle = {
   borderRadius: 14,
   border: '1px solid #F0E4D0',
   padding: 16,
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };
 
 function CardEditButton({ onClick }) {
@@ -1732,7 +1732,7 @@ function AccountActionRow({ icon, label, onClick, danger }) {
         fontSize: 14,
         color: danger ? '#B91C1C' : '#1A1A1A',
         cursor: 'pointer',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
       onMouseEnter={(e) => { e.currentTarget.style.background = '#FDF8F3'; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
@@ -3754,7 +3754,7 @@ export default function TraineeProfile() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               <span style={{ fontSize: 18, lineHeight: 1, fontWeight: 300 }}>+</span>
@@ -3837,14 +3837,14 @@ export default function TraineeProfile() {
                           e.currentTarget.style.display = 'none';
                           const fallback = document.createElement('span');
                           fallback.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
-                          fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Barlow Condensed,sans-serif';
+                          fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Bebas Neue,sans-serif';
                           wrap.appendChild(fallback);
                         }}
                       />
                     )}
                   </div>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 20 }}>
+                    <h2 className="text-white leading-tight truncate" style={{ fontFamily: "'Bebas Neue', 'Rubik', sans-serif", fontWeight: 900, fontSize: 20 }}>
                       {user.full_name}
                     </h2>
                     <p className="text-white/70 text-[11px] mt-0.5">
@@ -3872,7 +3872,7 @@ export default function TraineeProfile() {
                       border: `1px solid ${currentStatusOpt.borderColor}`,
                       fontSize: 11, fontWeight: 700,
                       cursor: 'pointer', flexShrink: 0,
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     <span aria-hidden>{currentStatusOpt.icon}</span>
@@ -3893,7 +3893,7 @@ export default function TraineeProfile() {
             <div className="relative px-4 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5">
               {/* Top row: AG logo + logout */}
               <div className="flex justify-between items-center mb-3">
-                <span className="text-white/80 font-black text-xs tracking-[0.15em]" style={{ fontFamily: 'Barlow, sans-serif' }}>ATHLETIGO</span>
+                <span className="text-white/80 font-black text-xs tracking-[0.15em]" style={{ fontFamily: 'Rubik, sans-serif' }}>ATHLETIGO</span>
                 <button
                   onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }}
                   className="flex items-center gap-1 text-white/70 text-[11px] font-semibold bg-white/15 px-2.5 py-1 rounded-lg backdrop-blur-sm hover:bg-white/25 transition-colors"
@@ -3937,7 +3937,7 @@ export default function TraineeProfile() {
                         e.currentTarget.style.display = 'none';
                         const fallback = document.createElement('span');
                         fallback.textContent = user.full_name?.[0]?.toUpperCase() || 'U';
-                        fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Barlow Condensed,sans-serif';
+                        fallback.style.cssText = 'font-size:24px;font-weight:900;color:white;font-family:Bebas Neue,sans-serif';
                         wrap.appendChild(fallback);
                       }}
                     />
@@ -3950,7 +3950,7 @@ export default function TraineeProfile() {
                       return h < 6 ? 'לילה טוב' : h < 12 ? 'בוקר טוב' : h < 18 ? 'צהריים טובים' : h < 22 ? 'ערב טוב' : 'לילה טוב';
                     })()}
                   </p>
-                  <h1 className="text-white leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', 'DM Sans', sans-serif", fontWeight: 900, fontSize: 26 }}>
+                  <h1 className="text-white leading-tight truncate" style={{ fontFamily: "'Bebas Neue', 'Rubik', sans-serif", fontWeight: 900, fontSize: 26 }}>
                     {user.full_name || 'שלום!'}
                   </h1>
                   <p className="text-white/60 text-[11px] sm:text-xs mt-1 truncate">
@@ -5039,7 +5039,7 @@ export default function TraineeProfile() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 6,
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     <span style={{ fontSize: 18, lineHeight: 1, fontWeight: 300 }}>+</span>
@@ -5083,7 +5083,7 @@ export default function TraineeProfile() {
                       fontSize: 15,
                       fontWeight: 600,
                       cursor: 'pointer',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     + תוכנית חדשה למתאמן
@@ -5567,7 +5567,7 @@ export default function TraineeProfile() {
                         border: '1px solid #F0E4D0', background: '#FFFFFF',
                         fontSize: 14, direction: 'rtl', color: '#1A1A1A',
                         outline: 'none', boxSizing: 'border-box',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       <option value="">בחר/י</option>
@@ -6282,7 +6282,7 @@ export default function TraineeProfile() {
                         cursor: isCurrent ? 'not-allowed' : 'pointer',
                         opacity: isCurrent ? 0.6 : 1,
                         textAlign: 'right',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       <span style={{

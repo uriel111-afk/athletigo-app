@@ -25,7 +25,7 @@ const NATIVE_SELECT_STYLE = {
   direction: 'rtl',
   color: '#1A1A1A',
   outline: 'none',
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   boxSizing: 'border-box',
 };
 

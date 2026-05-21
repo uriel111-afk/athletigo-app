@@ -61,7 +61,7 @@ export default function DetailDialog({
         alignItems: 'stretch',
         justifyContent: 'center',
         direction: 'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <div
@@ -98,7 +98,7 @@ export default function DetailDialog({
                   fontSize: 18,
                   fontWeight: 700,
                   color: '#1A1A1A',
-                  fontFamily: "'Barlow Condensed', 'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Bebas Neue', sans-serif",
                   letterSpacing: 0.3,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -113,7 +113,7 @@ export default function DetailDialog({
                 style={{
                   fontSize: 12,
                   color: '#888',
-                  fontFamily: "'Barlow', 'Heebo', sans-serif",
+                  fontFamily: "'Rubik', system-ui, sans-serif",
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',

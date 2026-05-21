@@ -900,7 +900,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>👋</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>נעים להכיר</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.3 }}>נעים להכיר</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>נשמח לקבל כמה פרטים בסיסיים</div>
             </div>
 
@@ -970,7 +970,7 @@ export default function Onboarding() {
                 border: `1px dashed ${COLORS.border}`,
                 background: 'transparent', color: COLORS.accent,
                 fontSize: 13, cursor: 'pointer', marginTop: 12,
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               {showExtra ? '▲ הסתר פרטים נוספים' : '▼ פרטים נוספים (לא חובה)'}
@@ -1065,7 +1065,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>📏</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>נקודת ההתחלה</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.3 }}>נקודת ההתחלה</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.5 }}>
                 הנתונים האלה יעזרו לעקוב אחרי ההתקדמות.<br />הכל אופציונלי — נשמח לקבל מה שנוח.
               </div>
@@ -1124,7 +1124,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>מה המטרה?</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.3 }}>מה המטרה?</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>
                 אפשר לבחור כמה שרוצים — או לדלג ולהגדיר אחר כך.
               </div>
@@ -1151,7 +1151,7 @@ export default function Onboarding() {
                         fontSize: 13, cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         transform: active ? 'scale(1.02)' : 'scale(1)',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       <div style={{ fontSize: 22, marginBottom: 4 }}>{g.icon}</div>
@@ -1193,7 +1193,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>עוד קצת עלייך</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.3 }}>עוד קצת עלייך</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.5 }}>
                 ככל שנכיר יותר, נוכל להתאים תוכנית טובה יותר.<br />הכל אופציונלי.
               </div>
@@ -1244,7 +1244,7 @@ export default function Onboarding() {
                         color: active ? COLORS.accent : COLORS.text,
                         fontSize: 12, fontWeight: active ? 600 : 500, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       <div style={{ fontSize: 20, marginBottom: 2 }}>{level.emoji}</div>
@@ -1272,7 +1272,7 @@ export default function Onboarding() {
                         color: active ? COLORS.accent : COLORS.text,
                         fontSize: 13, fontWeight: 600, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >{f}</button>
                   );
@@ -1416,7 +1416,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>❤️</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>הבריאות חשובה מעל הכל</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.3 }}>הבריאות חשובה מעל הכל</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6, lineHeight: 1.6 }}>
                 נרצה לוודא שהגוף במצב שמאפשר פעילות גופנית — כדי לבנות תוכנית בטוחה שמותאמת בדיוק.
               </div>
@@ -1461,7 +1461,7 @@ export default function Onboarding() {
                           : COLORS.muted,
                         fontSize: 13, fontWeight: 500, cursor: 'pointer',
                         transition: 'all 0.2s',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >{h}</button>
                   );
@@ -1527,7 +1527,7 @@ export default function Onboarding() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Barlow Condensed', 'Heebo', sans-serif", letterSpacing: 0.3 }}>כמעט סיימנו</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.3 }}>כמעט סיימנו</div>
               <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>
                 {healthSigned ? 'הצהרת הבריאות נשמרה.' : 'נדרשת חתימה על הצהרת בריאות לפני הסיום.'}
               </div>
@@ -1669,7 +1669,7 @@ export default function Onboarding() {
                         color: 'white', fontSize: 16, fontWeight: 600,
                         cursor: pendingActionBusy ? 'default' : 'pointer',
                         marginBottom: 8,
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       {pendingActionBusy ? 'מעביר לתשלום...' : `💳 שלם ${pendingSession.price}₪ ואשר`}
@@ -1708,7 +1708,7 @@ export default function Onboarding() {
                         color: 'white', fontSize: 16, fontWeight: 600,
                         cursor: pendingActionBusy ? 'default' : 'pointer',
                         marginBottom: 8,
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       ✓ אישור המפגש
@@ -1725,7 +1725,7 @@ export default function Onboarding() {
                         color: lessThan24h ? '#bbb' : COLORS.muted,
                         fontSize: 14,
                         cursor: lessThan24h ? 'default' : 'pointer',
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       📅 בקש תאריך ושעה אחרים
@@ -1803,7 +1803,7 @@ export default function Onboarding() {
                             background: (requestedDate && requestedTime && !pendingActionBusy) ? COLORS.accent : '#ccc',
                             color: 'white', fontSize: 14, fontWeight: 600,
                             cursor: (requestedDate && requestedTime && !pendingActionBusy) ? 'pointer' : 'default',
-                            fontFamily: "'Heebo', 'Assistant', sans-serif",
+                            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                           }}
                         >
                           📩 שלח בקשה למאמן

@@ -394,7 +394,7 @@ function ConvertLeadDialog({ lead, onClose, onConfirm }) {
                 border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
                 fontSize: 14, color: LIFEOS_COLORS.textPrimary, outline: 'none',
                 boxSizing: 'border-box',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             />
             <div style={{ fontSize: 11, color: LIFEOS_COLORS.textMuted, marginTop: 4 }}>

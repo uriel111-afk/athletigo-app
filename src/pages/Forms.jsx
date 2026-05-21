@@ -267,7 +267,7 @@ export default function Forms() {
     <div className="min-h-screen w-full overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: '#FFFFFF' }}>
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-black mb-1" style={{ color: '#000000', fontFamily: 'Montserrat, Heebo, sans-serif' }}>
+          <h1 className="text-3xl font-black mb-1" style={{ color: '#000000', fontFamily: 'Rubik, sans-serif' }}>
             טפסים ומסמכים
           </h1>
           <p className="text-sm font-medium mb-2" style={{ color: '#7D7D7D' }}>{signedCount}/{formDefs.length} טפסים נחתמו</p>

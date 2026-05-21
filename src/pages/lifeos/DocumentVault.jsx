@@ -160,7 +160,7 @@ export default function DocumentVault() {
           width: '100%', padding: '10px 14px', borderRadius: 10,
           border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
           fontSize: 14, color: LIFEOS_COLORS.textPrimary,
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           outline: 'none', marginBottom: 10, boxSizing: 'border-box',
         }}
       />
@@ -454,7 +454,7 @@ const editInput = {
   width: '100%', padding: '10px 12px', borderRadius: 10,
   border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
   fontSize: 14, color: LIFEOS_COLORS.textPrimary,
-  fontFamily: "'Heebo', 'Assistant', sans-serif", outline: 'none', boxSizing: 'border-box',
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif", outline: 'none', boxSizing: 'border-box',
 };
 
 function DocumentRow({ row, isLast, onEdit, onDelete }) {

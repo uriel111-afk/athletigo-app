@@ -565,8 +565,8 @@ function SectionProgressGraph({ plan, completed }) {
 // readSectionRating so legacy executions without exercise_summaries
 // gracefully drop out of the series instead of crashing on toFixed.
 function UnifiedProgressGraph({ plan, completed }) {
-  const NUM_FONT = "'Barlow Condensed', 'Arial Narrow', sans-serif";
-  const SANS_FONT = "'Barlow', system-ui, sans-serif";
+  const NUM_FONT = "'Bebas Neue', sans-serif";
+  const SANS_FONT = "'Rubik', system-ui, sans-serif";
 
   const allExercises = useMemo(() => {
     const out = [];
@@ -1606,7 +1606,7 @@ export default function WorkoutFolderDetail({
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            fontFamily: "'Barlow', system-ui, sans-serif",
+            fontFamily: "'Rubik', system-ui, sans-serif",
             direction: 'rtl',
           }}
         >

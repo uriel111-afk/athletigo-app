@@ -29,7 +29,7 @@ export default function PageLoader({ message = "טוען..." }) {
         alignItems: "center",
         justifyContent: "center",
         zIndex: 99998,
-        fontFamily: "'Barlow', system-ui, sans-serif",
+        fontFamily: "'Rubik', system-ui, sans-serif",
         direction: "rtl",
         padding: 20,
       }}

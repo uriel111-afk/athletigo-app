@@ -37,14 +37,14 @@ export default function GoalAchievedPopup({
           boxShadow: '0 20px 50px rgba(255,111,32,0.25)',
           border: '1px solid #FFD9C0',
           textAlign: 'center',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}
       >
         <div style={{ fontSize: 56, marginBottom: 8 }}>🎉</div>
         <div style={{
           fontSize: 24, fontWeight: 800, color: '#1A1A1A',
           marginBottom: 6,
-          fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+          fontFamily: "'Bebas Neue', sans-serif",
           letterSpacing: 0.3,
         }}>
           הגעת ליעד!
@@ -77,7 +77,7 @@ export default function GoalAchievedPopup({
             cursor: 'pointer',
             marginBottom: 8,
             boxShadow: '0 4px 12px rgba(255,111,32,0.3)',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >🎯 הצב יעד חדש</button>
         <button
@@ -92,7 +92,7 @@ export default function GoalAchievedPopup({
             color: '#888',
             fontSize: 14, fontWeight: 500,
             cursor: 'pointer',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >סגור</button>
       </div>

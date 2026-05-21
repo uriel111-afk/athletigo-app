@@ -46,7 +46,7 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
         zIndex: 11000,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <div
@@ -109,7 +109,7 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
                 direction: 'rtl', textAlign: 'right',
                 minHeight: 80, resize: 'vertical',
                 outline: 'none', boxSizing: 'border-box',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             />
           </div>
@@ -125,7 +125,7 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
               fontSize: 16, fontWeight: 600,
               cursor: saving ? 'wait' : 'pointer',
               opacity: saving ? 0.7 : 1,
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
             }}
           >

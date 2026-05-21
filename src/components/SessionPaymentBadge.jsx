@@ -147,7 +147,7 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           padding: '4px 10px', borderRadius: 12,
           background: '#F3F4F6', color: '#16a34a',
           fontSize: 12, fontWeight: 600,
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}>
           ✓ אישרת והוסדר
         </span>
@@ -165,7 +165,7 @@ export default function SessionPaymentBadge({ session, trainee, coachView }) {
           fontSize: 16, fontWeight: 600,
           cursor: paying ? 'wait' : 'pointer',
           opacity: paying ? 0.7 : 1,
-          fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, sans-serif",
           boxShadow: '0 2px 6px rgba(255, 111, 32, 0.25)',
         }}
       >

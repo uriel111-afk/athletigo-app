@@ -418,7 +418,7 @@ export default function HealthDeclarationForm({
         <div dir="rtl" style={{
           background: '#FDF8F3',
           borderRadius: 14,
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}>
           {/* Header */}
           <div style={{
@@ -577,7 +577,7 @@ export default function HealthDeclarationForm({
                   border: '1px solid #E5E7EB', background: '#FFFFFF',
                   fontSize: 13, color: '#1A1A1A', outline: 'none',
                   boxSizing: 'border-box', textAlign: 'right',
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 }}
               />
             </div>
@@ -663,7 +663,7 @@ export default function HealthDeclarationForm({
                 color: canSubmit ? '#FFFFFF' : '#9CA3AF',
                 fontSize: 15, fontWeight: 800,
                 cursor: canSubmit ? 'pointer' : 'not-allowed',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 marginBottom: 4,
               }}
             >

@@ -786,7 +786,7 @@ export default function BaselineFormDialog({
                       fontSize: 16, fontWeight: 800,
                       textAlign: 'center',
                       outline: 'none',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       boxSizing: 'border-box',
                     }}
                   />
@@ -809,7 +809,7 @@ export default function BaselineFormDialog({
                       fontSize: 11, fontWeight: 600,
                       textAlign: 'center',
                       outline: 'none',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       boxSizing: 'border-box',
                     }}
                   />
@@ -990,7 +990,7 @@ function DraftToast({ onRestore, onDiscard }) {
         backgroundColor: '#FFFFFF',
         border: '1px solid #FF6F20',
         boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         animation: 'draftToastIn 180ms ease-out',
         maxWidth: 'min(90vw, 360px)',
         minWidth: 280,
@@ -1019,7 +1019,7 @@ function DraftToast({ onRestore, onDiscard }) {
             backgroundColor: '#FF6F20', color: '#FFFFFF',
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
             pointerEvents: 'auto',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           המשך מאיפה שהפסקתי
@@ -1040,7 +1040,7 @@ function DraftToast({ onRestore, onDiscard }) {
             border: '1px solid #E5E7EB',
             fontSize: 13, fontWeight: 600, cursor: 'pointer',
             pointerEvents: 'auto',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           התחל מחדש
@@ -1188,7 +1188,7 @@ const cardSelect = {
   backgroundColor: COLORS.bgInput,
   color: COLORS.textPrimary,
   fontSize: 13, fontWeight: 600,
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   outline: 'none',
   boxSizing: 'border-box',
   appearance: 'none',
@@ -1205,7 +1205,7 @@ const btnPrimary = {
   color: '#FFFFFF',
   fontSize: 14, fontWeight: 700,
   cursor: 'pointer',
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };
 
 const btnGhost = {
@@ -1217,5 +1217,5 @@ const btnGhost = {
   color: COLORS.textPrimary,
   fontSize: 13, fontWeight: 600,
   cursor: 'pointer',
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };

@@ -21,7 +21,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
       style={{
         minHeight: '100dvh',
         backgroundColor: LIFEOS_COLORS.bg,
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       {/* App switcher pills — only renders for the coach. */}

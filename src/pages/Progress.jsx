@@ -353,7 +353,7 @@ function ProgressInner() {
       minHeight: '100vh',
       background: '#FDF8F3',
       paddingBottom: 100,
-      fontFamily: "'Heebo', 'Assistant', sans-serif",
+      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
     }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: 16 }}>
         {/* Page heading */}

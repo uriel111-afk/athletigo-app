@@ -810,7 +810,7 @@ function SubExerciseEditor({ subEx, index, onChange, onRemove, onDuplicate, getO
                   gap: 6,
                   minWidth: 140,
                   direction: 'rtl',
-                  fontFamily: "'Barlow', system-ui, sans-serif",
+                  fontFamily: "'Rubik', system-ui, sans-serif",
                 }}
               >
                 {onDuplicate && (

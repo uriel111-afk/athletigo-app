@@ -613,7 +613,7 @@ export default function TrainingPlans() {
                                   background: planSel.isSelecting ? '#FFF5EE' : 'white',
                                   color: planSel.isSelecting ? '#FF6F20' : '#888',
                                   fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                                 }}
                               >
                                 {planSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}

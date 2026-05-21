@@ -1315,7 +1315,7 @@ export default function Sessions() {
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
                       backgroundClip: 'text',
-                      fontFamily: 'Montserrat, Heebo, sans-serif'
+                      fontFamily: 'Rubik, sans-serif'
                     }}>
                       מפגשים ואימונים
                     </h1>
@@ -1345,7 +1345,7 @@ export default function Sessions() {
                       background: sessionSel.isSelecting ? '#FFF5EE' : 'white',
                       color: sessionSel.isSelecting ? '#FF6F20' : '#1a1a1a',
                       fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     {sessionSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
@@ -1361,7 +1361,7 @@ export default function Sessions() {
                     background: 'white',
                     color: '#1a1a1a',
                     fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >
                   {activeView === 'sessions' ? 'קבוצות' : 'מפגשים'}
@@ -1378,7 +1378,7 @@ export default function Sessions() {
                       color: 'white',
                       fontSize: 13, fontWeight: 700,
                       cursor: (coachLoading || !coach) ? 'not-allowed' : 'pointer',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     + קבע מפגש
@@ -1393,7 +1393,7 @@ export default function Sessions() {
                       background: '#4CAF50',
                       color: 'white',
                       fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     + קבוצה חדשה
@@ -1433,7 +1433,7 @@ export default function Sessions() {
                     border: active ? 'none' : '1px solid #F0E4D0',
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', gap: 6,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >
                   <div style={{
@@ -1612,7 +1612,7 @@ export default function Sessions() {
                           boxShadow: active ? '0 2px 8px rgba(255,111,32,0.25)' : 'none',
                           border: active ? '1.5px solid #FF6F20' : '1.5px solid #F0E4D0',
                           fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer',
-                          fontFamily: "'Heebo', 'Assistant', sans-serif",
+                          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                           transition: 'all 0.2s ease',
                         }}
                       >{f.label}</button>
@@ -1655,7 +1655,7 @@ export default function Sessions() {
                           margin: 0,
                           fontSize: 18, fontWeight: 700,
                           color: '#1A1A1A',
-                          fontFamily: "'Barlow Condensed', 'Heebo', sans-serif",
+                          fontFamily: "'Bebas Neue', sans-serif",
                           letterSpacing: 0.3,
                         }}>{BUCKET_LABELS[bucketKey]}</h3>
                         <span style={{
@@ -1688,7 +1688,7 @@ export default function Sessions() {
                         background: 'transparent', color: '#888',
                         fontSize: 13, fontWeight: 600, cursor: 'pointer',
                         marginBottom: 10,
-                        fontFamily: "'Heebo', 'Assistant', sans-serif",
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
                     >
                       {showPast
@@ -1729,7 +1729,7 @@ export default function Sessions() {
                   <div className="mb-5">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">🔥</div>
-                      <h2 className="text-3xl font-black" style={{ color: '#FF6F20', fontFamily: 'Montserrat, sans-serif' }}>
+                      <h2 className="text-3xl font-black" style={{ color: '#FF6F20', fontFamily: 'Rubik, sans-serif' }}>
                         היום
                       </h2>
                       <span className="px-4 py-1.5 rounded-full font-black text-sm" style={{ backgroundColor: '#FFF8F3', color: '#FF6F20' }}>
@@ -1752,7 +1752,7 @@ export default function Sessions() {
                   <div className="mb-5">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">📅</div>
-                      <h2 className="text-3xl font-black" style={{ color: '#2196F3', fontFamily: 'Montserrat, sans-serif' }}>
+                      <h2 className="text-3xl font-black" style={{ color: '#2196F3', fontFamily: 'Rubik, sans-serif' }}>
                         מחר
                       </h2>
                       <span className="px-4 py-1.5 rounded-full font-black text-sm" style={{ backgroundColor: '#E3F2FD', color: '#2196F3' }}>
@@ -1775,7 +1775,7 @@ export default function Sessions() {
                   <div className="mb-5">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">📆</div>
-                      <h2 className="text-3xl font-black" style={{ color: '#000000', fontFamily: 'Montserrat, sans-serif' }}>
+                      <h2 className="text-3xl font-black" style={{ color: '#000000', fontFamily: 'Rubik, sans-serif' }}>
                         קרובים
                       </h2>
                       <span className="px-4 py-1.5 rounded-full font-black text-sm" style={{ backgroundColor: '#F7F7F7', color: '#000000' }}>
@@ -1798,7 +1798,7 @@ export default function Sessions() {
                   <div className="mb-5">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">✅</div>
-                      <h2 className="text-3xl font-black" style={{ color: '#4CAF50', fontFamily: 'Montserrat, sans-serif' }}>
+                      <h2 className="text-3xl font-black" style={{ color: '#4CAF50', fontFamily: 'Rubik, sans-serif' }}>
                         הושלמו
                       </h2>
                       <span className="px-4 py-1.5 rounded-full font-black text-sm" style={{ backgroundColor: '#F0F9F0', color: '#4CAF50' }}>
@@ -1833,7 +1833,7 @@ export default function Sessions() {
                 style={{ backgroundColor: '#F7F7F7' }}>
                       <Calendar className="w-10 h-10" style={{ color: '#E0E0E0' }} />
                     </div>
-                    <h3 className="text-2xl font-black mb-3" style={{ color: '#000000', fontFamily: 'Montserrat, sans-serif' }}>
+                    <h3 className="text-2xl font-black mb-3" style={{ color: '#000000', fontFamily: 'Rubik, sans-serif' }}>
                       {searchTerm || filterType !== "all" || filterStatus !== "all" ?
                   'לא נמצאו מפגשים' :
                   'אין מפגשים מתוכננים'}

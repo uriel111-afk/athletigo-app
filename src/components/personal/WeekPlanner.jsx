@@ -275,7 +275,7 @@ const inputStyle = {
   border: `1px solid ${PERSONAL_COLORS.border}`,
   backgroundColor: '#FFFFFF', fontSize: 11,
   color: PERSONAL_COLORS.textPrimary,
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   outline: 'none', boxSizing: 'border-box',
 };
 

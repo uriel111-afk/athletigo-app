@@ -155,7 +155,7 @@ export default function PendingSessionsPopup({ trainee, onClose }) {
         position: 'fixed', inset: 0, zIndex: 11000,
         background: '#FFF9F0',
         display: 'flex', flexDirection: 'column',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       {/* Orange header */}
@@ -232,7 +232,7 @@ export default function PendingSessionsPopup({ trainee, onClose }) {
                     background: '#16a34a', color: 'white',
                     fontSize: 14, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
                     opacity: busy ? 0.6 : 1,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >✅ אישור</button>
                 <button
@@ -244,7 +244,7 @@ export default function PendingSessionsPopup({ trainee, onClose }) {
                     background: '#FF6F20', color: 'white',
                     fontSize: 14, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
                     opacity: busy ? 0.6 : 1,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >📅 שינוי תאריך</button>
                 <button
@@ -257,7 +257,7 @@ export default function PendingSessionsPopup({ trainee, onClose }) {
                     background: '#FFFFFF', color: '#DC2626',
                     fontSize: 14, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
                     opacity: busy ? 0.6 : 1,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >❌ דחייה</button>
               </div>
@@ -282,7 +282,7 @@ export default function PendingSessionsPopup({ trainee, onClose }) {
               background: 'white', width: '100%', maxWidth: 440,
               borderTopLeftRadius: 16, borderTopRightRadius: 16,
               padding: 20, direction: 'rtl',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, textAlign: 'center' }}>
@@ -330,7 +330,7 @@ export default function PendingSessionsPopup({ trainee, onClose }) {
                   background: '#FF6F20', color: 'white',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer',
                   opacity: !reschedDate ? 0.6 : 1,
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 }}
               >שלח בקשה</button>
             </div>

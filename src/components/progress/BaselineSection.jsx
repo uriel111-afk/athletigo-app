@@ -35,7 +35,7 @@ export default function BaselineSection({ results = [], measurements = [] }) {
           <div className="p-2 bg-orange-100 rounded-lg">
             <Activity className="w-6 h-6 text-[#FF6F20]" />
           </div>
-          <h2 className="text-2xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Barlow, Montserrat, sans-serif' }}>
+          <h2 className="text-2xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Rubik, sans-serif' }}>
             Baseline Jump Rope
           </h2>
         </div>
@@ -134,7 +134,7 @@ export default function BaselineSection({ results = [], measurements = [] }) {
         <div className="p-2 bg-orange-100 rounded-lg">
           <Activity className="w-6 h-6 text-[#FF6F20]" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Barlow, Montserrat, sans-serif' }}>
+        <h2 className="text-2xl md:text-3xl font-black" style={{ color: '#000000', fontFamily: 'Rubik, sans-serif' }}>
           Baseline Jump Rope
         </h2>
       </div>

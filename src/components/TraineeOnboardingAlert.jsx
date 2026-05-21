@@ -65,7 +65,7 @@ export default function TraineeOnboardingAlert({ notif, onClose }) {
           maxWidth: 360, width: '90%',
           position: 'relative', textAlign: 'center',
           boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         }}
       >
         {/* X — top-left in RTL */}
@@ -105,7 +105,7 @@ export default function TraineeOnboardingAlert({ notif, onClose }) {
             width: '100%', padding: 14, borderRadius: 14, border: 'none',
             background: '#FF6F20', color: 'white', fontSize: 16,
             fontWeight: 600, cursor: 'pointer', marginBottom: 8,
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >👤 צפה בפרופיל</button>
 
@@ -116,7 +116,7 @@ export default function TraineeOnboardingAlert({ notif, onClose }) {
             width: '100%', padding: 12, borderRadius: 12,
             border: '1px solid #F0E4D0', background: 'white',
             color: '#888', fontSize: 14, cursor: 'pointer',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >אחר כך</button>
       </div>

@@ -359,6 +359,6 @@ const textInput = {
   width: '100%', padding: '10px 12px', borderRadius: 10,
   border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
   fontSize: 14, color: LIFEOS_COLORS.textPrimary,
-  fontFamily: "'Heebo', 'Assistant', sans-serif", outline: 'none', boxSizing: 'border-box',
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif", outline: 'none', boxSizing: 'border-box',
 };
 const bigInput = { ...textInput, fontSize: 24, fontWeight: 800 };

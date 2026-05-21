@@ -28,7 +28,7 @@ export default function CardOpen({
         marginBottom: 10,
         padding: 16,
         direction: 'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <div style={{ marginBottom: onOpenDetail ? 14 : 0 }}>
@@ -48,7 +48,7 @@ export default function CardOpen({
             fontSize: 14,
             fontWeight: 600,
             cursor: 'pointer',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           {detailLabel}

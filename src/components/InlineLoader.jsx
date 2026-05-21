@@ -17,7 +17,7 @@ export default function InlineLoader({ message = 'טוען...' }) {
         justifyContent: 'center',
         padding: 40,
         direction: 'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <img

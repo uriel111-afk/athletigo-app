@@ -41,7 +41,7 @@ export default function CardClosed({
         boxShadow: hover && hovered ? '0 4px 12px rgba(255,111,32,0.08)' : 'none',
         minHeight: 64,
         direction: 'rtl',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>

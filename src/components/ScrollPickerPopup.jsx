@@ -70,7 +70,7 @@ export default function ScrollPickerPopup({ isOpen, value, options, onSelect, on
                   border: 'none',
                   borderBottom: '1px solid rgba(255,111,32,0.08)',
                   fontSize: 28,
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Bebas Neue', sans-serif",
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}

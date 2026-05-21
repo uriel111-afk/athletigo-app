@@ -24,7 +24,7 @@ export default function OnboardingProgressBar({ currentStep }) {
   const progressPct = ((stepIndex + 1) / ONBOARDING_STEPS.length) * 100;
 
   return (
-    <div style={{ padding: '12px 16px', fontFamily: "'Barlow', 'Heebo', 'Assistant', sans-serif" }} dir="rtl">
+    <div style={{ padding: '12px 16px', fontFamily: "'Rubik', system-ui, sans-serif" }} dir="rtl">
       <div style={{
         height: 4, background: '#F0E4D0', borderRadius: 2,
         overflow: 'hidden', marginBottom: 8,

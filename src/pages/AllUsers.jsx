@@ -345,7 +345,7 @@ export default function AllUsers() {
               color: '#1a1a1a',
               fontSize: 13, fontWeight: 700,
               cursor: 'pointer', whiteSpace: 'nowrap',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >
             {sortMode === 'desc' ? 'מיין א-ב' : 'מיין ב-א'}
@@ -508,7 +508,7 @@ export default function AllUsers() {
                               border: `1px solid ${buttonBorder}`,
                               fontSize: 10, fontWeight: 700,
                               cursor: 'pointer',
-                              fontFamily: "'Heebo', 'Assistant', sans-serif",
+                              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                             }}
                           >
                             {cur?.icon && <span aria-hidden>{cur.icon}</span>}
@@ -550,7 +550,7 @@ export default function AllUsers() {
                                       display: 'flex',
                                       justifyContent: 'space-between',
                                       alignItems: 'center', gap: 8,
-                                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                                     }}
                                   >
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -712,7 +712,7 @@ export default function AllUsers() {
               style={{
                 background: 'white', borderRadius: 14, padding: 20,
                 maxWidth: 320, width: '90%', direction: 'rtl',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
               <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, textAlign: 'center' }}>
@@ -746,7 +746,7 @@ export default function AllUsers() {
                       fontSize: 14, cursor: 'pointer', marginBottom: 6,
                       display: 'flex', alignItems: 'center', gap: 8,
                       justifyContent: 'center',
-                      fontFamily: "'Heebo', 'Assistant', sans-serif",
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     {opt?.icon && <span aria-hidden>{opt.icon}</span>}

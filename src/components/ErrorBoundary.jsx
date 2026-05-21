@@ -111,7 +111,7 @@ export default class ErrorBoundary extends React.Component {
                 fontWeight: 700,
                 color: '#000000',
                 marginBottom: '16px',
-                fontFamily: "'Montserrat', 'Heebo', sans-serif"
+                fontFamily: "'Rubik', system-ui, sans-serif"
               }}
             >
               משהו השתבש

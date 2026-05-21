@@ -363,7 +363,7 @@ const textInput = {
   width: '100%', padding: '10px 12px', borderRadius: 10,
   border: `1px solid ${PERSONAL_COLORS.border}`, backgroundColor: '#FFFFFF',
   fontSize: 14, color: PERSONAL_COLORS.textPrimary,
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   outline: 'none', boxSizing: 'border-box',
 };
 const timeInput = { ...textInput, fontSize: 16, fontWeight: 700, textAlign: 'center' };

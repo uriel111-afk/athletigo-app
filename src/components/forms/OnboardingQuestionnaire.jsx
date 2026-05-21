@@ -111,7 +111,7 @@ export default function OnboardingQuestionnaire({ value, onChange, onComplete, o
       background: COLORS.bg,
       borderRadius: 14,
       padding: '20px 18px 22px',
-      fontFamily: "'Heebo', 'Assistant', sans-serif",
+      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       color: COLORS.text,
     }}>
       {/* Progress dots — 4 circles, current = orange, past = green,
@@ -157,7 +157,7 @@ export default function OnboardingQuestionnaire({ value, onChange, onComplete, o
             color: screenValid ? '#FFFFFF' : COLORS.textMuted,
             fontSize: 16, fontWeight: 800,
             cursor: screenValid ? 'pointer' : 'not-allowed',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >
           {screen === 4 ? 'סיימתי! 🎉' : 'הבא →'}
@@ -170,7 +170,7 @@ export default function OnboardingQuestionnaire({ value, onChange, onComplete, o
               width: '100%', padding: '8px 0', borderRadius: 10, border: 'none',
               background: 'transparent', color: COLORS.textSoft,
               fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >← חזרה</button>
         )}
@@ -218,7 +218,7 @@ function ChoiceButton({ active, multi, onClick, emoji, label }) {
         fontSize: 13, fontWeight: 700,
         textAlign: 'center', lineHeight: 1.3,
         minHeight: 78,
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
       }}
     >
@@ -242,7 +242,7 @@ function Pill({ active, onClick, emoji, label }) {
         fontSize: 13, fontWeight: 700, cursor: 'pointer',
         whiteSpace: 'nowrap', flexShrink: 0,
         display: 'inline-flex', alignItems: 'center', gap: 5,
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       {emoji && <span style={{ fontSize: 14 }}>{emoji}</span>}
@@ -300,7 +300,7 @@ function Screen1({ value, set, toggleInArray }) {
               direction: 'rtl', textAlign: 'right',
               minHeight: 80, resize: 'vertical',
               outline: 'none', boxSizing: 'border-box',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           />
         </div>
@@ -367,7 +367,7 @@ function Screen3({ value, set, toggleInArray }) {
             direction: 'rtl', textAlign: 'right',
             minHeight: 60, resize: 'vertical', marginTop: 10,
             outline: 'none', boxSizing: 'border-box',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         />
       )}
@@ -395,7 +395,7 @@ function Screen3({ value, set, toggleInArray }) {
             direction: 'rtl', textAlign: 'right',
             minHeight: 60, resize: 'vertical', marginTop: 10,
             outline: 'none', boxSizing: 'border-box',
-            fontFamily: "'Heebo', 'Assistant', sans-serif",
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         />
       )}
@@ -420,7 +420,7 @@ function Screen4({ value, set, onSkip }) {
           border: `1px solid ${COLORS.border}`, background: COLORS.card,
           fontSize: 14, color: COLORS.text, outline: 'none',
           resize: 'vertical', minHeight: 130,
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           textAlign: 'right',
           boxSizing: 'border-box',
         }}
@@ -434,7 +434,7 @@ function Screen4({ value, set, onSkip }) {
               background: 'transparent', border: 'none',
               color: COLORS.textSoft, fontSize: 13, fontWeight: 600,
               cursor: 'pointer',
-              fontFamily: "'Heebo', 'Assistant', sans-serif",
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
             }}
           >דלג</button>
         </div>

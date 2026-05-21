@@ -16,7 +16,7 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
       style={{
         minHeight: '100dvh',
         backgroundColor: PERSONAL_COLORS.bg,
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <AppSwitcher />

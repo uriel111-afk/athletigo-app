@@ -51,14 +51,14 @@ export default function FloatingClockBar() {
         cursor: 'pointer', direction: 'rtl', userSelect: 'none', transition: dragging ? 'none' : 'left 0.1s, top 0.1s, bottom 0.1s' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Icon style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.9)' }} />
-        <span style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.9)', fontFamily: "'Heebo', sans-serif" }}>
+        <span style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.9)', fontFamily: "'Rubik', system-ui, sans-serif" }}>
           {clock.phaseLabel || (clock.activeClock === 'stopwatch' ? 'סטופר' : 'טיימר')}
         </span>
       </div>
-      <div style={{ fontSize: 48, fontWeight: 900, color: '#FFF', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, fontFamily: "'Barlow Condensed', system-ui" }}>
+      <div style={{ fontSize: 48, fontWeight: 900, color: '#FFF', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, fontFamily: "'Bebas Neue', sans-serif" }}>
         {fmt(clock.display)}
       </div>
-      {clock.roundInfo && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontFamily: "'Heebo', sans-serif" }}>{clock.roundInfo}</div>}
+      {clock.roundInfo && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontFamily: "'Rubik', system-ui, sans-serif" }}>{clock.roundInfo}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 4 }} onClick={e => e.stopPropagation()}>
         {clock.isRunning ? (
           <button onClick={clock.pause} style={{ width: 36, height: 36, borderRadius: '50%', background: '#FFF', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>

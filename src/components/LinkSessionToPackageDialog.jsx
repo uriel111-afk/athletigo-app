@@ -258,7 +258,7 @@ export default function LinkSessionToPackageDialog({
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
         pointerEvents: 'auto',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       <div
@@ -490,5 +490,5 @@ const fieldInputStyle = {
   width: '100%', padding: '8px 10px', borderRadius: 10,
   border: '1px solid #F0E4D0', fontSize: 14,
   direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box',
-  fontFamily: "'Heebo', 'Assistant', sans-serif",
+  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };

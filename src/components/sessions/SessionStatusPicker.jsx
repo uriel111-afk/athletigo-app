@@ -114,7 +114,7 @@ export default function SessionStatusPicker({
                 fontWeight: active ? 700 : 500,
                 cursor: disabled ? 'default' : 'pointer',
                 transition: 'all 0.15s',
-                fontFamily: "'Heebo', 'Assistant', sans-serif",
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 whiteSpace: 'nowrap',
               }}
             >
@@ -152,7 +152,7 @@ export default function SessionStatusPicker({
           fontSize,
           fontWeight: 600,
           cursor: disabled ? 'default' : 'pointer',
-          fontFamily: "'Heebo', 'Assistant', sans-serif",
+          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           whiteSpace: 'nowrap',
         }}
       >
@@ -203,7 +203,7 @@ export default function SessionStatusPicker({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  fontFamily: "'Heebo', 'Assistant', sans-serif",
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   borderBottom: '1px solid #F0E4D0',
                 }}
               >

@@ -169,7 +169,7 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
         position: 'fixed', inset: 0, zIndex: 11000,
         background: '#FFF9F0',
         display: 'flex', flexDirection: 'column',
-        fontFamily: "'Heebo', 'Assistant', sans-serif",
+        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
       {/* Soft header — no orange gradient like the sessions popup,
@@ -253,7 +253,7 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
                     fontSize: 13, fontWeight: 600,
                     cursor: busy ? 'wait' : 'pointer',
                     opacity: busy ? 0.6 : 1,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >✓ טופל</button>
                 <button
@@ -267,7 +267,7 @@ export default function EntryNotificationsPopup({ trainee, onClose }) {
                     fontSize: 13, fontWeight: 500,
                     cursor: busy ? 'wait' : 'pointer',
                     opacity: busy ? 0.6 : 1,
-                    fontFamily: "'Heebo', 'Assistant', sans-serif",
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 >מאוחר יותר</button>
                 <button
