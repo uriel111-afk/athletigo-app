@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -1432,6 +1432,10 @@ export default function WorkoutFolderDetail({
   // null = render the folder body. 'active' = full-screen workout via the
   // master button (canEdit/isCoach mirror the user's role).
   const [activeMode, setActiveMode] = useState(null);
+  // Collapsible state for the bottom progress graph. Closed by
+  // default — the graph block is tall and noisy on first scroll;
+  // the trainee/coach opens it when they want to inspect trends.
+  const [graphExpanded, setGraphExpanded] = useState(false);
 
   const completed = executions || [];
 
@@ -1576,9 +1580,61 @@ export default function WorkoutFolderDetail({
       </div>
 
       {/* Unified progress graph — full-bleed, last block on the page.
-          Replaces the previous three separate graphs. Outside the
-          padded inner div so it spans the entire viewport width. */}
-      <UnifiedProgressGraph plan={plan} completed={completed} />
+          Collapsible: closed by default; tapping the header toggles
+          the expanded body. The graph component (with its internal
+          title, level/metric selectors, chart, tiles) renders only
+          when expanded so the collapsed state stays a compact 50px
+          strip at the bottom of the folder body. */}
+      <div style={{
+        background: '#FFFFFF',
+        borderTop: '1px solid #F0E4D0',
+        width: '100%',
+        direction: 'rtl',
+      }}>
+        <button
+          type="button"
+          onClick={() => setGraphExpanded((v) => !v)}
+          aria-expanded={graphExpanded}
+          aria-label="הצג/הסתר גרף התקדמות"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '14px 16px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: "'Barlow', system-ui, sans-serif",
+            direction: 'rtl',
+          }}
+        >
+          <span style={{
+            fontSize: 13,
+            color: '#6b7280',
+            fontWeight: 500,
+            letterSpacing: '0.3px',
+          }}>
+            גרף התקדמות
+          </span>
+          <span style={{
+            width: 32, height: 32,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#6b7280',
+            transition: 'transform 0.2s',
+            transform: graphExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            flexShrink: 0,
+          }} aria-hidden>
+            <ChevronDown size={18} />
+          </span>
+        </button>
+        {graphExpanded && (
+          <UnifiedProgressGraph plan={plan} completed={completed} />
+        )}
+      </div>
     </div>
   );
 }
