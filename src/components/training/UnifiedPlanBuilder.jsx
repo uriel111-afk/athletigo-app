@@ -1879,7 +1879,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             }}>
               {plan?.plan_name || 'תכנית אימון'}
             </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              {/* DOM order chevron → gear so under RTL flex the gear
+                  is the LAST flex item — sits at the visual leftmost
+                  edge of the row, hugging the card's left margin. */}
+              <span aria-hidden style={{ fontSize: 12, color: '#ccc' }}>
+                {headerCollapsed ? '▼' : '▲'}
+              </span>
               {canEdit && (
                 <button
                   type="button"
@@ -1902,9 +1908,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   <Settings size={18} />
                 </button>
               )}
-              <span aria-hidden style={{ fontSize: 12, color: '#ccc', marginRight: 4 }}>
-                {headerCollapsed ? '▼' : '▲'}
-              </span>
             </div>
           </div>
           {!headerCollapsed && (

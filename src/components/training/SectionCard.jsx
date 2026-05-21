@@ -283,41 +283,46 @@ export default function SectionCard({
               </span>
             )}
           </div>
-          {/* Single "עריכה" trigger — replaces the previous scattered
-              icon cluster. Tapping toggles a 2-col labeled menu below
-              the section row. Each menu item still calls the existing
-              handler (no editor or DB code reimplemented). */}
-          {showEditButtons && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-              aria-expanded={menuOpen}
-              aria-label="עריכת סקשן"
-              title="עריכת סקשן"
-              style={{
-                width: 32, height: 32,
-                background: 'transparent',
-                border: 'none',
-                color: '#6b7280',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
-                flexShrink: 0,
-              }}
-            >
-              <Settings size={18} />
-            </button>
-          )}
-          <span aria-hidden style={{
-            color: '#C9A24A',
-            fontSize: 14,
-            lineHeight: 1,
-            transition: 'transform 0.2s',
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            flexShrink: 0,
-          }}>▼</span>
+          {/* Actions cluster — gear + chevron grouped on the visual
+              left (RTL "end") so the outer space-between layout puts
+              the title cluster on the right and these controls hug
+              the leftmost edge of the row. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {/* DOM order chevron → gear so under RTL flex the gear is
+                the LAST flex item, sitting at the visual leftmost edge
+                of the row (hugging the section's left margin). */}
+            <span aria-hidden style={{
+              color: '#C9A24A',
+              fontSize: 14,
+              lineHeight: 1,
+              transition: 'transform 0.2s',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              flexShrink: 0,
+            }}>▼</span>
+            {showEditButtons && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+                aria-expanded={menuOpen}
+                aria-label="עריכת סקשן"
+                title="עריכת סקשן"
+                style={{
+                  width: 32, height: 32,
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                <Settings size={18} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Coach action menu — appears below the section row when the

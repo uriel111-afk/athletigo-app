@@ -967,7 +967,14 @@ export default function ExerciseCard({
                   onClick={(e) => {
                     e.stopPropagation();
                     const rect = e.currentTarget.getBoundingClientRect();
-                    setActionsMenuAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                    const MENU_W = 160;
+                    let leftPos = rect.left;
+                    // Clamp to viewport edges with an 8px breathing room.
+                    if (leftPos < 8) leftPos = 8;
+                    if (leftPos + MENU_W > window.innerWidth - 8) {
+                      leftPos = window.innerWidth - MENU_W - 8;
+                    }
+                    setActionsMenuAnchor({ top: rect.bottom + 6, left: leftPos });
                     setActionsMenuOpen((v) => !v);
                   }}
                   aria-label="פעולות"
@@ -995,7 +1002,7 @@ export default function ExerciseCard({
                     style={{
                       position: 'fixed',
                       top: actionsMenuAnchor.top,
-                      right: actionsMenuAnchor.right,
+                      left: actionsMenuAnchor.left,
                       zIndex: 1000,
                       background: '#FFFFFF',
                       border: '1px solid #E8DEC4',
@@ -1005,7 +1012,7 @@ export default function ExerciseCard({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 6,
-                      minWidth: 140,
+                      minWidth: 160,
                       direction: 'rtl',
                       fontFamily: SANS_FONT,
                     }}
