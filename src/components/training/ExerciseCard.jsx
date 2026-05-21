@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck } from "lucide-react";
+import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck, Check } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
@@ -1461,7 +1461,210 @@ export default function ExerciseCard({
           );
         })()}
 
-        {expanded && variant === 'normal' && (paramItems.length > 0 || subExercises.length > 0) && (() => {
+        {/* Premium-Soft 45/55 open layout — trainee + normal variant
+            + rep-based sets only. Hero (target reps + status dots + label)
+            on the right (RTL start), set-by-set rows on the left. Sub-
+            exercise variants (tabata, list) keep their own existing
+            branches above; coach view, display-mode sections, and
+            time-only exercises fall through to the legacy IIFE below. */}
+        {expanded && variant === 'normal'
+          && !isCoachMode
+          && sectionTrackingMode !== 'display'
+          && hasValue(exercise.sets)
+          && hasValue(exercise.reps)
+          && (() => {
+          const targetReps = parseInt(exercise.reps, 10) || 0;
+          let doneCount = 0;
+          for (let i = 0; i < totalSets; i++) if (isSetDone(i)) doneCount++;
+          const activeSetIdx = Math.min(doneCount, totalSets - 1);
+          const allDone = doneCount >= totalSets;
+          return (
+            <div style={{
+              display: 'flex',
+              gap: 12,
+              alignItems: 'stretch',
+              marginTop: 12,
+              paddingTop: 12,
+              paddingInline: 16,
+              paddingBottom: 12,
+              borderTop: '1px solid #F4F4F5',
+              direction: 'rtl',
+            }}>
+              {/* Hero — target reps + status dots + label (right / RTL start) */}
+              <div style={{
+                flex: '0 0 45%',
+                background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                border: '1px solid #FFD0AC',
+                borderRadius: 12,
+                padding: '12px 8px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+              }}>
+                {/* Progress dots */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  gap: 5,
+                  marginBottom: 6,
+                }}>
+                  {Array.from({ length: totalSets }).map((_, i) => {
+                    const done = isSetDone(i);
+                    const active = !done && !allDone && i === activeSetIdx;
+                    if (done) {
+                      return (
+                        <span key={i} aria-label={`סט ${i + 1} הושלם`} style={{
+                          width: 14, height: 14, borderRadius: '50%',
+                          background: '#16A34A',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#FFFFFF',
+                        }}>
+                          <Check size={9} strokeWidth={3} />
+                        </span>
+                      );
+                    }
+                    if (active) {
+                      return (
+                        <span key={i} aria-label={`סט ${i + 1} פעיל`} style={{
+                          width: 14, height: 14, borderRadius: '50%',
+                          background: '#FF6F20',
+                          boxShadow: '0 0 0 3px rgba(255,111,32,0.18), 0 0 8px rgba(255,111,32,0.4)',
+                        }} />
+                      );
+                    }
+                    return (
+                      <span key={i} aria-label={`סט ${i + 1} ממתין`} style={{
+                        width: 14, height: 14, borderRadius: '50%',
+                        background: '#FFFFFF',
+                        border: '2px solid #D1D5DB',
+                      }} />
+                    );
+                  })}
+                </div>
+                {/* "סט X מתוך Y" */}
+                <div style={{
+                  fontSize: 9,
+                  color: '#FF6F20',
+                  fontWeight: 700,
+                  letterSpacing: 1.2,
+                  marginBottom: 2,
+                }}>
+                  סט {Math.min(activeSetIdx + 1, totalSets)} מתוך {totalSets}
+                </div>
+                {/* Hero number */}
+                <div style={{
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: 60,
+                  color: '#FF6F20',
+                  lineHeight: 0.85,
+                  marginTop: 2,
+                }}>
+                  {targetReps}
+                </div>
+                {/* Sub-label */}
+                <div style={{
+                  fontSize: 9,
+                  color: '#6b7280',
+                  fontWeight: 600,
+                }}>
+                  חזרות יעד
+                </div>
+              </div>
+
+              {/* Set rows — left / RTL end. Each row taps to mark/unmark
+                  the set via the existing handleSetToggle handler. */}
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 5,
+              }}>
+                {Array.from({ length: totalSets }).map((_, i) => {
+                  const done = isSetDone(i);
+                  const active = !done && !allDone && i === activeSetIdx;
+                  const loggedReps = setLog?.[i]?.reps_completed;
+                  let rowStyle, labelText, labelColor, labelWeight, rightText, rightColor;
+                  if (done) {
+                    rowStyle = {
+                      background: '#F0FAF4',
+                      border: '1.5px solid #16A34A',
+                    };
+                    labelText = `סט ${i + 1} ✓`;
+                    labelColor = '#16A34A';
+                    labelWeight = 700;
+                    rightText = hasValue(loggedReps) ? String(loggedReps) : String(targetReps);
+                    rightColor = '#16A34A';
+                  } else if (active) {
+                    rowStyle = {
+                      background: '#FFF8F0',
+                      border: '1.5px solid #FF6F20',
+                      boxShadow: '0 2px 6px rgba(255,111,32,0.15)',
+                    };
+                    labelText = `סט ${i + 1} ←`;
+                    labelColor = '#FF6F20';
+                    labelWeight = 700;
+                    rightText = '?';
+                    rightColor = '#FF6F20';
+                  } else {
+                    rowStyle = {
+                      background: '#FFFFFF',
+                      border: '1.5px dashed #D1D5DB',
+                    };
+                    labelText = `סט ${i + 1}`;
+                    labelColor = '#9CA3AF';
+                    labelWeight = 600;
+                    rightText = '—';
+                    rightColor = '#D1D5DB';
+                  }
+                  return (
+                    <div
+                      key={i}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); handleSetToggle(i); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSetToggle(i);
+                        }
+                      }}
+                      style={{
+                        ...rowStyle,
+                        borderRadius: 8,
+                        padding: '8px 10px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{
+                        fontSize: 10,
+                        color: labelColor,
+                        fontWeight: labelWeight,
+                      }}>{labelText}</div>
+                      <span style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 18,
+                        color: rightColor,
+                      }}>{rightText}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {expanded && variant === 'normal'
+          /* Legacy IIFE — kept for coach view, display-mode sections,
+             and time-only normal exercises. Skipped when the new
+             45/55 layout above takes over. */
+          && !(!isCoachMode && sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
+          && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
           const hasWorkTimeParam = paramItems.some((it) => it.key === 'work_time');
