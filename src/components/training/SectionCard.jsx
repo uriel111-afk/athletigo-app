@@ -287,18 +287,11 @@ export default function SectionCard({
               left (RTL "end") so the outer space-between layout puts
               the title cluster on the right and these controls hug
               the leftmost edge of the row. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            {/* DOM order chevron → gear so under RTL flex the gear is
-                the LAST flex item, sitting at the visual leftmost edge
-                of the row (hugging the section's left margin). */}
-            <span aria-hidden style={{
-              color: '#C9A24A',
-              fontSize: 14,
-              lineHeight: 1,
-              transition: 'transform 0.2s',
-              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              flexShrink: 0,
-            }}>▼</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {/* DOM order gear → chevron. Under RTL flex the last DOM
+                child sits at the visual leftmost edge of the row, so
+                the chevron hugs the section's left margin and the
+                gear sits next to it (toward the title). */}
             {showEditButtons && (
               <button
                 type="button"
@@ -322,6 +315,14 @@ export default function SectionCard({
                 <Settings size={18} />
               </button>
             )}
+            <span aria-hidden style={{
+              color: '#C9A24A',
+              fontSize: 14,
+              lineHeight: 1,
+              transition: 'transform 0.2s',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              flexShrink: 0,
+            }}>▼</span>
           </div>
         </div>
 

@@ -394,10 +394,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const [showMetadataEditor, setShowMetadataEditor] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   // Plan header card open/closed. Tap on the title row toggles it.
-  // When collapsed, only the title + ערוך button remain visible
-  // inside the card; the progress bar sits OUTSIDE the card so it
-  // stays visible regardless of state.
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  // Starts COLLAPSED — the metadata (chips, days, stats) is hidden
+  // by default; the trainee/coach taps the title row to expand for
+  // a quick overview. Progress now lives in a sticky bar at the
+  // viewport bottom (not inside the card), so the card stays compact
+  // by default but progress is always visible.
+  const [headerCollapsed, setHeaderCollapsed] = useState(true);
   const celebrationFiredRef = useRef(false);
   // Per-set logs for the trainee execution flow.
   // Shape: { [exerciseId]: { [setIndex]: { reps_completed, done } } }
@@ -1814,9 +1816,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       dir="rtl"
       className="w-full"
       style={{
+        // Trainee bottom space: 140px for the "סיים אימון" footer +
+        // safe-area. Coach bottom space: 130px to clear the new sticky
+        // progress bar (~60px) above the global bottom nav (~70px).
+        // Both add var(--timer-bar-height, 0px) so an active timer
+        // pushes the page up correspondingly.
         paddingBottom: !canEdit
-          ? 'calc(140px + env(safe-area-inset-bottom))'
-          : undefined,
+          ? 'calc(200px + env(safe-area-inset-bottom) + var(--timer-bar-height, 0px))'
+          : 'calc(130px + var(--timer-bar-height, 0px))',
       }}
     >
       {canEdit && showMetadataEditor && (
@@ -1879,13 +1886,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             }}>
               {plan?.plan_name || 'תכנית אימון'}
             </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              {/* DOM order chevron → gear so under RTL flex the gear
-                  is the LAST flex item — sits at the visual leftmost
-                  edge of the row, hugging the card's left margin. */}
-              <span aria-hidden style={{ fontSize: 12, color: '#ccc' }}>
-                {headerCollapsed ? '▼' : '▲'}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              {/* DOM order gear → chevron. Under RTL flex the last DOM
+                  child sits at the visual leftmost edge of the row, so
+                  the chevron hugs the card's left margin and the gear
+                  sits next to it (toward the title). Gear's onClick
+                  uses stopPropagation so it opens the metadata editor
+                  without ALSO toggling the header's collapse state. */}
               {canEdit && (
                 <button
                   type="button"
@@ -1908,6 +1915,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   <Settings size={18} />
                 </button>
               )}
+              <span aria-hidden style={{ fontSize: 12, color: '#ccc' }}>
+                {headerCollapsed ? '▼' : '▲'}
+              </span>
             </div>
           </div>
           {!headerCollapsed && (
@@ -1994,26 +2004,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         )}
       </div>
 
-      {/* Progress bar — always visible, sits OUTSIDE the header card
-          so it stays in view whether the card is collapsed or not. */}
-      <div style={{ padding: '0 20px', marginBottom: 16, marginTop: -8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <span style={{ fontSize: 14, color: '#aaa' }}>התקדמות</span>
-          <span style={{ fontSize: 16, fontWeight: 800, color: '#FF6F20' }}>
-            {Math.round(progressPct || 0)}%
-          </span>
-        </div>
-        <div style={{ height: 6, background: '#F5EEE0', borderRadius: 3, overflow: 'hidden' }}>
-          <div style={{
-            width: `${Math.max(2, Math.round(progressPct || 0))}%`,
-            height: '100%',
-            background: 'linear-gradient(90deg, #FF8B47, #FF6F20)',
-            borderRadius: 3,
-            boxShadow: '0 0 8px rgba(255,111,32,0.4)',
-            transition: 'width 0.4s ease',
-          }} />
-        </div>
-      </div>
+      {/* Progress bar removed from here — moved to a sticky bar at
+          the viewport bottom (see end of this return). */}
 
       <div className="max-w-7xl mx-auto w-full" style={{ padding: canEdit ? '12px 16px' : '8px' }}>
 
@@ -2668,6 +2660,57 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </DialogContent>
       </Dialog>
       
+      {/* Sticky progress bar — viewport-bottom, sits ABOVE the
+          global bottom nav and (for trainees) above the "סיים אימון"
+          footer too. Visible whenever the plan has at least one
+          exercise. Bottom offset accounts for the trainee footer
+          (~140px including safe-area) OR just the global nav (~70px)
+          for coach view, plus any active timer-bar height. */}
+      {exercisesTotal > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: !canEdit
+            ? 'calc(140px + env(safe-area-inset-bottom) + var(--timer-bar-height, 0px))'
+            : 'calc(70px + var(--timer-bar-height, 0px))',
+          left: 0, right: 0,
+          background: '#FFFFFF',
+          borderTop: '1px solid #F0E4D0',
+          padding: '10px 16px',
+          zIndex: 50,
+          direction: 'rtl',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 6,
+          }}>
+            <span style={{
+              fontSize: 11, color: '#6b7280', fontWeight: 500,
+              letterSpacing: '0.3px',
+            }}>התקדמות</span>
+            <span style={{
+              fontSize: 12, color: '#FF6F20', fontWeight: 700,
+            }}>{Math.round(progressPct || 0)}%</span>
+          </div>
+          <div style={{
+            height: 4,
+            background: '#F5EEE0',
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              width: `${Math.max(2, Math.round(progressPct || 0))}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, #FF8B47, #FF6F20)',
+              borderRadius: 2,
+              boxShadow: '0 0 6px rgba(255,111,32,0.35)',
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+        </div>
+      )}
+
       {/* Finish Button — trainee-only. Standalone bottom-fixed button
           on a transparent container; the duplicate progress bar that
           used to live here was removed (the header progress bar at
