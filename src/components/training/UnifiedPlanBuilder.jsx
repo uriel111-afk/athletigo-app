@@ -1837,14 +1837,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           Plan name editing routes through the metadata editor only;
           the inline rename + ✓/✕ flow was dropped. */}
       <div style={{
-        background: 'white',
-        borderRadius: 16,
+        background: 'linear-gradient(135deg, #FFFFFF 0%, #FFF5EE 100%)',
+        border: '1px solid rgba(255,111,32,0.1)',
+        borderRadius: 14,
         overflow: 'hidden',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 10px 28px rgba(255,111,32,0.08)',
         direction: 'rtl',
         margin: '0 16px 16px',
       }}>
-        <div style={{ height: 5, background: '#FF6F20' }} />
+        <div style={{ height: 5, background: 'linear-gradient(90deg, #FF8B47, #FF6F20)' }} />
 
         {/* Title row — clickable to toggle the card open/closed.
             ערוך button stops propagation so it doesn't collapse the
@@ -1870,7 +1871,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               fontSize: 32,
               fontWeight: 700,
               color: '#1a1a1a',
-              lineHeight: 1.1,
+              lineHeight: 1.15,
               letterSpacing: '-0.5px',
               flex: 1,
               minWidth: 0,
@@ -1999,10 +2000,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             {Math.round(progressPct || 0)}%
           </span>
         </div>
-        <div style={{ height: 6, background: '#F5EDDB', borderRadius: 999, overflow: 'hidden' }}>
+        <div style={{ height: 6, background: '#F5EEE0', borderRadius: 3, overflow: 'hidden' }}>
           <div style={{
             width: `${Math.max(2, Math.round(progressPct || 0))}%`,
-            height: '100%', background: '#FF6F20', borderRadius: 999,
+            height: '100%',
+            background: 'linear-gradient(90deg, #FF8B47, #FF6F20)',
+            borderRadius: 3,
+            boxShadow: '0 0 8px rgba(255,111,32,0.4)',
             transition: 'width 0.4s ease',
           }} />
         </div>
@@ -2017,8 +2021,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             setEditingSection(null);
             setShowSectionDialog(true);
           }}
-          className="flex-1 sm:flex-none rounded-xl py-3 md:py-4 font-bold text-white text-sm md:text-base"
-          style={{ backgroundColor: '#FF6F20' }}>
+          className="flex-1 sm:flex-none font-bold text-white"
+          style={{
+            background: 'linear-gradient(135deg, #FF8B47 0%, #FF6F20 100%)',
+            color: '#fff',
+            border: 'none',
+            padding: '14px',
+            borderRadius: 12,
+            fontWeight: 700,
+            fontSize: 14,
+            boxShadow: '0 4px 12px rgba(255,111,32,0.3), inset 0 1px 0 rgba(255,255,255,0.25)',
+          }}>
               <Plus className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
               הוסף סקשן חדש
             </Button>

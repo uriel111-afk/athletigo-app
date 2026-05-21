@@ -133,6 +133,13 @@ export default function SectionCard({
     };
     const accentColor = sectionColor;
     const sectionRowBg = softTint(accentColor, 0.1);
+    // Premium-Soft accent-tinted card chrome — derived from the same
+    // accentColor so the outer border, drop-shadow halo, and header
+    // gradient all share the section's brand hue (orange / blue /
+    // green / etc.).
+    const accentBorder = softTint(accentColor, 0.12);
+    const accentShadow = softTint(accentColor, 0.07);
+    const accentHeaderTintStrong = softTint(accentColor, 0.06);
     const coachIconBtnStyle = {
       width: 28, height: 28, borderRadius: 6,
       border: 'none', background: 'transparent',
@@ -143,12 +150,13 @@ export default function SectionCard({
     return (
       <div style={{
         background: '#FCFBF7',
-        border: '0.5px solid #E5DFC9',
+        border: `1px solid ${accentBorder}`,
         borderRight: `4px solid ${accentColor}`,
-        borderRadius: 10,
+        borderRadius: 14,
         overflow: 'hidden',
         marginBottom: 8,
         direction: 'rtl',
+        boxShadow: `0 2px 4px rgba(0,0,0,0.03), 0 14px 28px ${accentShadow}`,
       }}>
         {/* Thin white "page header" band with the brand-orange rule. */}
         <div style={{ background: '#FFFFFF', borderBottom: '3px solid #FF6F20', height: 6 }} aria-hidden />
@@ -170,7 +178,7 @@ export default function SectionCard({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 10,
-            background: sectionRowBg,
+            background: `linear-gradient(180deg, ${accentHeaderTintStrong} 0%, transparent 100%)`,
             borderBottom: expanded ? 'none' : '2px solid #E8DEC4',
             padding: '12px 36px 12px 16px',
             cursor: 'pointer',
@@ -234,6 +242,7 @@ export default function SectionCard({
                   fontWeight: 700,
                   color: '#1a1a1a',
                   lineHeight: 1.2,
+                  letterSpacing: '-0.3px',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -244,7 +253,8 @@ export default function SectionCard({
               >{section.section_name}</span>
             )}
             <span style={{
-              fontSize: 13, color: accentColor, fontWeight: 600,
+              fontSize: 11, color: accentColor, fontWeight: 500,
+              letterSpacing: '0.3px',
               flexShrink: 0, whiteSpace: 'nowrap',
             }}>
               · {exercises.length} תרגילים
