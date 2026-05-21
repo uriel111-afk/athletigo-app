@@ -877,37 +877,63 @@ export default function ExerciseCard({
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontSize: 17,
-                fontWeight: 700,
-                color: completed ? '#aaa' : '#1a1a1a',
+                fontWeight: 800,
+                color: completed ? '#aaa' : '#09090B',
                 textDecoration: completed ? 'line-through' : 'none',
                 fontFamily: SANS_FONT,
-                lineHeight: 1.3,
-                letterSpacing: '-0.2px',
+                lineHeight: 1.1,
                 wordBreak: 'break-word',
               }}>{name}</div>
-              {/* Closed-state summary pills — hidden when open. Live
-                  under the title within the right cluster. */}
-              {!expanded && closedPills.length > 0 && (
-                <div style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 4,
-                  marginTop: 4,
-                  direction: 'rtl',
-                }}>
-                  {closedPills.map((p, i) => (
-                    <span key={i} style={{
-                      background: p.emphasized ? '#FFE8D6' : '#FFF0E4',
-                      color: '#993C1D',
-                      fontSize: 11,
-                      fontWeight: p.emphasized ? 700 : 500,
-                      padding: '2px 7px',
-                      borderRadius: 6,
-                      whiteSpace: 'nowrap',
-                    }}>{p.text}</span>
-                  ))}
-                </div>
-              )}
+              {/* Param chips — Row 2 under the title. Inline <num>+<label>
+                  groups with a thin gray "·" between them. Each chip
+                  pairs a Bebas Neue number with a 10px Hebrew label and
+                  the full word "שניות" (never the ״ symbol). Only
+                  truthy values render. Order: sets → reps → hold → rest. */}
+              {!expanded && (() => {
+                const restSec = toSeconds(exercise.rest_time);
+                const holdSec = toSeconds(exercise.static_hold_time);
+                const chips = [];
+                if (hasValue(exercise.sets)) chips.push({ value: String(exercise.sets), label: 'סטים' });
+                if (hasValue(exercise.reps)) chips.push({ value: String(exercise.reps), label: 'חזרות' });
+                if (holdSec != null) chips.push({ value: String(holdSec), label: 'שניות החזקה' });
+                if (restSec != null) chips.push({ value: String(restSec), label: 'שניות מנוחה' });
+                if (chips.length === 0) return null;
+                return (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'baseline',
+                    gap: 8,
+                    marginTop: 2,
+                    direction: 'rtl',
+                  }}>
+                    {chips.map((c, i) => (
+                      <React.Fragment key={c.label}>
+                        {i > 0 && (
+                          <span style={{ color: '#D1D5DB', lineHeight: 1 }} aria-hidden>·</span>
+                        )}
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'baseline',
+                          gap: 3,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 17,
+                            color: '#FF6F20',
+                            lineHeight: 1,
+                          }}>{c.value}</span>
+                          <span style={{
+                            fontSize: 10,
+                            color: '#6b7280',
+                            fontWeight: 600,
+                          }}>{c.label}</span>
+                        </span>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
