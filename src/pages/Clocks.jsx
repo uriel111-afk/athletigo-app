@@ -16,7 +16,10 @@ const MinimizeBtn = ({ onClick }) => (
 );
 
 const BRAND = '#FF6F20';
-const FN = "'Bebas Neue', sans-serif, sans-serif";
+// FN — display font for the clocks tab only (digits + scoreboard
+// labels + tab toggles). Reverted to Barlow Condensed; the rest of
+// the app keeps Bebas Neue for numerical accents.
+const FN = "'Barlow Condensed', sans-serif";
 const FL = "'Rubik', system-ui, sans-serif";
 const C1 = '#1A1A1A';
 const C2 = '#6B7280';

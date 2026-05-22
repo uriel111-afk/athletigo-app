@@ -168,7 +168,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
           style={{
             ...btnBase, marginLeft: 4, padding: '0 6px',
             background: 'transparent',
-            fontFamily: "'Bebas Neue', sans-serif",
+            fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 42, fontWeight: 700,
             color: primaryColor,
             lineHeight: 1,
@@ -186,7 +186,7 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
         textAlign: 'center',
       }}>
         <div style={{
-          fontFamily: "'Bebas Neue', sans-serif",
+          fontFamily: "'Barlow Condensed', sans-serif",
           fontSize: 42, fontWeight: 700,
           letterSpacing: 2,
           color: timeColor,

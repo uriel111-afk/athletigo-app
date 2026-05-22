@@ -680,7 +680,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
                     pointerEvents: 'none',
                     fontSize: 32, fontWeight: 700,
                     color: '#FF6F20',
-                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontFamily: "'Barlow Condensed', sans-serif",
                     fontVariantNumeric: 'tabular-nums',
                     letterSpacing: '0.5px',
                     lineHeight: 1.2, textAlign: 'center',
@@ -718,7 +718,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           border: '0.5px solid #F0E4D0',
         }}>
           <div style={{ fontSize: 12, color: '#888', fontWeight: 500, marginBottom: 4 }}>זמן כולל</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6F20', fontFamily: "'Bebas Neue', sans-serif" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6F20', fontFamily: "'Barlow Condensed', sans-serif" }}>
             {twMin}:{String(twSec).padStart(2,'0')}
           </div>
         </div>
@@ -1118,7 +1118,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           <span style={{
             fontSize: 72, fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
-            fontFamily: "'Bebas Neue', sans-serif",
+            fontFamily: "'Barlow Condensed', sans-serif",
             letterSpacing: '0.5px',
             lineHeight: 1.15,
             color: isWork ? '#FFFFFF' : '#FF6F20',

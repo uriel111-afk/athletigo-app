@@ -55,7 +55,7 @@ export default function FloatingClockBar() {
           {clock.phaseLabel || (clock.activeClock === 'stopwatch' ? 'סטופר' : 'טיימר')}
         </span>
       </div>
-      <div style={{ fontSize: 48, fontWeight: 900, color: '#FFF', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, fontFamily: "'Bebas Neue', sans-serif" }}>
+      <div style={{ fontSize: 48, fontWeight: 900, color: '#FFF', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, fontFamily: "'Barlow Condensed', sans-serif" }}>
         {fmt(clock.display)}
       </div>
       {clock.roundInfo && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 600, fontFamily: "'Rubik', system-ui, sans-serif" }}>{clock.roundInfo}</div>}
