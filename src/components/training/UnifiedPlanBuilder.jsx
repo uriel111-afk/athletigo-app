@@ -1228,7 +1228,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     const order = editingExercise?.order || sectionExercises.length + 1;
     const data = {
       mode: exerciseData.mode || "חזרות",
-      weight_type: exerciseData.weight_type || "bodyweight",
       ...exerciseData,
       name: exerciseData.exercise_name || exerciseData.name || "תרגיל",
       tabata_preview: tabataPreview,
@@ -2051,7 +2050,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 }}
                 onAddExercise={() => {
                   setCurrentSection(section);
-                  setEditingExercise({ mode: "חזרות", exercise_name: "", weight_type: "bodyweight", completed: false });
+                  setEditingExercise({ mode: "חזרות", exercise_name: "", completed: false });
                   setShowExerciseDialog(true);
                 }}
                 onEditSection={(sectionToEdit) => {
@@ -2259,7 +2258,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           
           <div className="flex-1 overflow-y-auto p-6 pt-2 scrollbar-hide">
             <ModernExerciseForm
-              exercise={editingExercise || { mode: "חזרות", exercise_name: "", weight_type: "bodyweight" }}
+              exercise={editingExercise || { mode: "חזרות", exercise_name: "" }}
               onChange={(data) => setEditingExercise({ ...editingExercise, ...data })} />
 
           </div>

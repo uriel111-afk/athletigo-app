@@ -1259,6 +1259,19 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       return;
     }
 
+    // Confirmed chip with panel closed → second tap deselects and
+    // clears the value, instead of re-opening the panel. Re-editing a
+    // value now requires explicit deselect → re-select → re-enter, so
+    // a stale default can't silently persist after the coach changed
+    // their mind. The ✕ נקה button in the panel header still works as
+    // the in-panel shortcut for the same operation.
+    if (confirmedParams.has(paramId) && !editingParams.has(paramId)) {
+      const field = getDbField(paramId);
+      updateEx(field, null);
+      setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
+      return;
+    }
+
     setEditingParams((prev) => {
       const n = new Set(prev);
       if (n.has(paramId)) {
