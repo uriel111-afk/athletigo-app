@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Plus, Minus, Dumbbell, Clock, Repeat, Layers, Activity, Zap,
   Trash2, Timer, Weight, Hash, Info, Video, Check, X,
-  PauseCircle, User, GripVertical,
+  PauseCircle, User, GripVertical, List,
   Footprints, Maximize2, ArrowLeftRight, Copy, MoreHorizontal
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
@@ -17,6 +17,10 @@ import { searchExercises } from "@/data/exercises";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { supabase } from "@/lib/supabaseClient";
+import { AuthContext } from "@/lib/AuthContext";
+import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
+import VariationsManager from "@/components/admin/VariationsManager";
 
 // Drag-handle wrapper for one sub-exercise row. Renders the ⠿ handle
 // to the right of the editor (RTL = visual right). Uses the sub.id so
@@ -973,6 +977,32 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
   const queryClient = useQueryClient();
 
+  const { user } = useContext(AuthContext) || {};
+  const isAdmin = user?.id === ATHLETIGO_ADMIN_UUID;
+  const [showVariationsModal, setShowVariationsModal] = useState(false);
+  const [variationsCount, setVariationsCount] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin || !exercise?.id) {
+      setVariationsCount(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { count, error } = await supabase
+        .from("exercise_variations")
+        .select("id", { count: "exact", head: true })
+        .eq("exercise_id", exercise.id);
+      if (cancelled) return;
+      if (error) {
+        setVariationsCount(0);
+      } else {
+        setVariationsCount(count || 0);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin, exercise?.id]);
+
   // ── Draft persistence ─────────────────────────────────────────────────
   // Save in-progress edits to localStorage on every change so an
   // accidental refresh, swipe-back, or tab close doesn't wipe a long
@@ -1481,7 +1511,32 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
       {/* ── Parameters Grid — 4-col wrap so every param is visible ── */}
       <div className="mb-3 px-1">
-        <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-wider">פרמטרים</label>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+          <label className="text-[10px] font-black text-gray-400 block uppercase tracking-wider" style={{ margin: 0 }}>פרמטרים</label>
+          {isAdmin && exercise?.id && (
+            <button
+              type="button"
+              onClick={() => setShowVariationsModal(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: '#FFF7ED',
+                color: '#FF6F20',
+                padding: '6px 12px',
+                border: '1px solid #FFD0AC',
+                borderRadius: 7,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              <List size={13} />
+              נהל וריאציות ({variationsCount})
+            </button>
+          )}
+        </div>
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
@@ -1772,6 +1827,15 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           title={addValueDialog.label}
           onSave={handleSaveCustomValue}
           isLoading={createCustomParamMutation.isPending}
+        />
+      )}
+
+      {showVariationsModal && isAdmin && exercise?.id && (
+        <VariationsManager
+          exerciseId={exercise.id}
+          exerciseName={exercise.exercise_name || exercise.name || 'תרגיל'}
+          onClose={() => setShowVariationsModal(false)}
+          onCountChange={setVariationsCount}
         />
       )}
     </div>

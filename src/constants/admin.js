@@ -1,0 +1,1 @@
+export const ATHLETIGO_ADMIN_UUID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
