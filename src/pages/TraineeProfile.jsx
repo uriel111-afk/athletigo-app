@@ -102,6 +102,13 @@ import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 import TraineeReceiptsList from "@/components/TraineeReceiptsList";
 import LinkSessionToPackageDialog from "@/components/LinkSessionToPackageDialog";
+import {
+  translateGender,
+  translateChallenge,
+  translatePreference,
+  translateFitnessLevel,
+  translateFrequency,
+} from "@/utils/translateProfileFields";
 
 // Coach-side execution row used inside the "תוכניות" tab. Closed
 // shows Hebrew long timestamp + plan name + completion% + score.
@@ -786,10 +793,10 @@ const INTRO_GOAL_LABELS = {
   muscle_up:   { emoji: '🎯', label: 'Muscle-Up' },
 };
 const INTRO_FITNESS_LABELS = {
-  beginner:     { emoji: '🌱', label: 'מתחיל/ה' },
-  intermediate: { emoji: '🌿', label: 'בינוני/ת' },
-  advanced:     { emoji: '🌳', label: 'מתקדם/ת' },
-  athlete:      { emoji: '🏆', label: 'ספורטאי/ת' },
+  beginner:     { emoji: '🌱', label: 'מתחילים' },
+  intermediate: { emoji: '🌿', label: 'בינוני' },
+  advanced:     { emoji: '🌳', label: 'מתקדם' },
+  athlete:      { emoji: '🏆', label: 'ספורטיבי' },
 };
 const INTRO_FREQUENCY_LABELS = {
   '1-2':   '1-2 פעמים בשבוע',
@@ -876,14 +883,21 @@ function buildLiveNarrativeSummary(u) {
   if (!u) return '';
   const parts = [];
 
-  // Opening — name + age + gender (whichever are present).
+  // Opening — name + gender + age. Gender word ("בת" / "בן") flows
+  // directly into the age clause so the line reads "הדסה, בת 31" with
+  // no dangling raw token. Falls back to neutral "בן/בת" when gender
+  // is missing but age is present.
   const name = (u.full_name || u.name || '').trim();
   const age = u.age || calculateAgeFromBirthDate(u.birth_date);
   const gender = (u.gender || '').trim();
   if (name || age || gender) {
     let intro = name || 'מתאמן/ת';
-    if (age) intro += `, בן ${age}`;
-    if (gender) intro += `, ${gender}`;
+    if (age) {
+      const ageWord = gender ? translateGender(gender) : 'בן/בת';
+      intro += `, ${ageWord} ${age}`;
+    } else if (gender) {
+      intro += `, ${translateGender(gender)}`;
+    }
     parts.push(intro + '.');
   }
 
@@ -891,13 +905,13 @@ function buildLiveNarrativeSummary(u) {
   const level = (u.fitness_level || u.fitness_experience || '').trim();
   const background = (u.sport_background || u.fitness_background || '').trim();
   if (level || background) {
-    const tail = [level && `רמת כושר: ${level}`, background].filter(Boolean).join('. ');
+    const tail = [level && `רמת כושר: ${translateFitnessLevel(level)}`, background].filter(Boolean).join('. ');
     parts.push(tail + '.');
   }
 
   // Frequency.
   const frequency = (u.preferred_frequency || u.training_frequency || '').trim();
-  if (frequency) parts.push(`תדירות מועדפת: ${frequency}.`);
+  if (frequency) parts.push(`תדירות מועדפת: ${translateFrequency(frequency)}.`);
 
   // Challenges + freeform context.
   const challenges = Array.isArray(u.current_challenges)
@@ -906,7 +920,7 @@ function buildLiveNarrativeSummary(u) {
         ? u.current_challenges.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
   const challengesText = (u.challenges_description || '').trim();
   if (challenges.length || challengesText) {
-    const left = challenges.length ? `אתגרים נוכחיים: ${challenges.join(', ')}` : '';
+    const left = challenges.length ? `אתגרים נוכחיים: ${challenges.map(translateChallenge).join(', ')}` : '';
     const right = challengesText;
     parts.push([left, right].filter(Boolean).join('. ') + '.');
   }
@@ -918,7 +932,7 @@ function buildLiveNarrativeSummary(u) {
         ? u.training_preferences.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
   const prefsText = (u.preferences_description || '').trim();
   if (prefs.length || prefsText) {
-    const left = prefs.length ? `העדפות אימון: ${prefs.join(', ')}` : '';
+    const left = prefs.length ? `העדפות אימון: ${prefs.map(translatePreference).join(', ')}` : '';
     parts.push([left, prefsText].filter(Boolean).join('. ') + '.');
   }
 
@@ -1093,7 +1107,7 @@ function IntroTab({ user }) {
                   padding: 10, textAlign: 'center',
                 }}>
                   <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>💪 רמת כושר</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#FF6F20' }}>{fitness}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#FF6F20' }}>{translateFitnessLevel(fitness)}</div>
                 </div>
               )}
               {heightCm != null && (
@@ -1201,7 +1215,7 @@ function IntroTab({ user }) {
           {!!challenges.length && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {challenges.map((c, i) => {
-                const meta = INTRO_CHALLENGE_LABELS[c] || { emoji: '⚪', label: c };
+                const meta = INTRO_CHALLENGE_LABELS[c] || { emoji: '⚪', label: translateChallenge(c) };
                 return <IntroChip key={`${c}-${i}`} emoji={meta.emoji} label={meta.label} />;
               })}
             </div>
@@ -1225,7 +1239,7 @@ function IntroTab({ user }) {
           {!!preferences.length && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {preferences.map((p, i) => {
-                const meta = INTRO_PREFERENCE_LABELS[p] || { emoji: '⚪', label: p };
+                const meta = INTRO_PREFERENCE_LABELS[p] || { emoji: '⚪', label: translatePreference(p) };
                 return <IntroChip key={`${p}-${i}`} emoji={meta.emoji} label={meta.label} />;
               })}
             </div>
