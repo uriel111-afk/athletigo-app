@@ -1511,6 +1511,10 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
       {/* ── Parameters Grid — 4-col wrap so every param is visible ── */}
       <div className="mb-3 px-1">
+        {/* TEMP DEBUG — variations admin button visibility */}
+        <div style={{ fontSize: 10, color: '#DC2626', fontFamily: 'monospace', padding: '4px 6px', background: '#FEE2E2', borderRadius: 4, marginBottom: 4, direction: 'ltr', textAlign: 'left', wordBreak: 'break-all' }}>
+          DBG: user.id = {String(user?.id ?? 'null')} | isAdmin = {String(user?.id === ATHLETIGO_ADMIN_UUID)} | exercise.id = {String(exercise?.id ?? 'null')}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
           <label className="text-[10px] font-black text-gray-400 block uppercase tracking-wider" style={{ margin: 0 }}>פרמטרים</label>
           {isAdmin && exercise?.id && (
