@@ -31,23 +31,60 @@ async function compressImage(file, { maxSize = 1200, quality = 0.7 } = {}) {
 // Upload a blob to the lifeos-files bucket (falls back to the media
 // bucket if the target bucket doesn't exist yet).
 async function uploadToStorage(blob, filename) {
+  console.log('[SmartCamera] Upload start', {
+    filename,
+    blobSize: blob?.size,
+    blobType: blob?.type,
+    timestamp: new Date().toISOString(),
+  });
+
+  const { data: { user } = {}, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !user) {
+    console.error('[SmartCamera] Auth check failed', { userErr, user });
+    throw new Error('Not authenticated');
+  }
+  console.log('[SmartCamera] User authenticated', { userId: user.id });
+
   const ext = (filename.split('.').pop() || 'jpg').toLowerCase();
   const path = `lifeos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  console.log('[SmartCamera] Computed path', { path, ext });
 
-  const tryBucket = async (bucket) => {
-    const { error } = await supabase.storage.from(bucket).upload(path, blob, {
+  console.log('[SmartCamera] Attempting upload to bucket: lifeos-files');
+  const primary = await supabase.storage.from('lifeos-files').upload(path, blob, {
+    upsert: true, contentType: 'image/jpeg',
+  });
+
+  if (primary.error) {
+    console.warn('[SmartCamera] lifeos-files upload FAILED', {
+      message: primary.error.message,
+      statusCode: primary.error.statusCode,
+      error: primary.error,
+    });
+
+    console.log('[SmartCamera] Falling back to bucket: media');
+    const fallback = await supabase.storage.from('media').upload(path, blob, {
       upsert: true, contentType: 'image/jpeg',
     });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
-    return publicUrl;
-  };
 
-  try {
-    return await tryBucket('lifeos-files');
-  } catch {
-    return await tryBucket('media');
+    if (fallback.error) {
+      console.error('[SmartCamera] media fallback ALSO FAILED', {
+        message: fallback.error.message,
+        statusCode: fallback.error.statusCode,
+        error: fallback.error,
+      });
+      throw fallback.error;
+    }
+
+    console.log('[SmartCamera] media fallback succeeded', { data: fallback.data });
+    const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(path);
+    console.log('[SmartCamera] Public URL from media', { url: publicUrl });
+    return publicUrl;
   }
+
+  console.log('[SmartCamera] lifeos-files upload succeeded', { data: primary.data });
+  const { data: { publicUrl } } = supabase.storage.from('lifeos-files').getPublicUrl(path);
+  console.log('[SmartCamera] Public URL from lifeos-files', { url: publicUrl });
+  return publicUrl;
 }
 
 // UI: shutter button → native camera → preview → upload.
@@ -74,17 +111,24 @@ export default function SmartCamera({ label = 'צלם קבלה', onUploaded, com
   };
 
   const handleConfirm = async () => {
-    if (!blob) return;
+    if (!blob) {
+      console.warn('[SmartCamera] handleConfirm called with no blob');
+      return;
+    }
     setUploading(true);
+    console.log('[SmartCamera] Calling uploadToStorage with blob', { size: blob.size, type: blob.type });
     try {
       const url = await uploadToStorage(blob, 'photo.jpg');
+      console.log('[SmartCamera] uploadToStorage returned URL', { url });
       toast.success('הועלה');
       onUploaded?.({ url, size: blob.size });
+      console.log('[SmartCamera] onUploaded callback fired', { url });
       setPreview(null);
       setBlob(null);
     } catch (err) {
-      console.error('[SmartCamera] upload error:', err);
-      toast.error('שגיאה בהעלאה: ' + (err?.message || ''));
+      console.error('[SmartCamera] Upload pipeline crashed', { err, message: err?.message, statusCode: err?.statusCode });
+      toast.error('שגיאה בהעלאה: ' + (err?.message || 'שגיאה לא ידועה'));
+      alert(`העלאה נכשלה: ${err?.message || 'שגיאה לא ידועה'}`);
     } finally {
       setUploading(false);
     }
