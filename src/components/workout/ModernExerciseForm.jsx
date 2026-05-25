@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Plus, Minus, Dumbbell, Clock, Repeat, Layers, Activity, Zap,
   Trash2, Timer, Weight, Hash, Info, Video, Check, X,
-  PauseCircle, User, GripVertical, List,
+  PauseCircle, User, GripVertical, List, Mountain,
   Footprints, Maximize2, ArrowLeftRight, Copy, MoreHorizontal
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
@@ -21,6 +21,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
 import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
 import VariationsManager from "@/components/admin/VariationsManager";
+import { TRAINING_METHODS } from '../../constants/trainingMethods';
+import { parsePlannedSets, buildPlannedSetsPayload, mergeIntoTabataData } from '../../lib/plannedSets';
 
 // Drag-handle wrapper for one sub-exercise row. Renders the ⠿ handle
 // to the right of the editor (RTL = visual right). Uses the sub.id so
@@ -92,10 +94,11 @@ const ALL_PARAMETERS = [
   { id: "range_of_motion",        label: "טווח תנועה",       icon: Maximize2,       defaultValue: "מלא" },
   { id: "grip",                   label: "אחיזה",            icon: GripVertical,    defaultValue: "" },
   { id: "tabata",                 label: "טבטה",             icon: Zap,             defaultValue: "_container" },
+  { id: "pyramid",                label: "פירמידה",          icon: Mountain,        defaultValue: "_container" },
   { id: "video_url",              label: "וידאו",            icon: ICONS.video,     defaultValue: "" },
 ];
 
-const CONTAINER_PARAMS = new Set(["exercise_list", "tabata"]);
+const CONTAINER_PARAMS = new Set(["exercise_list", "tabata", "pyramid"]);
 const SUB_PARAMS = ALL_PARAMETERS.filter(p => !CONTAINER_PARAMS.has(p.id) && p.id !== "video_url");
 
 // ── DB Field Mapping ──────────────────────────────────────────────────
@@ -975,6 +978,12 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const [confirmedParams, setConfirmedParams] = useState(new Set());
   const [addValueDialog, setAddValueDialog] = useState({ isOpen: false, type: null, label: "" });
 
+  // Pyramid planned-sets editor state. Rehydrates once per exercise id;
+  // syncs back to exercise.tabata_data on every diff so the parent's
+  // "עדכן תרגיל" button sees the freshest payload without a separate
+  // submit handler in this form.
+  const [plannedSetsDraft, setPlannedSetsDraft] = useState([]);
+
   const queryClient = useQueryClient();
 
   const { user } = useContext(AuthContext) || {};
@@ -1107,6 +1116,15 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       const field = getDbField(p.id);
       if (hasVal(exercise[field])) conf.add(p.id);
     });
+    // Pyramid: identified purely by mode string. Unlike tabata/list,
+    // pyramid carries no sub_exercises — its per-set plan lives in
+    // tabata_data.planned_sets — so it has to be detected before the
+    // children-walking branches below would otherwise fall through to
+    // 'exercise_list' on a pyramid row that happens to have an empty
+    // children column.
+    if (exercise.mode === TRAINING_METHODS.PYRAMID.mode) {
+      conf.add("pyramid");
+    }
     // Detect container from existing data. The DB column for children
     // exercises is `children` (canonical) but legacy/migration data
     // may live under `sub_exercises` or `exercise_list` — check all
@@ -1117,33 +1135,38 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       exercise.children ||
       exercise.exercise_list ||
       null;
-    if (Array.isArray(existingChildren) && existingChildren.length > 0) {
-      // Mirror onto sub_exercises so the rest of the form can read a
-      // single canonical key without further branching.
-      if (existingChildren !== exercise.sub_exercises) {
-        onChange({ ...exercise, sub_exercises: existingChildren });
-      }
-      if (exercise.mode === "טבטה") conf.add("tabata");
-      else conf.add("exercise_list");
-    } else if (exercise.tabata_data) {
-      try {
-        const parsed = typeof exercise.tabata_data === "string" ? JSON.parse(exercise.tabata_data) : exercise.tabata_data;
-        if (parsed.sub_exercises) {
-          onChange({ ...exercise, sub_exercises: parsed.sub_exercises });
-          conf.add(parsed.container_type === "tabata" ? "tabata" : "exercise_list");
-        } else if (parsed.blocks) {
-          const subs = [];
-          (parsed.blocks || []).forEach((block) => {
-            (block.block_exercises || []).forEach((ex) => {
-              subs.push({ id: ex.id || String(Date.now() + Math.random()), exercise_name: ex.name });
-            });
-          });
-          if (subs.length > 0) {
-            onChange({ ...exercise, sub_exercises: subs });
-            conf.add("tabata");
-          }
+    // Skip the children-based detection for pyramid rows — pyramid has
+    // no sub_exercises (planned_sets only) so falling through here
+    // would incorrectly co-mark the row as exercise_list / tabata.
+    if (!conf.has("pyramid")) {
+      if (Array.isArray(existingChildren) && existingChildren.length > 0) {
+        // Mirror onto sub_exercises so the rest of the form can read a
+        // single canonical key without further branching.
+        if (existingChildren !== exercise.sub_exercises) {
+          onChange({ ...exercise, sub_exercises: existingChildren });
         }
-      } catch {}
+        if (exercise.mode === "טבטה") conf.add("tabata");
+        else conf.add("exercise_list");
+      } else if (exercise.tabata_data) {
+        try {
+          const parsed = typeof exercise.tabata_data === "string" ? JSON.parse(exercise.tabata_data) : exercise.tabata_data;
+          if (parsed.sub_exercises) {
+            onChange({ ...exercise, sub_exercises: parsed.sub_exercises });
+            conf.add(parsed.container_type === "tabata" ? "tabata" : "exercise_list");
+          } else if (parsed.blocks) {
+            const subs = [];
+            (parsed.blocks || []).forEach((block) => {
+              (block.block_exercises || []).forEach((ex) => {
+                subs.push({ id: ex.id || String(Date.now() + Math.random()), exercise_name: ex.name });
+              });
+            });
+            if (subs.length > 0) {
+              onChange({ ...exercise, sub_exercises: subs });
+              conf.add("tabata");
+            }
+          }
+        } catch {}
+      }
     }
     // When hydrating an existing tabata exercise, surface the five
     // clock-setting chips so the coach sees them populated (with the
@@ -1183,6 +1206,32 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     // are still hydrated above; this keeps the cycle stable per id.
   }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pyramid planned-sets draft hydration — runs once per exercise id.
+  // parsePlannedSets defensively handles TEXT-or-object tabata_data and
+  // returns [] when no payload is present, which is the empty-state
+  // the editor renders as "אין סטים מוגדרים".
+  useEffect(() => {
+    setPlannedSetsDraft(parsePlannedSets(exercise));
+  }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pyramid draft → exercise.tabata_data sync. Diffs the serialised
+  // current planned_sets against the draft and only fires onChange
+  // when they actually differ, so the initial hydration doesn't churn
+  // through redundant writes. Only relevant when pyramid is the
+  // active container — non-pyramid rows shouldn't touch tabata_data
+  // via this path.
+  useEffect(() => {
+    if (!confirmedParams.has("pyramid")) return;
+    const current = parsePlannedSets(exercise);
+    if (JSON.stringify(current) === JSON.stringify(plannedSetsDraft)) return;
+    const fragment = {
+      method: TRAINING_METHODS.PYRAMID.mode,
+      ...buildPlannedSetsPayload(plannedSetsDraft),
+    };
+    const newTabataData = mergeIntoTabataData(exercise?.tabata_data ?? null, fragment);
+    onChange({ ...exercise, tabata_data: newTabataData });
+  }, [plannedSetsDraft, confirmedParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isContainer = confirmedParams.has("exercise_list") || confirmedParams.has("tabata");
   const containerType = confirmedParams.has("tabata") ? "tabata" : confirmedParams.has("exercise_list") ? "list" : null;
   // Read sub-exercises directly from every plausible location on every
@@ -1212,12 +1261,41 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     return [];
   })();
 
-  // Auto-set mode based on container
+  // Auto-set mode based on container. Pyramid also seeds an empty
+  // planned_sets array into tabata_data on first selection so the
+  // downstream renderer + editor have a stable shape to work with.
   useEffect(() => {
     let mode = "חזרות";
     if (confirmedParams.has("tabata")) mode = "טבטה";
     else if (confirmedParams.has("exercise_list")) mode = "סופרסט";
-    if (exercise.mode !== mode) updateEx("mode", mode);
+    else if (confirmedParams.has("pyramid")) mode = TRAINING_METHODS.PYRAMID.mode;
+
+    const updates = {};
+    if (exercise.mode !== mode) updates.mode = mode;
+
+    if (confirmedParams.has("pyramid")) {
+      let existingObj = {};
+      let needsSeed = true;
+      if (exercise.tabata_data) {
+        try {
+          existingObj = typeof exercise.tabata_data === "string"
+            ? JSON.parse(exercise.tabata_data)
+            : exercise.tabata_data;
+          if (existingObj && Array.isArray(existingObj.planned_sets)) needsSeed = false;
+        } catch {}
+      }
+      if (needsSeed) {
+        updates.tabata_data = JSON.stringify({
+          ...existingObj,
+          method: TRAINING_METHODS.PYRAMID.mode,
+          planned_sets: [],
+        });
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      onChange({ ...exercise, ...updates });
+    }
   }, [confirmedParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-fill defaults for any confirmed param that's still empty.
@@ -1259,10 +1337,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         setConfirmedParams((prev) => { const n = new Set(prev); n.delete(paramId); return n; });
         updateEx("sub_exercises", []);
       } else {
-        const other = paramId === "tabata" ? "exercise_list" : "tabata";
+        // Mutual exclusivity across all container chips — selecting one
+        // deselects the other two so only ever one container chip is
+        // active (tabata, exercise_list, or pyramid).
+        const others = ["tabata", "exercise_list", "pyramid"].filter((p) => p !== paramId);
         setConfirmedParams((prev) => {
           const n = new Set(prev);
-          n.delete(other);
+          others.forEach((o) => n.delete(o));
           n.add(paramId);
           // Picking tabata also activates the 5 clock-setting chips
           // so the auto-fill effect below populates their defaults
@@ -1747,6 +1828,152 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           </div>
         </div>
       ))}
+
+      {/* ── Pyramid planned-sets editor — only when the pyramid chip
+            is active. Per-row reps + hold_seconds inputs with a
+            delete X and a "+ הוסף סט" footer button. Empty state
+            displays a friendly nudge instead of a blank list. ──── */}
+      {confirmedParams.has("pyramid") && !readOnly && (() => {
+        const addRow = () => setPlannedSetsDraft((prev) => [
+          ...prev,
+          { set_index: prev.length + 1, reps: null, hold_seconds: null },
+        ]);
+        const removeRow = (idx) => setPlannedSetsDraft((prev) =>
+          prev.filter((_, i) => i !== idx).map((r, i) => ({ ...r, set_index: i + 1 }))
+        );
+        const updateRow = (idx, key, val) => setPlannedSetsDraft((prev) =>
+          prev.map((r, i) => i === idx ? { ...r, [key]: val } : r)
+        );
+
+        const repsInputStyle = {
+          width: 60,
+          height: 36,
+          textAlign: 'center',
+          border: '1px solid #FFD0AC',
+          borderRadius: 6,
+          fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: 18,
+          color: '#FF6F20',
+          background: 'white',
+          outline: 'none',
+        };
+        const secondsInputStyle = {
+          ...repsInputStyle,
+          border: '1px solid #14B8A6',
+          color: '#0F766E',
+          background: '#F0FDFA',
+        };
+
+        return (
+          <div dir="rtl" style={{ margin: '0 4px 16px' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 8,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>
+                סטים בפירמידה
+              </span>
+              <button
+                type="button"
+                onClick={addRow}
+                style={{
+                  background: 'white',
+                  color: '#FF6F20',
+                  border: '1px solid #FFD0AC',
+                  borderRadius: 7,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                + הוסף סט
+              </button>
+            </div>
+
+            {plannedSetsDraft.length === 0 ? (
+              <div style={{
+                padding: 20,
+                textAlign: 'center',
+                color: '#9CA3AF',
+                background: '#FAFAFA',
+                borderRadius: 8,
+                fontSize: 12,
+              }}>
+                אין סטים מוגדרים — לחץ "הוסף סט" כדי להתחיל
+              </div>
+            ) : (
+              <div>
+                {plannedSetsDraft.map((row, i) => (
+                  <div key={i} style={{
+                    background: '#FFF9F0',
+                    border: '1px solid #FFD0AC',
+                    borderRadius: 8,
+                    padding: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 6,
+                  }}>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 20,
+                      color: '#FF6F20',
+                      minWidth: 28,
+                      lineHeight: 1,
+                    }}>
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={row.reps ?? ''}
+                      onChange={(e) => updateRow(
+                        i,
+                        'reps',
+                        e.target.value === '' ? null : Number(e.target.value)
+                      )}
+                      style={repsInputStyle}
+                    />
+                    <span style={{ fontSize: 10, color: '#92400E', fontWeight: 800 }}>חזרות</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={row.hold_seconds ?? ''}
+                      onChange={(e) => updateRow(
+                        i,
+                        'hold_seconds',
+                        e.target.value === '' ? null : Number(e.target.value)
+                      )}
+                      style={secondsInputStyle}
+                    />
+                    <span style={{ fontSize: 10, color: '#0F766E', fontWeight: 800 }}>שניות</span>
+                    <button
+                      type="button"
+                      onClick={() => removeRow(i)}
+                      aria-label="הסר סט"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#9CA3AF',
+                        cursor: 'pointer',
+                        fontSize: 18,
+                        marginInlineStart: 'auto',
+                        lineHeight: 1,
+                      }}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Container: Sub-Exercises (read-only collapses to a
             numbered list; edit mode keeps DnD + add button) ──── */}

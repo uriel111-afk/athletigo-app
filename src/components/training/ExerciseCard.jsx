@@ -7,8 +7,9 @@ import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { useSmartBackHandler } from "@/hooks/useSmartBack";
 import { getMethodByMode } from '../../constants/trainingMethods';
-import { parsePlannedSets } from '../../lib/plannedSets';
+import { parsePlannedSets, loadActualsForExercise, saveSetActual } from '../../lib/plannedSets';
 import { UNIT_COLORS } from '../../constants/unitColors';
+import { supabase } from '../../lib/supabaseClient';
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -541,19 +542,111 @@ export default function ExerciseCard({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
 
-  // Pyramid open-card live state — local only, no DB persistence yet.
-  // pyramidActiveIdx walks the planned_sets array as the trainee taps
-  // "שמור והמשך"; pyramidActualValues stores the in-memory counters
-  // for the per-set +/- controls (per-set object keyed by index).
+  // Pyramid open-card live state — actuals are persisted to
+  // exercise_set_logs via the loadActualsForExercise / saveSetActual
+  // helpers in src/lib/plannedSets.js. The map is keyed 1-based by
+  // set_number so it mirrors the DB shape directly.
+  //   pyramidActuals[1] = { reps, hold_seconds, weight_kg, completed }
+  // pyramidActiveIdx is 0-based — converted on read/write.
   const [pyramidActiveIdx, setPyramidActiveIdx] = useState(0);
-  const [pyramidActualValues, setPyramidActualValues] = useState({});
+  const [pyramidActuals, setPyramidActuals] = useState({});
+  const [pyramidSaving, setPyramidSaving] = useState(false);
+  const [pyramidExecutionId, setPyramidExecutionId] = useState(null);
 
-  const updateActual = (setIdx, key, delta) => {
-    setPyramidActualValues(prev => {
-      const curr = prev[setIdx] || {};
-      const newVal = Math.max(0, (curr[key] ?? 0) + delta);
-      return { ...prev, [setIdx]: { ...curr, [key]: newVal } };
+  // Resolve the current in-progress execution id by mirroring the
+  // query in UnifiedPlanBuilder.loadActiveExecution (line ~459). Same
+  // calendar-day window so a workout repeated tomorrow uses a fresh
+  // row, and the same trainee derivation (assigned_to OR created_by)
+  // so both coach-as-trainee and assigned-trainee paths resolve.
+  // TODO(step-execution-context): when an executionId prop is added
+  // to ExerciseCard (currently SectionCard does not pass it down),
+  // prefer the prop and skip this query.
+  useEffect(() => {
+    if (variant !== 'pyramid' || !exercise?.id || !plan?.id) return;
+    const traineeId = plan.assigned_to || plan.created_by;
+    if (!traineeId) return;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('workout_executions')
+        .select('id')
+        .eq('plan_id', plan.id)
+        .eq('trainee_id', traineeId)
+        .gte('executed_at', todayStart.toISOString())
+        .order('executed_at', { ascending: false })
+        .limit(1);
+      if (cancelled) return;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        setPyramidExecutionId(data[0].id);
+      } else {
+        setPyramidExecutionId(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [variant, exercise?.id, plan?.id, plan?.assigned_to, plan?.created_by]);
+
+  // Load persisted actuals once we have an executionId. Also computes
+  // the first incomplete set so the trainee resumes on the right row
+  // after a page refresh.
+  useEffect(() => {
+    if (variant !== 'pyramid' || !pyramidExecutionId || !exercise?.id) return;
+    let cancelled = false;
+    loadActualsForExercise(supabase, pyramidExecutionId, exercise.id).then((map) => {
+      if (cancelled) return;
+      setPyramidActuals(map);
+      const plannedCount = parsePlannedSets(exercise).length;
+      let firstIncomplete = plannedCount;
+      for (let i = 0; i < plannedCount; i++) {
+        if (!map[i + 1]?.completed) { firstIncomplete = i; break; }
+      }
+      setPyramidActiveIdx(firstIncomplete);
     });
+    return () => { cancelled = true; };
+  }, [variant, pyramidExecutionId, exercise?.id]);
+
+  // Increment/decrement a counter for the active set. setIdx arrives
+  // 0-based; the map is 1-based to match exercise_set_logs.set_number.
+  const updateActual = (setIdx, key, delta) => {
+    setPyramidActuals((prev) => {
+      const oneBased = setIdx + 1;
+      const curr = prev[oneBased] || {};
+      const newVal = Math.max(0, (curr[key] ?? 0) + delta);
+      return { ...prev, [oneBased]: { ...curr, [key]: newVal } };
+    });
+  };
+
+  // Persist the active set + advance. Writes to exercise_set_logs via
+  // upsert (no duplicate rows if the trainee taps שמור twice). On
+  // failure we bail without advancing so the trainee can retry.
+  const onSaveAndAdvance = async () => {
+    if (!pyramidExecutionId || !exercise?.id) {
+      console.warn('[pyramid] no executionId — cannot persist');
+      alert('עוד אין סשן פעיל — פתח את האימון מחדש ונסה שוב');
+      return;
+    }
+    const oneBased = pyramidActiveIdx + 1;
+    const payload = pyramidActuals[oneBased] || {};
+    setPyramidSaving(true);
+    const { error } = await saveSetActual(
+      supabase,
+      pyramidExecutionId,
+      exercise.id,
+      oneBased,
+      payload
+    );
+    setPyramidSaving(false);
+    if (error) {
+      console.error('[pyramid] saveSetActual failed', error);
+      alert('שמירה נכשלה — נסה שוב');
+      return;
+    }
+    setPyramidActuals((prev) => ({
+      ...prev,
+      [oneBased]: { ...prev[oneBased], completed: true },
+    }));
+    setPyramidActiveIdx((idx) => idx + 1);
   };
   const actionsMenuRef = useRef(null);        // trigger wrapper
   const actionsPopoverRef = useRef(null);     // portalled popover
@@ -2409,9 +2502,12 @@ export default function ExerciseCard({
             borderTop: `1px solid ${colors.border}`,
             padding: isCoachMode ? '12px 13px' : '10px 11px',
           }}>
-            {/* Pyramid — coach mode is read-only in this step: render
-                every planned set with the FUTURE-row dashed-gray
-                styling. Editing comes in a later prompt. */}
+            {/* Pyramid — coach summary view. If an in-progress
+                execution exists for the trainee+plan today, render
+                each set as either GREEN COMPLETED (actual/planned) or
+                DASHED PENDING (— / planned) and surface a "ביצוע
+                המתאמן" tally header. When no execution exists, fall
+                back to the planned-only dashed-gray protocol view. */}
             {variant === 'pyramid' && isCoachMode && (() => {
               const plannedSets = parsePlannedSets(exercise);
               if (plannedSets.length === 0) {
@@ -2427,50 +2523,98 @@ export default function ExerciseCard({
                   </div>
                 );
               }
+
+              const hasExecution = !!pyramidExecutionId;
+              const completedCount = hasExecution
+                ? plannedSets.reduce(
+                    (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
+                    0,
+                  )
+                : 0;
+
               return (
-                <div dir="rtl" style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 5,
-                  marginBottom: 12,
-                }}>
-                  {plannedSets.map((set, i) => (
-                    <div key={i} style={{
-                      background: 'white',
-                      border: '1.5px dashed #D1D5DB',
+                <div dir="rtl">
+                  {hasExecution && (
+                    <div style={{
+                      background: 'linear-gradient(135deg, #FFF5EE, white)',
+                      border: '1px solid #FFD0AC',
                       borderRadius: 8,
                       padding: '10px 12px',
+                      marginBottom: 10,
                       display: 'flex',
+                      justifyContent: 'space-between',
                       alignItems: 'center',
-                      gap: 20,
                     }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#993C1D' }}>
+                        ביצוע המתאמן
+                      </span>
                       <span style={{
                         fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: 22,
-                        color: '#D1D5DB',
-                        lineHeight: 1,
-                        minWidth: 24,
+                        fontSize: 18,
+                        color: '#FF6F20',
                       }}>
-                        {String(i + 1).padStart(2, '0')}
+                        {completedCount} / {plannedSets.length} סטים
                       </span>
-                      {set.hold_seconds != null && (
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
-                            {set.hold_seconds}
-                          </span>
-                          <span style={{ fontSize: 10, color: '#9CA3AF' }}>שניות</span>
-                        </div>
-                      )}
-                      {set.reps != null && (
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
-                            {set.reps}
-                          </span>
-                          <span style={{ fontSize: 10, color: '#9CA3AF' }}>חזרות</span>
-                        </div>
-                      )}
                     </div>
-                  ))}
+                  )}
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 5,
+                    marginBottom: 12,
+                  }}>
+                    {plannedSets.map((set, i) => {
+                      const actual = pyramidActuals[i + 1];
+                      const isDone = hasExecution && actual?.completed;
+                      const numColor = isDone ? '#16A34A' : '#D1D5DB';
+                      const unitColor = isDone ? '#16A34A' : '#9CA3AF';
+                      return (
+                        <div key={i} style={{
+                          background: isDone ? '#F0FAF4' : 'white',
+                          border: isDone ? '1.5px solid #16A34A' : '1.5px dashed #D1D5DB',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 20,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 22,
+                            color: numColor,
+                            lineHeight: 1,
+                            minWidth: 24,
+                          }}>
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          {set.hold_seconds != null && (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: numColor, lineHeight: 1 }}>
+                                {isDone
+                                  ? `${actual?.hold_seconds ?? '-'} / ${set.hold_seconds}`
+                                  : (hasExecution ? `— / ${set.hold_seconds}` : set.hold_seconds)}
+                              </span>
+                              <span style={{ fontSize: 10, color: unitColor, opacity: isDone ? 0.85 : 1 }}>שניות</span>
+                            </div>
+                          )}
+                          {set.reps != null && (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: numColor, lineHeight: 1 }}>
+                                {isDone
+                                  ? `${actual?.reps ?? '-'} / ${set.reps}`
+                                  : (hasExecution ? `— / ${set.reps}` : set.reps)}
+                              </span>
+                              <span style={{ fontSize: 10, color: unitColor, opacity: isDone ? 0.85 : 1 }}>חזרות</span>
+                            </div>
+                          )}
+                          {isDone && (
+                            <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}
@@ -2570,7 +2714,7 @@ export default function ExerciseCard({
                           {set.hold_seconds != null && (
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
-                                {pyramidActualValues[i]?.hold_seconds ?? '-'} / {set.hold_seconds}
+                                {pyramidActuals[i + 1]?.hold_seconds ?? '-'} / {set.hold_seconds}
                               </span>
                               <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>שניות</span>
                             </div>
@@ -2578,7 +2722,7 @@ export default function ExerciseCard({
                           {set.reps != null && (
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
-                                {pyramidActualValues[i]?.reps ?? '-'} / {set.reps}
+                                {pyramidActuals[i + 1]?.reps ?? '-'} / {set.reps}
                               </span>
                               <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>חזרות</span>
                             </div>
@@ -2665,7 +2809,7 @@ export default function ExerciseCard({
                                       style={minusBtnStyle}
                                     >−</button>
                                     <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                      <span style={counterValueStyle}>{pyramidActualValues[i]?.hold_seconds ?? 0}</span>
+                                      <span style={counterValueStyle}>{pyramidActuals[i + 1]?.hold_seconds ?? 0}</span>
                                       <span style={counterTargetStyle}>/ {set.hold_seconds}</span>
                                     </div>
                                     <button
@@ -2687,7 +2831,7 @@ export default function ExerciseCard({
                                       style={minusBtnStyle}
                                     >−</button>
                                     <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                      <span style={counterValueStyle}>{pyramidActualValues[i]?.reps ?? 0}</span>
+                                      <span style={counterValueStyle}>{pyramidActuals[i + 1]?.reps ?? 0}</span>
                                       <span style={counterTargetStyle}>/ {set.reps}</span>
                                     </div>
                                     <button
@@ -2702,10 +2846,13 @@ export default function ExerciseCard({
 
                             <button
                               type="button"
-                              onClick={() => setPyramidActiveIdx(idx => idx + 1)}
+                              onClick={onSaveAndAdvance}
+                              disabled={pyramidSaving}
                               style={{
                                 width: '100%',
-                                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                                background: pyramidSaving
+                                  ? '#FFB280'
+                                  : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
                                 color: 'white',
                                 border: 'none',
                                 padding: 9,
@@ -2714,10 +2861,10 @@ export default function ExerciseCard({
                                 fontSize: 12,
                                 fontFamily: 'inherit',
                                 marginTop: 8,
-                                cursor: 'pointer',
+                                cursor: pyramidSaving ? 'default' : 'pointer',
                               }}
                             >
-                              שמור והמשך לסט הבא
+                              {pyramidSaving ? 'שומר...' : 'שמור והמשך לסט הבא'}
                             </button>
                           </div>
                         </div>
