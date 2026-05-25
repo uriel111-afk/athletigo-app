@@ -5,7 +5,7 @@ import {
   Timer, Link2, Zap, BarChart3,
   Clock, Weight, Activity, PersonStanding, Hand, Dumbbell,
   ArrowBigUp, ArrowLeftRight, List,
-  Footprints, Maximize2,
+  Footprints, Maximize2, Hash, RefreshCw,
 } from "lucide-react";
 import { searchExercises } from "@/data/exercises";
 import { supabase } from "@/lib/supabaseClient";
@@ -43,6 +43,18 @@ const METHOD_ICONS = {
 // inputs render with the right tint without consulting unitColors.
 // ────────────────────────────────────────────────────────────────
 const PARAM_CATALOG = {
+  sets: {
+    label: 'סטים',
+    icon: Hash,
+    type: 'number',
+    color: { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA', textPrimary: '#374151', textSecondary: '#6b7280' },
+  },
+  rounds: {
+    label: 'סבבים',
+    icon: RefreshCw,
+    type: 'number',
+    color: { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA', textPrimary: '#374151', textSecondary: '#6b7280' },
+  },
   reps: {
     label: 'חזרות',
     icon: Repeat,
@@ -145,7 +157,7 @@ const MODE_TO_METHOD_ID = (() => {
 // Smart defaults seeded into selectedSetFields the first time a
 // method is chosen. Empty array means "no per-set params by default".
 const DEFAULT_FIELDS_BY_METHOD = {
-  REPS:       ['reps', 'weight_kg'],
+  REPS:       ['sets', 'reps', 'weight_kg'],
   PYRAMID:    ['reps', 'hold_seconds'],
   DROP_SET:   ['reps'],
   REST_PAUSE: ['reps'],
@@ -515,10 +527,9 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
         <div style={{
           display: 'flex',
-          flexDirection: 'row',
+          flexWrap: 'wrap',
           gap: 6,
-          overflowX: 'auto',
-          paddingBottom: 4,
+          justifyContent: 'flex-start',
         }}>
           {METHOD_ORDER.map((methodId) => {
             const Icon = METHOD_ICONS[methodId];
