@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,11 +35,15 @@ const formFromRow = (row) => ({
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [pendingBlob, setPendingBlob] = useState(null);
+  const cameraRef = useRef(null);
 
   // Reset form whenever the dialog opens — pre-fill if editing.
   useEffect(() => {
     if (!isOpen) return;
     setForm(expense ? formFromRow(expense) : initialForm());
+    setPendingBlob(null);
   }, [isOpen, expense?.id]);
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
@@ -54,6 +58,24 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       toast.error('בחר קטגוריה');
       return;
     }
+
+    let receipt_url = form.receipt_url;
+
+    if (pendingBlob && cameraRef.current) {
+      setUploading(true);
+      try {
+        receipt_url = await cameraRef.current.uploadNow();
+        console.log('[ExpenseForm] Photo uploaded during save', { receipt_url });
+      } catch (err) {
+        console.error('[ExpenseForm] Photo upload failed during save', err);
+        toast.error('שגיאה בהעלאת התמונה');
+        alert(`העלאת התמונה נכשלה: ${err?.message || 'שגיאה לא ידועה'}. ההוצאה לא נשמרה.`);
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     setSaving(true);
     const payload = {
       amount,
@@ -63,12 +85,13 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       date: form.date,
       payment_method: form.payment_method || null,
       notes: form.notes || null,
-      receipt_url: form.receipt_url || null,
+      receipt_url: receipt_url || null,
     };
     try {
       if (expense?.id) await updateExpense(expense.id, payload);
       else             await addExpense(userId, payload);
-      toast.success(expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה');
+      toast.success((expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה') + (receipt_url ? ' עם תמונה' : ''));
+      setPendingBlob(null);
       onSaved?.();
       onClose();
     } catch (err) {
@@ -80,7 +103,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving && !uploading) onClose(); }}>
       <DialogContent
         dir="rtl"
         className="max-w-md"
@@ -221,9 +244,11 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
               </div>
             ) : (
               <SmartCamera
+                ref={cameraRef}
                 label="צלם קבלה"
                 compact
-                onUploaded={({ url }) => set({ receipt_url: url })}
+                deferredUpload
+                onPhotoCaptured={(blob, filename) => setPendingBlob(blob ? { blob, filename } : null)}
               />
             )}
           </div>
@@ -232,17 +257,21 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
             <button
               onClick={onClose}
-              disabled={saving}
+              disabled={saving || uploading}
               style={btnSecondary}
             >
               ביטול
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || uploading}
               style={btnPrimary}
             >
-              {saving ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} /> : 'שמור הוצאה'}
+              {uploading
+                ? 'מעלה תמונה...'
+                : saving
+                ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} />
+                : 'שמור הוצאה'}
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Camera, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
@@ -88,11 +88,37 @@ async function uploadToStorage(blob, filename) {
 }
 
 // UI: shutter button → native camera → preview → upload.
-export default function SmartCamera({ label = 'צלם קבלה', onUploaded, compact = false }) {
+const SmartCamera = forwardRef(function SmartCamera(
+  { label = 'צלם קבלה', onUploaded, onPhotoCaptured, compact = false, deferredUpload = false },
+  ref,
+) {
   const inputRef = useRef(null);
   const [preview, setPreview] = useState(null);
   const [blob, setBlob] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    uploadNow: async () => {
+      if (!blob) {
+        console.warn('[SmartCamera] uploadNow called with no blob');
+        return null;
+      }
+      console.log('[SmartCamera] uploadNow invoked by parent', { size: blob.size, type: blob.type });
+      setUploading(true);
+      try {
+        const url = await uploadToStorage(blob, 'photo.jpg');
+        console.log('[SmartCamera] uploadNow returned URL', { url });
+        return url;
+      } finally {
+        setUploading(false);
+      }
+    },
+    hasPendingPhoto: () => !!blob,
+    clear: () => {
+      setPreview(null);
+      setBlob(null);
+    },
+  }), [blob]);
 
   const pickFile = () => inputRef.current?.click();
 
@@ -104,6 +130,10 @@ export default function SmartCamera({ label = 'צלם קבלה', onUploaded, com
       const compressed = await compressImage(file);
       setBlob(compressed);
       setPreview(URL.createObjectURL(compressed));
+      if (deferredUpload) {
+        console.log('[SmartCamera] Photo captured (deferred)', { size: compressed.size, type: compressed.type });
+        onPhotoCaptured?.(compressed, 'photo.jpg');
+      }
     } catch (err) {
       console.error('[SmartCamera] compress error:', err);
       toast.error('שגיאה בעיבוד התמונה');
@@ -137,6 +167,10 @@ export default function SmartCamera({ label = 'צלם קבלה', onUploaded, com
   const handleCancel = () => {
     setPreview(null);
     setBlob(null);
+    if (deferredUpload) {
+      console.log('[SmartCamera] Photo cleared (deferred)');
+      onPhotoCaptured?.(null, null);
+    }
   };
 
   return (
@@ -188,23 +222,27 @@ export default function SmartCamera({ label = 'צלם קבלה', onUploaded, com
               <X size={14} />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={uploading}
-            style={{
-              width: '100%', marginTop: 8, padding: '10px 14px', borderRadius: 10,
-              border: 'none', backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
-              fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            }}
-          >
-            {uploading ? <Loader2 size={18} className="animate-spin" style={{ margin: '0 auto' }} /> : 'שמור תמונה'}
-          </button>
+          {!deferredUpload && (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={uploading}
+              style={{
+                width: '100%', marginTop: 8, padding: '10px 14px', borderRadius: 10,
+                border: 'none', backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {uploading ? <Loader2 size={18} className="animate-spin" style={{ margin: '0 auto' }} /> : 'שמור תמונה'}
+            </button>
+          )}
           <div style={{ fontSize: 10, color: LIFEOS_COLORS.textSecondary, textAlign: 'center', marginTop: 4 }}>
-            {Math.round(blob.size / 1024)} KB
+            {Math.round(blob.size / 1024)} KB{deferredUpload ? ' · תועלה בשמירה' : ''}
           </div>
         </div>
       )}
     </>
   );
-}
+});
+
+export default SmartCamera;
