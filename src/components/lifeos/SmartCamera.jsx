@@ -2,31 +2,18 @@ import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { Camera, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
+import { compressImage } from '@/lib/imageCompression';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
-// Compress an image to stay under ~300KB by downscaling and JPEG
-// re-encode via canvas. Returns a Blob. Keeps originals if already
-// small.
-async function compressImage(file, { maxSize = 1200, quality = 0.7 } = {}) {
-  if (file.type && !file.type.startsWith('image/')) return file;
+const UPLOAD_TIMEOUT_MS = 60000; // 60s — Storage upload hard ceiling
 
-  const bitmap = await createImageBitmap(file);
-  let { width, height } = bitmap;
-  if (width > maxSize || height > maxSize) {
-    const ratio = Math.min(maxSize / width, maxSize / height);
-    width = Math.round(width * ratio);
-    height = Math.round(height * ratio);
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  const blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, 'image/jpeg', quality)
-  );
-  return blob || file;
-}
+const withTimeout = (promise, ms, label) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(
+    () => reject(new Error(`${label} timed out after ${ms / 1000}s`)),
+    ms,
+  )),
+]);
 
 // Upload a blob to the lifeos-files bucket (falls back to the media
 // bucket if the target bucket doesn't exist yet).
@@ -50,9 +37,13 @@ async function uploadToStorage(blob, filename) {
   console.log('[SmartCamera] Computed path', { path, ext });
 
   console.log('[SmartCamera] Attempting upload to bucket: lifeos-files');
-  const primary = await supabase.storage.from('lifeos-files').upload(path, blob, {
-    upsert: true, contentType: 'image/jpeg',
-  });
+  const primary = await withTimeout(
+    supabase.storage.from('lifeos-files').upload(path, blob, {
+      upsert: true, contentType: 'image/jpeg',
+    }),
+    UPLOAD_TIMEOUT_MS,
+    'lifeos-files upload',
+  );
 
   if (primary.error) {
     console.warn('[SmartCamera] lifeos-files upload FAILED', {
@@ -62,9 +53,13 @@ async function uploadToStorage(blob, filename) {
     });
 
     console.log('[SmartCamera] Falling back to bucket: media');
-    const fallback = await supabase.storage.from('media').upload(path, blob, {
-      upsert: true, contentType: 'image/jpeg',
-    });
+    const fallback = await withTimeout(
+      supabase.storage.from('media').upload(path, blob, {
+        upsert: true, contentType: 'image/jpeg',
+      }),
+      UPLOAD_TIMEOUT_MS,
+      'media upload',
+    );
 
     if (fallback.error) {
       console.error('[SmartCamera] media fallback ALSO FAILED', {
@@ -96,6 +91,9 @@ const SmartCamera = forwardRef(function SmartCamera(
   const [preview, setPreview] = useState(null);
   const [blob, setBlob] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [sizeBefore, setSizeBefore] = useState(null);
+  const [sizeAfter, setSizeAfter] = useState(null);
 
   useImperativeHandle(ref, () => ({
     uploadNow: async () => {
@@ -126,17 +124,33 @@ const SmartCamera = forwardRef(function SmartCamera(
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+
+    setCompressing(true);
+    setSizeBefore(file.size);
+    setSizeAfter(null);
     try {
-      const compressed = await compressImage(file);
-      setBlob(compressed);
-      setPreview(URL.createObjectURL(compressed));
+      const { blob: compressedBlob, compressedSize } = await compressImage(file, {
+        maxWidth: 1600, maxHeight: 1600, quality: 0.8,
+      });
+      setBlob(compressedBlob);
+      setSizeAfter(compressedSize);
+      setPreview(URL.createObjectURL(compressedBlob));
       if (deferredUpload) {
-        console.log('[SmartCamera] Photo captured (deferred)', { size: compressed.size, type: compressed.type });
-        onPhotoCaptured?.(compressed, 'photo.jpg');
+        console.log('[SmartCamera] Photo captured (deferred)', { size: compressedSize, type: compressedBlob.type });
+        onPhotoCaptured?.(compressedBlob, 'photo.jpg');
       }
     } catch (err) {
-      console.error('[SmartCamera] compress error:', err);
-      toast.error('שגיאה בעיבוד התמונה');
+      console.error('[SmartCamera] Compression failed', err);
+      // Fallback: use the original file unchanged so the user isn't blocked
+      setBlob(file);
+      setSizeAfter(file.size);
+      setPreview(URL.createObjectURL(file));
+      if (deferredUpload) {
+        onPhotoCaptured?.(file, 'photo.jpg');
+      }
+      toast.error('דחיסה נכשלה — שולח את התמונה המקורית');
+    } finally {
+      setCompressing(false);
     }
   };
 
@@ -168,6 +182,8 @@ const SmartCamera = forwardRef(function SmartCamera(
     console.log('[SmartCamera] handleCancel — clearing preview only (parent form remains open)');
     setPreview(null);
     setBlob(null);
+    setSizeBefore(null);
+    setSizeAfter(null);
     if (deferredUpload) {
       onPhotoCaptured?.(null, null);
     }
@@ -183,7 +199,19 @@ const SmartCamera = forwardRef(function SmartCamera(
         onChange={handleChange}
         style={{ display: 'none' }}
       />
-      {!preview ? (
+      {compressing ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          width: '100%', padding: '12px',
+          borderRadius: 10,
+          border: `1px dashed ${LIFEOS_COLORS.primary}`,
+          backgroundColor: '#FFF8F3', color: LIFEOS_COLORS.primary,
+          fontSize: 12, fontWeight: 700,
+        }}>
+          <Loader2 size={14} className="animate-spin" />
+          <span>דוחס תמונה...</span>
+        </div>
+      ) : !preview ? (
         <button
           type="button"
           onClick={pickFile}
@@ -236,9 +264,40 @@ const SmartCamera = forwardRef(function SmartCamera(
               {uploading ? <Loader2 size={18} className="animate-spin" style={{ margin: '0 auto' }} /> : 'שמור תמונה'}
             </button>
           )}
-          <div style={{ fontSize: 10, color: LIFEOS_COLORS.textSecondary, textAlign: 'center', marginTop: 4 }}>
-            {Math.round(blob.size / 1024)} KB{deferredUpload ? ' · תועלה בשמירה' : ''}
-          </div>
+          {(sizeBefore && sizeAfter) && (
+            <div style={{
+              fontSize: '11px', color: '#6b7280', textAlign: 'center',
+              padding: '6px', background: '#FAFAFA',
+              borderRadius: '6px', marginTop: '8px',
+            }}>
+              {sizeBefore !== sizeAfter ? (
+                <>
+                  {(sizeBefore / 1024).toFixed(0)} KB ← {(sizeAfter / 1024).toFixed(0)} KB
+                  {' · '}
+                  <span style={{ color: '#16A34A', fontWeight: 700 }}>
+                    נחסך {(((sizeBefore - sizeAfter) / sizeBefore) * 100).toFixed(0)}%
+                  </span>
+                  {deferredUpload ? ' · תועלה בשמירה' : ''}
+                </>
+              ) : (
+                <span>{(sizeAfter / 1024).toFixed(0)} KB{deferredUpload ? ' · תועלה בשמירה' : ''}</span>
+              )}
+            </div>
+          )}
+          {uploading && (
+            <div style={{
+              background: '#FFF5EE', border: '2px solid #FFD0AC',
+              borderRadius: '10px', padding: '12px',
+              textAlign: 'center', margin: '10px 0',
+            }}>
+              <div style={{ fontSize: '13px', color: '#993C1D', fontWeight: 800, marginBottom: '4px' }}>
+                מעלה תמונה...
+              </div>
+              <div style={{ fontSize: '10px', color: '#6b7280' }}>
+                {sizeAfter ? `${(sizeAfter / 1024).toFixed(0)} KB — אנא המתן` : 'אנא המתן'}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
