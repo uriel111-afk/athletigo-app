@@ -25,7 +25,60 @@ const VARIANT_COLORS = {
   rest_pause: { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
   circuit:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
   delorme:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  none:       { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA' },
+  reps_new:   { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
 };
+
+// Catalog of method variants that share the planned_sets data shape.
+// `closedLabel` of null hides the method tag chip on the closed card
+// (NONE / REPS use just the numeric summary, no chip). variationRequired
+// surfaces a trainee-side warning when a set's variation_name is empty.
+const PLANNED_SETS_METHODS = {
+  pyramid:   { label: 'פירמידה', headerText: 'סטים בפירמידה', closedLabel: 'פירמידה' },
+  drop_set:  { label: 'דרופ סט', headerText: 'סטים בדרופ סט', closedLabel: 'דרופ סט', variationRequired: true },
+  delorme:   { label: 'דלורם',   headerText: 'סטים בדלורם',   closedLabel: 'דלורם',   variationRequired: true },
+  none:      { label: 'תרגיל',   headerText: 'סטים בתרגיל',   closedLabel: null },
+  reps_new:  { label: 'חזרות',   headerText: 'סטים בתרגיל',   closedLabel: null },
+};
+
+// Per-field unit palette + Hebrew label. Drives both the closed-card
+// dominant-unit display and the column tinting inside open-card rows.
+const UNIT_COLOR_BY_FIELD = {
+  reps:            { stripe: '#D97706', textPrimary: '#92400E', tint: '#FFFBEB', label: 'חזרות' },
+  hold_seconds:    { stripe: '#14B8A6', textPrimary: '#0F766E', tint: '#F0FDFA', label: 'שניות' },
+  weight_kg:       { stripe: '#7C3AED', textPrimary: '#5B21B6', tint: '#FAF5FF', label: 'ק"ג' },
+  rpe:             { stripe: '#0EA5E9', textPrimary: '#075985', tint: '#F0F9FF', label: 'RPE' },
+  rest_seconds:    { stripe: '#14B8A6', textPrimary: '#0F766E', tint: '#F0FDFA', label: 'מנוחה' },
+  sets:            { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'סטים' },
+  rounds:          { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'סבבים' },
+  tempo:           { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'טמפו' },
+  body_position:   { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'מנח גוף' },
+  grip:            { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'אחיזה' },
+  equipment:       { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'ציוד' },
+  load_type:       { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'סוג עומס' },
+  side:            { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'צד' },
+  notes:           { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'דגשים' },
+  foot_position:   { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'מנח רגליים' },
+  range_of_motion: { stripe: '#6b7280', textPrimary: '#374151', tint: '#FAFAFA', label: 'טווח תנועה' },
+};
+
+// Fields with numeric input (subject to +/- counters + actual/planned
+// display). Text fields render as planned-only display chips.
+const NUMERIC_FIELDS = new Set([
+  'reps', 'hold_seconds', 'weight_kg', 'rpe', 'rest_seconds', 'sets', 'rounds',
+]);
+
+// Default fallback when an exercise predates the set_fields convention.
+// Preserves the pre-STEP-9 pyramid display (reps + seconds).
+const DEFAULT_SET_FIELDS_FALLBACK = ['reps', 'hold_seconds'];
+
+// Pull set_fields out of an exercise's tabata_data, with the fallback
+// applied when the row doesn't carry one.
+function getSetFields(exercise) {
+  const td = parseTabataData(exercise?.tabata_data);
+  if (Array.isArray(td?.set_fields) && td.set_fields.length > 0) return td.set_fields;
+  return DEFAULT_SET_FIELDS_FALLBACK;
+}
 
 // `tabata_data` is TEXT-serialised JSON in the live DB. Parse defensively
 // so a stray null / bad JSON / already-an-object input all flow through
@@ -52,6 +105,16 @@ function getVariant(exercise) {
   if (_method && ['pyramid','drop_set','rest_pause','circuit','delorme']
       .includes(_method.english_id)) {
     return _method.english_id;
+  }
+  // NONE (mode null / '') and REPS ('חזרות') with planned_sets ride
+  // the same renderer as PYRAMID. Legacy rows without planned_sets
+  // continue to fall through to 'normal' below.
+  if (exercise?.mode == null || exercise?.mode === '') {
+    const td = parseTabataData(exercise?.tabata_data);
+    if (Array.isArray(td?.planned_sets)) return 'none';
+  } else if (exercise?.mode === 'חזרות') {
+    const td = parseTabataData(exercise?.tabata_data);
+    if (Array.isArray(td?.planned_sets)) return 'reps_new';
   }
   if (exercise.mode === 'טבטה') return 'tabata';
   if (['סופרסט', 'קומבו', 'רשימה'].includes(exercise.mode)) return 'list';
@@ -640,7 +703,7 @@ export default function ExerciseCard({
   // to ExerciseCard (currently SectionCard does not pass it down),
   // prefer the prop and skip this query.
   useEffect(() => {
-    if (variant !== 'pyramid' || !exercise?.id || !plan?.id) return;
+    if (!PLANNED_SETS_METHODS[variant] || !exercise?.id || !plan?.id) return;
     const traineeId = plan.assigned_to || plan.created_by;
     if (!traineeId) return;
     const todayStart = new Date();
@@ -669,7 +732,7 @@ export default function ExerciseCard({
   // the first incomplete set so the trainee resumes on the right row
   // after a page refresh.
   useEffect(() => {
-    if (variant !== 'pyramid' || !pyramidExecutionId || !exercise?.id) return;
+    if (!PLANNED_SETS_METHODS[variant] || !pyramidExecutionId || !exercise?.id) return;
     let cancelled = false;
     loadActualsForExercise(supabase, pyramidExecutionId, exercise.id).then((map) => {
       if (cancelled) return;
@@ -825,8 +888,15 @@ export default function ExerciseCard({
   // back to a gray "פירמידה · ללא סטים מוגדרים" placeholder. Returns
   // null for non-pyramid variants so the existing summaryPills row
   // still owns rendering for everything else.
+  // Closed-card progression summary — shared by all PLANNED_SETS_METHODS
+  // variants. Dominant unit comes from set_fields[0] when available
+  // (the coach's first explicit pick wins); otherwise falls back to the
+  // hold_seconds → reps → weight_kg priority for pre-STEP-9 rows.
+  // Variants with closedLabel: null (none / reps_new) omit the method
+  // tag chip and show numbers only.
   const pyramidSummary = (() => {
-    if (variant !== 'pyramid') return null;
+    const methodMeta = PLANNED_SETS_METHODS[variant];
+    if (!methodMeta) return null;
     const plannedSets = parsePlannedSets(exercise);
     if (plannedSets.length === 0) {
       return (
@@ -836,28 +906,31 @@ export default function ExerciseCard({
           color: '#9CA3AF',
           fontWeight: 500,
         }}>
-          פירמידה · ללא סטים מוגדרים
+          {methodMeta.label} · ללא סטים מוגדרים
         </div>
       );
     }
-    const dominantKey =
-      plannedSets.some(s => s.hold_seconds != null) ? 'hold_seconds' :
-      plannedSets.some(s => s.reps != null)         ? 'reps' :
-      plannedSets.some(s => s.weight_kg != null)    ? 'weight_kg' :
-                                                      'reps';
-    const unitMap = {
-      hold_seconds: { label: 'שניות', color: UNIT_COLORS.seconds },
-      reps:         { label: 'חזרות', color: UNIT_COLORS.reps },
-      weight_kg:    { label: 'ק"ג',   color: UNIT_COLORS.weight },
-    };
-    const unitLabelText = unitMap[dominantKey].label;
+    const setFields = getSetFields(exercise);
+    // Prefer the coach's first numeric field; otherwise fall back to
+    // any numeric field present in the rows; otherwise the legacy
+    // priority over hold_seconds → reps → weight_kg.
+    let dominantKey = setFields.find((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+    if (!dominantKey) {
+      dominantKey =
+        plannedSets.some(s => s.hold_seconds != null) ? 'hold_seconds' :
+        plannedSets.some(s => s.reps != null)         ? 'reps' :
+        plannedSets.some(s => s.weight_kg != null)    ? 'weight_kg' :
+                                                        'reps';
+    }
+    const unitLabelText = UNIT_COLOR_BY_FIELD[dominantKey]?.label ?? '';
     const progressionString = plannedSets
       .map(s => s[dominantKey] ?? '?')
       .join('→');
+    const accentColor = (VARIANT_COLORS[variant] || VARIANT_COLORS.pyramid).stripe;
     const numStyle = {
       fontFamily: "'Bebas Neue', sans-serif",
       fontSize: 16,
-      color: '#FF6F20',
+      color: accentColor,
       lineHeight: 1,
     };
     const wordStyle = {
@@ -878,6 +951,22 @@ export default function ExerciseCard({
         <span style={{ color: '#D1D5DB' }}>·</span>
         <span style={numStyle}>{progressionString}</span>
         <span style={wordStyle}>{unitLabelText}</span>
+        {methodMeta.closedLabel && (
+          <>
+            <span style={{ color: '#D1D5DB' }}>·</span>
+            <span style={{
+              fontSize: 10,
+              color: accentColor,
+              fontWeight: 700,
+              background: (VARIANT_COLORS[variant] || VARIANT_COLORS.pyramid).tint,
+              border: `1px solid ${(VARIANT_COLORS[variant] || VARIANT_COLORS.pyramid).border}`,
+              padding: '2px 8px',
+              borderRadius: 999,
+            }}>
+              {methodMeta.closedLabel}
+            </span>
+          </>
+        )}
       </div>
     );
   })();
@@ -2467,7 +2556,7 @@ export default function ExerciseCard({
                 {name}
               </div>
             )}
-            {variant === 'pyramid' ? pyramidSummary : (summaryPills.length > 0 && (
+            {PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
               <div style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -2510,13 +2599,16 @@ export default function ExerciseCard({
             borderTop: `1px solid ${colors.border}`,
             padding: isCoachMode ? '12px 13px' : '10px 11px',
           }}>
-            {/* Pyramid — coach summary view. If an in-progress
-                execution exists for the trainee+plan today, render
-                each set as either GREEN COMPLETED (actual/planned) or
-                DASHED PENDING (— / planned) and surface a "ביצוע
-                המתאמן" tally header. When no execution exists, fall
-                back to the planned-only dashed-gray protocol view. */}
-            {variant === 'pyramid' && isCoachMode && (() => {
+            {/* Planned-sets coach view. Shared across PYRAMID / NONE /
+                REPS / DROP_SET / DELORME. If an in-progress execution
+                exists for the trainee+plan today, render each set as
+                either GREEN COMPLETED (actual/planned) or DASHED
+                PENDING (— / planned) and surface a "ביצוע המתאמן"
+                tally header. When no execution exists, fall back to
+                planned-only dashed-gray protocol view. Field columns
+                are driven by tabata_data.set_fields per row. */}
+            {PLANNED_SETS_METHODS[variant] && isCoachMode && (() => {
+              const methodMeta = PLANNED_SETS_METHODS[variant];
               const plannedSets = parsePlannedSets(exercise);
               if (plannedSets.length === 0) {
                 return (
@@ -2527,11 +2619,12 @@ export default function ExerciseCard({
                     fontWeight: 500,
                     textAlign: 'center',
                   }}>
-                    פירמידה · אין סטים מוגדרים
+                    {methodMeta.label} · אין סטים מוגדרים
                   </div>
                 );
               }
 
+              const setFields = getSetFields(exercise);
               const hasExecution = !!pyramidExecutionId;
               const completedCount = hasExecution
                 ? plannedSets.reduce(
@@ -2539,6 +2632,7 @@ export default function ExerciseCard({
                     0,
                   )
                 : 0;
+              const showVariation = !!methodMeta.variationRequired;
 
               return (
                 <div dir="rtl">
@@ -2576,7 +2670,6 @@ export default function ExerciseCard({
                       const actual = pyramidActuals[i + 1];
                       const isDone = hasExecution && actual?.completed;
                       const numColor = isDone ? '#16A34A' : '#D1D5DB';
-                      const unitColor = isDone ? '#16A34A' : '#9CA3AF';
                       return (
                         <div key={i} style={{
                           background: isDone ? '#F0FAF4' : 'white',
@@ -2585,7 +2678,8 @@ export default function ExerciseCard({
                           padding: '10px 12px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 20,
+                          gap: 12,
+                          flexWrap: 'wrap',
                         }}>
                           <span style={{
                             fontFamily: "'Bebas Neue', sans-serif",
@@ -2596,26 +2690,57 @@ export default function ExerciseCard({
                           }}>
                             {String(i + 1).padStart(2, '0')}
                           </span>
-                          {set.hold_seconds != null && (
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: numColor, lineHeight: 1 }}>
-                                {isDone
-                                  ? `${actual?.hold_seconds ?? '-'} / ${set.hold_seconds}`
-                                  : (hasExecution ? `— / ${set.hold_seconds}` : set.hold_seconds)}
-                              </span>
-                              <span style={{ fontSize: 10, color: unitColor, opacity: isDone ? 0.85 : 1 }}>שניות</span>
-                            </div>
+                          {showVariation && set.variation_name && (
+                            <span style={{
+                              fontSize: 11,
+                              color: isDone ? '#15803D' : '#993C1D',
+                              background: isDone ? '#DCFCE7' : '#FFF5EE',
+                              border: `1px solid ${isDone ? '#86EFAC' : '#FFD0AC'}`,
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              fontWeight: 700,
+                            }}>
+                              {set.variation_name}
+                            </span>
                           )}
-                          {set.reps != null && (
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: numColor, lineHeight: 1 }}>
-                                {isDone
-                                  ? `${actual?.reps ?? '-'} / ${set.reps}`
-                                  : (hasExecution ? `— / ${set.reps}` : set.reps)}
+                          {setFields.filter((f) => NUMERIC_FIELDS.has(f)).map((fieldId) => {
+                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                            if (!meta || set[fieldId] == null) return null;
+                            const display = isDone
+                              ? `${actual?.[fieldId] ?? '-'} / ${set[fieldId]}`
+                              : (hasExecution ? `— / ${set[fieldId]}` : set[fieldId]);
+                            return (
+                              <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: numColor, lineHeight: 1 }}>
+                                  {display}
+                                </span>
+                                <span style={{
+                                  fontSize: 10,
+                                  color: isDone ? '#16A34A' : (meta.textSecondary || '#9CA3AF'),
+                                  opacity: isDone ? 0.85 : 1,
+                                }}>
+                                  {meta.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {setFields.filter((f) => !NUMERIC_FIELDS.has(f) && set[f] != null && String(set[f]).trim()).map((fieldId) => {
+                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                            if (!meta) return null;
+                            return (
+                              <span key={fieldId} style={{
+                                fontSize: 10,
+                                color: meta.textPrimary,
+                                background: meta.tint,
+                                border: `1px solid ${meta.tint}`,
+                                padding: '2px 6px',
+                                borderRadius: 3,
+                                fontWeight: 600,
+                              }}>
+                                {meta.label}: {set[fieldId]}
                               </span>
-                              <span style={{ fontSize: 10, color: unitColor, opacity: isDone ? 0.85 : 1 }}>חזרות</span>
-                            </div>
-                          )}
+                            );
+                          })}
                           {isDone && (
                             <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
                           )}
@@ -2627,12 +2752,17 @@ export default function ExerciseCard({
               );
             })()}
 
-            {/* Pyramid — trainee open view: vertical list of rows, one
-                per planned set. Past sets render green, the active set
-                expands with +/- inputs + "שמור והמשך" button, future
-                sets are dashed gray. State is in-memory only — DB
-                persistence comes in a later prompt. */}
-            {variant === 'pyramid' && !isCoachMode && (() => {
+            {/* Planned-sets trainee view. Shared across PYRAMID / NONE /
+                REPS / DROP_SET / DELORME. Each row renders past/active/
+                future based on pyramidActiveIdx. Columns inside a row
+                are driven by tabata_data.set_fields (numeric fields
+                show actual/planned for past rows + +/- counters in the
+                active row's input panel; text fields show planned-only
+                chips). DROP_SET / DELORME surface a hint when the
+                active row's variation_name is missing. State persists
+                via exercise_set_logs through saveSetActual. */}
+            {PLANNED_SETS_METHODS[variant] && !isCoachMode && (() => {
+              const methodMeta = PLANNED_SETS_METHODS[variant];
               const plannedSets = parsePlannedSets(exercise);
               if (plannedSets.length === 0) {
                 return (
@@ -2643,13 +2773,16 @@ export default function ExerciseCard({
                     fontWeight: 500,
                     textAlign: 'center',
                   }}>
-                    פירמידה · אין סטים מוגדרים
+                    {methodMeta.label} · אין סטים מוגדרים
                   </div>
                 );
               }
+              const setFields = getSetFields(exercise);
+              const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+              const textFields = setFields.filter((f) => !NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+
               const minusBtnStyle = {
-                width: 26,
-                height: 26,
+                width: 26, height: 26,
                 background: 'white',
                 border: '1px solid #FFD0AC',
                 color: '#FF6F20',
@@ -2660,8 +2793,7 @@ export default function ExerciseCard({
                 cursor: 'pointer',
               };
               const plusBtnStyle = {
-                width: 26,
-                height: 26,
+                width: 26, height: 26,
                 background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
                 border: '1px solid #FF6F20',
                 color: 'white',
@@ -2708,7 +2840,8 @@ export default function ExerciseCard({
                           padding: '10px 12px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 20,
+                          gap: 12,
+                          flexWrap: 'wrap',
                         }}>
                           <span style={{
                             fontFamily: "'Bebas Neue', sans-serif",
@@ -2719,22 +2852,31 @@ export default function ExerciseCard({
                           }}>
                             {String(i + 1).padStart(2, '0')}
                           </span>
-                          {set.hold_seconds != null && (
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
-                                {pyramidActuals[i + 1]?.hold_seconds ?? '-'} / {set.hold_seconds}
-                              </span>
-                              <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>שניות</span>
-                            </div>
+                          {methodMeta.variationRequired && set.variation_name && (
+                            <span style={{
+                              fontSize: 11,
+                              color: '#15803D',
+                              background: '#DCFCE7',
+                              border: '1px solid #86EFAC',
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              fontWeight: 700,
+                            }}>
+                              {set.variation_name}
+                            </span>
                           )}
-                          {set.reps != null && (
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
-                                {pyramidActuals[i + 1]?.reps ?? '-'} / {set.reps}
-                              </span>
-                              <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>חזרות</span>
-                            </div>
-                          )}
+                          {numericFields.map((fieldId) => {
+                            if (set[fieldId] == null) return null;
+                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                            return (
+                              <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
+                                  {pyramidActuals[i + 1]?.[fieldId] ?? '-'} / {set[fieldId]}
+                                </span>
+                                <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>{meta.label}</span>
+                              </div>
+                            );
+                          })}
                           <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
                         </div>
                       );
@@ -2742,6 +2884,9 @@ export default function ExerciseCard({
 
                     // ── ACTIVE row (orange, expanded with inputs) ─
                     if (i === pyramidActiveIdx) {
+                      const variationMissing = methodMeta.variationRequired
+                        && !(set.variation_name || '').trim();
+                      const cols = Math.min(Math.max(numericFields.length, 1), 2);
                       return (
                         <div key={i} style={{
                           background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
@@ -2750,12 +2895,25 @@ export default function ExerciseCard({
                           padding: 12,
                           boxShadow: '0 4px 10px rgba(255,111,32,0.25)',
                         }}>
-                          {/* Header — set number + planned values */}
+                          {variationMissing && (
+                            <div style={{
+                              fontSize: 10,
+                              color: '#FF6F20',
+                              fontWeight: 700,
+                              marginBottom: 8,
+                              textAlign: 'center',
+                            }}>
+                              ⚠ וריאציה לא הוגדרה למאמן
+                            </div>
+                          )}
+
+                          {/* Header — set number + planned numerics + text chips */}
                           <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 24,
+                            gap: 18,
                             marginBottom: 12,
+                            flexWrap: 'wrap',
                           }}>
                             <span style={{
                               fontFamily: "'Bebas Neue', sans-serif",
@@ -2767,114 +2925,124 @@ export default function ExerciseCard({
                             }}>
                               {String(i + 1).padStart(2, '0')}
                             </span>
-                            {set.hold_seconds != null && (
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
-                                  {set.hold_seconds}
-                                </span>
-                                <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>שניות</span>
-                              </div>
-                            )}
-                            {set.reps != null && (
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
-                                  {set.reps}
-                                </span>
-                                <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>חזרות</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Input panel */}
-                          <div style={{
-                            background: 'white',
-                            border: '1.5px solid #FFD0AC',
-                            borderRadius: 8,
-                            padding: 10,
-                          }}>
-                            <div style={{
-                              fontSize: 10,
-                              color: '#993C1D',
-                              fontWeight: 800,
-                              marginBottom: 8,
-                              textAlign: 'center',
-                            }}>
-                              כמה הצלחת?
-                            </div>
-
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr 1fr',
-                              gap: 8,
-                            }}>
-                              {set.hold_seconds != null && (
-                                <div>
-                                  <div style={counterLabelStyle}>שניות</div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => updateActual(i, 'hold_seconds', -1)}
-                                      style={minusBtnStyle}
-                                    >−</button>
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                      <span style={counterValueStyle}>{pyramidActuals[i + 1]?.hold_seconds ?? 0}</span>
-                                      <span style={counterTargetStyle}>/ {set.hold_seconds}</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => updateActual(i, 'hold_seconds', +1)}
-                                      style={plusBtnStyle}
-                                    >+</button>
-                                  </div>
-                                </div>
-                              )}
-
-                              {set.reps != null && (
-                                <div>
-                                  <div style={counterLabelStyle}>חזרות</div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => updateActual(i, 'reps', -1)}
-                                      style={minusBtnStyle}
-                                    >−</button>
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                      <span style={counterValueStyle}>{pyramidActuals[i + 1]?.reps ?? 0}</span>
-                                      <span style={counterTargetStyle}>/ {set.reps}</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => updateActual(i, 'reps', +1)}
-                                      style={plusBtnStyle}
-                                    >+</button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={onSaveAndAdvance}
-                              disabled={pyramidSaving}
-                              style={{
-                                width: '100%',
-                                background: pyramidSaving
-                                  ? '#FFB280'
-                                  : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                                color: 'white',
-                                border: 'none',
-                                padding: 9,
-                                borderRadius: 7,
-                                fontWeight: 800,
+                            {methodMeta.variationRequired && set.variation_name && (
+                              <span style={{
                                 fontSize: 12,
-                                fontFamily: 'inherit',
-                                marginTop: 8,
-                                cursor: pyramidSaving ? 'default' : 'pointer',
-                              }}
-                            >
-                              {pyramidSaving ? 'שומר...' : 'שמור והמשך לסט הבא'}
-                            </button>
+                                color: '#993C1D',
+                                background: 'white',
+                                border: '1px solid #FFD0AC',
+                                padding: '4px 10px',
+                                borderRadius: 999,
+                                fontWeight: 700,
+                              }}>
+                                {set.variation_name}
+                              </span>
+                            )}
+                            {numericFields.map((fieldId) => {
+                              if (set[fieldId] == null) return null;
+                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                              return (
+                                <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
+                                    {set[fieldId]}
+                                  </span>
+                                  <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>{meta.label}</span>
+                                </div>
+                              );
+                            })}
+                            {textFields.map((fieldId) => {
+                              if (set[fieldId] == null || !String(set[fieldId]).trim()) return null;
+                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                              return (
+                                <span key={fieldId} style={{
+                                  fontSize: 11,
+                                  color: meta.textPrimary,
+                                  background: meta.tint,
+                                  border: `1px solid ${meta.tint}`,
+                                  padding: '3px 8px',
+                                  borderRadius: 4,
+                                  fontWeight: 600,
+                                }}>
+                                  {meta.label}: {set[fieldId]}
+                                </span>
+                              );
+                            })}
                           </div>
+
+                          {/* Input panel — only when at least one numeric field */}
+                          {numericFields.length > 0 && (
+                            <div style={{
+                              background: 'white',
+                              border: '1.5px solid #FFD0AC',
+                              borderRadius: 8,
+                              padding: 10,
+                            }}>
+                              <div style={{
+                                fontSize: 10,
+                                color: '#993C1D',
+                                fontWeight: 800,
+                                marginBottom: 8,
+                                textAlign: 'center',
+                              }}>
+                                כמה הצלחת?
+                              </div>
+
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                                gap: 8,
+                              }}>
+                                {numericFields.map((fieldId) => {
+                                  if (set[fieldId] == null) return null;
+                                  const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                                  return (
+                                    <div key={fieldId}>
+                                      <div style={counterLabelStyle}>{meta.label}</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateActual(i, fieldId, -1)}
+                                          style={minusBtnStyle}
+                                        >−</button>
+                                        <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
+                                          <span style={counterValueStyle}>{pyramidActuals[i + 1]?.[fieldId] ?? 0}</span>
+                                          <span style={counterTargetStyle}>/ {set[fieldId]}</span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateActual(i, fieldId, +1)}
+                                          style={plusBtnStyle}
+                                        >+</button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={onSaveAndAdvance}
+                                disabled={pyramidSaving}
+                                style={{
+                                  width: '100%',
+                                  background: pyramidSaving
+                                    ? '#FFB280'
+                                    : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: 9,
+                                  borderRadius: 7,
+                                  fontWeight: 800,
+                                  fontSize: 12,
+                                  fontFamily: 'inherit',
+                                  marginTop: 8,
+                                  cursor: pyramidSaving ? 'default' : 'pointer',
+                                }}
+                              >
+                                {pyramidSaving ? 'שומר...' : 'שמור והמשך לסט הבא'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     }
@@ -2888,7 +3056,8 @@ export default function ExerciseCard({
                         padding: '10px 12px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 20,
+                        gap: 12,
+                        flexWrap: 'wrap',
                       }}>
                         <span style={{
                           fontFamily: "'Bebas Neue', sans-serif",
@@ -2899,22 +3068,31 @@ export default function ExerciseCard({
                         }}>
                           {String(i + 1).padStart(2, '0')}
                         </span>
-                        {set.hold_seconds != null && (
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
-                              {set.hold_seconds}
-                            </span>
-                            <span style={{ fontSize: 10, color: '#9CA3AF' }}>שניות</span>
-                          </div>
+                        {methodMeta.variationRequired && set.variation_name && (
+                          <span style={{
+                            fontSize: 11,
+                            color: '#9CA3AF',
+                            background: '#FAFAFA',
+                            border: '1px dashed #D1D5DB',
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            fontWeight: 700,
+                          }}>
+                            {set.variation_name}
+                          </span>
                         )}
-                        {set.reps != null && (
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
-                              {set.reps}
-                            </span>
-                            <span style={{ fontSize: 10, color: '#9CA3AF' }}>חזרות</span>
-                          </div>
-                        )}
+                        {numericFields.map((fieldId) => {
+                          if (set[fieldId] == null) return null;
+                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                          return (
+                            <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
+                                {set[fieldId]}
+                              </span>
+                              <span style={{ fontSize: 10, color: '#9CA3AF' }}>{meta.label}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
