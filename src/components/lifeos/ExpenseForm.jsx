@@ -97,6 +97,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     } catch (err) {
       console.error('[ExpenseForm] save error:', err);
       toast.error('שגיאה בשמירה: ' + (err?.message || ''));
+      if (err?.message?.startsWith('VERIFICATION_FAILED')) {
+        alert('שמירת ההוצאה נכשלה: הקבלה לא נשמרה במסד הנתונים. ' + err.message);
+      }
     } finally {
       setSaving(false);
     }

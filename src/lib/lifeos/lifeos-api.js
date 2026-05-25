@@ -41,13 +41,26 @@ export async function listExpensesForMonth(userId, dateLike) {
 }
 
 export async function addExpense(userId, payload) {
-  const { data, error } = await supabase
+  const { data: inserted, error: insertErr } = await supabase
     .from('expenses')
     .insert({ ...payload, user_id: userId })
     .select()
     .single();
-  if (error) throw error;
-  return data;
+  if (insertErr) throw insertErr;
+
+  if (payload.receipt_url != null && inserted.receipt_url == null) {
+    throw new Error(
+      'VERIFICATION_FAILED: row saved but receipt_url is null. ' +
+      `Expected: ${payload.receipt_url}, Got: null. Row id: ${inserted.id}`
+    );
+  }
+
+  console.log('[lifeos-api] addExpense verified', {
+    id: inserted.id,
+    receipt_url: inserted.receipt_url ? 'present' : 'absent',
+  });
+
+  return inserted;
 }
 
 export async function updateExpense(id, patch) {
