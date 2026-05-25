@@ -6,6 +6,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { useSmartBackHandler } from "@/hooks/useSmartBack";
+import { getMethodByMode } from '../../constants/trainingMethods';
+import { parsePlannedSets } from '../../lib/plannedSets';
+import { UNIT_COLORS } from '../../constants/unitColors';
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -16,6 +19,11 @@ const VARIANT_COLORS = {
   list:     { stripe: '#7F47B5', border: '#e9d5ff', tint: '#F5F3FF' },
   tabata:   { stripe: '#3B82F6', border: '#BFDBFE', tint: '#EFF6FF' },
   done:     { stripe: '#16a34a', border: '#bbf7d0', tint: '#F0FDF4' },
+  pyramid:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  drop_set:   { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  rest_pause: { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  circuit:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  delorme:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
 };
 
 // `tabata_data` is TEXT-serialised JSON in the live DB. Parse defensively
@@ -35,6 +43,15 @@ function parseTabataData(raw) {
 // editor reuses the same JSONB shape, just with `container_type =
 // 'superset'`/'combo'/'list').
 function getVariant(exercise) {
+  // New-method dispatch — runs BEFORE legacy branches so the
+  // pyramid/drop_set/rest_pause/circuit/delorme renderers can own
+  // their own closed-card and open-card layouts without falling
+  // through to the existing 'tabata'/'list'/'normal' paths.
+  const _method = getMethodByMode(exercise?.mode);
+  if (_method && ['pyramid','drop_set','rest_pause','circuit','delorme']
+      .includes(_method.english_id)) {
+    return _method.english_id;
+  }
   if (exercise.mode === 'טבטה') return 'tabata';
   if (['סופרסט', 'קומבו', 'רשימה'].includes(exercise.mode)) return 'list';
   // Fallback — the row's mode is missing or a custom string but
@@ -523,6 +540,21 @@ export default function ExerciseCard({
   // captured on the trigger's onClick from the button's bounding rect.
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
+
+  // Pyramid open-card live state — local only, no DB persistence yet.
+  // pyramidActiveIdx walks the planned_sets array as the trainee taps
+  // "שמור והמשך"; pyramidActualValues stores the in-memory counters
+  // for the per-set +/- controls (per-set object keyed by index).
+  const [pyramidActiveIdx, setPyramidActiveIdx] = useState(0);
+  const [pyramidActualValues, setPyramidActualValues] = useState({});
+
+  const updateActual = (setIdx, key, delta) => {
+    setPyramidActualValues(prev => {
+      const curr = prev[setIdx] || {};
+      const newVal = Math.max(0, (curr[key] ?? 0) + delta);
+      return { ...prev, [setIdx]: { ...curr, [key]: newVal } };
+    });
+  };
   const actionsMenuRef = useRef(null);        // trigger wrapper
   const actionsPopoverRef = useRef(null);     // portalled popover
   useEffect(() => {
@@ -684,6 +716,69 @@ export default function ExerciseCard({
       }
     }
     return bits;
+  })();
+
+  // Pyramid closed-card summary — renders the planned per-set
+  // progression inline ("5 סטים · 5→7→9→7→5 שניות"). Dominant unit
+  // priority: hold_seconds → reps → weight_kg. Empty plannedSets fall
+  // back to a gray "פירמידה · ללא סטים מוגדרים" placeholder. Returns
+  // null for non-pyramid variants so the existing summaryPills row
+  // still owns rendering for everything else.
+  const pyramidSummary = (() => {
+    if (variant !== 'pyramid') return null;
+    const plannedSets = parsePlannedSets(exercise);
+    if (plannedSets.length === 0) {
+      return (
+        <div dir="rtl" style={{
+          marginTop: 5,
+          fontSize: 12,
+          color: '#9CA3AF',
+          fontWeight: 500,
+        }}>
+          פירמידה · ללא סטים מוגדרים
+        </div>
+      );
+    }
+    const dominantKey =
+      plannedSets.some(s => s.hold_seconds != null) ? 'hold_seconds' :
+      plannedSets.some(s => s.reps != null)         ? 'reps' :
+      plannedSets.some(s => s.weight_kg != null)    ? 'weight_kg' :
+                                                      'reps';
+    const unitMap = {
+      hold_seconds: { label: 'שניות', color: UNIT_COLORS.seconds },
+      reps:         { label: 'חזרות', color: UNIT_COLORS.reps },
+      weight_kg:    { label: 'ק"ג',   color: UNIT_COLORS.weight },
+    };
+    const unitLabelText = unitMap[dominantKey].label;
+    const progressionString = plannedSets
+      .map(s => s[dominantKey] ?? '?')
+      .join('→');
+    const numStyle = {
+      fontFamily: "'Bebas Neue', sans-serif",
+      fontSize: 16,
+      color: '#FF6F20',
+      lineHeight: 1,
+    };
+    const wordStyle = {
+      fontSize: 10,
+      color: '#6B7280',
+      fontWeight: 600,
+    };
+    return (
+      <div dir="rtl" style={{
+        marginTop: 5,
+        display: 'flex',
+        alignItems: 'baseline',
+        flexWrap: 'wrap',
+        gap: 6,
+      }}>
+        <span style={numStyle}>{plannedSets.length}</span>
+        <span style={wordStyle}>סטים</span>
+        <span style={{ color: '#D1D5DB' }}>·</span>
+        <span style={numStyle}>{progressionString}</span>
+        <span style={wordStyle}>{unitLabelText}</span>
+      </div>
+    );
   })();
 
   // Per-set checkbox row state (trainee mode). The parent owns the
@@ -2271,7 +2366,7 @@ export default function ExerciseCard({
                 {name}
               </div>
             )}
-            {summaryPills.length > 0 && (
+            {variant === 'pyramid' ? pyramidSummary : (summaryPills.length > 0 && (
               <div style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -2295,7 +2390,7 @@ export default function ExerciseCard({
                   >{text}</span>
                 ))}
               </div>
-            )}
+            ))}
           </div>
 
           <span aria-hidden style={{
@@ -2314,6 +2409,364 @@ export default function ExerciseCard({
             borderTop: `1px solid ${colors.border}`,
             padding: isCoachMode ? '12px 13px' : '10px 11px',
           }}>
+            {/* Pyramid — coach mode is read-only in this step: render
+                every planned set with the FUTURE-row dashed-gray
+                styling. Editing comes in a later prompt. */}
+            {variant === 'pyramid' && isCoachMode && (() => {
+              const plannedSets = parsePlannedSets(exercise);
+              if (plannedSets.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    פירמידה · אין סטים מוגדרים
+                  </div>
+                );
+              }
+              return (
+                <div dir="rtl" style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 5,
+                  marginBottom: 12,
+                }}>
+                  {plannedSets.map((set, i) => (
+                    <div key={i} style={{
+                      background: 'white',
+                      border: '1.5px dashed #D1D5DB',
+                      borderRadius: 8,
+                      padding: '10px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 20,
+                    }}>
+                      <span style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 22,
+                        color: '#D1D5DB',
+                        lineHeight: 1,
+                        minWidth: 24,
+                      }}>
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      {set.hold_seconds != null && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
+                            {set.hold_seconds}
+                          </span>
+                          <span style={{ fontSize: 10, color: '#9CA3AF' }}>שניות</span>
+                        </div>
+                      )}
+                      {set.reps != null && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
+                            {set.reps}
+                          </span>
+                          <span style={{ fontSize: 10, color: '#9CA3AF' }}>חזרות</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Pyramid — trainee open view: vertical list of rows, one
+                per planned set. Past sets render green, the active set
+                expands with +/- inputs + "שמור והמשך" button, future
+                sets are dashed gray. State is in-memory only — DB
+                persistence comes in a later prompt. */}
+            {variant === 'pyramid' && !isCoachMode && (() => {
+              const plannedSets = parsePlannedSets(exercise);
+              if (plannedSets.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    פירמידה · אין סטים מוגדרים
+                  </div>
+                );
+              }
+              const minusBtnStyle = {
+                width: 26,
+                height: 26,
+                background: 'white',
+                border: '1px solid #FFD0AC',
+                color: '#FF6F20',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const plusBtnStyle = {
+                width: 26,
+                height: 26,
+                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                border: '1px solid #FF6F20',
+                color: 'white',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const counterValueStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 22,
+                color: '#FF6F20',
+                lineHeight: 1,
+              };
+              const counterTargetStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 14,
+                color: '#9CA3AF',
+              };
+              const counterLabelStyle = {
+                fontSize: 9,
+                color: '#993C1D',
+                fontWeight: 700,
+                textAlign: 'center',
+                marginBottom: 4,
+              };
+
+              return (
+                <div dir="rtl" style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 5,
+                  marginBottom: 12,
+                }}>
+                  {plannedSets.map((set, i) => {
+                    // ── PAST row (green, completed) ───────────────
+                    if (i < pyramidActiveIdx) {
+                      return (
+                        <div key={i} style={{
+                          background: '#F0FAF4',
+                          border: '1.5px solid #16A34A',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 20,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 22,
+                            color: '#16A34A',
+                            lineHeight: 1,
+                            minWidth: 24,
+                          }}>
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          {set.hold_seconds != null && (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
+                                {pyramidActualValues[i]?.hold_seconds ?? '-'} / {set.hold_seconds}
+                              </span>
+                              <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>שניות</span>
+                            </div>
+                          )}
+                          {set.reps != null && (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
+                                {pyramidActualValues[i]?.reps ?? '-'} / {set.reps}
+                              </span>
+                              <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>חזרות</span>
+                            </div>
+                          )}
+                          <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
+                        </div>
+                      );
+                    }
+
+                    // ── ACTIVE row (orange, expanded with inputs) ─
+                    if (i === pyramidActiveIdx) {
+                      return (
+                        <div key={i} style={{
+                          background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                          border: '2px solid #FF6F20',
+                          borderRadius: 10,
+                          padding: 12,
+                          boxShadow: '0 4px 10px rgba(255,111,32,0.25)',
+                        }}>
+                          {/* Header — set number + planned values */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 24,
+                            marginBottom: 12,
+                          }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 30,
+                              color: '#FF6F20',
+                              lineHeight: 1,
+                              minWidth: 30,
+                              fontWeight: 800,
+                            }}>
+                              {String(i + 1).padStart(2, '0')}
+                            </span>
+                            {set.hold_seconds != null && (
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
+                                  {set.hold_seconds}
+                                </span>
+                                <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>שניות</span>
+                              </div>
+                            )}
+                            {set.reps != null && (
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
+                                  {set.reps}
+                                </span>
+                                <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>חזרות</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Input panel */}
+                          <div style={{
+                            background: 'white',
+                            border: '1.5px solid #FFD0AC',
+                            borderRadius: 8,
+                            padding: 10,
+                          }}>
+                            <div style={{
+                              fontSize: 10,
+                              color: '#993C1D',
+                              fontWeight: 800,
+                              marginBottom: 8,
+                              textAlign: 'center',
+                            }}>
+                              כמה הצלחת?
+                            </div>
+
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr 1fr',
+                              gap: 8,
+                            }}>
+                              {set.hold_seconds != null && (
+                                <div>
+                                  <div style={counterLabelStyle}>שניות</div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateActual(i, 'hold_seconds', -1)}
+                                      style={minusBtnStyle}
+                                    >−</button>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
+                                      <span style={counterValueStyle}>{pyramidActualValues[i]?.hold_seconds ?? 0}</span>
+                                      <span style={counterTargetStyle}>/ {set.hold_seconds}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateActual(i, 'hold_seconds', +1)}
+                                      style={plusBtnStyle}
+                                    >+</button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {set.reps != null && (
+                                <div>
+                                  <div style={counterLabelStyle}>חזרות</div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateActual(i, 'reps', -1)}
+                                      style={minusBtnStyle}
+                                    >−</button>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
+                                      <span style={counterValueStyle}>{pyramidActualValues[i]?.reps ?? 0}</span>
+                                      <span style={counterTargetStyle}>/ {set.reps}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateActual(i, 'reps', +1)}
+                                      style={plusBtnStyle}
+                                    >+</button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setPyramidActiveIdx(idx => idx + 1)}
+                              style={{
+                                width: '100%',
+                                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                                color: 'white',
+                                border: 'none',
+                                padding: 9,
+                                borderRadius: 7,
+                                fontWeight: 800,
+                                fontSize: 12,
+                                fontFamily: 'inherit',
+                                marginTop: 8,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              שמור והמשך לסט הבא
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // ── FUTURE row (dashed gray, planned only) ────
+                    return (
+                      <div key={i} style={{
+                        background: 'white',
+                        border: '1.5px dashed #D1D5DB',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 20,
+                      }}>
+                        <span style={{
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 22,
+                          color: '#D1D5DB',
+                          lineHeight: 1,
+                          minWidth: 24,
+                        }}>
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        {set.hold_seconds != null && (
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
+                              {set.hold_seconds}
+                            </span>
+                            <span style={{ fontSize: 10, color: '#9CA3AF' }}>שניות</span>
+                          </div>
+                        )}
+                        {set.reps != null && (
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
+                              {set.reps}
+                            </span>
+                            <span style={{ fontSize: 10, color: '#9CA3AF' }}>חזרות</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {/* Tabata — coach mode keeps the legacy detailed view
                 (badge, full grid, total-time tile, sub list). */}
             {variant === 'tabata' && isCoachMode && (
