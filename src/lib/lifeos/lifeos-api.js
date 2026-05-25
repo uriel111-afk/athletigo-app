@@ -55,9 +55,10 @@ export async function addExpense(userId, payload) {
     );
   }
 
-  console.log('[lifeos-api] addExpense verified', {
+  console.log('[lifeos-api] addExpense OK', {
     id: inserted.id,
     receipt_url: inserted.receipt_url ? 'present' : 'absent',
+    photo_attached_in_payload: payload.receipt_url != null,
   });
 
   return inserted;

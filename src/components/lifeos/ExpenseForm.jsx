@@ -35,9 +35,17 @@ const formFromRow = (row) => ({
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [pendingBlob, setPendingBlob] = useState(null);
   const cameraRef = useRef(null);
+
+  // Diagnostic: log every unmount with the last captured error so we
+  // can detect silent closes vs. caught-then-closed flows.
+  useEffect(() => {
+    return () => {
+      console.log('[ExpenseForm] UNMOUNTING. lastExpenseError:',
+        window.lastExpenseError || 'none');
+    };
+  }, []);
 
   // Reset form whenever the dialog opens — pre-fill if editing.
   useEffect(() => {
@@ -59,54 +67,78 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       return;
     }
 
-    let receipt_url = form.receipt_url;
-
-    if (pendingBlob && cameraRef.current) {
-      setUploading(true);
-      try {
-        receipt_url = await cameraRef.current.uploadNow();
-        console.log('[ExpenseForm] Photo uploaded during save', { receipt_url });
-      } catch (err) {
-        console.error('[ExpenseForm] Photo upload failed during save', err);
-        toast.error('שגיאה בהעלאת התמונה');
-        alert(`העלאת התמונה נכשלה: ${err?.message || 'שגיאה לא ידועה'}. ההוצאה לא נשמרה.`);
-        setUploading(false);
-        return;
-      }
-      setUploading(false);
-    }
-
     setSaving(true);
-    const payload = {
-      amount,
-      category: form.category,
-      subcategory: form.subcategory || null,
-      description: form.description || null,
-      date: form.date,
-      payment_method: form.payment_method || null,
-      notes: form.notes || null,
-      receipt_url: receipt_url || null,
-    };
+    let savedRow = null;
+
     try {
-      if (expense?.id) await updateExpense(expense.id, payload);
-      else             await addExpense(userId, payload);
+      // Step 1: upload photo if attached
+      let receipt_url = form.receipt_url;
+      if (pendingBlob && cameraRef.current) {
+        console.log('[ExpenseForm] Step 1: uploading photo');
+        try {
+          receipt_url = await cameraRef.current.uploadNow();
+          console.log('[ExpenseForm] Photo uploaded:', receipt_url);
+        } catch (uploadErr) {
+          throw new Error(`UPLOAD_FAILED: ${uploadErr?.message || uploadErr}`);
+        }
+        if (!receipt_url) {
+          throw new Error('UPLOAD_FAILED: uploadNow returned no URL');
+        }
+      }
+
+      // Step 2: build payload
+      const payload = {
+        amount,
+        category: form.category,
+        subcategory: form.subcategory || null,
+        description: form.description || null,
+        date: form.date,
+        payment_method: form.payment_method || null,
+        notes: form.notes || null,
+        receipt_url: receipt_url || null,
+      };
+      console.log('[ExpenseForm] Step 2: inserting expense', payload);
+
+      // Step 3: insert + verify
+      if (expense?.id) {
+        savedRow = await updateExpense(expense.id, payload);
+      } else {
+        savedRow = await addExpense(userId, payload);
+      }
+      console.log('[ExpenseForm] Step 3: insert verified', savedRow);
+
+      // Step 4: success path — only here do we close
       toast.success((expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה') + (receipt_url ? ' עם תמונה' : ''));
       setPendingBlob(null);
-      onSaved?.();
-      onClose();
+      onSaved?.(savedRow);
+      onClose?.();
+
     } catch (err) {
-      console.error('[ExpenseForm] save error:', err);
-      toast.error('שגיאה בשמירה: ' + (err?.message || ''));
-      if (err?.message?.startsWith('VERIFICATION_FAILED')) {
-        alert('שמירת ההוצאה נכשלה: הקבלה לא נשמרה במסד הנתונים. ' + err.message);
-      }
+      window.lastExpenseError = {
+        time: new Date().toISOString(),
+        message: err?.message || String(err),
+        stack: err?.stack,
+        details: err,
+      };
+      console.error('[ExpenseForm] SAVE FAILED', window.lastExpenseError);
+
+      const userMsg = err?.message?.startsWith('UPLOAD_FAILED:')
+        ? `העלאת התמונה נכשלה: ${err.message.replace('UPLOAD_FAILED: ', '')}`
+        : err?.message?.startsWith('VERIFICATION_FAILED:')
+        ? `ההוצאה לא נשמרה כראוי. ${err.message}`
+        : `שמירה נכשלה: ${err?.message || 'שגיאה לא ידועה'}`;
+
+      toast.error(userMsg);
+      alert(userMsg);
+      // CRITICAL: do NOT call onClose. Form stays open so user can retry.
+
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving && !uploading) onClose(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent
         dir="rtl"
         className="max-w-md"
@@ -260,21 +292,17 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
             <button
               onClick={onClose}
-              disabled={saving || uploading}
+              disabled={saving}
               style={btnSecondary}
             >
               ביטול
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || uploading}
+              disabled={saving}
               style={btnPrimary}
             >
-              {uploading
-                ? 'מעלה תמונה...'
-                : saving
-                ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} />
-                : 'שמור הוצאה'}
+              {saving ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} /> : 'שמור הוצאה'}
             </button>
           </div>
         </div>
