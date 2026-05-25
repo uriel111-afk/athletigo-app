@@ -56,6 +56,13 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
+  // Single chokepoint for closing the form — logs the trigger so we
+  // can identify silent closes (e.g. dialog-openchange vs success vs cancel).
+  const closeForm = (source) => {
+    console.log('[ExpenseForm] closing, source:', source);
+    onClose?.();
+  };
+
   const handleSave = async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
@@ -108,10 +115,15 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       console.log('[ExpenseForm] Step 3: insert verified', savedRow);
 
       // Step 4: success path — only here do we close
+      window.lastExpenseSuccess = {
+        time: new Date().toISOString(),
+        expense_id: savedRow?.id,
+        receipt_url: savedRow?.receipt_url ? 'present' : 'absent',
+      };
       toast.success((expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה') + (receipt_url ? ' עם תמונה' : ''));
       setPendingBlob(null);
       onSaved?.(savedRow);
-      onClose?.();
+      closeForm('success');
 
     } catch (err) {
       window.lastExpenseError = {
@@ -138,7 +150,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) closeForm('dialog-openchange'); }}>
       <DialogContent
         dir="rtl"
         className="max-w-md"
@@ -291,7 +303,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
             <button
-              onClick={onClose}
+              onClick={() => closeForm('cancel')}
               disabled={saving}
               style={btnSecondary}
             >

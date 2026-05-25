@@ -45,6 +45,23 @@ export default function Expenses() {
   const [categoryFilter, setCategoryFilter] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [lastError, setLastError] = useState(null);
+  const [lastSuccess, setLastSuccess] = useState(null);
+
+  // Poll the window-scoped diagnostic objects so the on-screen banners
+  // surface errors/successes the user would otherwise miss. To be
+  // removed after the silent-save bug is identified.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (window.lastExpenseError && window.lastExpenseError !== lastError) {
+        setLastError(window.lastExpenseError);
+      }
+      if (window.lastExpenseSuccess && window.lastExpenseSuccess !== lastSuccess) {
+        setLastSuccess(window.lastExpenseSuccess);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lastError, lastSuccess]);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -183,6 +200,77 @@ export default function Expenses() {
         <RefreshCw size={16} />
       </button>
     }>
+      {/* Diagnostic banners — visible error/success surfacing */}
+      {lastError && (
+        <div style={{
+          background: '#FEE2E2',
+          border: '2px solid #DC2626',
+          borderRadius: '10px',
+          padding: '14px',
+          marginBottom: '14px',
+          direction: 'rtl',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, color: '#991B1B', fontSize: '13px', marginBottom: '6px' }}>
+                ⚠ שגיאה בשמירת הוצאה אחרונה
+              </div>
+              <div style={{
+                fontSize: '11px', color: '#7F1D1D', fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              }}>
+                {lastError.time}
+                {'\n'}
+                {lastError.message}
+              </div>
+            </div>
+            <button
+              onClick={() => { window.lastExpenseError = null; setLastError(null); }}
+              style={{
+                background: 'transparent', border: 'none', color: '#991B1B',
+                fontSize: '18px', cursor: 'pointer', padding: '4px 8px',
+              }}
+              aria-label="סגור"
+            >×</button>
+          </div>
+        </div>
+      )}
+
+      {lastSuccess && (
+        <div style={{
+          background: '#DCFCE7',
+          border: '2px solid #16A34A',
+          borderRadius: '10px',
+          padding: '14px',
+          marginBottom: '14px',
+          direction: 'rtl',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, color: '#166534', fontSize: '13px', marginBottom: '6px' }}>
+                ✓ הוצאה נשמרה בהצלחה
+              </div>
+              <div style={{
+                fontSize: '11px', color: '#14532D', fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              }}>
+                {lastSuccess.time}
+                {'\n'}
+                id: {lastSuccess.expense_id} · תמונה: {lastSuccess.receipt_url === 'present' ? 'יש' : 'אין'}
+              </div>
+            </div>
+            <button
+              onClick={() => { window.lastExpenseSuccess = null; setLastSuccess(null); }}
+              style={{
+                background: 'transparent', border: 'none', color: '#166534',
+                fontSize: '18px', cursor: 'pointer', padding: '4px 8px',
+              }}
+              aria-label="סגור"
+            >×</button>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={openNew}
         style={{
@@ -328,7 +416,10 @@ export default function Expenses() {
         onClose={() => { setShowForm(false); setEditingExpense(null); }}
         userId={userId}
         expense={editingExpense}
-        onSaved={load}
+        onSaved={(saved) => {
+          console.log('[Expenses] onSaved fired, force refetching', saved);
+          load();
+        }}
       />
     </LifeOSLayout>
   );

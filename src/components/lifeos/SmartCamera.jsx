@@ -165,10 +165,10 @@ const SmartCamera = forwardRef(function SmartCamera(
   };
 
   const handleCancel = () => {
+    console.log('[SmartCamera] handleCancel — clearing preview only (parent form remains open)');
     setPreview(null);
     setBlob(null);
     if (deferredUpload) {
-      console.log('[SmartCamera] Photo cleared (deferred)');
       onPhotoCaptured?.(null, null);
     }
   };
