@@ -955,18 +955,59 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           </div>
 
           {plannedSetsDraft.length === 0 ? (
-            <div style={{
-              padding: 20,
-              textAlign: 'center',
-              color: '#9CA3AF',
-              background: '#FAFAFA',
-              borderRadius: 8,
-              fontSize: 12,
-            }}>
-              {activeMethod === 'REST_PAUSE'
-                ? 'אין מיני-סטים מוגדרים — לחץ "הוסף מיני-סט" כדי להתחיל'
-                : 'אין סטים מוגדרים — לחץ "הוסף סט" כדי להתחיל'}
-            </div>
+            selectedSetFields.length === 0 ? (
+              // No params + no sets — point the coach at Section 2 first.
+              <div style={{
+                padding: 20,
+                textAlign: 'center',
+                color: '#9CA3AF',
+                background: '#FAFAFA',
+                borderRadius: 8,
+                fontSize: 12,
+              }}>
+                בחר פרמטרים מעלה כדי שיופיעו בכל סט
+              </div>
+            ) : (
+              // Params picked but no sets — prominent CTA that
+              // explains the relationship and adds the first row.
+              <div style={{
+                background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                border: '2px dashed #FFD0AC',
+                borderRadius: 12,
+                padding: 20,
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 13, color: '#993C1D', fontWeight: 800, marginBottom: 4 }}>
+                  בחרת {selectedSetFields.length} פרמטרים
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 14 }}>
+                  {activeMethod === 'REST_PAUSE'
+                    ? 'הוסף מיני-סט ראשון כדי לראות אותם'
+                    : 'הוסף סט ראשון כדי לראות אותם'}
+                </div>
+                <button
+                  type="button"
+                  onClick={addRow}
+                  disabled={readOnly}
+                  style={{
+                    background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: 10,
+                    fontWeight: 800,
+                    fontSize: 14,
+                    fontFamily: 'inherit',
+                    cursor: readOnly ? 'default' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
+                  }}
+                >
+                  {activeMethod === 'REST_PAUSE'
+                    ? '+ הוסף מיני-סט ראשון'
+                    : '+ הוסף סט ראשון'}
+                </button>
+              </div>
+            )
           ) : (
             <div>
               {plannedSetsDraft.map((row, i) => {
@@ -1066,10 +1107,10 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             </div>
           )}
 
-          {/* Empty-state hint when zero params are picked. Without
-              this the field grid in every row is blank and the coach
-              can't tell what's missing. */}
-          {selectedSetFields.length === 0 && (
+          {/* Empty-state hint when sets exist but zero params are
+              picked. Gated on plannedSetsDraft.length > 0 so it
+              doesn't duplicate the new no-sets empty-state above. */}
+          {plannedSetsDraft.length > 0 && selectedSetFields.length === 0 && (
             <div style={{
               fontSize: 11,
               color: '#9CA3AF',
