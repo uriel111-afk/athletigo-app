@@ -157,19 +157,20 @@ const MODE_TO_METHOD_ID = (() => {
   return map;
 })();
 
-// Smart defaults seeded into selectedSetFields the first time a
-// method is chosen. Empty array means "no per-set params by default".
+// Smart-defaults injection point. Kept as a constant so future methods
+// can opt back in by listing their seeds here; for now every method
+// starts clean — the coach must pick params explicitly.
 const DEFAULT_FIELDS_BY_METHOD = {
-  NONE:       ['reps'],
-  REPS:       ['sets', 'reps', 'weight_kg'],
-  PYRAMID:    ['reps', 'hold_seconds'],
-  DROP_SET:   ['reps'],
-  REST_PAUSE: ['reps'],
-  CIRCUIT:    ['reps'],
+  NONE:       [],
+  REPS:       [],
+  PYRAMID:    [],
+  DROP_SET:   [],
+  REST_PAUSE: [],
+  CIRCUIT:    [],
   TABATA:     [],
-  SUPERSET:   ['reps'],
-  COMBO:      ['reps'],
-  DELORME:    ['reps'],
+  SUPERSET:   [],
+  COMBO:      [],
+  DELORME:    [],
 };
 
 // Each method has exactly one data shape it uses in tabata_data.
@@ -574,7 +575,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // so the data-entry digits are legible at arm's length on a phone.
   const renderFieldInput = (fieldId, row, onChangeField) => {
     const meta = PARAM_CATALOG[fieldId];
-    if (!meta) return null;
+    if (!meta) {
+      // Defensive: a fieldId in selectedSetFields that isn't in
+      // PARAM_CATALOG silently disappears. Surface it instead so a
+      // typo'd legacy value (or a removed param) is debuggable.
+      console.warn('[ModernExerciseForm] Unknown field id in selectedSetFields:', fieldId);
+      return null;
+    }
     const c = meta.color;
     return (
       <div
@@ -1056,6 +1063,23 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               {activeMethod === 'DROP_SET'
                 ? '⚠ דרופ סט דורש וריאציה לכל סט'
                 : '⚠ דלורם דורש וריאציה לכל סט'}
+            </div>
+          )}
+
+          {/* Empty-state hint when zero params are picked. Without
+              this the field grid in every row is blank and the coach
+              can't tell what's missing. */}
+          {selectedSetFields.length === 0 && (
+            <div style={{
+              fontSize: 11,
+              color: '#9CA3AF',
+              textAlign: 'center',
+              padding: 12,
+              background: '#FAFAFA',
+              borderRadius: 8,
+              marginTop: 8,
+            }}>
+              בחר פרמטרים מעלה כדי שיופיעו בכל סט
             </div>
           )}
         </div>
