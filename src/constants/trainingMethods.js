@@ -5,6 +5,7 @@
 // array on tabata_data (vs scalar values on the exercise row).
 
 export const TRAINING_METHODS = {
+  NONE:       { mode: null,      english_id: 'none',       label: 'ללא שיטה',      icon: 'ti-square',            hasPlannedSets: true  },
   REPS:       { mode: 'חזרות',   english_id: 'reps',       label: 'חזרות',         icon: 'ti-repeat',            hasPlannedSets: false },
   TABATA:     { mode: 'טבטה',    english_id: 'tabata',     label: 'טבטה',          icon: 'ti-stopwatch',         hasPlannedSets: false },
   SUPERSET:   { mode: 'סופרסט',  english_id: 'super_set',  label: 'סופר סט',       icon: 'ti-link',              hasPlannedSets: true  },

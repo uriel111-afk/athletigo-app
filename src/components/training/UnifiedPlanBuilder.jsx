@@ -318,6 +318,50 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
   }, [plan?.id]);
 
+  // Scroll position restore — persists the .page-container scrollTop
+  // into sessionStorage so closing + reopening the PWA lands the user
+  // on the same row they were on. sessionStorage (not localStorage)
+  // so a long break clears the state. Targets the Layout's main
+  // scrollable container (Layout.jsx ~547, className "page-container").
+  useEffect(() => {
+    const key = plan?.id ? `scroll:plan:${plan.id}` : null;
+    if (!key) return;
+    const el = document.querySelector('.page-container');
+    if (!el) return;
+
+    // Restore — wait one rAF + 50 ms so the plan content has actually
+    // rendered before we scroll. Otherwise we restore against an
+    // un-mounted DOM and scrollTop clamps to 0.
+    let saved = null;
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (raw != null) saved = Number(raw);
+    } catch {}
+    if (Number.isFinite(saved) && saved > 0) {
+      const rafId = requestAnimationFrame(() => {
+        setTimeout(() => { el.scrollTop = saved; }, 50);
+      });
+      // Best-effort: don't cancel rafId on unmount since the restore
+      // is one-shot and the setTimeout is too short to matter.
+      void rafId;
+    }
+
+    // Debounced save on scroll. 200 ms is fast enough to not lose
+    // position on a quick close, slow enough not to spam storage.
+    let timeoutId = null;
+    const onScroll = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        try { sessionStorage.setItem(key, String(el.scrollTop)); } catch {}
+      }, 200);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [plan?.id]);
+
   // Resolve metadata fields through parseArrayField, which unwraps all
   // three shapes the codebase persists (real arrays, comma-separated
   // strings, double-JSON-encoded strings). Legacy aliases checked too:

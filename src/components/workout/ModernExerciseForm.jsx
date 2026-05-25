@@ -6,6 +6,7 @@ import {
   Clock, Weight, Activity, PersonStanding, Hand, Dumbbell,
   ArrowBigUp, ArrowLeftRight, List,
   Footprints, Maximize2, Hash, RefreshCw,
+  Square, ArrowLeft,
 } from "lucide-react";
 import { searchExercises } from "@/data/exercises";
 import { supabase } from "@/lib/supabaseClient";
@@ -20,11 +21,13 @@ import { parsePlannedSets } from '../../lib/plannedSets';
 // Order = chip-row order; icons render inside the chip.
 // ────────────────────────────────────────────────────────────────
 const METHOD_ORDER = [
+  'NONE',
   'REPS', 'PYRAMID', 'DROP_SET', 'REST_PAUSE', 'CIRCUIT',
   'TABATA', 'SUPERSET', 'COMBO', 'DELORME',
 ];
 
 const METHOD_ICONS = {
+  NONE:       Square,
   REPS:       Repeat,
   PYRAMID:    Mountain,
   DROP_SET:   ArrowDownToLine,
@@ -148,7 +151,7 @@ const PARAM_CATALOG = {
 const MODE_TO_METHOD_ID = (() => {
   const map = {};
   for (const [methodId, m] of Object.entries(TRAINING_METHODS)) {
-    map[m.mode] = methodId;
+    if (m.mode) map[m.mode] = methodId; // skip falsy (NONE has mode: null)
   }
   map['רשימה'] = 'SUPERSET';
   return map;
@@ -157,6 +160,7 @@ const MODE_TO_METHOD_ID = (() => {
 // Smart defaults seeded into selectedSetFields the first time a
 // method is chosen. Empty array means "no per-set params by default".
 const DEFAULT_FIELDS_BY_METHOD = {
+  NONE:       ['reps'],
   REPS:       ['sets', 'reps', 'weight_kg'],
   PYRAMID:    ['reps', 'hold_seconds'],
   DROP_SET:   ['reps'],
@@ -168,10 +172,12 @@ const DEFAULT_FIELDS_BY_METHOD = {
   DELORME:    ['reps'],
 };
 
-// Methods whose planned-sets editor renders in Section 3. The other
-// four (TABATA / SUPERSET / COMBO / CIRCUIT) keep the placeholder
-// card until their bespoke layouts ship.
-const METHODS_WITH_PLANNED_SETS = ['PYRAMID', 'REPS', 'DROP_SET', 'REST_PAUSE', 'DELORME'];
+// Each method has exactly one data shape it uses in tabata_data.
+// The Section 3 dispatcher picks the renderer based on these arrays.
+const METHODS_WITH_PLANNED_SETS = ['NONE', 'REPS', 'PYRAMID', 'DROP_SET', 'REST_PAUSE', 'DELORME'];
+const METHODS_WITH_ROUNDS       = ['SUPERSET', 'COMBO'];
+const METHODS_WITH_STATIONS     = ['CIRCUIT'];
+const METHODS_WITH_CLOCK        = ['TABATA'];
 
 // ────────────────────────────────────────────────────────────────
 // Exercise-name autocomplete — preserved from the previous form.
@@ -255,14 +261,25 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // values keyed by PARAM_CATALOG ids + a set_index + variation_name.
   const [plannedSetsDraft, setPlannedSetsDraft] = useState([]);
 
-  // Per-method shared config (e.g. REST_PAUSE's uniform variation +
-  // rest-between-mini-sets). Lives outside planned_sets because it
-  // applies to the whole exercise, not to a single row.
+  // Per-method shared config (REST_PAUSE's uniform variation + rest,
+  // CIRCUIT's rounds + group_mode, …). Lives outside planned_sets
+  // because it applies to the whole exercise, not to a single row.
   const [methodConfig, setMethodConfig] = useState({});
 
   const updateMethodConfig = (key, value) => {
     setMethodConfig((prev) => ({ ...prev, [key]: value }));
   };
+
+  // SUPERSET / COMBO state — rounds, each carrying exercises with
+  // their per-row planned-field values.
+  const [roundsDraft, setRoundsDraft] = useState([]);
+
+  // CIRCUIT state — flat list of stations (one card per station).
+  const [stationsDraft, setStationsDraft] = useState([]);
+
+  // TABATA state — rotation of exercise names + 5 clock settings.
+  const [rotationExercises, setRotationExercises] = useState([]);
+  const [clockSettings, setClockSettings] = useState({});
 
   // ── Variations count (admin only) ─────────────────────────────
   useEffect(() => {
@@ -287,7 +304,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // Fields, tabata_data.planned_sets → plannedSetsDraft. Empty /
   // unparseable payloads collapse to the method's seeded defaults.
   useEffect(() => {
-    const methodId = MODE_TO_METHOD_ID[exercise?.mode] || 'REPS';
+    // Falsy mode (null / undefined / '') → NONE. Anything else falls
+    // through MODE_TO_METHOD_ID (with REPS as the final fallback for
+    // unrecognised strings).
+    const rawMode = exercise?.mode;
+    const methodId = rawMode
+      ? (MODE_TO_METHOD_ID[rawMode] || 'REPS')
+      : 'NONE';
     setActiveMethod(methodId);
 
     let parsed = null;
@@ -309,6 +332,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     setMethodConfig(parsed?.method_config && typeof parsed.method_config === 'object'
       ? parsed.method_config
       : {});
+
+    setRoundsDraft(Array.isArray(parsed?.rounds) ? parsed.rounds : []);
+    setStationsDraft(Array.isArray(parsed?.stations) ? parsed.stations : []);
+    setRotationExercises(Array.isArray(parsed?.exercises_in_rotation) ? parsed.exercises_in_rotation : []);
+    setClockSettings(parsed?.clock_settings && typeof parsed.clock_settings === 'object'
+      ? parsed.clock_settings
+      : {});
   }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync state → exercise.mode + tabata_data ──────────────────
@@ -319,7 +349,12 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (!method) return;
 
     const updates = {};
-    if (exercise?.mode !== method.mode) updates.mode = method.mode;
+    // NONE saves mode as null to keep the DB clean (the TRAINING_METHODS
+    // entry has mode: null already, but compare via ?? to dodge any
+    // undefined-vs-null mismatch).
+    const targetMode = method.mode ?? null;
+    const currMode = exercise?.mode ?? null;
+    if (currMode !== targetMode) updates.mode = targetMode;
 
     let existing = {};
     if (exercise?.tabata_data) {
@@ -330,13 +365,30 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       } catch {}
     }
 
+    // Build the next payload — always carries method + set_fields +
+    // method_config + planned_sets + rounds + stations + rotation +
+    // clock so the DB row holds a consistent shape regardless of which
+    // method the coach last picked. Each renderer reads only its own
+    // keys; idle keys are inert.
     const nextPayload = {
       ...existing,
       method: method.mode,
       set_fields: selectedSetFields,
       planned_sets: plannedSetsDraft,
       method_config: methodConfig,
+      rounds: roundsDraft,
+      stations: stationsDraft,
+      exercises_in_rotation: rotationExercises,
+      clock_settings: clockSettings,
     };
+    // SUPERSET / COMBO carry a container_type for downstream
+    // ExerciseCard.getVariant() detection (already-deployed code).
+    if (activeMethod === 'SUPERSET' || activeMethod === 'COMBO') {
+      nextPayload.container_type = 'list';
+    } else if (activeMethod === 'TABATA') {
+      nextPayload.container_type = 'tabata';
+    }
+
     const nextStr = JSON.stringify(nextPayload);
 
     const currStr = exercise?.tabata_data
@@ -350,7 +402,10 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (Object.keys(updates).length > 0) {
       onChange({ ...exercise, ...updates });
     }
-  }, [activeMethod, selectedSetFields, plannedSetsDraft, methodConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    activeMethod, selectedSetFields, plannedSetsDraft, methodConfig,
+    roundsDraft, stationsDraft, rotationExercises, clockSettings,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Handlers ─────────────────────────────────────────────────
   const handleMethodClick = (methodId) => {
@@ -404,6 +459,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // Section 3 header text varies per method. Memoised so the JSX
   // stays a simple lookup rather than a multi-line ternary.
   const sectionThreeHeader = useMemo(() => {
+    if (activeMethod === 'NONE')       return 'סטים בתרגיל';
     if (activeMethod === 'REPS')       return 'סטים בתרגיל';
     if (activeMethod === 'PYRAMID')    return 'סטים בפירמידה';
     if (activeMethod === 'DROP_SET')   return 'סטים בדרופ סט';
@@ -411,6 +467,95 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (activeMethod === 'DELORME')    return 'סטים בדלורם';
     return null;
   }, [activeMethod]);
+
+  // ── SUPERSET / COMBO helpers ────────────────────────────────
+  const addRound = () => {
+    if (readOnly) return;
+    setRoundsDraft((prev) => [
+      ...prev,
+      { round_index: prev.length + 1, exercises: [{ name: '' }] },
+    ]);
+  };
+  const removeRound = (idx) => {
+    if (readOnly) return;
+    setRoundsDraft((prev) =>
+      prev.filter((_, i) => i !== idx).map((r, i) => ({ ...r, round_index: i + 1 }))
+    );
+  };
+  const addRoundExercise = (roundIdx) => {
+    if (readOnly) return;
+    setRoundsDraft((prev) =>
+      prev.map((r, i) =>
+        i === roundIdx
+          ? { ...r, exercises: [...(r.exercises || []), { name: '' }] }
+          : r
+      )
+    );
+  };
+  const removeRoundExercise = (roundIdx, exIdx) => {
+    if (readOnly) return;
+    setRoundsDraft((prev) =>
+      prev.map((r, i) =>
+        i === roundIdx
+          ? { ...r, exercises: (r.exercises || []).filter((_, j) => j !== exIdx) }
+          : r
+      )
+    );
+  };
+  const updateRoundExercise = (roundIdx, exIdx, key, val) => {
+    if (readOnly) return;
+    setRoundsDraft((prev) =>
+      prev.map((r, i) =>
+        i === roundIdx
+          ? {
+              ...r,
+              exercises: (r.exercises || []).map((e, j) =>
+                j === exIdx ? { ...e, [key]: val } : e
+              ),
+            }
+          : r
+      )
+    );
+  };
+
+  // ── CIRCUIT helpers ─────────────────────────────────────────
+  const addStation = () => {
+    if (readOnly) return;
+    setStationsDraft((prev) => [
+      ...prev,
+      { station_index: prev.length + 1, name: '', type: 'reps', value: null },
+    ]);
+  };
+  const removeStation = (idx) => {
+    if (readOnly) return;
+    setStationsDraft((prev) =>
+      prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, station_index: i + 1 }))
+    );
+  };
+  const updateStation = (idx, key, val) => {
+    if (readOnly) return;
+    setStationsDraft((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, [key]: val } : s))
+    );
+  };
+
+  // ── TABATA helpers ──────────────────────────────────────────
+  const addRotationExercise = () => {
+    if (readOnly) return;
+    setRotationExercises((prev) => [...prev, { name: '' }]);
+  };
+  const removeRotationExercise = (idx) => {
+    if (readOnly) return;
+    setRotationExercises((prev) => prev.filter((_, i) => i !== idx));
+  };
+  const updateRotationExerciseName = (idx, name) => {
+    if (readOnly) return;
+    setRotationExercises((prev) => prev.map((e, i) => (i === idx ? { ...e, name } : e)));
+  };
+  const updateClockSetting = (key, val) => {
+    if (readOnly) return;
+    setClockSettings((prev) => ({ ...prev, [key]: val }));
+  };
 
   const addRowButtonLabel = activeMethod === 'REST_PAUSE'
     ? '+ הוסף מיני-סט'
@@ -424,7 +569,10 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     && plannedSetsDraft.some((r) => !(r.variation_name || '').trim());
 
   // ── Section 3 — pyramid field renderer ───────────────────────
-  const renderFieldInput = (fieldId, row, rowIdx) => {
+  // Single per-cell field renderer reused across every method's
+  // editor. Bumped to 24 px Bebas for numbers + 34 px cell height
+  // so the data-entry digits are legible at arm's length on a phone.
+  const renderFieldInput = (fieldId, row, onChangeField) => {
     const meta = PARAM_CATALOG[fieldId];
     if (!meta) return null;
     const c = meta.color;
@@ -434,29 +582,28 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         style={{
           background: 'white',
           border: `1px solid ${c.tint}`,
-          borderRadius: 7,
-          padding: '6px 8px',
+          borderRadius: 8,
+          padding: '8px 10px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: 2,
+          gap: 3,
         }}
       >
         <span style={{
-          fontSize: 8,
+          fontSize: 10,
           color: c.textPrimary,
           fontWeight: 800,
           background: c.tint,
-          padding: '1px 5px',
+          padding: '2px 6px',
           borderRadius: 3,
         }}>
           {meta.label}
         </span>
         <input
           type={meta.type}
-          value={row[fieldId] ?? ''}
-          onChange={(e) => updateRow(
-            rowIdx,
+          value={row?.[fieldId] ?? ''}
+          onChange={(e) => onChangeField(
             fieldId,
             meta.type === 'number'
               ? (e.target.value === '' ? null : Number(e.target.value))
@@ -464,11 +611,11 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           )}
           style={{
             width: '100%',
-            height: 28,
+            height: 34,
             border: 'none',
             textAlign: 'center',
             fontFamily: meta.type === 'number' ? "'Bebas Neue', sans-serif" : 'inherit',
-            fontSize: meta.type === 'number' ? 20 : 12,
+            fontSize: meta.type === 'number' ? 24 : 12,
             color: c.stripe,
             background: 'transparent',
             outline: 'none',
@@ -575,7 +722,8 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       {/* ─────────────────────────────────────────────────────
           SECTION 2 — Per-set parameter picker.
           4-col grid, multi-select with ✓ badges, smart defaults
-          seeded when a method is first chosen.
+          seeded when a method is first chosen. Hidden for TABATA
+          (the clock settings replace per-set params there).
         ───────────────────────────────────────────────────── */}
       <div className="mb-4 px-1">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -587,66 +735,81 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           </span>
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 6,
-        }}>
-          {Object.entries(PARAM_CATALOG).map(([fieldId, meta]) => {
-            const isSelected = selectedSetFields.includes(fieldId);
-            const c = meta.color;
-            const Icon = meta.icon;
-            const baseStyle = {
-              background: 'white',
-              border: '1px solid #E5E7EB',
-              padding: '8px 4px',
-              borderRadius: 8,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 3,
-              position: 'relative',
-              cursor: readOnly ? 'default' : 'pointer',
-              fontFamily: 'inherit',
-            };
-            const activeStyle = {
-              background: `linear-gradient(135deg, ${c.tint}, white)`,
-              border: `2px solid ${c.border}`,
-            };
-            return (
-              <button
-                key={fieldId}
-                type="button"
-                onClick={() => toggleSetField(fieldId)}
-                style={isSelected ? { ...baseStyle, ...activeStyle } : baseStyle}
-              >
-                {isSelected && (
-                  <span style={{
-                    position: 'absolute', top: -4, left: -4,
-                    background: c.stripe, color: 'white',
-                    width: 16, height: 16, borderRadius: '50%',
-                    fontSize: 9, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 800,
-                  }}>✓</span>
-                )}
-                {Icon && <Icon size={16} color={isSelected ? c.textPrimary : '#6b7280'} />}
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: isSelected ? c.textPrimary : '#374151',
-                  lineHeight: 1.1,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  maxWidth: '100%',
-                }}>
-                  {meta.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {activeMethod === 'TABATA' ? (
+          <div style={{
+            background: '#FAFAFA',
+            border: '1px dashed #E5E7EB',
+            borderRadius: 8,
+            padding: '12px 14px',
+            fontSize: 12,
+            color: '#6b7280',
+            fontWeight: 600,
+            textAlign: 'center',
+          }}>
+            טבטה משתמש בהגדרות שעון קבועות
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 6,
+          }}>
+            {Object.entries(PARAM_CATALOG).map(([fieldId, meta]) => {
+              const isSelected = selectedSetFields.includes(fieldId);
+              const c = meta.color;
+              const Icon = meta.icon;
+              const baseStyle = {
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                padding: '8px 4px',
+                borderRadius: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 3,
+                position: 'relative',
+                cursor: readOnly ? 'default' : 'pointer',
+                fontFamily: 'inherit',
+              };
+              const activeStyle = {
+                background: `linear-gradient(135deg, ${c.tint}, white)`,
+                border: `2px solid ${c.border}`,
+              };
+              const iconSize = isSelected ? 16 : 14;
+              const labelStyle = {
+                fontSize: isSelected ? 11 : 10,
+                fontWeight: isSelected ? 800 : 600,
+                color: isSelected ? c.textPrimary : '#374151',
+                lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%',
+              };
+              return (
+                <button
+                  key={fieldId}
+                  type="button"
+                  onClick={() => toggleSetField(fieldId)}
+                  style={isSelected ? { ...baseStyle, ...activeStyle } : baseStyle}
+                >
+                  {isSelected && (
+                    <span style={{
+                      position: 'absolute', top: -4, left: -4,
+                      background: c.stripe, color: 'white',
+                      width: 16, height: 16, borderRadius: '50%',
+                      fontSize: 9, display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 800,
+                    }}>✓</span>
+                  )}
+                  {Icon && <Icon size={iconSize} color={isSelected ? c.textPrimary : '#6b7280'} />}
+                  <span style={labelStyle}>{meta.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {selectedSetFields.length > 0 && (
           <div style={{
@@ -877,7 +1040,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                         gap: 6,
                       }}>
                         {selectedSetFields.map((fieldId) =>
-                          renderFieldInput(fieldId, row, i)
+                          renderFieldInput(fieldId, row, (f, v) => updateRow(i, f, v))
                         )}
                       </div>
                     )}
@@ -898,23 +1061,638 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         </div>
       )}
 
-      {/* Placeholder for the 4 methods whose layouts aren't built yet
-          (TABATA / SUPERSET / COMBO / CIRCUIT). */}
-      {!METHODS_WITH_PLANNED_SETS.includes(activeMethod) && (
-        <div style={{
-          background: '#FAFAFA',
-          border: '1px dashed #E5E7EB',
-          borderRadius: 12,
-          padding: 20,
-          textAlign: 'center',
-          margin: '14px 0',
-        }}>
-          <Wrench size={24} color="#9CA3AF" style={{ display: 'inline-block' }} />
-          <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 700, marginTop: 8 }}>
-            עורך {TRAINING_METHODS[activeMethod].label} בקרוב
+      {/* ─────────────────────────────────────────────────────
+          SECTION 3 — SUPERSET / COMBO (rounds with horizontal
+          exercise flow). Both share the same data shape; only the
+          palette + inter-exercise connector differ.
+        ───────────────────────────────────────────────────── */}
+      {METHODS_WITH_ROUNDS.includes(activeMethod) && (() => {
+        const isCombo = activeMethod === 'COMBO';
+        const palette = isCombo
+          ? { card: '#FFE4D6', border: '#FFD0AC', text: '#993C1D', accent: '#FF6F20', name: 'חזרה' }
+          : { card: '#F5F3FF', border: '#C4B5FD', text: '#7F47B5', accent: '#7F47B5', name: 'סט סופר' };
+
+        return (
+          <div className="mb-4 px-1">
+            {isCombo && (
+              <div style={{
+                background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                border: '1px solid #FFD0AC',
+                borderRadius: 8,
+                padding: '8px 12px',
+                marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <Zap size={12} color="#FF6F20" />
+                <span style={{ fontSize: 11, color: '#993C1D', fontWeight: 700 }}>
+                  רצף זורם · ללא מנוחה
+                </span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+                {isCombo ? 'חזרות בקומבו' : 'סטים בסופרסט'}
+              </span>
+              <button
+                type="button"
+                onClick={addRound}
+                disabled={readOnly}
+                style={{
+                  background: 'white',
+                  border: `1px solid ${palette.border}`,
+                  color: palette.accent,
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: readOnly ? 'default' : 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {isCombo ? '+ הוסף חזרה' : '+ הוסף סט סופר'}
+              </button>
+            </div>
+
+            {roundsDraft.length === 0 ? (
+              <div style={{
+                padding: 20,
+                textAlign: 'center',
+                color: '#9CA3AF',
+                background: '#FAFAFA',
+                borderRadius: 8,
+                fontSize: 12,
+              }}>
+                {isCombo
+                  ? 'אין חזרות מוגדרות — לחץ "הוסף חזרה" כדי להתחיל'
+                  : 'אין סטים מוגדרים — לחץ "הוסף סט סופר" כדי להתחיל'}
+              </div>
+            ) : (
+              <div>
+                {roundsDraft.map((round, ri) => (
+                  <div key={ri} style={{
+                    background: palette.card,
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 8,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 24,
+                        color: palette.accent,
+                        lineHeight: 1,
+                        minWidth: 28,
+                        fontWeight: 800,
+                      }}>
+                        {String(round.round_index ?? (ri + 1)).padStart(2, '0')}
+                      </span>
+                      <span style={{
+                        background: 'white',
+                        color: palette.accent,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: 999,
+                        padding: '2px 10px',
+                        fontSize: 10,
+                        fontWeight: 800,
+                      }}>
+                        {palette.name} {round.round_index ?? (ri + 1)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeRound(ri)}
+                        aria-label={isCombo ? 'הסר חזרה' : 'הסר סט סופר'}
+                        style={{
+                          marginInlineStart: 'auto',
+                          width: 28,
+                          height: 28,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#9CA3AF',
+                          cursor: readOnly ? 'default' : 'pointer',
+                          fontSize: 18,
+                          lineHeight: 1,
+                        }}
+                      >×</button>
+                    </div>
+
+                    {(round.exercises || []).map((ex, ei) => {
+                      const exerciseLetter = String.fromCharCode(0x05D0 + ei); // א, ב, ג, …
+                      return (
+                        <React.Fragment key={ei}>
+                          {ei > 0 && (
+                            <div style={{
+                              textAlign: 'center',
+                              color: palette.accent,
+                              fontSize: isCombo ? 16 : 10,
+                              fontWeight: 800,
+                              margin: '3px 0',
+                            }}>
+                              {isCombo ? <ArrowLeft size={16} style={{ display: 'inline-block' }} /> : 'ואז'}
+                            </div>
+                          )}
+                          <div style={{
+                            background: 'white',
+                            border: '1px solid #E5E7EB',
+                            borderRadius: 7,
+                            padding: 8,
+                            marginBottom: 4,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: selectedSetFields.length > 0 ? 6 : 0 }}>
+                              <span style={{
+                                background: palette.card,
+                                color: palette.accent,
+                                border: `1px solid ${palette.border}`,
+                                borderRadius: 999,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                                fontWeight: 800,
+                              }}>
+                                תרגיל {exerciseLetter}
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="שם התרגיל"
+                                value={ex.name ?? ''}
+                                onChange={(e) => updateRoundExercise(ri, ei, 'name', e.target.value)}
+                                style={{
+                                  flex: 1,
+                                  height: 30,
+                                  padding: '0 10px',
+                                  border: '1px solid #E5E7EB',
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  color: '#1a1a1a',
+                                  background: 'white',
+                                  fontFamily: 'inherit',
+                                  outline: 'none',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeRoundExercise(ri, ei)}
+                                aria-label="הסר תרגיל"
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#9CA3AF',
+                                  cursor: readOnly ? 'default' : 'pointer',
+                                  fontSize: 16,
+                                  lineHeight: 1,
+                                }}
+                              >×</button>
+                            </div>
+                            {selectedSetFields.length > 0 && (
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: `repeat(${selectedSetFields.length}, 1fr)`,
+                                gap: 6,
+                              }}>
+                                {selectedSetFields.map((fieldId) =>
+                                  renderFieldInput(fieldId, ex, (f, v) => updateRoundExercise(ri, ei, f, v))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => addRoundExercise(ri)}
+                      disabled={readOnly}
+                      style={{
+                        marginTop: 6,
+                        background: 'transparent',
+                        border: `1px dashed ${palette.border}`,
+                        color: palette.accent,
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: readOnly ? 'default' : 'pointer',
+                        fontFamily: 'inherit',
+                        width: '100%',
+                      }}
+                    >
+                      + הוסף תרגיל
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>
-            ניתן לבחור שיטה ופרמטרים · עורך הסטים בפיתוח
+        );
+      })()}
+
+      {/* ─────────────────────────────────────────────────────
+          SECTION 3 — CIRCUIT (horizontal stations + rounds /
+          group-mode method_config header).
+        ───────────────────────────────────────────────────── */}
+      {METHODS_WITH_STATIONS.includes(activeMethod) && (
+        <div className="mb-4 px-1">
+          <div style={{
+            background: 'linear-gradient(135deg, #FFF5EE, white)',
+            border: '1px solid #FFD0AC',
+            borderRadius: 10,
+            padding: 12,
+            marginBottom: 14,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 10, color: '#993C1D', fontWeight: 800 }}>
+                מספר סבבים
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={methodConfig.rounds ?? ''}
+                onChange={(e) => updateMethodConfig(
+                  'rounds',
+                  e.target.value === '' ? null : Number(e.target.value)
+                )}
+                style={{
+                  width: 60,
+                  height: 30,
+                  padding: '0 8px',
+                  border: '1px solid #FFD0AC',
+                  borderRadius: 6,
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: 18,
+                  color: '#FF6F20',
+                  background: 'white',
+                  textAlign: 'center',
+                  outline: 'none',
+                }}
+              />
+              <span style={{ flex: 1 }} />
+              <label style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 10, color: '#1D4ED8', fontWeight: 800,
+                cursor: readOnly ? 'default' : 'pointer',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={!!methodConfig.group_mode}
+                  onChange={(e) => updateMethodConfig('group_mode', e.target.checked)}
+                  disabled={readOnly}
+                  style={{ accentColor: '#3B82F6' }}
+                />
+                אימון קבוצתי
+              </label>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+              תחנות
+            </span>
+            <button
+              type="button"
+              onClick={addStation}
+              disabled={readOnly}
+              style={{
+                background: 'white',
+                border: '1px solid #BFDBFE',
+                color: '#1D4ED8',
+                padding: '6px 12px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: readOnly ? 'default' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              + הוסף תחנה
+            </button>
+          </div>
+
+          {stationsDraft.length === 0 ? (
+            <div style={{
+              padding: 20,
+              textAlign: 'center',
+              color: '#9CA3AF',
+              background: '#FAFAFA',
+              borderRadius: 8,
+              fontSize: 12,
+            }}>
+              אין תחנות — לחץ "הוסף תחנה" כדי להתחיל
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'row',
+              gap: 8,
+              overflowX: 'auto',
+              paddingBottom: 4,
+            }}>
+              {stationsDraft.map((station, si) => {
+                const isTime = station.type === 'time';
+                const valueColor = isTime ? '#14B8A6' : '#D97706';
+                const valueTint  = isTime ? '#F0FDFA' : '#FFFBEB';
+                return (
+                  <div key={si} style={{
+                    minWidth: 160,
+                    background: 'white',
+                    border: methodConfig.group_mode ? '1px solid #3B82F6' : '1px solid #E5E7EB',
+                    borderRadius: 10,
+                    padding: 10,
+                    flexShrink: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 22,
+                        color: '#1D4ED8',
+                        lineHeight: 1,
+                        fontWeight: 800,
+                        minWidth: 26,
+                      }}>
+                        {String(station.station_index ?? (si + 1)).padStart(2, '0')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeStation(si)}
+                        aria-label="הסר תחנה"
+                        style={{
+                          marginInlineStart: 'auto',
+                          width: 24,
+                          height: 24,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#9CA3AF',
+                          cursor: readOnly ? 'default' : 'pointer',
+                          fontSize: 16,
+                          lineHeight: 1,
+                        }}
+                      >×</button>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="שם התחנה"
+                      value={station.name ?? ''}
+                      onChange={(e) => updateStation(si, 'name', e.target.value)}
+                      style={{
+                        height: 30,
+                        padding: '0 8px',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: '#1a1a1a',
+                        background: 'white',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => updateStation(si, 'type', 'reps')}
+                        style={{
+                          flex: 1,
+                          padding: '4px 6px',
+                          background: !isTime ? '#FFFBEB' : 'white',
+                          color: !isTime ? '#92400E' : '#9CA3AF',
+                          border: !isTime ? '1.5px solid #D97706' : '1px solid #E5E7EB',
+                          borderRadius: 6,
+                          fontSize: 10,
+                          fontWeight: 800,
+                          cursor: readOnly ? 'default' : 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        חזרות
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateStation(si, 'type', 'time')}
+                        style={{
+                          flex: 1,
+                          padding: '4px 6px',
+                          background: isTime ? '#F0FDFA' : 'white',
+                          color: isTime ? '#0F766E' : '#9CA3AF',
+                          border: isTime ? '1.5px solid #14B8A6' : '1px solid #E5E7EB',
+                          borderRadius: 6,
+                          fontSize: 10,
+                          fontWeight: 800,
+                          cursor: readOnly ? 'default' : 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        זמן
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      placeholder={isTime ? 'שניות' : 'חזרות'}
+                      value={station.value ?? ''}
+                      onChange={(e) => updateStation(
+                        si,
+                        'value',
+                        e.target.value === '' ? null : Number(e.target.value)
+                      )}
+                      style={{
+                        height: 36,
+                        padding: '0 10px',
+                        border: `1.5px solid ${valueColor}`,
+                        background: valueTint,
+                        borderRadius: 6,
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 22,
+                        color: valueColor,
+                        textAlign: 'center',
+                        outline: 'none',
+                      }}
+                    />
+                    {selectedSetFields.length > 0 && (
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${Math.min(selectedSetFields.length, 2)}, 1fr)`,
+                        gap: 4,
+                      }}>
+                        {selectedSetFields.map((fieldId) =>
+                          renderFieldInput(fieldId, station, (f, v) => updateStation(si, f, v))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────
+          SECTION 3 — TABATA (exercise rotation + 5 clock params).
+          Section 2 is replaced with a static note above.
+        ───────────────────────────────────────────────────── */}
+      {METHODS_WITH_CLOCK.includes(activeMethod) && (
+        <div className="mb-4 px-1">
+          {/* Rotation list */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+              תרגילים ברוטציה
+            </span>
+            <button
+              type="button"
+              onClick={addRotationExercise}
+              disabled={readOnly}
+              style={{
+                background: 'white',
+                border: '1px solid #BFDBFE',
+                color: '#1D4ED8',
+                padding: '6px 12px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: readOnly ? 'default' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              + הוסף תרגיל
+            </button>
+          </div>
+
+          {rotationExercises.length === 0 ? (
+            <div style={{
+              padding: 20,
+              textAlign: 'center',
+              color: '#9CA3AF',
+              background: '#FAFAFA',
+              borderRadius: 8,
+              fontSize: 12,
+              marginBottom: 14,
+            }}>
+              אין תרגילים ברוטציה — לחץ "הוסף תרגיל" כדי להתחיל
+            </div>
+          ) : (
+            <div style={{ marginBottom: 14 }}>
+              {rotationExercises.map((ex, ei) => (
+                <div key={ei} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 6,
+                  background: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  borderRadius: 8,
+                  padding: '6px 10px',
+                }}>
+                  <span style={{
+                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontSize: 18,
+                    color: '#1D4ED8',
+                    lineHeight: 1,
+                    minWidth: 24,
+                    fontWeight: 800,
+                  }}>
+                    {String(ei + 1).padStart(2, '0')}
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="שם התרגיל"
+                    value={ex.name ?? ''}
+                    onChange={(e) => updateRotationExerciseName(ei, e.target.value)}
+                    style={{
+                      flex: 1,
+                      height: 30,
+                      padding: '0 10px',
+                      border: '1px solid #BFDBFE',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: '#1a1a1a',
+                      background: 'white',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeRotationExercise(ei)}
+                    aria-label="הסר תרגיל"
+                    style={{
+                      width: 24,
+                      height: 24,
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      cursor: readOnly ? 'default' : 'pointer',
+                      fontSize: 16,
+                      lineHeight: 1,
+                    }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Clock settings */}
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>
+            הגדרות שעון
+          </div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, 1fr)',
+            gap: 6,
+          }}>
+            {[
+              { key: 'work_seconds',      label: 'עבודה',   color: '#FF6F20', tint: '#FFF5EE' },
+              { key: 'rest_seconds',      label: 'מנוחה',   color: '#14B8A6', tint: '#F0FDFA' },
+              { key: 'rounds',            label: 'סבבים',   color: '#6b7280', tint: '#FAFAFA' },
+              { key: 'sets',              label: 'סטים',    color: '#6b7280', tint: '#FAFAFA' },
+              { key: 'rest_between_sets', label: 'בין סטים', color: '#14B8A6', tint: '#F0FDFA' },
+            ].map((field) => (
+              <div key={field.key} style={{
+                background: 'white',
+                border: `1px solid ${field.tint}`,
+                borderRadius: 8,
+                padding: '8px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+              }}>
+                <input
+                  type="number"
+                  min="0"
+                  value={clockSettings[field.key] ?? ''}
+                  onChange={(e) => updateClockSetting(
+                    field.key,
+                    e.target.value === '' ? null : Number(e.target.value)
+                  )}
+                  style={{
+                    width: '100%',
+                    height: 34,
+                    border: 'none',
+                    textAlign: 'center',
+                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontSize: 24,
+                    color: field.color,
+                    background: 'transparent',
+                    outline: 'none',
+                  }}
+                />
+                <span style={{
+                  fontSize: 10,
+                  color: field.color,
+                  fontWeight: 800,
+                  background: field.tint,
+                  padding: '2px 6px',
+                  borderRadius: 3,
+                }}>
+                  {field.label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
