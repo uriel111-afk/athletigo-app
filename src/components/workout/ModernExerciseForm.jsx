@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useMemo } from "react";
 import {
   Plus, X, Wrench, Info,
   Repeat, Mountain, ArrowDownToLine, PauseCircle, RotateCw,
   Timer, Link2, Zap, BarChart3,
   Clock, Weight, Activity, PersonStanding, Hand, Dumbbell,
   ArrowBigUp, ArrowLeftRight, List,
+  Footprints, Maximize2,
 } from "lucide-react";
 import { searchExercises } from "@/data/exercises";
 import { supabase } from "@/lib/supabaseClient";
@@ -114,6 +115,18 @@ const PARAM_CATALOG = {
     type: 'text',
     color: { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA', textPrimary: '#374151', textSecondary: '#6b7280' },
   },
+  foot_position: {
+    label: 'מנח רגליים',
+    icon: Footprints,
+    type: 'text',
+    color: { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA', textPrimary: '#374151', textSecondary: '#6b7280' },
+  },
+  range_of_motion: {
+    label: 'טווח תנועה',
+    icon: Maximize2,
+    type: 'text',
+    color: { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA', textPrimary: '#374151', textSecondary: '#6b7280' },
+  },
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -132,7 +145,7 @@ const MODE_TO_METHOD_ID = (() => {
 // Smart defaults seeded into selectedSetFields the first time a
 // method is chosen. Empty array means "no per-set params by default".
 const DEFAULT_FIELDS_BY_METHOD = {
-  REPS:       [],
+  REPS:       ['reps', 'weight_kg'],
   PYRAMID:    ['reps', 'hold_seconds'],
   DROP_SET:   ['reps'],
   REST_PAUSE: ['reps'],
@@ -142,6 +155,11 @@ const DEFAULT_FIELDS_BY_METHOD = {
   COMBO:      ['reps'],
   DELORME:    ['reps'],
 };
+
+// Methods whose planned-sets editor renders in Section 3. The other
+// four (TABATA / SUPERSET / COMBO / CIRCUIT) keep the placeholder
+// card until their bespoke layouts ship.
+const METHODS_WITH_PLANNED_SETS = ['PYRAMID', 'REPS', 'DROP_SET', 'REST_PAUSE', 'DELORME'];
 
 // ────────────────────────────────────────────────────────────────
 // Exercise-name autocomplete — preserved from the previous form.
@@ -225,6 +243,15 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // values keyed by PARAM_CATALOG ids + a set_index + variation_name.
   const [plannedSetsDraft, setPlannedSetsDraft] = useState([]);
 
+  // Per-method shared config (e.g. REST_PAUSE's uniform variation +
+  // rest-between-mini-sets). Lives outside planned_sets because it
+  // applies to the whole exercise, not to a single row.
+  const [methodConfig, setMethodConfig] = useState({});
+
+  const updateMethodConfig = (key, value) => {
+    setMethodConfig((prev) => ({ ...prev, [key]: value }));
+  };
+
   // ── Variations count (admin only) ─────────────────────────────
   useEffect(() => {
     if (!isAdmin || !exercise?.id) {
@@ -267,6 +294,9 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     }
 
     setPlannedSetsDraft(parsePlannedSets(exercise));
+    setMethodConfig(parsed?.method_config && typeof parsed.method_config === 'object'
+      ? parsed.method_config
+      : {});
   }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync state → exercise.mode + tabata_data ──────────────────
@@ -293,6 +323,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       method: method.mode,
       set_fields: selectedSetFields,
       planned_sets: plannedSetsDraft,
+      method_config: methodConfig,
     };
     const nextStr = JSON.stringify(nextPayload);
 
@@ -307,7 +338,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (Object.keys(updates).length > 0) {
       onChange({ ...exercise, ...updates });
     }
-  }, [activeMethod, selectedSetFields, plannedSetsDraft]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeMethod, selectedSetFields, plannedSetsDraft, methodConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Handlers ─────────────────────────────────────────────────
   const handleMethodClick = (methodId) => {
@@ -357,6 +388,28 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const updateEx = (field, value) => {
     onChange({ ...exercise, [field]: value });
   };
+
+  // Section 3 header text varies per method. Memoised so the JSX
+  // stays a simple lookup rather than a multi-line ternary.
+  const sectionThreeHeader = useMemo(() => {
+    if (activeMethod === 'REPS')       return 'סטים בתרגיל';
+    if (activeMethod === 'PYRAMID')    return 'סטים בפירמידה';
+    if (activeMethod === 'DROP_SET')   return 'סטים בדרופ סט';
+    if (activeMethod === 'REST_PAUSE') return 'מיני-סטים';
+    if (activeMethod === 'DELORME')    return 'סטים בדלורם';
+    return null;
+  }, [activeMethod]);
+
+  const addRowButtonLabel = activeMethod === 'REST_PAUSE'
+    ? '+ הוסף מיני-סט'
+    : '+ הוסף סט';
+
+  // DROP_SET / DELORME flag variation_name as required — the input
+  // gets an orange border when empty and a single warning hint
+  // surfaces below the row list if any are missing.
+  const variationRequired = activeMethod === 'DROP_SET' || activeMethod === 'DELORME';
+  const hasMissingVariations = variationRequired
+    && plannedSetsDraft.some((r) => !(r.variation_name || '').trim());
 
   // ── Section 3 — pyramid field renderer ───────────────────────
   const renderFieldInput = (fieldId, row, rowIdx) => {
@@ -605,14 +658,100 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
       {/* ─────────────────────────────────────────────────────
           SECTION 3 — Per-method editor.
-          PYRAMID gets the full dynamic editor; six other methods
-          render a placeholder; REPS renders nothing.
+          5 methods share the planned-sets editor (REPS, PYRAMID,
+          DROP_SET, REST_PAUSE, DELORME) with small per-method
+          tweaks: header text, variation-required cue, REST_PAUSE
+          gets a shared method_config header instead of per-row
+          variation. The other 4 methods (TABATA / SUPERSET /
+          COMBO / CIRCUIT) keep the "in development" placeholder.
         ───────────────────────────────────────────────────── */}
-      {activeMethod === 'PYRAMID' && (
+      {METHODS_WITH_PLANNED_SETS.includes(activeMethod) && (
         <div className="mb-4 px-1">
+          {/* REST_PAUSE — shared method_config card (variation +
+              uniform rest between mini-sets) renders above the
+              mini-sets list. Lives in tabata_data.method_config so
+              it persists across reloads alongside the planned_sets. */}
+          {activeMethod === 'REST_PAUSE' && (
+            <div style={{
+              background: 'linear-gradient(135deg, #FFF5EE, white)',
+              border: '1px solid #FFD0AC',
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 14,
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label style={{
+                    fontSize: 10,
+                    color: '#993C1D',
+                    fontWeight: 800,
+                    display: 'block',
+                    marginBottom: 4,
+                  }}>
+                    וריאציה (אחידה לכל המיני-סטים)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="לדוגמה: מנח 6"
+                    value={methodConfig.variation_name ?? ''}
+                    onChange={(e) => updateMethodConfig('variation_name', e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: 34,
+                      padding: '0 10px',
+                      border: '1px solid #FFD0AC',
+                      borderRadius: 7,
+                      fontSize: 12,
+                      color: '#1a1a1a',
+                      background: 'white',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontSize: 10, color: '#0F766E', fontWeight: 800 }}>
+                    מנוחה בין מיני-סטים:
+                  </label>
+                  <input
+                    type="number"
+                    value={methodConfig.rest_seconds ?? ''}
+                    onChange={(e) => updateMethodConfig(
+                      'rest_seconds',
+                      e.target.value === '' ? null : Number(e.target.value)
+                    )}
+                    style={{
+                      width: 60,
+                      height: 30,
+                      padding: '0 8px',
+                      border: '1px solid #14B8A6',
+                      borderRadius: 6,
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 18,
+                      color: '#0F766E',
+                      background: '#F0FDFA',
+                      textAlign: 'center',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{
+                    fontSize: 10,
+                    color: '#0F766E',
+                    fontWeight: 700,
+                    background: '#F0FDFA',
+                    padding: '2px 6px',
+                    borderRadius: 3,
+                  }}>
+                    שניות
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
-              סטים בפירמידה
+              {sectionThreeHeader}
             </span>
             <button
               type="button"
@@ -630,7 +769,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 fontFamily: 'inherit',
               }}
             >
-              + הוסף סט
+              {addRowButtonLabel}
             </button>
           </div>
 
@@ -643,86 +782,114 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               borderRadius: 8,
               fontSize: 12,
             }}>
-              אין סטים מוגדרים — לחץ "הוסף סט" כדי להתחיל
+              {activeMethod === 'REST_PAUSE'
+                ? 'אין מיני-סטים מוגדרים — לחץ "הוסף מיני-סט" כדי להתחיל'
+                : 'אין סטים מוגדרים — לחץ "הוסף סט" כדי להתחיל'}
             </div>
           ) : (
             <div>
-              {plannedSetsDraft.map((row, i) => (
-                <div key={i} style={{
-                  background: '#FFF9F0',
-                  border: '1px solid #FFD0AC',
-                  borderRadius: 10,
-                  padding: 12,
-                  marginBottom: 8,
-                }}>
-                  {/* LINE 1 — index + variation + delete */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <span style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 24,
-                      color: '#FF6F20',
-                      lineHeight: 1,
-                      minWidth: 28,
-                      fontWeight: 800,
-                    }}>
-                      {String(row.set_index ?? (i + 1)).padStart(2, '0')}
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="וריאציה (לדוגמה: שכיבת סמיכה במנח 8)"
-                      value={row.variation_name ?? ''}
-                      onChange={(e) => updateRow(i, 'variation_name', e.target.value)}
-                      style={{
-                        flex: 1,
-                        height: 34,
-                        padding: '0 10px',
-                        border: '1px solid #FFD0AC',
-                        borderRadius: 7,
-                        fontSize: 12,
-                        color: '#1a1a1a',
-                        background: 'white',
-                        fontFamily: 'inherit',
-                        outline: 'none',
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeRow(i)}
-                      aria-label="הסר סט"
-                      style={{
-                        width: 28,
-                        height: 28,
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#9CA3AF',
-                        cursor: readOnly ? 'default' : 'pointer',
-                        fontSize: 18,
+              {plannedSetsDraft.map((row, i) => {
+                const variationEmpty = !(row.variation_name || '').trim();
+                const variationBorder = variationRequired && variationEmpty
+                  ? '1px solid #FF6F20'
+                  : '1px solid #FFD0AC';
+                const variationPlaceholder =
+                  activeMethod === 'PYRAMID'  ? 'וריאציה (לדוגמה: שכיבת סמיכה במנח 8)'
+                  : activeMethod === 'REPS'   ? 'וריאציה (אופציונלי)'
+                  : variationRequired         ? 'וריאציה לסט זה (חובה)'
+                  :                             'וריאציה';
+                return (
+                  <div key={i} style={{
+                    background: '#FFF9F0',
+                    border: '1px solid #FFD0AC',
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 8,
+                  }}>
+                    {/* LINE 1 — index + (variation unless REST_PAUSE) + delete */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 24,
+                        color: '#FF6F20',
                         lineHeight: 1,
-                      }}
-                    >×</button>
-                  </div>
-
-                  {/* LINE 2 — dynamic field grid */}
-                  {selectedSetFields.length > 0 && (
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(${selectedSetFields.length}, 1fr)`,
-                      gap: 6,
-                    }}>
-                      {selectedSetFields.map((fieldId) =>
-                        renderFieldInput(fieldId, row, i)
+                        minWidth: 28,
+                        fontWeight: 800,
+                      }}>
+                        {String(row.set_index ?? (i + 1)).padStart(2, '0')}
+                      </span>
+                      {activeMethod !== 'REST_PAUSE' && (
+                        <input
+                          type="text"
+                          placeholder={variationPlaceholder}
+                          value={row.variation_name ?? ''}
+                          onChange={(e) => updateRow(i, 'variation_name', e.target.value)}
+                          style={{
+                            flex: 1,
+                            height: 34,
+                            padding: '0 10px',
+                            border: variationBorder,
+                            borderRadius: 7,
+                            fontSize: 12,
+                            color: '#1a1a1a',
+                            background: 'white',
+                            fontFamily: 'inherit',
+                            outline: 'none',
+                          }}
+                        />
                       )}
+                      {activeMethod === 'REST_PAUSE' && (
+                        <span style={{ flex: 1 }} />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeRow(i)}
+                        aria-label={activeMethod === 'REST_PAUSE' ? 'הסר מיני-סט' : 'הסר סט'}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#9CA3AF',
+                          cursor: readOnly ? 'default' : 'pointer',
+                          fontSize: 18,
+                          lineHeight: 1,
+                        }}
+                      >×</button>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* LINE 2 — dynamic field grid */}
+                    {selectedSetFields.length > 0 && (
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${selectedSetFields.length}, 1fr)`,
+                        gap: 6,
+                      }}>
+                        {selectedSetFields.map((fieldId) =>
+                          renderFieldInput(fieldId, row, i)
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Validation hint — visual only, doesn't block save. */}
+          {hasMissingVariations && (
+            <div style={{ fontSize: 10, color: '#FF6F20', marginTop: 4 }}>
+              {activeMethod === 'DROP_SET'
+                ? '⚠ דרופ סט דורש וריאציה לכל סט'
+                : '⚠ דלורם דורש וריאציה לכל סט'}
             </div>
           )}
         </div>
       )}
 
-      {/* Placeholder for the other 6 methods (REPS gets no Section 3). */}
-      {activeMethod !== 'PYRAMID' && activeMethod !== 'REPS' && (
+      {/* Placeholder for the 4 methods whose layouts aren't built yet
+          (TABATA / SUPERSET / COMBO / CIRCUIT). */}
+      {!METHODS_WITH_PLANNED_SETS.includes(activeMethod) && (
         <div style={{
           background: '#FAFAFA',
           border: '1px dashed #E5E7EB',
