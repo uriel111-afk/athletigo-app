@@ -590,6 +590,24 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     );
   };
 
+  // EXERCISE_LIST per-exercise param picker — each sub-exercise
+  // carries its own set_fields array. Toggles add/remove a field id
+  // and PRESERVE any value already entered for that field (so picking
+  // 'reps' then unpicking + repicking doesn't wipe what was typed).
+  const toggleExerciseField = (exIdx, fieldId) => {
+    if (readOnly) return;
+    setSubExercises((prev) =>
+      prev.map((ex, i) => {
+        if (i !== exIdx) return ex;
+        const current = Array.isArray(ex.set_fields) ? ex.set_fields : [];
+        const next = current.includes(fieldId)
+          ? current.filter((f) => f !== fieldId)
+          : [...current, fieldId];
+        return { ...ex, set_fields: next };
+      })
+    );
+  };
+
   const addRowButtonLabel = activeMethod === 'REST_PAUSE'
     ? '+ הוסף מיני-סט'
     : '+ הוסף סט';
@@ -860,6 +878,21 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             textAlign: 'center',
           }}>
             טבטה משתמש בהגדרות שעון קבועות
+          </div>
+        ) : activeMethod === 'EXERCISE_LIST' ? (
+          <div style={{
+            background: '#F5F3FF',
+            border: '1px dashed #C4B5FD',
+            borderRadius: 8,
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <Info size={14} color="#7F47B5" />
+            <span style={{ fontSize: 11, color: '#5B21B6', fontWeight: 700 }}>
+              ברשימת תרגילים — כל תרגיל בוחר את הפרמטרים שלו למטה
+            </span>
           </div>
         ) : (
           <div style={{
@@ -1508,78 +1541,180 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             </div>
           ) : (
             <div>
-              {subExercises.map((ex, ei) => (
-                <div key={ei} style={{
-                  background: '#F5F3FF',
-                  border: '1px solid #C4B5FD',
-                  borderRadius: 10,
-                  padding: 12,
-                  marginBottom: 8,
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    marginBottom: selectedSetFields.length > 0 ? 8 : 0,
+              {subExercises.map((ex, ei) => {
+                const exFields = Array.isArray(ex.set_fields) ? ex.set_fields : [];
+                const exFieldsCount = exFields.length;
+                return (
+                  <div key={ei} style={{
+                    background: '#F5F3FF',
+                    border: '1px solid #C4B5FD',
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 8,
                   }}>
-                    <span style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 22,
-                      color: '#7F47B5',
-                      lineHeight: 1,
-                      minWidth: 28,
-                      fontWeight: 800,
-                    }}>
-                      {String(ei + 1).padStart(2, '0')}
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="שם התרגיל"
-                      value={ex.name ?? ''}
-                      onChange={(e) => updateSubExercise(ei, 'name', e.target.value)}
-                      style={{
-                        flex: 1,
-                        height: 32,
-                        padding: '0 10px',
-                        border: '1px solid #C4B5FD',
-                        borderRadius: 6,
-                        fontSize: 12,
-                        color: '#1a1a1a',
-                        background: 'white',
-                        fontFamily: 'inherit',
-                        outline: 'none',
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeSubExercise(ei)}
-                      aria-label="הסר תרגיל"
-                      style={{
-                        width: 28,
-                        height: 28,
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#9CA3AF',
-                        cursor: readOnly ? 'default' : 'pointer',
-                        fontSize: 18,
-                        lineHeight: 1,
-                      }}
-                    >×</button>
-                  </div>
-
-                  {selectedSetFields.length > 0 && (
+                    {/* LINE 1 — index + name + delete */}
                     <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(${selectedSetFields.length}, 1fr)`,
-                      gap: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginBottom: 10,
                     }}>
-                      {selectedSetFields.map((fieldId) =>
-                        renderFieldInput(fieldId, ex, (f, v) => updateSubExercise(ei, f, v))
-                      )}
+                      <span style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 22,
+                        color: '#7F47B5',
+                        lineHeight: 1,
+                        minWidth: 28,
+                        fontWeight: 800,
+                      }}>
+                        {String(ei + 1).padStart(2, '0')}
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="שם התרגיל"
+                        value={ex.name ?? ''}
+                        onChange={(e) => updateSubExercise(ei, 'name', e.target.value)}
+                        style={{
+                          flex: 1,
+                          height: 32,
+                          padding: '0 10px',
+                          border: '1px solid #C4B5FD',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          color: '#1a1a1a',
+                          background: 'white',
+                          fontFamily: 'inherit',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSubExercise(ei)}
+                        aria-label="הסר תרגיל"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#9CA3AF',
+                          cursor: readOnly ? 'default' : 'pointer',
+                          fontSize: 18,
+                          lineHeight: 1,
+                        }}
+                      >×</button>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* LINE 2 — per-exercise param picker. 16 chips,
+                        compact, scoped to this exercise only. */}
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{
+                        fontSize: 9,
+                        color: '#5B21B6',
+                        fontWeight: 800,
+                        marginBottom: 6,
+                        letterSpacing: 0.5,
+                      }}>
+                        פרמטרים לתרגיל זה
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: 4,
+                      }}>
+                        {Object.entries(PARAM_CATALOG).map(([fieldId, meta]) => {
+                          const selected = exFields.includes(fieldId);
+                          const Icon = meta.icon;
+                          return (
+                            <button
+                              key={fieldId}
+                              type="button"
+                              onClick={() => toggleExerciseField(ei, fieldId)}
+                              style={{
+                                background: selected
+                                  ? `linear-gradient(135deg, ${meta.color.tint}, white)`
+                                  : 'white',
+                                border: selected
+                                  ? `2px solid ${meta.color.stripe}`
+                                  : '1px solid #E5E7EB',
+                                borderRadius: 6,
+                                padding: '6px 2px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 2,
+                                position: 'relative',
+                                cursor: readOnly ? 'default' : 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              {selected && (
+                                <span style={{
+                                  position: 'absolute',
+                                  top: -3,
+                                  left: -3,
+                                  background: meta.color.stripe,
+                                  color: 'white',
+                                  width: 12,
+                                  height: 12,
+                                  borderRadius: '50%',
+                                  fontSize: 7,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 800,
+                                }}>✓</span>
+                              )}
+                              {Icon && (
+                                <Icon
+                                  size={selected ? 12 : 11}
+                                  color={selected ? meta.color.stripe : '#9CA3AF'}
+                                />
+                              )}
+                              <span style={{
+                                fontSize: selected ? 9 : 8,
+                                color: selected ? meta.color.textPrimary : '#6b7280',
+                                fontWeight: selected ? 800 : 600,
+                                lineHeight: 1.1,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '100%',
+                              }}>
+                                {meta.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* LINE 3 — dynamic input fields per THIS exercise's set_fields */}
+                    {exFieldsCount > 0 ? (
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${Math.min(exFieldsCount, 3)}, 1fr)`,
+                        gap: 6,
+                      }}>
+                        {exFields.map((fieldId) =>
+                          renderFieldInput(fieldId, ex, (f, v) => updateSubExercise(ei, f, v))
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{
+                        fontSize: 10,
+                        color: '#9CA3AF',
+                        textAlign: 'center',
+                        padding: 8,
+                        background: 'white',
+                        borderRadius: 6,
+                        border: '1px dashed #E5E7EB',
+                      }}>
+                        בחר פרמטרים מעלה כדי שיופיעו כשדות
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
