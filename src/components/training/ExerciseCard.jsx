@@ -90,6 +90,38 @@ const ROUNDS_METHODS = {
   },
 };
 
+// CIRCUIT uses a horizontal station strip + a round-progression
+// indicator. Two palettes: default blue, and a stronger blue when
+// method_config.group_mode is on (the coach is running this circuit
+// as a group session).
+const STATIONS_METHODS = {
+  circuit: {
+    label: 'אימון מחזורי',
+    closedLabel: 'מחזורי',
+    palette: {
+      outer: '#EFF6FF',
+      border: '#BFDBFE',
+      stripe: '#3B82F6',
+      text: '#1E40AF',
+      textSoft: '#1D4ED8',
+    },
+    groupPalette: {
+      outer: '#DBEAFE',
+      border: '#3B82F6',
+      stripe: '#1D4ED8',
+      text: '#1E3A8A',
+      textSoft: '#1E40AF',
+    },
+  },
+};
+
+// Per-station type → color. Lightweight subset of UNIT_COLOR_BY_FIELD
+// scoped to the two valid station types ('reps' / 'time').
+const STATION_TYPE_COLORS = {
+  reps: { stripe: '#D97706', tint: '#FFFBEB', textSecondary: '#92400E', label: 'חזרות' },
+  time: { stripe: '#14B8A6', tint: '#F0FDFA', textSecondary: '#0F766E', label: 'שניות' },
+};
+
 // Per-field unit palette + Hebrew label. Drives both the closed-card
 // dominant-unit display and the column tinting inside open-card rows.
 const UNIT_COLOR_BY_FIELD = {
@@ -792,7 +824,7 @@ export default function ExerciseCard({
   // to ExerciseCard (currently SectionCard does not pass it down),
   // prefer the prop and skip this query.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant]) return;
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant]) return;
     if (!exercise?.id || !plan?.id) return;
     const traineeId = plan.assigned_to || plan.created_by;
     if (!traineeId) return;
@@ -822,7 +854,7 @@ export default function ExerciseCard({
   // the first incomplete set so the trainee resumes on the right row
   // after a page refresh.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant]) return;
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant]) return;
     if (!pyramidExecutionId || !exercise?.id) return;
     let cancelled = false;
     loadActualsForExercise(supabase, pyramidExecutionId, exercise.id).then((map) => {
@@ -1220,6 +1252,99 @@ export default function ExerciseCard({
             marginTop: 3,
           }}>
             {exerciseNames.length} {exCountLabel}: {exerciseNames.join(' · ')}
+          </div>
+        )}
+      </div>
+    );
+  })();
+
+  // CIRCUIT closed-card summary — two lines: station count + rounds
+  // tally above a small preview of the first 3 station names.
+  // Method tag chip is the closedLabel; a small "קבוצתי" pill renders
+  // alongside when method_config.group_mode is on.
+  const circuitSummary = (() => {
+    if (!STATIONS_METHODS[variant]) return null;
+    const methodMeta = STATIONS_METHODS[variant];
+    const td = parseTabataData(exercise?.tabata_data) || {};
+    const stations = Array.isArray(td.stations) ? td.stations : [];
+    if (stations.length === 0) {
+      return (
+        <div dir="rtl" style={{
+          marginTop: 5,
+          fontSize: 12,
+          color: '#9CA3AF',
+          fontWeight: 500,
+        }}>
+          {methodMeta.label} · אין תחנות
+        </div>
+      );
+    }
+    const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
+    const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
+    const groupMode = methodConfig.group_mode === true;
+    const palette = groupMode ? methodMeta.groupPalette : methodMeta.palette;
+    const previewNames = stations
+      .slice(0, 3)
+      .map((s) => (s?.name || '').trim())
+      .filter(Boolean);
+    const numStyle = {
+      fontFamily: "'Bebas Neue', sans-serif",
+      fontSize: 16,
+      color: palette.stripe,
+      lineHeight: 1,
+    };
+    const wordStyle = {
+      fontSize: 10,
+      color: '#6B7280',
+      fontWeight: 600,
+    };
+    return (
+      <div dir="rtl" style={{ marginTop: 5 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          flexWrap: 'wrap',
+          gap: 6,
+        }}>
+          <span style={numStyle}>{stations.length}</span>
+          <span style={wordStyle}>{stations.length === 1 ? 'תחנה' : 'תחנות'}</span>
+          <span style={{ color: '#D1D5DB' }}>·</span>
+          <span style={numStyle}>{rounds}</span>
+          <span style={wordStyle}>{rounds === 1 ? 'סבב' : 'סבבים'}</span>
+          <span style={{ color: '#D1D5DB' }}>·</span>
+          <span style={{
+            fontSize: 10,
+            color: palette.stripe,
+            fontWeight: 700,
+            background: palette.outer,
+            border: `1px solid ${palette.border}`,
+            padding: '2px 8px',
+            borderRadius: 999,
+          }}>
+            {methodMeta.closedLabel}
+          </span>
+          {groupMode && (
+            <span style={{
+              fontSize: 9,
+              fontWeight: 800,
+              color: 'white',
+              background: palette.stripe,
+              padding: '2px 7px',
+              borderRadius: 10,
+              letterSpacing: 0.3,
+            }}>
+              קבוצתי
+            </span>
+          )}
+        </div>
+        {previewNames.length > 0 && (
+          <div style={{
+            fontSize: 10,
+            color: '#9CA3AF',
+            fontWeight: 500,
+            marginTop: 3,
+          }}>
+            {previewNames.join(' · ')}
           </div>
         )}
       </div>
@@ -2811,7 +2936,7 @@ export default function ExerciseCard({
                 {name}
               </div>
             )}
-            {ROUNDS_METHODS[variant] ? roundsSummary : HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
+            {STATIONS_METHODS[variant] ? circuitSummary : ROUNDS_METHODS[variant] ? roundsSummary : HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
               <div style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -2854,6 +2979,291 @@ export default function ExerciseCard({
             borderTop: `1px solid ${colors.border}`,
             padding: isCoachMode ? '12px 13px' : '10px 11px',
           }}>
+            {/* CIRCUIT — horizontal scrollable strip of station cards
+                + a round-progression dot indicator. Each station shows
+                its number, type badge (חזרות / שניות), name, and value
+                in its type's unit color. group_mode swaps in the
+                stronger blue palette and surfaces a "קבוצתי" badge.
+                Persistence reuses onCompleteRound (writes a 1-marker
+                row per completed round to exercise_set_logs). */}
+            {STATIONS_METHODS[variant] && (() => {
+              const methodMeta = STATIONS_METHODS[variant];
+              const td = parseTabataData(exercise?.tabata_data) || {};
+              const stations = Array.isArray(td.stations) ? td.stations : [];
+              const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
+              const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
+              const groupMode = methodConfig.group_mode === true;
+              const palette = groupMode ? methodMeta.groupPalette : methodMeta.palette;
+              const outerBorderWidth = groupMode ? 2.5 : 2;
+
+              if (stations.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    {methodMeta.label} · אין תחנות מוגדרות
+                  </div>
+                );
+              }
+
+              const setFields = getSetFields(exercise);
+              // activeRoundIdx is 0-based; derived from how many rounds
+              // already have a completion marker in pyramidActuals.
+              let activeRoundIdx = rounds;
+              for (let i = 0; i < rounds; i++) {
+                if (!pyramidActuals[i + 1]?.completed) { activeRoundIdx = i; break; }
+              }
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: `${outerBorderWidth}px solid ${palette.stripe}`,
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: `0 4px 10px ${palette.stripe}25`,
+                  marginBottom: 12,
+                }}>
+                  {/* Header band */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
+                        {methodMeta.label}
+                      </span>
+                      {groupMode && (
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          color: 'white',
+                          background: palette.stripe,
+                          padding: '2px 7px',
+                          borderRadius: 10,
+                          letterSpacing: 0.3,
+                        }}>
+                          קבוצתי
+                        </span>
+                      )}
+                    </div>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: palette.stripe,
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: `1px solid ${palette.border}`,
+                    }}>
+                      סבב {Math.min(activeRoundIdx + 1, rounds)} / {rounds}
+                    </span>
+                  </div>
+
+                  {/* Group-mode hint strip */}
+                  {groupMode && (
+                    <div style={{
+                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                      border: `1px solid ${palette.border}`,
+                      borderRadius: 8,
+                      padding: 8,
+                      marginBottom: 10,
+                      fontSize: 11,
+                      color: palette.text,
+                      fontWeight: 700,
+                      textAlign: 'center',
+                    }}>
+                      מצב קבוצתי פעיל — סמן השלמת סבב לכל הקבוצה יחד
+                    </div>
+                  )}
+
+                  {/* Stations strip — horizontal scroll */}
+                  <div style={{
+                    display: 'flex',
+                    gap: 8,
+                    overflowX: 'auto',
+                    paddingBottom: 6,
+                    marginBottom: 12,
+                  }}>
+                    {stations.map((station, sIdx) => {
+                      const stType = station?.type === 'time' ? 'time' : 'reps';
+                      const typeColor = STATION_TYPE_COLORS[stType];
+                      const stationNumber = station?.station_index ?? (sIdx + 1);
+                      return (
+                        <div key={sIdx} style={{
+                          minWidth: 120,
+                          flex: '0 0 120px',
+                          background: 'white',
+                          border: `1.5px solid ${palette.border}`,
+                          borderRadius: 10,
+                          padding: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 20,
+                              color: palette.stripe,
+                              fontWeight: 800,
+                              lineHeight: 1,
+                            }}>
+                              {String(stationNumber).padStart(2, '0')}
+                            </span>
+                            <span style={{
+                              fontSize: 8,
+                              fontWeight: 800,
+                              color: typeColor.stripe,
+                              background: typeColor.tint,
+                              padding: '2px 6px',
+                              borderRadius: 3,
+                            }}>
+                              {typeColor.label}
+                            </span>
+                          </div>
+
+                          <div style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: '#1a1a1a',
+                            minHeight: 28,
+                            wordBreak: 'break-word',
+                          }}>
+                            {station?.name || 'תחנה ללא שם'}
+                          </div>
+
+                          <div style={{
+                            background: typeColor.tint,
+                            border: `1px solid ${typeColor.tint}`,
+                            borderRadius: 6,
+                            padding: 6,
+                            textAlign: 'center',
+                          }}>
+                            <div style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 22,
+                              color: typeColor.stripe,
+                              lineHeight: 1,
+                              fontWeight: 800,
+                            }}>
+                              {station?.value ?? '-'}
+                            </div>
+                          </div>
+
+                          {setFields.length > 0 && (
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: `repeat(${Math.min(setFields.length, 2)}, 1fr)`,
+                              gap: 4,
+                            }}>
+                              {setFields.map((fieldId) => {
+                                const c = UNIT_COLOR_BY_FIELD[fieldId];
+                                if (!c) return null;
+                                const val = station?.[fieldId];
+                                if (val == null) return null;
+                                return (
+                                  <div key={fieldId} style={{
+                                    background: c.tint,
+                                    border: `1px solid ${c.tint}`,
+                                    borderRadius: 4,
+                                    padding: '3px 4px',
+                                    textAlign: 'center',
+                                  }}>
+                                    <div style={{
+                                      fontFamily: "'Bebas Neue', sans-serif",
+                                      fontSize: 13,
+                                      color: c.stripe,
+                                      lineHeight: 1,
+                                    }}>{val}</div>
+                                    <div style={{
+                                      fontSize: 7,
+                                      color: c.textSecondary,
+                                      fontWeight: 800,
+                                      marginTop: 2,
+                                    }}>{c.label}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Round progress dots */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: 6,
+                    marginBottom: 10,
+                  }}>
+                    {Array.from({ length: rounds }, (_, i) => (
+                      <div key={i} style={{
+                        width: i === activeRoundIdx ? 24 : 8,
+                        height: 8,
+                        borderRadius: 4,
+                        background: i < activeRoundIdx ? '#16A34A'
+                          : i === activeRoundIdx ? palette.stripe
+                          : '#E5E7EB',
+                        transition: 'all 0.2s',
+                      }} />
+                    ))}
+                  </div>
+
+                  {/* Complete-round button — trainee + active round only */}
+                  {!isCoachMode && activeRoundIdx < rounds && (
+                    <button
+                      type="button"
+                      onClick={() => onCompleteRound(activeRoundIdx + 1)}
+                      disabled={pyramidSaving}
+                      style={{
+                        width: '100%',
+                        background: pyramidSaving
+                          ? '#D1D5DB'
+                          : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
+                        color: 'white',
+                        border: 'none',
+                        padding: 10,
+                        borderRadius: 8,
+                        fontWeight: 800,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        cursor: pyramidSaving ? 'default' : 'pointer',
+                      }}
+                    >
+                      {pyramidSaving ? 'שומר...' : `סיים סבב ${activeRoundIdx + 1} והמשך`}
+                    </button>
+                  )}
+
+                  {/* Coach tally */}
+                  {isCoachMode && (
+                    <div style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      color: palette.text,
+                      fontWeight: 700,
+                      padding: 8,
+                      background: palette.outer,
+                      borderRadius: 7,
+                    }}>
+                      ביצוע המתאמן · {Math.min(activeRoundIdx, rounds)}/{rounds} סבבים
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* SUPERSET / COMBO — rounds-based layout. Vertical list
                 of round cards; each round shows its exercise sequence
                 vertically with a connector ("ואז" for superset, "←"
