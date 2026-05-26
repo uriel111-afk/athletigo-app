@@ -67,6 +67,11 @@ async function uploadToStorage(blob, filename) {
         statusCode: fallback.error.statusCode,
         error: fallback.error,
       });
+      // Carry context onto the thrown error so callers can surface
+      // bucket + path in their step-1 diagnostic alert.
+      fallback.error.bucketAttempted = 'lifeos-files, media';
+      fallback.error.path = path;
+      fallback.error.primaryError = primary.error?.message;
       throw fallback.error;
     }
 

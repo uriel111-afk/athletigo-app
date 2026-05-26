@@ -63,7 +63,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     onClose?.();
   };
 
-  const handleSave = async () => {
+  const handleSaveExpense = async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
       toast.error('הכנס סכום תקין');
@@ -75,25 +75,70 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     }
 
     setSaving(true);
-    let savedRow = null;
-
     try {
-      // Step 1: upload photo if attached
-      let receipt_url = form.receipt_url;
-      if (pendingBlob && cameraRef.current) {
-        console.log('[ExpenseForm] Step 1: uploading photo');
+      console.log('[EXPENSE] start, pendingBlob:', pendingBlob);
+
+      let receipt_url = form.receipt_url || null;
+
+      // ── Step 1: upload photo if one was captured ─────────────────
+      if (pendingBlob?.blob && cameraRef.current) {
+        const blob = pendingBlob.blob;
+        console.log('[EXPENSE] photo:', { size: blob.size, type: blob.type, name: pendingBlob.filename });
+
+        if (blob.size > 5 * 1024 * 1024) {
+          alert('התמונה גדולה מ-5 מגה. נסה תמונה קטנה יותר.');
+          setSaving(false);
+          return;
+        }
+
+        console.log('[EXPENSE] uploading via SmartCamera.uploadNow (bucket: lifeos-files → media fallback)');
+
+        let uploadResult = null;
         try {
-          receipt_url = await cameraRef.current.uploadNow();
-          console.log('[ExpenseForm] Photo uploaded:', receipt_url);
-        } catch (uploadErr) {
-          throw new Error(`UPLOAD_FAILED: ${uploadErr?.message || uploadErr}`);
+          uploadResult = await cameraRef.current.uploadNow();
+          console.log('[EXPENSE] upload result:', { uploadResult });
+        } catch (uploadError) {
+          console.error('[EXPENSE] upload threw:', uploadError);
+          window.lastExpenseError = {
+            time: new Date().toISOString(),
+            stage: 'upload',
+            message: uploadError?.message || String(uploadError),
+            bucketAttempted: uploadError?.bucketAttempted,
+            path: uploadError?.path,
+            primaryError: uploadError?.primaryError,
+            statusCode: uploadError?.statusCode,
+            stack: uploadError?.stack,
+          };
+          alert(
+            'שלב 1 — העלאת תמונה נכשלה.\n\n' +
+            'הודעה: ' + (uploadError?.message || 'אין הודעה') + '\n' +
+            'דלי: ' + (uploadError?.bucketAttempted || 'lifeos-files / media') + '\n' +
+            'נתיב: ' + (uploadError?.path || 'לא ידוע') +
+            (uploadError?.primaryError ? '\nשגיאת lifeos-files: ' + uploadError.primaryError : '')
+          );
+          setSaving(false);
+          return; // CRITICAL: do NOT close the dialog
         }
-        if (!receipt_url) {
-          throw new Error('UPLOAD_FAILED: uploadNow returned no URL');
+
+        if (!uploadResult) {
+          window.lastExpenseError = {
+            time: new Date().toISOString(),
+            stage: 'upload',
+            message: 'uploadNow returned no URL',
+          };
+          alert(
+            'שלב 1 — העלאת תמונה נכשלה.\n\n' +
+            'הודעה: uploadNow החזיר ערך ריק (אין URL).\n' +
+            'דלי: lifeos-files / media'
+          );
+          setSaving(false);
+          return;
         }
+        receipt_url = uploadResult;
+        console.log('[EXPENSE] receipt_url:', receipt_url);
       }
 
-      // Step 2: build payload
+      // ── Step 2: insert / update expense row ──────────────────────
       const payload = {
         amount,
         category: form.category,
@@ -104,17 +149,35 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         notes: form.notes || null,
         receipt_url: receipt_url || null,
       };
-      console.log('[ExpenseForm] Step 2: inserting expense', payload);
+      console.log('[EXPENSE] inserting row with payload:', payload);
 
-      // Step 3: insert + verify
-      if (expense?.id) {
-        savedRow = await updateExpense(expense.id, payload);
-      } else {
-        savedRow = await addExpense(userId, payload);
+      let savedRow = null;
+      try {
+        if (expense?.id) {
+          savedRow = await updateExpense(expense.id, payload);
+        } else {
+          savedRow = await addExpense(userId, payload);
+        }
+        console.log('[EXPENSE] insert result:', { savedRow });
+      } catch (insertError) {
+        console.error('[EXPENSE] insert threw:', insertError);
+        window.lastExpenseError = {
+          time: new Date().toISOString(),
+          stage: 'insert',
+          message: insertError?.message || String(insertError),
+          code: insertError?.code,
+          stack: insertError?.stack,
+        };
+        alert(
+          'שלב 2 — שמירה נכשלה.\n\n' +
+          'הודעה: ' + (insertError?.message || 'אין הודעה') + '\n' +
+          'קוד: ' + (insertError?.code || 'אין')
+        );
+        setSaving(false);
+        return; // CRITICAL: do NOT close the dialog
       }
-      console.log('[ExpenseForm] Step 3: insert verified', savedRow);
 
-      // Step 4: success path — only here do we close
+      // ── Step 3: success path — only here do we close ─────────────
       window.lastExpenseSuccess = {
         time: new Date().toISOString(),
         expense_id: savedRow?.id,
@@ -128,26 +191,24 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     } catch (err) {
       window.lastExpenseError = {
         time: new Date().toISOString(),
+        stage: 'uncaught',
         message: err?.message || String(err),
         stack: err?.stack,
-        details: err,
       };
-      console.error('[ExpenseForm] SAVE FAILED', window.lastExpenseError);
-
-      const userMsg = err?.message?.startsWith('UPLOAD_FAILED:')
-        ? `העלאת התמונה נכשלה: ${err.message.replace('UPLOAD_FAILED: ', '')}`
-        : err?.message?.startsWith('VERIFICATION_FAILED:')
-        ? `ההוצאה לא נשמרה כראוי. ${err.message}`
-        : `שמירה נכשלה: ${err?.message || 'שגיאה לא ידועה'}`;
-
-      toast.error(userMsg);
-      alert(userMsg);
-      // CRITICAL: do NOT call onClose. Form stays open so user can retry.
-
+      console.error('[EXPENSE] UNCAUGHT:', err);
+      alert(
+        'שגיאה לא צפויה:\n\n' +
+        (err?.message || 'אין הודעה') + '\n\n' +
+        (err?.stack || '')
+      );
+      // do NOT close the dialog on uncaught error
     } finally {
       setSaving(false);
     }
   };
+
+  // Existing callers reference handleSave — keep the name as an alias.
+  const handleSave = handleSaveExpense;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) closeForm('dialog-openchange'); }}>
