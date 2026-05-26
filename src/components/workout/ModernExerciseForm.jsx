@@ -4,7 +4,7 @@ import {
   Repeat, Mountain, ArrowDownToLine, PauseCircle, RotateCw,
   Timer, Link2, Zap, BarChart3,
   Clock, Weight, Activity, PersonStanding, Hand, Dumbbell,
-  ArrowBigUp, ArrowLeftRight, List,
+  ArrowBigUp, ArrowLeftRight, List, ListChecks,
   Footprints, Maximize2, Hash, RefreshCw,
   Square, ArrowLeft,
 } from "lucide-react";
@@ -22,21 +22,23 @@ import { parsePlannedSets } from '../../lib/plannedSets';
 // ────────────────────────────────────────────────────────────────
 const METHOD_ORDER = [
   'NONE',
+  'EXERCISE_LIST',
   'REPS', 'PYRAMID', 'DROP_SET', 'REST_PAUSE', 'CIRCUIT',
   'TABATA', 'SUPERSET', 'COMBO', 'DELORME',
 ];
 
 const METHOD_ICONS = {
-  NONE:       Square,
-  REPS:       Repeat,
-  PYRAMID:    Mountain,
-  DROP_SET:   ArrowDownToLine,
-  REST_PAUSE: PauseCircle,
-  CIRCUIT:    RotateCw,
-  TABATA:     Timer,
-  SUPERSET:   Link2,
-  COMBO:      Zap,
-  DELORME:    BarChart3,
+  NONE:          Square,
+  EXERCISE_LIST: ListChecks,
+  REPS:          Repeat,
+  PYRAMID:       Mountain,
+  DROP_SET:      ArrowDownToLine,
+  REST_PAUSE:    PauseCircle,
+  CIRCUIT:       RotateCw,
+  TABATA:        Timer,
+  SUPERSET:      Link2,
+  COMBO:         Zap,
+  DELORME:       BarChart3,
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -153,7 +155,10 @@ const MODE_TO_METHOD_ID = (() => {
   for (const [methodId, m] of Object.entries(TRAINING_METHODS)) {
     if (m.mode) map[m.mode] = methodId; // skip falsy (NONE has mode: null)
   }
-  map['רשימה'] = 'SUPERSET';
+  // 'רשימה' is now its own first-class method (EXERCISE_LIST). The
+  // mapping is already set by the loop above; legacy superset rows
+  // that were saved with mode='רשימה' will hydrate into the list
+  // editor — same data shape (sub_exercises) so no migration needed.
   return map;
 })();
 
@@ -161,16 +166,17 @@ const MODE_TO_METHOD_ID = (() => {
 // can opt back in by listing their seeds here; for now every method
 // starts clean — the coach must pick params explicitly.
 const DEFAULT_FIELDS_BY_METHOD = {
-  NONE:       [],
-  REPS:       [],
-  PYRAMID:    [],
-  DROP_SET:   [],
-  REST_PAUSE: [],
-  CIRCUIT:    [],
-  TABATA:     [],
-  SUPERSET:   [],
-  COMBO:      [],
-  DELORME:    [],
+  NONE:          [],
+  EXERCISE_LIST: [],
+  REPS:          [],
+  PYRAMID:       [],
+  DROP_SET:      [],
+  REST_PAUSE:    [],
+  CIRCUIT:       [],
+  TABATA:        [],
+  SUPERSET:      [],
+  COMBO:         [],
+  DELORME:       [],
 };
 
 // Each method has exactly one data shape it uses in tabata_data.
@@ -179,6 +185,7 @@ const METHODS_WITH_PLANNED_SETS = ['NONE', 'REPS', 'PYRAMID', 'DROP_SET', 'REST_
 const METHODS_WITH_ROUNDS       = ['SUPERSET', 'COMBO'];
 const METHODS_WITH_STATIONS     = ['CIRCUIT'];
 const METHODS_WITH_CLOCK        = ['TABATA'];
+const METHODS_WITH_LIST         = ['EXERCISE_LIST'];
 
 // ────────────────────────────────────────────────────────────────
 // Exercise-name autocomplete — preserved from the previous form.
@@ -282,6 +289,10 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const [rotationExercises, setRotationExercises] = useState([]);
   const [clockSettings, setClockSettings] = useState({});
 
+  // EXERCISE_LIST state — flat list of sub-exercises, each carrying
+  // optional per-field values keyed by PARAM_CATALOG ids.
+  const [subExercises, setSubExercises] = useState([]);
+
   // ── Variations count (admin only) ─────────────────────────────
   useEffect(() => {
     if (!isAdmin || !exercise?.id) {
@@ -340,6 +351,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     setClockSettings(parsed?.clock_settings && typeof parsed.clock_settings === 'object'
       ? parsed.clock_settings
       : {});
+    setSubExercises(Array.isArray(parsed?.sub_exercises) ? parsed.sub_exercises : []);
   }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync state → exercise.mode + tabata_data ──────────────────
@@ -381,10 +393,12 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       stations: stationsDraft,
       exercises_in_rotation: rotationExercises,
       clock_settings: clockSettings,
+      sub_exercises: subExercises,
     };
-    // SUPERSET / COMBO carry a container_type for downstream
-    // ExerciseCard.getVariant() detection (already-deployed code).
-    if (activeMethod === 'SUPERSET' || activeMethod === 'COMBO') {
+    // SUPERSET / COMBO / EXERCISE_LIST carry a container_type for
+    // downstream ExerciseCard.getVariant() detection (already-deployed
+    // code routes container_type='list' → variant='list').
+    if (activeMethod === 'SUPERSET' || activeMethod === 'COMBO' || activeMethod === 'EXERCISE_LIST') {
       nextPayload.container_type = 'list';
     } else if (activeMethod === 'TABATA') {
       nextPayload.container_type = 'tabata';
@@ -406,6 +420,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   }, [
     activeMethod, selectedSetFields, plannedSetsDraft, methodConfig,
     roundsDraft, stationsDraft, rotationExercises, clockSettings,
+    subExercises,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Handlers ─────────────────────────────────────────────────
@@ -556,6 +571,22 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const updateClockSetting = (key, val) => {
     if (readOnly) return;
     setClockSettings((prev) => ({ ...prev, [key]: val }));
+  };
+
+  // ── EXERCISE_LIST helpers ───────────────────────────────────
+  const addSubExercise = () => {
+    if (readOnly) return;
+    setSubExercises((prev) => [...prev, { name: '' }]);
+  };
+  const removeSubExercise = (idx) => {
+    if (readOnly) return;
+    setSubExercises((prev) => prev.filter((_, i) => i !== idx));
+  };
+  const updateSubExercise = (idx, field, value) => {
+    if (readOnly) return;
+    setSubExercises((prev) =>
+      prev.map((ex, i) => (i === idx ? { ...ex, [field]: value } : ex))
+    );
   };
 
   const addRowButtonLabel = activeMethod === 'REST_PAUSE'
@@ -1355,6 +1386,129 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           </div>
         );
       })()}
+
+      {/* ─────────────────────────────────────────────────────
+          SECTION 3 — EXERCISE_LIST (flat universal list).
+          A generic container with sub_exercises and an optional set
+          of per-exercise param fields. Rendered downstream by the
+          ExerciseCard 'list' variant.
+        ───────────────────────────────────────────────────── */}
+      {METHODS_WITH_LIST.includes(activeMethod) && (
+        <div className="mb-4 px-1">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+              תרגילים ברשימה
+            </span>
+            <button
+              type="button"
+              onClick={addSubExercise}
+              disabled={readOnly}
+              style={{
+                background: 'white',
+                border: '1px solid #C4B5FD',
+                color: '#7F47B5',
+                padding: '8px 14px',
+                borderRadius: 7,
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: readOnly ? 'default' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              + הוסף תרגיל
+            </button>
+          </div>
+
+          {subExercises.length === 0 ? (
+            <div style={{
+              background: '#FAFAFA',
+              border: '1px dashed #E5E7EB',
+              borderRadius: 8,
+              padding: 20,
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 12, color: '#9CA3AF' }}>
+                אין תרגילים ברשימה — לחץ "+ הוסף תרגיל"
+              </div>
+            </div>
+          ) : (
+            <div>
+              {subExercises.map((ex, ei) => (
+                <div key={ei} style={{
+                  background: '#F5F3FF',
+                  border: '1px solid #C4B5FD',
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 8,
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: selectedSetFields.length > 0 ? 8 : 0,
+                  }}>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 22,
+                      color: '#7F47B5',
+                      lineHeight: 1,
+                      minWidth: 28,
+                      fontWeight: 800,
+                    }}>
+                      {String(ei + 1).padStart(2, '0')}
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="שם התרגיל"
+                      value={ex.name ?? ''}
+                      onChange={(e) => updateSubExercise(ei, 'name', e.target.value)}
+                      style={{
+                        flex: 1,
+                        height: 32,
+                        padding: '0 10px',
+                        border: '1px solid #C4B5FD',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: '#1a1a1a',
+                        background: 'white',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSubExercise(ei)}
+                      aria-label="הסר תרגיל"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#9CA3AF',
+                        cursor: readOnly ? 'default' : 'pointer',
+                        fontSize: 18,
+                        lineHeight: 1,
+                      }}
+                    >×</button>
+                  </div>
+
+                  {selectedSetFields.length > 0 && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${selectedSetFields.length}, 1fr)`,
+                      gap: 6,
+                    }}>
+                      {selectedSetFields.map((fieldId) =>
+                        renderFieldInput(fieldId, ex, (f, v) => updateSubExercise(ei, f, v))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ─────────────────────────────────────────────────────
           SECTION 3 — CIRCUIT (horizontal stations + rounds /
