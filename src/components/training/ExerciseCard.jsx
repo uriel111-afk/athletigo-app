@@ -50,6 +50,46 @@ const HORIZONTAL_MINISETS_METHODS = {
   rest_pause: { label: 'רסט פאוז', closedLabel: 'רסט פאוז' },
 };
 
+// SUPERSET / COMBO use a rounds-based layout: vertical list of round
+// cards, each carrying the same sequence of exercises with a connector
+// ("ואז" for superset, "←" for combo) between adjacent exercises.
+// pluralLabel renders the count headline (Hebrew counts shift form for
+// 2+). topHint is a single-line strip above the round list (combo only).
+const ROUNDS_METHODS = {
+  super_set: {
+    label: 'סופרסט',
+    closedLabel: 'סופר סט',
+    palette: {
+      outer: '#F5F3FF',
+      border: '#C4B5FD',
+      stripe: '#7F47B5',
+      text: '#5B21B6',
+      textSoft: '#7C3AED',
+    },
+    roundLabel: 'סט סופר',
+    pluralLabel: 'סטים סופר',
+    connector: 'ואז',
+    connectorStyle: 'text',
+    topHint: null,
+  },
+  combo: {
+    label: 'קומבו',
+    closedLabel: 'קומבו',
+    palette: {
+      outer: '#FFF5EE',
+      border: '#FFD0AC',
+      stripe: '#FF6F20',
+      text: '#993C1D',
+      textSoft: '#C2410C',
+    },
+    roundLabel: 'חזרה',
+    pluralLabel: 'חזרות',
+    connector: '←',
+    connectorStyle: 'arrow',
+    topHint: 'רצף זורם · ללא מנוחה',
+  },
+};
+
 // Per-field unit palette + Hebrew label. Drives both the closed-card
 // dominant-unit display and the column tinting inside open-card rows.
 const UNIT_COLOR_BY_FIELD = {
@@ -124,6 +164,15 @@ function getVariant(exercise) {
   } else if (exercise?.mode === 'חזרות') {
     const td = parseTabataData(exercise?.tabata_data);
     if (Array.isArray(td?.planned_sets)) return 'reps_new';
+  }
+  // SUPERSET / COMBO with rounds[] route to the new rounds-based
+  // renderer. Legacy rows without a rounds array fall through to the
+  // existing 'list' variant so they keep working.
+  if (exercise.mode === 'סופרסט' || exercise.mode === 'קומבו') {
+    const td = parseTabataData(exercise?.tabata_data);
+    if (Array.isArray(td?.rounds) && td.rounds.length > 0) {
+      return exercise.mode === 'קומבו' ? 'combo' : 'super_set';
+    }
   }
   if (exercise.mode === 'טבטה') return 'tabata';
   if (['סופרסט', 'קומבו', 'רשימה'].includes(exercise.mode)) return 'list';
@@ -673,6 +722,37 @@ export default function ExerciseCard({
     }));
     setPyramidActiveIdx((idx) => idx + 1);
   };
+
+  // SUPERSET / COMBO round-completion. Reuses saveSetActual keyed by
+  // round_index — writes reps_completed = 1 as a "round done" marker.
+  // Hydration derives activeRoundIdx from pyramidActuals so a refresh
+  // resumes on the next undone round.
+  const onCompleteRound = async (roundIndex) => {
+    if (!pyramidExecutionId || !exercise?.id) {
+      console.warn('[rounds] no executionId — cannot persist');
+      alert('עוד אין סשן פעיל — פתח את האימון מחדש ונסה שוב');
+      return;
+    }
+    setPyramidSaving(true);
+    const { error } = await saveSetActual(
+      supabase,
+      pyramidExecutionId,
+      exercise.id,
+      roundIndex,
+      { reps: 1 }
+    );
+    setPyramidSaving(false);
+    if (error) {
+      console.error('[rounds] saveSetActual failed', error);
+      alert('שמירה נכשלה — נסה שוב');
+      return;
+    }
+    setPyramidActuals((prev) => ({
+      ...prev,
+      [roundIndex]: { ...prev[roundIndex], reps: 1, completed: true },
+    }));
+  };
+
   const actionsMenuRef = useRef(null);        // trigger wrapper
   const actionsPopoverRef = useRef(null);     // portalled popover
   useEffect(() => {
@@ -712,7 +792,7 @@ export default function ExerciseCard({
   // to ExerciseCard (currently SectionCard does not pass it down),
   // prefer the prop and skip this query.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant]) return;
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant]) return;
     if (!exercise?.id || !plan?.id) return;
     const traineeId = plan.assigned_to || plan.created_by;
     if (!traineeId) return;
@@ -742,7 +822,7 @@ export default function ExerciseCard({
   // the first incomplete set so the trainee resumes on the right row
   // after a page refresh.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant]) return;
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant]) return;
     if (!pyramidExecutionId || !exercise?.id) return;
     let cancelled = false;
     loadActualsForExercise(supabase, pyramidExecutionId, exercise.id).then((map) => {
@@ -1064,6 +1144,84 @@ export default function ExerciseCard({
         }}>
           {variationName || 'ללא וריאציה'} · {restSeconds} שניות מנוחה
         </div>
+      </div>
+    );
+  })();
+
+  // SUPERSET / COMBO closed-card summary — two lines: count of rounds
+  // + list of exercise names from the first round (the sequence is the
+  // same across rounds, so rounds[0].exercises is the canonical preview).
+  // Method tag chip uses the variant's closedLabel + palette.
+  const roundsSummary = (() => {
+    if (!ROUNDS_METHODS[variant]) return null;
+    const methodMeta = ROUNDS_METHODS[variant];
+    const td = parseTabataData(exercise?.tabata_data) || {};
+    const rounds = Array.isArray(td.rounds) ? td.rounds : [];
+    if (rounds.length === 0) {
+      return (
+        <div dir="rtl" style={{
+          marginTop: 5,
+          fontSize: 12,
+          color: '#9CA3AF',
+          fontWeight: 500,
+        }}>
+          {methodMeta.label} · אין סבבים מוגדרים
+        </div>
+      );
+    }
+    const firstRoundExercises = Array.isArray(rounds[0]?.exercises) ? rounds[0].exercises : [];
+    const exerciseNames = firstRoundExercises
+      .map((e) => (e?.name || '').trim())
+      .filter(Boolean);
+    const accent = methodMeta.palette.stripe;
+    const tintBg = methodMeta.palette.outer;
+    const tintBorder = methodMeta.palette.border;
+    const countLabel = rounds.length === 1 ? methodMeta.roundLabel : methodMeta.pluralLabel;
+    const exCountLabel = exerciseNames.length === 1 ? 'תרגיל' : 'תרגילים';
+    const numStyle = {
+      fontFamily: "'Bebas Neue', sans-serif",
+      fontSize: 16,
+      color: accent,
+      lineHeight: 1,
+    };
+    const wordStyle = {
+      fontSize: 10,
+      color: '#6B7280',
+      fontWeight: 600,
+    };
+    return (
+      <div dir="rtl" style={{ marginTop: 5 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          flexWrap: 'wrap',
+          gap: 6,
+        }}>
+          <span style={numStyle}>{rounds.length}</span>
+          <span style={wordStyle}>{countLabel}</span>
+          <span style={{ color: '#D1D5DB' }}>·</span>
+          <span style={{
+            fontSize: 10,
+            color: accent,
+            fontWeight: 700,
+            background: tintBg,
+            border: `1px solid ${tintBorder}`,
+            padding: '2px 8px',
+            borderRadius: 999,
+          }}>
+            {methodMeta.closedLabel}
+          </span>
+        </div>
+        {exerciseNames.length > 0 && (
+          <div style={{
+            fontSize: 10,
+            color: '#9CA3AF',
+            fontWeight: 500,
+            marginTop: 3,
+          }}>
+            {exerciseNames.length} {exCountLabel}: {exerciseNames.join(' · ')}
+          </div>
+        )}
       </div>
     );
   })();
@@ -2653,7 +2811,7 @@ export default function ExerciseCard({
                 {name}
               </div>
             )}
-            {HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
+            {ROUNDS_METHODS[variant] ? roundsSummary : HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
               <div style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -2696,6 +2854,273 @@ export default function ExerciseCard({
             borderTop: `1px solid ${colors.border}`,
             padding: isCoachMode ? '12px 13px' : '10px 11px',
           }}>
+            {/* SUPERSET / COMBO — rounds-based layout. Vertical list
+                of round cards; each round shows its exercise sequence
+                vertically with a connector ("ואז" for superset, "←"
+                arrow for combo) between adjacent exercises. Active
+                round expands a "סיים סבב והמשך" button (trainee only)
+                that writes a marker row to exercise_set_logs keyed by
+                round_index. activeRoundIdx is derived from pyramidActuals
+                so a refresh resumes on the next undone round. */}
+            {ROUNDS_METHODS[variant] && (() => {
+              const methodMeta = ROUNDS_METHODS[variant];
+              const palette = methodMeta.palette;
+              const td = parseTabataData(exercise?.tabata_data) || {};
+              const rounds = Array.isArray(td.rounds) ? td.rounds : [];
+              if (rounds.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    {methodMeta.label} · אין סבבים מוגדרים
+                  </div>
+                );
+              }
+
+              const setFields = getSetFields(exercise);
+              // Active round = first round_index without a "completed"
+              // marker. Falls through to rounds.length when every round
+              // is done (no active card; just the past list).
+              let activeRoundIdx = rounds.length;
+              for (let i = 0; i < rounds.length; i++) {
+                const ri = rounds[i]?.round_index ?? (i + 1);
+                if (!pyramidActuals[ri]?.completed) { activeRoundIdx = i; break; }
+              }
+              const completedCount = rounds.reduce((n, r, i) => {
+                const ri = r?.round_index ?? (i + 1);
+                return n + (pyramidActuals[ri]?.completed ? 1 : 0);
+              }, 0);
+              const tallyLabel = rounds.length === 1 ? methodMeta.roundLabel : methodMeta.pluralLabel;
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: `2px solid ${palette.stripe}`,
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: `0 4px 10px ${palette.stripe}25`,
+                  marginBottom: 12,
+                }}>
+                  {/* Header band */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
+                      {methodMeta.label}
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: palette.stripe,
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: `1px solid ${palette.border}`,
+                    }}>
+                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${rounds.length} ${tallyLabel}`
+                                   : `${completedCount} / ${rounds.length} ${tallyLabel}`}
+                    </span>
+                  </div>
+
+                  {/* Top hint (COMBO only) */}
+                  {methodMeta.topHint && (
+                    <div style={{
+                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                      border: `1px solid ${palette.border}`,
+                      borderRadius: 8,
+                      padding: 8,
+                      marginBottom: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      justifyContent: 'center',
+                    }}>
+                      <Zap size={12} color={palette.stripe} />
+                      <span style={{ fontSize: 11, color: palette.text, fontWeight: 700 }}>
+                        {methodMeta.topHint}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Round cards */}
+                  {rounds.map((round, rIdx) => {
+                    const isPast = rIdx < activeRoundIdx;
+                    const isActive = !isCoachMode && rIdx === activeRoundIdx;
+                    const exercises = Array.isArray(round?.exercises) ? round.exercises : [];
+                    const roundNumber = round?.round_index ?? (rIdx + 1);
+
+                    return (
+                      <div key={rIdx} style={{
+                        background: isPast ? '#F0FAF4'
+                          : isActive ? palette.outer
+                          : 'white',
+                        border: isPast ? '1.5px solid #16A34A'
+                          : isActive ? `2px solid ${palette.stripe}`
+                          : '1.5px dashed #D1D5DB',
+                        borderRadius: 10,
+                        padding: 10,
+                        marginBottom: 8,
+                      }}>
+                        {/* Round header */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          marginBottom: 8,
+                          paddingBottom: 8,
+                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : palette.border}`,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 22,
+                            color: isPast ? '#16A34A' : isActive ? palette.stripe : '#9CA3AF',
+                            lineHeight: 1,
+                            fontWeight: 800,
+                          }}>
+                            {String(roundNumber).padStart(2, '0')}
+                          </span>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: isPast ? '#16A34A' : isActive ? palette.text : '#9CA3AF',
+                            background: 'white',
+                            padding: '2px 8px',
+                            borderRadius: 5,
+                            border: `1px solid ${isPast ? '#86EFAC' : palette.border}`,
+                          }}>
+                            {methodMeta.roundLabel} {roundNumber}
+                          </span>
+                          {isPast && <Check size={14} color="#16A34A" />}
+                        </div>
+
+                        {/* Exercise sub-cards with connectors */}
+                        {exercises.map((ex, exIdx) => (
+                          <React.Fragment key={exIdx}>
+                            <div style={{
+                              background: 'white',
+                              border: `1px solid ${isPast ? '#BBF7D0' : palette.border}`,
+                              borderRadius: 7,
+                              padding: 8,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                <span style={{
+                                  fontFamily: "'Bebas Neue', sans-serif",
+                                  fontSize: 14,
+                                  color: palette.stripe,
+                                  background: palette.outer,
+                                  padding: '2px 7px',
+                                  borderRadius: 4,
+                                  fontWeight: 800,
+                                  border: `1px solid ${palette.border}`,
+                                }}>
+                                  {String.fromCharCode(0x05D0 + exIdx)}
+                                </span>
+                                <span style={{
+                                  flex: 1,
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  color: isPast ? '#16A34A' : '#1a1a1a',
+                                }}>
+                                  {ex?.name || 'תרגיל ללא שם'}
+                                </span>
+                              </div>
+
+                              {setFields.length > 0 && (
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: `repeat(${Math.min(setFields.length, 3)}, 1fr)`,
+                                  gap: 4,
+                                }}>
+                                  {setFields.map((fieldId) => {
+                                    const c = UNIT_COLOR_BY_FIELD[fieldId];
+                                    if (!c) return null;
+                                    const val = ex?.[fieldId];
+                                    if (val == null) return null;
+                                    return (
+                                      <div key={fieldId} style={{
+                                        background: isPast ? '#F0FAF4' : c.tint,
+                                        border: `1px solid ${isPast ? '#BBF7D0' : c.tint}`,
+                                        borderRadius: 5,
+                                        padding: '4px 6px',
+                                        textAlign: 'center',
+                                      }}>
+                                        <div style={{
+                                          fontFamily: "'Bebas Neue', sans-serif",
+                                          fontSize: 16,
+                                          color: isPast ? '#16A34A' : c.stripe,
+                                          lineHeight: 1,
+                                        }}>{val}</div>
+                                        <div style={{
+                                          fontSize: 7,
+                                          color: isPast ? '#16A34A' : c.textSecondary,
+                                          fontWeight: 800,
+                                          marginTop: 2,
+                                        }}>{c.label}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {exIdx < exercises.length - 1 && (
+                              <div style={{
+                                textAlign: 'center',
+                                color: palette.stripe,
+                                fontSize: methodMeta.connectorStyle === 'arrow' ? 20 : 10,
+                                fontWeight: 800,
+                                margin: '4px 0',
+                                letterSpacing: methodMeta.connectorStyle === 'text' ? 1 : 0,
+                              }}>
+                                {methodMeta.connector}
+                              </div>
+                            )}
+                          </React.Fragment>
+                        ))}
+
+                        {/* Complete-round button — trainee + active round only */}
+                        {isActive && !isCoachMode && (
+                          <button
+                            type="button"
+                            onClick={() => onCompleteRound(roundNumber)}
+                            disabled={pyramidSaving}
+                            style={{
+                              width: '100%',
+                              marginTop: 10,
+                              background: pyramidSaving
+                                ? '#D1D5DB'
+                                : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
+                              color: 'white',
+                              border: 'none',
+                              padding: 10,
+                              borderRadius: 8,
+                              fontWeight: 800,
+                              fontSize: 13,
+                              fontFamily: 'inherit',
+                              cursor: pyramidSaving ? 'default' : 'pointer',
+                            }}
+                          >
+                            {pyramidSaving ? 'שומר...' : 'סיים סבב והמשך'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {/* REST_PAUSE — horizontal mini-set row with rest dividers
                 between cells. ONE shared variation_name + rest_seconds
                 header band at top. Active cell expands with the same
