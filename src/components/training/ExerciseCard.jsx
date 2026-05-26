@@ -41,6 +41,15 @@ const PLANNED_SETS_METHODS = {
   reps_new:  { label: 'חזרות',   headerText: 'סטים בתרגיל',   closedLabel: null },
 };
 
+// REST_PAUSE uses a different visual layout (horizontal mini-set
+// row with rest dividers between cells, single variation band at
+// top). Kept in a separate dispatch table from PLANNED_SETS_METHODS
+// so the closed-card + open-card render gates can pick the right
+// renderer without messing with the existing pyramid-family layout.
+const HORIZONTAL_MINISETS_METHODS = {
+  rest_pause: { label: 'רסט פאוז', closedLabel: 'רסט פאוז' },
+};
+
 // Per-field unit palette + Hebrew label. Drives both the closed-card
 // dominant-unit display and the column tinting inside open-card rows.
 const UNIT_COLOR_BY_FIELD = {
@@ -703,7 +712,8 @@ export default function ExerciseCard({
   // to ExerciseCard (currently SectionCard does not pass it down),
   // prefer the prop and skip this query.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] || !exercise?.id || !plan?.id) return;
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant]) return;
+    if (!exercise?.id || !plan?.id) return;
     const traineeId = plan.assigned_to || plan.created_by;
     if (!traineeId) return;
     const todayStart = new Date();
@@ -732,7 +742,8 @@ export default function ExerciseCard({
   // the first incomplete set so the trainee resumes on the right row
   // after a page refresh.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] || !pyramidExecutionId || !exercise?.id) return;
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant]) return;
+    if (!pyramidExecutionId || !exercise?.id) return;
     let cancelled = false;
     loadActualsForExercise(supabase, pyramidExecutionId, exercise.id).then((map) => {
       if (cancelled) return;
@@ -967,6 +978,92 @@ export default function ExerciseCard({
             </span>
           </>
         )}
+      </div>
+    );
+  })();
+
+  // REST_PAUSE closed-card summary — two lines (numbers above the
+  // small variation + rest band) so the coach can scan the protocol
+  // without opening the card. Dominant unit follows the same priority
+  // as pyramidSummary but the label says "מיני-סטים" instead of
+  // "סטים".
+  const restPauseSummary = (() => {
+    if (!HORIZONTAL_MINISETS_METHODS[variant]) return null;
+    const methodMeta = HORIZONTAL_MINISETS_METHODS[variant];
+    const plannedSets = parsePlannedSets(exercise);
+    if (plannedSets.length === 0) {
+      return (
+        <div dir="rtl" style={{
+          marginTop: 5,
+          fontSize: 12,
+          color: '#9CA3AF',
+          fontWeight: 500,
+        }}>
+          {methodMeta.label} · ללא מיני-סטים
+        </div>
+      );
+    }
+    const setFields = getSetFields(exercise);
+    let dominantKey = setFields.find((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+    if (!dominantKey) {
+      dominantKey =
+        plannedSets.some(s => s.hold_seconds != null) ? 'hold_seconds' :
+        plannedSets.some(s => s.reps != null)         ? 'reps' :
+        plannedSets.some(s => s.weight_kg != null)    ? 'weight_kg' :
+                                                        'reps';
+    }
+    const unitLabelText = UNIT_COLOR_BY_FIELD[dominantKey]?.label ?? '';
+    const progressionString = plannedSets.map(s => s[dominantKey] ?? '?').join('→');
+    const accentColor = VARIANT_COLORS.rest_pause.stripe;
+    const td = parseTabataData(exercise?.tabata_data) || {};
+    const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
+    const variationName = methodConfig.variation_name;
+    const restSeconds = methodConfig.rest_seconds ?? 15;
+    const numStyle = {
+      fontFamily: "'Bebas Neue', sans-serif",
+      fontSize: 16,
+      color: accentColor,
+      lineHeight: 1,
+    };
+    const wordStyle = {
+      fontSize: 10,
+      color: '#6B7280',
+      fontWeight: 600,
+    };
+    return (
+      <div dir="rtl" style={{ marginTop: 5 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          flexWrap: 'wrap',
+          gap: 6,
+        }}>
+          <span style={numStyle}>{plannedSets.length}</span>
+          <span style={wordStyle}>מיני-סטים</span>
+          <span style={{ color: '#D1D5DB' }}>·</span>
+          <span style={numStyle}>{progressionString}</span>
+          <span style={wordStyle}>{unitLabelText}</span>
+          <span style={{ color: '#D1D5DB' }}>·</span>
+          <span style={{
+            fontSize: 10,
+            color: accentColor,
+            fontWeight: 700,
+            background: VARIANT_COLORS.rest_pause.tint,
+            border: `1px solid ${VARIANT_COLORS.rest_pause.border}`,
+            padding: '2px 8px',
+            borderRadius: 999,
+          }}>
+            {methodMeta.closedLabel}
+          </span>
+        </div>
+        <div style={{
+          fontSize: 10,
+          color: '#9CA3AF',
+          fontWeight: 500,
+          marginTop: 3,
+        }}>
+          {variationName || 'ללא וריאציה'} · {restSeconds} שניות מנוחה
+        </div>
       </div>
     );
   })();
@@ -2556,7 +2653,7 @@ export default function ExerciseCard({
                 {name}
               </div>
             )}
-            {PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
+            {HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
               <div style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -2599,6 +2696,315 @@ export default function ExerciseCard({
             borderTop: `1px solid ${colors.border}`,
             padding: isCoachMode ? '12px 13px' : '10px 11px',
           }}>
+            {/* REST_PAUSE — horizontal mini-set row with rest dividers
+                between cells. ONE shared variation_name + rest_seconds
+                header band at top. Active cell expands with the same
+                +/- counter pattern as pyramid; past cells turn green;
+                future cells stay dashed gray. Persistence shares
+                pyramid's exercise_set_logs path (set_number 1-based). */}
+            {HORIZONTAL_MINISETS_METHODS[variant] && (() => {
+              const plannedSets = parsePlannedSets(exercise);
+              const td = parseTabataData(exercise?.tabata_data) || {};
+              const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
+              const variationName = methodConfig.variation_name;
+              const restSeconds = methodConfig.rest_seconds ?? 15;
+
+              if (plannedSets.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    רסט פאוז · אין מיני-סטים מוגדרים
+                  </div>
+                );
+              }
+
+              const setFields = getSetFields(exercise);
+              const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+              const completedCount = plannedSets.reduce(
+                (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
+                0,
+              );
+              const activeIdx = pyramidActiveIdx;
+              const cols = Math.min(Math.max(numericFields.length, 1), 2);
+
+              // Button styles for the active cell's +/- counters —
+              // mirrors pyramid trainee block exactly.
+              const minusBtnStyle = {
+                width: 26, height: 26,
+                background: 'white',
+                border: '1px solid #FFD0AC',
+                color: '#FF6F20',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const plusBtnStyle = {
+                width: 26, height: 26,
+                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                border: '1px solid #FF6F20',
+                color: 'white',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const counterValueStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 22,
+                color: '#FF6F20',
+                lineHeight: 1,
+              };
+              const counterTargetStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 14,
+                color: '#9CA3AF',
+              };
+              const counterLabelStyle = {
+                fontSize: 9,
+                color: '#993C1D',
+                fontWeight: 700,
+                textAlign: 'center',
+                marginBottom: 4,
+              };
+
+              const activeSet = activeIdx < plannedSets.length ? plannedSets[activeIdx] : null;
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: '2px solid #FF6F20',
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: '0 4px 10px rgba(255,111,32,0.15)',
+                  marginBottom: 12,
+                }}>
+                  {/* Header band — variation + completed tally */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                    border: '1px solid #FFD0AC',
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
+                      {variationName || 'ללא וריאציה'}
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: '#FF6F20',
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: '1px solid #FFD0AC',
+                    }}>
+                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${plannedSets.length} מיני-סטים`
+                                   : `${completedCount} / ${plannedSets.length} מיני-סטים`}
+                    </span>
+                  </div>
+
+                  {/* Horizontal row of mini-set cells with rest
+                      dividers between them. Overflow-x scroll so 6+
+                      mini-sets stay reachable on narrow viewports. */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'stretch',
+                    gap: 4,
+                    marginBottom: 12,
+                    overflowX: 'auto',
+                    paddingBottom: 4,
+                  }}>
+                    {plannedSets.map((set, i) => {
+                      const isPast = i < activeIdx;
+                      const isActive = !isCoachMode && i === activeIdx;
+                      const isFuture = !isPast && !isActive;
+                      const actual = pyramidActuals[i + 1];
+
+                      return (
+                        <React.Fragment key={i}>
+                          <div style={{
+                            minWidth: isActive ? 140 : 75,
+                            flex: isActive ? '1 1 140px' : '0 0 auto',
+                            background: isPast ? '#F0FAF4'
+                              : isActive ? 'linear-gradient(135deg, #FFF5EE, #FFFAF5)'
+                              : 'white',
+                            border: isPast ? '1.5px solid #16A34A'
+                              : isActive ? '2px solid #FF6F20'
+                              : '1.5px dashed #D1D5DB',
+                            borderRadius: 10,
+                            padding: 8,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                          }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: isActive ? 24 : 20,
+                              color: isPast ? '#16A34A' : isActive ? '#FF6F20' : '#D1D5DB',
+                              lineHeight: 1,
+                              fontWeight: 800,
+                            }}>
+                              {String(set.set_index ?? (i + 1)).padStart(2, '0')}
+                            </span>
+
+                            {numericFields.map((fieldId) => {
+                              if (set[fieldId] == null) return null;
+                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                              const planned = set[fieldId];
+                              const actualVal = actual?.[fieldId];
+                              return (
+                                <div key={fieldId} style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    fontFamily: "'Bebas Neue', sans-serif",
+                                    fontSize: isActive ? 20 : 16,
+                                    color: isPast ? '#16A34A' : isActive ? meta.stripe : '#D1D5DB',
+                                    lineHeight: 1,
+                                  }}>
+                                    {isPast ? `${actualVal ?? '-'}/${planned}` : planned}
+                                  </span>
+                                  <div style={{
+                                    fontSize: 8,
+                                    color: isPast ? '#16A34A' : meta.textSecondary,
+                                    fontWeight: 800,
+                                    marginTop: 2,
+                                  }}>
+                                    {meta.label}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {isPast && <Check size={14} color="#16A34A" />}
+                            {isFuture && (
+                              <span style={{ fontSize: 8, color: '#9CA3AF' }}>ממתין</span>
+                            )}
+                          </div>
+
+                          {i < plannedSets.length - 1 && (
+                            <div style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0 4px',
+                              minWidth: 40,
+                              flexShrink: 0,
+                            }}>
+                              <span style={{
+                                fontFamily: "'Bebas Neue', sans-serif",
+                                fontSize: 18,
+                                color: '#14B8A6',
+                                lineHeight: 1,
+                                fontWeight: 700,
+                              }}>
+                                {restSeconds}
+                              </span>
+                              <span style={{ fontSize: 8, color: '#0F766E', fontWeight: 800, marginTop: 2 }}>
+                                שניות
+                              </span>
+                              <span style={{ fontSize: 7, color: '#14B8A6', marginTop: 2 }}>
+                                מנוחה
+                              </span>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+
+                  {/* Active mini-set input panel + save button —
+                      trainee only. Coach view stops at the row above. */}
+                  {!isCoachMode && activeSet && numericFields.length > 0 && (
+                    <div style={{
+                      background: 'white',
+                      border: '1.5px solid #FFD0AC',
+                      borderRadius: 10,
+                      padding: 10,
+                      marginBottom: 8,
+                    }}>
+                      <div style={{
+                        fontSize: 10,
+                        color: '#993C1D',
+                        fontWeight: 800,
+                        textAlign: 'center',
+                        marginBottom: 8,
+                      }}>
+                        מיני-סט {activeIdx + 1} · כמה הצלחת?
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                        gap: 8,
+                      }}>
+                        {numericFields.map((fieldId) => {
+                          if (activeSet[fieldId] == null) return null;
+                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                          return (
+                            <div key={fieldId}>
+                              <div style={counterLabelStyle}>{meta.label}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => updateActual(activeIdx, fieldId, -1)}
+                                  style={minusBtnStyle}
+                                >−</button>
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
+                                  <span style={counterValueStyle}>{pyramidActuals[activeIdx + 1]?.[fieldId] ?? 0}</span>
+                                  <span style={counterTargetStyle}>/ {activeSet[fieldId]}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => updateActual(activeIdx, fieldId, +1)}
+                                  style={plusBtnStyle}
+                                >+</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isCoachMode && activeIdx < plannedSets.length && (
+                    <button
+                      type="button"
+                      onClick={onSaveAndAdvance}
+                      disabled={pyramidSaving}
+                      style={{
+                        width: '100%',
+                        background: pyramidSaving
+                          ? '#FFB280'
+                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                        color: 'white',
+                        border: 'none',
+                        padding: 10,
+                        borderRadius: 8,
+                        fontWeight: 800,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        cursor: pyramidSaving ? 'default' : 'pointer',
+                      }}
+                    >
+                      {pyramidSaving ? 'שומר...' : 'שמור והמשך'}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Planned-sets coach view. Shared across PYRAMID / NONE /
                 REPS / DROP_SET / DELORME. If an in-progress execution
                 exists for the trainee+plan today, render each set as
