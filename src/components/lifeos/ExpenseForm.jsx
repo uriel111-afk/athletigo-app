@@ -64,6 +64,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   };
 
   const handleSaveExpense = async () => {
+    console.log('[ExpenseForm] handleSaveExpense START', { pendingBlob: !!pendingBlob?.blob, amount: form.amount });
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
       toast.error('הכנס סכום תקין');
@@ -95,7 +96,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
         let uploadResult = null;
         try {
+          console.log('[ExpenseForm] calling uploadNow...');
           uploadResult = await cameraRef.current.uploadNow();
+          console.log('[ExpenseForm] uploadNow returned:', uploadResult);
           console.log('[EXPENSE] upload result:', { uploadResult });
         } catch (uploadError) {
           console.error('[EXPENSE] upload threw:', uploadError);
@@ -158,6 +161,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
       let savedRow = null;
       try {
+        console.log('[ExpenseForm] calling addExpense...', { receipt_url });
         if (expense?.id) {
           savedRow = await updateExpense(expense.id, payload);
         } else {
@@ -191,6 +195,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       toast.success((expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה') + (receipt_url ? ' עם תמונה' : ''));
       setPendingBlob(null);
       onSaved?.(savedRow);
+      console.log('[ExpenseForm] calling closeForm(success)');
       closeForm('success');
 
     } catch (err) {

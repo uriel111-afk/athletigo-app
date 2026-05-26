@@ -20,6 +20,7 @@ const withTimeout = (promise, ms, label) => Promise.race([
 // the upload layer so the user sees the failure cause directly on
 // mobile, without depending on the caller's catch.
 async function uploadToStorage(blob, filename) {
+  console.log('[uploadToStorage] START', { blobSize: blob?.size, fileName: filename });
   const PRIMARY_BUCKET = 'lifeos-files';
   const FALLBACK_BUCKET = 'media';
 
@@ -140,6 +141,7 @@ const SmartCamera = forwardRef(function SmartCamera(
 
   useImperativeHandle(ref, () => ({
     uploadNow: async () => {
+      console.log('[uploadNow] START', { hasBlob: !!blob });
       if (!blob) {
         console.warn('[SmartCamera] uploadNow called with no blob');
         alert('[uploadNow] אין blob — לא נבחרה תמונה.');
@@ -148,6 +150,7 @@ const SmartCamera = forwardRef(function SmartCamera(
       console.log('[SmartCamera] uploadNow invoked by parent', { size: blob.size, type: blob.type });
       setUploading(true);
       try {
+        console.log('[uploadNow] calling uploadToStorage...');
         const url = await uploadToStorage(blob, 'photo.jpg');
         console.log('[SmartCamera] uploadNow returned URL', { url });
         if (!url) {
