@@ -36,6 +36,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
   const [pendingBlob, setPendingBlob] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
   const cameraRef = useRef(null);
 
   // Diagnostic: log every unmount with the last captured error so we
@@ -52,6 +53,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     if (!isOpen) return;
     setForm(expense ? formFromRow(expense) : initialForm());
     setPendingBlob(null);
+    setUploadError(null);
   }, [isOpen, expense?.id]);
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
@@ -100,30 +102,31 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           uploadResult = await cameraRef.current.uploadNow();
           console.log('[ExpenseForm] uploadNow returned:', uploadResult);
           console.log('[EXPENSE] upload result:', { uploadResult });
-        } catch (uploadError) {
-          console.error('[EXPENSE] upload threw:', uploadError);
+        } catch (err) {
+          console.error('[EXPENSE] upload threw:', err);
           window.lastExpenseError = {
             time: new Date().toISOString(),
             stage: 'upload',
-            message: uploadError?.message || String(uploadError),
-            bucketAttempted: uploadError?.bucketAttempted,
-            path: uploadError?.path,
-            primaryError: uploadError?.primaryError,
-            statusCode: uploadError?.statusCode,
-            stack: uploadError?.stack,
+            message: err?.message || String(err),
+            bucketAttempted: err?.bucketAttempted,
+            path: err?.path,
+            primaryError: err?.primaryError,
+            statusCode: err?.statusCode,
+            stack: err?.stack,
           };
           // SmartCamera.uploadToStorage already shows a detailed alert
           // at the upload layer (sets err.alertShown). Only surface a
           // fallback alert here if the upload error came from a path
           // that didn't already alert.
-          if (!uploadError?.alertShown) {
+          if (!err?.alertShown) {
             alert(
               'שלב 1 — העלאת תמונה נכשלה.\n\n' +
-              'הודעה: ' + (uploadError?.message || 'אין הודעה') + '\n' +
-              'דלי: ' + (uploadError?.bucketAttempted || 'lifeos-files / media') + '\n' +
-              'נתיב: ' + (uploadError?.path || 'לא ידוע')
+              'הודעה: ' + (err?.message || 'אין הודעה') + '\n' +
+              'דלי: ' + (err?.bucketAttempted || 'lifeos-files / media') + '\n' +
+              'נתיב: ' + (err?.path || 'לא ידוע')
             );
           }
+          setUploadError(err?.message || 'העלאה נכשלה');
           setSaving(false);
           return; // CRITICAL: do NOT close the dialog
         }
@@ -139,6 +142,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             'הודעה: uploadNow החזיר ערך ריק (אין URL).\n' +
             'דלי: lifeos-files / media'
           );
+          setUploadError('uploadNow החזיר ערך ריק (אין URL)');
           setSaving(false);
           return;
         }
@@ -267,6 +271,31 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         </DialogHeader>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 8 }}>
+          {uploadError && (
+            <div style={{
+              background: '#ff4444', color: 'white',
+              padding: '12px', borderRadius: '8px',
+              fontSize: 13, lineHeight: 1.4,
+              display: 'flex', alignItems: 'flex-start', gap: 8,
+            }}>
+              <div style={{ flex: 1, wordBreak: 'break-word' }}>
+                <strong>שגיאה:</strong> {uploadError}
+              </div>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                aria-label="סגור"
+                style={{
+                  background: 'white', color: '#ff4444',
+                  border: 'none', borderRadius: 6,
+                  width: 24, height: 24, lineHeight: 1,
+                  fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >×</button>
+            </div>
+          )}
+
           {/* Amount — big and centered */}
           <div>
             <label style={labelStyle}>סכום *</label>
@@ -399,7 +428,10 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                 label="צלם קבלה"
                 compact
                 deferredUpload
-                onPhotoCaptured={(blob, filename) => setPendingBlob(blob ? { blob, filename } : null)}
+                onPhotoCaptured={(blob, filename) => {
+                  setUploadError(null);
+                  setPendingBlob(blob ? { blob, filename } : null);
+                }}
               />
             )}
           </div>
