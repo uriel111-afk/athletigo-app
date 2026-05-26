@@ -1,3 +1,4 @@
+/* global __BUILD_TIME__ */
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
@@ -421,6 +422,16 @@ export default function Expenses() {
           load();
         }}
       />
+
+      <div style={{
+        fontSize: '9px',
+        color: '#9CA3AF',
+        textAlign: 'center',
+        marginTop: '20px',
+        fontFamily: 'monospace',
+      }}>
+        build {__BUILD_TIME__.slice(0, 16).replace('T', ' ')}
+      </div>
     </LifeOSLayout>
   );
 }
