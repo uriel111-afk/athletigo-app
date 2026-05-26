@@ -84,7 +84,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
       </div>
 
       {/* Content */}
-      <div style={{ padding: '16px 14px 100px', maxWidth: 560, margin: '0 auto' }}>
+      <div style={{ padding: '16px 0 100px', maxWidth: 560, margin: '0 auto' }}>
         {children}
       </div>
 

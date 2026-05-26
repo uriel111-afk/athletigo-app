@@ -545,8 +545,8 @@ export default function Layout({ children, currentPageName }) {
           )}
 
           <div className="flex-1 page-container" style={{
-            paddingLeft: (isClocks || isDashboard) ? 0 : '16px',
-            paddingRight: (isClocks || isDashboard) ? 0 : '16px',
+            paddingLeft: (isClocks || isDashboard) ? 0 : '10px',
+            paddingRight: (isClocks || isDashboard) ? 0 : '10px',
             paddingTop: isClocks ? 0 : 'var(--content-top)',
             paddingBottom: isClocks ? 0 : (70 + timerBarsHeight),
             overflowY: isClocks ? 'hidden' : 'auto',

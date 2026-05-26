@@ -180,7 +180,7 @@ export default function SectionCard({
             gap: 10,
             background: `linear-gradient(180deg, ${accentHeaderTintStrong} 0%, transparent 100%)`,
             borderBottom: expanded ? 'none' : '2px solid #E8DEC4',
-            padding: '12px 36px 12px 16px',
+            padding: '12px 36px 12px 10px',
             cursor: 'pointer',
             userSelect: 'none',
           }}
@@ -539,7 +539,7 @@ export default function SectionCard({
                       background: 'transparent',
                       border: 'none',
                       borderTop: '1px dashed #E5DFC9',
-                      padding: '12px 36px 12px 16px',
+                      padding: '12px 36px 12px 10px',
                       textAlign: 'right',
                       direction: 'rtl',
                       fontSize: 13,

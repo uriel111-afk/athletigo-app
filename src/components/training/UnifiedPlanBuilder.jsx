@@ -2050,7 +2050,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       {/* Progress bar removed from here — moved to a sticky bar at
           the viewport bottom (see end of this return). */}
 
-      <div className="max-w-7xl mx-auto w-full" style={{ padding: canEdit ? '12px 16px' : '8px' }}>
+      <div className="max-w-7xl mx-auto w-full" style={{ padding: canEdit ? '12px 0' : '8px 0' }}>
 
         {canEdit &&
         <div className="mb-4 md:mb-6 w-full flex gap-2">
