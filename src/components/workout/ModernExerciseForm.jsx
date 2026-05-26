@@ -15,6 +15,7 @@ import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
 import VariationsManager from "@/components/admin/VariationsManager";
 import { TRAINING_METHODS } from '../../constants/trainingMethods';
 import { parsePlannedSets } from '../../lib/plannedSets';
+import { getParamOptions, addParamOption, hasOptions } from '../../lib/paramOptions';
 
 // ────────────────────────────────────────────────────────────────
 // Section 1 — methods row.
@@ -614,6 +615,80 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       return null;
     }
     const c = meta.color;
+
+    // Text params with a preset list (body_position / equipment /
+    // grip / load_type / side / range_of_motion / tempo / foot_position)
+    // render as a <select> with curated defaults + user-added customs
+    // from localStorage. The "+ הוסף מותאם" sentinel prompts for a new
+    // value and persists it.
+    if (meta.type === 'text' && hasOptions(fieldId)) {
+      const options = getParamOptions(fieldId);
+      const currentValue = row?.[fieldId] ?? '';
+      return (
+        <div
+          key={fieldId}
+          style={{
+            background: 'white',
+            border: `1px solid ${c.tint}`,
+            borderRadius: 8,
+            padding: '8px 10px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <span style={{
+            fontSize: 10,
+            color: c.textPrimary,
+            fontWeight: 800,
+            background: c.tint,
+            padding: '2px 6px',
+            borderRadius: 3,
+            alignSelf: 'center',
+          }}>
+            {meta.label}
+          </span>
+          <select
+            value={currentValue}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '__custom__') {
+                // eslint-disable-next-line no-alert
+                const custom = window.prompt(`הוסף ${meta.label} מותאם:`);
+                if (custom && custom.trim()) {
+                  const trimmed = custom.trim();
+                  addParamOption(fieldId, trimmed);
+                  onChangeField(fieldId, trimmed);
+                }
+              } else {
+                onChangeField(fieldId, val);
+              }
+            }}
+            dir="rtl"
+            style={{
+              width: '100%',
+              height: 32,
+              border: `1px solid ${c.tint}`,
+              borderRadius: 6,
+              padding: '0 8px',
+              fontSize: 12,
+              color: c.stripe,
+              background: 'white',
+              fontFamily: 'inherit',
+              outline: 'none',
+            }}
+          >
+            <option value="">— בחר —</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+            <option value="__custom__">+ הוסף מותאם...</option>
+          </select>
+        </div>
+      );
+    }
+
     return (
       <div
         key={fieldId}
