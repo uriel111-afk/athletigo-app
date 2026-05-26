@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck, Check, Timer, Zap } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
+import { useClock } from "@/contexts/ClockContext";
 import { useSmartBackHandler } from "@/hooks/useSmartBack";
 import { getMethodByMode } from '../../constants/trainingMethods';
 import { parsePlannedSets, loadActualsForExercise, saveSetActual } from '../../lib/plannedSets';
@@ -121,6 +123,59 @@ const STATION_TYPE_COLORS = {
   reps: { stripe: '#D97706', tint: '#FFFBEB', textSecondary: '#92400E', label: 'חזרות' },
   time: { stripe: '#14B8A6', tint: '#F0FDFA', textSecondary: '#0F766E', label: 'שניות' },
 };
+
+// TABATA uses a "control panel" layout: rotation list + 5 clock
+// stats + a launcher button. The actual clock lives in /clocks; the
+// card just configures it. Detection relies on the new shape
+// (exercises_in_rotation / clock_settings) so legacy tabata rows with
+// only sub_exercises continue routing to the existing legacy block.
+const TABATA_DEFAULT_CLOCK = {
+  work_seconds: 20,
+  rest_seconds: 10,
+  rounds: 8,
+  sets: 1,
+  rest_between_sets: 60,
+};
+// Resolves clock settings out of tabata_data.clock_settings, falling
+// back to the legacy direct columns on the exercise row, and finally
+// to the defaults above. Always returns a fully-populated object.
+function resolveTabataClockSettings(exercise) {
+  const td = parseTabataData(exercise?.tabata_data) || {};
+  const cs = (td.clock_settings && typeof td.clock_settings === 'object') ? td.clock_settings : null;
+  const pick = (snakeKey, legacyCol) => {
+    if (cs && Number.isFinite(cs[snakeKey])) return cs[snakeKey];
+    const legacy = exercise?.[legacyCol];
+    return Number.isFinite(Number(legacy)) ? Number(legacy) : TABATA_DEFAULT_CLOCK[snakeKey];
+  };
+  return {
+    work_seconds:      pick('work_seconds',      'work_seconds'),
+    rest_seconds:      pick('rest_seconds',      'rest_seconds'),
+    rounds:            pick('rounds',            'rounds'),
+    sets:              pick('sets',              'sets'),
+    rest_between_sets: pick('rest_between_sets', 'rest_between_sets'),
+  };
+}
+function resolveTabataRotation(exercise) {
+  const td = parseTabataData(exercise?.tabata_data) || {};
+  if (Array.isArray(td.exercises_in_rotation) && td.exercises_in_rotation.length > 0) {
+    return td.exercises_in_rotation;
+  }
+  // Legacy: older tabata rows stored the rotation as sub_exercises.
+  if (Array.isArray(td.sub_exercises) && td.sub_exercises.length > 0) {
+    return td.sub_exercises.map((s) => ({
+      name: s?.name || s?.exercise_name || s?.title || '',
+    }));
+  }
+  return [];
+}
+// True when an exercise has the new tabata shape that the new renderer
+// understands (any of: exercises_in_rotation array, clock_settings
+// object). Legacy rows without either fall through to the old render.
+function hasNewTabataShape(exercise) {
+  const td = parseTabataData(exercise?.tabata_data) || {};
+  return Array.isArray(td.exercises_in_rotation)
+      || (td.clock_settings && typeof td.clock_settings === 'object');
+}
 
 // Per-field unit palette + Hebrew label. Drives both the closed-card
 // dominant-unit display and the column tinting inside open-card rows.
@@ -663,6 +718,9 @@ export default function ExerciseCard({
   // trainee verifies + sets prep-time, instead of jumping straight to
   // a running timer.
   const activeTimer = useActiveTimer();
+  const clock = useClock();
+  const navigate = useNavigate();
+  const [launchingClock, setLaunchingClock] = useState(false);
   // Controlled-or-internal expand. If the parent passes both
   // `externalExpanded` and `onToggleExpanded`, every existing
   // setExpanded(...) call site routes through the parent toggle —
@@ -783,6 +841,37 @@ export default function ExerciseCard({
       ...prev,
       [roundIndex]: { ...prev[roundIndex], reps: 1, completed: true },
     }));
+  };
+
+  // TABATA launcher — hands the rotation + clock settings to the
+  // global Clock context, then navigates to /clocks so the trainee
+  // sees the running timer. Defensive against a missing useClock
+  // (e.g. if this card renders outside the ClockProvider tree).
+  const handleLaunchTabata = async () => {
+    if (!clock?.startTabata) {
+      console.error('[ExerciseCard] startTabata unavailable — missing ClockProvider?');
+      alert('לא ניתן להפעיל שעון — אנא רענן את הדף ונסה שוב.');
+      return;
+    }
+    setLaunchingClock(true);
+    try {
+      const settings = resolveTabataClockSettings(exercise);
+      const rotation = resolveTabataRotation(exercise);
+      clock.startTabata({
+        work_seconds: settings.work_seconds,
+        rest_seconds: settings.rest_seconds,
+        rounds: settings.rounds,
+        sets: settings.sets,
+        rest_between_sets: settings.rest_between_sets,
+        exercises_in_rotation: rotation,
+      });
+      navigate('/clocks');
+    } catch (err) {
+      console.error('[ExerciseCard] Failed to launch tabata', err);
+      alert(`לא ניתן להפעיל שעון: ${err?.message ?? 'שגיאה'}`);
+    } finally {
+      setLaunchingClock(false);
+    }
   };
 
   const actionsMenuRef = useRef(null);        // trigger wrapper
@@ -1347,6 +1436,69 @@ export default function ExerciseCard({
             {previewNames.join(' · ')}
           </div>
         )}
+      </div>
+    );
+  })();
+
+  // TABATA closed-card summary — only fires when the new shape is
+  // present. Line 1 = "{rounds}×{work} שניות · {sets} סטים"; line 2 =
+  // first 3 exercise names from the rotation list. Legacy rows fall
+  // through to the existing summaryPills tabata branch.
+  const tabataSummary = (() => {
+    if (variant !== 'tabata' || !hasNewTabataShape(exercise)) return null;
+    const cs = resolveTabataClockSettings(exercise);
+    const rotation = resolveTabataRotation(exercise);
+    const accentColor = '#FF6F20';
+    const numStyle = {
+      fontFamily: "'Bebas Neue', sans-serif",
+      fontSize: 16,
+      color: accentColor,
+      lineHeight: 1,
+    };
+    const wordStyle = {
+      fontSize: 10,
+      color: '#6B7280',
+      fontWeight: 600,
+    };
+    const previewNames = rotation.slice(0, 3).map((e) => (e?.name || '').trim()).filter(Boolean);
+    return (
+      <div dir="rtl" style={{ marginTop: 5 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          flexWrap: 'wrap',
+          gap: 6,
+        }}>
+          <span style={numStyle}>{cs.rounds}</span>
+          <span style={{ ...wordStyle, color: '#9CA3AF' }}>×</span>
+          <span style={numStyle}>{cs.work_seconds}</span>
+          <span style={wordStyle}>שניות</span>
+          <span style={{ color: '#D1D5DB' }}>·</span>
+          <span style={numStyle}>{cs.sets}</span>
+          <span style={wordStyle}>{cs.sets === 1 ? 'סט' : 'סטים'}</span>
+          <span style={{ color: '#D1D5DB' }}>·</span>
+          <span style={{
+            fontSize: 10,
+            color: accentColor,
+            fontWeight: 700,
+            background: '#FFF5EE',
+            border: '1px solid #FFD0AC',
+            padding: '2px 8px',
+            borderRadius: 999,
+          }}>
+            טבטה
+          </span>
+        </div>
+        <div style={{
+          fontSize: 10,
+          color: '#9CA3AF',
+          fontWeight: 500,
+          marginTop: 3,
+        }}>
+          {previewNames.length === 0
+            ? 'ללא תרגילים מוגדרים'
+            : previewNames.join(' · ')}
+        </div>
       </div>
     );
   })();
@@ -2936,7 +3088,7 @@ export default function ExerciseCard({
                 {name}
               </div>
             )}
-            {STATIONS_METHODS[variant] ? circuitSummary : ROUNDS_METHODS[variant] ? roundsSummary : HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
+            {tabataSummary ? tabataSummary : STATIONS_METHODS[variant] ? circuitSummary : ROUNDS_METHODS[variant] ? roundsSummary : HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
               <div style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -4341,9 +4493,211 @@ export default function ExerciseCard({
               );
             })()}
 
+            {/* TABATA — new "control panel" layout: header + 5 clock
+                stats + rotation list + launch button. Fires only when
+                the exercise carries the new shape (exercises_in_rotation
+                or clock_settings); legacy tabata rows fall through to
+                the existing detailed block below. Trainee taps the
+                launcher → useClock().startTabata() with the rotation
+                + navigate to /clocks. Coach view shows a compact
+                summary line instead of the button. */}
+            {variant === 'tabata' && hasNewTabataShape(exercise) && (() => {
+              const cs = resolveTabataClockSettings(exercise);
+              const rotation = resolveTabataRotation(exercise);
+              const accent = '#FF6F20';
+              const statBoxes = [
+                { value: cs.work_seconds,      label: 'עבודה',     color: '#FF6F20', tint: '#FFF5EE' },
+                { value: cs.rest_seconds,      label: 'מנוחה',     color: '#14B8A6', tint: '#F0FDFA' },
+                { value: cs.rounds,            label: 'סבבים',     color: '#6b7280', tint: '#FAFAFA' },
+                { value: cs.sets,              label: 'סטים',      color: '#6b7280', tint: '#FAFAFA' },
+                { value: cs.rest_between_sets, label: 'בין סטים',  color: '#14B8A6', tint: '#F0FDFA' },
+              ];
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: `2px solid ${accent}`,
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: 'rgba(255,111,32,0.15) 0px 4px 10px',
+                  marginBottom: 12,
+                }}>
+                  {/* Header band */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                    border: '1px solid #FFD0AC',
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
+                      טבטה
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: accent,
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: '1px solid #FFD0AC',
+                    }}>
+                      {rotation.length} {rotation.length === 1 ? 'תרגיל ברוטציה' : 'תרגילים ברוטציה'}
+                    </span>
+                  </div>
+
+                  {/* 5-stat clock grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
+                    gap: 6,
+                    marginBottom: 12,
+                  }}>
+                    {statBoxes.map((cfg, i) => (
+                      <div key={i} style={{
+                        background: cfg.tint,
+                        border: `1px solid ${cfg.tint}`,
+                        borderRadius: 7,
+                        padding: '6px 4px',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 22,
+                          color: cfg.color,
+                          lineHeight: 1,
+                          fontWeight: 800,
+                        }}>{cfg.value}</div>
+                        <div style={{
+                          fontSize: 8,
+                          color: cfg.color,
+                          fontWeight: 800,
+                          marginTop: 3,
+                          letterSpacing: 0.3,
+                        }}>{cfg.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rotation list */}
+                  {rotation.length > 0 ? (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: '#993C1D',
+                        marginBottom: 6,
+                        letterSpacing: 0.3,
+                      }}>
+                        סדר רוטציה
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {rotation.map((ex, i) => (
+                          <div key={i} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            background: 'white',
+                            border: '1px solid #FFD0AC',
+                            borderRadius: 7,
+                            padding: '6px 10px',
+                          }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 14,
+                              color: accent,
+                              background: '#FFF5EE',
+                              padding: '2px 7px',
+                              borderRadius: 4,
+                              fontWeight: 800,
+                              minWidth: 24,
+                              textAlign: 'center',
+                            }}>
+                              {String(i + 1).padStart(2, '0')}
+                            </span>
+                            <span style={{
+                              flex: 1,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#1a1a1a',
+                            }}>
+                              {ex?.name || 'תרגיל ללא שם'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: 12,
+                      fontSize: 11,
+                      color: '#9CA3AF',
+                      background: '#FAFAFA',
+                      borderRadius: 7,
+                      marginBottom: 12,
+                    }}>
+                      אין תרגילים מוגדרים ברוטציה
+                    </div>
+                  )}
+
+                  {/* Launch button — trainee only */}
+                  {!isCoachMode && (
+                    <button
+                      type="button"
+                      onClick={handleLaunchTabata}
+                      disabled={launchingClock}
+                      style={{
+                        width: '100%',
+                        background: launchingClock
+                          ? '#D1D5DB'
+                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                        color: 'white',
+                        border: 'none',
+                        padding: 12,
+                        borderRadius: 10,
+                        fontWeight: 800,
+                        fontSize: 14,
+                        fontFamily: 'inherit',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        boxShadow: '0 4px 12px rgba(255,111,32,0.3)',
+                        cursor: launchingClock ? 'wait' : 'pointer',
+                        opacity: launchingClock ? 0.7 : 1,
+                      }}
+                    >
+                      <Timer size={18} />
+                      {launchingClock ? 'מפעיל שעון...' : 'הפעל שעון טבטה'}
+                    </button>
+                  )}
+
+                  {/* Coach summary instead of button */}
+                  {isCoachMode && (
+                    <div style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      color: '#993C1D',
+                      fontWeight: 700,
+                      padding: 10,
+                      background: '#FFF5EE',
+                      border: '1px solid #FFD0AC',
+                      borderRadius: 8,
+                    }}>
+                      טבטה · {cs.work_seconds}/{cs.rest_seconds} · {cs.rounds} סבבים × {cs.sets} סטים
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Tabata — coach mode keeps the legacy detailed view
                 (badge, full grid, total-time tile, sub list). */}
-            {variant === 'tabata' && isCoachMode && (
+            {variant === 'tabata' && isCoachMode && !hasNewTabataShape(exercise) && (
               <>
                 <div style={{
                   background: '#EFF6FF',
@@ -4431,7 +4785,7 @@ export default function ExerciseCard({
                 (FloatingClockBar shows the running timer above the
                 bottom nav). No per-set checkboxes — the timer drives
                 completion, not manual taps. */}
-            {variant === 'tabata' && !isCoachMode && (() => {
+            {variant === 'tabata' && !isCoachMode && !hasNewTabataShape(exercise) && (() => {
               // Multi-source read: prefer the canonical
               // tabata_data.clock_settings (new), fall back to legacy
               // top-level tabata_data keys (work_time/work_sec/...)

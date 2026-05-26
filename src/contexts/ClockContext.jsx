@@ -65,6 +65,11 @@ export function ClockProvider({ children }) {
   const [isRunning, setIsRunning] = useState(false);
   const [laps, setLaps] = useState([]);
   const [setProgress, setSetProgress] = useState({ current: 0, total: 0 });
+  // Per-tabata-run rotation list (exercise names in order). Cleared
+  // when stop() runs; populated by startTabata() if the caller passes
+  // exercises_in_rotation. UI can use this to show the next exercise
+  // while the clock is in the 'work' phase.
+  const [exercisesInRotation, setExercisesInRotation] = useState([]);
 
   const intervalRef = useRef(null);
   const startTimeRef = useRef(0);
@@ -152,6 +157,7 @@ export function ClockProvider({ children }) {
     setPhaseLabel('');
     setRoundInfo('');
     setSetProgress({ current: 0, total: 0 });
+    setExercisesInRotation([]);
     phasesRef.current = [];
     phaseIdxRef.current = 0;
     closeTimerNotification();
@@ -264,7 +270,24 @@ export function ClockProvider({ children }) {
     try { requestNotifPermission(); } catch {}
     stop();
     setActiveClock('tabata');
-    const { workTime = 20, restTime = 10, rounds = 8, sets = 1, setRest = 60, prepareTime = 10 } = settings;
+    const cfg = settings || {};
+    // Snake_case (new shape, ExerciseCard launcher) takes precedence;
+    // camelCase fallbacks keep legacy /clocks-page callers working.
+    const pick = (snake, camel, fallback) => (
+      Number.isFinite(cfg[snake]) ? cfg[snake]
+        : Number.isFinite(cfg[camel]) ? cfg[camel]
+        : fallback
+    );
+    const workTime = pick('work_seconds',      'workTime',    20);
+    const restTime = pick('rest_seconds',      'restTime',    10);
+    const setRest  = pick('rest_between_sets', 'setRest',     60);
+    const rounds   = pick('rounds',            'rounds',       8);
+    const sets     = pick('sets',              'sets',         1);
+    const prepareTime = pick('prepare_seconds','prepareTime', 10);
+    // Surface the per-round rotation list (when the caller provides
+    // one) so the clock UI can later show which exercise is up. Stored
+    // verbatim on a ref; no behavioural change inside the phase loop.
+    setExercisesInRotation(Array.isArray(cfg.exercises_in_rotation) ? cfg.exercises_in_rotation : []);
     const phases = [];
     if (prepareTime > 0) phases.push({ type: 'prepare', duration: prepareTime * 1000, label: 'הכנה', round: `סט 1/${sets} • סיבוב 1/${rounds}`, setIdx: 0, totalSets: sets });
     for (let s = 0; s < sets; s++) {
@@ -511,6 +534,7 @@ export function ClockProvider({ children }) {
   return (
     <ClockContext.Provider value={{
       activeClock, phase, display, totalDuration, phaseLabel, roundInfo, isRunning, laps, setProgress,
+      exercisesInRotation,
       isFullscreen, isMinimized, minimize, maximize,
       startStopwatch, lapStopwatch, startTimer, startTabata,
       pause, resume, stop, reset,
