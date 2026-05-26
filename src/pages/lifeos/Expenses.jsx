@@ -1,6 +1,6 @@
 /* global __BUILD_TIME__ */
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw, Download } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
@@ -468,6 +468,20 @@ function ExpenseRow({ row, isLast, onEdit, onDelete }) {
       <div style={{ fontSize: 15, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, whiteSpace: 'nowrap' }}>
         {fmt(Number(row.amount || 0))}₪
       </div>
+      {row.receipt_url && (
+        <a
+          href={row.receipt_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+          onClick={(e) => e.stopPropagation()}
+          style={{ ...iconBtn, color: LIFEOS_COLORS.primary, textDecoration: 'none' }}
+          aria-label="הורד קבלה"
+          title="הורד קבלה"
+        >
+          <Download size={14} />
+        </a>
+      )}
       <button onClick={onEdit} style={iconBtn} aria-label="עריכה">
         <Pencil size={14} />
       </button>

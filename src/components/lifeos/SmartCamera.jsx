@@ -16,9 +16,14 @@ const withTimeout = (promise, ms, label) => Promise.race([
 ]);
 
 // Upload a blob to the lifeos-files bucket (falls back to the media
-// bucket if the target bucket doesn't exist yet).
+// bucket if the target bucket doesn't exist yet). Surfaces alerts at
+// the upload layer so the user sees the failure cause directly on
+// mobile, without depending on the caller's catch.
 async function uploadToStorage(blob, filename) {
-  console.log('[SmartCamera] Upload start', {
+  const PRIMARY_BUCKET = 'lifeos-files';
+  const FALLBACK_BUCKET = 'media';
+
+  console.log('[Upload] START', {
     filename,
     blobSize: blob?.size,
     blobType: blob?.type,
@@ -27,63 +32,89 @@ async function uploadToStorage(blob, filename) {
 
   const { data: { user } = {}, error: userErr } = await supabase.auth.getUser();
   if (userErr || !user) {
-    console.error('[SmartCamera] Auth check failed', { userErr, user });
+    console.error('[Upload] Auth check FAILED', { userErr, user });
+    alert('[Upload Auth FAILED]\n\nאין משתמש מחובר. התחבר שוב ונסה.');
     throw new Error('Not authenticated');
   }
-  console.log('[SmartCamera] User authenticated', { userId: user.id });
+  console.log('[Upload] user authenticated', { userId: user.id });
 
   const ext = (filename.split('.').pop() || 'jpg').toLowerCase();
   const path = `lifeos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  console.log('[SmartCamera] Computed path', { path, ext });
+  console.log('[Upload] computed path', { path, ext });
 
-  console.log('[SmartCamera] Attempting upload to bucket: lifeos-files');
-  const primary = await withTimeout(
-    supabase.storage.from('lifeos-files').upload(path, blob, {
-      upsert: true, contentType: 'image/jpeg',
-    }),
-    UPLOAD_TIMEOUT_MS,
-    'lifeos-files upload',
-  );
-
-  if (primary.error) {
-    console.warn('[SmartCamera] lifeos-files upload FAILED', {
-      message: primary.error.message,
-      statusCode: primary.error.statusCode,
-      error: primary.error,
-    });
-
-    console.log('[SmartCamera] Falling back to bucket: media');
-    const fallback = await withTimeout(
-      supabase.storage.from('media').upload(path, blob, {
+  // ── Try primary bucket ──────────────────────────────────────
+  console.log('[Upload] attempting bucket:', PRIMARY_BUCKET);
+  let primary;
+  try {
+    primary = await withTimeout(
+      supabase.storage.from(PRIMARY_BUCKET).upload(path, blob, {
         upsert: true, contentType: 'image/jpeg',
       }),
       UPLOAD_TIMEOUT_MS,
-      'media upload',
+      `${PRIMARY_BUCKET} upload`,
     );
+  } catch (timeoutErr) {
+    primary = { error: timeoutErr };
+  }
+  console.log('[Upload] primary response', { data: primary.data, error: primary.error });
 
-    if (fallback.error) {
-      console.error('[SmartCamera] media fallback ALSO FAILED', {
-        message: fallback.error.message,
-        statusCode: fallback.error.statusCode,
-        error: fallback.error,
-      });
-      // Carry context onto the thrown error so callers can surface
-      // bucket + path in their step-1 diagnostic alert.
-      fallback.error.bucketAttempted = 'lifeos-files, media';
-      fallback.error.path = path;
-      fallback.error.primaryError = primary.error?.message;
-      throw fallback.error;
+  if (!primary.error) {
+    const { data: urlData } = supabase.storage.from(PRIMARY_BUCKET).getPublicUrl(path);
+    const publicUrl = urlData?.publicUrl;
+    if (!publicUrl) {
+      const msg = '[Upload Step 2 FAILED]\n\ngetPublicUrl לא החזיר URL\n\nדלי: ' + PRIMARY_BUCKET + '\nנתיב: ' + path;
+      alert(msg);
+      throw new Error(msg);
     }
-
-    console.log('[SmartCamera] media fallback succeeded', { data: fallback.data });
-    const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(path);
-    console.log('[SmartCamera] Public URL from media', { url: publicUrl });
+    console.log('[Upload] SUCCESS via', PRIMARY_BUCKET, { publicUrl });
     return publicUrl;
   }
 
-  console.log('[SmartCamera] lifeos-files upload succeeded', { data: primary.data });
-  const { data: { publicUrl } } = supabase.storage.from('lifeos-files').getPublicUrl(path);
-  console.log('[SmartCamera] Public URL from lifeos-files', { url: publicUrl });
+  console.warn('[Upload]', PRIMARY_BUCKET, 'FAILED', primary.error);
+
+  // ── Try fallback bucket ─────────────────────────────────────
+  console.log('[Upload] falling back to bucket:', FALLBACK_BUCKET);
+  let fallback;
+  try {
+    fallback = await withTimeout(
+      supabase.storage.from(FALLBACK_BUCKET).upload(path, blob, {
+        upsert: true, contentType: 'image/jpeg',
+      }),
+      UPLOAD_TIMEOUT_MS,
+      `${FALLBACK_BUCKET} upload`,
+    );
+  } catch (timeoutErr) {
+    fallback = { error: timeoutErr };
+  }
+  console.log('[Upload] fallback response', { data: fallback.data, error: fallback.error });
+
+  if (fallback.error) {
+    const msg =
+      '[Upload Step 1 FAILED]\n\n' +
+      'דלי: ' + PRIMARY_BUCKET + ', ' + FALLBACK_BUCKET + '\n' +
+      'נתיב: ' + path + '\n\n' +
+      PRIMARY_BUCKET + ' error: ' + (primary.error.message || 'unknown') + '\n' +
+      FALLBACK_BUCKET + ' error: ' + (fallback.error.message || 'unknown') + '\n\n' +
+      'קוד: ' + (fallback.error.statusCode || fallback.error.code || primary.error.statusCode || primary.error.code || 'אין');
+    console.error('[Upload] BOTH BUCKETS FAILED', { primary: primary.error, fallback: fallback.error });
+    alert(msg);
+    const err = new Error(msg);
+    err.bucketAttempted = PRIMARY_BUCKET + ', ' + FALLBACK_BUCKET;
+    err.path = path;
+    err.primaryError = primary.error.message;
+    err.fallbackError = fallback.error.message;
+    err.alertShown = true; // signal to caller: don't double-alert
+    throw err;
+  }
+
+  const { data: urlData } = supabase.storage.from(FALLBACK_BUCKET).getPublicUrl(path);
+  const publicUrl = urlData?.publicUrl;
+  if (!publicUrl) {
+    const msg = '[Upload Step 2 FAILED]\n\ngetPublicUrl לא החזיר URL\n\nדלי: ' + FALLBACK_BUCKET + '\nנתיב: ' + path;
+    alert(msg);
+    throw new Error(msg);
+  }
+  console.log('[Upload] SUCCESS via', FALLBACK_BUCKET, '(fallback)', { publicUrl });
   return publicUrl;
 }
 

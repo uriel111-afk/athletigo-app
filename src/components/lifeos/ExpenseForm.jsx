@@ -109,13 +109,18 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             statusCode: uploadError?.statusCode,
             stack: uploadError?.stack,
           };
-          alert(
-            'שלב 1 — העלאת תמונה נכשלה.\n\n' +
-            'הודעה: ' + (uploadError?.message || 'אין הודעה') + '\n' +
-            'דלי: ' + (uploadError?.bucketAttempted || 'lifeos-files / media') + '\n' +
-            'נתיב: ' + (uploadError?.path || 'לא ידוע') +
-            (uploadError?.primaryError ? '\nשגיאת lifeos-files: ' + uploadError.primaryError : '')
-          );
+          // SmartCamera.uploadToStorage already shows a detailed alert
+          // at the upload layer (sets err.alertShown). Only surface a
+          // fallback alert here if the upload error came from a path
+          // that didn't already alert.
+          if (!uploadError?.alertShown) {
+            alert(
+              'שלב 1 — העלאת תמונה נכשלה.\n\n' +
+              'הודעה: ' + (uploadError?.message || 'אין הודעה') + '\n' +
+              'דלי: ' + (uploadError?.bucketAttempted || 'lifeos-files / media') + '\n' +
+              'נתיב: ' + (uploadError?.path || 'לא ידוע')
+            );
+          }
           setSaving(false);
           return; // CRITICAL: do NOT close the dialog
         }
