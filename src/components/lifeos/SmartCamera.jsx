@@ -142,6 +142,7 @@ const SmartCamera = forwardRef(function SmartCamera(
     uploadNow: async () => {
       if (!blob) {
         console.warn('[SmartCamera] uploadNow called with no blob');
+        alert('[uploadNow] אין blob — לא נבחרה תמונה.');
         return null;
       }
       console.log('[SmartCamera] uploadNow invoked by parent', { size: blob.size, type: blob.type });
@@ -149,7 +150,22 @@ const SmartCamera = forwardRef(function SmartCamera(
       try {
         const url = await uploadToStorage(blob, 'photo.jpg');
         console.log('[SmartCamera] uploadNow returned URL', { url });
+        if (!url) {
+          alert('[uploadNow] uploadToStorage החזיר URL ריק');
+        }
         return url;
+      } catch (err) {
+        // Defensive: alert here only if uploadToStorage didn't already
+        // surface its own alert (alertShown flag set on thrown error).
+        if (!err?.alertShown) {
+          alert(
+            '[uploadNow CAUGHT]\n\n' +
+            'הודעה: ' + (err?.message || 'אין הודעה') + '\n' +
+            'סוג: ' + (err?.name || 'Error') + '\n' +
+            (err?.stack ? '\n' + String(err.stack).split('\n').slice(0, 3).join('\n') : '')
+          );
+        }
+        throw err;
       } finally {
         setUploading(false);
       }

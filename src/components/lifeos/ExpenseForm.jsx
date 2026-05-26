@@ -215,6 +215,39 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // Existing callers reference handleSave — keep the name as an alias.
   const handleSave = handleSaveExpense;
 
+  // Force-download the receipt instead of opening it in a new tab.
+  // Supabase Storage URLs are cross-origin so the <a download> attribute
+  // is silently ignored on most browsers — fetch the blob ourselves and
+  // trigger a download via createObjectURL. Falls back to opening the
+  // URL in a new tab when fetch fails (network / CORS / 404).
+  const handleDownloadReceipt = async () => {
+    const url = form.receipt_url;
+    if (!url) return;
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const ext = (blob.type && blob.type.split('/')[1]) || 'jpg';
+      const datePart = (form.date || todayISO()).replace(/-/g, '');
+      const filename = `receipt_${datePart}.${ext}`;
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Give the browser a tick to start the download before revoking.
+      setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    } catch (err) {
+      console.error('[ExpenseForm] download failed:', err);
+      // Best-effort fallback: open in new tab so the user still has a
+      // way to save the image manually.
+      try { window.open(url, '_blank', 'noopener'); } catch {}
+      alert('הורדה נכשלה: ' + (err?.message || 'שגיאה לא ידועה') + '\n\nפתחנו את הקובץ בלשונית חדשה במקום.');
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) closeForm('dialog-openchange'); }}>
       <DialogContent
