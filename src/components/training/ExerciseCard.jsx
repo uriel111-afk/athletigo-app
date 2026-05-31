@@ -1973,7 +1973,1586 @@ export default function ExerciseCard({
             for list variants — the legacy numbered-circle list above
             the new mini-cards. Restricting the gate to tabata gives
             list variants exactly one render path. */}
-        {expanded && variant === 'tabata' && (() => {
+            {expanded && (() => {
+              console.log('[ExerciseCard.openBody]', {
+                variant,
+                mode: exercise?.mode,
+                matched: {
+                  stations: !!STATIONS_METHODS?.[variant],
+                  rounds: !!ROUNDS_METHODS?.[variant],
+                  mini: !!HORIZONTAL_MINISETS_METHODS?.[variant],
+                  planned: !!PLANNED_SETS_METHODS?.[variant],
+                  tabata: variant === 'tabata',
+                  list: variant === 'list',
+                  normal: variant === 'normal',
+                },
+              });
+              return null;
+            })()}
+            {/* CIRCUIT — horizontal scrollable strip of station cards
+                + a round-progression dot indicator. Each station shows
+                its number, type badge (חזרות / שניות), name, and value
+                in its type's unit color. group_mode swaps in the
+                stronger blue palette and surfaces a "קבוצתי" badge.
+                Persistence reuses onCompleteRound (writes a 1-marker
+                row per completed round to exercise_set_logs). */}
+            {expanded && STATIONS_METHODS[variant] && (() => {
+              const methodMeta = STATIONS_METHODS[variant];
+              const td = parseTabataData(exercise?.tabata_data) || {};
+              const stations = Array.isArray(td.stations) ? td.stations : [];
+              const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
+              const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
+              const groupMode = methodConfig.group_mode === true;
+              const palette = groupMode ? methodMeta.groupPalette : methodMeta.palette;
+              const outerBorderWidth = groupMode ? 2.5 : 2;
+
+              if (stations.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    {methodMeta.label} · אין תחנות מוגדרות
+                  </div>
+                );
+              }
+
+              const setFields = getSetFields(exercise);
+              // activeRoundIdx is 0-based; derived from how many rounds
+              // already have a completion marker in pyramidActuals.
+              let activeRoundIdx = rounds;
+              for (let i = 0; i < rounds; i++) {
+                if (!pyramidActuals[i + 1]?.completed) { activeRoundIdx = i; break; }
+              }
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: `${outerBorderWidth}px solid ${palette.stripe}`,
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: `0 4px 10px ${palette.stripe}25`,
+                  marginBottom: 12,
+                }}>
+                  {/* Header band */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
+                        {methodMeta.label}
+                      </span>
+                      {groupMode && (
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          color: 'white',
+                          background: palette.stripe,
+                          padding: '2px 7px',
+                          borderRadius: 10,
+                          letterSpacing: 0.3,
+                        }}>
+                          קבוצתי
+                        </span>
+                      )}
+                    </div>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: palette.stripe,
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: `1px solid ${palette.border}`,
+                    }}>
+                      סבב {Math.min(activeRoundIdx + 1, rounds)} / {rounds}
+                    </span>
+                  </div>
+
+                  {/* Group-mode hint strip */}
+                  {groupMode && (
+                    <div style={{
+                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                      border: `1px solid ${palette.border}`,
+                      borderRadius: 8,
+                      padding: 8,
+                      marginBottom: 10,
+                      fontSize: 11,
+                      color: palette.text,
+                      fontWeight: 700,
+                      textAlign: 'center',
+                    }}>
+                      מצב קבוצתי פעיל — סמן השלמת סבב לכל הקבוצה יחד
+                    </div>
+                  )}
+
+                  {/* Stations strip — horizontal scroll */}
+                  <div style={{
+                    display: 'flex',
+                    gap: 8,
+                    overflowX: 'auto',
+                    paddingBottom: 6,
+                    marginBottom: 12,
+                  }}>
+                    {stations.map((station, sIdx) => {
+                      const stType = station?.type === 'time' ? 'time' : 'reps';
+                      const typeColor = STATION_TYPE_COLORS[stType];
+                      const stationNumber = station?.station_index ?? (sIdx + 1);
+                      return (
+                        <div key={sIdx} style={{
+                          minWidth: 120,
+                          flex: '0 0 120px',
+                          background: 'white',
+                          border: `1.5px solid ${palette.border}`,
+                          borderRadius: 10,
+                          padding: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 20,
+                              color: palette.stripe,
+                              fontWeight: 800,
+                              lineHeight: 1,
+                            }}>
+                              {String(stationNumber).padStart(2, '0')}
+                            </span>
+                            <span style={{
+                              fontSize: 8,
+                              fontWeight: 800,
+                              color: typeColor.stripe,
+                              background: typeColor.tint,
+                              padding: '2px 6px',
+                              borderRadius: 3,
+                            }}>
+                              {typeColor.label}
+                            </span>
+                          </div>
+
+                          <div style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: '#1a1a1a',
+                            minHeight: 28,
+                            wordBreak: 'break-word',
+                          }}>
+                            {station?.name || 'תחנה ללא שם'}
+                          </div>
+
+                          <div style={{
+                            background: typeColor.tint,
+                            border: `1px solid ${typeColor.tint}`,
+                            borderRadius: 6,
+                            padding: 6,
+                            textAlign: 'center',
+                          }}>
+                            <div style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 22,
+                              color: typeColor.stripe,
+                              lineHeight: 1,
+                              fontWeight: 800,
+                            }}>
+                              {station?.value ?? '-'}
+                            </div>
+                          </div>
+
+                          {setFields.length > 0 && (
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: `repeat(${Math.min(setFields.length, 2)}, 1fr)`,
+                              gap: 4,
+                            }}>
+                              {setFields.map((fieldId) => {
+                                const c = UNIT_COLOR_BY_FIELD[fieldId];
+                                if (!c) return null;
+                                const val = station?.[fieldId];
+                                if (val == null) return null;
+                                return (
+                                  <div key={fieldId} style={{
+                                    background: c.tint,
+                                    border: `1px solid ${c.tint}`,
+                                    borderRadius: 4,
+                                    padding: '3px 4px',
+                                    textAlign: 'center',
+                                  }}>
+                                    <div style={{
+                                      fontFamily: "'Bebas Neue', sans-serif",
+                                      fontSize: 13,
+                                      color: c.stripe,
+                                      lineHeight: 1,
+                                    }}>{val}</div>
+                                    <div style={{
+                                      fontSize: 7,
+                                      color: c.textSecondary,
+                                      fontWeight: 800,
+                                      marginTop: 2,
+                                    }}>{c.label}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Round progress dots */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: 6,
+                    marginBottom: 10,
+                  }}>
+                    {Array.from({ length: rounds }, (_, i) => (
+                      <div key={i} style={{
+                        width: i === activeRoundIdx ? 24 : 8,
+                        height: 8,
+                        borderRadius: 4,
+                        background: i < activeRoundIdx ? '#16A34A'
+                          : i === activeRoundIdx ? palette.stripe
+                          : '#E5E7EB',
+                        transition: 'all 0.2s',
+                      }} />
+                    ))}
+                  </div>
+
+                  {/* Complete-round button — trainee + active round only */}
+                  {!isCoachMode && activeRoundIdx < rounds && (
+                    <button
+                      type="button"
+                      onClick={() => onCompleteRound(activeRoundIdx + 1)}
+                      disabled={pyramidSaving}
+                      style={{
+                        width: '100%',
+                        background: pyramidSaving
+                          ? '#D1D5DB'
+                          : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
+                        color: 'white',
+                        border: 'none',
+                        padding: 10,
+                        borderRadius: 8,
+                        fontWeight: 800,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        cursor: pyramidSaving ? 'default' : 'pointer',
+                      }}
+                    >
+                      {pyramidSaving ? 'שומר...' : `סיים סבב ${activeRoundIdx + 1} והמשך`}
+                    </button>
+                  )}
+
+                  {/* Coach tally */}
+                  {isCoachMode && (
+                    <div style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      color: palette.text,
+                      fontWeight: 700,
+                      padding: 8,
+                      background: palette.outer,
+                      borderRadius: 7,
+                    }}>
+                      ביצוע המתאמן · {Math.min(activeRoundIdx, rounds)}/{rounds} סבבים
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* SUPERSET / COMBO — rounds-based layout. Vertical list
+                of round cards; each round shows its exercise sequence
+                vertically with a connector ("ואז" for superset, "←"
+                arrow for combo) between adjacent exercises. Active
+                round expands a "סיים סבב והמשך" button (trainee only)
+                that writes a marker row to exercise_set_logs keyed by
+                round_index. activeRoundIdx is derived from pyramidActuals
+                so a refresh resumes on the next undone round. */}
+            {expanded && ROUNDS_METHODS[variant] && (() => {
+              const methodMeta = ROUNDS_METHODS[variant];
+              const palette = methodMeta.palette;
+              const td = parseTabataData(exercise?.tabata_data) || {};
+              const rounds = Array.isArray(td.rounds) ? td.rounds : [];
+              if (rounds.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    {methodMeta.label} · אין סבבים מוגדרים
+                  </div>
+                );
+              }
+
+              const setFields = getSetFields(exercise);
+              // Active round = first round_index without a "completed"
+              // marker. Falls through to rounds.length when every round
+              // is done (no active card; just the past list).
+              let activeRoundIdx = rounds.length;
+              for (let i = 0; i < rounds.length; i++) {
+                const ri = rounds[i]?.round_index ?? (i + 1);
+                if (!pyramidActuals[ri]?.completed) { activeRoundIdx = i; break; }
+              }
+              const completedCount = rounds.reduce((n, r, i) => {
+                const ri = r?.round_index ?? (i + 1);
+                return n + (pyramidActuals[ri]?.completed ? 1 : 0);
+              }, 0);
+              const tallyLabel = rounds.length === 1 ? methodMeta.roundLabel : methodMeta.pluralLabel;
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: `2px solid ${palette.stripe}`,
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: `0 4px 10px ${palette.stripe}25`,
+                  marginBottom: 12,
+                }}>
+                  {/* Header band */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
+                      {methodMeta.label}
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: palette.stripe,
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: `1px solid ${palette.border}`,
+                    }}>
+                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${rounds.length} ${tallyLabel}`
+                                   : `${completedCount} / ${rounds.length} ${tallyLabel}`}
+                    </span>
+                  </div>
+
+                  {/* Top hint (COMBO only) */}
+                  {methodMeta.topHint && (
+                    <div style={{
+                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
+                      border: `1px solid ${palette.border}`,
+                      borderRadius: 8,
+                      padding: 8,
+                      marginBottom: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      justifyContent: 'center',
+                    }}>
+                      <Zap size={12} color={palette.stripe} />
+                      <span style={{ fontSize: 11, color: palette.text, fontWeight: 700 }}>
+                        {methodMeta.topHint}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Round cards */}
+                  {rounds.map((round, rIdx) => {
+                    const isPast = rIdx < activeRoundIdx;
+                    const isActive = !isCoachMode && rIdx === activeRoundIdx;
+                    const exercises = Array.isArray(round?.exercises) ? round.exercises : [];
+                    const roundNumber = round?.round_index ?? (rIdx + 1);
+
+                    return (
+                      <div key={rIdx} style={{
+                        background: isPast ? '#F0FAF4'
+                          : isActive ? palette.outer
+                          : 'white',
+                        border: isPast ? '1.5px solid #16A34A'
+                          : isActive ? `2px solid ${palette.stripe}`
+                          : '1.5px dashed #D1D5DB',
+                        borderRadius: 10,
+                        padding: 10,
+                        marginBottom: 8,
+                      }}>
+                        {/* Round header */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          marginBottom: 8,
+                          paddingBottom: 8,
+                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : palette.border}`,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 22,
+                            color: isPast ? '#16A34A' : isActive ? palette.stripe : '#9CA3AF',
+                            lineHeight: 1,
+                            fontWeight: 800,
+                          }}>
+                            {String(roundNumber).padStart(2, '0')}
+                          </span>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: isPast ? '#16A34A' : isActive ? palette.text : '#9CA3AF',
+                            background: 'white',
+                            padding: '2px 8px',
+                            borderRadius: 5,
+                            border: `1px solid ${isPast ? '#86EFAC' : palette.border}`,
+                          }}>
+                            {methodMeta.roundLabel} {roundNumber}
+                          </span>
+                          {isPast && <Check size={14} color="#16A34A" />}
+                        </div>
+
+                        {/* Exercise sub-cards with connectors */}
+                        {exercises.map((ex, exIdx) => (
+                          <React.Fragment key={exIdx}>
+                            <div style={{
+                              background: 'white',
+                              border: `1px solid ${isPast ? '#BBF7D0' : palette.border}`,
+                              borderRadius: 7,
+                              padding: 8,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                <span style={{
+                                  fontFamily: "'Bebas Neue', sans-serif",
+                                  fontSize: 14,
+                                  color: palette.stripe,
+                                  background: palette.outer,
+                                  padding: '2px 7px',
+                                  borderRadius: 4,
+                                  fontWeight: 800,
+                                  border: `1px solid ${palette.border}`,
+                                }}>
+                                  {String.fromCharCode(0x05D0 + exIdx)}
+                                </span>
+                                <span style={{
+                                  flex: 1,
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  color: isPast ? '#16A34A' : '#1a1a1a',
+                                }}>
+                                  {ex?.name || 'תרגיל ללא שם'}
+                                </span>
+                              </div>
+
+                              {setFields.length > 0 && (
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: `repeat(${Math.min(setFields.length, 3)}, 1fr)`,
+                                  gap: 4,
+                                }}>
+                                  {setFields.map((fieldId) => {
+                                    const c = UNIT_COLOR_BY_FIELD[fieldId];
+                                    if (!c) return null;
+                                    const val = ex?.[fieldId];
+                                    if (val == null) return null;
+                                    return (
+                                      <div key={fieldId} style={{
+                                        background: isPast ? '#F0FAF4' : c.tint,
+                                        border: `1px solid ${isPast ? '#BBF7D0' : c.tint}`,
+                                        borderRadius: 5,
+                                        padding: '4px 6px',
+                                        textAlign: 'center',
+                                      }}>
+                                        <div style={{
+                                          fontFamily: "'Bebas Neue', sans-serif",
+                                          fontSize: 16,
+                                          color: isPast ? '#16A34A' : c.stripe,
+                                          lineHeight: 1,
+                                        }}>{val}</div>
+                                        <div style={{
+                                          fontSize: 7,
+                                          color: isPast ? '#16A34A' : c.textSecondary,
+                                          fontWeight: 800,
+                                          marginTop: 2,
+                                        }}>{c.label}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {exIdx < exercises.length - 1 && (
+                              <div style={{
+                                textAlign: 'center',
+                                color: palette.stripe,
+                                fontSize: methodMeta.connectorStyle === 'arrow' ? 20 : 10,
+                                fontWeight: 800,
+                                margin: '4px 0',
+                                letterSpacing: methodMeta.connectorStyle === 'text' ? 1 : 0,
+                              }}>
+                                {methodMeta.connector}
+                              </div>
+                            )}
+                          </React.Fragment>
+                        ))}
+
+                        {/* Complete-round button — trainee + active round only */}
+                        {isActive && !isCoachMode && (
+                          <button
+                            type="button"
+                            onClick={() => onCompleteRound(roundNumber)}
+                            disabled={pyramidSaving}
+                            style={{
+                              width: '100%',
+                              marginTop: 10,
+                              background: pyramidSaving
+                                ? '#D1D5DB'
+                                : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
+                              color: 'white',
+                              border: 'none',
+                              padding: 10,
+                              borderRadius: 8,
+                              fontWeight: 800,
+                              fontSize: 13,
+                              fontFamily: 'inherit',
+                              cursor: pyramidSaving ? 'default' : 'pointer',
+                            }}
+                          >
+                            {pyramidSaving ? 'שומר...' : 'סיים סבב והמשך'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* REST_PAUSE — horizontal mini-set row with rest dividers
+                between cells. ONE shared variation_name + rest_seconds
+                header band at top. Active cell expands with the same
+                +/- counter pattern as pyramid; past cells turn green;
+                future cells stay dashed gray. Persistence shares
+                pyramid's exercise_set_logs path (set_number 1-based). */}
+            {expanded && HORIZONTAL_MINISETS_METHODS[variant] && (() => {
+              const plannedSets = parsePlannedSets(exercise);
+              const td = parseTabataData(exercise?.tabata_data) || {};
+              const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
+              const variationName = methodConfig.variation_name;
+              const restSeconds = methodConfig.rest_seconds ?? 15;
+
+              if (plannedSets.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    רסט פאוז · אין מיני-סטים מוגדרים
+                  </div>
+                );
+              }
+
+              const setFields = getSetFields(exercise);
+              const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+              const completedCount = plannedSets.reduce(
+                (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
+                0,
+              );
+              const activeIdx = pyramidActiveIdx;
+              const cols = Math.min(Math.max(numericFields.length, 1), 2);
+
+              // Button styles for the active cell's +/- counters —
+              // mirrors pyramid trainee block exactly.
+              const minusBtnStyle = {
+                width: 26, height: 26,
+                background: 'white',
+                border: '1px solid #FFD0AC',
+                color: '#FF6F20',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const plusBtnStyle = {
+                width: 26, height: 26,
+                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                border: '1px solid #FF6F20',
+                color: 'white',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const counterValueStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 22,
+                color: '#FF6F20',
+                lineHeight: 1,
+              };
+              const counterTargetStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 14,
+                color: '#9CA3AF',
+              };
+              const counterLabelStyle = {
+                fontSize: 9,
+                color: '#993C1D',
+                fontWeight: 700,
+                textAlign: 'center',
+                marginBottom: 4,
+              };
+
+              const activeSet = activeIdx < plannedSets.length ? plannedSets[activeIdx] : null;
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: '2px solid #FF6F20',
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: '0 4px 10px rgba(255,111,32,0.15)',
+                  marginBottom: 12,
+                }}>
+                  {/* Header band — variation + completed tally */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                    border: '1px solid #FFD0AC',
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
+                      {variationName || 'ללא וריאציה'}
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: '#FF6F20',
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: '1px solid #FFD0AC',
+                    }}>
+                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${plannedSets.length} מיני-סטים`
+                                   : `${completedCount} / ${plannedSets.length} מיני-סטים`}
+                    </span>
+                  </div>
+
+                  {/* Horizontal row of mini-set cells with rest
+                      dividers between them. Overflow-x scroll so 6+
+                      mini-sets stay reachable on narrow viewports. */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'stretch',
+                    gap: 4,
+                    marginBottom: 12,
+                    overflowX: 'auto',
+                    paddingBottom: 4,
+                  }}>
+                    {plannedSets.map((set, i) => {
+                      const isPast = i < activeIdx;
+                      const isActive = !isCoachMode && i === activeIdx;
+                      const isFuture = !isPast && !isActive;
+                      const actual = pyramidActuals[i + 1];
+
+                      return (
+                        <React.Fragment key={i}>
+                          <div style={{
+                            minWidth: isActive ? 140 : 75,
+                            flex: isActive ? '1 1 140px' : '0 0 auto',
+                            background: isPast ? '#F0FAF4'
+                              : isActive ? 'linear-gradient(135deg, #FFF5EE, #FFFAF5)'
+                              : 'white',
+                            border: isPast ? '1.5px solid #16A34A'
+                              : isActive ? '2px solid #FF6F20'
+                              : '1.5px dashed #D1D5DB',
+                            borderRadius: 10,
+                            padding: 8,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                          }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: isActive ? 24 : 20,
+                              color: isPast ? '#16A34A' : isActive ? '#FF6F20' : '#D1D5DB',
+                              lineHeight: 1,
+                              fontWeight: 800,
+                            }}>
+                              {String(set.set_index ?? (i + 1)).padStart(2, '0')}
+                            </span>
+
+                            {numericFields.map((fieldId) => {
+                              if (set[fieldId] == null) return null;
+                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                              const planned = set[fieldId];
+                              const actualVal = actual?.[fieldId];
+                              return (
+                                <div key={fieldId} style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    fontFamily: "'Bebas Neue', sans-serif",
+                                    fontSize: isActive ? 20 : 16,
+                                    color: isPast ? '#16A34A' : isActive ? meta.stripe : '#D1D5DB',
+                                    lineHeight: 1,
+                                  }}>
+                                    {isPast ? `${actualVal ?? '-'}/${planned}` : planned}
+                                  </span>
+                                  <div style={{
+                                    fontSize: 8,
+                                    color: isPast ? '#16A34A' : meta.textSecondary,
+                                    fontWeight: 800,
+                                    marginTop: 2,
+                                  }}>
+                                    {meta.label}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {isPast && <Check size={14} color="#16A34A" />}
+                            {isFuture && (
+                              <span style={{ fontSize: 8, color: '#9CA3AF' }}>ממתין</span>
+                            )}
+                          </div>
+
+                          {i < plannedSets.length - 1 && (
+                            <div style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0 4px',
+                              minWidth: 40,
+                              flexShrink: 0,
+                            }}>
+                              <span style={{
+                                fontFamily: "'Bebas Neue', sans-serif",
+                                fontSize: 18,
+                                color: '#14B8A6',
+                                lineHeight: 1,
+                                fontWeight: 700,
+                              }}>
+                                {restSeconds}
+                              </span>
+                              <span style={{ fontSize: 8, color: '#0F766E', fontWeight: 800, marginTop: 2 }}>
+                                שניות
+                              </span>
+                              <span style={{ fontSize: 7, color: '#14B8A6', marginTop: 2 }}>
+                                מנוחה
+                              </span>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+
+                  {/* Active mini-set input panel + save button —
+                      trainee only. Coach view stops at the row above. */}
+                  {!isCoachMode && activeSet && numericFields.length > 0 && (
+                    <div style={{
+                      background: 'white',
+                      border: '1.5px solid #FFD0AC',
+                      borderRadius: 10,
+                      padding: 10,
+                      marginBottom: 8,
+                    }}>
+                      <div style={{
+                        fontSize: 10,
+                        color: '#993C1D',
+                        fontWeight: 800,
+                        textAlign: 'center',
+                        marginBottom: 8,
+                      }}>
+                        מיני-סט {activeIdx + 1} · כמה הצלחת?
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                        gap: 8,
+                      }}>
+                        {numericFields.map((fieldId) => {
+                          if (activeSet[fieldId] == null) return null;
+                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                          return (
+                            <div key={fieldId}>
+                              <div style={counterLabelStyle}>{meta.label}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => updateActual(activeIdx, fieldId, -1)}
+                                  style={minusBtnStyle}
+                                >−</button>
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
+                                  <span style={counterValueStyle}>{pyramidActuals[activeIdx + 1]?.[fieldId] ?? 0}</span>
+                                  <span style={counterTargetStyle}>/ {activeSet[fieldId]}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => updateActual(activeIdx, fieldId, +1)}
+                                  style={plusBtnStyle}
+                                >+</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isCoachMode && activeIdx < plannedSets.length && (
+                    <button
+                      type="button"
+                      onClick={onSaveAndAdvance}
+                      disabled={pyramidSaving}
+                      style={{
+                        width: '100%',
+                        background: pyramidSaving
+                          ? '#FFB280'
+                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                        color: 'white',
+                        border: 'none',
+                        padding: 10,
+                        borderRadius: 8,
+                        fontWeight: 800,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        cursor: pyramidSaving ? 'default' : 'pointer',
+                      }}
+                    >
+                      {pyramidSaving ? 'שומר...' : 'שמור והמשך'}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Planned-sets coach view. Shared across PYRAMID / NONE /
+                REPS / DROP_SET / DELORME. If an in-progress execution
+                exists for the trainee+plan today, render each set as
+                either GREEN COMPLETED (actual/planned) or DASHED
+                PENDING (— / planned) and surface a "ביצוע המתאמן"
+                tally header. When no execution exists, fall back to
+                planned-only dashed-gray protocol view. Field columns
+                are driven by tabata_data.set_fields per row. */}
+            {expanded && PLANNED_SETS_METHODS[variant] && isCoachMode && (() => {
+              const methodMeta = PLANNED_SETS_METHODS[variant];
+              const plannedSets = parsePlannedSets(exercise);
+              if (plannedSets.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    {methodMeta.label} · אין סטים מוגדרים
+                  </div>
+                );
+              }
+
+              const setFields = getSetFields(exercise);
+              const hasExecution = !!pyramidExecutionId;
+              const completedCount = hasExecution
+                ? plannedSets.reduce(
+                    (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
+                    0,
+                  )
+                : 0;
+              const showVariation = !!methodMeta.variationRequired;
+
+              return (
+                <div dir="rtl">
+                  {hasExecution && (
+                    <div style={{
+                      background: 'linear-gradient(135deg, #FFF5EE, white)',
+                      border: '1px solid #FFD0AC',
+                      borderRadius: 8,
+                      padding: '10px 12px',
+                      marginBottom: 10,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#993C1D' }}>
+                        ביצוע המתאמן
+                      </span>
+                      <span style={{
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: 18,
+                        color: '#FF6F20',
+                      }}>
+                        {completedCount} / {plannedSets.length} סטים
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 5,
+                    marginBottom: 12,
+                  }}>
+                    {plannedSets.map((set, i) => {
+                      const actual = pyramidActuals[i + 1];
+                      const isDone = hasExecution && actual?.completed;
+                      const numColor = isDone ? '#16A34A' : '#D1D5DB';
+                      return (
+                        <div key={i} style={{
+                          background: isDone ? '#F0FAF4' : 'white',
+                          border: isDone ? '1.5px solid #16A34A' : '1.5px dashed #D1D5DB',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          flexWrap: 'wrap',
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 22,
+                            color: numColor,
+                            lineHeight: 1,
+                            minWidth: 24,
+                          }}>
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          {showVariation && set.variation_name && (
+                            <span style={{
+                              fontSize: 11,
+                              color: isDone ? '#15803D' : '#993C1D',
+                              background: isDone ? '#DCFCE7' : '#FFF5EE',
+                              border: `1px solid ${isDone ? '#86EFAC' : '#FFD0AC'}`,
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              fontWeight: 700,
+                            }}>
+                              {set.variation_name}
+                            </span>
+                          )}
+                          {setFields.filter((f) => NUMERIC_FIELDS.has(f)).map((fieldId) => {
+                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                            if (!meta || set[fieldId] == null) return null;
+                            const display = isDone
+                              ? `${actual?.[fieldId] ?? '-'} / ${set[fieldId]}`
+                              : (hasExecution ? `— / ${set[fieldId]}` : set[fieldId]);
+                            return (
+                              <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: numColor, lineHeight: 1 }}>
+                                  {display}
+                                </span>
+                                <span style={{
+                                  fontSize: 10,
+                                  color: isDone ? '#16A34A' : (meta.textSecondary || '#9CA3AF'),
+                                  opacity: isDone ? 0.85 : 1,
+                                }}>
+                                  {meta.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {setFields.filter((f) => !NUMERIC_FIELDS.has(f) && set[f] != null && String(set[f]).trim()).map((fieldId) => {
+                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                            if (!meta) return null;
+                            return (
+                              <span key={fieldId} style={{
+                                fontSize: 10,
+                                color: meta.textPrimary,
+                                background: meta.tint,
+                                border: `1px solid ${meta.tint}`,
+                                padding: '2px 6px',
+                                borderRadius: 3,
+                                fontWeight: 600,
+                              }}>
+                                {meta.label}: {set[fieldId]}
+                              </span>
+                            );
+                          })}
+                          {isDone && (
+                            <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Planned-sets trainee view. Shared across PYRAMID / NONE /
+                REPS / DROP_SET / DELORME. Each row renders past/active/
+                future based on pyramidActiveIdx. Columns inside a row
+                are driven by tabata_data.set_fields (numeric fields
+                show actual/planned for past rows + +/- counters in the
+                active row's input panel; text fields show planned-only
+                chips). DROP_SET / DELORME surface a hint when the
+                active row's variation_name is missing. State persists
+                via exercise_set_logs through saveSetActual. */}
+            {expanded && PLANNED_SETS_METHODS[variant] && !isCoachMode && (() => {
+              const methodMeta = PLANNED_SETS_METHODS[variant];
+              const plannedSets = parsePlannedSets(exercise);
+              if (plannedSets.length === 0) {
+                return (
+                  <div dir="rtl" style={{
+                    padding: '12px',
+                    fontSize: 12,
+                    color: '#9CA3AF',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}>
+                    {methodMeta.label} · אין סטים מוגדרים
+                  </div>
+                );
+              }
+              const setFields = getSetFields(exercise);
+              const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+              const textFields = setFields.filter((f) => !NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+
+              const minusBtnStyle = {
+                width: 26, height: 26,
+                background: 'white',
+                border: '1px solid #FFD0AC',
+                color: '#FF6F20',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const plusBtnStyle = {
+                width: 26, height: 26,
+                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                border: '1px solid #FF6F20',
+                color: 'white',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              };
+              const counterValueStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 22,
+                color: '#FF6F20',
+                lineHeight: 1,
+              };
+              const counterTargetStyle = {
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 14,
+                color: '#9CA3AF',
+              };
+              const counterLabelStyle = {
+                fontSize: 9,
+                color: '#993C1D',
+                fontWeight: 700,
+                textAlign: 'center',
+                marginBottom: 4,
+              };
+
+              return (
+                <div dir="rtl" style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 5,
+                  marginBottom: 12,
+                }}>
+                  {plannedSets.map((set, i) => {
+                    // ── PAST row (green, completed) ───────────────
+                    if (i < pyramidActiveIdx) {
+                      return (
+                        <div key={i} style={{
+                          background: '#F0FAF4',
+                          border: '1.5px solid #16A34A',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          flexWrap: 'wrap',
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 22,
+                            color: '#16A34A',
+                            lineHeight: 1,
+                            minWidth: 24,
+                          }}>
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          {methodMeta.variationRequired && set.variation_name && (
+                            <span style={{
+                              fontSize: 11,
+                              color: '#15803D',
+                              background: '#DCFCE7',
+                              border: '1px solid #86EFAC',
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              fontWeight: 700,
+                            }}>
+                              {set.variation_name}
+                            </span>
+                          )}
+                          {numericFields.map((fieldId) => {
+                            if (set[fieldId] == null) return null;
+                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                            return (
+                              <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
+                                  {pyramidActuals[i + 1]?.[fieldId] ?? '-'} / {set[fieldId]}
+                                </span>
+                                <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>{meta.label}</span>
+                              </div>
+                            );
+                          })}
+                          <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
+                        </div>
+                      );
+                    }
+
+                    // ── ACTIVE row (orange, expanded with inputs) ─
+                    if (i === pyramidActiveIdx) {
+                      const variationMissing = methodMeta.variationRequired
+                        && !(set.variation_name || '').trim();
+                      const cols = Math.min(Math.max(numericFields.length, 1), 2);
+                      return (
+                        <div key={i} style={{
+                          background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                          border: '2px solid #FF6F20',
+                          borderRadius: 10,
+                          padding: 12,
+                          boxShadow: '0 4px 10px rgba(255,111,32,0.25)',
+                        }}>
+                          {variationMissing && (
+                            <div style={{
+                              fontSize: 10,
+                              color: '#FF6F20',
+                              fontWeight: 700,
+                              marginBottom: 8,
+                              textAlign: 'center',
+                            }}>
+                              ⚠ וריאציה לא הוגדרה למאמן
+                            </div>
+                          )}
+
+                          {/* Header — set number + planned numerics + text chips */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 18,
+                            marginBottom: 12,
+                            flexWrap: 'wrap',
+                          }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 30,
+                              color: '#FF6F20',
+                              lineHeight: 1,
+                              minWidth: 30,
+                              fontWeight: 800,
+                            }}>
+                              {String(i + 1).padStart(2, '0')}
+                            </span>
+                            {methodMeta.variationRequired && set.variation_name && (
+                              <span style={{
+                                fontSize: 12,
+                                color: '#993C1D',
+                                background: 'white',
+                                border: '1px solid #FFD0AC',
+                                padding: '4px 10px',
+                                borderRadius: 999,
+                                fontWeight: 700,
+                              }}>
+                                {set.variation_name}
+                              </span>
+                            )}
+                            {numericFields.map((fieldId) => {
+                              if (set[fieldId] == null) return null;
+                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                              return (
+                                <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
+                                    {set[fieldId]}
+                                  </span>
+                                  <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>{meta.label}</span>
+                                </div>
+                              );
+                            })}
+                            {textFields.map((fieldId) => {
+                              if (set[fieldId] == null || !String(set[fieldId]).trim()) return null;
+                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                              return (
+                                <span key={fieldId} style={{
+                                  fontSize: 11,
+                                  color: meta.textPrimary,
+                                  background: meta.tint,
+                                  border: `1px solid ${meta.tint}`,
+                                  padding: '3px 8px',
+                                  borderRadius: 4,
+                                  fontWeight: 600,
+                                }}>
+                                  {meta.label}: {set[fieldId]}
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          {/* Input panel — only when at least one numeric field */}
+                          {numericFields.length > 0 && (
+                            <div style={{
+                              background: 'white',
+                              border: '1.5px solid #FFD0AC',
+                              borderRadius: 8,
+                              padding: 10,
+                            }}>
+                              <div style={{
+                                fontSize: 10,
+                                color: '#993C1D',
+                                fontWeight: 800,
+                                marginBottom: 8,
+                                textAlign: 'center',
+                              }}>
+                                כמה הצלחת?
+                              </div>
+
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                                gap: 8,
+                              }}>
+                                {numericFields.map((fieldId) => {
+                                  if (set[fieldId] == null) return null;
+                                  const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                                  return (
+                                    <div key={fieldId}>
+                                      <div style={counterLabelStyle}>{meta.label}</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateActual(i, fieldId, -1)}
+                                          style={minusBtnStyle}
+                                        >−</button>
+                                        <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
+                                          <span style={counterValueStyle}>{pyramidActuals[i + 1]?.[fieldId] ?? 0}</span>
+                                          <span style={counterTargetStyle}>/ {set[fieldId]}</span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateActual(i, fieldId, +1)}
+                                          style={plusBtnStyle}
+                                        >+</button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={onSaveAndAdvance}
+                                disabled={pyramidSaving}
+                                style={{
+                                  width: '100%',
+                                  background: pyramidSaving
+                                    ? '#FFB280'
+                                    : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: 9,
+                                  borderRadius: 7,
+                                  fontWeight: 800,
+                                  fontSize: 12,
+                                  fontFamily: 'inherit',
+                                  marginTop: 8,
+                                  cursor: pyramidSaving ? 'default' : 'pointer',
+                                }}
+                              >
+                                {pyramidSaving ? 'שומר...' : 'שמור והמשך לסט הבא'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // ── FUTURE row (dashed gray, planned only) ────
+                    return (
+                      <div key={i} style={{
+                        background: 'white',
+                        border: '1.5px dashed #D1D5DB',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        flexWrap: 'wrap',
+                      }}>
+                        <span style={{
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 22,
+                          color: '#D1D5DB',
+                          lineHeight: 1,
+                          minWidth: 24,
+                        }}>
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        {methodMeta.variationRequired && set.variation_name && (
+                          <span style={{
+                            fontSize: 11,
+                            color: '#9CA3AF',
+                            background: '#FAFAFA',
+                            border: '1px dashed #D1D5DB',
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            fontWeight: 700,
+                          }}>
+                            {set.variation_name}
+                          </span>
+                        )}
+                        {numericFields.map((fieldId) => {
+                          if (set[fieldId] == null) return null;
+                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
+                          return (
+                            <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
+                                {set[fieldId]}
+                              </span>
+                              <span style={{ fontSize: 10, color: '#9CA3AF' }}>{meta.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* TABATA — new "control panel" layout: header + 5 clock
+                stats + rotation list + launch button. Fires only when
+                the exercise carries the new shape (exercises_in_rotation
+                or clock_settings); legacy tabata rows fall through to
+                the existing detailed block below. Trainee taps the
+                launcher → useClock().startTabata() with the rotation
+                + navigate to /clocks. Coach view shows a compact
+                summary line instead of the button. */}
+            {expanded && variant === 'tabata' && hasNewTabataShape(exercise) && (() => {
+              const cs = resolveTabataClockSettings(exercise);
+              const rotation = resolveTabataRotation(exercise);
+              const accent = '#FF6F20';
+              const statBoxes = [
+                { value: cs.work_seconds,      label: 'עבודה',     color: '#FF6F20', tint: '#FFF5EE' },
+                { value: cs.rest_seconds,      label: 'מנוחה',     color: '#14B8A6', tint: '#F0FDFA' },
+                { value: cs.rounds,            label: 'סבבים',     color: '#6b7280', tint: '#FAFAFA' },
+                { value: cs.sets,              label: 'סטים',      color: '#6b7280', tint: '#FAFAFA' },
+                { value: cs.rest_between_sets, label: 'בין סטים',  color: '#14B8A6', tint: '#F0FDFA' },
+              ];
+
+              return (
+                <div dir="rtl" style={{
+                  background: 'white',
+                  border: `2px solid ${accent}`,
+                  borderRadius: 14,
+                  padding: 12,
+                  boxShadow: 'rgba(255,111,32,0.15) 0px 4px 10px',
+                  marginBottom: 12,
+                }}>
+                  {/* Header band */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
+                    border: '1px solid #FFD0AC',
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
+                      טבטה
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: accent,
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: '1px solid #FFD0AC',
+                    }}>
+                      {rotation.length} {rotation.length === 1 ? 'תרגיל ברוטציה' : 'תרגילים ברוטציה'}
+                    </span>
+                  </div>
+
+                  {/* 5-stat clock grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
+                    gap: 6,
+                    marginBottom: 12,
+                  }}>
+                    {statBoxes.map((cfg, i) => (
+                      <div key={i} style={{
+                        background: cfg.tint,
+                        border: `1px solid ${cfg.tint}`,
+                        borderRadius: 7,
+                        padding: '6px 4px',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 22,
+                          color: cfg.color,
+                          lineHeight: 1,
+                          fontWeight: 800,
+                        }}>{cfg.value}</div>
+                        <div style={{
+                          fontSize: 8,
+                          color: cfg.color,
+                          fontWeight: 800,
+                          marginTop: 3,
+                          letterSpacing: 0.3,
+                        }}>{cfg.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rotation list */}
+                  {rotation.length > 0 ? (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: '#993C1D',
+                        marginBottom: 6,
+                        letterSpacing: 0.3,
+                      }}>
+                        סדר רוטציה
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {rotation.map((ex, i) => (
+                          <div key={i} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            background: 'white',
+                            border: '1px solid #FFD0AC',
+                            borderRadius: 7,
+                            padding: '6px 10px',
+                          }}>
+                            <span style={{
+                              fontFamily: "'Bebas Neue', sans-serif",
+                              fontSize: 14,
+                              color: accent,
+                              background: '#FFF5EE',
+                              padding: '2px 7px',
+                              borderRadius: 4,
+                              fontWeight: 800,
+                              minWidth: 24,
+                              textAlign: 'center',
+                            }}>
+                              {String(i + 1).padStart(2, '0')}
+                            </span>
+                            <span style={{
+                              flex: 1,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#1a1a1a',
+                            }}>
+                              {ex?.name || 'תרגיל ללא שם'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: 12,
+                      fontSize: 11,
+                      color: '#9CA3AF',
+                      background: '#FAFAFA',
+                      borderRadius: 7,
+                      marginBottom: 12,
+                    }}>
+                      אין תרגילים מוגדרים ברוטציה
+                    </div>
+                  )}
+
+                  {/* Launch button — trainee only */}
+                  {!isCoachMode && (
+                    <button
+                      type="button"
+                      onClick={handleLaunchTabata}
+                      disabled={launchingClock}
+                      style={{
+                        width: '100%',
+                        background: launchingClock
+                          ? '#D1D5DB'
+                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                        color: 'white',
+                        border: 'none',
+                        padding: 12,
+                        borderRadius: 10,
+                        fontWeight: 800,
+                        fontSize: 14,
+                        fontFamily: 'inherit',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        boxShadow: '0 4px 12px rgba(255,111,32,0.3)',
+                        cursor: launchingClock ? 'wait' : 'pointer',
+                        opacity: launchingClock ? 0.7 : 1,
+                      }}
+                    >
+                      <Timer size={18} />
+                      {launchingClock ? 'מפעיל שעון...' : 'הפעל שעון טבטה'}
+                    </button>
+                  )}
+
+                  {/* Coach summary instead of button */}
+                  {isCoachMode && (
+                    <div style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      color: '#993C1D',
+                      fontWeight: 700,
+                      padding: 10,
+                      background: '#FFF5EE',
+                      border: '1px solid #FFD0AC',
+                      borderRadius: 8,
+                    }}>
+                      טבטה · {cs.work_seconds}/{cs.rest_seconds} · {cs.rounds} סבבים × {cs.sets} סטים
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+        {expanded && variant === 'tabata' && !hasNewTabataShape(exercise) && (() => {
           const cs = td?.clock_settings || null;
           const work = toSeconds(cs?.work_seconds ?? td?.work_time ?? exercise.work_time);
           const rest = toSeconds(cs?.rest_seconds ?? td?.rest_time ?? exercise.rest_time);
@@ -3017,2403 +4596,4 @@ export default function ExerciseCard({
       </div>
     );
   }
-
-  return (
-    <div style={{
-      borderRadius: 11,
-      border: `1.5px solid ${colors.border}`,
-      overflow: 'hidden',
-      marginBottom: isCoachMode ? 7 : 5,
-      background: '#FFFFFF',
-      display: 'flex',
-      direction: 'rtl',
-    }}>
-      {/* Left vertical stripe */}
-      <div style={{
-        width: isCoachMode ? 6 : 4,
-        background: colors.stripe,
-        flexShrink: 0,
-      }} aria-hidden />
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Header — collapsed/header row */}
-        <div
-          onClick={() => setExpanded(v => !v)}
-          role="button"
-          tabIndex={0}
-          aria-expanded={expanded}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setExpanded(v => !v);
-            }
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 10,
-            padding: isCoachMode ? '12px 13px' : '10px 11px',
-            cursor: 'pointer',
-            userSelect: 'none',
-          }}
-        >
-          {/* Master checkbox: in trainee mode it mirrors `completed`
-              (driven by per-set toggles below); in coach mode it
-              renders as a decorative state indicator only. */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isCoachMode) return;
-              // Trainee: tapping the master checkbox is a shortcut that
-              // toggles the parent's exercise-completed flag.
-              if (onToggleComplete) onToggleComplete(exercise);
-            }}
-            aria-checked={completed}
-            role="checkbox"
-            disabled={isCoachMode}
-            style={{
-              width: 26, height: 26, borderRadius: 7,
-              border: `2.5px solid ${completed ? '#16a34a' : colors.stripe}`,
-              background: completed ? '#16a34a' : '#FFFFFF',
-              color: '#FFFFFF',
-              cursor: isCoachMode ? 'default' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: 0, flexShrink: 0, marginTop: 1,
-              fontSize: 15, fontWeight: 900, lineHeight: 1,
-            }}
-          >{completed ? '✓' : ''}</button>
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {renaming ? (
-              <input
-                autoFocus
-                defaultValue={name}
-                onClick={(e) => e.stopPropagation()}
-                onBlur={(e) => {
-                  const next = e.target.value.trim();
-                  setRenaming(false);
-                  if (next && next !== name && onRename) onRename(exercise.id, next);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.target.blur();
-                  if (e.key === 'Escape') { e.target.value = name; e.target.blur(); }
-                }}
-                style={{
-                  fontSize: 16, fontWeight: 700, color: '#1a1a1a',
-                  width: '100%', border: 'none',
-                  borderBottom: `2px solid ${colors.stripe}`,
-                  background: 'transparent', outline: 'none',
-                  fontFamily: 'inherit', padding: '2px 0', direction: 'rtl',
-                }}
-              />
-            ) : (
-              <div style={{
-                fontSize: 16, fontWeight: 700,
-                fontFamily: "'Rubik', system-ui, sans-serif",
-                color: completed ? '#aaa' : '#1a1a1a',
-                textDecoration: completed ? 'line-through' : 'none',
-                lineHeight: 1.3,
-                wordBreak: 'break-word',
-              }}>
-                {name}
-              </div>
-            )}
-            {tabataSummary ? tabataSummary : STATIONS_METHODS[variant] ? circuitSummary : ROUNDS_METHODS[variant] ? roundsSummary : HORIZONTAL_MINISETS_METHODS[variant] ? restPauseSummary : PLANNED_SETS_METHODS[variant] ? pyramidSummary : (summaryPills.length > 0 && (
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 6,
-                marginTop: 5,
-                direction: 'rtl',
-              }}>
-                {summaryPills.map((text, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      display: 'inline-block',
-                      background: completed ? '#DCFCE7' : '#FFF0E4',
-                      color: completed ? '#15803D' : '#993C1D',
-                      fontSize: 12,
-                      padding: '4px 9px',
-                      borderRadius: 8,
-                      whiteSpace: 'nowrap',
-                      fontWeight: 500,
-                    }}
-                  >{text}</span>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          <span aria-hidden style={{
-            color: colors.stripe,
-            fontSize: 14,
-            transition: 'transform 0.2s',
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            flexShrink: 0, marginTop: 4,
-          }}>▼</span>
-        </div>
-
-        {/* Expanded body */}
-        {expanded && (
-          <div style={{
-            background: '#FAFAFA',
-            borderTop: `1px solid ${colors.border}`,
-            padding: isCoachMode ? '12px 13px' : '10px 11px',
-          }}>
-            {(() => {
-              console.log('[ExerciseCard.openBody]', {
-                variant,
-                mode: exercise?.mode,
-                matched: {
-                  stations: !!STATIONS_METHODS?.[variant],
-                  rounds: !!ROUNDS_METHODS?.[variant],
-                  mini: !!HORIZONTAL_MINISETS_METHODS?.[variant],
-                  planned: !!PLANNED_SETS_METHODS?.[variant],
-                  tabata: variant === 'tabata',
-                  list: variant === 'list',
-                  normal: variant === 'normal',
-                },
-              });
-              return null;
-            })()}
-            {/* CIRCUIT — horizontal scrollable strip of station cards
-                + a round-progression dot indicator. Each station shows
-                its number, type badge (חזרות / שניות), name, and value
-                in its type's unit color. group_mode swaps in the
-                stronger blue palette and surfaces a "קבוצתי" badge.
-                Persistence reuses onCompleteRound (writes a 1-marker
-                row per completed round to exercise_set_logs). */}
-            {STATIONS_METHODS[variant] && (() => {
-              const methodMeta = STATIONS_METHODS[variant];
-              const td = parseTabataData(exercise?.tabata_data) || {};
-              const stations = Array.isArray(td.stations) ? td.stations : [];
-              const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
-              const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
-              const groupMode = methodConfig.group_mode === true;
-              const palette = groupMode ? methodMeta.groupPalette : methodMeta.palette;
-              const outerBorderWidth = groupMode ? 2.5 : 2;
-
-              if (stations.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין תחנות מוגדרות
-                  </div>
-                );
-              }
-
-              const setFields = getSetFields(exercise);
-              // activeRoundIdx is 0-based; derived from how many rounds
-              // already have a completion marker in pyramidActuals.
-              let activeRoundIdx = rounds;
-              for (let i = 0; i < rounds; i++) {
-                if (!pyramidActuals[i + 1]?.completed) { activeRoundIdx = i; break; }
-              }
-
-              return (
-                <div dir="rtl" style={{
-                  background: 'white',
-                  border: `${outerBorderWidth}px solid ${palette.stripe}`,
-                  borderRadius: 14,
-                  padding: 12,
-                  boxShadow: `0 4px 10px ${palette.stripe}25`,
-                  marginBottom: 12,
-                }}>
-                  {/* Header band */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                    border: `1px solid ${palette.border}`,
-                    borderRadius: 10,
-                    marginBottom: 12,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
-                        {methodMeta.label}
-                      </span>
-                      {groupMode && (
-                        <span style={{
-                          fontSize: 9,
-                          fontWeight: 800,
-                          color: 'white',
-                          background: palette.stripe,
-                          padding: '2px 7px',
-                          borderRadius: 10,
-                          letterSpacing: 0.3,
-                        }}>
-                          קבוצתי
-                        </span>
-                      )}
-                    </div>
-                    <span style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 14,
-                      color: palette.stripe,
-                      background: 'white',
-                      padding: '2px 8px',
-                      borderRadius: 5,
-                      border: `1px solid ${palette.border}`,
-                    }}>
-                      סבב {Math.min(activeRoundIdx + 1, rounds)} / {rounds}
-                    </span>
-                  </div>
-
-                  {/* Group-mode hint strip */}
-                  {groupMode && (
-                    <div style={{
-                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                      border: `1px solid ${palette.border}`,
-                      borderRadius: 8,
-                      padding: 8,
-                      marginBottom: 10,
-                      fontSize: 11,
-                      color: palette.text,
-                      fontWeight: 700,
-                      textAlign: 'center',
-                    }}>
-                      מצב קבוצתי פעיל — סמן השלמת סבב לכל הקבוצה יחד
-                    </div>
-                  )}
-
-                  {/* Stations strip — horizontal scroll */}
-                  <div style={{
-                    display: 'flex',
-                    gap: 8,
-                    overflowX: 'auto',
-                    paddingBottom: 6,
-                    marginBottom: 12,
-                  }}>
-                    {stations.map((station, sIdx) => {
-                      const stType = station?.type === 'time' ? 'time' : 'reps';
-                      const typeColor = STATION_TYPE_COLORS[stType];
-                      const stationNumber = station?.station_index ?? (sIdx + 1);
-                      return (
-                        <div key={sIdx} style={{
-                          minWidth: 120,
-                          flex: '0 0 120px',
-                          background: 'white',
-                          border: `1.5px solid ${palette.border}`,
-                          borderRadius: 10,
-                          padding: 10,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 6,
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 20,
-                              color: palette.stripe,
-                              fontWeight: 800,
-                              lineHeight: 1,
-                            }}>
-                              {String(stationNumber).padStart(2, '0')}
-                            </span>
-                            <span style={{
-                              fontSize: 8,
-                              fontWeight: 800,
-                              color: typeColor.stripe,
-                              background: typeColor.tint,
-                              padding: '2px 6px',
-                              borderRadius: 3,
-                            }}>
-                              {typeColor.label}
-                            </span>
-                          </div>
-
-                          <div style={{
-                            fontSize: 11,
-                            fontWeight: 800,
-                            color: '#1a1a1a',
-                            minHeight: 28,
-                            wordBreak: 'break-word',
-                          }}>
-                            {station?.name || 'תחנה ללא שם'}
-                          </div>
-
-                          <div style={{
-                            background: typeColor.tint,
-                            border: `1px solid ${typeColor.tint}`,
-                            borderRadius: 6,
-                            padding: 6,
-                            textAlign: 'center',
-                          }}>
-                            <div style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 22,
-                              color: typeColor.stripe,
-                              lineHeight: 1,
-                              fontWeight: 800,
-                            }}>
-                              {station?.value ?? '-'}
-                            </div>
-                          </div>
-
-                          {setFields.length > 0 && (
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: `repeat(${Math.min(setFields.length, 2)}, 1fr)`,
-                              gap: 4,
-                            }}>
-                              {setFields.map((fieldId) => {
-                                const c = UNIT_COLOR_BY_FIELD[fieldId];
-                                if (!c) return null;
-                                const val = station?.[fieldId];
-                                if (val == null) return null;
-                                return (
-                                  <div key={fieldId} style={{
-                                    background: c.tint,
-                                    border: `1px solid ${c.tint}`,
-                                    borderRadius: 4,
-                                    padding: '3px 4px',
-                                    textAlign: 'center',
-                                  }}>
-                                    <div style={{
-                                      fontFamily: "'Bebas Neue', sans-serif",
-                                      fontSize: 13,
-                                      color: c.stripe,
-                                      lineHeight: 1,
-                                    }}>{val}</div>
-                                    <div style={{
-                                      fontSize: 7,
-                                      color: c.textSecondary,
-                                      fontWeight: 800,
-                                      marginTop: 2,
-                                    }}>{c.label}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Round progress dots */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    gap: 6,
-                    marginBottom: 10,
-                  }}>
-                    {Array.from({ length: rounds }, (_, i) => (
-                      <div key={i} style={{
-                        width: i === activeRoundIdx ? 24 : 8,
-                        height: 8,
-                        borderRadius: 4,
-                        background: i < activeRoundIdx ? '#16A34A'
-                          : i === activeRoundIdx ? palette.stripe
-                          : '#E5E7EB',
-                        transition: 'all 0.2s',
-                      }} />
-                    ))}
-                  </div>
-
-                  {/* Complete-round button — trainee + active round only */}
-                  {!isCoachMode && activeRoundIdx < rounds && (
-                    <button
-                      type="button"
-                      onClick={() => onCompleteRound(activeRoundIdx + 1)}
-                      disabled={pyramidSaving}
-                      style={{
-                        width: '100%',
-                        background: pyramidSaving
-                          ? '#D1D5DB'
-                          : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
-                        color: 'white',
-                        border: 'none',
-                        padding: 10,
-                        borderRadius: 8,
-                        fontWeight: 800,
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                        cursor: pyramidSaving ? 'default' : 'pointer',
-                      }}
-                    >
-                      {pyramidSaving ? 'שומר...' : `סיים סבב ${activeRoundIdx + 1} והמשך`}
-                    </button>
-                  )}
-
-                  {/* Coach tally */}
-                  {isCoachMode && (
-                    <div style={{
-                      textAlign: 'center',
-                      fontSize: 11,
-                      color: palette.text,
-                      fontWeight: 700,
-                      padding: 8,
-                      background: palette.outer,
-                      borderRadius: 7,
-                    }}>
-                      ביצוע המתאמן · {Math.min(activeRoundIdx, rounds)}/{rounds} סבבים
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* SUPERSET / COMBO — rounds-based layout. Vertical list
-                of round cards; each round shows its exercise sequence
-                vertically with a connector ("ואז" for superset, "←"
-                arrow for combo) between adjacent exercises. Active
-                round expands a "סיים סבב והמשך" button (trainee only)
-                that writes a marker row to exercise_set_logs keyed by
-                round_index. activeRoundIdx is derived from pyramidActuals
-                so a refresh resumes on the next undone round. */}
-            {ROUNDS_METHODS[variant] && (() => {
-              const methodMeta = ROUNDS_METHODS[variant];
-              const palette = methodMeta.palette;
-              const td = parseTabataData(exercise?.tabata_data) || {};
-              const rounds = Array.isArray(td.rounds) ? td.rounds : [];
-              if (rounds.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין סבבים מוגדרים
-                  </div>
-                );
-              }
-
-              const setFields = getSetFields(exercise);
-              // Active round = first round_index without a "completed"
-              // marker. Falls through to rounds.length when every round
-              // is done (no active card; just the past list).
-              let activeRoundIdx = rounds.length;
-              for (let i = 0; i < rounds.length; i++) {
-                const ri = rounds[i]?.round_index ?? (i + 1);
-                if (!pyramidActuals[ri]?.completed) { activeRoundIdx = i; break; }
-              }
-              const completedCount = rounds.reduce((n, r, i) => {
-                const ri = r?.round_index ?? (i + 1);
-                return n + (pyramidActuals[ri]?.completed ? 1 : 0);
-              }, 0);
-              const tallyLabel = rounds.length === 1 ? methodMeta.roundLabel : methodMeta.pluralLabel;
-
-              return (
-                <div dir="rtl" style={{
-                  background: 'white',
-                  border: `2px solid ${palette.stripe}`,
-                  borderRadius: 14,
-                  padding: 12,
-                  boxShadow: `0 4px 10px ${palette.stripe}25`,
-                  marginBottom: 12,
-                }}>
-                  {/* Header band */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                    border: `1px solid ${palette.border}`,
-                    borderRadius: 10,
-                    marginBottom: 12,
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
-                      {methodMeta.label}
-                    </span>
-                    <span style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 14,
-                      color: palette.stripe,
-                      background: 'white',
-                      padding: '2px 8px',
-                      borderRadius: 5,
-                      border: `1px solid ${palette.border}`,
-                    }}>
-                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${rounds.length} ${tallyLabel}`
-                                   : `${completedCount} / ${rounds.length} ${tallyLabel}`}
-                    </span>
-                  </div>
-
-                  {/* Top hint (COMBO only) */}
-                  {methodMeta.topHint && (
-                    <div style={{
-                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                      border: `1px solid ${palette.border}`,
-                      borderRadius: 8,
-                      padding: 8,
-                      marginBottom: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      justifyContent: 'center',
-                    }}>
-                      <Zap size={12} color={palette.stripe} />
-                      <span style={{ fontSize: 11, color: palette.text, fontWeight: 700 }}>
-                        {methodMeta.topHint}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Round cards */}
-                  {rounds.map((round, rIdx) => {
-                    const isPast = rIdx < activeRoundIdx;
-                    const isActive = !isCoachMode && rIdx === activeRoundIdx;
-                    const exercises = Array.isArray(round?.exercises) ? round.exercises : [];
-                    const roundNumber = round?.round_index ?? (rIdx + 1);
-
-                    return (
-                      <div key={rIdx} style={{
-                        background: isPast ? '#F0FAF4'
-                          : isActive ? palette.outer
-                          : 'white',
-                        border: isPast ? '1.5px solid #16A34A'
-                          : isActive ? `2px solid ${palette.stripe}`
-                          : '1.5px dashed #D1D5DB',
-                        borderRadius: 10,
-                        padding: 10,
-                        marginBottom: 8,
-                      }}>
-                        {/* Round header */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          marginBottom: 8,
-                          paddingBottom: 8,
-                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : palette.border}`,
-                        }}>
-                          <span style={{
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 22,
-                            color: isPast ? '#16A34A' : isActive ? palette.stripe : '#9CA3AF',
-                            lineHeight: 1,
-                            fontWeight: 800,
-                          }}>
-                            {String(roundNumber).padStart(2, '0')}
-                          </span>
-                          <span style={{
-                            fontSize: 11,
-                            fontWeight: 800,
-                            color: isPast ? '#16A34A' : isActive ? palette.text : '#9CA3AF',
-                            background: 'white',
-                            padding: '2px 8px',
-                            borderRadius: 5,
-                            border: `1px solid ${isPast ? '#86EFAC' : palette.border}`,
-                          }}>
-                            {methodMeta.roundLabel} {roundNumber}
-                          </span>
-                          {isPast && <Check size={14} color="#16A34A" />}
-                        </div>
-
-                        {/* Exercise sub-cards with connectors */}
-                        {exercises.map((ex, exIdx) => (
-                          <React.Fragment key={exIdx}>
-                            <div style={{
-                              background: 'white',
-                              border: `1px solid ${isPast ? '#BBF7D0' : palette.border}`,
-                              borderRadius: 7,
-                              padding: 8,
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                <span style={{
-                                  fontFamily: "'Bebas Neue', sans-serif",
-                                  fontSize: 14,
-                                  color: palette.stripe,
-                                  background: palette.outer,
-                                  padding: '2px 7px',
-                                  borderRadius: 4,
-                                  fontWeight: 800,
-                                  border: `1px solid ${palette.border}`,
-                                }}>
-                                  {String.fromCharCode(0x05D0 + exIdx)}
-                                </span>
-                                <span style={{
-                                  flex: 1,
-                                  fontSize: 12,
-                                  fontWeight: 800,
-                                  color: isPast ? '#16A34A' : '#1a1a1a',
-                                }}>
-                                  {ex?.name || 'תרגיל ללא שם'}
-                                </span>
-                              </div>
-
-                              {setFields.length > 0 && (
-                                <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: `repeat(${Math.min(setFields.length, 3)}, 1fr)`,
-                                  gap: 4,
-                                }}>
-                                  {setFields.map((fieldId) => {
-                                    const c = UNIT_COLOR_BY_FIELD[fieldId];
-                                    if (!c) return null;
-                                    const val = ex?.[fieldId];
-                                    if (val == null) return null;
-                                    return (
-                                      <div key={fieldId} style={{
-                                        background: isPast ? '#F0FAF4' : c.tint,
-                                        border: `1px solid ${isPast ? '#BBF7D0' : c.tint}`,
-                                        borderRadius: 5,
-                                        padding: '4px 6px',
-                                        textAlign: 'center',
-                                      }}>
-                                        <div style={{
-                                          fontFamily: "'Bebas Neue', sans-serif",
-                                          fontSize: 16,
-                                          color: isPast ? '#16A34A' : c.stripe,
-                                          lineHeight: 1,
-                                        }}>{val}</div>
-                                        <div style={{
-                                          fontSize: 7,
-                                          color: isPast ? '#16A34A' : c.textSecondary,
-                                          fontWeight: 800,
-                                          marginTop: 2,
-                                        }}>{c.label}</div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-
-                            {exIdx < exercises.length - 1 && (
-                              <div style={{
-                                textAlign: 'center',
-                                color: palette.stripe,
-                                fontSize: methodMeta.connectorStyle === 'arrow' ? 20 : 10,
-                                fontWeight: 800,
-                                margin: '4px 0',
-                                letterSpacing: methodMeta.connectorStyle === 'text' ? 1 : 0,
-                              }}>
-                                {methodMeta.connector}
-                              </div>
-                            )}
-                          </React.Fragment>
-                        ))}
-
-                        {/* Complete-round button — trainee + active round only */}
-                        {isActive && !isCoachMode && (
-                          <button
-                            type="button"
-                            onClick={() => onCompleteRound(roundNumber)}
-                            disabled={pyramidSaving}
-                            style={{
-                              width: '100%',
-                              marginTop: 10,
-                              background: pyramidSaving
-                                ? '#D1D5DB'
-                                : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
-                              color: 'white',
-                              border: 'none',
-                              padding: 10,
-                              borderRadius: 8,
-                              fontWeight: 800,
-                              fontSize: 13,
-                              fontFamily: 'inherit',
-                              cursor: pyramidSaving ? 'default' : 'pointer',
-                            }}
-                          >
-                            {pyramidSaving ? 'שומר...' : 'סיים סבב והמשך'}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
-            {/* REST_PAUSE — horizontal mini-set row with rest dividers
-                between cells. ONE shared variation_name + rest_seconds
-                header band at top. Active cell expands with the same
-                +/- counter pattern as pyramid; past cells turn green;
-                future cells stay dashed gray. Persistence shares
-                pyramid's exercise_set_logs path (set_number 1-based). */}
-            {HORIZONTAL_MINISETS_METHODS[variant] && (() => {
-              const plannedSets = parsePlannedSets(exercise);
-              const td = parseTabataData(exercise?.tabata_data) || {};
-              const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
-              const variationName = methodConfig.variation_name;
-              const restSeconds = methodConfig.rest_seconds ?? 15;
-
-              if (plannedSets.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    רסט פאוז · אין מיני-סטים מוגדרים
-                  </div>
-                );
-              }
-
-              const setFields = getSetFields(exercise);
-              const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
-              const completedCount = plannedSets.reduce(
-                (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
-                0,
-              );
-              const activeIdx = pyramidActiveIdx;
-              const cols = Math.min(Math.max(numericFields.length, 1), 2);
-
-              // Button styles for the active cell's +/- counters —
-              // mirrors pyramid trainee block exactly.
-              const minusBtnStyle = {
-                width: 26, height: 26,
-                background: 'white',
-                border: '1px solid #FFD0AC',
-                color: '#FF6F20',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-              };
-              const plusBtnStyle = {
-                width: 26, height: 26,
-                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                border: '1px solid #FF6F20',
-                color: 'white',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-              };
-              const counterValueStyle = {
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: 22,
-                color: '#FF6F20',
-                lineHeight: 1,
-              };
-              const counterTargetStyle = {
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: 14,
-                color: '#9CA3AF',
-              };
-              const counterLabelStyle = {
-                fontSize: 9,
-                color: '#993C1D',
-                fontWeight: 700,
-                textAlign: 'center',
-                marginBottom: 4,
-              };
-
-              const activeSet = activeIdx < plannedSets.length ? plannedSets[activeIdx] : null;
-
-              return (
-                <div dir="rtl" style={{
-                  background: 'white',
-                  border: '2px solid #FF6F20',
-                  borderRadius: 14,
-                  padding: 12,
-                  boxShadow: '0 4px 10px rgba(255,111,32,0.15)',
-                  marginBottom: 12,
-                }}>
-                  {/* Header band — variation + completed tally */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 12px',
-                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-                    border: '1px solid #FFD0AC',
-                    borderRadius: 10,
-                    marginBottom: 12,
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
-                      {variationName || 'ללא וריאציה'}
-                    </span>
-                    <span style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 14,
-                      color: '#FF6F20',
-                      background: 'white',
-                      padding: '2px 8px',
-                      borderRadius: 5,
-                      border: '1px solid #FFD0AC',
-                    }}>
-                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${plannedSets.length} מיני-סטים`
-                                   : `${completedCount} / ${plannedSets.length} מיני-סטים`}
-                    </span>
-                  </div>
-
-                  {/* Horizontal row of mini-set cells with rest
-                      dividers between them. Overflow-x scroll so 6+
-                      mini-sets stay reachable on narrow viewports. */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'stretch',
-                    gap: 4,
-                    marginBottom: 12,
-                    overflowX: 'auto',
-                    paddingBottom: 4,
-                  }}>
-                    {plannedSets.map((set, i) => {
-                      const isPast = i < activeIdx;
-                      const isActive = !isCoachMode && i === activeIdx;
-                      const isFuture = !isPast && !isActive;
-                      const actual = pyramidActuals[i + 1];
-
-                      return (
-                        <React.Fragment key={i}>
-                          <div style={{
-                            minWidth: isActive ? 140 : 75,
-                            flex: isActive ? '1 1 140px' : '0 0 auto',
-                            background: isPast ? '#F0FAF4'
-                              : isActive ? 'linear-gradient(135deg, #FFF5EE, #FFFAF5)'
-                              : 'white',
-                            border: isPast ? '1.5px solid #16A34A'
-                              : isActive ? '2px solid #FF6F20'
-                              : '1.5px dashed #D1D5DB',
-                            borderRadius: 10,
-                            padding: 8,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 4,
-                          }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: isActive ? 24 : 20,
-                              color: isPast ? '#16A34A' : isActive ? '#FF6F20' : '#D1D5DB',
-                              lineHeight: 1,
-                              fontWeight: 800,
-                            }}>
-                              {String(set.set_index ?? (i + 1)).padStart(2, '0')}
-                            </span>
-
-                            {numericFields.map((fieldId) => {
-                              if (set[fieldId] == null) return null;
-                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                              const planned = set[fieldId];
-                              const actualVal = actual?.[fieldId];
-                              return (
-                                <div key={fieldId} style={{ textAlign: 'center' }}>
-                                  <span style={{
-                                    fontFamily: "'Bebas Neue', sans-serif",
-                                    fontSize: isActive ? 20 : 16,
-                                    color: isPast ? '#16A34A' : isActive ? meta.stripe : '#D1D5DB',
-                                    lineHeight: 1,
-                                  }}>
-                                    {isPast ? `${actualVal ?? '-'}/${planned}` : planned}
-                                  </span>
-                                  <div style={{
-                                    fontSize: 8,
-                                    color: isPast ? '#16A34A' : meta.textSecondary,
-                                    fontWeight: 800,
-                                    marginTop: 2,
-                                  }}>
-                                    {meta.label}
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {isPast && <Check size={14} color="#16A34A" />}
-                            {isFuture && (
-                              <span style={{ fontSize: 8, color: '#9CA3AF' }}>ממתין</span>
-                            )}
-                          </div>
-
-                          {i < plannedSets.length - 1 && (
-                            <div style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '0 4px',
-                              minWidth: 40,
-                              flexShrink: 0,
-                            }}>
-                              <span style={{
-                                fontFamily: "'Bebas Neue', sans-serif",
-                                fontSize: 18,
-                                color: '#14B8A6',
-                                lineHeight: 1,
-                                fontWeight: 700,
-                              }}>
-                                {restSeconds}
-                              </span>
-                              <span style={{ fontSize: 8, color: '#0F766E', fontWeight: 800, marginTop: 2 }}>
-                                שניות
-                              </span>
-                              <span style={{ fontSize: 7, color: '#14B8A6', marginTop: 2 }}>
-                                מנוחה
-                              </span>
-                            </div>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-
-                  {/* Active mini-set input panel + save button —
-                      trainee only. Coach view stops at the row above. */}
-                  {!isCoachMode && activeSet && numericFields.length > 0 && (
-                    <div style={{
-                      background: 'white',
-                      border: '1.5px solid #FFD0AC',
-                      borderRadius: 10,
-                      padding: 10,
-                      marginBottom: 8,
-                    }}>
-                      <div style={{
-                        fontSize: 10,
-                        color: '#993C1D',
-                        fontWeight: 800,
-                        textAlign: 'center',
-                        marginBottom: 8,
-                      }}>
-                        מיני-סט {activeIdx + 1} · כמה הצלחת?
-                      </div>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                        gap: 8,
-                      }}>
-                        {numericFields.map((fieldId) => {
-                          if (activeSet[fieldId] == null) return null;
-                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                          return (
-                            <div key={fieldId}>
-                              <div style={counterLabelStyle}>{meta.label}</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => updateActual(activeIdx, fieldId, -1)}
-                                  style={minusBtnStyle}
-                                >−</button>
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                  <span style={counterValueStyle}>{pyramidActuals[activeIdx + 1]?.[fieldId] ?? 0}</span>
-                                  <span style={counterTargetStyle}>/ {activeSet[fieldId]}</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => updateActual(activeIdx, fieldId, +1)}
-                                  style={plusBtnStyle}
-                                >+</button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {!isCoachMode && activeIdx < plannedSets.length && (
-                    <button
-                      type="button"
-                      onClick={onSaveAndAdvance}
-                      disabled={pyramidSaving}
-                      style={{
-                        width: '100%',
-                        background: pyramidSaving
-                          ? '#FFB280'
-                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                        color: 'white',
-                        border: 'none',
-                        padding: 10,
-                        borderRadius: 8,
-                        fontWeight: 800,
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                        cursor: pyramidSaving ? 'default' : 'pointer',
-                      }}
-                    >
-                      {pyramidSaving ? 'שומר...' : 'שמור והמשך'}
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Planned-sets coach view. Shared across PYRAMID / NONE /
-                REPS / DROP_SET / DELORME. If an in-progress execution
-                exists for the trainee+plan today, render each set as
-                either GREEN COMPLETED (actual/planned) or DASHED
-                PENDING (— / planned) and surface a "ביצוע המתאמן"
-                tally header. When no execution exists, fall back to
-                planned-only dashed-gray protocol view. Field columns
-                are driven by tabata_data.set_fields per row. */}
-            {PLANNED_SETS_METHODS[variant] && isCoachMode && (() => {
-              const methodMeta = PLANNED_SETS_METHODS[variant];
-              const plannedSets = parsePlannedSets(exercise);
-              if (plannedSets.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין סטים מוגדרים
-                  </div>
-                );
-              }
-
-              const setFields = getSetFields(exercise);
-              const hasExecution = !!pyramidExecutionId;
-              const completedCount = hasExecution
-                ? plannedSets.reduce(
-                    (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
-                    0,
-                  )
-                : 0;
-              const showVariation = !!methodMeta.variationRequired;
-
-              return (
-                <div dir="rtl">
-                  {hasExecution && (
-                    <div style={{
-                      background: 'linear-gradient(135deg, #FFF5EE, white)',
-                      border: '1px solid #FFD0AC',
-                      borderRadius: 8,
-                      padding: '10px 12px',
-                      marginBottom: 10,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#993C1D' }}>
-                        ביצוע המתאמן
-                      </span>
-                      <span style={{
-                        fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: 18,
-                        color: '#FF6F20',
-                      }}>
-                        {completedCount} / {plannedSets.length} סטים
-                      </span>
-                    </div>
-                  )}
-
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 5,
-                    marginBottom: 12,
-                  }}>
-                    {plannedSets.map((set, i) => {
-                      const actual = pyramidActuals[i + 1];
-                      const isDone = hasExecution && actual?.completed;
-                      const numColor = isDone ? '#16A34A' : '#D1D5DB';
-                      return (
-                        <div key={i} style={{
-                          background: isDone ? '#F0FAF4' : 'white',
-                          border: isDone ? '1.5px solid #16A34A' : '1.5px dashed #D1D5DB',
-                          borderRadius: 8,
-                          padding: '10px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          flexWrap: 'wrap',
-                        }}>
-                          <span style={{
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 22,
-                            color: numColor,
-                            lineHeight: 1,
-                            minWidth: 24,
-                          }}>
-                            {String(i + 1).padStart(2, '0')}
-                          </span>
-                          {showVariation && set.variation_name && (
-                            <span style={{
-                              fontSize: 11,
-                              color: isDone ? '#15803D' : '#993C1D',
-                              background: isDone ? '#DCFCE7' : '#FFF5EE',
-                              border: `1px solid ${isDone ? '#86EFAC' : '#FFD0AC'}`,
-                              padding: '2px 8px',
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}>
-                              {set.variation_name}
-                            </span>
-                          )}
-                          {setFields.filter((f) => NUMERIC_FIELDS.has(f)).map((fieldId) => {
-                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                            if (!meta || set[fieldId] == null) return null;
-                            const display = isDone
-                              ? `${actual?.[fieldId] ?? '-'} / ${set[fieldId]}`
-                              : (hasExecution ? `— / ${set[fieldId]}` : set[fieldId]);
-                            return (
-                              <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: numColor, lineHeight: 1 }}>
-                                  {display}
-                                </span>
-                                <span style={{
-                                  fontSize: 10,
-                                  color: isDone ? '#16A34A' : (meta.textSecondary || '#9CA3AF'),
-                                  opacity: isDone ? 0.85 : 1,
-                                }}>
-                                  {meta.label}
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {setFields.filter((f) => !NUMERIC_FIELDS.has(f) && set[f] != null && String(set[f]).trim()).map((fieldId) => {
-                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                            if (!meta) return null;
-                            return (
-                              <span key={fieldId} style={{
-                                fontSize: 10,
-                                color: meta.textPrimary,
-                                background: meta.tint,
-                                border: `1px solid ${meta.tint}`,
-                                padding: '2px 6px',
-                                borderRadius: 3,
-                                fontWeight: 600,
-                              }}>
-                                {meta.label}: {set[fieldId]}
-                              </span>
-                            );
-                          })}
-                          {isDone && (
-                            <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Planned-sets trainee view. Shared across PYRAMID / NONE /
-                REPS / DROP_SET / DELORME. Each row renders past/active/
-                future based on pyramidActiveIdx. Columns inside a row
-                are driven by tabata_data.set_fields (numeric fields
-                show actual/planned for past rows + +/- counters in the
-                active row's input panel; text fields show planned-only
-                chips). DROP_SET / DELORME surface a hint when the
-                active row's variation_name is missing. State persists
-                via exercise_set_logs through saveSetActual. */}
-            {PLANNED_SETS_METHODS[variant] && !isCoachMode && (() => {
-              const methodMeta = PLANNED_SETS_METHODS[variant];
-              const plannedSets = parsePlannedSets(exercise);
-              if (plannedSets.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין סטים מוגדרים
-                  </div>
-                );
-              }
-              const setFields = getSetFields(exercise);
-              const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
-              const textFields = setFields.filter((f) => !NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
-
-              const minusBtnStyle = {
-                width: 26, height: 26,
-                background: 'white',
-                border: '1px solid #FFD0AC',
-                color: '#FF6F20',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-              };
-              const plusBtnStyle = {
-                width: 26, height: 26,
-                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                border: '1px solid #FF6F20',
-                color: 'white',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-              };
-              const counterValueStyle = {
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: 22,
-                color: '#FF6F20',
-                lineHeight: 1,
-              };
-              const counterTargetStyle = {
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: 14,
-                color: '#9CA3AF',
-              };
-              const counterLabelStyle = {
-                fontSize: 9,
-                color: '#993C1D',
-                fontWeight: 700,
-                textAlign: 'center',
-                marginBottom: 4,
-              };
-
-              return (
-                <div dir="rtl" style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 5,
-                  marginBottom: 12,
-                }}>
-                  {plannedSets.map((set, i) => {
-                    // ── PAST row (green, completed) ───────────────
-                    if (i < pyramidActiveIdx) {
-                      return (
-                        <div key={i} style={{
-                          background: '#F0FAF4',
-                          border: '1.5px solid #16A34A',
-                          borderRadius: 8,
-                          padding: '10px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          flexWrap: 'wrap',
-                        }}>
-                          <span style={{
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 22,
-                            color: '#16A34A',
-                            lineHeight: 1,
-                            minWidth: 24,
-                          }}>
-                            {String(i + 1).padStart(2, '0')}
-                          </span>
-                          {methodMeta.variationRequired && set.variation_name && (
-                            <span style={{
-                              fontSize: 11,
-                              color: '#15803D',
-                              background: '#DCFCE7',
-                              border: '1px solid #86EFAC',
-                              padding: '2px 8px',
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}>
-                              {set.variation_name}
-                            </span>
-                          )}
-                          {numericFields.map((fieldId) => {
-                            if (set[fieldId] == null) return null;
-                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                            return (
-                              <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
-                                  {pyramidActuals[i + 1]?.[fieldId] ?? '-'} / {set[fieldId]}
-                                </span>
-                                <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>{meta.label}</span>
-                              </div>
-                            );
-                          })}
-                          <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
-                        </div>
-                      );
-                    }
-
-                    // ── ACTIVE row (orange, expanded with inputs) ─
-                    if (i === pyramidActiveIdx) {
-                      const variationMissing = methodMeta.variationRequired
-                        && !(set.variation_name || '').trim();
-                      const cols = Math.min(Math.max(numericFields.length, 1), 2);
-                      return (
-                        <div key={i} style={{
-                          background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-                          border: '2px solid #FF6F20',
-                          borderRadius: 10,
-                          padding: 12,
-                          boxShadow: '0 4px 10px rgba(255,111,32,0.25)',
-                        }}>
-                          {variationMissing && (
-                            <div style={{
-                              fontSize: 10,
-                              color: '#FF6F20',
-                              fontWeight: 700,
-                              marginBottom: 8,
-                              textAlign: 'center',
-                            }}>
-                              ⚠ וריאציה לא הוגדרה למאמן
-                            </div>
-                          )}
-
-                          {/* Header — set number + planned numerics + text chips */}
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 18,
-                            marginBottom: 12,
-                            flexWrap: 'wrap',
-                          }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 30,
-                              color: '#FF6F20',
-                              lineHeight: 1,
-                              minWidth: 30,
-                              fontWeight: 800,
-                            }}>
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                            {methodMeta.variationRequired && set.variation_name && (
-                              <span style={{
-                                fontSize: 12,
-                                color: '#993C1D',
-                                background: 'white',
-                                border: '1px solid #FFD0AC',
-                                padding: '4px 10px',
-                                borderRadius: 999,
-                                fontWeight: 700,
-                              }}>
-                                {set.variation_name}
-                              </span>
-                            )}
-                            {numericFields.map((fieldId) => {
-                              if (set[fieldId] == null) return null;
-                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                              return (
-                                <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
-                                    {set[fieldId]}
-                                  </span>
-                                  <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>{meta.label}</span>
-                                </div>
-                              );
-                            })}
-                            {textFields.map((fieldId) => {
-                              if (set[fieldId] == null || !String(set[fieldId]).trim()) return null;
-                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                              return (
-                                <span key={fieldId} style={{
-                                  fontSize: 11,
-                                  color: meta.textPrimary,
-                                  background: meta.tint,
-                                  border: `1px solid ${meta.tint}`,
-                                  padding: '3px 8px',
-                                  borderRadius: 4,
-                                  fontWeight: 600,
-                                }}>
-                                  {meta.label}: {set[fieldId]}
-                                </span>
-                              );
-                            })}
-                          </div>
-
-                          {/* Input panel — only when at least one numeric field */}
-                          {numericFields.length > 0 && (
-                            <div style={{
-                              background: 'white',
-                              border: '1.5px solid #FFD0AC',
-                              borderRadius: 8,
-                              padding: 10,
-                            }}>
-                              <div style={{
-                                fontSize: 10,
-                                color: '#993C1D',
-                                fontWeight: 800,
-                                marginBottom: 8,
-                                textAlign: 'center',
-                              }}>
-                                כמה הצלחת?
-                              </div>
-
-                              <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                                gap: 8,
-                              }}>
-                                {numericFields.map((fieldId) => {
-                                  if (set[fieldId] == null) return null;
-                                  const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                                  return (
-                                    <div key={fieldId}>
-                                      <div style={counterLabelStyle}>{meta.label}</div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => updateActual(i, fieldId, -1)}
-                                          style={minusBtnStyle}
-                                        >−</button>
-                                        <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                          <span style={counterValueStyle}>{pyramidActuals[i + 1]?.[fieldId] ?? 0}</span>
-                                          <span style={counterTargetStyle}>/ {set[fieldId]}</span>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => updateActual(i, fieldId, +1)}
-                                          style={plusBtnStyle}
-                                        >+</button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={onSaveAndAdvance}
-                                disabled={pyramidSaving}
-                                style={{
-                                  width: '100%',
-                                  background: pyramidSaving
-                                    ? '#FFB280'
-                                    : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                                  color: 'white',
-                                  border: 'none',
-                                  padding: 9,
-                                  borderRadius: 7,
-                                  fontWeight: 800,
-                                  fontSize: 12,
-                                  fontFamily: 'inherit',
-                                  marginTop: 8,
-                                  cursor: pyramidSaving ? 'default' : 'pointer',
-                                }}
-                              >
-                                {pyramidSaving ? 'שומר...' : 'שמור והמשך לסט הבא'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // ── FUTURE row (dashed gray, planned only) ────
-                    return (
-                      <div key={i} style={{
-                        background: 'white',
-                        border: '1.5px dashed #D1D5DB',
-                        borderRadius: 8,
-                        padding: '10px 12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        flexWrap: 'wrap',
-                      }}>
-                        <span style={{
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 22,
-                          color: '#D1D5DB',
-                          lineHeight: 1,
-                          minWidth: 24,
-                        }}>
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        {methodMeta.variationRequired && set.variation_name && (
-                          <span style={{
-                            fontSize: 11,
-                            color: '#9CA3AF',
-                            background: '#FAFAFA',
-                            border: '1px dashed #D1D5DB',
-                            padding: '2px 8px',
-                            borderRadius: 999,
-                            fontWeight: 700,
-                          }}>
-                            {set.variation_name}
-                          </span>
-                        )}
-                        {numericFields.map((fieldId) => {
-                          if (set[fieldId] == null) return null;
-                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                          return (
-                            <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
-                                {set[fieldId]}
-                              </span>
-                              <span style={{ fontSize: 10, color: '#9CA3AF' }}>{meta.label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
-            {/* TABATA — new "control panel" layout: header + 5 clock
-                stats + rotation list + launch button. Fires only when
-                the exercise carries the new shape (exercises_in_rotation
-                or clock_settings); legacy tabata rows fall through to
-                the existing detailed block below. Trainee taps the
-                launcher → useClock().startTabata() with the rotation
-                + navigate to /clocks. Coach view shows a compact
-                summary line instead of the button. */}
-            {variant === 'tabata' && hasNewTabataShape(exercise) && (() => {
-              const cs = resolveTabataClockSettings(exercise);
-              const rotation = resolveTabataRotation(exercise);
-              const accent = '#FF6F20';
-              const statBoxes = [
-                { value: cs.work_seconds,      label: 'עבודה',     color: '#FF6F20', tint: '#FFF5EE' },
-                { value: cs.rest_seconds,      label: 'מנוחה',     color: '#14B8A6', tint: '#F0FDFA' },
-                { value: cs.rounds,            label: 'סבבים',     color: '#6b7280', tint: '#FAFAFA' },
-                { value: cs.sets,              label: 'סטים',      color: '#6b7280', tint: '#FAFAFA' },
-                { value: cs.rest_between_sets, label: 'בין סטים',  color: '#14B8A6', tint: '#F0FDFA' },
-              ];
-
-              return (
-                <div dir="rtl" style={{
-                  background: 'white',
-                  border: `2px solid ${accent}`,
-                  borderRadius: 14,
-                  padding: 12,
-                  boxShadow: 'rgba(255,111,32,0.15) 0px 4px 10px',
-                  marginBottom: 12,
-                }}>
-                  {/* Header band */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 12px',
-                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-                    border: '1px solid #FFD0AC',
-                    borderRadius: 10,
-                    marginBottom: 12,
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
-                      טבטה
-                    </span>
-                    <span style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 14,
-                      color: accent,
-                      background: 'white',
-                      padding: '2px 8px',
-                      borderRadius: 5,
-                      border: '1px solid #FFD0AC',
-                    }}>
-                      {rotation.length} {rotation.length === 1 ? 'תרגיל ברוטציה' : 'תרגילים ברוטציה'}
-                    </span>
-                  </div>
-
-                  {/* 5-stat clock grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(5, 1fr)',
-                    gap: 6,
-                    marginBottom: 12,
-                  }}>
-                    {statBoxes.map((cfg, i) => (
-                      <div key={i} style={{
-                        background: cfg.tint,
-                        border: `1px solid ${cfg.tint}`,
-                        borderRadius: 7,
-                        padding: '6px 4px',
-                        textAlign: 'center',
-                      }}>
-                        <div style={{
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 22,
-                          color: cfg.color,
-                          lineHeight: 1,
-                          fontWeight: 800,
-                        }}>{cfg.value}</div>
-                        <div style={{
-                          fontSize: 8,
-                          color: cfg.color,
-                          fontWeight: 800,
-                          marginTop: 3,
-                          letterSpacing: 0.3,
-                        }}>{cfg.label}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Rotation list */}
-                  {rotation.length > 0 ? (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{
-                        fontSize: 10,
-                        fontWeight: 800,
-                        color: '#993C1D',
-                        marginBottom: 6,
-                        letterSpacing: 0.3,
-                      }}>
-                        סדר רוטציה
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {rotation.map((ex, i) => (
-                          <div key={i} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            background: 'white',
-                            border: '1px solid #FFD0AC',
-                            borderRadius: 7,
-                            padding: '6px 10px',
-                          }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 14,
-                              color: accent,
-                              background: '#FFF5EE',
-                              padding: '2px 7px',
-                              borderRadius: 4,
-                              fontWeight: 800,
-                              minWidth: 24,
-                              textAlign: 'center',
-                            }}>
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                            <span style={{
-                              flex: 1,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: '#1a1a1a',
-                            }}>
-                              {ex?.name || 'תרגיל ללא שם'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      textAlign: 'center',
-                      padding: 12,
-                      fontSize: 11,
-                      color: '#9CA3AF',
-                      background: '#FAFAFA',
-                      borderRadius: 7,
-                      marginBottom: 12,
-                    }}>
-                      אין תרגילים מוגדרים ברוטציה
-                    </div>
-                  )}
-
-                  {/* Launch button — trainee only */}
-                  {!isCoachMode && (
-                    <button
-                      type="button"
-                      onClick={handleLaunchTabata}
-                      disabled={launchingClock}
-                      style={{
-                        width: '100%',
-                        background: launchingClock
-                          ? '#D1D5DB'
-                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                        color: 'white',
-                        border: 'none',
-                        padding: 12,
-                        borderRadius: 10,
-                        fontWeight: 800,
-                        fontSize: 14,
-                        fontFamily: 'inherit',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        boxShadow: '0 4px 12px rgba(255,111,32,0.3)',
-                        cursor: launchingClock ? 'wait' : 'pointer',
-                        opacity: launchingClock ? 0.7 : 1,
-                      }}
-                    >
-                      <Timer size={18} />
-                      {launchingClock ? 'מפעיל שעון...' : 'הפעל שעון טבטה'}
-                    </button>
-                  )}
-
-                  {/* Coach summary instead of button */}
-                  {isCoachMode && (
-                    <div style={{
-                      textAlign: 'center',
-                      fontSize: 11,
-                      color: '#993C1D',
-                      fontWeight: 700,
-                      padding: 10,
-                      background: '#FFF5EE',
-                      border: '1px solid #FFD0AC',
-                      borderRadius: 8,
-                    }}>
-                      טבטה · {cs.work_seconds}/{cs.rest_seconds} · {cs.rounds} סבבים × {cs.sets} סטים
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Tabata — coach mode keeps the legacy detailed view
-                (badge, full grid, total-time tile, sub list). */}
-            {variant === 'tabata' && isCoachMode && !hasNewTabataShape(exercise) && (
-              <>
-                <div style={{
-                  background: '#EFF6FF',
-                  border: '1.5px solid #BFDBFE',
-                  borderRadius: 10,
-                  padding: '8px 12px',
-                  fontSize: 14, color: '#3B82F6',
-                  fontWeight: 700, textAlign: 'center',
-                  marginBottom: 10,
-                }}>
-                  ⏱ פרוטוקול טבטה
-                </div>
-
-                {paramItems.length > 0 && (
-                  <div style={{ marginBottom: 10 }}>
-                    {paramItems.map((it, i) => (
-                      <ParamListRow
-                        key={it.key}
-                        value={it.value}
-                        unit={it.unit}
-                        descriptor={it.descriptor}
-                        isLast={i === paramItems.length - 1}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {tabataTotal && (
-                  <div style={{
-                    background: '#dcfce7',
-                    border: '1.5px solid #86efac',
-                    borderRadius: 10,
-                    padding: '8px 12px',
-                    textAlign: 'center',
-                    marginBottom: 10,
-                  }}>
-                    <div style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 22, fontWeight: 700, color: '#16a34a',
-                      lineHeight: 1.1, letterSpacing: '0.5px',
-                    }}>
-                      {fmtMMSS(tabataTotal)} דקות
-                    </div>
-                    <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginTop: 2 }}>
-                      זמן כולל ({td?.sets || 1} סטים + מנוחות)
-                    </div>
-                  </div>
-                )}
-
-                {subExercises.length > 0 && (
-                  <div style={{
-                    border: '1.5px solid #BFDBFE',
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                    marginBottom: 10,
-                  }}>
-                    <div style={{
-                      background: '#EFF6FF',
-                      padding: '8px 12px',
-                      fontSize: 13, fontWeight: 700, color: '#3B82F6',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    }}>
-                      <span>🏃 תרגילים לביצוע בסבבים</span>
-                      <span style={{ fontWeight: 500 }}>{subExercises.length}</span>
-                    </div>
-                    {subExercises.map((sub, i) => (
-                      <SubExerciseItem
-                        key={sub.id || `sub-${i}`}
-                        index={i + 1}
-                        sub={sub}
-                        accentColor="#3B82F6"
-                        accentTint="#EFF6FF"
-                      />
-                    ))}
-                  </div>
-                )}
-
-                <CoachNoteBox text={description} />
-              </>
-            )}
-
-            {/* Tabata — trainee minimal layout: setting tiles (2 per
-                row) + numbered drill list + "הפעל שעון טבטה" button
-                that hands the timing off to the shared ClockContext
-                (FloatingClockBar shows the running timer above the
-                bottom nav). No per-set checkboxes — the timer drives
-                completion, not manual taps. */}
-            {variant === 'tabata' && !isCoachMode && !hasNewTabataShape(exercise) && (() => {
-              // Multi-source read: prefer the canonical
-              // tabata_data.clock_settings (new), fall back to legacy
-              // top-level tabata_data keys (work_time/work_sec/...)
-              // for rows saved with the old shape, finally fall back
-              // to the direct exercise columns (work_time/rest_time/
-              // rounds/sets). Two existing tabata rows in production
-              // landed without clock_settings — the column fallback
-              // keeps them working. rest_between_sets has no DB
-              // column, so only the JSONB sources matter for it.
-              const cs = td?.clock_settings || null;
-              const pickInt = (...candidates) => {
-                for (const c of candidates) {
-                  if (c == null || c === '') continue;
-                  const n = parseInt(c, 10);
-                  if (Number.isFinite(n)) return n;
-                }
-                return 0;
-              };
-              const workSec = pickInt(cs?.work_seconds, td?.work_time, td?.work_sec, exercise?.work_time);
-              const restSec = pickInt(cs?.rest_seconds, td?.rest_time, td?.rest_sec, exercise?.rest_time);
-              const rounds  = pickInt(cs?.rounds, td?.rounds, exercise?.rounds);
-              const sets    = pickInt(cs?.sets,   td?.sets,   exercise?.sets) || 1;
-              const setRest = pickInt(cs?.rest_between_sets, td?.rest_between_sets);
-              const canStart = workSec > 0 && rounds > 0
-                && typeof activeTimer?.setPendingTabataCfg === 'function'
-                && typeof activeTimer?.setShowTabata === 'function';
-
-              return (
-                <>
-                  {paramItems.length > 0 && (
-                    <div style={{ marginBottom: 10 }}>
-                      {paramItems.map((it, i) => (
-                        <ParamListRow
-                          key={it.key}
-                          value={it.value}
-                          unit={it.unit}
-                          descriptor={it.descriptor}
-                          isLast={i === paramItems.length - 1}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {subExercises.length === 0 ? (
-                    // Defensive: tabata without sub_exercises is rare
-                    // but legal (the coach defined the timer but not
-                    // the rotation). Show a soft notice instead of an
-                    // empty gap so the trainee knows the timer is the
-                    // whole point.
-                    <div style={{
-                      padding: 12, textAlign: 'center',
-                      background: '#FFFFFF', borderRadius: 10,
-                      border: '1px dashed #F2EDE3',
-                      fontSize: 12, color: '#888',
-                      marginBottom: 10,
-                    }}>אין רשימת תרגילים מוגדרת לסבב — הפעל את השעון לפי ההגדרות</div>
-                  ) : (
-                    <div style={{
-                      border: '1px solid #F2EDE3',
-                      borderRadius: 10,
-                      overflow: 'hidden',
-                      background: '#FFFFFF',
-                      marginBottom: 10,
-                    }}>
-                      <div style={{
-                        background: '#FFF9F0',
-                        padding: '8px 12px',
-                        fontSize: 11, fontWeight: 700, color: '#999',
-                      }}>
-                        תרגילים בסבב
-                      </div>
-                      {subExercises.map((sub, i) => (
-                        <div key={sub.id || `sub-${i}`} style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '10px 12px',
-                          borderTop: '1px solid #F2EDE3',
-                          fontSize: 13, color: '#1a1a1a',
-                        }}>
-                          <div style={{
-                            width: 24, height: 24, borderRadius: '50%',
-                            background: '#FFF5EE', color: '#FF6F20',
-                            fontSize: 12, fontWeight: 700,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            flexShrink: 0,
-                          }}>{i + 1}</div>
-                          <div style={{ flex: 1, fontWeight: 600, wordBreak: 'break-word' }}>
-                            {getDrillName(sub, i)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!canStart) return;
-                      // Map coach-prescribed tabata_data → TabataTimer's
-                      // internal cfg shape ({prep, work, rest, rb, rounds,
-                      // sets}). prep stays at the timer's default 10s
-                      // unless the trainee changes it on the settings
-                      // screen. `source` lets the settings screen show
-                      // the "מאמן" banner.
-                      const prefill = {
-                        prep: 10,
-                        work: workSec,
-                        rest: restSec,
-                        rb: setRest,
-                        rounds,
-                        sets,
-                        source: 'workout_exercise',
-                      };
-                      console.log('[TabataClock] prefilling with coach values:', prefill);
-                      activeTimer.setPendingTabataCfg(prefill);
-                      activeTimer.setShowTabata(true);
-                    }}
-                    disabled={!canStart}
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      borderRadius: 10,
-                      border: 'none',
-                      background: canStart ? '#FF6F20' : '#E5E7EB',
-                      color: canStart ? '#FFFFFF' : '#999',
-                      fontSize: 15, fontWeight: 700,
-                      cursor: canStart ? 'pointer' : 'not-allowed',
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <span aria-hidden style={{ fontSize: 16 }}>⏱</span>
-                    הפעל שעון טבטה
-                  </button>
-
-                  <CoachNoteBox text={description} />
-                </>
-              );
-            })()}
-
-            {/* List/superset variant — coach mode retains the legacy
-                cards so the editor view is unchanged. */}
-            {variant === 'list' && isCoachMode && (
-              <>
-                {/* Parent's own prescribed params (rest_between_sets,
-                    rounds, etc.) — kept for coach reference above the
-                    per-sub list. Sub-cards below mirror the trainee
-                    layout exactly so the two views read identically. */}
-                {paramItems.length > 0 && (
-                  <div style={{ marginBottom: 10 }}>
-                    {paramItems.map((it, i) => (
-                      <ParamListRow
-                        key={it.key}
-                        value={it.value}
-                        unit={it.unit}
-                        descriptor={it.descriptor}
-                        isLast={i === paramItems.length - 1}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {subExercises.length === 0 ? (
-                  <div style={{
-                    padding: 16, textAlign: 'center',
-                    background: '#FFFFFF', borderRadius: 10,
-                    border: '1px dashed #e9d5ff',
-                    fontSize: 13, color: '#888',
-                    marginBottom: 10,
-                  }}>אין תרגילים ברשימה</div>
-                ) : (
-                  subExercises.map((sub, di) => {
-                    const subParamItems = buildParamItemsFor(sub, null);
-                    return (
-                      <div key={sub.id || `drill-${di}`} style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #F2EDE3',
-                        borderRadius: 12,
-                        padding: 12,
-                        marginBottom: 10,
-                      }}>
-                        {/* Sub-exercise header — orange index square + name */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: subParamItems.length > 0 ? 8 : 0 }}>
-                          <span style={{
-                            width: 24, height: 24,
-                            background: '#FF6F20', color: '#FFFFFF',
-                            borderRadius: 4,
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 14, fontWeight: 700,
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0,
-                          }}>{di + 1}</span>
-                          <span style={{
-                            fontFamily: "'Rubik', system-ui, sans-serif",
-                            fontSize: 15, fontWeight: 700, color: '#1a1a1a',
-                            wordBreak: 'break-word',
-                          }}>{getDrillName(sub, di)}</span>
-                        </div>
-                        {/* Inline param pills — same closed-card pill
-                            style as the parent card, scoped to this
-                            sub-exercise's prescribed values. */}
-                        {subParamItems.length > 0 && (
-                          <div style={{
-                            display: 'flex', flexWrap: 'wrap', gap: 4,
-                            direction: 'rtl',
-                          }}>
-                            {subParamItems.map((it) => (
-                              <span key={it.key} style={{
-                                background: '#FFF0E4',
-                                color: '#993C1D',
-                                fontSize: 11,
-                                fontWeight: 500,
-                                padding: '2px 7px',
-                                borderRadius: 6,
-                                whiteSpace: 'nowrap',
-                              }}>{it.display}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-
-                <CoachNoteBox text={description} />
-              </>
-            )}
-
-            {/* List/superset variant — trainee dynamic table. Columns:
-                תרגיל | יעד | סט 1 | ... | סט N. Each cell in the set
-                columns is an independent checkbox tracked in
-                drillSetLog[setIdx][drillIdx]. Completion of all
-                (drill × set) cells flips exercise.completed via the
-                parent's onDrillSetToggleDone, which in turn drives
-                the existing section-feedback popup logic. */}
-            {variant === 'list' && !isCoachMode && (() => {
-              // Per-sub-exercise rendering: each sub becomes its own
-              // mini-card showing its full param pills (built via the
-              // shared buildParamItemsFor helper so the text reads
-              // identically to a normal exercise) plus a per-set toggle
-              // table sized off the sub's own prescribed columns. The
-              // ✓ toggles still write to the existing in-memory
-              // drillSetLog[si][di] matrix, so persistence + completion
-              // semantics stay byte-identical to the prior shared-table
-              // layout — only the visual organisation changes.
-              const drills = subExercises;
-              const restSec = toSeconds(td?.rest_between_sets) ?? toSeconds(exercise.rest_time);
-              const isDrillSetDone = (di, si) => !!(drillSetLog?.[si]?.[di]);
-              const handleDrillToggle = (di, si) => {
-                if (typeof onDrillSetToggleDone !== 'function') return;
-                onDrillSetToggleDone(exercise, si, di, drills.length, totalSets);
-              };
-              // Display-mode parent section: no fill controls anywhere
-              // (mirrors the normal-variant gate exactly).
-              const drillsShowFill = sectionTrackingMode !== 'display';
-              if (drills.length === 0) {
-                return (
-                  <>
-                    <div style={{
-                      padding: 16, textAlign: 'center',
-                      background: '#FFFFFF', borderRadius: 10,
-                      border: '1px dashed #e9d5ff',
-                      fontSize: 13, color: '#888',
-                    }}>אין תרגילים ברשימה</div>
-                    <CoachNoteBox text={description} />
-                  </>
-                );
-              }
-              return (
-                <>
-                  {drills.map((sub, di) => {
-                    const subParamItems = buildParamItemsFor(sub, null);
-                    const subCols = resolveNormalColumns(sub);
-                    return (
-                      <div key={sub.id || `drill-${di}`} style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #F2EDE3',
-                        borderRadius: 12,
-                        padding: 12,
-                        marginBottom: 10,
-                      }}>
-                        {/* Sub-exercise header — orange index square + name. */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: subParamItems.length > 0 ? 8 : 0 }}>
-                          <span style={{
-                            width: 24, height: 24,
-                            background: '#FF6F20', color: '#FFFFFF',
-                            borderRadius: 4,
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 14, fontWeight: 700,
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0,
-                          }}>{di + 1}</span>
-                          <span style={{
-                            fontFamily: "'Rubik', system-ui, sans-serif",
-                            fontSize: 15, fontWeight: 700, color: '#1a1a1a',
-                            wordBreak: 'break-word',
-                          }}>{getDrillName(sub, di)}</span>
-                        </div>
-                        {/* Inline param pills — same closed-card pill
-                            style as the parent card, scoped to this
-                            sub-exercise's prescribed values. Skipped
-                            entirely when the sub carries no params. */}
-                        {subParamItems.length > 0 && (
-                          <div style={{
-                            display: 'flex', flexWrap: 'wrap', gap: 4,
-                            marginBottom: drillsShowFill && subCols.length > 0 ? 10 : 0,
-                            direction: 'rtl',
-                          }}>
-                            {subParamItems.map((it) => (
-                              <span key={it.key} style={{
-                                background: '#FFF0E4',
-                                color: '#993C1D',
-                                fontSize: 11,
-                                fontWeight: 500,
-                                padding: '2px 7px',
-                                borderRadius: 6,
-                                whiteSpace: 'nowrap',
-                              }}>{it.display}</span>
-                            ))}
-                          </div>
-                        )}
-                        {/* Per-set fill table — shows when the parent
-                            section is in 'full' tracking mode AND this
-                            sub has columns to display. Set count comes
-                            from the parent so drillSetLog keys stay
-                            consistent with the existing completion
-                            calc in toggleDrillSetDone. */}
-                        {drillsShowFill && subCols.length > 0 && (
-                          <div style={{
-                            border: '1px solid #F2EDE3',
-                            borderRadius: 10,
-                            overflow: 'hidden',
-                            background: '#FFFFFF',
-                          }}>
-                            {/* Header */}
-                            <div style={{
-                              display: 'flex',
-                              background: '#FFF9F0',
-                              fontSize: 11, fontWeight: 700, color: '#999',
-                            }}>
-                              <div style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>סט</div>
-                              {subCols.map(c => (
-                                <div key={c.key} style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>
-                                  {c.label}
-                                </div>
-                              ))}
-                              <div style={{ width: 44, padding: '8px 6px', textAlign: 'center' }}>✓</div>
-                            </div>
-                            {/* Set rows */}
-                            {Array.from({ length: totalSets }).map((_, si) => (
-                              <div key={si} style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                fontSize: 13,
-                                borderTop: '1px solid #F2EDE3',
-                                background: isDrillSetDone(di, si) ? '#F0FDF4' : '#FFFFFF',
-                              }}>
-                                <div style={{
-                                  flex: 1, padding: '10px 6px', textAlign: 'center',
-                                  fontFamily: "'Bebas Neue', sans-serif",
-                                  fontWeight: 700, color: '#666',
-                                }}>{si + 1}</div>
-                                {subCols.map(c => (
-                                  <div key={c.key} style={{
-                                    flex: 1, padding: '10px 6px', textAlign: 'center',
-                                    color: '#1a1a1a', fontWeight: 600,
-                                  }}>{c.value}</div>
-                                ))}
-                                <div style={{
-                                  width: 44, padding: '8px 6px',
-                                  display: 'flex', justifyContent: 'center',
-                                }}>
-                                  <SetCheckbox
-                                    checked={isDrillSetDone(di, si)}
-                                    color={colors.stripe}
-                                    onToggle={() => handleDrillToggle(di, si)}
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Inter-set rest banner — same pattern as normal. */}
-                  {totalSets > 1 && restSec != null && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      marginTop: 12,
-                      background: '#FFF9F0',
-                      borderRadius: 8,
-                      padding: 9,
-                    }}>
-                      <span style={{ fontSize: 14, color: '#FF6F20' }} aria-hidden>⏱</span>
-                      <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>
-                        מנוחה {restSec} שנ׳ בין הסטים
-                      </span>
-                    </div>
-                  )}
-
-                  <CoachNoteBox text={description} />
-                </>
-              );
-            })()}
-
-            {/* Normal variant — coach mode now shares the same vertical
-                list layout as the trainee tabata tiles below: one row
-                per filled param, in the shared `paramItems` order. */}
-            {variant === 'normal' && isCoachMode && (
-              <>
-                {paramItems.length > 0 && (
-                  <div style={{ marginBottom: 10 }}>
-                    {paramItems.map((it, i) => (
-                      <ParamListRow
-                        key={it.key}
-                        value={it.value}
-                        unit={it.unit}
-                        descriptor={it.descriptor}
-                        isLast={i === paramItems.length - 1}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                <CoachNoteBox text={description} />
-              </>
-            )}
-
-            {/* Normal variant — trainee table. Columns are derived from
-                whichever prescribed values actually exist on the
-                exercise (reps/weight/time), so a bodyweight reps-only
-                row doesn't render empty משקל/זמן columns. The ✓
-                column is the per-set toggle that drives
-                exercise.completed via the parent's toggleSetDone. */}
-            {variant === 'normal' && !isCoachMode && (() => {
-              const cols = resolveNormalColumns(exercise);
-              const restSec = toSeconds(exercise.rest_time);
-              return (
-                <>
-                  <div style={{
-                    border: '1px solid #F2EDE3',
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                    background: '#FFFFFF',
-                  }}>
-                    {/* Header */}
-                    <div style={{
-                      display: 'flex',
-                      background: '#FFF9F0',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#999',
-                    }}>
-                      <div style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>סט</div>
-                      {cols.map(c => (
-                        <div key={c.key} style={{ flex: 1, padding: '8px 6px', textAlign: 'center' }}>
-                          {c.label}
-                        </div>
-                      ))}
-                      <div style={{ width: 44, padding: '8px 6px', textAlign: 'center' }}>✓</div>
-                    </div>
-                    {/* Set rows */}
-                    {Array.from({ length: totalSets }).map((_, si) => (
-                      <div key={si} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        fontSize: 13,
-                        borderTop: '1px solid #F2EDE3',
-                        background: isSetDone(si) ? '#F0FDF4' : '#FFFFFF',
-                      }}>
-                        <div style={{
-                          flex: 1, padding: '10px 6px', textAlign: 'center',
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontWeight: 700, color: '#666',
-                        }}>{si + 1}</div>
-                        {cols.map(c => (
-                          <div key={c.key} style={{
-                            flex: 1, padding: '10px 6px', textAlign: 'center',
-                            color: '#1a1a1a', fontWeight: 600,
-                          }}>{c.value}</div>
-                        ))}
-                        <div style={{
-                          width: 44, padding: '8px 6px',
-                          display: 'flex', justifyContent: 'center',
-                        }}>
-                          <SetCheckbox
-                            checked={isSetDone(si)}
-                            color={colors.stripe}
-                            onToggle={() => handleSetToggle(si)}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Inter-set rest banner — only meaningful when there's
-                      more than one set AND a rest_time prescribed. */}
-                  {totalSets > 1 && restSec != null && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      marginTop: 12,
-                      background: '#FFF9F0',
-                      borderRadius: 8,
-                      padding: 9,
-                    }}>
-                      <span style={{ fontSize: 14, color: '#FF6F20' }} aria-hidden>⏱</span>
-                      <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>
-                        מנוחה {restSec} שנ׳ בין הסטים
-                      </span>
-                    </div>
-                  )}
-
-                  <CoachNoteBox text={description} />
-                </>
-              );
-            })()}
-
-            {/* Action buttons — coach mode only.
-                שנה שם renders unconditionally so the row always has the
-                4th action; if `onRename` isn't wired by the parent the
-                inline rename still updates local state and discards on
-                blur. שכפל also renders for every variant (the
-                normal-only gate was over-strict — coaches asked to
-                duplicate supersets/tabata too). */}
-            {isCoachMode && (
-              <div style={{
-                marginTop: 12,
-                display: 'flex',
-                gap: 8,
-                flexWrap: 'wrap',
-              }}>
-                {onEdit && (
-                  <ActionButton
-                    icon="✏"
-                    label="ערוך"
-                    color={colors.stripe}
-                    borderColor={colors.border}
-                    onClick={() => onEdit(exercise)}
-                  />
-                )}
-                {onDuplicate && (
-                  <ActionButton
-                    icon="⧉"
-                    label="שכפל"
-                    color="#555"
-                    borderColor="#F0E4D0"
-                    onClick={() => onDuplicate(exercise)}
-                  />
-                )}
-                <ActionButton
-                  icon="✎"
-                  label="שנה שם"
-                  color="#555"
-                  borderColor="#F0E4D0"
-                  onClick={() => setRenaming(true)}
-                />
-                {onDelete && (
-                  <ActionButton
-                    icon="🗑"
-                    label="מחק"
-                    color="#dc2626"
-                    borderColor="#fecaca"
-                    onClick={() => {
-                      if (window.confirm('למחוק תרגיל זה?')) onDelete(exercise);
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
