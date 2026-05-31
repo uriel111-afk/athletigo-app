@@ -1,9 +1,10 @@
-import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Camera, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage, getFileSizeLabel } from '@/lib/imageCompression';
 import { pushDebugLog } from '@/lib/debugLog';
+import { savePendingBlob, loadPendingBlob } from '@/lib/blobStorage';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
 const UPLOAD_TIMEOUT_MS = 60000; // 60s — Storage upload hard ceiling
@@ -141,6 +142,38 @@ const SmartCamera = forwardRef(function SmartCamera(
   const [sizeBefore, setSizeBefore] = useState(null);
   const [sizeAfter, setSizeAfter] = useState(null);
 
+  // Restore a persisted blob (if any) from IndexedDB on mount. This is
+  // the recovery side of the savePendingBlob call inside
+  // handleFileSelect: if the Activity/WebView was destroyed during
+  // the file picker and the React tree re-mounts, the photo state
+  // gets rehydrated here so the user doesn't have to re-pick it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const persisted = await loadPendingBlob();
+      if (cancelled || !persisted?.blob) {
+        if (persisted) {
+          pushDebugLog('SmartCamera', 'idb-load-stale-or-empty');
+        }
+        return;
+      }
+      pushDebugLog('SmartCamera', 'idb-restored', {
+        size: persisted.blob.size,
+        type: persisted.blob.type,
+        savedAt: persisted.savedAt,
+      });
+      setBlob(persisted.blob);
+      setSizeBefore(persisted.blob.size);
+      setSizeAfter(persisted.blob.size);
+      setPreview(URL.createObjectURL(persisted.blob));
+      if (deferredUpload) {
+        onPhotoCaptured?.(persisted.blob, persisted.filename || 'photo.jpg');
+        pushDebugLog('SmartCamera', 'idb-onPhotoCaptured-fired', { size: persisted.blob.size });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // mount only — eslint-disable-line react-hooks/exhaustive-deps
+
   useImperativeHandle(ref, () => ({
     uploadNow: async () => {
       console.log('[uploadNow] START', { hasBlob: !!blob });
@@ -223,6 +256,17 @@ const SmartCamera = forwardRef(function SmartCamera(
       });
       pushDebugLog('SmartCamera', 'after-compression', {
         originalSize, compressedSize, ratioPct,
+      });
+
+      // Persist BEFORE setState. Android Chrome / iOS PWA may destroy
+      // the Activity / WebView during the file picker intent — the
+      // setState calls below would then run on a defunct fiber and
+      // their result would never reach the re-mounted tree. IndexedDB
+      // survives the destruction and is replayed by the mount-restore
+      // effect (below) on the next render.
+      const persisted = await savePendingBlob(compressedBlob, 'photo.jpg');
+      pushDebugLog('SmartCamera', persisted ? 'idb-persisted' : 'idb-persist-failed', {
+        size: compressedSize,
       });
 
       setBlob(compressedBlob);

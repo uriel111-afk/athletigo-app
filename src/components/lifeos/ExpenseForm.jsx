@@ -8,6 +8,7 @@ import {
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
 import SmartCamera from '@/components/lifeos/SmartCamera';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
+import { clearPendingBlob } from '@/lib/blobStorage';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -154,6 +155,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   const closeForm = (source) => {
     console.log('[ExpenseForm] closing, source:', source);
     clearDraft();
+    // Fire-and-forget — IndexedDB cleanup must not block the close
+    // UX. Any error inside clearPendingBlob is swallowed already.
+    clearPendingBlob().catch(() => {});
     onClose?.();
   };
 
