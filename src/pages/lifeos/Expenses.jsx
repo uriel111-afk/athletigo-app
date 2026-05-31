@@ -1,5 +1,5 @@
 /* global __BUILD_TIME__ */
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw, Download } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { AuthContext } from '@/lib/AuthContext';
@@ -98,16 +98,25 @@ export default function Expenses() {
   useEffect(() => { load(); }, [load]);
 
   // ─── Auto-reopen ExpenseForm if Activity died mid-flow ────────────
+  // Guarded with a ref so the auto-reopen fires at most ONCE per page
+  // session. The mount effect would otherwise re-fire if userId
+  // changes (AuthContext refresh), and the visibilitychange handler
+  // can fire many times per session — both could repeatedly try to
+  // reopen + re-trigger ExpenseForm's reset useEffect (which clears
+  // pendingBlob). The ref is reset to false when the user closes the
+  // form so a fresh mid-flow scenario can still trigger.
+  const autoReopenedRef = useRef(false);
+
   // Mount check: as soon as we have a userId, look for a draft + blob
-  // left behind by a destroyed WebView. Auto-open so the user doesn't
-  // need to retry from scratch.
+  // left behind by a destroyed WebView.
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || autoReopenedRef.current) return;
     let cancelled = false;
     (async () => {
       const { shouldReopen } = await detectPendingExpense(userId);
-      if (cancelled || !shouldReopen) return;
+      if (cancelled || !shouldReopen || autoReopenedRef.current) return;
       console.log('[Expenses] pending expense detected, auto-reopening form');
+      autoReopenedRef.current = true;
       toast.success('ההוצאה הקודמת שלך משוחזרת');
       setShowForm(true);
     })();
@@ -120,9 +129,10 @@ export default function Expenses() {
     if (!userId) return;
     const onVisible = async () => {
       if (document.visibilityState !== 'visible') return;
-      if (showForm) return;
+      if (showForm || autoReopenedRef.current) return;
       const { shouldReopen } = await detectPendingExpense(userId);
-      if (!shouldReopen) return;
+      if (!shouldReopen || autoReopenedRef.current) return;
+      autoReopenedRef.current = true;
       toast.success('ההוצאה הקודמת שלך משוחזרת');
       setShowForm(true);
     };
@@ -474,7 +484,13 @@ export default function Expenses() {
 
       <ExpenseForm
         isOpen={showForm}
-        onClose={() => { setShowForm(false); setEditingExpense(null); }}
+        onClose={() => {
+          setShowForm(false);
+          setEditingExpense(null);
+          // Clear the once-per-session guard so a NEW mid-flow that
+          // happens later can still trigger auto-reopen.
+          autoReopenedRef.current = false;
+        }}
         userId={userId}
         expense={editingExpense}
         onSaved={(saved) => {

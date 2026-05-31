@@ -90,6 +90,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // WebView-reload case: the form data survives a reload as long as
   // the user re-opens the form to land back in this effect.
   useEffect(() => {
+    pushDebugLog('ExpenseForm', 'reset-effect-trigger', {
+      isOpen, expenseId: expense?.id || null, userId: userId || null,
+    });
     if (!isOpen) return;
     if (expense) {
       setForm(formFromRow(expense));
@@ -106,6 +109,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         setForm(initialForm());
       }
     }
+    pushDebugLog('ExpenseForm', 'reset-effect-clearing-pendingBlob');
     setPendingBlob(null);
     setUploadError(null);
   }, [isOpen, expense?.id, userId]);
@@ -620,6 +624,11 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                 compact
                 deferredUpload
                 onPhotoCaptured={(blob, filename) => {
+                  pushDebugLog('ExpenseForm', 'onPhotoCaptured-received', {
+                    hasBlob: !!blob,
+                    blobSize: blob?.size,
+                    filename,
+                  });
                   setUploadError(null);
                   setPendingBlob(blob ? { blob, filename } : null);
                 }}

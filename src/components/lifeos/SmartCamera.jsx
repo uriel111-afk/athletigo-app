@@ -354,6 +354,10 @@ const SmartCamera = forwardRef(function SmartCamera(
 
   const handleCancel = () => {
     console.log('[SmartCamera] handleCancel — clearing preview only (parent form remains open)');
+    pushDebugLog('SmartCamera', 'handleCancel-tapped', {
+      hadBlob: !!blob,
+      blobSize: blob?.size,
+    });
     setPreview(null);
     setBlob(null);
     setSizeBefore(null);
