@@ -18,17 +18,19 @@ import { supabase } from '../../lib/supabaseClient';
 // (UnifiedPlanBuilder bumps that flag when every set in `setLog` is
 // done — see toggleSetDone).
 const VARIANT_COLORS = {
-  normal:   { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
-  list:     { stripe: '#7F47B5', border: '#e9d5ff', tint: '#F5F3FF' },
-  tabata:   { stripe: '#DC2626', border: '#FCA5A5', tint: '#FEE2E2' },
-  done:     { stripe: '#16a34a', border: '#bbf7d0', tint: '#F0FDF4' },
-  pyramid:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
-  drop_set:   { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
-  rest_pause: { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  normal:     { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  list:       { stripe: '#7F47B5', border: '#E0D0F2', tint: '#F4ECFD' },
+  tabata:     { stripe: '#DC2626', border: '#FCA5A5', tint: '#FEE2E2' },
+  done:       { stripe: '#16a34a', border: '#bbf7d0', tint: '#F0FDF4' },
+  pyramid:    { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  drop_set:   { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  rest_pause: { stripe: '#7F1D1D', border: '#F5C4B3', tint: '#FCD8D8' },
   circuit:    { stripe: '#3B82F6', border: '#85B7EB', tint: '#DDE9FB' },
-  delorme:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
-  none:       { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA' },
-  reps_new:   { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  delorme:    { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  none:       { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  reps_new:   { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  super_set:  { stripe: '#7F47B5', border: '#E0D0F2', tint: '#F4ECFD' },
+  combo:      { stripe: '#EAB308', border: '#FBBF24', tint: '#FEF3C7' },
 };
 
 // Catalog of method variants that share the planned_sets data shape.
@@ -2375,7 +2377,15 @@ export default function ExerciseCard({
                 so a refresh resumes on the next undone round. */}
             {expanded && ROUNDS_METHODS[variant] && (() => {
               const methodMeta = ROUNDS_METHODS[variant];
-              const palette = methodMeta.palette;
+              // Phase 2e — variant-aware palette: SUPERSET is brand purple,
+              // COMBO is amber. Replaces the per-method palette config that
+              // used to live on methodMeta.palette so we can share one render
+              // block across both methods and still flip the chrome cleanly.
+              const isCombo = variant === 'combo';
+              const ROUNDS_STRIPE = isCombo ? '#EAB308' : '#7F47B5';
+              const ROUNDS_BG     = isCombo ? '#FEF3C7' : '#F4ECFD';
+              const ROUNDS_BORDER = isCombo ? '#FBBF24' : '#E0D0F2';
+              const ROUNDS_TEXT   = isCombo ? '#854D0E' : '#5A2D87';
               const td = parseTabataData(exercise?.tabata_data) || {};
               const rounds = Array.isArray(td.rounds) ? td.rounds : [];
               if (rounds.length === 0) {
@@ -2410,10 +2420,10 @@ export default function ExerciseCard({
               return (
                 <div dir="rtl" style={{
                   background: 'white',
-                  border: `2px solid ${palette.stripe}`,
+                  border: `2px solid ${ROUNDS_STRIPE}`,
                   borderRadius: 14,
                   padding: 12,
-                  boxShadow: `0 4px 10px ${palette.stripe}25`,
+                  boxShadow: `0 4px 10px ${ROUNDS_STRIPE}25`,
                   marginBottom: 12,
                 }}>
                   {/* Header band */}
@@ -2422,22 +2432,22 @@ export default function ExerciseCard({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                    border: `1px solid ${palette.border}`,
+                    background: `linear-gradient(135deg, ${ROUNDS_BG}, white)`,
+                    border: `1px solid ${ROUNDS_BORDER}`,
                     borderRadius: 10,
                     marginBottom: 12,
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: ROUNDS_TEXT }}>
                       {methodMeta.label}
                     </span>
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: palette.stripe,
+                      color: ROUNDS_STRIPE,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: `1px solid ${palette.border}`,
+                      border: `1px solid ${ROUNDS_BORDER}`,
                     }}>
                       {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${rounds.length} ${tallyLabel}`
                                    : `${completedCount} / ${rounds.length} ${tallyLabel}`}
@@ -2447,8 +2457,8 @@ export default function ExerciseCard({
                   {/* Top hint (COMBO only) */}
                   {methodMeta.topHint && (
                     <div style={{
-                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                      border: `1px solid ${palette.border}`,
+                      background: `linear-gradient(135deg, ${ROUNDS_BG}, white)`,
+                      border: `1px solid ${ROUNDS_BORDER}`,
                       borderRadius: 8,
                       padding: 8,
                       marginBottom: 10,
@@ -2457,8 +2467,8 @@ export default function ExerciseCard({
                       gap: 6,
                       justifyContent: 'center',
                     }}>
-                      <Zap size={12} color={palette.stripe} />
-                      <span style={{ fontSize: 11, color: palette.text, fontWeight: 700 }}>
+                      <Zap size={12} color={ROUNDS_STRIPE} />
+                      <span style={{ fontSize: 11, color: ROUNDS_TEXT, fontWeight: 700 }}>
                         {methodMeta.topHint}
                       </span>
                     </div>
@@ -2474,10 +2484,10 @@ export default function ExerciseCard({
                     return (
                       <div key={rIdx} style={{
                         background: isPast ? '#F0FAF4'
-                          : isActive ? palette.outer
+                          : isActive ? ROUNDS_BG
                           : 'white',
                         border: isPast ? '1.5px solid #16A34A'
-                          : isActive ? `2px solid ${palette.stripe}`
+                          : isActive ? `2px solid ${ROUNDS_STRIPE}`
                           : '1.5px dashed #D1D5DB',
                         borderRadius: 10,
                         padding: 10,
@@ -2490,12 +2500,12 @@ export default function ExerciseCard({
                           gap: 8,
                           marginBottom: 8,
                           paddingBottom: 8,
-                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : palette.border}`,
+                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : ROUNDS_BORDER}`,
                         }}>
                           <span style={{
                             fontFamily: "'Bebas Neue', sans-serif",
                             fontSize: 22,
-                            color: isPast ? '#16A34A' : isActive ? palette.stripe : '#9CA3AF',
+                            color: isPast ? '#16A34A' : isActive ? ROUNDS_STRIPE : '#9CA3AF',
                             lineHeight: 1,
                             fontWeight: 800,
                           }}>
@@ -2504,11 +2514,11 @@ export default function ExerciseCard({
                           <span style={{
                             fontSize: 11,
                             fontWeight: 800,
-                            color: isPast ? '#16A34A' : isActive ? palette.text : '#9CA3AF',
+                            color: isPast ? '#16A34A' : isActive ? ROUNDS_TEXT : '#9CA3AF',
                             background: 'white',
                             padding: '2px 8px',
                             borderRadius: 5,
-                            border: `1px solid ${isPast ? '#86EFAC' : palette.border}`,
+                            border: `1px solid ${isPast ? '#86EFAC' : ROUNDS_BORDER}`,
                           }}>
                             {methodMeta.roundLabel} {roundNumber}
                           </span>
@@ -2539,7 +2549,7 @@ export default function ExerciseCard({
                                 display: 'flex',
                                 flexDirection: 'column',
                                 background: 'white',
-                                border: `1px solid ${isPast ? '#BBF7D0' : palette.border}`,
+                                border: `1px solid ${isPast ? '#BBF7D0' : ROUNDS_BORDER}`,
                                 borderRadius: 7,
                                 padding: 8,
                               }}>
@@ -2547,12 +2557,12 @@ export default function ExerciseCard({
                                   <span style={{
                                     fontFamily: "'Bebas Neue', sans-serif",
                                     fontSize: 14,
-                                    color: palette.stripe,
-                                    background: palette.outer,
+                                    color: ROUNDS_STRIPE,
+                                    background: ROUNDS_BG,
                                     padding: '2px 7px',
                                     borderRadius: 4,
                                     fontWeight: 800,
-                                    border: `1px solid ${palette.border}`,
+                                    border: `1px solid ${ROUNDS_BORDER}`,
                                   }}>
                                     {String.fromCharCode(0x05D0 + exIdx)}
                                   </span>
@@ -2616,7 +2626,7 @@ export default function ExerciseCard({
                                   padding: '0 2px',
                                   letterSpacing: 1,
                                   minWidth: 24,
-                                  color: variant === 'combo' ? '#FF6F20' : '#7F47B5',
+                                  color: ROUNDS_STRIPE,
                                 }}>
                                   {variant === 'combo' ? '←' : 'ואז'}
                                 </div>
@@ -2636,7 +2646,7 @@ export default function ExerciseCard({
                               marginTop: 10,
                               background: pyramidSaving
                                 ? '#D1D5DB'
-                                : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
+                                : `linear-gradient(135deg, ${ROUNDS_STRIPE}cc, ${ROUNDS_STRIPE})`,
                               color: 'white',
                               border: 'none',
                               padding: 10,
@@ -2664,6 +2674,14 @@ export default function ExerciseCard({
                 future cells stay dashed gray. Persistence shares
                 pyramid's exercise_set_logs path (set_number 1-based). */}
             {expanded && HORIZONTAL_MINISETS_METHODS[variant] && (() => {
+              // Phase 2e — REST_PAUSE chrome is brand deep red (was
+              // orange-shared-with-pyramid). One palette object kept
+              // inline so the dispatcher stays self-contained.
+              const RP_STRIPE = '#7F1D1D';
+              const RP_BG     = '#FCD8D8';
+              const RP_BORDER = '#F5C4B3';
+              const RP_TEXT   = '#5A0E0E';
+              const RP_LIGHT  = '#A02828';
               const plannedSets = parsePlannedSets(exercise);
               const td = parseTabataData(exercise?.tabata_data) || {};
               const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
@@ -2694,12 +2712,12 @@ export default function ExerciseCard({
               const cols = Math.min(Math.max(numericFields.length, 1), 2);
 
               // Button styles for the active cell's +/- counters —
-              // mirrors pyramid trainee block exactly.
+              // mirrors pyramid trainee block exactly, now in deep red.
               const minusBtnStyle = {
                 width: 26, height: 26,
                 background: 'white',
-                border: '1px solid #FFD0AC',
-                color: '#FF6F20',
+                border: `1px solid ${RP_BORDER}`,
+                color: RP_STRIPE,
                 borderRadius: 6,
                 fontSize: 13,
                 fontWeight: 700,
@@ -2708,8 +2726,8 @@ export default function ExerciseCard({
               };
               const plusBtnStyle = {
                 width: 26, height: 26,
-                background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                border: '1px solid #FF6F20',
+                background: `linear-gradient(135deg, ${RP_LIGHT}, ${RP_STRIPE})`,
+                border: `1px solid ${RP_STRIPE}`,
                 color: 'white',
                 borderRadius: 6,
                 fontSize: 13,
@@ -2720,7 +2738,7 @@ export default function ExerciseCard({
               const counterValueStyle = {
                 fontFamily: "'Bebas Neue', sans-serif",
                 fontSize: 22,
-                color: '#FF6F20',
+                color: RP_STRIPE,
                 lineHeight: 1,
               };
               const counterTargetStyle = {
@@ -2730,7 +2748,7 @@ export default function ExerciseCard({
               };
               const counterLabelStyle = {
                 fontSize: 9,
-                color: '#993C1D',
+                color: RP_TEXT,
                 fontWeight: 700,
                 textAlign: 'center',
                 marginBottom: 4,
@@ -2741,10 +2759,10 @@ export default function ExerciseCard({
               return (
                 <div dir="rtl" style={{
                   background: 'white',
-                  border: '2px solid #FF6F20',
+                  border: `2px solid ${RP_STRIPE}`,
                   borderRadius: 14,
                   padding: 12,
-                  boxShadow: '0 4px 10px rgba(255,111,32,0.15)',
+                  boxShadow: `0 4px 10px ${RP_STRIPE}25`,
                   marginBottom: 12,
                 }}>
                   {/* Header band — variation + completed tally */}
@@ -2753,22 +2771,22 @@ export default function ExerciseCard({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-                    border: '1px solid #FFD0AC',
+                    background: `linear-gradient(135deg, ${RP_BG}, white)`,
+                    border: `1px solid ${RP_BORDER}`,
                     borderRadius: 10,
                     marginBottom: 12,
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: RP_TEXT }}>
                       {variationName || 'ללא וריאציה'}
                     </span>
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: '#FF6F20',
+                      color: RP_STRIPE,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: '1px solid #FFD0AC',
+                      border: `1px solid ${RP_BORDER}`,
                     }}>
                       {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${plannedSets.length} מיני-סטים`
                                    : `${completedCount} / ${plannedSets.length} מיני-סטים`}
@@ -2798,10 +2816,10 @@ export default function ExerciseCard({
                             minWidth: isActive ? 140 : 75,
                             flex: isActive ? '1 1 140px' : '0 0 auto',
                             background: isPast ? '#F0FAF4'
-                              : isActive ? 'linear-gradient(135deg, #FFF5EE, #FFFAF5)'
+                              : isActive ? `linear-gradient(135deg, ${RP_BG}, white)`
                               : 'white',
                             border: isPast ? '1.5px solid #16A34A'
-                              : isActive ? '2px solid #FF6F20'
+                              : isActive ? `2px solid ${RP_STRIPE}`
                               : '1.5px dashed #D1D5DB',
                             borderRadius: 10,
                             padding: 8,
@@ -2814,7 +2832,7 @@ export default function ExerciseCard({
                             <span style={{
                               fontFamily: "'Bebas Neue', sans-serif",
                               fontSize: isActive ? 24 : 20,
-                              color: isPast ? '#16A34A' : isActive ? '#FF6F20' : '#D1D5DB',
+                              color: isPast ? '#16A34A' : isActive ? RP_STRIPE : '#D1D5DB',
                               lineHeight: 1,
                               fontWeight: 800,
                             }}>
@@ -2891,14 +2909,14 @@ export default function ExerciseCard({
                   {!isCoachMode && activeSet && numericFields.length > 0 && (
                     <div style={{
                       background: 'white',
-                      border: '1.5px solid #FFD0AC',
+                      border: `1.5px solid ${RP_BORDER}`,
                       borderRadius: 10,
                       padding: 10,
                       marginBottom: 8,
                     }}>
                       <div style={{
                         fontSize: 10,
-                        color: '#993C1D',
+                        color: RP_TEXT,
                         fontWeight: 800,
                         textAlign: 'center',
                         marginBottom: 8,
@@ -2947,8 +2965,8 @@ export default function ExerciseCard({
                       style={{
                         width: '100%',
                         background: pyramidSaving
-                          ? '#FFB280'
-                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                          ? '#D1D5DB'
+                          : `linear-gradient(135deg, ${RP_LIGHT}, ${RP_STRIPE})`,
                         color: 'white',
                         border: 'none',
                         padding: 10,
