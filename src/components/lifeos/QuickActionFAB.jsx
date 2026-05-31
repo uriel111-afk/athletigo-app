@@ -13,6 +13,7 @@ import {
 import {
   addExpense, addIncome, addLead, addContentItem,
 } from '@/lib/lifeos/lifeos-api';
+import ExpenseForm from '@/components/lifeos/ExpenseForm';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -25,6 +26,8 @@ const ACTIONS = [
 ];
 
 export default function QuickActionFAB({ onSaved }) {
+  const { user } = useContext(AuthContext);
+  const userId = user?.id;
   const [menuOpen, setMenuOpen] = useState(false);
   const [active, setActive] = useState(null);
 
@@ -32,6 +35,8 @@ export default function QuickActionFAB({ onSaved }) {
     setMenuOpen(false);
     setActive(key);
   };
+
+  const closeActive = () => setActive(null);
 
   return (
     <>
@@ -87,11 +92,21 @@ export default function QuickActionFAB({ onSaved }) {
         <Plus size={28} />
       </button>
 
-      {/* Quick forms */}
+      {/* Expense uses the full ExpenseForm (with SmartCamera + photo
+          upload + receipt_url) so the FAB matches the orange
+          "+ הוצאה חדשה" buttons on Expenses / LifeOSDashboard. */}
+      <ExpenseForm
+        isOpen={active === 'expense'}
+        onClose={closeActive}
+        userId={userId}
+        onSaved={(saved) => { onSaved?.(saved); closeActive(); }}
+      />
+
+      {/* Other quick forms still use the lite QuickDialog wrapper. */}
       <QuickDialog
-        action={active}
-        onClose={() => setActive(null)}
-        onSaved={() => { onSaved?.(); setActive(null); }}
+        action={active !== 'expense' ? active : null}
+        onClose={closeActive}
+        onSaved={() => { onSaved?.(); closeActive(); }}
       />
     </>
   );
@@ -107,7 +122,8 @@ function QuickDialog({ action, onClose, onSaved }) {
             {ACTIONS.find(a => a.key === action)?.label}
           </DialogTitle>
         </DialogHeader>
-        {action === 'expense'  && <QExpense onSaved={onSaved} onClose={onClose} />}
+        {/* 'expense' is handled by the full <ExpenseForm> at the FAB
+            level — not routed here anymore. */}
         {action === 'income'   && <QIncome  onSaved={onSaved} onClose={onClose} />}
         {action === 'lead'     && <QLead    onSaved={onSaved} onClose={onClose} />}
         {action === 'content'  && <QContent onSaved={onSaved} onClose={onClose} />}
