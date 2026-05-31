@@ -20,12 +20,12 @@ import { supabase } from '../../lib/supabaseClient';
 const VARIANT_COLORS = {
   normal:   { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
   list:     { stripe: '#7F47B5', border: '#e9d5ff', tint: '#F5F3FF' },
-  tabata:   { stripe: '#3B82F6', border: '#BFDBFE', tint: '#EFF6FF' },
+  tabata:   { stripe: '#DC2626', border: '#FCA5A5', tint: '#FEE2E2' },
   done:     { stripe: '#16a34a', border: '#bbf7d0', tint: '#F0FDF4' },
   pyramid:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
   drop_set:   { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
   rest_pause: { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
-  circuit:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
+  circuit:    { stripe: '#3B82F6', border: '#85B7EB', tint: '#DDE9FB' },
   delorme:    { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
   none:       { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA' },
   reps_new:   { stripe: '#FF6F20', border: '#FFD0AC', tint: '#FFF5EE' },
@@ -2058,7 +2058,13 @@ export default function ExerciseCard({
               const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
               const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
               const groupMode = methodConfig.group_mode === true;
-              const palette = groupMode ? methodMeta.groupPalette : methodMeta.palette;
+              // Brand blue palette (phase 2d). groupMode keeps the stronger
+              // border treatment via outerBorderWidth.
+              const BLUE_STRIPE = '#3B82F6';
+              const BLUE_BORDER = '#85B7EB';
+              const BLUE_TINT   = '#DDE9FB';
+              const BLUE_TEXT   = '#1E40AF';
+              const BLUE_DEEP   = '#0C447C';
               const outerBorderWidth = groupMode ? 2.5 : 2;
 
               if (stations.length === 0) {
@@ -2086,25 +2092,32 @@ export default function ExerciseCard({
               return (
                 <div dir="rtl" style={{
                   background: 'white',
-                  border: `${outerBorderWidth}px solid ${palette.stripe}`,
+                  border: `${outerBorderWidth}px solid ${BLUE_STRIPE}`,
                   borderRadius: 14,
                   padding: 12,
-                  boxShadow: `0 4px 10px ${palette.stripe}25`,
+                  boxShadow: 'rgba(59,130,246,0.15) 0px 4px 10px',
                   marginBottom: 12,
                 }}>
-                  {/* Header band */}
+                  {/* Header band — method-tag chip + round tally */}
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                    border: `1px solid ${palette.border}`,
+                    background: `linear-gradient(135deg, ${BLUE_TINT}, #FFFFFF)`,
+                    border: `1px solid ${BLUE_BORDER}`,
                     borderRadius: 10,
-                    marginBottom: 12,
+                    marginBottom: 11,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>
+                      <span style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: BLUE_TEXT,
+                        background: BLUE_TINT,
+                        padding: '2px 8px',
+                        borderRadius: 5,
+                      }}>
                         {methodMeta.label}
                       </span>
                       {groupMode && (
@@ -2112,7 +2125,7 @@ export default function ExerciseCard({
                           fontSize: 9,
                           fontWeight: 800,
                           color: 'white',
-                          background: palette.stripe,
+                          background: BLUE_STRIPE,
                           padding: '2px 7px',
                           borderRadius: 10,
                           letterSpacing: 0.3,
@@ -2124,11 +2137,11 @@ export default function ExerciseCard({
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: palette.stripe,
+                      color: BLUE_STRIPE,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: `1px solid ${palette.border}`,
+                      border: `1px solid ${BLUE_BORDER}`,
                     }}>
                       סבב {Math.min(activeRoundIdx + 1, rounds)} / {rounds}
                     </span>
@@ -2137,13 +2150,13 @@ export default function ExerciseCard({
                   {/* Group-mode hint strip */}
                   {groupMode && (
                     <div style={{
-                      background: `linear-gradient(135deg, ${palette.outer}, white)`,
-                      border: `1px solid ${palette.border}`,
+                      background: BLUE_TINT,
+                      border: `1px solid ${BLUE_BORDER}`,
                       borderRadius: 8,
                       padding: 8,
                       marginBottom: 10,
                       fontSize: 11,
-                      color: palette.text,
+                      color: BLUE_TEXT,
                       fontWeight: 700,
                       textAlign: 'center',
                     }}>
@@ -2151,24 +2164,27 @@ export default function ExerciseCard({
                     </div>
                   )}
 
-                  {/* Stations strip — horizontal scroll */}
-                  <div style={{
-                    display: 'flex',
-                    gap: 8,
-                    overflowX: 'auto',
-                    paddingBottom: 6,
-                    marginBottom: 12,
-                  }}>
+                  {/* Stations — flex-wrap (no horizontal scroll) */}
+                  <div
+                    dir="rtl"
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 6,
+                      marginBottom: 9,
+                      width: '100%',
+                    }}
+                  >
                     {stations.map((station, sIdx) => {
                       const stType = station?.type === 'time' ? 'time' : 'reps';
                       const typeColor = STATION_TYPE_COLORS[stType];
                       const stationNumber = station?.station_index ?? (sIdx + 1);
                       return (
                         <div key={sIdx} style={{
-                          minWidth: 120,
-                          flex: '0 0 120px',
-                          background: 'white',
-                          border: `1.5px solid ${palette.border}`,
+                          flex: '1 1 calc(50% - 8px)',
+                          minWidth: 130,
+                          background: BLUE_TINT,
+                          border: `1px solid ${BLUE_BORDER}`,
                           borderRadius: 10,
                           padding: 10,
                           display: 'flex',
@@ -2179,7 +2195,7 @@ export default function ExerciseCard({
                             <span style={{
                               fontFamily: "'Bebas Neue', sans-serif",
                               fontSize: 20,
-                              color: palette.stripe,
+                              color: BLUE_TEXT,
                               fontWeight: 800,
                               lineHeight: 1,
                             }}>
@@ -2200,7 +2216,7 @@ export default function ExerciseCard({
                           <div style={{
                             fontSize: 11,
                             fontWeight: 800,
-                            color: '#1a1a1a',
+                            color: BLUE_DEEP,
                             minHeight: 28,
                             wordBreak: 'break-word',
                           }}>
@@ -2238,8 +2254,8 @@ export default function ExerciseCard({
                                 if (val == null) return null;
                                 return (
                                   <div key={fieldId} style={{
-                                    background: c.tint,
-                                    border: `1px solid ${c.tint}`,
+                                    background: '#FFFFFF',
+                                    border: `1px solid ${BLUE_BORDER}`,
                                     borderRadius: 4,
                                     padding: '3px 4px',
                                     textAlign: 'center',
@@ -2247,12 +2263,12 @@ export default function ExerciseCard({
                                     <div style={{
                                       fontFamily: "'Bebas Neue', sans-serif",
                                       fontSize: 13,
-                                      color: c.stripe,
+                                      color: BLUE_TEXT,
                                       lineHeight: 1,
                                     }}>{val}</div>
                                     <div style={{
                                       fontSize: 7,
-                                      color: c.textSecondary,
+                                      color: BLUE_TEXT,
                                       fontWeight: 800,
                                       marginTop: 2,
                                     }}>{c.label}</div>
@@ -2266,24 +2282,45 @@ export default function ExerciseCard({
                     })}
                   </div>
 
-                  {/* Round progress dots */}
+                  {/* Round progress dots — wrapper with white bg + blue
+                      border; each dot is a numbered circle. Done dots
+                      get solid blue bg; pending dots are white-on-blue. */}
                   <div style={{
                     display: 'flex',
                     justifyContent: 'center',
+                    alignItems: 'center',
                     gap: 6,
                     marginBottom: 10,
+                    padding: '6px 8px',
+                    background: '#FFFFFF',
+                    border: `1px solid ${BLUE_TINT}`,
+                    borderRadius: 8,
                   }}>
-                    {Array.from({ length: rounds }, (_, i) => (
-                      <div key={i} style={{
-                        width: i === activeRoundIdx ? 24 : 8,
-                        height: 8,
-                        borderRadius: 4,
-                        background: i < activeRoundIdx ? '#16A34A'
-                          : i === activeRoundIdx ? palette.stripe
-                          : '#E5E7EB',
-                        transition: 'all 0.2s',
-                      }} />
-                    ))}
+                    {Array.from({ length: rounds }, (_, i) => {
+                      const isDone = i < activeRoundIdx;
+                      const isActive = i === activeRoundIdx;
+                      return (
+                        <div key={i} style={{
+                          minWidth: isActive ? 28 : 22,
+                          height: 22,
+                          padding: '0 6px',
+                          borderRadius: 11,
+                          background: isDone ? BLUE_STRIPE : '#FFFFFF',
+                          border: `1px solid ${isDone ? BLUE_STRIPE : BLUE_BORDER}`,
+                          color: isDone ? '#FFFFFF' : BLUE_TEXT,
+                          fontFamily: "'Barlow Condensed', sans-serif",
+                          fontSize: 12,
+                          fontWeight: 900,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s',
+                          boxShadow: isActive ? `0 0 0 2px ${BLUE_STRIPE}33` : 'none',
+                        }}>
+                          {i + 1}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Complete-round button — trainee + active round only */}
@@ -2294,9 +2331,7 @@ export default function ExerciseCard({
                       disabled={pyramidSaving}
                       style={{
                         width: '100%',
-                        background: pyramidSaving
-                          ? '#D1D5DB'
-                          : `linear-gradient(135deg, ${palette.stripe}cc, ${palette.stripe})`,
+                        background: pyramidSaving ? '#D1D5DB' : BLUE_STRIPE,
                         color: 'white',
                         border: 'none',
                         padding: 10,
@@ -2316,10 +2351,11 @@ export default function ExerciseCard({
                     <div style={{
                       textAlign: 'center',
                       fontSize: 11,
-                      color: palette.text,
+                      color: BLUE_TEXT,
                       fontWeight: 700,
                       padding: 8,
-                      background: palette.outer,
+                      background: BLUE_TINT,
+                      border: `1px solid ${BLUE_BORDER}`,
                       borderRadius: 7,
                     }}>
                       ביצוע המתאמן · {Math.min(activeRoundIdx, rounds)}/{rounds} סבבים
