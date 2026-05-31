@@ -12,6 +12,7 @@ import {
 import {
   listExpensesForMonth, listExpenses, deleteExpense, addRecurring,
 } from '@/lib/lifeos/lifeos-api';
+import { detectPendingExpense } from '@/lib/pendingExpense';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -95,6 +96,39 @@ export default function Expenses() {
   }, [userId, cursor]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ─── Auto-reopen ExpenseForm if Activity died mid-flow ────────────
+  // Mount check: as soon as we have a userId, look for a draft + blob
+  // left behind by a destroyed WebView. Auto-open so the user doesn't
+  // need to retry from scratch.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      const { shouldReopen } = await detectPendingExpense(userId);
+      if (cancelled || !shouldReopen) return;
+      console.log('[Expenses] pending expense detected, auto-reopening form');
+      toast.success('ההוצאה הקודמת שלך משוחזרת');
+      setShowForm(true);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Visibility check: same logic when the user returns to the app
+  // (foreground transition) without a full remount of this page.
+  useEffect(() => {
+    if (!userId) return;
+    const onVisible = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (showForm) return;
+      const { shouldReopen } = await detectPendingExpense(userId);
+      if (!shouldReopen) return;
+      toast.success('ההוצאה הקודמת שלך משוחזרת');
+      setShowForm(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [userId, showForm]);
 
   // Scroll a freshly-saved row into view once the refetch lands.
   useEffect(() => {

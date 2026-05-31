@@ -21,6 +21,8 @@ import {
   markMentorMessageActedOn,
   listIncome,
 } from '@/lib/lifeos/lifeos-api';
+import { detectPendingExpense } from '@/lib/pendingExpense';
+import { toast } from 'sonner';
 import { calculateStreak } from '@/lib/lifeos/streak-calculator';
 import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
 import { analyzeMentorInsight, MENTOR_ACTION_ROUTES } from '@/lib/lifeos/mentor-engine';
@@ -71,6 +73,37 @@ export default function LifeOSDashboard() {
   }, [userId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // ─── Auto-reopen ExpenseForm if Activity died mid-flow ────────────
+  // Same pattern as Expenses page — covers the case where the user
+  // tapped the dashboard's "+ הוצאה חדשה", picked a photo, the
+  // WebView reset, and they land back here.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      const { shouldReopen } = await detectPendingExpense(userId);
+      if (cancelled || !shouldReopen) return;
+      console.log('[LifeOSDashboard] pending expense detected, auto-reopening form');
+      toast.success('ההוצאה הקודמת שלך משוחזרת');
+      setShowExpense(true);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!userId) return;
+    const onVisible = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (showExpense) return;
+      const { shouldReopen } = await detectPendingExpense(userId);
+      if (!shouldReopen) return;
+      toast.success('ההוצאה הקודמת שלך משוחזרת');
+      setShowExpense(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [userId, showExpense]);
 
   const handleMentorAction = async () => {
     if (!mentor) return;
