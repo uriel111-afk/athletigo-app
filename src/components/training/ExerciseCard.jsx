@@ -670,6 +670,61 @@ function SubExerciseItem({ index, sub, accentColor, accentTint }) {
   );
 }
 
+// ── Tempo display helper ──────────────────────────────────────────
+// Tempo is stored as a 4-digit string (e.g. "3010"): eccentric →
+// pause-at-bottom → concentric → pause-at-top. Display: row of 4
+// labeled cells per set instead of the bare "3010" chip the generic
+// text-field renderer would produce.
+const TEMPO_LABELS = ['ירידה', 'החזקה למטה', 'עליה', 'החזקה למעלה'];
+
+function parseTempo(t) {
+  const s = String(t ?? '').replace(/\D/g, '').padEnd(4, '·').slice(0, 4);
+  return [s[0], s[1], s[2], s[3]];
+}
+
+function TempoBreakdown({ tempo }) {
+  if (tempo == null || String(tempo).trim() === '') return null;
+  const digits = parseTempo(tempo);
+  return (
+    <div
+      dir="rtl"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr',
+        gap: 4,
+        marginTop: 6,
+        width: '100%',
+      }}
+    >
+      {TEMPO_LABELS.map((label, i) => (
+        <div key={i} style={{
+          background: '#FFF6EE',
+          border: '1px solid #FFE5D0',
+          borderRadius: 7,
+          padding: '5px 3px',
+          textAlign: 'center',
+          minHeight: 38,
+        }}>
+          <div style={{
+            fontSize: 9,
+            color: '#7A3A0F',
+            fontWeight: 700,
+            lineHeight: 1.1,
+          }}>{label}</div>
+          <div style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 17,
+            color: '#FF6F20',
+            fontWeight: 900,
+            lineHeight: 1,
+            marginTop: 3,
+          }}>{digits[i]}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────
 
 export default function ExerciseCard({
@@ -2976,6 +3031,9 @@ export default function ExerciseCard({
                             );
                           })}
                           {setFields.filter((f) => !NUMERIC_FIELDS.has(f) && set[f] != null && String(set[f]).trim()).map((fieldId) => {
+                            if (fieldId === 'tempo') {
+                              return <TempoBreakdown key={fieldId} tempo={set[fieldId]} />;
+                            }
                             const meta = UNIT_COLOR_BY_FIELD[fieldId];
                             if (!meta) return null;
                             return (
@@ -3203,6 +3261,9 @@ export default function ExerciseCard({
                             })}
                             {textFields.map((fieldId) => {
                               if (set[fieldId] == null || !String(set[fieldId]).trim()) return null;
+                              if (fieldId === 'tempo') {
+                                return <TempoBreakdown key={fieldId} tempo={set[fieldId]} />;
+                              }
                               const meta = UNIT_COLOR_BY_FIELD[fieldId];
                               return (
                                 <span key={fieldId} style={{
