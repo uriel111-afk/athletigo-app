@@ -41,9 +41,12 @@ async function uploadToStorage(blob, filename) {
   }
   console.log('[Upload] user authenticated', { userId: user.id });
 
-  const ext = (filename.split('.').pop() || 'jpg').toLowerCase();
-  const path = `lifeos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  console.log('[Upload] computed path', { path, ext });
+  // Always .jpg — compressImage always outputs image/jpeg. Using the
+  // original file's extension (e.g. .heic, .png) could confuse Storage
+  // content-type handling or CDN behavior even when the upload header
+  // is set to image/jpeg.
+  const path = `lifeos/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  console.log('[Upload] computed path', { path });
 
   // ── Try primary bucket ──────────────────────────────────────
   console.log('[Upload] attempting bucket:', PRIMARY_BUCKET);
@@ -253,10 +256,27 @@ const SmartCamera = forwardRef(function SmartCamera(
         original: getFileSizeLabel(originalSize),
         compressed: getFileSizeLabel(compressedSize),
         ratio: ratioPct + '%',
+        outputType: compressedBlob.type,
       });
-      pushDebugLog('SmartCamera', 'after-compression', {
-        originalSize, compressedSize, ratioPct,
+      pushDebugLog('SmartCamera', 'compression-complete', {
+        originalSize, compressedSize, outputType: compressedBlob.type, ratioPct,
       });
+
+      // Soft ceiling — compressImage already runs a second pass at >1MB,
+      // so this should be rare. If it fires, the source was likely a
+      // very high-resolution photo that even the strict preset
+      // couldn't squeeze under. Surface it so we know.
+      if (compressedSize > 1024 * 1024) {
+        console.warn('[SmartCamera] compressed blob still > 1MB', { compressedSize });
+        pushDebugLog('SmartCamera', 'compression-output-large', { compressedSize });
+      }
+
+      // Compressed blobs from canvas.toBlob('image/jpeg', q) always
+      // have type 'image/jpeg'. Defensive check in case the contract
+      // changes.
+      if (compressedBlob.type !== 'image/jpeg') {
+        pushDebugLog('SmartCamera', 'unexpected-blob-type', { type: compressedBlob.type });
+      }
 
       // Persist BEFORE setState. Android Chrome / iOS PWA may destroy
       // the Activity / WebView during the file picker intent — the
@@ -283,15 +303,22 @@ const SmartCamera = forwardRef(function SmartCamera(
       pushDebugLog('SmartCamera', 'compression-error', {
         message: err?.message || String(err),
       });
-      alert('דחיסת תמונה נכשלה: ' + (err?.message || 'שגיאה לא ידועה'));
-      // Fallback: use the original file unchanged so the user isn't blocked
-      setBlob(file);
-      setSizeAfter(file.size);
-      setPreview(URL.createObjectURL(file));
+      // Removed silent fallback to original file: re-uploading raw
+      // bytes labelled image/jpeg (especially HEIC from iOS gallery)
+      // produced unreadable receipts in the Expenses list. Now we
+      // surface the error and clear state so the user picks again.
+      const message = err?.message || 'שגיאה לא ידועה';
+      const isHeic = String(message).startsWith('HEIC_NOT_SUPPORTED');
+      alert(isHeic
+        ? message.replace('HEIC_NOT_SUPPORTED:', '').trim()
+        : 'דחיסת תמונה נכשלה: ' + message + '\n\nנסה תמונה אחרת או JPEG.');
+      setBlob(null);
+      setSizeBefore(null);
+      setSizeAfter(null);
+      setPreview(null);
       if (deferredUpload) {
-        onPhotoCaptured?.(file, 'photo.jpg');
+        onPhotoCaptured?.(null, null);
       }
-      pushDebugLog('SmartCamera', 'fallback-original-file', { size: file.size });
     } finally {
       setCompressing(false);
       pushDebugLog('SmartCamera', 'handleFileSelect-end');
