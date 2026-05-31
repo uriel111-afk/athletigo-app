@@ -19,6 +19,9 @@ const initialForm = () => ({
   payment_method: '',
   notes: '',
   receipt_url: '',
+  is_recurring: false,
+  recurring_frequency: 'monthly',
+  recurring_until: '',
 });
 
 const formFromRow = (row) => ({
@@ -30,7 +33,17 @@ const formFromRow = (row) => ({
   payment_method: row.payment_method || '',
   notes: row.notes || '',
   receipt_url: row.receipt_url || '',
+  is_recurring: !!row.is_recurring,
+  recurring_frequency: row.recurring_frequency || 'monthly',
+  recurring_until: row.recurring_until || '',
 });
+
+// Default end date when the user switches to "עד תאריך": one year out.
+const defaultRecurringUntil = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+};
 
 // sessionStorage key for the in-progress draft. Per-user so multiple
 // accounts on the same browser don't bleed into each other. Only used
@@ -206,6 +219,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         payment_method: form.payment_method || null,
         notes: form.notes || null,
         receipt_url: receipt_url || null,
+        is_recurring: !!form.is_recurring,
+        recurring_frequency: form.is_recurring ? (form.recurring_frequency || 'monthly') : null,
+        recurring_until: form.is_recurring && form.recurring_until ? form.recurring_until : null,
       };
       console.log('[EXPENSE] inserting row with payload:', payload);
 
@@ -443,6 +459,98 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
               </select>
             </div>
           </div>
+
+          {/* Recurring toggle */}
+          <div>
+            <label style={labelStyle}>סוג הוצאה</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => set({ is_recurring: false, recurring_until: '' })}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: 10,
+                  border: `1px solid ${!form.is_recurring ? LIFEOS_COLORS.primary : LIFEOS_COLORS.border}`,
+                  backgroundColor: !form.is_recurring ? LIFEOS_COLORS.primary : '#FFFFFF',
+                  color: !form.is_recurring ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >חד פעמית</button>
+              <button
+                type="button"
+                onClick={() => set({ is_recurring: true })}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: 10,
+                  border: `1px solid ${form.is_recurring ? LIFEOS_COLORS.primary : LIFEOS_COLORS.border}`,
+                  backgroundColor: form.is_recurring ? LIFEOS_COLORS.primary : '#FFFFFF',
+                  color: form.is_recurring ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >🔁 קבועה</button>
+            </div>
+          </div>
+
+          {/* Recurring details — frequency + end-date — only when recurring */}
+          {form.is_recurring && (
+            <div style={{
+              padding: 12, borderRadius: 10,
+              backgroundColor: '#FFF8F3',
+              border: `1px dashed ${LIFEOS_COLORS.primary}`,
+              display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+              <div>
+                <label style={labelStyle}>תדירות</label>
+                <select
+                  value={form.recurring_frequency}
+                  onChange={(e) => set({ recurring_frequency: e.target.value })}
+                  style={inputStyle}
+                >
+                  <option value="monthly">חודשי</option>
+                  <option value="weekly">שבועי</option>
+                  <option value="yearly">שנתי</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>תקופה</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => set({ recurring_until: '' })}
+                    style={{
+                      flex: 1, padding: '8px 10px', borderRadius: 8,
+                      border: `1px solid ${!form.recurring_until ? LIFEOS_COLORS.primary : LIFEOS_COLORS.border}`,
+                      backgroundColor: !form.recurring_until ? LIFEOS_COLORS.primary : '#FFFFFF',
+                      color: !form.recurring_until ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >ללא הגבלה</button>
+                  <button
+                    type="button"
+                    onClick={() => set({ recurring_until: form.recurring_until || defaultRecurringUntil() })}
+                    style={{
+                      flex: 1, padding: '8px 10px', borderRadius: 8,
+                      border: `1px solid ${form.recurring_until ? LIFEOS_COLORS.primary : LIFEOS_COLORS.border}`,
+                      backgroundColor: form.recurring_until ? LIFEOS_COLORS.primary : '#FFFFFF',
+                      color: form.recurring_until ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >עד תאריך</button>
+                </div>
+                {form.recurring_until && (
+                  <input
+                    type="date"
+                    value={form.recurring_until}
+                    onChange={(e) => set({ recurring_until: e.target.value })}
+                    min={form.date}
+                    style={{ ...inputStyle, marginTop: 8 }}
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Receipt photo */}
           <div>
