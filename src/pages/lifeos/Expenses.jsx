@@ -418,8 +418,16 @@ export default function Expenses() {
         userId={userId}
         expense={editingExpense}
         onSaved={(saved) => {
-          console.log('[Expenses] onSaved fired, force refetching', saved);
-          load();
+          console.log('[Expenses] onSaved fired, refreshing view', saved);
+          // Clear category filter so the new row is visible regardless
+          // of which category was filtered before the save.
+          setCategoryFilter(null);
+          // Jump the month cursor to the saved expense's date. Creating
+          // a new Date object always triggers a re-render (different ref),
+          // which gives `load` a fresh closure via its useCallback dep on
+          // cursor → the useEffect at the top fires → fresh fetch for
+          // the correct month, and the new row appears.
+          setCursor(saved?.date ? new Date(saved.date) : new Date());
         }}
       />
 
