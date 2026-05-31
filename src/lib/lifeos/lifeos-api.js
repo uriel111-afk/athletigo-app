@@ -16,10 +16,21 @@ import { base44 } from '@/api/base44Client';
 
 const monthRange = (dateLike) => {
   const d = dateLike ? new Date(dateLike) : new Date();
-  const start = new Date(d.getFullYear(), d.getMonth(), 1);
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const year = d.getFullYear();
+  const month = d.getMonth();
   const iso = (x) => x.toISOString().slice(0, 10);
-  return { start: iso(start), end: iso(end) };
+  // Use Date.UTC so the ISO string matches the LOCAL month we asked
+  // for, regardless of runtime timezone. The previous version mixed
+  // local-time construction (new Date(year, month, 1) — interpreted in
+  // the runtime's local zone) with UTC serialization (toISOString),
+  // which shifted the ISO date by ±1 day in non-UTC timezones. In
+  // east-of-UTC zones (e.g. Israel UTC+3) the end-of-month string came
+  // out one day too early, silently excluding rows saved on the last
+  // day of the month from listExpensesForMonth.
+  return {
+    start: iso(new Date(Date.UTC(year, month, 1))),
+    end:   iso(new Date(Date.UTC(year, month + 1, 0))),
+  };
 };
 
 // ─── Expenses ────────────────────────────────────────────────────
