@@ -7,6 +7,7 @@ import {
 } from '@/lib/lifeos/lifeos-constants';
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
 import SmartCamera from '@/components/lifeos/SmartCamera';
+import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -59,14 +60,28 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   const [uploadError, setUploadError] = useState(null);
   const cameraRef = useRef(null);
 
-  // Diagnostic: log every unmount with the last captured error so we
-  // can detect silent closes vs. caught-then-closed flows.
+  // Diagnostic: log mount + unmount to a localStorage-backed rolling
+  // log (survives iOS PWA WebView reload, unlike the console).
   useEffect(() => {
+    const draftRaw = (() => {
+      try { return sessionStorage.getItem(draftKey(userId)); } catch { return null; }
+    })();
+    pushDebugLog('ExpenseForm', 'mount', {
+      hasDraft: !!draftRaw,
+      draftPreview: draftRaw ? draftRaw.slice(0, 200) : null,
+      userIdPresent: !!userId,
+      expenseEdit: !!expense,
+    });
     return () => {
+      const lastErr = window.lastExpenseError;
+      pushDebugLog('ExpenseForm', 'unmount', {
+        lastExpenseErrorMessage: lastErr?.message || 'none',
+        lastExpenseErrorStage: lastErr?.stage || null,
+      });
       console.log('[ExpenseForm] UNMOUNTING. lastExpenseError:',
         window.lastExpenseError || 'none');
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset form whenever the dialog opens — pre-fill if editing OR
   // restore from a sessionStorage draft if one exists (new-expense
@@ -103,6 +118,24 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       sessionStorage.setItem(draftKey(userId), JSON.stringify(form));
     } catch {}
   }, [form, isOpen, expense, userId]);
+
+  // State-change diagnostics (rolling log).
+  useEffect(() => {
+    pushDebugLog('ExpenseForm', 'is_recurring-changed', { value: form.is_recurring });
+  }, [form.is_recurring]);
+
+  useEffect(() => {
+    pushDebugLog('ExpenseForm', 'pendingBlob-changed', {
+      hasBlob: !!pendingBlob?.blob,
+      blobSize: pendingBlob?.blob?.size,
+      filename: pendingBlob?.filename,
+    });
+  }, [pendingBlob]);
+
+  // Debug panel state — read-only viewer for the rolling log.
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugText, setDebugText] = useState('');
+  const refreshDebug = () => setDebugText(formatDebugLog(readDebugLog()));
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
@@ -607,6 +640,54 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
               {saving ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} /> : 'שמור הוצאה'}
             </button>
           </div>
+
+          {/* Debug — read the localStorage rolling log. Visible to the
+              user so we can capture iOS reload sequences. Remove once
+              the silent-close bug is identified. */}
+          <button
+            type="button"
+            onClick={() => { setDebugOpen(v => !v); refreshDebug(); }}
+            style={{
+              background: 'transparent', border: 'none',
+              color: '#9CA3AF', fontSize: 10,
+              cursor: 'pointer', textDecoration: 'underline',
+              alignSelf: 'center', marginTop: 4,
+            }}
+          >
+            {debugOpen ? 'הסתר Debug' : 'Debug log'}
+          </button>
+          {debugOpen && (
+            <div style={{
+              background: '#F5F5F5', padding: 8, borderRadius: 6,
+              fontSize: 10, fontFamily: 'monospace',
+              maxHeight: 220, overflowY: 'auto',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              direction: 'ltr',
+            }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 6, position: 'sticky', top: 0, background: '#F5F5F5' }}>
+                <button
+                  type="button"
+                  onClick={refreshDebug}
+                  style={{ background: '#374151', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer' }}
+                >Refresh</button>
+                <button
+                  type="button"
+                  onClick={() => { clearDebugLog(); refreshDebug(); }}
+                  style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer' }}
+                >Clear</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      navigator.clipboard?.writeText(debugText);
+                    } catch {}
+                  }}
+                  style={{ background: '#0EA5E9', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer' }}
+                >Copy</button>
+              </div>
+              {debugText || '(empty — tap Refresh)'}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

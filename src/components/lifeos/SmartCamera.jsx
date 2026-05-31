@@ -3,6 +3,7 @@ import { Camera, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage, getFileSizeLabel } from '@/lib/imageCompression';
+import { pushDebugLog } from '@/lib/debugLog';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
 const UPLOAD_TIMEOUT_MS = 60000; // 60s — Storage upload hard ceiling
@@ -187,17 +188,28 @@ const SmartCamera = forwardRef(function SmartCamera(
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) return;
+    pushDebugLog('SmartCamera', 'handleFileSelect-start', {
+      fileExists: !!file,
+      fileSize: file?.size,
+      fileName: file?.name,
+      fileType: file?.type,
+    });
+    if (!file) {
+      pushDebugLog('SmartCamera', 'handleFileSelect-no-file');
+      return;
+    }
 
     console.log('[SmartCamera] original file:', { size: file.size, name: file.name, type: file.type });
 
     if (file.size > 5 * 1024 * 1024) {
+      pushDebugLog('SmartCamera', 'oversize-warning', { size: file.size });
       alert('התמונה גדולה מ-5 מגה. הקמפרסיה עלולה להיות איטה.');
     }
 
     setCompressing(true);
     setSizeBefore(file.size);
     setSizeAfter(null);
+    pushDebugLog('SmartCamera', 'before-compression', { size: file.size });
     try {
       const originalSize = file.size;
       const compressedBlob = await compressImage(file);
@@ -209,16 +221,24 @@ const SmartCamera = forwardRef(function SmartCamera(
         compressed: getFileSizeLabel(compressedSize),
         ratio: ratioPct + '%',
       });
+      pushDebugLog('SmartCamera', 'after-compression', {
+        originalSize, compressedSize, ratioPct,
+      });
 
       setBlob(compressedBlob);
       setSizeAfter(compressedSize);
       setPreview(URL.createObjectURL(compressedBlob));
+      pushDebugLog('SmartCamera', 'blob-set', { size: compressedSize, deferred: !!deferredUpload });
       if (deferredUpload) {
         onPhotoCaptured?.(compressedBlob, 'photo.jpg');
+        pushDebugLog('SmartCamera', 'onPhotoCaptured-fired', { size: compressedSize });
       }
       onCompressionDone?.({ originalSize, compressedSize, ratio: ratioPct });
     } catch (err) {
       console.error('[SmartCamera] compression error:', err);
+      pushDebugLog('SmartCamera', 'compression-error', {
+        message: err?.message || String(err),
+      });
       alert('דחיסת תמונה נכשלה: ' + (err?.message || 'שגיאה לא ידועה'));
       // Fallback: use the original file unchanged so the user isn't blocked
       setBlob(file);
@@ -227,8 +247,10 @@ const SmartCamera = forwardRef(function SmartCamera(
       if (deferredUpload) {
         onPhotoCaptured?.(file, 'photo.jpg');
       }
+      pushDebugLog('SmartCamera', 'fallback-original-file', { size: file.size });
     } finally {
       setCompressing(false);
+      pushDebugLog('SmartCamera', 'handleFileSelect-end');
     }
   };
 
