@@ -32,6 +32,13 @@ const formFromRow = (row) => ({
   receipt_url: row.receipt_url || '',
 });
 
+// sessionStorage key for the in-progress draft. Per-user so multiple
+// accounts on the same browser don't bleed into each other. Only used
+// for NEW expenses (edit mode loads from the row, never from draft).
+const draftKey = (userId) => `expense-form-draft-${userId || 'anon'}`;
+
+const isDraftMeaningful = (draft) => draft && Object.values(draft).some(v => v !== '' && v != null);
+
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
@@ -48,20 +55,59 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     };
   }, []);
 
-  // Reset form whenever the dialog opens — pre-fill if editing.
+  // Reset form whenever the dialog opens — pre-fill if editing OR
+  // restore from a sessionStorage draft if one exists (new-expense
+  // mode only). The draft path catches the iOS PWA file-picker
+  // WebView-reload case: the form data survives a reload as long as
+  // the user re-opens the form to land back in this effect.
   useEffect(() => {
     if (!isOpen) return;
-    setForm(expense ? formFromRow(expense) : initialForm());
+    if (expense) {
+      setForm(formFromRow(expense));
+    } else {
+      let draft = null;
+      try {
+        const raw = sessionStorage.getItem(draftKey(userId));
+        if (raw) draft = JSON.parse(raw);
+      } catch {}
+      if (isDraftMeaningful(draft)) {
+        setForm({ ...initialForm(), ...draft });
+        toast.success('טיוטה נטענה');
+      } else {
+        setForm(initialForm());
+      }
+    }
     setPendingBlob(null);
     setUploadError(null);
-  }, [isOpen, expense?.id]);
+  }, [isOpen, expense?.id, userId]);
+
+  // Persist form state to sessionStorage on every change — but only in
+  // new-expense mode. Skipped in edit mode so we don't overwrite the
+  // draft with the existing row's values.
+  useEffect(() => {
+    if (!isOpen || expense) return;
+    try {
+      sessionStorage.setItem(draftKey(userId), JSON.stringify(form));
+    } catch {}
+  }, [form, isOpen, expense, userId]);
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
+
+  // Clear the draft from sessionStorage. Called on every close path
+  // (success, cancel, dialog-openchange) so a fresh form open after a
+  // clean close starts empty.
+  const clearDraft = () => {
+    if (expense || !userId) return; // skip in edit mode
+    try {
+      sessionStorage.removeItem(draftKey(userId));
+    } catch {}
+  };
 
   // Single chokepoint for closing the form — logs the trigger so we
   // can identify silent closes (e.g. dialog-openchange vs success vs cancel).
   const closeForm = (source) => {
     console.log('[ExpenseForm] closing, source:', source);
+    clearDraft();
     onClose?.();
   };
 

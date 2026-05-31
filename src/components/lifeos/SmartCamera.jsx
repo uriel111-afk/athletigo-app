@@ -131,7 +131,8 @@ const SmartCamera = forwardRef(function SmartCamera(
   },
   ref,
 ) {
-  const inputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const [preview, setPreview] = useState(null);
   const [blob, setBlob] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -180,7 +181,8 @@ const SmartCamera = forwardRef(function SmartCamera(
     },
   }), [blob]);
 
-  const pickFile = () => inputRef.current?.click();
+  const openCamera = () => cameraInputRef.current?.click();
+  const openGallery = () => galleryInputRef.current?.click();
 
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
@@ -270,11 +272,20 @@ const SmartCamera = forwardRef(function SmartCamera(
 
   return (
     <>
+      {/* Two hidden inputs — camera (with capture) and gallery (without).
+          Both feed the same handleFileSelect → compression → upload pipeline. */}
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
+        onChange={handleChange}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
         onChange={handleChange}
         style={{ display: 'none' }}
       />
@@ -291,21 +302,44 @@ const SmartCamera = forwardRef(function SmartCamera(
           <span>דוחס תמונה...</span>
         </div>
       ) : !preview ? (
-        <button
-          type="button"
-          onClick={pickFile}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            width: '100%', padding: compact ? '8px 12px' : '12px 16px',
-            borderRadius: 10,
-            border: `1px dashed ${LIFEOS_COLORS.primary}`,
-            backgroundColor: '#FFF8F3', color: LIFEOS_COLORS.primary,
-            fontSize: compact ? 12 : 14, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
-          <Camera size={compact ? 14 : 18} />
-          <span>{label}</span>
-        </button>
+        <div style={{ display: 'flex', gap: 8, width: '100%' }} dir="rtl">
+          <button
+            type="button"
+            onClick={openCamera}
+            style={{
+              flex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: compact ? '8px 10px' : '12px 14px',
+              borderRadius: 10,
+              border: `1px dashed ${LIFEOS_COLORS.primary}`,
+              backgroundColor: '#FFF8F3', color: LIFEOS_COLORS.primary,
+              fontSize: compact ? 12 : 14, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            aria-label="צלם קבלה"
+          >
+            <span style={{ fontSize: compact ? 14 : 18, lineHeight: 1 }}>📷</span>
+            <span>צלם</span>
+          </button>
+          <button
+            type="button"
+            onClick={openGallery}
+            style={{
+              flex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: compact ? '8px 10px' : '12px 14px',
+              borderRadius: 10,
+              border: `1px dashed ${LIFEOS_COLORS.primary}`,
+              backgroundColor: '#FFF8F3', color: LIFEOS_COLORS.primary,
+              fontSize: compact ? 12 : 14, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            aria-label="בחר מהגלריה"
+          >
+            <span style={{ fontSize: compact ? 14 : 18, lineHeight: 1 }}>🖼️</span>
+            <span>גלריה</span>
+          </button>
+        </div>
       ) : (
         <div style={{
           border: `1px solid ${LIFEOS_COLORS.border}`, borderRadius: 12, padding: 8,
