@@ -48,6 +48,11 @@ export default function Expenses() {
   const [editingExpense, setEditingExpense] = useState(null);
   const [lastError, setLastError] = useState(null);
   const [lastSuccess, setLastSuccess] = useState(null);
+  // After a save, we set this to the saved row id. A useEffect watches
+  // for that row to appear in the fetched list and scrolls it into
+  // view — without that, the new row often lands off-screen on mobile
+  // (below insights / pie / etc.) and users assume the save failed.
+  const [pendingScrollId, setPendingScrollId] = useState(null);
 
   // Poll the window-scoped diagnostic objects so the on-screen banners
   // surface errors/successes the user would otherwise miss. To be
@@ -90,6 +95,20 @@ export default function Expenses() {
   }, [userId, cursor]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Scroll a freshly-saved row into view once the refetch lands.
+  useEffect(() => {
+    if (!pendingScrollId) return;
+    if (!rows.some(r => r.id === pendingScrollId)) return;
+    const el = document.querySelector(`[data-expense-id="${pendingScrollId}"]`);
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // Keep the highlight visible briefly, then clear so the row
+    // returns to normal styling.
+    const t = setTimeout(() => setPendingScrollId(null), 2400);
+    return () => clearTimeout(t);
+  }, [rows, pendingScrollId]);
 
   const filtered = useMemo(
     () => categoryFilter ? rows.filter(r => r.category === categoryFilter) : rows,
@@ -282,9 +301,79 @@ export default function Expenses() {
         }}
       >+ הוצאה חדשה</button>
 
+      {/* ─── PRIMARY CONTENT — month nav, filter chips, list, total ─── */}
+      {/* Moved above insights / pie / recurring so the list (and any
+          freshly-saved row) is visible above the fold on mobile. */}
+
+      {/* Month nav */}
+      <div style={{
+        ...LIFEOS_CARD, marginBottom: 12, padding: '10px 12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <button onClick={nextMonth} disabled={isCurrentMonth} style={navBtnStyle(isCurrentMonth)}>
+          <ChevronRight size={18} />
+        </button>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{monthLabel(cursor)}</div>
+        <button onClick={prevMonth} style={navBtnStyle(false)}>
+          <ChevronLeft size={18} />
+        </button>
+      </div>
+
+      {/* Category filter */}
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '4px 0 10px', scrollbarWidth: 'none' }}>
+        <FilterChip active={categoryFilter === null} onClick={() => setCategoryFilter(null)} label="הכל" />
+        {EXPENSE_CATEGORIES.map(cat => (
+          <FilterChip key={cat.key} active={categoryFilter === cat.key} onClick={() => setCategoryFilter(cat.key)} label={`${cat.emoji} ${cat.label}`} />
+        ))}
+      </div>
+
+      {/* List */}
+      <div style={{ ...LIFEOS_CARD, padding: 0, overflow: 'hidden' }}>
+        {!loaded ? (
+          <EmptyRow text="טוען..." />
+        ) : filtered.length === 0 ? (
+          categoryFilter ? (
+            <EmptyRow text="אין הוצאות בקטגוריה זו" />
+          ) : (
+            <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+              <div style={{ fontSize: 38, marginBottom: 8 }}>💸</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 12 }}>
+                אין הוצאות החודש
+              </div>
+              <button onClick={openNew} style={{
+                padding: '10px 18px', borderRadius: 12, border: 'none',
+                backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}>+ רשום הוצאה ראשונה</button>
+            </div>
+          )
+        ) : (
+          filtered.map((row, idx) => (
+            <ExpenseRow
+              key={row.id}
+              row={row}
+              isLast={idx === filtered.length - 1}
+              isHighlighted={row.id === pendingScrollId}
+              onEdit={(e) => openEdit(e, row)}
+              onDelete={(e) => handleDelete(e, row.id)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Total */}
+      {loaded && filtered.length > 0 && (
+        <div style={{ ...LIFEOS_CARD, marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: LIFEOS_COLORS.textSecondary }}>סה"כ החודש</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{fmt(monthTotal)}₪</div>
+        </div>
+      )}
+
+      {/* ─── SECONDARY CONTENT — analytics + recurring suggestion ─── */}
+
       {/* Spending Insights */}
       {insights && (
-        <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+        <div style={{ ...LIFEOS_CARD, marginTop: 14, marginBottom: 12 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
             תובנות
           </div>
@@ -349,69 +438,6 @@ export default function Expenses() {
         </div>
       )}
 
-      {/* Month nav */}
-      <div style={{
-        ...LIFEOS_CARD, marginBottom: 12, padding: '10px 12px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <button onClick={nextMonth} disabled={isCurrentMonth} style={navBtnStyle(isCurrentMonth)}>
-          <ChevronRight size={18} />
-        </button>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>{monthLabel(cursor)}</div>
-        <button onClick={prevMonth} style={navBtnStyle(false)}>
-          <ChevronLeft size={18} />
-        </button>
-      </div>
-
-      {/* Category filter */}
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '4px 0 10px', scrollbarWidth: 'none' }}>
-        <FilterChip active={categoryFilter === null} onClick={() => setCategoryFilter(null)} label="הכל" />
-        {EXPENSE_CATEGORIES.map(cat => (
-          <FilterChip key={cat.key} active={categoryFilter === cat.key} onClick={() => setCategoryFilter(cat.key)} label={`${cat.emoji} ${cat.label}`} />
-        ))}
-      </div>
-
-      {/* List */}
-      <div style={{ ...LIFEOS_CARD, padding: 0, overflow: 'hidden' }}>
-        {!loaded ? (
-          <EmptyRow text="טוען..." />
-        ) : filtered.length === 0 ? (
-          categoryFilter ? (
-            <EmptyRow text="אין הוצאות בקטגוריה זו" />
-          ) : (
-            <div style={{ padding: '36px 18px', textAlign: 'center' }}>
-              <div style={{ fontSize: 38, marginBottom: 8 }}>💸</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 12 }}>
-                אין הוצאות החודש
-              </div>
-              <button onClick={openNew} style={{
-                padding: '10px 18px', borderRadius: 12, border: 'none',
-                backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              }}>+ רשום הוצאה ראשונה</button>
-            </div>
-          )
-        ) : (
-          filtered.map((row, idx) => (
-            <ExpenseRow
-              key={row.id}
-              row={row}
-              isLast={idx === filtered.length - 1}
-              onEdit={(e) => openEdit(e, row)}
-              onDelete={(e) => handleDelete(e, row.id)}
-            />
-          ))
-        )}
-      </div>
-
-      {/* Total */}
-      {loaded && filtered.length > 0 && (
-        <div style={{ ...LIFEOS_CARD, marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: LIFEOS_COLORS.textSecondary }}>סה"כ החודש</div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>{fmt(monthTotal)}₪</div>
-        </div>
-      )}
-
       <ExpenseForm
         isOpen={showForm}
         onClose={() => { setShowForm(false); setEditingExpense(null); }}
@@ -428,6 +454,8 @@ export default function Expenses() {
           // cursor → the useEffect at the top fires → fresh fetch for
           // the correct month, and the new row appears.
           setCursor(saved?.date ? new Date(saved.date) : new Date());
+          // Mark for scrollIntoView once the row lands in `rows`.
+          if (saved?.id) setPendingScrollId(saved.id);
         }}
       />
 
@@ -444,16 +472,21 @@ export default function Expenses() {
   );
 }
 
-function ExpenseRow({ row, isLast, onEdit, onDelete }) {
+function ExpenseRow({ row, isLast, isHighlighted, onEdit, onDelete }) {
   const cat = EXPENSE_CATEGORY_BY_KEY[row.category] || { label: row.category, emoji: '📦' };
   const dateStr = new Date(row.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '12px 14px',
-      borderBottom: isLast ? 'none' : `0.5px solid ${LIFEOS_COLORS.border}`,
-    }}>
+    <div
+      data-expense-id={row.id}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '12px 14px',
+        borderBottom: isLast ? 'none' : `0.5px solid ${LIFEOS_COLORS.border}`,
+        backgroundColor: isHighlighted ? '#FFF7ED' : 'transparent',
+        boxShadow: isHighlighted ? `inset 4px 0 0 ${LIFEOS_COLORS.primary}` : 'none',
+        transition: 'background-color 0.6s ease, box-shadow 0.6s ease',
+      }}>
       <div style={{ fontSize: 22 }}>{cat.emoji}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
