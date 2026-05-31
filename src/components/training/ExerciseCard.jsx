@@ -3448,131 +3448,98 @@ export default function ExerciseCard({
             {expanded && variant === 'tabata' && hasNewTabataShape(exercise) && (() => {
               const cs = resolveTabataClockSettings(exercise);
               const rotation = resolveTabataRotation(exercise);
-              const accent = '#FF6F20';
+              // Brand red palette (replaces prior orange/teal mix).
+              const RED_STRIPE   = '#DC2626';
+              const RED_BG       = '#FEE2E2';
+              const RED_BORDER   = '#FCA5A5';
+              const RED_TEXT     = '#991B1B';
+              // 2x2 clock grid: drops rest_between_sets per phase-2c
+              // spec; that value still feeds the coach summary line +
+              // the actual clock launch via cs.rest_between_sets.
               const statBoxes = [
-                { value: cs.work_seconds,      label: 'עבודה',     color: '#FF6F20', tint: '#FFF5EE' },
-                { value: cs.rest_seconds,      label: 'מנוחה',     color: '#14B8A6', tint: '#F0FDFA' },
-                { value: cs.rounds,            label: 'סבבים',     color: '#6b7280', tint: '#FAFAFA' },
-                { value: cs.sets,              label: 'סטים',      color: '#6b7280', tint: '#FAFAFA' },
-                { value: cs.rest_between_sets, label: 'בין סטים',  color: '#14B8A6', tint: '#F0FDFA' },
+                { value: cs.work_seconds, label: 'עבודה' },
+                { value: cs.rest_seconds, label: 'מנוחה' },
+                { value: cs.rounds,       label: 'סבבים' },
+                { value: cs.sets,         label: 'סטים'  },
               ];
 
               return (
                 <div dir="rtl" style={{
                   background: 'white',
-                  border: `2px solid ${accent}`,
+                  border: `2px solid ${RED_STRIPE}`,
                   borderRadius: 14,
                   padding: 12,
-                  boxShadow: 'rgba(255,111,32,0.15) 0px 4px 10px',
+                  boxShadow: 'rgba(220,38,38,0.15) 0px 4px 10px',
                   marginBottom: 12,
                 }}>
-                  {/* Header band */}
+                  {/* Header band — method-tag chip + rotation count */}
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-                    border: '1px solid #FFD0AC',
+                    background: `linear-gradient(135deg, ${RED_BG}, #FFFFFF)`,
+                    border: `1px solid ${RED_BORDER}`,
                     borderRadius: 10,
-                    marginBottom: 12,
+                    marginBottom: 11,
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#993C1D' }}>
+                    <span style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: RED_TEXT,
+                      background: RED_BG,
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                    }}>
                       טבטה
                     </span>
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: accent,
+                      color: RED_STRIPE,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: '1px solid #FFD0AC',
+                      border: `1px solid ${RED_BORDER}`,
                     }}>
                       {rotation.length} {rotation.length === 1 ? 'תרגיל ברוטציה' : 'תרגילים ברוטציה'}
                     </span>
                   </div>
 
-                  {/* 5-stat clock grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(5, 1fr)',
-                    gap: 6,
-                    marginBottom: 12,
-                  }}>
-                    {statBoxes.map((cfg, i) => (
-                      <div key={i} style={{
-                        background: cfg.tint,
-                        border: `1px solid ${cfg.tint}`,
-                        borderRadius: 7,
-                        padding: '6px 4px',
-                        textAlign: 'center',
-                      }}>
-                        <div style={{
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 22,
-                          color: cfg.color,
-                          lineHeight: 1,
-                          fontWeight: 800,
-                        }}>{cfg.value}</div>
-                        <div style={{
-                          fontSize: 8,
-                          color: cfg.color,
-                          fontWeight: 800,
-                          marginTop: 3,
-                          letterSpacing: 0.3,
-                        }}>{cfg.label}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Rotation list */}
+                  {/* 1. Rotation pills — TOP, horizontal flex-wrap */}
                   {rotation.length > 0 ? (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{
-                        fontSize: 10,
-                        fontWeight: 800,
-                        color: '#993C1D',
-                        marginBottom: 6,
-                        letterSpacing: 0.3,
-                      }}>
-                        סדר רוטציה
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {rotation.map((ex, i) => (
-                          <div key={i} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            background: 'white',
-                            border: '1px solid #FFD0AC',
-                            borderRadius: 7,
-                            padding: '6px 10px',
-                          }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 14,
-                              color: accent,
-                              background: '#FFF5EE',
-                              padding: '2px 7px',
-                              borderRadius: 4,
-                              fontWeight: 800,
-                              minWidth: 24,
-                              textAlign: 'center',
-                            }}>
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                            <span style={{
-                              flex: 1,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: '#1a1a1a',
-                            }}>
-                              {ex?.name || 'תרגיל ללא שם'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                    <div
+                      dir="rtl"
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 5,
+                        marginBottom: 11,
+                        width: '100%',
+                      }}
+                    >
+                      {rotation.map((item, idx) => (
+                        <div key={idx} style={{
+                          background: RED_BG,
+                          border: `1px solid ${RED_BORDER}`,
+                          color: RED_TEXT,
+                          borderRadius: 8,
+                          padding: '6px 9px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontSize: 12,
+                            fontWeight: 900,
+                            color: RED_STRIPE,
+                          }}>{idx + 1}</span>
+                          <span>{item?.name ?? item?.exerciseName ?? '—'}</span>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div style={{
@@ -3582,13 +3549,46 @@ export default function ExerciseCard({
                       color: '#9CA3AF',
                       background: '#FAFAFA',
                       borderRadius: 7,
-                      marginBottom: 12,
+                      marginBottom: 11,
                     }}>
                       אין תרגילים מוגדרים ברוטציה
                     </div>
                   )}
 
-                  {/* Launch button — trainee only */}
+                  {/* 2. Clock settings grid — 2x2: work / rest / rounds / sets */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: 6,
+                    marginBottom: 11,
+                  }}>
+                    {statBoxes.map((cfg, i) => (
+                      <div key={i} style={{
+                        background: RED_BG,
+                        border: `1px solid ${RED_BORDER}`,
+                        borderRadius: 8,
+                        padding: '7px 9px',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{
+                          fontSize: 9,
+                          color: RED_TEXT,
+                          fontWeight: 700,
+                          letterSpacing: 0.4,
+                        }}>{cfg.label}</div>
+                        <div style={{
+                          fontFamily: "'Barlow Condensed', sans-serif",
+                          fontSize: 18,
+                          fontWeight: 900,
+                          color: RED_STRIPE,
+                          marginTop: 2,
+                          lineHeight: 1,
+                        }}>{cfg.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 3. Launch button — trainee only */}
                   {!isCoachMode && (
                     <button
                       type="button"
@@ -3596,21 +3596,20 @@ export default function ExerciseCard({
                       disabled={launchingClock}
                       style={{
                         width: '100%',
-                        background: launchingClock
-                          ? '#D1D5DB'
-                          : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                        color: 'white',
+                        background: launchingClock ? '#D1D5DB' : RED_STRIPE,
+                        color: '#FFFFFF',
                         border: 'none',
-                        padding: 12,
-                        borderRadius: 10,
+                        padding: '9px',
+                        borderRadius: 8,
                         fontWeight: 800,
-                        fontSize: 14,
-                        fontFamily: 'inherit',
+                        fontSize: 13,
+                        fontFamily: "'Barlow Condensed', sans-serif",
+                        letterSpacing: 0.5,
+                        textAlign: 'center',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 8,
-                        boxShadow: '0 4px 12px rgba(255,111,32,0.3)',
                         cursor: launchingClock ? 'wait' : 'pointer',
                         opacity: launchingClock ? 0.7 : 1,
                       }}
@@ -3620,16 +3619,16 @@ export default function ExerciseCard({
                     </button>
                   )}
 
-                  {/* Coach summary instead of button */}
+                  {/* Coach summary — replaces launch button in coach view */}
                   {isCoachMode && (
                     <div style={{
                       textAlign: 'center',
                       fontSize: 11,
-                      color: '#993C1D',
+                      color: RED_TEXT,
                       fontWeight: 700,
                       padding: 10,
-                      background: '#FFF5EE',
-                      border: '1px solid #FFD0AC',
+                      background: RED_BG,
+                      border: `1px solid ${RED_BORDER}`,
                       borderRadius: 8,
                     }}>
                       טבטה · {cs.work_seconds}/{cs.rest_seconds} · {cs.rounds} סבבים × {cs.sets} סטים
