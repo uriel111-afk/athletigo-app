@@ -2479,90 +2479,115 @@ export default function ExerciseCard({
                           {isPast && <Check size={14} color="#16A34A" />}
                         </div>
 
-                        {/* Exercise sub-cards with connectors */}
-                        {exercises.map((ex, exIdx) => (
-                          <React.Fragment key={exIdx}>
-                            <div style={{
-                              background: 'white',
-                              border: `1px solid ${isPast ? '#BBF7D0' : palette.border}`,
-                              borderRadius: 7,
-                              padding: 8,
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                <span style={{
-                                  fontFamily: "'Bebas Neue', sans-serif",
-                                  fontSize: 14,
-                                  color: palette.stripe,
-                                  background: palette.outer,
-                                  padding: '2px 7px',
-                                  borderRadius: 4,
-                                  fontWeight: 800,
-                                  border: `1px solid ${palette.border}`,
-                                }}>
-                                  {String.fromCharCode(0x05D0 + exIdx)}
-                                </span>
-                                <span style={{
-                                  flex: 1,
-                                  fontSize: 12,
-                                  fontWeight: 800,
-                                  color: isPast ? '#16A34A' : '#1a1a1a',
-                                }}>
-                                  {ex?.name || 'תרגיל ללא שם'}
-                                </span>
+                        {/* Exercise sub-cards with connectors — horizontal
+                            flex-wrap so blocks sit side-by-side and wrap to
+                            the next row when they don't fit. NO horizontal
+                            scroll. Connectors are inline flex items between
+                            cards (text "ואז" for superset, arrow "←" for combo). */}
+                        <div
+                          dir="rtl"
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            alignItems: 'stretch',
+                            gap: 6,
+                            marginBottom: 10,
+                            width: '100%',
+                          }}
+                        >
+                          {exercises.map((ex, exIdx) => (
+                            <React.Fragment key={exIdx}>
+                              <div style={{
+                                flex: '1 1 calc(50% - 26px)',
+                                minWidth: 130,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                background: 'white',
+                                border: `1px solid ${isPast ? '#BBF7D0' : palette.border}`,
+                                borderRadius: 7,
+                                padding: 8,
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                  <span style={{
+                                    fontFamily: "'Bebas Neue', sans-serif",
+                                    fontSize: 14,
+                                    color: palette.stripe,
+                                    background: palette.outer,
+                                    padding: '2px 7px',
+                                    borderRadius: 4,
+                                    fontWeight: 800,
+                                    border: `1px solid ${palette.border}`,
+                                  }}>
+                                    {String.fromCharCode(0x05D0 + exIdx)}
+                                  </span>
+                                  <span style={{
+                                    flex: 1,
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    color: isPast ? '#16A34A' : '#1a1a1a',
+                                  }}>
+                                    {ex?.name || 'תרגיל ללא שם'}
+                                  </span>
+                                </div>
+
+                                {setFields.length > 0 && (
+                                  <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: `repeat(${Math.min(setFields.length, 3)}, 1fr)`,
+                                    gap: 4,
+                                  }}>
+                                    {setFields.map((fieldId) => {
+                                      const c = UNIT_COLOR_BY_FIELD[fieldId];
+                                      if (!c) return null;
+                                      const val = ex?.[fieldId];
+                                      if (val == null) return null;
+                                      return (
+                                        <div key={fieldId} style={{
+                                          background: isPast ? '#F0FAF4' : c.tint,
+                                          border: `1px solid ${isPast ? '#BBF7D0' : c.tint}`,
+                                          borderRadius: 5,
+                                          padding: '4px 6px',
+                                          textAlign: 'center',
+                                        }}>
+                                          <div style={{
+                                            fontFamily: "'Bebas Neue', sans-serif",
+                                            fontSize: 16,
+                                            color: isPast ? '#16A34A' : c.stripe,
+                                            lineHeight: 1,
+                                          }}>{val}</div>
+                                          <div style={{
+                                            fontSize: 7,
+                                            color: isPast ? '#16A34A' : c.textSecondary,
+                                            fontWeight: 800,
+                                            marginTop: 2,
+                                          }}>{c.label}</div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
 
-                              {setFields.length > 0 && (
+                              {exIdx < exercises.length - 1 && (
                                 <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: `repeat(${Math.min(setFields.length, 3)}, 1fr)`,
-                                  gap: 4,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontFamily: "'Barlow Condensed', sans-serif",
+                                  fontSize: 13,
+                                  fontWeight: 900,
+                                  flexShrink: 0,
+                                  padding: '0 2px',
+                                  letterSpacing: 1,
+                                  minWidth: 24,
+                                  color: variant === 'combo' ? '#FF6F20' : '#7F47B5',
                                 }}>
-                                  {setFields.map((fieldId) => {
-                                    const c = UNIT_COLOR_BY_FIELD[fieldId];
-                                    if (!c) return null;
-                                    const val = ex?.[fieldId];
-                                    if (val == null) return null;
-                                    return (
-                                      <div key={fieldId} style={{
-                                        background: isPast ? '#F0FAF4' : c.tint,
-                                        border: `1px solid ${isPast ? '#BBF7D0' : c.tint}`,
-                                        borderRadius: 5,
-                                        padding: '4px 6px',
-                                        textAlign: 'center',
-                                      }}>
-                                        <div style={{
-                                          fontFamily: "'Bebas Neue', sans-serif",
-                                          fontSize: 16,
-                                          color: isPast ? '#16A34A' : c.stripe,
-                                          lineHeight: 1,
-                                        }}>{val}</div>
-                                        <div style={{
-                                          fontSize: 7,
-                                          color: isPast ? '#16A34A' : c.textSecondary,
-                                          fontWeight: 800,
-                                          marginTop: 2,
-                                        }}>{c.label}</div>
-                                      </div>
-                                    );
-                                  })}
+                                  {variant === 'combo' ? '←' : 'ואז'}
                                 </div>
                               )}
-                            </div>
-
-                            {exIdx < exercises.length - 1 && (
-                              <div style={{
-                                textAlign: 'center',
-                                color: palette.stripe,
-                                fontSize: methodMeta.connectorStyle === 'arrow' ? 20 : 10,
-                                fontWeight: 800,
-                                margin: '4px 0',
-                                letterSpacing: methodMeta.connectorStyle === 'text' ? 1 : 0,
-                              }}>
-                                {methodMeta.connector}
-                              </div>
-                            )}
-                          </React.Fragment>
-                        ))}
+                            </React.Fragment>
+                          ))}
+                        </div>
 
                         {/* Complete-round button — trainee + active round only */}
                         {isActive && !isCoachMode && (
