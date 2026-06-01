@@ -19,18 +19,37 @@ import { supabase } from '../../lib/supabaseClient';
 // done — see toggleSetDone).
 const VARIANT_COLORS = {
   normal:     { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
-  list:       { stripe: '#7F47B5', border: '#E0D0F2', tint: '#F4ECFD' },
-  tabata:     { stripe: '#DC2626', border: '#FCA5A5', tint: '#FEE2E2' },
-  done:       { stripe: '#16a34a', border: '#bbf7d0', tint: '#F0FDF4' },
+  list:       { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  tabata:     { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  done:       { stripe: '#16A34A', border: '#BBF7D0', tint: '#F0FDF4' },
   pyramid:    { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
   drop_set:   { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
-  rest_pause: { stripe: '#7F1D1D', border: '#F5C4B3', tint: '#FCD8D8' },
-  circuit:    { stripe: '#3B82F6', border: '#85B7EB', tint: '#DDE9FB' },
+  rest_pause: { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  circuit:    { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
   delorme:    { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
   none:       { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
   reps_new:   { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
-  super_set:  { stripe: '#7F47B5', border: '#E0D0F2', tint: '#F4ECFD' },
-  combo:      { stripe: '#EAB308', border: '#FBBF24', tint: '#FEF3C7' },
+  super_set:  { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+  combo:      { stripe: '#FF6F20', border: '#F0E4D0', tint: '#FFF5EE' },
+};
+
+// Phase 3 — single brand token source. All dispatchers reference
+// these instead of declaring local palette constants. Done state
+// gets green; everything else is brand orange.
+const BRAND = {
+  stripeActive:  '#FF6F20',
+  stripeDone:    '#16A34A',
+  stripeNeutral: '#E8E0D8',
+  cardBg:        '#FFFFFF',
+  cardBorder:    '#F0E4D0',
+  panelBg:       '#FFF6EE',
+  panelBorder:   '#F0E4D0',
+  innerBorder:   '#FFE5D0',
+  tagBg:         '#FFF0E4',
+  tagText:       '#7A3A0F',
+  textPrimary:   '#1a1a1a',
+  textMuted:     '#888888',
+  value:         '#FF6F20',
 };
 
 // Catalog of method variants that share the planned_sets data shape.
@@ -63,12 +82,13 @@ const ROUNDS_METHODS = {
   super_set: {
     label: 'סופרסט',
     closedLabel: 'סופר סט',
+    // Phase 3 — closed-card chip palette unified to brand orange.
     palette: {
-      outer: '#F5F3FF',
-      border: '#C4B5FD',
-      stripe: '#7F47B5',
-      text: '#5B21B6',
-      textSoft: '#7C3AED',
+      outer: '#FFF6EE',
+      border: '#F0E4D0',
+      stripe: '#FF6F20',
+      text: '#7A3A0F',
+      textSoft: '#7A3A0F',
     },
     roundLabel: 'סט סופר',
     pluralLabel: 'סטים סופר',
@@ -80,11 +100,11 @@ const ROUNDS_METHODS = {
     label: 'קומבו',
     closedLabel: 'קומבו',
     palette: {
-      outer: '#FFF5EE',
-      border: '#FFD0AC',
+      outer: '#FFF6EE',
+      border: '#F0E4D0',
       stripe: '#FF6F20',
-      text: '#993C1D',
-      textSoft: '#C2410C',
+      text: '#7A3A0F',
+      textSoft: '#7A3A0F',
     },
     roundLabel: 'חזרה',
     pluralLabel: 'חזרות',
@@ -102,19 +122,20 @@ const STATIONS_METHODS = {
   circuit: {
     label: 'אימון מחזורי',
     closedLabel: 'מחזורי',
+    // Phase 3 — closed-card chip palette unified to brand orange.
     palette: {
-      outer: '#EFF6FF',
-      border: '#BFDBFE',
-      stripe: '#3B82F6',
-      text: '#1E40AF',
-      textSoft: '#1D4ED8',
+      outer: '#FFF6EE',
+      border: '#F0E4D0',
+      stripe: '#FF6F20',
+      text: '#7A3A0F',
+      textSoft: '#7A3A0F',
     },
     groupPalette: {
-      outer: '#DBEAFE',
-      border: '#3B82F6',
-      stripe: '#1D4ED8',
-      text: '#1E3A8A',
-      textSoft: '#1E40AF',
+      outer: '#FFF6EE',
+      border: '#F0E4D0',
+      stripe: '#FF6F20',
+      text: '#7A3A0F',
+      textSoft: '#7A3A0F',
     },
   },
 };
@@ -682,6 +703,24 @@ const TEMPO_LABELS = ['ירידה', 'החזקה למטה', 'עליה', 'החזק
 function parseTempo(t) {
   const s = String(t ?? '').replace(/\D/g, '').padEnd(4, '·').slice(0, 4);
   return [s[0], s[1], s[2], s[3]];
+}
+
+// Phase 3 — small centered section label. Introduces each
+// logical group inside an open card body (תרגילים / רוטציה /
+// שעון / תחנות / סבבים / פרטים / יעד / מיני-סטים).
+function SectionLabel({ children }) {
+  return (
+    <div style={{
+      fontSize: 9.5,
+      color: '#888888',
+      fontWeight: 800,
+      letterSpacing: 0.6,
+      textAlign: 'center',
+      marginBottom: 7,
+    }}>
+      {children}
+    </div>
+  );
 }
 
 function TempoBreakdown({ tempo }) {
@@ -2060,13 +2099,8 @@ export default function ExerciseCard({
               const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
               const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
               const groupMode = methodConfig.group_mode === true;
-              // Brand blue palette (phase 2d). groupMode keeps the stronger
-              // border treatment via outerBorderWidth.
-              const BLUE_STRIPE = '#3B82F6';
-              const BLUE_BORDER = '#85B7EB';
-              const BLUE_TINT   = '#DDE9FB';
-              const BLUE_TEXT   = '#1E40AF';
-              const BLUE_DEEP   = '#0C447C';
+              // Phase 3 — palette via shared BRAND tokens. groupMode
+              // still bumps the outer border weight for emphasis.
               const outerBorderWidth = groupMode ? 2.5 : 2;
 
               if (stations.length === 0) {
@@ -2094,7 +2128,7 @@ export default function ExerciseCard({
               return (
                 <div dir="rtl" style={{
                   background: 'white',
-                  border: `${outerBorderWidth}px solid ${BLUE_STRIPE}`,
+                  border: `${outerBorderWidth}px solid ${BRAND.stripeActive}`,
                   borderRadius: 14,
                   padding: 12,
                   boxShadow: 'rgba(59,130,246,0.15) 0px 4px 10px',
@@ -2106,8 +2140,8 @@ export default function ExerciseCard({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${BLUE_TINT}, #FFFFFF)`,
-                    border: `1px solid ${BLUE_BORDER}`,
+                    background: `linear-gradient(135deg, ${BRAND.panelBg}, #FFFFFF)`,
+                    border: `1px solid ${BRAND.panelBorder}`,
                     borderRadius: 10,
                     marginBottom: 11,
                   }}>
@@ -2115,8 +2149,8 @@ export default function ExerciseCard({
                       <span style={{
                         fontSize: 13,
                         fontWeight: 800,
-                        color: BLUE_TEXT,
-                        background: BLUE_TINT,
+                        color: BRAND.tagText,
+                        background: BRAND.panelBg,
                         padding: '2px 8px',
                         borderRadius: 5,
                       }}>
@@ -2127,7 +2161,7 @@ export default function ExerciseCard({
                           fontSize: 9,
                           fontWeight: 800,
                           color: 'white',
-                          background: BLUE_STRIPE,
+                          background: BRAND.stripeActive,
                           padding: '2px 7px',
                           borderRadius: 10,
                           letterSpacing: 0.3,
@@ -2139,11 +2173,11 @@ export default function ExerciseCard({
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: BLUE_STRIPE,
+                      color: BRAND.stripeActive,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: `1px solid ${BLUE_BORDER}`,
+                      border: `1px solid ${BRAND.panelBorder}`,
                     }}>
                       סבב {Math.min(activeRoundIdx + 1, rounds)} / {rounds}
                     </span>
@@ -2152,13 +2186,13 @@ export default function ExerciseCard({
                   {/* Group-mode hint strip */}
                   {groupMode && (
                     <div style={{
-                      background: BLUE_TINT,
-                      border: `1px solid ${BLUE_BORDER}`,
+                      background: BRAND.panelBg,
+                      border: `1px solid ${BRAND.panelBorder}`,
                       borderRadius: 8,
                       padding: 8,
                       marginBottom: 10,
                       fontSize: 11,
-                      color: BLUE_TEXT,
+                      color: BRAND.tagText,
                       fontWeight: 700,
                       textAlign: 'center',
                     }}>
@@ -2166,6 +2200,7 @@ export default function ExerciseCard({
                     </div>
                   )}
 
+                  <SectionLabel>תחנות</SectionLabel>
                   {/* Stations — flex-wrap (no horizontal scroll) */}
                   <div
                     dir="rtl"
@@ -2185,8 +2220,8 @@ export default function ExerciseCard({
                         <div key={sIdx} style={{
                           flex: '1 1 calc(50% - 8px)',
                           minWidth: 130,
-                          background: BLUE_TINT,
-                          border: `1px solid ${BLUE_BORDER}`,
+                          background: BRAND.panelBg,
+                          border: `1px solid ${BRAND.panelBorder}`,
                           borderRadius: 10,
                           padding: 10,
                           display: 'flex',
@@ -2197,7 +2232,7 @@ export default function ExerciseCard({
                             <span style={{
                               fontFamily: "'Bebas Neue', sans-serif",
                               fontSize: 20,
-                              color: BLUE_TEXT,
+                              color: BRAND.tagText,
                               fontWeight: 800,
                               lineHeight: 1,
                             }}>
@@ -2218,7 +2253,7 @@ export default function ExerciseCard({
                           <div style={{
                             fontSize: 11,
                             fontWeight: 800,
-                            color: BLUE_DEEP,
+                            color: BRAND.textPrimary,
                             minHeight: 28,
                             wordBreak: 'break-word',
                           }}>
@@ -2257,7 +2292,7 @@ export default function ExerciseCard({
                                 return (
                                   <div key={fieldId} style={{
                                     background: '#FFFFFF',
-                                    border: `1px solid ${BLUE_BORDER}`,
+                                    border: `1px solid ${BRAND.panelBorder}`,
                                     borderRadius: 4,
                                     padding: '3px 4px',
                                     textAlign: 'center',
@@ -2265,12 +2300,12 @@ export default function ExerciseCard({
                                     <div style={{
                                       fontFamily: "'Bebas Neue', sans-serif",
                                       fontSize: 13,
-                                      color: BLUE_TEXT,
+                                      color: BRAND.tagText,
                                       lineHeight: 1,
                                     }}>{val}</div>
                                     <div style={{
                                       fontSize: 7,
-                                      color: BLUE_TEXT,
+                                      color: BRAND.tagText,
                                       fontWeight: 800,
                                       marginTop: 2,
                                     }}>{c.label}</div>
@@ -2284,45 +2319,48 @@ export default function ExerciseCard({
                     })}
                   </div>
 
-                  {/* Round progress dots — wrapper with white bg + blue
-                      border; each dot is a numbered circle. Done dots
-                      get solid blue bg; pending dots are white-on-blue. */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 6,
-                    marginBottom: 10,
-                    padding: '6px 8px',
-                    background: '#FFFFFF',
-                    border: `1px solid ${BLUE_TINT}`,
-                    borderRadius: 8,
-                  }}>
-                    {Array.from({ length: rounds }, (_, i) => {
-                      const isDone = i < activeRoundIdx;
-                      const isActive = i === activeRoundIdx;
-                      return (
-                        <div key={i} style={{
-                          minWidth: isActive ? 28 : 22,
-                          height: 22,
-                          padding: '0 6px',
-                          borderRadius: 11,
-                          background: isDone ? BLUE_STRIPE : '#FFFFFF',
-                          border: `1px solid ${isDone ? BLUE_STRIPE : BLUE_BORDER}`,
-                          color: isDone ? '#FFFFFF' : BLUE_TEXT,
-                          fontFamily: "'Barlow Condensed', sans-serif",
-                          fontSize: 12,
-                          fontWeight: 900,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          transition: 'all 0.2s',
-                          boxShadow: isActive ? `0 0 0 2px ${BLUE_STRIPE}33` : 'none',
-                        }}>
-                          {i + 1}
-                        </div>
-                      );
-                    })}
+                  <div style={{ marginTop: 14 }}>
+                    <SectionLabel>סבבים</SectionLabel>
+                    {/* Round progress dots — wrapper with white bg + brand
+                        border; each dot is a numbered circle. Done dots
+                        get solid orange bg; pending dots stay white. */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginBottom: 10,
+                      padding: '6px 8px',
+                      background: '#FFFFFF',
+                      border: `1px solid ${BRAND.panelBorder}`,
+                      borderRadius: 8,
+                    }}>
+                      {Array.from({ length: rounds }, (_, i) => {
+                        const isDone = i < activeRoundIdx;
+                        const isActive = i === activeRoundIdx;
+                        return (
+                          <div key={i} style={{
+                            minWidth: isActive ? 28 : 22,
+                            height: 22,
+                            padding: '0 6px',
+                            borderRadius: 11,
+                            background: isDone ? BRAND.stripeActive : '#FFFFFF',
+                            border: `1px solid ${isDone ? BRAND.stripeActive : BRAND.innerBorder}`,
+                            color: isDone ? '#FFFFFF' : BRAND.tagText,
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontSize: 12,
+                            fontWeight: 900,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s',
+                            boxShadow: isActive ? `0 0 0 2px ${BRAND.stripeActive}33` : 'none',
+                          }}>
+                            {i + 1}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Complete-round button — trainee + active round only */}
@@ -2333,7 +2371,7 @@ export default function ExerciseCard({
                       disabled={pyramidSaving}
                       style={{
                         width: '100%',
-                        background: pyramidSaving ? '#D1D5DB' : BLUE_STRIPE,
+                        background: pyramidSaving ? '#D1D5DB' : BRAND.stripeActive,
                         color: 'white',
                         border: 'none',
                         padding: 10,
@@ -2353,11 +2391,11 @@ export default function ExerciseCard({
                     <div style={{
                       textAlign: 'center',
                       fontSize: 11,
-                      color: BLUE_TEXT,
+                      color: BRAND.tagText,
                       fontWeight: 700,
                       padding: 8,
-                      background: BLUE_TINT,
-                      border: `1px solid ${BLUE_BORDER}`,
+                      background: BRAND.panelBg,
+                      border: `1px solid ${BRAND.panelBorder}`,
                       borderRadius: 7,
                     }}>
                       ביצוע המתאמן · {Math.min(activeRoundIdx, rounds)}/{rounds} סבבים
@@ -2377,15 +2415,10 @@ export default function ExerciseCard({
                 so a refresh resumes on the next undone round. */}
             {expanded && ROUNDS_METHODS[variant] && (() => {
               const methodMeta = ROUNDS_METHODS[variant];
-              // Phase 2e — variant-aware palette: SUPERSET is brand purple,
-              // COMBO is amber. Replaces the per-method palette config that
-              // used to live on methodMeta.palette so we can share one render
-              // block across both methods and still flip the chrome cleanly.
-              const isCombo = variant === 'combo';
-              const ROUNDS_STRIPE = isCombo ? '#EAB308' : '#7F47B5';
-              const ROUNDS_BG     = isCombo ? '#FEF3C7' : '#F4ECFD';
-              const ROUNDS_BORDER = isCombo ? '#FBBF24' : '#E0D0F2';
-              const ROUNDS_TEXT   = isCombo ? '#854D0E' : '#5A2D87';
+              // Phase 3 — unified brand-orange palette via BRAND tokens.
+              // SUPERSET and COMBO share the same chrome — only the
+              // method label ("סופרסט" / "קומבו") and connector glyph
+              // differentiate them.
               const td = parseTabataData(exercise?.tabata_data) || {};
               const rounds = Array.isArray(td.rounds) ? td.rounds : [];
               if (rounds.length === 0) {
@@ -2419,35 +2452,42 @@ export default function ExerciseCard({
 
               return (
                 <div dir="rtl" style={{
-                  background: 'white',
-                  border: `2px solid ${ROUNDS_STRIPE}`,
+                  background: '#FFFFFF',
+                  border: `1px solid ${BRAND.cardBorder}`,
                   borderRadius: 14,
-                  padding: 12,
-                  boxShadow: `0 4px 10px ${ROUNDS_STRIPE}25`,
+                  padding: '11px 12px',
                   marginBottom: 12,
                 }}>
+                  <SectionLabel>פרטים</SectionLabel>
                   {/* Header band */}
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${ROUNDS_BG}, white)`,
-                    border: `1px solid ${ROUNDS_BORDER}`,
+                    background: BRAND.panelBg,
+                    border: `1px solid ${BRAND.panelBorder}`,
                     borderRadius: 10,
                     marginBottom: 12,
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: ROUNDS_TEXT }}>
+                    <span style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: BRAND.tagText,
+                      background: BRAND.tagBg,
+                      padding: '2px 7px',
+                      borderRadius: 5,
+                    }}>
                       {methodMeta.label}
                     </span>
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: ROUNDS_STRIPE,
+                      color: BRAND.stripeActive,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: `1px solid ${ROUNDS_BORDER}`,
+                      border: `1px solid ${BRAND.panelBorder}`,
                     }}>
                       {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${rounds.length} ${tallyLabel}`
                                    : `${completedCount} / ${rounds.length} ${tallyLabel}`}
@@ -2457,8 +2497,8 @@ export default function ExerciseCard({
                   {/* Top hint (COMBO only) */}
                   {methodMeta.topHint && (
                     <div style={{
-                      background: `linear-gradient(135deg, ${ROUNDS_BG}, white)`,
-                      border: `1px solid ${ROUNDS_BORDER}`,
+                      background: BRAND.panelBg,
+                      border: `1px solid ${BRAND.panelBorder}`,
                       borderRadius: 8,
                       padding: 8,
                       marginBottom: 10,
@@ -2467,13 +2507,15 @@ export default function ExerciseCard({
                       gap: 6,
                       justifyContent: 'center',
                     }}>
-                      <Zap size={12} color={ROUNDS_STRIPE} />
-                      <span style={{ fontSize: 11, color: ROUNDS_TEXT, fontWeight: 700 }}>
+                      <Zap size={12} color={BRAND.stripeActive} />
+                      <span style={{ fontSize: 11, color: BRAND.tagText, fontWeight: 700 }}>
                         {methodMeta.topHint}
                       </span>
                     </div>
                   )}
 
+                  <div style={{ marginTop: 14 }}>
+                  <SectionLabel>תרגילים</SectionLabel>
                   {/* Round cards */}
                   {rounds.map((round, rIdx) => {
                     const isPast = rIdx < activeRoundIdx;
@@ -2484,10 +2526,10 @@ export default function ExerciseCard({
                     return (
                       <div key={rIdx} style={{
                         background: isPast ? '#F0FAF4'
-                          : isActive ? ROUNDS_BG
+                          : isActive ? BRAND.panelBg
                           : 'white',
                         border: isPast ? '1.5px solid #16A34A'
-                          : isActive ? `2px solid ${ROUNDS_STRIPE}`
+                          : isActive ? `2px solid ${BRAND.stripeActive}`
                           : '1.5px dashed #D1D5DB',
                         borderRadius: 10,
                         padding: 10,
@@ -2500,12 +2542,12 @@ export default function ExerciseCard({
                           gap: 8,
                           marginBottom: 8,
                           paddingBottom: 8,
-                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : ROUNDS_BORDER}`,
+                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : BRAND.panelBorder}`,
                         }}>
                           <span style={{
                             fontFamily: "'Bebas Neue', sans-serif",
                             fontSize: 22,
-                            color: isPast ? '#16A34A' : isActive ? ROUNDS_STRIPE : '#9CA3AF',
+                            color: isPast ? '#16A34A' : isActive ? BRAND.stripeActive : '#9CA3AF',
                             lineHeight: 1,
                             fontWeight: 800,
                           }}>
@@ -2514,11 +2556,11 @@ export default function ExerciseCard({
                           <span style={{
                             fontSize: 11,
                             fontWeight: 800,
-                            color: isPast ? '#16A34A' : isActive ? ROUNDS_TEXT : '#9CA3AF',
+                            color: isPast ? '#16A34A' : isActive ? BRAND.tagText : '#9CA3AF',
                             background: 'white',
                             padding: '2px 8px',
                             borderRadius: 5,
-                            border: `1px solid ${isPast ? '#86EFAC' : ROUNDS_BORDER}`,
+                            border: `1px solid ${isPast ? '#86EFAC' : BRAND.panelBorder}`,
                           }}>
                             {methodMeta.roundLabel} {roundNumber}
                           </span>
@@ -2549,7 +2591,7 @@ export default function ExerciseCard({
                                 display: 'flex',
                                 flexDirection: 'column',
                                 background: 'white',
-                                border: `1px solid ${isPast ? '#BBF7D0' : ROUNDS_BORDER}`,
+                                border: `1px solid ${isPast ? '#BBF7D0' : BRAND.panelBorder}`,
                                 borderRadius: 7,
                                 padding: 8,
                               }}>
@@ -2557,12 +2599,12 @@ export default function ExerciseCard({
                                   <span style={{
                                     fontFamily: "'Bebas Neue', sans-serif",
                                     fontSize: 14,
-                                    color: ROUNDS_STRIPE,
-                                    background: ROUNDS_BG,
+                                    color: BRAND.stripeActive,
+                                    background: BRAND.panelBg,
                                     padding: '2px 7px',
                                     borderRadius: 4,
                                     fontWeight: 800,
-                                    border: `1px solid ${ROUNDS_BORDER}`,
+                                    border: `1px solid ${BRAND.panelBorder}`,
                                   }}>
                                     {String.fromCharCode(0x05D0 + exIdx)}
                                   </span>
@@ -2626,7 +2668,7 @@ export default function ExerciseCard({
                                   padding: '0 2px',
                                   letterSpacing: 1,
                                   minWidth: 24,
-                                  color: ROUNDS_STRIPE,
+                                  color: BRAND.stripeActive,
                                 }}>
                                   {variant === 'combo' ? '←' : 'ואז'}
                                 </div>
@@ -2646,7 +2688,7 @@ export default function ExerciseCard({
                               marginTop: 10,
                               background: pyramidSaving
                                 ? '#D1D5DB'
-                                : `linear-gradient(135deg, ${ROUNDS_STRIPE}cc, ${ROUNDS_STRIPE})`,
+                                : `linear-gradient(135deg, ${BRAND.stripeActive}cc, ${BRAND.stripeActive})`,
                               color: 'white',
                               border: 'none',
                               padding: 10,
@@ -2663,6 +2705,7 @@ export default function ExerciseCard({
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               );
             })()}
@@ -2674,14 +2717,9 @@ export default function ExerciseCard({
                 future cells stay dashed gray. Persistence shares
                 pyramid's exercise_set_logs path (set_number 1-based). */}
             {expanded && HORIZONTAL_MINISETS_METHODS[variant] && (() => {
-              // Phase 2e — REST_PAUSE chrome is brand deep red (was
-              // orange-shared-with-pyramid). One palette object kept
-              // inline so the dispatcher stays self-contained.
-              const RP_STRIPE = '#7F1D1D';
-              const RP_BG     = '#FCD8D8';
-              const RP_BORDER = '#F5C4B3';
-              const RP_TEXT   = '#5A0E0E';
-              const RP_LIGHT  = '#A02828';
+              // Phase 3 — REST_PAUSE chrome is unified brand orange via
+              // BRAND tokens. The +/- buttons + save button gradient
+              // use #FF8B47 as the lighter terminal of the orange ramp.
               const plannedSets = parsePlannedSets(exercise);
               const td = parseTabataData(exercise?.tabata_data) || {};
               const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
@@ -2716,8 +2754,8 @@ export default function ExerciseCard({
               const minusBtnStyle = {
                 width: 26, height: 26,
                 background: 'white',
-                border: `1px solid ${RP_BORDER}`,
-                color: RP_STRIPE,
+                border: `1px solid ${BRAND.panelBorder}`,
+                color: BRAND.stripeActive,
                 borderRadius: 6,
                 fontSize: 13,
                 fontWeight: 700,
@@ -2726,8 +2764,8 @@ export default function ExerciseCard({
               };
               const plusBtnStyle = {
                 width: 26, height: 26,
-                background: `linear-gradient(135deg, ${RP_LIGHT}, ${RP_STRIPE})`,
-                border: `1px solid ${RP_STRIPE}`,
+                background: `linear-gradient(135deg, ${'#FF8B47'}, ${BRAND.stripeActive})`,
+                border: `1px solid ${BRAND.stripeActive}`,
                 color: 'white',
                 borderRadius: 6,
                 fontSize: 13,
@@ -2738,7 +2776,7 @@ export default function ExerciseCard({
               const counterValueStyle = {
                 fontFamily: "'Bebas Neue', sans-serif",
                 fontSize: 22,
-                color: RP_STRIPE,
+                color: BRAND.stripeActive,
                 lineHeight: 1,
               };
               const counterTargetStyle = {
@@ -2748,7 +2786,7 @@ export default function ExerciseCard({
               };
               const counterLabelStyle = {
                 fontSize: 9,
-                color: RP_TEXT,
+                color: BRAND.tagText,
                 fontWeight: 700,
                 textAlign: 'center',
                 marginBottom: 4,
@@ -2759,10 +2797,10 @@ export default function ExerciseCard({
               return (
                 <div dir="rtl" style={{
                   background: 'white',
-                  border: `2px solid ${RP_STRIPE}`,
+                  border: `2px solid ${BRAND.stripeActive}`,
                   borderRadius: 14,
                   padding: 12,
-                  boxShadow: `0 4px 10px ${RP_STRIPE}25`,
+                  boxShadow: `0 4px 10px ${BRAND.stripeActive}25`,
                   marginBottom: 12,
                 }}>
                   {/* Header band — variation + completed tally */}
@@ -2771,28 +2809,29 @@ export default function ExerciseCard({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${RP_BG}, white)`,
-                    border: `1px solid ${RP_BORDER}`,
+                    background: `linear-gradient(135deg, ${BRAND.panelBg}, white)`,
+                    border: `1px solid ${BRAND.panelBorder}`,
                     borderRadius: 10,
                     marginBottom: 12,
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: RP_TEXT }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: BRAND.tagText }}>
                       {variationName || 'ללא וריאציה'}
                     </span>
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: RP_STRIPE,
+                      color: BRAND.stripeActive,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: `1px solid ${RP_BORDER}`,
+                      border: `1px solid ${BRAND.panelBorder}`,
                     }}>
                       {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${plannedSets.length} מיני-סטים`
                                    : `${completedCount} / ${plannedSets.length} מיני-סטים`}
                     </span>
                   </div>
 
+                  <SectionLabel>מיני-סטים</SectionLabel>
                   {/* Horizontal row of mini-set cells with rest
                       dividers between them. Overflow-x scroll so 6+
                       mini-sets stay reachable on narrow viewports. */}
@@ -2816,10 +2855,10 @@ export default function ExerciseCard({
                             minWidth: isActive ? 140 : 75,
                             flex: isActive ? '1 1 140px' : '0 0 auto',
                             background: isPast ? '#F0FAF4'
-                              : isActive ? `linear-gradient(135deg, ${RP_BG}, white)`
+                              : isActive ? `linear-gradient(135deg, ${BRAND.panelBg}, white)`
                               : 'white',
                             border: isPast ? '1.5px solid #16A34A'
-                              : isActive ? `2px solid ${RP_STRIPE}`
+                              : isActive ? `2px solid ${BRAND.stripeActive}`
                               : '1.5px dashed #D1D5DB',
                             borderRadius: 10,
                             padding: 8,
@@ -2832,7 +2871,7 @@ export default function ExerciseCard({
                             <span style={{
                               fontFamily: "'Bebas Neue', sans-serif",
                               fontSize: isActive ? 24 : 20,
-                              color: isPast ? '#16A34A' : isActive ? RP_STRIPE : '#D1D5DB',
+                              color: isPast ? '#16A34A' : isActive ? BRAND.stripeActive : '#D1D5DB',
                               lineHeight: 1,
                               fontWeight: 800,
                             }}>
@@ -2904,19 +2943,21 @@ export default function ExerciseCard({
                     })}
                   </div>
 
-                  {/* Active mini-set input panel + save button —
-                      trainee only. Coach view stops at the row above. */}
                   {!isCoachMode && activeSet && numericFields.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                    <SectionLabel>יעד</SectionLabel>
+                    {/* Active mini-set input panel + save button —
+                        trainee only. Coach view stops at the row above. */}
                     <div style={{
                       background: 'white',
-                      border: `1.5px solid ${RP_BORDER}`,
+                      border: `1.5px solid ${BRAND.panelBorder}`,
                       borderRadius: 10,
                       padding: 10,
                       marginBottom: 8,
                     }}>
                       <div style={{
                         fontSize: 10,
-                        color: RP_TEXT,
+                        color: BRAND.tagText,
                         fontWeight: 800,
                         textAlign: 'center',
                         marginBottom: 8,
@@ -2955,6 +2996,7 @@ export default function ExerciseCard({
                         })}
                       </div>
                     </div>
+                    </div>
                   )}
 
                   {!isCoachMode && activeIdx < plannedSets.length && (
@@ -2966,7 +3008,7 @@ export default function ExerciseCard({
                         width: '100%',
                         background: pyramidSaving
                           ? '#D1D5DB'
-                          : `linear-gradient(135deg, ${RP_LIGHT}, ${RP_STRIPE})`,
+                          : `linear-gradient(135deg, ${'#FF8B47'}, ${BRAND.stripeActive})`,
                         color: 'white',
                         border: 'none',
                         padding: 10,
@@ -3502,11 +3544,7 @@ export default function ExerciseCard({
             {expanded && variant === 'tabata' && hasNewTabataShape(exercise) && (() => {
               const cs = resolveTabataClockSettings(exercise);
               const rotation = resolveTabataRotation(exercise);
-              // Brand red palette (replaces prior orange/teal mix).
-              const RED_STRIPE   = '#DC2626';
-              const RED_BG       = '#FEE2E2';
-              const RED_BORDER   = '#FCA5A5';
-              const RED_TEXT     = '#991B1B';
+              // Phase 3 — palette via shared BRAND tokens.
               // 2x2 clock grid: drops rest_between_sets per phase-2c
               // spec; that value still feeds the coach summary line +
               // the actual clock launch via cs.rest_between_sets.
@@ -3520,7 +3558,7 @@ export default function ExerciseCard({
               return (
                 <div dir="rtl" style={{
                   background: 'white',
-                  border: `2px solid ${RED_STRIPE}`,
+                  border: `2px solid ${BRAND.stripeActive}`,
                   borderRadius: 14,
                   padding: 12,
                   boxShadow: 'rgba(220,38,38,0.15) 0px 4px 10px',
@@ -3532,16 +3570,16 @@ export default function ExerciseCard({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${RED_BG}, #FFFFFF)`,
-                    border: `1px solid ${RED_BORDER}`,
+                    background: `linear-gradient(135deg, ${BRAND.panelBg}, #FFFFFF)`,
+                    border: `1px solid ${BRAND.panelBorder}`,
                     borderRadius: 10,
                     marginBottom: 11,
                   }}>
                     <span style={{
                       fontSize: 13,
                       fontWeight: 800,
-                      color: RED_TEXT,
-                      background: RED_BG,
+                      color: BRAND.tagText,
+                      background: BRAND.panelBg,
                       padding: '2px 8px',
                       borderRadius: 5,
                     }}>
@@ -3550,16 +3588,17 @@ export default function ExerciseCard({
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
-                      color: RED_STRIPE,
+                      color: BRAND.stripeActive,
                       background: 'white',
                       padding: '2px 8px',
                       borderRadius: 5,
-                      border: `1px solid ${RED_BORDER}`,
+                      border: `1px solid ${BRAND.panelBorder}`,
                     }}>
                       {rotation.length} {rotation.length === 1 ? 'תרגיל ברוטציה' : 'תרגילים ברוטציה'}
                     </span>
                   </div>
 
+                  <SectionLabel>רוטציה</SectionLabel>
                   {/* 1. Rotation pills — TOP, horizontal flex-wrap */}
                   {rotation.length > 0 ? (
                     <div
@@ -3574,9 +3613,9 @@ export default function ExerciseCard({
                     >
                       {rotation.map((item, idx) => (
                         <div key={idx} style={{
-                          background: RED_BG,
-                          border: `1px solid ${RED_BORDER}`,
-                          color: RED_TEXT,
+                          background: BRAND.panelBg,
+                          border: `1px solid ${BRAND.panelBorder}`,
+                          color: BRAND.tagText,
                           borderRadius: 8,
                           padding: '6px 9px',
                           fontSize: 11,
@@ -3589,7 +3628,7 @@ export default function ExerciseCard({
                             fontFamily: "'Barlow Condensed', sans-serif",
                             fontSize: 12,
                             fontWeight: 900,
-                            color: RED_STRIPE,
+                            color: BRAND.stripeActive,
                           }}>{idx + 1}</span>
                           <span>{item?.name ?? item?.exerciseName ?? '—'}</span>
                         </div>
@@ -3609,6 +3648,8 @@ export default function ExerciseCard({
                     </div>
                   )}
 
+                  <div style={{ marginTop: 14 }}>
+                  <SectionLabel>שעון</SectionLabel>
                   {/* 2. Clock settings grid — 2x2: work / rest / rounds / sets */}
                   <div style={{
                     display: 'grid',
@@ -3618,15 +3659,15 @@ export default function ExerciseCard({
                   }}>
                     {statBoxes.map((cfg, i) => (
                       <div key={i} style={{
-                        background: RED_BG,
-                        border: `1px solid ${RED_BORDER}`,
+                        background: BRAND.panelBg,
+                        border: `1px solid ${BRAND.panelBorder}`,
                         borderRadius: 8,
                         padding: '7px 9px',
                         textAlign: 'center',
                       }}>
                         <div style={{
                           fontSize: 9,
-                          color: RED_TEXT,
+                          color: BRAND.tagText,
                           fontWeight: 700,
                           letterSpacing: 0.4,
                         }}>{cfg.label}</div>
@@ -3634,12 +3675,13 @@ export default function ExerciseCard({
                           fontFamily: "'Barlow Condensed', sans-serif",
                           fontSize: 18,
                           fontWeight: 900,
-                          color: RED_STRIPE,
+                          color: BRAND.stripeActive,
                           marginTop: 2,
                           lineHeight: 1,
                         }}>{cfg.value}</div>
                       </div>
                     ))}
+                  </div>
                   </div>
 
                   {/* 3. Launch button — trainee only */}
@@ -3650,7 +3692,7 @@ export default function ExerciseCard({
                       disabled={launchingClock}
                       style={{
                         width: '100%',
-                        background: launchingClock ? '#D1D5DB' : RED_STRIPE,
+                        background: launchingClock ? '#D1D5DB' : BRAND.stripeActive,
                         color: '#FFFFFF',
                         border: 'none',
                         padding: '9px',
@@ -3678,11 +3720,11 @@ export default function ExerciseCard({
                     <div style={{
                       textAlign: 'center',
                       fontSize: 11,
-                      color: RED_TEXT,
+                      color: BRAND.tagText,
                       fontWeight: 700,
                       padding: 10,
-                      background: RED_BG,
-                      border: `1px solid ${RED_BORDER}`,
+                      background: BRAND.panelBg,
+                      border: `1px solid ${BRAND.panelBorder}`,
                       borderRadius: 8,
                     }}>
                       טבטה · {cs.work_seconds}/{cs.rest_seconds} · {cs.rounds} סבבים × {cs.sets} סטים
