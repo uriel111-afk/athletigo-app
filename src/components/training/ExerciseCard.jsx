@@ -256,7 +256,6 @@ function parseTabataData(raw) {
 // editor reuses the same JSONB shape, just with `container_type =
 // 'superset'`/'combo'/'list').
 function getVariant(exercise) {
-  const _result = (() => {
   // New-method dispatch — runs BEFORE legacy branches so the
   // pyramid/drop_set/rest_pause/circuit/delorme renderers can own
   // their own closed-card and open-card layouts without falling
@@ -329,13 +328,6 @@ function getVariant(exercise) {
     } catch {}
   }
   return 'normal';
-  })();
-  console.log('[ExerciseCard.getVariant]', {
-    mode: exercise?.mode,
-    returned: _result,
-    name: exercise?.name,
-  });
-  return _result;
 }
 
 // Walks the historical fallback chain for sub-exercises. Order matters:
@@ -1824,36 +1816,13 @@ export default function ExerciseCard({
         overflow: 'hidden',
         direction: 'rtl',
       }}>
-        {/* DBG STRIP — temporary, remove before launch */}
-        <div style={{
-          background: '#FFF3CD',
-          border: '1px solid #FFC107',
-          borderRadius: 6,
-          padding: '6px 8px',
-          marginBottom: 6,
-          fontSize: 10,
-          fontFamily: 'monospace',
-          color: '#7A5A00',
-          direction: 'ltr',
-          textAlign: 'left',
-          lineHeight: 1.4,
-        }}>
-          expanded={String(expanded)} | variant={String(variant)} | mode={String(exercise?.mode ?? 'null')} | id={String(exercise?.id?.slice(0,8) ?? '?')}
-        </div>
         {/* Header band — single row, flex space-between. Right cluster
             (RTL = visual right): 30×30 orange index square + 18px
             Barlow-700 title that wraps if long. Left cluster: 10×10
             colored status dot + 3-dot menu (now hosting ערוך) +
             chevron. Tap toggles expand. */}
         <div
-          onClick={() => {
-            console.log('[ExerciseCard.toggle.closed→open]', {
-              id: exercise?.id?.slice(0, 8),
-              variant,
-              mode: exercise?.mode,
-            });
-            setExpanded(v => !v);
-          }}
+          onClick={() => setExpanded(v => !v)}
           role="button"
           tabIndex={0}
           aria-expanded={expanded}
@@ -2192,22 +2161,6 @@ export default function ExerciseCard({
             for list variants — the legacy numbered-circle list above
             the new mini-cards. Restricting the gate to tabata gives
             list variants exactly one render path. */}
-            {expanded && (() => {
-              console.log('[ExerciseCard.openBody]', {
-                variant,
-                mode: exercise?.mode,
-                matched: {
-                  stations: !!STATIONS_METHODS?.[variant],
-                  rounds: !!ROUNDS_METHODS?.[variant],
-                  mini: !!HORIZONTAL_MINISETS_METHODS?.[variant],
-                  planned: !!PLANNED_SETS_METHODS?.[variant],
-                  tabata: variant === 'tabata',
-                  list: variant === 'list',
-                  normal: variant === 'normal',
-                },
-              });
-              return null;
-            })()}
             {/* CIRCUIT — horizontal scrollable strip of station cards
                 + a round-progression dot indicator. Each station shows
                 its number, type badge (חזרות / שניות), name, and value
