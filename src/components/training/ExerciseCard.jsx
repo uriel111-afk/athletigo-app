@@ -794,19 +794,13 @@ function buildClosedPreview(exercise, variant) {
     : (Array.isArray(td.rotation) ? td.rotation : []);
   const nameOf = (item) => (item?.name || item?.exerciseName || '—');
 
-  if (variant === 'super_set' && subExercises.length) {
-    return { items: subExercises.map(nameOf), sep: '+', numbered: false };
-  }
-  if (variant === 'combo' && subExercises.length) {
-    return { items: subExercises.map(nameOf), sep: '←', numbered: false };
-  }
-  if (variant === 'tabata' && rotation.length) {
-    return { items: rotation.map(nameOf), sep: '·', numbered: true };
-  }
-  if (variant === 'circuit' && stations.length) {
-    return { items: stations.map(nameOf), sep: '·', numbered: false };
-  }
-  return null;
+  let items = null;
+  if (variant === 'super_set' && subExercises.length) items = subExercises.map(nameOf);
+  if (variant === 'combo'     && subExercises.length) items = subExercises.map(nameOf);
+  if (variant === 'tabata'    && rotation.length)     items = rotation.map(nameOf);
+  if (variant === 'circuit'   && stations.length)     items = stations.map(nameOf);
+  if (!items) return null;
+  return items.join(' · ');
 }
 
 function TempoBreakdown({ tempo }) {
@@ -1914,14 +1908,14 @@ export default function ExerciseCard({
                 lineHeight: 1.1,
                 wordBreak: 'break-word',
               }}>{name}</div>
-              {/* Phase 4 — method-specific summary + preview. Shown
-                  only when closed; takes precedence over the generic
-                  chip row. Preview shows inner names with a method-
-                  appropriate separator (+ / ← / ·). */}
+              {/* Phase 4 — method-specific summary + preview chip.
+                  Shown only when closed; takes precedence over the
+                  generic chip row. Preview is a single cream pill
+                  with names joined by " · ". */}
               {!expanded && (() => {
                 const customSummary = buildClosedSummary(exercise, variant);
-                const preview = buildClosedPreview(exercise, variant);
-                if (!customSummary && !preview) return null;
+                const previewText = buildClosedPreview(exercise, variant);
+                if (!customSummary && !previewText) return null;
                 return (
                   <>
                     {customSummary && (
@@ -1934,15 +1928,15 @@ export default function ExerciseCard({
                         direction: 'rtl',
                       }}>{customSummary}</div>
                     )}
-                    {preview && (
+                    {previewText && (
                       <div style={{
                         fontSize: 10,
                         color: '#7A3A0F',
-                        marginTop: 4,
+                        marginTop: 5,
                         fontWeight: 600,
                         lineHeight: 1.3,
                         background: '#FFF6EE',
-                        padding: '4px 7px',
+                        padding: '4px 8px',
                         borderRadius: 6,
                         display: 'inline-block',
                         maxWidth: '100%',
@@ -1950,27 +1944,7 @@ export default function ExerciseCard({
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                         direction: 'rtl',
-                      }}>
-                        {preview.items.map((nm, idx) => (
-                          <React.Fragment key={idx}>
-                            {preview.numbered && (
-                              <span style={{
-                                fontFamily: "'Barlow Condensed', sans-serif",
-                                color: '#FF6F20',
-                                fontWeight: 900,
-                                marginLeft: 2,
-                              }}>{idx + 1}</span>
-                            )}
-                            {nm}
-                            {idx < preview.items.length - 1 && (
-                              <span style={{
-                                color: '#FFB87A',
-                                margin: '0 4px',
-                              }}>{preview.sep}</span>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </div>
+                      }}>{previewText}</div>
                     )}
                   </>
                 );
