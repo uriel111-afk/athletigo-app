@@ -723,6 +723,92 @@ function SectionLabel({ children }) {
   );
 }
 
+// Phase 4 — closed-card summary text by variant.
+// Returns the short status line shown under the exercise name in
+// the closed card. Each method describes its own rhythm. Returns
+// null for basic / reps_new / none / normal so the existing generic
+// chip row continues to handle the fallback case.
+function buildClosedSummary(exercise, variant) {
+  const td = parseTabataData(exercise?.tabata_data) || {};
+  const mc = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
+  const plannedSets = Array.isArray(td.planned_sets) ? td.planned_sets : [];
+  const rounds = Array.isArray(td.rounds) ? td.rounds : [];
+  const subExercises = Array.isArray(td.sub_exercises) ? td.sub_exercises : [];
+  const stations = Array.isArray(td.stations) ? td.stations : [];
+  const rotation = Array.isArray(td.exercises_in_rotation)
+    ? td.exercises_in_rotation
+    : (Array.isArray(td.rotation) ? td.rotation : []);
+  const cs = (td.clock_settings && typeof td.clock_settings === 'object') ? td.clock_settings : {};
+
+  if (variant === 'super_set') {
+    const r = Number.isFinite(mc.rounds) ? mc.rounds : (rounds.length || 0);
+    const k = subExercises.length || (rounds[0]?.exercises?.length || 0);
+    return `${r} סבבים · ${k} תרגילים`;
+  }
+  if (variant === 'combo') {
+    const r = Number.isFinite(mc.rounds) ? mc.rounds : (rounds.length || 0);
+    const k = subExercises.length || (rounds[0]?.exercises?.length || 0);
+    return `${r} סבבים · ${k} תנועות`;
+  }
+  if (variant === 'tabata') {
+    const work = cs.work_seconds ?? mc.work_seconds ?? exercise?.work_seconds ?? '';
+    const rest = cs.rest_seconds ?? mc.rest_seconds ?? exercise?.rest_seconds ?? '';
+    const rnds = cs.rounds ?? mc.rounds ?? exercise?.rounds ?? '';
+    const k = rotation.length || subExercises.length;
+    return `${rnds} סבבים × ${work}/${rest} ש׳ · ${k} תרגילים`;
+  }
+  if (variant === 'circuit') {
+    const r = Number.isFinite(mc.rounds) ? mc.rounds : 0;
+    const k = stations.length;
+    return `${r} סבבים · ${k} תחנות`;
+  }
+  if (variant === 'rest_pause') {
+    const k = plannedSets.length;
+    const target = mc.target_reps ?? mc.total_reps ?? '';
+    return target ? `${k} מיני-סטים · יעד ${target} חזרות` : `${k} מיני-סטים`;
+  }
+  if (variant === 'pyramid') {
+    const n = plannedSets.length;
+    return `${n} סטים · פירמידה`;
+  }
+  if (variant === 'drop_set') {
+    const n = plannedSets.length;
+    return `${n} סטים · ירידה`;
+  }
+  if (variant === 'delorme') {
+    const n = plannedSets.length;
+    return `${n} סטים · דה-לורם`;
+  }
+  return null;
+}
+
+// Phase 4 — preview line for multi-element methods. Shows the
+// actual inner names so the user knows what's inside without
+// opening the card. Returns null when no preview makes sense.
+function buildClosedPreview(exercise, variant) {
+  const td = parseTabataData(exercise?.tabata_data) || {};
+  const subExercises = Array.isArray(td.sub_exercises) ? td.sub_exercises : [];
+  const stations = Array.isArray(td.stations) ? td.stations : [];
+  const rotation = Array.isArray(td.exercises_in_rotation)
+    ? td.exercises_in_rotation
+    : (Array.isArray(td.rotation) ? td.rotation : []);
+  const nameOf = (item) => (item?.name || item?.exerciseName || '—');
+
+  if (variant === 'super_set' && subExercises.length) {
+    return { items: subExercises.map(nameOf), sep: '+', numbered: false };
+  }
+  if (variant === 'combo' && subExercises.length) {
+    return { items: subExercises.map(nameOf), sep: '←', numbered: false };
+  }
+  if (variant === 'tabata' && rotation.length) {
+    return { items: rotation.map(nameOf), sep: '·', numbered: true };
+  }
+  if (variant === 'circuit' && stations.length) {
+    return { items: stations.map(nameOf), sep: '·', numbered: false };
+  }
+  return null;
+}
+
 function TempoBreakdown({ tempo }) {
   if (tempo == null || String(tempo).trim() === '') return null;
   const digits = parseTempo(tempo);
@@ -1815,7 +1901,7 @@ export default function ExerciseCard({
                 boxShadow: cardStatus === 'done'
                   ? '0 3px 8px rgba(22,163,74,0.3)'
                   : '0 3px 8px rgba(255,111,32,0.28)',
-              }} aria-hidden>{exerciseIndex}</span>
+              }} aria-hidden>{cardStatus === 'done' ? '✓' : exerciseIndex}</span>
             )}
 
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1828,12 +1914,75 @@ export default function ExerciseCard({
                 lineHeight: 1.1,
                 wordBreak: 'break-word',
               }}>{name}</div>
-              {/* Param chips — Row 2 under the title. Inline <num>+<label>
-                  groups with a thin gray "·" between them. Each chip
-                  pairs a Bebas Neue number with a 10px Hebrew label and
-                  the full word "שניות" (never the ״ symbol). Only
-                  truthy values render. Order: sets → reps → hold → rest. */}
+              {/* Phase 4 — method-specific summary + preview. Shown
+                  only when closed; takes precedence over the generic
+                  chip row. Preview shows inner names with a method-
+                  appropriate separator (+ / ← / ·). */}
               {!expanded && (() => {
+                const customSummary = buildClosedSummary(exercise, variant);
+                const preview = buildClosedPreview(exercise, variant);
+                if (!customSummary && !preview) return null;
+                return (
+                  <>
+                    {customSummary && (
+                      <div style={{
+                        fontSize: 11,
+                        color: '#888',
+                        marginTop: 3,
+                        fontWeight: 500,
+                        lineHeight: 1.4,
+                        direction: 'rtl',
+                      }}>{customSummary}</div>
+                    )}
+                    {preview && (
+                      <div style={{
+                        fontSize: 10,
+                        color: '#7A3A0F',
+                        marginTop: 4,
+                        fontWeight: 600,
+                        lineHeight: 1.3,
+                        background: '#FFF6EE',
+                        padding: '4px 7px',
+                        borderRadius: 6,
+                        display: 'inline-block',
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        direction: 'rtl',
+                      }}>
+                        {preview.items.map((nm, idx) => (
+                          <React.Fragment key={idx}>
+                            {preview.numbered && (
+                              <span style={{
+                                fontFamily: "'Barlow Condensed', sans-serif",
+                                color: '#FF6F20',
+                                fontWeight: 900,
+                                marginLeft: 2,
+                              }}>{idx + 1}</span>
+                            )}
+                            {nm}
+                            {idx < preview.items.length - 1 && (
+                              <span style={{
+                                color: '#FFB87A',
+                                margin: '0 4px',
+                              }}>{preview.sep}</span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+              {/* Generic param chips — fallback for basic / reps_new /
+                  none / normal (any variant where buildClosedSummary
+                  returned null). Row 2 under the title. Inline
+                  <num>+<label> groups with a thin gray "·" between them.
+                  Each chip pairs a Bebas Neue number with a 10px Hebrew
+                  label and the full word "שניות" (never the ״ symbol).
+                  Only truthy values render. Order: sets → reps → hold → rest. */}
+              {!expanded && !buildClosedSummary(exercise, variant) && (() => {
                 const restSec = toSeconds(exercise.rest_time);
                 const holdSec = toSeconds(exercise.static_hold_time);
                 const chips = [];
