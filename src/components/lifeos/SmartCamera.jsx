@@ -168,7 +168,12 @@ const SmartCamera = forwardRef(function SmartCamera(
       setBlob(persisted.blob);
       setSizeBefore(persisted.blob.size);
       setSizeAfter(persisted.blob.size);
-      setPreview(URL.createObjectURL(persisted.blob));
+      const restoredPreviewUrl = URL.createObjectURL(persisted.blob);
+      setPreview(restoredPreviewUrl);
+      pushDebugLog('SmartCamera', 'idb-preview-set', {
+        url: restoredPreviewUrl,
+        size: persisted.blob.size,
+      });
       if (deferredUpload) {
         onPhotoCaptured?.(persisted.blob, persisted.filename || 'photo.jpg');
         pushDebugLog('SmartCamera', 'idb-onPhotoCaptured-fired', { size: persisted.blob.size });
@@ -291,7 +296,12 @@ const SmartCamera = forwardRef(function SmartCamera(
 
       setBlob(compressedBlob);
       setSizeAfter(compressedSize);
-      setPreview(URL.createObjectURL(compressedBlob));
+      const newPreviewUrl = URL.createObjectURL(compressedBlob);
+      setPreview(newPreviewUrl);
+      pushDebugLog('SmartCamera', 'preview-set', {
+        url: newPreviewUrl,
+        size: compressedSize,
+      });
       pushDebugLog('SmartCamera', 'blob-set', { size: compressedSize, deferred: !!deferredUpload });
       if (deferredUpload) {
         onPhotoCaptured?.(compressedBlob, 'photo.jpg');
@@ -444,6 +454,7 @@ const SmartCamera = forwardRef(function SmartCamera(
           <div style={{ position: 'relative' }}>
             <img src={preview} alt="preview" style={{
               width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8,
+              display: 'block',
             }} />
             <button
               type="button"
@@ -460,6 +471,14 @@ const SmartCamera = forwardRef(function SmartCamera(
               <X size={14} />
             </button>
           </div>
+          {blob && (
+            <div style={{
+              marginTop: 8, fontSize: 12, color: '#888',
+              textAlign: 'center', direction: 'rtl',
+            }}>
+              📎 תמונה מצורפת ({Math.round(blob.size / 1024)} KB)
+            </div>
+          )}
           {!deferredUpload && (
             <button
               type="button"
