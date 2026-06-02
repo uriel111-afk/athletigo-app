@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useEffect, useContext, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getStepsForTrack } from '../lib/onboardingTracks';
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import HealthDeclarationForm from "@/components/forms/HealthDeclarationForm";
@@ -21,15 +22,6 @@ import { Chip, ChipGroup } from "@/components/ui/Chip";
 // only itself instead of the whole step's save. Non-existent columns
 // (body_type / goal_body_type / address / emergency_contact_*) will
 // warn in console; every other field still lands.
-
-const STEPS = [
-  { id: 'details',      label: 'פרטים' },
-  { id: 'measurements', label: 'מדידות' },
-  { id: 'goals',        label: 'יעדים' },
-  { id: 'about',        label: 'היכרות' },
-  { id: 'health',       label: 'בריאות' },
-  { id: 'confirm',      label: 'אישור' },
-];
 
 const BODY_TYPES_NOW = [
   { id: 'thin',       label: 'רזה',           emoji: '🏃' },
@@ -261,6 +253,7 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const { checkAppState } = useContext(AuthContext) || {};
   const [user, setUser] = useState(null);
+  const [track, setTrack] = useState(null);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [step, setStep] = useState('details');
   const [showHealthForm, setShowHealthForm] = useState(false);
@@ -361,6 +354,7 @@ export default function Onboarding() {
         if (cancelled) return;
         const u = row || { id: authUser.id, email: authUser.email };
         setUser(u);
+        setTrack(u.onboarding_track || null);
 
         // If they already finished onboarding, kick them home. Two
         // independent signals — `client_status` flipped off 'onboarding',
@@ -518,6 +512,14 @@ export default function Onboarding() {
     })();
     return () => { cancelled = true; };
   }, [step, user?.id]);
+
+  const STEPS = useMemo(() => getStepsForTrack(track), [track]);
+
+  // If the active step id is no longer part of the resolved track,
+  // snap back to the first step so we never render a blank panel.
+  useEffect(() => {
+    if (STEPS.length && !STEPS.some(s => s.id === step)) setStep(STEPS[0].id);
+  }, [STEPS]); // eslint-disable-line
 
   if (bootstrapping || !user) return <PageLoader fullHeight />;
 
