@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,16 +6,11 @@ import {
   EXPENSE_CATEGORIES, PAYMENT_METHODS, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
-import { supabase } from '@/lib/supabaseClient';
 import SmartCamera from '@/components/lifeos/SmartCamera';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// Form schema. `receipt_path` + `receipt_bucket` are populated only when
-// the user uploaded a new photo in this session via SmartCamera — they
-// let us delete the orphan from Storage if the user cancels. Stripped
-// from the addExpense/updateExpense payload below.
 const initialForm = () => ({
   amount: '',
   category: '',
@@ -25,8 +20,6 @@ const initialForm = () => ({
   payment_method: '',
   notes: '',
   receipt_url: '',
-  receipt_path: '',
-  receipt_bucket: '',
   is_recurring: false,
   recurring_frequency: 'monthly',
   recurring_until: '',
@@ -41,12 +34,6 @@ const formFromRow = (row) => ({
   payment_method: row.payment_method || '',
   notes: row.notes || '',
   receipt_url: row.receipt_url || '',
-  // Existing rows don't carry a path/bucket — these are intra-session
-  // metadata only, used to clean up an upload that never made it to a
-  // saved row. Leaving them empty in edit mode means "do not delete
-  // the original receipt from Storage if the user removes/cancels."
-  receipt_path: '',
-  receipt_bucket: '',
   is_recurring: !!row.is_recurring,
   recurring_frequency: row.recurring_frequency || 'monthly',
   recurring_until: row.recurring_until || '',
@@ -69,16 +56,6 @@ const isDraftMeaningful = (draft) => draft && Object.values(draft).some(v => v !
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
-
-  // True only when the user actively closes the form (cancel button,
-  // Escape key, or backdrop click via Radix's onOpenChange). Stays
-  // false when closeForm is invoked from any other code path
-  // (success save, programmatic close, React unmount races during
-  // Activity destruction). The orphan-receipt cleanup gates on this
-  // ref so a re-mounted form auto-reopened from sessionStorage
-  // doesn't get its just-restored photo deleted by a stray close
-  // event during the tear-down/rebuild sequence.
-  const userCloseIntentRef = useRef(false);
 
   // Diagnostic: log mount + unmount to a localStorage-backed rolling
   // log (survives iOS PWA WebView reload, unlike the console).
@@ -143,10 +120,8 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   useEffect(() => {
     pushDebugLog('ExpenseForm', 'receipt-changed', {
       hasUrl: !!form.receipt_url,
-      hasPath: !!form.receipt_path,
-      hasBucket: !!form.receipt_bucket,
     });
-  }, [form.receipt_url, form.receipt_path, form.receipt_bucket]);
+  }, [form.receipt_url]);
 
   // Debug panel state — read-only viewer for the rolling log.
   const [debugOpen, setDebugOpen] = useState(false);
@@ -165,31 +140,13 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     } catch {}
   };
 
-  // Single chokepoint for closing the form. Orphan-receipt cleanup
-  // is INTENTIONALLY not done here — a recurring false-positive bug
-  // had the cleanup deleting a just-uploaded photo when `closeForm`
-  // was triggered by something other than a real user cancel
-  // (auto-reopen race, programmatic close from a stale closure, etc.).
-  // Tradeoff: storage may collect a small handful of unused JPEGs
-  // when a user uploads then cancels. That's acceptable — receipts
-  // are <200KB, Storage is cheap, and a future server-side sweep can
-  // reconcile against the expenses.receipt_url column if needed.
-  // The only deliberate cleanup paths now are:
-  //   - SmartCamera's X button (handleCancel) — deletes its own
-  //     upload when the user explicitly removes it BEFORE save.
-  //   - SmartCamera handleFileSelect — deletes the previous upload
-  //     when the user picks a replacement photo.
+  // Single chokepoint for closing the form. Clears the sessionStorage
+  // draft (text fields only) on any close — fresh re-open starts empty.
+  // Storage cleanup of orphan receipts is owned by SmartCamera itself
+  // (its X button + replace-photo paths), not by the form close path.
   const closeForm = (source) => {
-    const byUser = userCloseIntentRef.current;
-    pushDebugLog('ExpenseForm', 'closeForm-called', {
-      source,
-      byUser,
-      hasPendingReceipt: !!(form.receipt_path && form.receipt_bucket),
-    });
-    if (byUser || source === 'success') {
-      clearDraft();
-    }
-    userCloseIntentRef.current = false;
+    pushDebugLog('ExpenseForm', 'closeForm-called', { source });
+    clearDraft();
     onClose?.();
   };
 
@@ -329,14 +286,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (open || saving) return;
-      // Radix only fires onOpenChange on user-initiated changes
-      // (Escape, outside click — backdrop click is suppressed by
-      // onPointerDownOutside below). So when this branch runs, the
-      // user really did mean to close → mark the intent and let the
-      // shared close path do the orphan cleanup.
-      userCloseIntentRef.current = true;
-      closeForm('dialog-openchange');
+      if (!open && !saving) closeForm('dialog-openchange');
     }}>
       <DialogContent
         dir="rtl"
@@ -555,30 +505,17 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             <label style={labelStyle}>קבלה</label>
             <SmartCamera
               key={expense?.id || 'new-expense'}
-              label="צלם קבלה"
               compact
               initialUrl={form.receipt_url || null}
-              initialPath={form.receipt_path || null}
-              initialBucket={form.receipt_bucket || null}
-              onUploaded={({ url, path, bucket }) => {
+              onUploaded={({ url }) => {
                 pushDebugLog('ExpenseForm', 'onUploaded-received', {
-                  url: String(url).slice(0, 80), path, bucket,
+                  url: String(url).slice(0, 80),
                 });
-                setForm(prev => ({
-                  ...prev,
-                  receipt_url: url,
-                  receipt_path: path || '',
-                  receipt_bucket: bucket || '',
-                }));
+                setForm(prev => ({ ...prev, receipt_url: url }));
               }}
               onCleared={() => {
                 pushDebugLog('ExpenseForm', 'onCleared-received');
-                setForm(prev => ({
-                  ...prev,
-                  receipt_url: '',
-                  receipt_path: '',
-                  receipt_bucket: '',
-                }));
+                setForm(prev => ({ ...prev, receipt_url: '' }));
               }}
             />
           </div>
@@ -586,10 +523,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
             <button
-              onClick={() => {
-                userCloseIntentRef.current = true;
-                closeForm('cancel');
-              }}
+              onClick={() => closeForm('cancel')}
               disabled={saving}
               style={btnSecondary}
             >

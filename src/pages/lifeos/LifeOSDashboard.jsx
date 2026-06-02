@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
@@ -21,7 +21,6 @@ import {
   markMentorMessageActedOn,
   listIncome,
 } from '@/lib/lifeos/lifeos-api';
-import { detectPendingExpense } from '@/lib/pendingExpense';
 import { toast } from 'sonner';
 import { calculateStreak } from '@/lib/lifeos/streak-calculator';
 import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
@@ -73,42 +72,6 @@ export default function LifeOSDashboard() {
   }, [userId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
-
-  // ─── Auto-reopen ExpenseForm if Activity died mid-flow ────────────
-  // Same pattern as Expenses page. Guarded with a ref so it fires at
-  // most ONCE per page session (visibilitychange can fire many times;
-  // the mount effect re-fires on userId change). Reset to false in
-  // onClose so a fresh mid-flow can still trigger.
-  const autoReopenedRef = useRef(false);
-
-  useEffect(() => {
-    if (!userId || autoReopenedRef.current) return;
-    let cancelled = false;
-    (async () => {
-      const { shouldReopen } = await detectPendingExpense(userId);
-      if (cancelled || !shouldReopen || autoReopenedRef.current) return;
-      console.log('[LifeOSDashboard] pending expense detected, auto-reopening form');
-      autoReopenedRef.current = true;
-      toast.success('ההוצאה הקודמת שלך משוחזרת');
-      setShowExpense(true);
-    })();
-    return () => { cancelled = true; };
-  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!userId) return;
-    const onVisible = async () => {
-      if (document.visibilityState !== 'visible') return;
-      if (showExpense || autoReopenedRef.current) return;
-      const { shouldReopen } = await detectPendingExpense(userId);
-      if (!shouldReopen || autoReopenedRef.current) return;
-      autoReopenedRef.current = true;
-      toast.success('ההוצאה הקודמת שלך משוחזרת');
-      setShowExpense(true);
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [userId, showExpense]);
 
   const handleMentorAction = async () => {
     if (!mentor) return;
@@ -280,11 +243,7 @@ export default function LifeOSDashboard() {
 
       <ExpenseForm
         isOpen={showExpense}
-        onClose={() => {
-          setShowExpense(false);
-          // Reset auto-reopen guard so a future mid-flow can trigger.
-          autoReopenedRef.current = false;
-        }}
+        onClose={() => setShowExpense(false)}
         userId={userId}
         onSaved={loadAll}
       />

@@ -1,5 +1,5 @@
 /* global __BUILD_TIME__ */
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw, Download } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { AuthContext } from '@/lib/AuthContext';
@@ -12,8 +12,6 @@ import {
 import {
   listExpensesForMonth, listExpenses, deleteExpense, addRecurring,
 } from '@/lib/lifeos/lifeos-api';
-import { detectPendingExpense } from '@/lib/pendingExpense';
-import { pushDebugLog } from '@/lib/debugLog';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -97,65 +95,6 @@ export default function Expenses() {
   }, [userId, cursor]);
 
   useEffect(() => { load(); }, [load]);
-
-  // ─── Auto-reopen ExpenseForm if Activity died mid-flow ────────────
-  // Guarded with a ref so the auto-reopen fires at most ONCE per page
-  // session. The mount effect would otherwise re-fire if userId
-  // changes (AuthContext refresh), and the visibilitychange handler
-  // can fire many times per session — both could repeatedly try to
-  // reopen + re-trigger ExpenseForm's reset useEffect (which clears
-  // pendingBlob). The ref is reset to false when the user closes the
-  // form so a fresh mid-flow scenario can still trigger.
-  const autoReopenedRef = useRef(false);
-
-  // Mount check: as soon as we have a userId, look for a draft + blob
-  // left behind by a destroyed WebView.
-  useEffect(() => {
-    if (!userId || autoReopenedRef.current) return;
-    let cancelled = false;
-    (async () => {
-      const result = await detectPendingExpense(userId);
-      pushDebugLog('Expenses', 'detectPendingExpense-result', {
-        source: 'mount', shouldReopen: result.shouldReopen, hasBlob: result.hasBlob,
-      });
-      if (cancelled || !result.shouldReopen || autoReopenedRef.current) return;
-      console.log('[Expenses] pending expense detected, auto-reopening form');
-      pushDebugLog('Expenses', 'auto-reopen-triggered', { source: 'mount' });
-      autoReopenedRef.current = true;
-      toast.success('ההוצאה הקודמת שלך משוחזרת');
-      setShowForm(true);
-    })();
-    return () => { cancelled = true; };
-  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Visibility check: same logic when the user returns to the app
-  // (foreground transition) without a full remount of this page.
-  useEffect(() => {
-    if (!userId) return;
-    const onVisible = async () => {
-      pushDebugLog('Expenses', 'visibilitychange-fired', {
-        state: document.visibilityState, showForm, autoReopened: autoReopenedRef.current,
-      });
-      if (document.visibilityState !== 'visible') return;
-      if (showForm || autoReopenedRef.current) {
-        pushDebugLog('Expenses', 'visibilitychange-early-return', {
-          reason: showForm ? 'showForm-true' : 'already-auto-reopened',
-        });
-        return;
-      }
-      const result = await detectPendingExpense(userId);
-      pushDebugLog('Expenses', 'detectPendingExpense-result', {
-        source: 'visibilitychange', shouldReopen: result.shouldReopen, hasBlob: result.hasBlob,
-      });
-      if (!result.shouldReopen || autoReopenedRef.current) return;
-      pushDebugLog('Expenses', 'auto-reopen-triggered', { source: 'visibilitychange' });
-      autoReopenedRef.current = true;
-      toast.success('ההוצאה הקודמת שלך משוחזרת');
-      setShowForm(true);
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [userId, showForm]);
 
   // Scroll a freshly-saved row into view once the refetch lands.
   useEffect(() => {
@@ -504,9 +443,6 @@ export default function Expenses() {
         onClose={() => {
           setShowForm(false);
           setEditingExpense(null);
-          // Clear the once-per-session guard so a NEW mid-flow that
-          // happens later can still trigger auto-reopen.
-          autoReopenedRef.current = false;
         }}
         userId={userId}
         expense={editingExpense}
