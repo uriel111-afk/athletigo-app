@@ -85,6 +85,7 @@ const SmartCamera = forwardRef(function SmartCamera(
   {
     onUploaded,
     onCleared,
+    onBusyChange,
     compact = false,
     initialUrl = null,
     initialPath = null,
@@ -100,6 +101,14 @@ const SmartCamera = forwardRef(function SmartCamera(
   const [uploadedBucket, setUploadedBucket] = useState(initialBucket || null);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState('');
+
+  // Notify the parent when compress+upload starts/ends so it can lock
+  // the form's save button against the user-too-fast race condition
+  // (clicking "שמור הוצאה" before form.receipt_url has been populated
+  // by the in-flight upload).
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   useImperativeHandle(ref, () => ({
     getUploadedUrl: () => uploadedUrl,

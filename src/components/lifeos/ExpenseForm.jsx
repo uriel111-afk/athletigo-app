@@ -56,6 +56,11 @@ const isDraftMeaningful = (draft) => draft && Object.values(draft).some(v => v !
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
+  // True while SmartCamera is compressing / uploading. We lock the
+  // save button during this window so the user can't fire
+  // addExpense with an empty receipt_url before the upload's
+  // onUploaded callback has had a chance to populate the form.
+  const [cameraBusy, setCameraBusy] = useState(false);
 
   // Diagnostic: log mount + unmount to a localStorage-backed rolling
   // log (survives iOS PWA WebView reload, unlike the console).
@@ -517,6 +522,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                 pushDebugLog('ExpenseForm', 'onCleared-received');
                 setForm(prev => ({ ...prev, receipt_url: '' }));
               }}
+              onBusyChange={setCameraBusy}
             />
           </div>
 
@@ -531,10 +537,22 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
-              style={btnPrimary}
+              disabled={saving || cameraBusy}
+              style={{
+                ...btnPrimary,
+                // Greyed out + non-orange while SmartCamera is still
+                // compressing/uploading — prevents the save-race that
+                // dropped receipt_url before the upload's onUploaded
+                // callback could populate it.
+                ...(cameraBusy ? {
+                  backgroundColor: '#B0B0B0',
+                  cursor: 'not-allowed',
+                } : null),
+              }}
             >
-              {saving ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} /> : 'שמור הוצאה'}
+              {saving
+                ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} />
+                : (cameraBusy ? 'ממתין לתמונה...' : 'שמור הוצאה')}
             </button>
           </div>
 
