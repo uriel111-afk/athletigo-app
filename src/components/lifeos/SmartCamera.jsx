@@ -1,5 +1,4 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
@@ -146,6 +145,124 @@ async function deleteFromStorage(bucket, path) {
   }
 }
 
+// ── Direct-DOM overlay ──────────────────────────────────────────────
+// React's render cycle is too slow for this job: between an onChange
+// handler returning and React committing the next render, Android can
+// already have decided to tear the Activity down (the file-picker
+// intent's return path is one of the worst windows for this). By
+// appending a plain DOM element to document.body *synchronously*
+// before any async work runs and yielding one animation frame, we
+// give the OS a visible UI signal that the WebView is in active use
+// — and we also outlive React unmounts since the overlay isn't part
+// of the React tree.
+//
+// All helpers below are module-scoped so they can be called from
+// anywhere in the file (inside or outside the component) without
+// taking a closure on stale state.
+
+const OVERLAY_ID = 'smartcamera-overlay';
+const OVERLAY_STATUS_ID = 'smartcamera-overlay-status';
+const OVERLAY_STYLE_ID = 'smartcamera-overlay-style';
+
+function ensureOverlayStyles() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(OVERLAY_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = OVERLAY_STYLE_ID;
+  style.textContent = `
+    @keyframes smartcamera-overlay-spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function injectOverlay(initialStatus) {
+  if (typeof document === 'undefined') return null;
+  ensureOverlayStyles();
+  let overlay = document.getElementById(OVERLAY_ID);
+  if (overlay) {
+    // Idempotent — just update the status if the overlay is already
+    // up (e.g. a second pick mid-flight).
+    const statusEl = overlay.querySelector('#' + OVERLAY_STATUS_ID);
+    if (statusEl) statusEl.textContent = initialStatus;
+    return overlay;
+  }
+  overlay = document.createElement('div');
+  overlay.id = OVERLAY_ID;
+  overlay.style.cssText = [
+    'position: fixed',
+    'top: 0', 'left: 0', 'right: 0', 'bottom: 0',
+    'background-color: rgba(0, 0, 0, 0.92)',
+    'z-index: 999999',
+    'display: flex',
+    'flex-direction: column',
+    'align-items: center',
+    'justify-content: center',
+    'gap: 24px',
+    'padding: 20px',
+    'direction: rtl',
+    'font-family: inherit',
+    'touch-action: none',
+    'user-select: none',
+  ].join('; ');
+  // innerHTML is safe here — all strings are static Hebrew constants
+  // with no HTML metacharacters. The dynamic status text updates via
+  // textContent below.
+  overlay.innerHTML = `
+    <div style="
+      width: 70px; height: 70px;
+      border: 6px solid rgba(255, 111, 32, 0.2);
+      border-top: 6px solid #FF6F20;
+      border-radius: 50%;
+      animation: smartcamera-overlay-spin 0.8s linear infinite;
+    "></div>
+    <div id="${OVERLAY_STATUS_ID}" style="
+      color: #FFFFFF; font-size: 20px; font-weight: 700;
+      text-align: center;
+    "></div>
+    <div style="
+      color: #FFFFFF; font-size: 15px; opacity: 0.85;
+      text-align: center; max-width: 280px;
+    ">אל תסגור את האפליקציה</div>
+  `;
+  const statusEl = overlay.querySelector('#' + OVERLAY_STATUS_ID);
+  if (statusEl) statusEl.textContent = initialStatus;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function updateOverlayStatus(status) {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById(OVERLAY_STATUS_ID);
+  if (el) el.textContent = status;
+}
+
+function removeOverlay() {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById(OVERLAY_ID);
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function showOverlayError(message, autoCloseMs = 3000) {
+  if (typeof document === 'undefined') return;
+  const overlay = document.getElementById(OVERLAY_ID);
+  if (!overlay) return;
+  // Replace the spinner block with an error state. Static markup
+  // again — the dynamic message is written via textContent.
+  overlay.innerHTML = `
+    <div style="font-size: 56px;">⚠️</div>
+    <div id="${OVERLAY_STATUS_ID}" style="
+      color: #FFFFFF; font-size: 18px; font-weight: 700;
+      text-align: center; max-width: 320px; padding: 0 20px;
+    "></div>
+  `;
+  const el = document.getElementById(OVERLAY_STATUS_ID);
+  if (el) el.textContent = message;
+  setTimeout(() => removeOverlay(), autoCloseMs);
+}
+
 const SmartCamera = forwardRef(function SmartCamera(
   {
     label: _label = 'צלם קבלה',
@@ -212,11 +329,25 @@ const SmartCamera = forwardRef(function SmartCamera(
   const handleFileSelect = async (event, source) => {
     const file = event.target.files?.[0];
     event.target.value = '';
+
+    if (!file) return;
+
+    // CRITICAL — inject the overlay SYNCHRONOUSLY before pushDebugLog
+    // or any other work that could yield to the browser. The React
+    // <Portal> overlay isn't fast enough: between this handler
+    // returning and React's next commit, Android can already begin
+    // tearing the Activity down (file-picker intent return is one of
+    // the worst windows for this). A DOM element appended directly
+    // to document.body and a single requestAnimationFrame guarantee
+    // a painted "we have visible UI" signal before we yield control.
+    injectOverlay('דוחס תמונה');
+    await new Promise(r => requestAnimationFrame(r));
+    pushDebugLog('SmartCamera', 'overlay-injected-to-DOM');
+
     pushDebugLog('SmartCamera', 'file-input-onChange', {
       fileExists: !!file, source,
       fileSize: file?.size, fileName: file?.name, fileType: file?.type,
     });
-    if (!file) return;
 
     // Module-level guard against parallel uploads. Watchdog releases
     // the flag if it's been stuck longer than the timeout (orphaned
@@ -226,7 +357,7 @@ const SmartCamera = forwardRef(function SmartCamera(
       pushDebugLog('SmartCamera', 'upload-skipped-in-progress', {
         source, elapsedMs: elapsedSinceStart,
       });
-      alert('יש העלאה בתהליך — אנא המתן לסיומה ונסה שוב.');
+      showOverlayError('יש העלאה בתהליך — נסה שוב בעוד רגע');
       return;
     }
     if (uploadInProgress) {
@@ -277,9 +408,10 @@ const SmartCamera = forwardRef(function SmartCamera(
       });
       const msg = err?.message || 'שגיאה לא ידועה';
       const isHeic = String(msg).startsWith('HEIC_NOT_SUPPORTED');
-      alert(isHeic
+      const display = isHeic
         ? msg.replace('HEIC_NOT_SUPPORTED:', '').trim()
-        : 'דחיסת תמונה נכשלה: ' + msg + '\n\nנסה תמונה אחרת או JPEG.');
+        : 'דחיסת תמונה נכשלה: ' + msg;
+      showOverlayError(display);
       return;
     }
     pushDebugLog('SmartCamera', 'compressImage-result', {
@@ -301,6 +433,7 @@ const SmartCamera = forwardRef(function SmartCamera(
       });
     }
     setUploadStatus('uploading');
+    updateOverlayStatus('מעלה תמונה');
 
     pushDebugLog('SmartCamera', 'before-uploadToStorage', {
       source, blobSize: compressedBlob.size,
@@ -320,11 +453,7 @@ const SmartCamera = forwardRef(function SmartCamera(
       setPreviewUrl(null);
       setSizeBefore(null);
       setSizeAfter(null);
-      alert(
-        'העלאת התמונה נכשלה.\n\n' +
-        'הודעה: ' + (err?.message || 'שגיאה לא ידועה') + '\n' +
-        (err?.primaryError ? 'פירוט: ' + err.primaryError : ''),
-      );
+      showOverlayError('העלאה נכשלה: ' + (err?.message || 'שגיאה לא ידועה'));
       return;
     }
     pushDebugLog('SmartCamera', 'uploadToStorage-success', {
@@ -340,6 +469,8 @@ const SmartCamera = forwardRef(function SmartCamera(
     }
     setPreviewUrl(result.url);
     setUploadStatus('idle');
+    removeOverlay();
+    pushDebugLog('SmartCamera', 'overlay-removed');
 
     onUploaded?.({
       url: result.url, path: result.path, bucket: result.bucket,
@@ -377,55 +508,11 @@ const SmartCamera = forwardRef(function SmartCamera(
   };
 
   // ── Render ──────────────────────────────────────────────────────
-  // Full-screen "keep me alive" overlay during compress+upload. Goes
-  // through createPortal so the fixed positioning escapes any parent
-  // overflow / transform context (Radix Dialog sits inside a Portal
-  // too, and its content can disrupt position:fixed without this).
-  // Explicit top/left/right/bottom instead of `inset` for the widest
-  // mobile-browser compatibility. z-index sits above the Dialog
-  // content (11001), the timer bar (12000), and any toast layer.
-  const overlay = (compressing || uploading) ? createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.92)',
-        zIndex: 99999,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        gap: 24, padding: 20,
-        touchAction: 'none', userSelect: 'none',
-      }}
-    >
-      <style>{`
-        @keyframes smartcamera-overlay-spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-      <div style={{
-        width: 70, height: 70,
-        border: '6px solid rgba(255, 111, 32, 0.2)',
-        borderTop: `6px solid ${LIFEOS_COLORS.primary}`,
-        borderRadius: '50%',
-        animation: 'smartcamera-overlay-spin 0.8s linear infinite',
-      }} />
-      <div style={{
-        color: '#FFFFFF', fontSize: 20, fontWeight: 700,
-        fontFamily: 'inherit', textAlign: 'center', direction: 'rtl',
-      }}>
-        {compressing ? 'דוחס תמונה' : 'מעלה תמונה'}
-      </div>
-      <div style={{
-        color: '#FFFFFF', fontSize: 15, opacity: 0.85,
-        fontFamily: 'inherit', textAlign: 'center',
-        direction: 'rtl', maxWidth: 280,
-      }}>
-        אל תסגור את האפליקציה
-      </div>
-    </div>,
-    document.body,
-  ) : null;
+  // The "keep me alive" overlay is owned by the DOM helpers at the top
+  // of this file (injectOverlay / updateOverlayStatus / removeOverlay /
+  // showOverlayError). It is injected synchronously from inside
+  // handleFileSelect — too early for any React render to catch — and
+  // outlives React unmounts because it isn't part of the React tree.
 
   const hiddenInputs = (
     <>
@@ -450,7 +537,6 @@ const SmartCamera = forwardRef(function SmartCamera(
   if (!previewUrl) {
     return (
       <>
-        {overlay}
         {hiddenInputs}
         <div style={{ display: 'flex', gap: 8, width: '100%' }} dir="rtl">
           <button
@@ -478,7 +564,6 @@ const SmartCamera = forwardRef(function SmartCamera(
 
   return (
     <>
-      {overlay}
       {hiddenInputs}
       <div style={{
         border: `1px solid ${LIFEOS_COLORS.border}`, borderRadius: 12, padding: 8,
