@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,12 +6,16 @@ import {
   EXPENSE_CATEGORIES, PAYMENT_METHODS, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
+import { supabase } from '@/lib/supabaseClient';
 import SmartCamera from '@/components/lifeos/SmartCamera';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
-import { clearPendingBlob } from '@/lib/blobStorage';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// Form schema. `receipt_path` + `receipt_bucket` are populated only when
+// the user uploaded a new photo in this session via SmartCamera — they
+// let us delete the orphan from Storage if the user cancels. Stripped
+// from the addExpense/updateExpense payload below.
 const initialForm = () => ({
   amount: '',
   category: '',
@@ -21,6 +25,8 @@ const initialForm = () => ({
   payment_method: '',
   notes: '',
   receipt_url: '',
+  receipt_path: '',
+  receipt_bucket: '',
   is_recurring: false,
   recurring_frequency: 'monthly',
   recurring_until: '',
@@ -35,10 +41,31 @@ const formFromRow = (row) => ({
   payment_method: row.payment_method || '',
   notes: row.notes || '',
   receipt_url: row.receipt_url || '',
+  // Existing rows don't carry a path/bucket — these are intra-session
+  // metadata only, used to clean up an upload that never made it to a
+  // saved row. Leaving them empty in edit mode means "do not delete
+  // the original receipt from Storage if the user removes/cancels."
+  receipt_path: '',
+  receipt_bucket: '',
   is_recurring: !!row.is_recurring,
   recurring_frequency: row.recurring_frequency || 'monthly',
   recurring_until: row.recurring_until || '',
 });
+
+// Fire-and-forget Storage cleanup. Used when the user cancels with an
+// orphan upload sitting in the bucket — we don't await this in the UI
+// path since the user is closing the form anyway.
+async function deleteOrphanReceipt(bucket, path) {
+  if (!bucket || !path) return;
+  try {
+    await supabase.storage.from(bucket).remove([path]);
+    pushDebugLog('ExpenseForm', 'orphan-receipt-deleted', { bucket, path });
+  } catch (err) {
+    pushDebugLog('ExpenseForm', 'orphan-receipt-delete-fail', {
+      bucket, path, error: err?.message || String(err),
+    });
+  }
+}
 
 // Default end date when the user switches to "עד תאריך": one year out.
 const defaultRecurringUntil = () => {
@@ -57,9 +84,6 @@ const isDraftMeaningful = (draft) => draft && Object.values(draft).some(v => v !
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
-  const [pendingBlob, setPendingBlob] = useState(null);
-  const [uploadError, setUploadError] = useState(null);
-  const cameraRef = useRef(null);
 
   // Diagnostic: log mount + unmount to a localStorage-backed rolling
   // log (survives iOS PWA WebView reload, unlike the console).
@@ -74,21 +98,16 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       expenseEdit: !!expense,
     });
     return () => {
-      const lastErr = window.lastExpenseError;
-      pushDebugLog('ExpenseForm', 'unmount', {
-        lastExpenseErrorMessage: lastErr?.message || 'none',
-        lastExpenseErrorStage: lastErr?.stage || null,
-      });
-      console.log('[ExpenseForm] UNMOUNTING. lastExpenseError:',
-        window.lastExpenseError || 'none');
+      pushDebugLog('ExpenseForm', 'unmount');
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset form whenever the dialog opens — pre-fill if editing OR
   // restore from a sessionStorage draft if one exists (new-expense
-  // mode only). The draft path catches the iOS PWA file-picker
-  // WebView-reload case: the form data survives a reload as long as
-  // the user re-opens the form to land back in this effect.
+  // mode only). The draft now carries receipt_url + receipt_path +
+  // receipt_bucket alongside the regular fields, so an Activity
+  // destruction recovery shows the previously-uploaded photo without
+  // any IndexedDB round-trip.
   useEffect(() => {
     pushDebugLog('ExpenseForm', 'reset-effect-trigger', {
       isOpen, expenseId: expense?.id || null, userId: userId || null,
@@ -109,9 +128,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         setForm(initialForm());
       }
     }
-    pushDebugLog('ExpenseForm', 'pendingBlob-cleared', { source: 'reset-effect', isOpen, expenseId: expense?.id || null });
-    setPendingBlob(null);
-    setUploadError(null);
   }, [isOpen, expense?.id, userId]);
 
   // Persist form state to sessionStorage on every change — but only in
@@ -130,12 +146,12 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   }, [form.is_recurring]);
 
   useEffect(() => {
-    pushDebugLog('ExpenseForm', 'pendingBlob-changed', {
-      hasBlob: !!pendingBlob?.blob,
-      blobSize: pendingBlob?.blob?.size,
-      filename: pendingBlob?.filename,
+    pushDebugLog('ExpenseForm', 'receipt-changed', {
+      hasUrl: !!form.receipt_url,
+      hasPath: !!form.receipt_path,
+      hasBucket: !!form.receipt_bucket,
     });
-  }, [pendingBlob]);
+  }, [form.receipt_url, form.receipt_path, form.receipt_bucket]);
 
   // Debug panel state — read-only viewer for the rolling log.
   const [debugOpen, setDebugOpen] = useState(false);
@@ -156,18 +172,22 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
   // Single chokepoint for closing the form — logs the trigger so we
   // can identify silent closes (e.g. dialog-openchange vs success vs cancel).
+  // On non-success close paths we delete any orphan receipt the user
+  // uploaded but never bound to a saved row, so Storage stays clean.
   const closeForm = (source) => {
-    console.log('[ExpenseForm] closing, source:', source);
-    pushDebugLog('ExpenseForm', 'closeForm-called', { source });
+    pushDebugLog('ExpenseForm', 'closeForm-called', {
+      source,
+      hasPendingReceipt: !!(form.receipt_path && form.receipt_bucket),
+    });
     clearDraft();
-    // Fire-and-forget — IndexedDB cleanup must not block the close
-    // UX. Any error inside clearPendingBlob is swallowed already.
-    clearPendingBlob().catch(() => {});
+    if (source !== 'success' && form.receipt_path && form.receipt_bucket) {
+      // Fire-and-forget — don't block the close UX on Storage.
+      deleteOrphanReceipt(form.receipt_bucket, form.receipt_path);
+    }
     onClose?.();
   };
 
   const handleSaveExpense = async () => {
-    console.log('[ExpenseForm] handleSaveExpense START', { pendingBlob: !!pendingBlob?.blob, amount: form.amount });
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
       toast.error('הכנס סכום תקין');
@@ -180,94 +200,16 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
     setSaving(true);
     try {
-      console.log('[EXPENSE] start, pendingBlob:', pendingBlob);
+      const receipt_url = form.receipt_url || null;
 
-      let receipt_url = form.receipt_url || null;
-
-      // ── Step 1: upload photo if one was captured ─────────────────
-      pushDebugLog('ExpenseForm', 'save-step1-check', {
-        hasPendingBlob: !!pendingBlob?.blob,
-        blobSize: pendingBlob?.blob?.size,
-        hasCameraRef: !!cameraRef.current,
+      // Photos are uploaded inside SmartCamera the moment the user
+      // picks them — by the time we get here the URL is already a
+      // public Storage object. Save is a single DB write.
+      pushDebugLog('ExpenseForm', 'save-start', {
+        hasReceiptUrl: !!receipt_url,
+        urlPreview: receipt_url ? String(receipt_url).slice(0, 80) : null,
       });
-      if (pendingBlob?.blob && cameraRef.current) {
-        const blob = pendingBlob.blob;
-        console.log('[EXPENSE] photo:', { size: blob.size, type: blob.type, name: pendingBlob.filename });
 
-        if (blob.size > 5 * 1024 * 1024) {
-          alert('התמונה גדולה מ-5 מגה. נסה תמונה קטנה יותר.');
-          setSaving(false);
-          return;
-        }
-
-        console.log('[EXPENSE] uploading via SmartCamera.uploadNow (bucket: lifeos-files → media fallback)');
-
-        let uploadResult = null;
-        try {
-          pushDebugLog('ExpenseForm', 'before-uploadNow', {
-            hasPendingBlob: !!pendingBlob?.blob, blobSize: pendingBlob?.blob?.size,
-          });
-          console.log('[ExpenseForm] calling uploadNow...');
-          uploadResult = await cameraRef.current.uploadNow();
-          pushDebugLog('ExpenseForm', 'uploadNow-returned', {
-            url: uploadResult ? String(uploadResult).slice(0, 80) : null,
-            urlLength: uploadResult?.length || 0,
-          });
-          console.log('[ExpenseForm] uploadNow returned:', uploadResult);
-          console.log('[EXPENSE] upload result:', { uploadResult });
-        } catch (err) {
-          pushDebugLog('ExpenseForm', 'uploadNow-thrown', {
-            errorMessage: err?.message || String(err),
-            errorCode: err?.code || err?.statusCode || null,
-          });
-          console.error('[EXPENSE] upload threw:', err);
-          window.lastExpenseError = {
-            time: new Date().toISOString(),
-            stage: 'upload',
-            message: err?.message || String(err),
-            bucketAttempted: err?.bucketAttempted,
-            path: err?.path,
-            primaryError: err?.primaryError,
-            statusCode: err?.statusCode,
-            stack: err?.stack,
-          };
-          // SmartCamera.uploadToStorage already shows a detailed alert
-          // at the upload layer (sets err.alertShown). Only surface a
-          // fallback alert here if the upload error came from a path
-          // that didn't already alert.
-          if (!err?.alertShown) {
-            alert(
-              'שלב 1 — העלאת תמונה נכשלה.\n\n' +
-              'הודעה: ' + (err?.message || 'אין הודעה') + '\n' +
-              'דלי: ' + (err?.bucketAttempted || 'lifeos-files / media') + '\n' +
-              'נתיב: ' + (err?.path || 'לא ידוע')
-            );
-          }
-          setUploadError(err?.message || 'העלאה נכשלה');
-          setSaving(false);
-          return; // CRITICAL: do NOT close the dialog
-        }
-
-        if (!uploadResult) {
-          window.lastExpenseError = {
-            time: new Date().toISOString(),
-            stage: 'upload',
-            message: 'uploadNow returned no URL',
-          };
-          alert(
-            'שלב 1 — העלאת תמונה נכשלה.\n\n' +
-            'הודעה: uploadNow החזיר ערך ריק (אין URL).\n' +
-            'דלי: lifeos-files / media'
-          );
-          setUploadError('uploadNow החזיר ערך ריק (אין URL)');
-          setSaving(false);
-          return;
-        }
-        receipt_url = uploadResult;
-        console.log('[EXPENSE] receipt_url:', receipt_url);
-      }
-
-      // ── Step 2: insert / update expense row ──────────────────────
       const payload = {
         amount,
         category: form.category,
@@ -276,24 +218,20 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         date: form.date,
         payment_method: form.payment_method || null,
         notes: form.notes || null,
-        receipt_url: receipt_url || null,
+        receipt_url: receipt_url,
         is_recurring: !!form.is_recurring,
         recurring_frequency: form.is_recurring ? (form.recurring_frequency || 'monthly') : null,
         recurring_until: form.is_recurring && form.recurring_until ? form.recurring_until : null,
       };
-      console.log('[EXPENSE] inserting row with payload:', payload);
 
       let savedRow = null;
       try {
-        console.log('[ExpenseForm] calling addExpense...', { receipt_url });
         if (expense?.id) {
           savedRow = await updateExpense(expense.id, payload);
         } else {
           savedRow = await addExpense(userId, payload);
         }
-        console.log('[EXPENSE] insert result:', { savedRow });
       } catch (insertError) {
-        console.error('[EXPENSE] insert threw:', insertError);
         window.lastExpenseError = {
           time: new Date().toISOString(),
           stage: 'insert',
@@ -301,8 +239,12 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           code: insertError?.code,
           stack: insertError?.stack,
         };
+        pushDebugLog('ExpenseForm', 'save-insert-throw', {
+          message: insertError?.message || String(insertError),
+          code: insertError?.code,
+        });
         alert(
-          'שלב 2 — שמירה נכשלה.\n\n' +
+          'שמירת ההוצאה נכשלה.\n\n' +
           'הודעה: ' + (insertError?.message || 'אין הודעה') + '\n' +
           'קוד: ' + (insertError?.code || 'אין')
         );
@@ -310,17 +252,17 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         return; // CRITICAL: do NOT close the dialog
       }
 
-      // ── Step 3: success path — only here do we close ─────────────
       window.lastExpenseSuccess = {
         time: new Date().toISOString(),
         expense_id: savedRow?.id,
         receipt_url: savedRow?.receipt_url ? 'present' : 'absent',
       };
+      pushDebugLog('ExpenseForm', 'save-success', {
+        id: savedRow?.id,
+        receiptSaved: !!savedRow?.receipt_url,
+      });
       toast.success((expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה') + (receipt_url ? ' עם תמונה' : ''));
-      pushDebugLog('ExpenseForm', 'pendingBlob-cleared', { source: 'success' });
-      setPendingBlob(null);
       onSaved?.(savedRow);
-      console.log('[ExpenseForm] calling closeForm(success)');
       closeForm('success');
 
     } catch (err) {
@@ -330,13 +272,14 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         message: err?.message || String(err),
         stack: err?.stack,
       };
-      console.error('[EXPENSE] UNCAUGHT:', err);
+      pushDebugLog('ExpenseForm', 'save-uncaught', {
+        message: err?.message || String(err),
+      });
       alert(
         'שגיאה לא צפויה:\n\n' +
         (err?.message || 'אין הודעה') + '\n\n' +
         (err?.stack || '')
       );
-      // do NOT close the dialog on uncaught error
     } finally {
       setSaving(false);
     }
@@ -392,31 +335,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         </DialogHeader>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 8 }}>
-          {uploadError && (
-            <div style={{
-              background: '#ff4444', color: 'white',
-              padding: '12px', borderRadius: '8px',
-              fontSize: 13, lineHeight: 1.4,
-              display: 'flex', alignItems: 'flex-start', gap: 8,
-            }}>
-              <div style={{ flex: 1, wordBreak: 'break-word' }}>
-                <strong>שגיאה:</strong> {uploadError}
-              </div>
-              <button
-                type="button"
-                onClick={() => setUploadError(null)}
-                aria-label="סגור"
-                style={{
-                  background: 'white', color: '#ff4444',
-                  border: 'none', borderRadius: 6,
-                  width: 24, height: 24, lineHeight: 1,
-                  fontSize: 14, fontWeight: 800, cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >×</button>
-            </div>
-          )}
-
           {/* Amount — big and centered */}
           <div>
             <label style={labelStyle}>סכום *</label>
@@ -611,47 +529,43 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             </div>
           )}
 
-          {/* Receipt photo */}
+          {/* Receipt photo — SmartCamera is the unified picker + preview.
+              `key` forces a fresh SmartCamera mount when the form opens
+              on a different expense so the previous expense's initialUrl
+              doesn't bleed in. Hydration values come from form fields
+              (receipt_url/path/bucket) which are loaded either from the
+              row (edit mode) or from the sessionStorage draft (recovery
+              after Activity destruction). */}
           <div>
             <label style={labelStyle}>קבלה</label>
-            {form.receipt_url ? (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 10px', borderRadius: 10,
-                border: `1px solid ${LIFEOS_COLORS.border}`,
-                backgroundColor: '#FFFFFF',
-              }}>
-                <span style={{ fontSize: 18 }}>📎</span>
-                <a href={form.receipt_url} target="_blank" rel="noopener noreferrer"
-                   style={{ flex: 1, fontSize: 12, color: LIFEOS_COLORS.primary, textDecoration: 'underline' }}>
-                  צפה בקבלה
-                </a>
-                <button type="button" onClick={() => set({ receipt_url: '' })}
-                  style={{
-                    background: 'transparent', border: 'none',
-                    color: LIFEOS_COLORS.error, cursor: 'pointer',
-                    fontSize: 13, fontWeight: 700,
-                  }}>
-                  הסר
-                </button>
-              </div>
-            ) : (
-              <SmartCamera
-                ref={cameraRef}
-                label="צלם קבלה"
-                compact
-                deferredUpload
-                onPhotoCaptured={(blob, filename) => {
-                  pushDebugLog('ExpenseForm', 'onPhotoCaptured-received', {
-                    hasBlob: !!blob,
-                    blobSize: blob?.size,
-                    filename,
-                  });
-                  setUploadError(null);
-                  setPendingBlob(blob ? { blob, filename } : null);
-                }}
-              />
-            )}
+            <SmartCamera
+              key={expense?.id || 'new-expense'}
+              label="צלם קבלה"
+              compact
+              initialUrl={form.receipt_url || null}
+              initialPath={form.receipt_path || null}
+              initialBucket={form.receipt_bucket || null}
+              onUploaded={({ url, path, bucket }) => {
+                pushDebugLog('ExpenseForm', 'onUploaded-received', {
+                  url: String(url).slice(0, 80), path, bucket,
+                });
+                setForm(prev => ({
+                  ...prev,
+                  receipt_url: url,
+                  receipt_path: path || '',
+                  receipt_bucket: bucket || '',
+                }));
+              }}
+              onCleared={() => {
+                pushDebugLog('ExpenseForm', 'onCleared-received');
+                setForm(prev => ({
+                  ...prev,
+                  receipt_url: '',
+                  receipt_path: '',
+                  receipt_bucket: '',
+                }));
+              }}
+            />
           </div>
 
           {/* Buttons */}
