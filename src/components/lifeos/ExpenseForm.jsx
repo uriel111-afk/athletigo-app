@@ -125,6 +125,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         pushDebugLog('ExpenseForm', 'reset-effect-applies', {
           mode: 'draft-restore',
           draftHasReceiptUrl: !!(draft && draft.receipt_url),
+          draftReceiptUrl: draft && draft.receipt_url
+            ? String(draft.receipt_url).slice(0, 80)
+            : null,
         });
         setForm({ ...initialForm(), ...draft });
         toast.success('טיוטה נטענה');
@@ -553,6 +556,31 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                   });
                   return next;
                 });
+                // CRITICAL: also write the URL straight to the
+                // sessionStorage draft, bypassing React. If this callback
+                // is running on a stale closure from a component that
+                // already unmounted, setForm above is a no-op and the
+                // persist-on-form-change effect never fires — leaving
+                // sessionStorage with the pre-upload draft. The next
+                // mount's reset-effect then reads that empty-URL draft
+                // and wipes the receipt back out of any new state. A
+                // direct write here keeps the URL recoverable across
+                // re-mounts even when React state didn't commit.
+                if (!expense && userId) {
+                  try {
+                    const raw = sessionStorage.getItem(draftKey(userId));
+                    const draft = raw ? JSON.parse(raw) : {};
+                    const merged = { ...draft, receipt_url: url };
+                    sessionStorage.setItem(draftKey(userId), JSON.stringify(merged));
+                    pushDebugLog('ExpenseForm', 'sessionStorage-updated-with-url', {
+                      url: String(url).slice(0, 80),
+                    });
+                  } catch (err) {
+                    pushDebugLog('ExpenseForm', 'sessionStorage-update-throw', {
+                      error: err?.message || String(err),
+                    });
+                  }
+                }
               }}
               onCleared={() => {
                 pushDebugLog('ExpenseForm', 'onCleared-received', {
