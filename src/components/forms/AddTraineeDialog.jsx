@@ -19,11 +19,27 @@ const INITIAL_DATA = {
   password: "",
 };
 
+// Service track picker — Hebrew label shown in the UI, English key
+// stored in users.onboarding_track. The keys match TRACK_STEPS in
+// src/lib/onboardingTracks.js so Onboarding.jsx renders the matching
+// step list on the trainee's first login.
+const TRACK_OPTIONS = [
+  { key: 'personal', label: 'אימון אישי' },
+  { key: 'online',   label: 'ליווי אונליין' },
+  { key: 'group',    label: 'אימון קבוצתי' },
+  { key: 'workshop', label: 'סדנה' },
+  { key: 'course',   label: 'קורס דיגיטלי' },
+];
+
 export default function AddTraineeDialog({ open, onClose, initialData = null }) {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [coach, setCoach] = useState(null);
   const [formData, setFormData] = useState(INITIAL_DATA);
+  // Service track — required, stored on users.onboarding_track so
+  // Onboarding.jsx can render the per-track step list. Never prefilled
+  // from initialData; the coach picks it each time.
+  const [track, setTrack] = useState(null);
 
   useKeepScreenAwake(open);
 
@@ -41,6 +57,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
       email: initialData?.email || "",
       password: "",
     });
+    setTrack(null);
   }, [open, initialData]);
 
   const handleChange = (field, value) => {
@@ -50,7 +67,8 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
   const isValid =
     !!formData.full_name.trim()
     && !!formData.email.trim()
-    && formData.password.length >= 6;
+    && formData.password.length >= 6
+    && !!track;
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -97,18 +115,24 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
       // English value AuthContext.jsx checks for the redirect to
       // /onboarding (the Hebrew label "אונבורדינג" is rendering-only
       // — see clientStatusHelpers.js).
-      const { error: profileError } = await supabase
+      const upsertPayload = {
+        id: authData.user.id,
+        email: formData.email.trim(),
+        full_name: formData.full_name.trim(),
+        role: 'trainee',
+        client_status: 'onboarding',
+        coach_id: coach?.id || null,
+        onboarding_completed: false,
+        onboarding_track: track,
+        created_at: new Date().toISOString(),
+      };
+      console.log('[AddTrainee] upserting users row:', upsertPayload);
+      const { data: upserted, error: profileError } = await supabase
         .from('users')
-        .upsert({
-          id: authData.user.id,
-          email: formData.email.trim(),
-          full_name: formData.full_name.trim(),
-          role: 'trainee',
-          client_status: 'onboarding',
-          coach_id: coach?.id || null,
-          onboarding_completed: false,
-          created_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
+        .upsert(upsertPayload, { onConflict: 'id' })
+        .select()
+        .maybeSingle();
+      console.log('[AddTrainee] users upsert returned:', upserted);
 
       if (profileError) {
         toast.error("שגיאה בשמירת הפרופיל: " + profileError.message);
@@ -245,6 +269,37 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
             />
             <div style={{ fontSize: 11, color: '#aaa', marginTop: 4, textAlign: 'right' }}>
               המתאמן יוכל לשנות את הסיסמא בהמשך
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 6, textAlign: 'right' }}>
+              סוג שירות *
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, direction: 'rtl' }}>
+              {TRACK_OPTIONS.map((opt) => {
+                const active = track === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setTrack(opt.key)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 999,
+                      fontSize: 14,
+                      fontWeight: active ? 700 : 500,
+                      background: active ? '#FF6F20' : '#FFFFFF',
+                      color: active ? '#FFFFFF' : '#888888',
+                      border: active ? '1px solid #FF6F20' : '1px solid #E8E0D8',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
