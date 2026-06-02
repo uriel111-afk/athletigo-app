@@ -109,7 +109,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         setForm(initialForm());
       }
     }
-    pushDebugLog('ExpenseForm', 'reset-effect-clearing-pendingBlob');
+    pushDebugLog('ExpenseForm', 'pendingBlob-cleared', { source: 'reset-effect', isOpen, expenseId: expense?.id || null });
     setPendingBlob(null);
     setUploadError(null);
   }, [isOpen, expense?.id, userId]);
@@ -158,6 +158,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // can identify silent closes (e.g. dialog-openchange vs success vs cancel).
   const closeForm = (source) => {
     console.log('[ExpenseForm] closing, source:', source);
+    pushDebugLog('ExpenseForm', 'closeForm-called', { source });
     clearDraft();
     // Fire-and-forget — IndexedDB cleanup must not block the close
     // UX. Any error inside clearPendingBlob is swallowed already.
@@ -184,6 +185,11 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       let receipt_url = form.receipt_url || null;
 
       // ── Step 1: upload photo if one was captured ─────────────────
+      pushDebugLog('ExpenseForm', 'save-step1-check', {
+        hasPendingBlob: !!pendingBlob?.blob,
+        blobSize: pendingBlob?.blob?.size,
+        hasCameraRef: !!cameraRef.current,
+      });
       if (pendingBlob?.blob && cameraRef.current) {
         const blob = pendingBlob.blob;
         console.log('[EXPENSE] photo:', { size: blob.size, type: blob.type, name: pendingBlob.filename });
@@ -198,11 +204,22 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
         let uploadResult = null;
         try {
+          pushDebugLog('ExpenseForm', 'before-uploadNow', {
+            hasPendingBlob: !!pendingBlob?.blob, blobSize: pendingBlob?.blob?.size,
+          });
           console.log('[ExpenseForm] calling uploadNow...');
           uploadResult = await cameraRef.current.uploadNow();
+          pushDebugLog('ExpenseForm', 'uploadNow-returned', {
+            url: uploadResult ? String(uploadResult).slice(0, 80) : null,
+            urlLength: uploadResult?.length || 0,
+          });
           console.log('[ExpenseForm] uploadNow returned:', uploadResult);
           console.log('[EXPENSE] upload result:', { uploadResult });
         } catch (err) {
+          pushDebugLog('ExpenseForm', 'uploadNow-thrown', {
+            errorMessage: err?.message || String(err),
+            errorCode: err?.code || err?.statusCode || null,
+          });
           console.error('[EXPENSE] upload threw:', err);
           window.lastExpenseError = {
             time: new Date().toISOString(),
@@ -300,6 +317,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         receipt_url: savedRow?.receipt_url ? 'present' : 'absent',
       };
       toast.success((expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה') + (receipt_url ? ' עם תמונה' : ''));
+      pushDebugLog('ExpenseForm', 'pendingBlob-cleared', { source: 'success' });
       setPendingBlob(null);
       onSaved?.(savedRow);
       console.log('[ExpenseForm] calling closeForm(success)');

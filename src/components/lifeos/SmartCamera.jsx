@@ -184,9 +184,11 @@ const SmartCamera = forwardRef(function SmartCamera(
 
   useImperativeHandle(ref, () => ({
     uploadNow: async () => {
+      pushDebugLog('SmartCamera', 'uploadNow-entry', { hasBlob: !!blob, blobSize: blob?.size });
       console.log('[uploadNow] START', { hasBlob: !!blob });
       if (!blob) {
         console.warn('[SmartCamera] uploadNow called with no blob');
+        pushDebugLog('SmartCamera', 'uploadNow-no-blob');
         alert('[uploadNow] אין blob — לא נבחרה תמונה.');
         return null;
       }
@@ -196,11 +198,18 @@ const SmartCamera = forwardRef(function SmartCamera(
         console.log('[uploadNow] calling uploadToStorage...');
         const url = await uploadToStorage(blob, 'photo.jpg');
         console.log('[SmartCamera] uploadNow returned URL', { url });
+        pushDebugLog('SmartCamera', 'uploadNow-returned-internal', {
+          urlLength: url?.length || 0, hasUrl: !!url,
+        });
         if (!url) {
           alert('[uploadNow] uploadToStorage החזיר URL ריק');
         }
         return url;
       } catch (err) {
+        pushDebugLog('SmartCamera', 'uploadNow-thrown-internal', {
+          errorMessage: err?.message || String(err),
+          errorName: err?.name || 'Error',
+        });
         // Defensive: alert here only if uploadToStorage didn't already
         // surface its own alert (alertShown flag set on thrown error).
         if (!err?.alertShown) {
@@ -226,45 +235,59 @@ const SmartCamera = forwardRef(function SmartCamera(
   const openCamera = () => cameraInputRef.current?.click();
   const openGallery = () => galleryInputRef.current?.click();
 
-  const handleFileSelect = async (event) => {
+  const handleFileSelect = async (event, source) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    pushDebugLog('SmartCamera', 'handleFileSelect-start', {
+    pushDebugLog('SmartCamera', 'file-input-onChange', {
       fileExists: !!file,
+      source,
       fileSize: file?.size,
       fileName: file?.name,
       fileType: file?.type,
     });
     if (!file) {
-      pushDebugLog('SmartCamera', 'handleFileSelect-no-file');
+      pushDebugLog('SmartCamera', 'handleFileSelect-no-file', { source });
       return;
     }
 
-    console.log('[SmartCamera] original file:', { size: file.size, name: file.name, type: file.type });
+    console.log('[SmartCamera] original file:', { source, size: file.size, name: file.name, type: file.type });
 
     if (file.size > 5 * 1024 * 1024) {
-      pushDebugLog('SmartCamera', 'oversize-warning', { size: file.size });
+      pushDebugLog('SmartCamera', 'oversize-warning', { source, size: file.size });
       alert('התמונה גדולה מ-5 מגה. הקמפרסיה עלולה להיות איטה.');
     }
 
     setCompressing(true);
     setSizeBefore(file.size);
     setSizeAfter(null);
-    pushDebugLog('SmartCamera', 'before-compression', { size: file.size });
+    pushDebugLog('SmartCamera', 'before-compressImage', {
+      source, fileSize: file.size, fileType: file.type, fileName: file.name,
+    });
+    let compressedBlob;
     try {
       const originalSize = file.size;
-      const compressedBlob = await compressImage(file);
+      try {
+        compressedBlob = await compressImage(file);
+      } catch (compErr) {
+        pushDebugLog('SmartCamera', 'compressImage-throw', {
+          source, errorMessage: compErr?.message || String(compErr),
+        });
+        throw compErr;
+      }
       const compressedSize = compressedBlob.size;
       const ratioPct = ((1 - compressedSize / originalSize) * 100).toFixed(0);
+      const twoPass = !!compressedBlob.twoPass;
 
       console.log('[SmartCamera] compressed:', {
         original: getFileSizeLabel(originalSize),
         compressed: getFileSizeLabel(compressedSize),
         ratio: ratioPct + '%',
         outputType: compressedBlob.type,
+        twoPass,
       });
-      pushDebugLog('SmartCamera', 'compression-complete', {
-        originalSize, compressedSize, outputType: compressedBlob.type, ratioPct,
+      pushDebugLog('SmartCamera', 'compressImage-result', {
+        source, originalSize, compressedSize,
+        compressedType: compressedBlob.type, ratioPct, twoPass,
       });
 
       // Soft ceiling — compressImage already runs a second pass at >1MB,
@@ -273,14 +296,14 @@ const SmartCamera = forwardRef(function SmartCamera(
       // couldn't squeeze under. Surface it so we know.
       if (compressedSize > 1024 * 1024) {
         console.warn('[SmartCamera] compressed blob still > 1MB', { compressedSize });
-        pushDebugLog('SmartCamera', 'compression-output-large', { compressedSize });
+        pushDebugLog('SmartCamera', 'compression-output-large', { source, compressedSize });
       }
 
       // Compressed blobs from canvas.toBlob('image/jpeg', q) always
       // have type 'image/jpeg'. Defensive check in case the contract
       // changes.
       if (compressedBlob.type !== 'image/jpeg') {
-        pushDebugLog('SmartCamera', 'unexpected-blob-type', { type: compressedBlob.type });
+        pushDebugLog('SmartCamera', 'unexpected-blob-type', { source, type: compressedBlob.type });
       }
 
       // Persist BEFORE setState. Android Chrome / iOS PWA may destroy
@@ -289,29 +312,53 @@ const SmartCamera = forwardRef(function SmartCamera(
       // their result would never reach the re-mounted tree. IndexedDB
       // survives the destruction and is replayed by the mount-restore
       // effect (below) on the next render.
-      const persisted = await savePendingBlob(compressedBlob, 'photo.jpg');
-      pushDebugLog('SmartCamera', persisted ? 'idb-persisted' : 'idb-persist-failed', {
-        size: compressedSize,
+      pushDebugLog('SmartCamera', 'before-savePendingBlob', { source, blobSize: compressedSize });
+      let persisted = false;
+      let persistErrMsg = null;
+      try {
+        persisted = await savePendingBlob(compressedBlob, 'photo.jpg');
+      } catch (persistErr) {
+        persistErrMsg = persistErr?.message || String(persistErr);
+      }
+      pushDebugLog('SmartCamera', 'savePendingBlob-result', {
+        source, success: !!persisted, error: persistErrMsg,
       });
 
+      pushDebugLog('SmartCamera', 'before-setBlob', { source, blobSize: compressedSize });
       setBlob(compressedBlob);
       setSizeAfter(compressedSize);
-      const newPreviewUrl = URL.createObjectURL(compressedBlob);
-      setPreview(newPreviewUrl);
-      pushDebugLog('SmartCamera', 'preview-set', {
-        url: newPreviewUrl,
-        size: compressedSize,
+      pushDebugLog('SmartCamera', 'setBlob-done', { source });
+
+      let newPreviewUrl = null;
+      try {
+        newPreviewUrl = URL.createObjectURL(compressedBlob);
+      } catch (urlErr) {
+        pushDebugLog('SmartCamera', 'createObjectURL-throw', {
+          source, errorMessage: urlErr?.message || String(urlErr),
+        });
+      }
+      pushDebugLog('SmartCamera', 'before-setPreview', {
+        source, previewUrlGenerated: !!newPreviewUrl,
       });
-      pushDebugLog('SmartCamera', 'blob-set', { size: compressedSize, deferred: !!deferredUpload });
+      setPreview(newPreviewUrl);
+      pushDebugLog('SmartCamera', 'setPreview-done', {
+        source, url: newPreviewUrl, size: compressedSize,
+      });
+
+      pushDebugLog('SmartCamera', 'before-onPhotoCaptured', {
+        source, hasCallback: typeof onPhotoCaptured === 'function', deferred: !!deferredUpload,
+      });
       if (deferredUpload) {
         onPhotoCaptured?.(compressedBlob, 'photo.jpg');
-        pushDebugLog('SmartCamera', 'onPhotoCaptured-fired', { size: compressedSize });
+        pushDebugLog('SmartCamera', 'onPhotoCaptured-done', { source, size: compressedSize });
+      } else {
+        pushDebugLog('SmartCamera', 'onPhotoCaptured-skipped-not-deferred', { source });
       }
       onCompressionDone?.({ originalSize, compressedSize, ratio: ratioPct });
     } catch (err) {
       console.error('[SmartCamera] compression error:', err);
       pushDebugLog('SmartCamera', 'compression-error', {
-        message: err?.message || String(err),
+        source, message: err?.message || String(err),
       });
       // Removed silent fallback to original file: re-uploading raw
       // bytes labelled image/jpeg (especially HEIC from iOS gallery)
@@ -331,12 +378,14 @@ const SmartCamera = forwardRef(function SmartCamera(
       }
     } finally {
       setCompressing(false);
-      pushDebugLog('SmartCamera', 'handleFileSelect-end');
+      pushDebugLog('SmartCamera', 'handleFileSelect-end', { source });
     }
   };
 
-  // Existing callers wire onChange={handleChange}; preserve the alias.
-  const handleChange = handleFileSelect;
+  // Per-source change handlers — let the debug log distinguish which
+  // input fired (gallery vs. camera) since they share the same pipeline.
+  const handleCameraChange = (event) => handleFileSelect(event, 'camera');
+  const handleGalleryChange = (event) => handleFileSelect(event, 'gallery');
 
   const handleConfirm = async () => {
     if (!blob) {
@@ -386,14 +435,14 @@ const SmartCamera = forwardRef(function SmartCamera(
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={handleChange}
+        onChange={handleCameraChange}
         style={{ display: 'none' }}
       />
       <input
         ref={galleryInputRef}
         type="file"
         accept="image/*"
-        onChange={handleChange}
+        onChange={handleGalleryChange}
         style={{ display: 'none' }}
       />
       {compressing ? (

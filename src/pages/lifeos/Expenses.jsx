@@ -13,6 +13,7 @@ import {
   listExpensesForMonth, listExpenses, deleteExpense, addRecurring,
 } from '@/lib/lifeos/lifeos-api';
 import { detectPendingExpense } from '@/lib/pendingExpense';
+import { pushDebugLog } from '@/lib/debugLog';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -113,9 +114,13 @@ export default function Expenses() {
     if (!userId || autoReopenedRef.current) return;
     let cancelled = false;
     (async () => {
-      const { shouldReopen } = await detectPendingExpense(userId);
-      if (cancelled || !shouldReopen || autoReopenedRef.current) return;
+      const result = await detectPendingExpense(userId);
+      pushDebugLog('Expenses', 'detectPendingExpense-result', {
+        source: 'mount', shouldReopen: result.shouldReopen, hasBlob: result.hasBlob,
+      });
+      if (cancelled || !result.shouldReopen || autoReopenedRef.current) return;
       console.log('[Expenses] pending expense detected, auto-reopening form');
+      pushDebugLog('Expenses', 'auto-reopen-triggered', { source: 'mount' });
       autoReopenedRef.current = true;
       toast.success('ההוצאה הקודמת שלך משוחזרת');
       setShowForm(true);
@@ -128,10 +133,22 @@ export default function Expenses() {
   useEffect(() => {
     if (!userId) return;
     const onVisible = async () => {
+      pushDebugLog('Expenses', 'visibilitychange-fired', {
+        state: document.visibilityState, showForm, autoReopened: autoReopenedRef.current,
+      });
       if (document.visibilityState !== 'visible') return;
-      if (showForm || autoReopenedRef.current) return;
-      const { shouldReopen } = await detectPendingExpense(userId);
-      if (!shouldReopen || autoReopenedRef.current) return;
+      if (showForm || autoReopenedRef.current) {
+        pushDebugLog('Expenses', 'visibilitychange-early-return', {
+          reason: showForm ? 'showForm-true' : 'already-auto-reopened',
+        });
+        return;
+      }
+      const result = await detectPendingExpense(userId);
+      pushDebugLog('Expenses', 'detectPendingExpense-result', {
+        source: 'visibilitychange', shouldReopen: result.shouldReopen, hasBlob: result.hasBlob,
+      });
+      if (!result.shouldReopen || autoReopenedRef.current) return;
+      pushDebugLog('Expenses', 'auto-reopen-triggered', { source: 'visibilitychange' });
       autoReopenedRef.current = true;
       toast.success('ההוצאה הקודמת שלך משוחזרת');
       setShowForm(true);

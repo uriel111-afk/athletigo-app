@@ -83,18 +83,23 @@ export const compressImage = async (file, maxWidth, maxHeight, quality) => {
   // Second pass if still over the soft ceiling. Caller-supplied
   // explicit params are honoured on pass 1 but pass 2 always uses the
   // strictest preset so we don't loop forever.
+  let twoPass = false;
   if (blob.size > ONE_MB) {
     console.warn('[imageCompression] pass 1 > 1MB, retrying more aggressively');
     blob = await compressOnce(blob, { maxWidth: 800, maxHeight: 800, quality: 0.5 });
+    twoPass = true;
     console.log('[imageCompression] pass 2', { size: blob.size, type: blob.type });
   }
 
   console.log('[imageCompression] done', {
     originalSize, finalSize: blob.size,
     ratio: originalSize ? `${(blob.size / originalSize * 100).toFixed(0)}%` : 'n/a',
-    type: blob.type,
+    type: blob.type, twoPass,
   });
 
+  // Attach metadata to the blob so the caller (SmartCamera) can log
+  // twoPass without us changing the return signature.
+  try { blob.twoPass = twoPass; } catch {}
   return blob;
 };
 
