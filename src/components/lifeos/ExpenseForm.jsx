@@ -8,6 +8,7 @@ import {
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
 import { supabase } from '@/lib/supabaseClient';
 import SmartCamera from '@/components/lifeos/SmartCamera';
+import { clearPendingUploadFromSession } from '@/lib/pendingUpload';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -174,6 +175,8 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // can identify silent closes (e.g. dialog-openchange vs success vs cancel).
   // On non-success close paths we delete any orphan receipt the user
   // uploaded but never bound to a saved row, so Storage stays clean.
+  // Always clear the SmartCamera recovery key here so an old upload's
+  // sessionStorage marker doesn't surface on the next form open.
   const closeForm = (source) => {
     pushDebugLog('ExpenseForm', 'closeForm-called', {
       source,
@@ -184,6 +187,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       // Fire-and-forget — don't block the close UX on Storage.
       deleteOrphanReceipt(form.receipt_bucket, form.receipt_path);
     }
+    clearPendingUploadFromSession();
     onClose?.();
   };
 

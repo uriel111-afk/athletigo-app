@@ -3,6 +3,12 @@ import { Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog } from '@/lib/debugLog';
+import {
+  UPLOAD_COMPLETE_EVENT,
+  writePendingUploadToSession,
+  readPendingUploadFromSession,
+  clearPendingUploadFromSession,
+} from '@/lib/pendingUpload';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
 // Upload-immediately design (replaces the old deferred-upload / IDB-blob
@@ -99,6 +105,13 @@ async function deleteFromStorage(bucket, path) {
   }
 }
 
+// Detached-upload recovery helpers live in `src/lib/pendingUpload.js`.
+// They expose the sessionStorage key + custom event name so the upload
+// success path can persist the URL the moment Storage returns one, and
+// any later-mounted SmartCamera can pick it up via mount-effect or
+// event listener — even if the original component closure already
+// unmounted (Android Chrome camera-intent tear-down).
+
 const SmartCamera = forwardRef(function SmartCamera(
   {
     label: _label = 'צלם קבלה',
@@ -122,6 +135,14 @@ const SmartCamera = forwardRef(function SmartCamera(
   const [sizeBefore, setSizeBefore] = useState(null);
   const [sizeAfter, setSizeAfter] = useState(null);
 
+  // Refs to keep the restore effect closure stable across re-renders
+  // without taking onUploaded as a dependency (which would tear down
+  // and re-register the listener on every parent render).
+  const onUploadedRef = useRef(onUploaded);
+  useEffect(() => { onUploadedRef.current = onUploaded; }, [onUploaded]);
+  const uploadedUrlRef = useRef(uploadedUrl);
+  useEffect(() => { uploadedUrlRef.current = uploadedUrl; }, [uploadedUrl]);
+
   // Mount/unmount marker for log diagnosis. Initial hydration from the
   // initialUrl prop is intentionally silent (no onUploaded re-fire):
   // the parent already has the value, this is just so the user sees
@@ -133,6 +154,60 @@ const SmartCamera = forwardRef(function SmartCamera(
     });
     return () => { pushDebugLog('SmartCamera', 'unmount'); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detached-upload recovery. Two trigger points:
+  //   (a) immediate read at mount — handles "old upload finished
+  //       BEFORE the new component mounted"
+  //   (b) window event listener — handles "old upload finishes AFTER
+  //       the new component is already mounted"
+  // Idempotent: if we already hold the same uploadedUrl, skip. Clears
+  // the sessionStorage key after applying so a later remount doesn't
+  // double-fire onUploaded.
+  useEffect(() => {
+    let active = true;
+
+    const tryRestore = () => {
+      if (!active) return;
+      const data = readPendingUploadFromSession();
+      if (!data) return;
+      if (uploadedUrlRef.current === data.url) {
+        // Same URL we already hold — clear the key so we don't
+        // accidentally restore again on the next mount.
+        clearPendingUploadFromSession();
+        return;
+      }
+      pushDebugLog('SmartCamera', 'upload-restored-from-session', {
+        url: String(data.url).slice(0, 80),
+        path: data.path,
+        bucket: data.bucket,
+        ageMs: Date.now() - data.uploadedAt,
+      });
+      setUploadedUrl(data.url);
+      setUploadedPath(data.path);
+      setUploadedBucket(data.bucket);
+      setPreviewUrl(data.url);
+      setCompressing(false);
+      setUploading(false);
+      clearPendingUploadFromSession();
+      try {
+        onUploadedRef.current?.({
+          url: data.url, path: data.path, bucket: data.bucket,
+        });
+      } catch (err) {
+        pushDebugLog('SmartCamera', 'restore-onUploaded-throw', {
+          error: err?.message || String(err),
+        });
+      }
+    };
+
+    window.addEventListener(UPLOAD_COMPLETE_EVENT, tryRestore);
+    tryRestore();
+
+    return () => {
+      active = false;
+      window.removeEventListener(UPLOAD_COMPLETE_EVENT, tryRestore);
+    };
+  }, []); // mount-only — eslint-disable-line react-hooks/exhaustive-deps
 
   useImperativeHandle(ref, () => ({
     getUploadedUrl: () => uploadedUrl,
@@ -177,6 +252,9 @@ const SmartCamera = forwardRef(function SmartCamera(
       setUploadedPath(null);
       setUploadedBucket(null);
     }
+    // Drop any prior recovery entry so a remount during the new pick
+    // doesn't restore a URL that points to the object we just deleted.
+    clearPendingUploadFromSession();
 
     setCompressing(true);
     setSizeBefore(file.size);
@@ -252,6 +330,30 @@ const SmartCamera = forwardRef(function SmartCamera(
       source, url: String(result.url).slice(0, 80),
       path: result.path, bucket: result.bucket,
     });
+
+    // CRITICAL: persist + broadcast BEFORE touching React state or
+    // firing the callback. If this code path is running inside a
+    // closure whose component already unmounted (Android Chrome
+    // camera intent → React tree torn down mid-await), the setState
+    // calls and onUploaded? below are silent no-ops on a stale tree.
+    // The sessionStorage write and the window event are the only
+    // signals the live tree will see.
+    writePendingUploadToSession({
+      url: result.url, path: result.path, bucket: result.bucket,
+    });
+    pushDebugLog('SmartCamera', 'upload-persisted-to-session', {
+      path: result.path, bucket: result.bucket,
+    });
+    try {
+      window.dispatchEvent(new CustomEvent(UPLOAD_COMPLETE_EVENT, {
+        detail: { url: result.url, path: result.path, bucket: result.bucket },
+      }));
+    } catch (dispatchErr) {
+      pushDebugLog('SmartCamera', 'upload-dispatch-throw', {
+        error: dispatchErr?.message || String(dispatchErr),
+      });
+    }
+
     setUploadedUrl(result.url);
     setUploadedPath(result.path);
     setUploadedBucket(result.bucket);
@@ -284,6 +386,9 @@ const SmartCamera = forwardRef(function SmartCamera(
     if (uploadedPath && uploadedBucket) {
       deleteFromStorage(uploadedBucket, uploadedPath);
     }
+    // Clear the recovery key so a stale entry from this same upload
+    // doesn't restore the photo we just removed on the next mount.
+    clearPendingUploadFromSession();
     if (previewUrl && previewUrl.startsWith('blob:')) {
       try { URL.revokeObjectURL(previewUrl); } catch {}
     }
