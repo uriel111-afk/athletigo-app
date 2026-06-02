@@ -136,6 +136,15 @@ export default function Layout({ children, currentPageName }) {
         const n = payload.new;
         if (!n || n.is_read) return;
 
+        const SILENT_NOTIFICATION_TYPES = [
+          'exercise_completed',
+          'workout_completion',
+          'session_status_changed',
+          'metrics_updated',
+          'subscription',
+        ];
+        if (SILENT_NOTIFICATION_TYPES.includes(n?.type)) return;
+
         // Map notification type to emoji
         const typeIcons = {
           session_scheduled: '📅', session_approved: '✅', session_rejected: '❌',

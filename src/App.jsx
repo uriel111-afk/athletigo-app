@@ -211,7 +211,16 @@ const AuthenticatedApp = () => {
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
         (payload) => {
           const n = payload.new;
-          if (n && !n.is_read) showNotificationPopup(n);
+          if (!n || n.is_read) return;
+          const SILENT_NOTIFICATION_TYPES = [
+            'exercise_completed',
+            'workout_completion',
+            'session_status_changed',
+            'metrics_updated',
+            'subscription',
+          ];
+          if (SILENT_NOTIFICATION_TYPES.includes(n?.type)) return;
+          showNotificationPopup(n);
         }
       )
       .subscribe();
