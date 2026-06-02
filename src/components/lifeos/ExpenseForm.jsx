@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -86,6 +86,16 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
 
+  // True only when the user actively closes the form (cancel button,
+  // Escape key, or backdrop click via Radix's onOpenChange). Stays
+  // false when closeForm is invoked from any other code path
+  // (success save, programmatic close, React unmount races during
+  // Activity destruction). The orphan-receipt cleanup gates on this
+  // ref so a re-mounted form auto-reopened from sessionStorage
+  // doesn't get its just-restored photo deleted by a stray close
+  // event during the tear-down/rebuild sequence.
+  const userCloseIntentRef = useRef(false);
+
   // Diagnostic: log mount + unmount to a localStorage-backed rolling
   // log (survives iOS PWA WebView reload, unlike the console).
   useEffect(() => {
@@ -171,23 +181,31 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     } catch {}
   };
 
-  // Single chokepoint for closing the form — logs the trigger so we
-  // can identify silent closes (e.g. dialog-openchange vs success vs cancel).
-  // On non-success close paths we delete any orphan receipt the user
-  // uploaded but never bound to a saved row, so Storage stays clean.
-  // Always clear the SmartCamera recovery key here so an old upload's
-  // sessionStorage marker doesn't surface on the next form open.
+  // Single chokepoint for closing the form. Orphan-receipt cleanup
+  // gates on userCloseIntentRef so that ONLY an explicit user action
+  // (cancel button, Escape, or backdrop) deletes the just-uploaded
+  // photo. A stray close event during Activity destruction /
+  // remount-driven auto-reopen leaves the upload intact in Storage so
+  // the freshly mounted SmartCamera can restore the preview.
+  // sessionStorage recovery key is also cleared only on user intent
+  // or success — otherwise we'd strip the handoff signal the new
+  // tree depends on for restore.
   const closeForm = (source) => {
+    const byUser = userCloseIntentRef.current;
     pushDebugLog('ExpenseForm', 'closeForm-called', {
       source,
+      byUser,
       hasPendingReceipt: !!(form.receipt_path && form.receipt_bucket),
     });
-    clearDraft();
-    if (source !== 'success' && form.receipt_path && form.receipt_bucket) {
+    if (byUser || source === 'success') {
+      clearDraft();
+      clearPendingUploadFromSession();
+    }
+    if (byUser && source !== 'success' && form.receipt_path && form.receipt_bucket) {
       // Fire-and-forget — don't block the close UX on Storage.
       deleteOrphanReceipt(form.receipt_bucket, form.receipt_path);
     }
-    clearPendingUploadFromSession();
+    userCloseIntentRef.current = false;
     onClose?.();
   };
 
@@ -326,7 +344,16 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) closeForm('dialog-openchange'); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (open || saving) return;
+      // Radix only fires onOpenChange on user-initiated changes
+      // (Escape, outside click — backdrop click is suppressed by
+      // onPointerDownOutside below). So when this branch runs, the
+      // user really did mean to close → mark the intent and let the
+      // shared close path do the orphan cleanup.
+      userCloseIntentRef.current = true;
+      closeForm('dialog-openchange');
+    }}>
       <DialogContent
         dir="rtl"
         className="max-w-md"
@@ -575,7 +602,10 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
             <button
-              onClick={() => closeForm('cancel')}
+              onClick={() => {
+                userCloseIntentRef.current = true;
+                closeForm('cancel');
+              }}
               disabled={saving}
               style={btnSecondary}
             >
