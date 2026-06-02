@@ -377,21 +377,25 @@ const SmartCamera = forwardRef(function SmartCamera(
   };
 
   // ── Render ──────────────────────────────────────────────────────
+  // Full-screen "keep me alive" overlay during compress+upload. Goes
+  // through createPortal so the fixed positioning escapes any parent
+  // overflow / transform context (Radix Dialog sits inside a Portal
+  // too, and its content can disrupt position:fixed without this).
+  // Explicit top/left/right/bottom instead of `inset` for the widest
+  // mobile-browser compatibility. z-index sits above the Dialog
+  // content (11001), the timer bar (12000), and any toast layer.
   const overlay = (compressing || uploading) ? createPortal(
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 15000,
-        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.92)',
+        zIndex: 99999,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        gap: 20, padding: 20,
-        // Block any background interaction. The point of the overlay
-        // is to keep the user (and therefore Android) engaged with
-        // this view so the WebView isn't torn down mid-upload.
+        gap: 24, padding: 20,
         touchAction: 'none', userSelect: 'none',
       }}
-      // No onClick / onPointerDown — taps fall on the overlay and
-      // do nothing. We don't want a back-button or tap to dismiss.
     >
       <style>{`
         @keyframes smartcamera-overlay-spin {
@@ -400,24 +404,24 @@ const SmartCamera = forwardRef(function SmartCamera(
         }
       `}</style>
       <div style={{
-        width: 60, height: 60,
-        border: '5px solid rgba(255, 111, 32, 0.3)',
-        borderTop: `5px solid ${LIFEOS_COLORS.primary}`,
+        width: 70, height: 70,
+        border: '6px solid rgba(255, 111, 32, 0.2)',
+        borderTop: `6px solid ${LIFEOS_COLORS.primary}`,
         borderRadius: '50%',
-        animation: 'smartcamera-overlay-spin 1s linear infinite',
+        animation: 'smartcamera-overlay-spin 0.8s linear infinite',
       }} />
       <div style={{
-        color: '#FFFFFF', fontSize: 18, fontWeight: 700,
-        fontFamily: 'inherit', direction: 'rtl',
+        color: '#FFFFFF', fontSize: 20, fontWeight: 700,
+        fontFamily: 'inherit', textAlign: 'center', direction: 'rtl',
       }}>
-        {compressing ? 'דוחס תמונה...' : 'מעלה תמונה...'}
+        {compressing ? 'דוחס תמונה' : 'מעלה תמונה'}
       </div>
       <div style={{
-        color: '#FFFFFF', fontSize: 14, opacity: 0.85,
-        padding: '0 30px', textAlign: 'center',
-        direction: 'rtl', maxWidth: 320,
+        color: '#FFFFFF', fontSize: 15, opacity: 0.85,
+        fontFamily: 'inherit', textAlign: 'center',
+        direction: 'rtl', maxWidth: 280,
       }}>
-        אל תסגור את האפליקציה ואל תחליף לאפליקציה אחרת
+        אל תסגור את האפליקציה
       </div>
     </div>,
     document.body,

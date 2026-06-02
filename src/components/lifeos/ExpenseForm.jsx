@@ -52,21 +52,6 @@ const formFromRow = (row) => ({
   recurring_until: row.recurring_until || '',
 });
 
-// Fire-and-forget Storage cleanup. Used when the user cancels with an
-// orphan upload sitting in the bucket — we don't await this in the UI
-// path since the user is closing the form anyway.
-async function deleteOrphanReceipt(bucket, path) {
-  if (!bucket || !path) return;
-  try {
-    await supabase.storage.from(bucket).remove([path]);
-    pushDebugLog('ExpenseForm', 'orphan-receipt-deleted', { bucket, path });
-  } catch (err) {
-    pushDebugLog('ExpenseForm', 'orphan-receipt-delete-fail', {
-      bucket, path, error: err?.message || String(err),
-    });
-  }
-}
-
 // Default end date when the user switches to "עד תאריך": one year out.
 const defaultRecurringUntil = () => {
   const d = new Date();
@@ -181,14 +166,19 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   };
 
   // Single chokepoint for closing the form. Orphan-receipt cleanup
-  // gates on userCloseIntentRef so that ONLY an explicit user action
-  // (cancel button, Escape, or backdrop) deletes the just-uploaded
-  // photo. A stray close event during Activity destruction /
-  // remount-driven auto-reopen leaves the upload intact in Storage so
-  // the freshly mounted SmartCamera can restore the preview.
-  // sessionStorage recovery key is also cleared only on user intent
-  // or success — otherwise we'd strip the handoff signal the new
-  // tree depends on for restore.
+  // is INTENTIONALLY not done here — a recurring false-positive bug
+  // had the cleanup deleting a just-uploaded photo when `closeForm`
+  // was triggered by something other than a real user cancel
+  // (auto-reopen race, programmatic close from a stale closure, etc.).
+  // Tradeoff: storage may collect a small handful of unused JPEGs
+  // when a user uploads then cancels. That's acceptable — receipts
+  // are <200KB, Storage is cheap, and a future server-side sweep can
+  // reconcile against the expenses.receipt_url column if needed.
+  // The only deliberate cleanup paths now are:
+  //   - SmartCamera's X button (handleCancel) — deletes its own
+  //     upload when the user explicitly removes it BEFORE save.
+  //   - SmartCamera handleFileSelect — deletes the previous upload
+  //     when the user picks a replacement photo.
   const closeForm = (source) => {
     const byUser = userCloseIntentRef.current;
     pushDebugLog('ExpenseForm', 'closeForm-called', {
@@ -198,10 +188,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     });
     if (byUser || source === 'success') {
       clearDraft();
-    }
-    if (byUser && source !== 'success' && form.receipt_path && form.receipt_bucket) {
-      // Fire-and-forget — don't block the close UX on Storage.
-      deleteOrphanReceipt(form.receipt_bucket, form.receipt_path);
     }
     userCloseIntentRef.current = false;
     onClose?.();
