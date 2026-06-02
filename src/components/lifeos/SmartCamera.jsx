@@ -1,28 +1,30 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog } from '@/lib/debugLog';
-import {
-  UPLOAD_COMPLETE_EVENT,
-  writePendingUploadToSession,
-  readPendingUploadFromSession,
-  clearPendingUploadFromSession,
-} from '@/lib/pendingUpload';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
-// Upload-immediately design (replaces the old deferred-upload / IDB-blob
-// pattern). After the user picks a file we compress and upload in one
-// shot, then hand the parent a plain { url, path, bucket } string set.
+// Upload-immediately design with a full-screen "keep me alive" overlay.
 //
-// Why: the old design held the compressed Blob in React state and
-// relied on IndexedDB to survive Android Chrome's WebView reset during
-// the file-picker intent. That created a long tail of edge cases
-// (orphan-blob cleanup, mount-restore races, sessionStorage draft
-// mismatch) and a single missed branch deleted the photo entirely. A
-// string URL persisted in form-draft sessionStorage has none of those
-// failure modes — even if the Activity dies mid-flow, the URL is
-// already a public Storage object the next session can read directly.
+// After the user picks a file we compress and upload in one shot, then
+// hand the parent a plain { url, path, bucket } string set. During the
+// compress + upload window we render a fixed-position overlay portaled
+// into document.body. The overlay does two jobs:
+//   1. Visibly blocks the user from interacting with anything else,
+//      so Android Chrome keeps the WebView in the foreground and
+//      doesn't tear down the React tree mid-upload.
+//   2. Gives the user a clear "wait, don't close" signal — much
+//      better than a small inline spinner inside the dialog.
+//
+// Earlier iterations relied on IndexedDB blob persistence + a
+// sessionStorage handoff to recover when the WebView WAS destroyed
+// mid-upload. With the overlay in place that destruction shouldn't
+// happen often enough to be worth the recovery complexity, so those
+// layers are gone. The form-draft sessionStorage (typed fields)
+// is preserved separately by ExpenseForm and still rescues the
+// user's text input if a real crash happens.
 
 const UPLOAD_TIMEOUT_MS = 60000;
 const LOCK_RETRY_MAX = 3;
@@ -144,13 +146,6 @@ async function deleteFromStorage(bucket, path) {
   }
 }
 
-// Detached-upload recovery helpers live in `src/lib/pendingUpload.js`.
-// They expose the sessionStorage key + custom event name so the upload
-// success path can persist the URL the moment Storage returns one, and
-// any later-mounted SmartCamera can pick it up via mount-effect or
-// event listener — even if the original component closure already
-// unmounted (Android Chrome camera-intent tear-down).
-
 const SmartCamera = forwardRef(function SmartCamera(
   {
     label: _label = 'צלם קבלה',
@@ -169,23 +164,21 @@ const SmartCamera = forwardRef(function SmartCamera(
   const [uploadedUrl, setUploadedUrl] = useState(initialUrl || null);
   const [uploadedPath, setUploadedPath] = useState(initialPath || null);
   const [uploadedBucket, setUploadedBucket] = useState(initialBucket || null);
-  const [compressing, setCompressing] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  // 'idle' | 'compressing' | 'uploading' — drives the full-screen
+  // overlay below. Reset back to 'idle' on success or error so the
+  // overlay disappears and the inline preview takes over.
+  const [uploadStatus, setUploadStatus] = useState('idle');
   const [sizeBefore, setSizeBefore] = useState(null);
   const [sizeAfter, setSizeAfter] = useState(null);
 
-  // Refs to keep the restore effect closure stable across re-renders
-  // without taking onUploaded as a dependency (which would tear down
-  // and re-register the listener on every parent render).
-  const onUploadedRef = useRef(onUploaded);
-  useEffect(() => { onUploadedRef.current = onUploaded; }, [onUploaded]);
-  const uploadedUrlRef = useRef(uploadedUrl);
-  useEffect(() => { uploadedUrlRef.current = uploadedUrl; }, [uploadedUrl]);
+  // Derived flags so existing render-site checks read naturally.
+  const compressing = uploadStatus === 'compressing';
+  const uploading = uploadStatus === 'uploading';
 
-  // Mount/unmount marker for log diagnosis. Initial hydration from the
-  // initialUrl prop is intentionally silent (no onUploaded re-fire):
-  // the parent already has the value, this is just so the user sees
-  // the preview after a sessionStorage-driven restore.
+  // Mount/unmount marker for log diagnosis. Initial hydration from
+  // the initialUrl prop is intentionally silent — the parent already
+  // has the value; the preview shows because previewUrl/uploadedUrl
+  // were seeded directly from props.
   useEffect(() => {
     pushDebugLog('SmartCamera', 'mount', {
       hasInitialUrl: !!initialUrl,
@@ -193,60 +186,6 @@ const SmartCamera = forwardRef(function SmartCamera(
     });
     return () => { pushDebugLog('SmartCamera', 'unmount'); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Detached-upload recovery. Two trigger points:
-  //   (a) immediate read at mount — handles "old upload finished
-  //       BEFORE the new component mounted"
-  //   (b) window event listener — handles "old upload finishes AFTER
-  //       the new component is already mounted"
-  // Idempotent: if we already hold the same uploadedUrl, skip. Clears
-  // the sessionStorage key after applying so a later remount doesn't
-  // double-fire onUploaded.
-  useEffect(() => {
-    let active = true;
-
-    const tryRestore = () => {
-      if (!active) return;
-      const data = readPendingUploadFromSession();
-      if (!data) return;
-      if (uploadedUrlRef.current === data.url) {
-        // Same URL we already hold — clear the key so we don't
-        // accidentally restore again on the next mount.
-        clearPendingUploadFromSession();
-        return;
-      }
-      pushDebugLog('SmartCamera', 'upload-restored-from-session', {
-        url: String(data.url).slice(0, 80),
-        path: data.path,
-        bucket: data.bucket,
-        ageMs: Date.now() - data.uploadedAt,
-      });
-      setUploadedUrl(data.url);
-      setUploadedPath(data.path);
-      setUploadedBucket(data.bucket);
-      setPreviewUrl(data.url);
-      setCompressing(false);
-      setUploading(false);
-      clearPendingUploadFromSession();
-      try {
-        onUploadedRef.current?.({
-          url: data.url, path: data.path, bucket: data.bucket,
-        });
-      } catch (err) {
-        pushDebugLog('SmartCamera', 'restore-onUploaded-throw', {
-          error: err?.message || String(err),
-        });
-      }
-    };
-
-    window.addEventListener(UPLOAD_COMPLETE_EVENT, tryRestore);
-    tryRestore();
-
-    return () => {
-      active = false;
-      window.removeEventListener(UPLOAD_COMPLETE_EVENT, tryRestore);
-    };
-  }, []); // mount-only — eslint-disable-line react-hooks/exhaustive-deps
 
   useImperativeHandle(ref, () => ({
     getUploadedUrl: () => uploadedUrl,
@@ -318,11 +257,8 @@ const SmartCamera = forwardRef(function SmartCamera(
       setUploadedPath(null);
       setUploadedBucket(null);
     }
-    // Drop any prior recovery entry so a remount during the new pick
-    // doesn't restore a URL that points to the object we just deleted.
-    clearPendingUploadFromSession();
 
-    setCompressing(true);
+    setUploadStatus('compressing');
     setSizeBefore(file.size);
     setSizeAfter(null);
     setPreviewUrl(null);
@@ -334,7 +270,7 @@ const SmartCamera = forwardRef(function SmartCamera(
     try {
       compressedBlob = await compressImage(file);
     } catch (err) {
-      setCompressing(false);
+      setUploadStatus('idle');
       setSizeBefore(null);
       pushDebugLog('SmartCamera', 'compressImage-throw', {
         source, errorMessage: err?.message || String(err),
@@ -364,8 +300,7 @@ const SmartCamera = forwardRef(function SmartCamera(
         source, errorMessage: urlErr?.message || String(urlErr),
       });
     }
-    setCompressing(false);
-    setUploading(true);
+    setUploadStatus('uploading');
 
     pushDebugLog('SmartCamera', 'before-uploadToStorage', {
       source, blobSize: compressedBlob.size,
@@ -374,7 +309,7 @@ const SmartCamera = forwardRef(function SmartCamera(
     try {
       result = await uploadToStorageWithRetry(compressedBlob);
     } catch (err) {
-      setUploading(false);
+      setUploadStatus('idle');
       pushDebugLog('SmartCamera', 'uploadToStorage-throw', {
         source, errorMessage: err?.message || String(err),
         primaryError: err?.primaryError, fallbackError: err?.fallbackError,
@@ -397,29 +332,6 @@ const SmartCamera = forwardRef(function SmartCamera(
       path: result.path, bucket: result.bucket,
     });
 
-    // CRITICAL: persist + broadcast BEFORE touching React state or
-    // firing the callback. If this code path is running inside a
-    // closure whose component already unmounted (Android Chrome
-    // camera intent → React tree torn down mid-await), the setState
-    // calls and onUploaded? below are silent no-ops on a stale tree.
-    // The sessionStorage write and the window event are the only
-    // signals the live tree will see.
-    writePendingUploadToSession({
-      url: result.url, path: result.path, bucket: result.bucket,
-    });
-    pushDebugLog('SmartCamera', 'upload-persisted-to-session', {
-      path: result.path, bucket: result.bucket,
-    });
-    try {
-      window.dispatchEvent(new CustomEvent(UPLOAD_COMPLETE_EVENT, {
-        detail: { url: result.url, path: result.path, bucket: result.bucket },
-      }));
-    } catch (dispatchErr) {
-      pushDebugLog('SmartCamera', 'upload-dispatch-throw', {
-        error: dispatchErr?.message || String(dispatchErr),
-      });
-    }
-
     setUploadedUrl(result.url);
     setUploadedPath(result.path);
     setUploadedBucket(result.bucket);
@@ -427,7 +339,7 @@ const SmartCamera = forwardRef(function SmartCamera(
       try { URL.revokeObjectURL(blobPreviewUrl); } catch {}
     }
     setPreviewUrl(result.url);
-    setUploading(false);
+    setUploadStatus('idle');
 
     onUploaded?.({
       url: result.url, path: result.path, bucket: result.bucket,
@@ -452,9 +364,6 @@ const SmartCamera = forwardRef(function SmartCamera(
     if (uploadedPath && uploadedBucket) {
       deleteFromStorage(uploadedBucket, uploadedPath);
     }
-    // Clear the recovery key so a stale entry from this same upload
-    // doesn't restore the photo we just removed on the next mount.
-    clearPendingUploadFromSession();
     if (previewUrl && previewUrl.startsWith('blob:')) {
       try { URL.revokeObjectURL(previewUrl); } catch {}
     }
@@ -468,40 +377,77 @@ const SmartCamera = forwardRef(function SmartCamera(
   };
 
   // ── Render ──────────────────────────────────────────────────────
-  if (compressing) {
-    return (
+  const overlay = (compressing || uploading) ? createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 15000,
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        gap: 20, padding: 20,
+        // Block any background interaction. The point of the overlay
+        // is to keep the user (and therefore Android) engaged with
+        // this view so the WebView isn't torn down mid-upload.
+        touchAction: 'none', userSelect: 'none',
+      }}
+      // No onClick / onPointerDown — taps fall on the overlay and
+      // do nothing. We don't want a back-button or tap to dismiss.
+    >
+      <style>{`
+        @keyframes smartcamera-overlay-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        width: '100%', padding: 12,
-        borderRadius: 10,
-        border: `1px dashed ${LIFEOS_COLORS.primary}`,
-        backgroundColor: '#FFF8F3', color: LIFEOS_COLORS.primary,
-        fontSize: 12, fontWeight: 700,
+        width: 60, height: 60,
+        border: '5px solid rgba(255, 111, 32, 0.3)',
+        borderTop: `5px solid ${LIFEOS_COLORS.primary}`,
+        borderRadius: '50%',
+        animation: 'smartcamera-overlay-spin 1s linear infinite',
+      }} />
+      <div style={{
+        color: '#FFFFFF', fontSize: 18, fontWeight: 700,
+        fontFamily: 'inherit', direction: 'rtl',
       }}>
-        <Loader2 size={14} className="animate-spin" />
-        <span>דוחס תמונה...</span>
+        {compressing ? 'דוחס תמונה...' : 'מעלה תמונה...'}
       </div>
-    );
-  }
+      <div style={{
+        color: '#FFFFFF', fontSize: 14, opacity: 0.85,
+        padding: '0 30px', textAlign: 'center',
+        direction: 'rtl', maxWidth: 320,
+      }}>
+        אל תסגור את האפליקציה ואל תחליף לאפליקציה אחרת
+      </div>
+    </div>,
+    document.body,
+  ) : null;
+
+  const hiddenInputs = (
+    <>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleCameraChange}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleGalleryChange}
+        style={{ display: 'none' }}
+      />
+    </>
+  );
 
   if (!previewUrl) {
     return (
       <>
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleCameraChange}
-          style={{ display: 'none' }}
-        />
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleGalleryChange}
-          style={{ display: 'none' }}
-        />
+        {overlay}
+        {hiddenInputs}
         <div style={{ display: 'flex', gap: 8, width: '100%' }} dir="rtl">
           <button
             type="button"
@@ -527,84 +473,66 @@ const SmartCamera = forwardRef(function SmartCamera(
   }
 
   return (
-    <div style={{
-      border: `1px solid ${LIFEOS_COLORS.border}`, borderRadius: 12, padding: 8,
-    }}>
-      <div style={{ position: 'relative' }}>
-        <img
-          src={previewUrl}
-          alt="receipt preview"
-          style={{
-            width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8,
-            display: 'block',
-            opacity: uploading ? 0.55 : 1,
-          }}
-        />
-        <button
-          type="button"
-          onClick={handleCancel}
-          aria-label="ביטול"
-          disabled={uploading}
-          style={{
-            position: 'absolute', top: 6, left: 6,
-            width: 28, height: 28, borderRadius: 999, border: 'none',
-            backgroundColor: 'rgba(0,0,0,0.6)', color: '#FFFFFF',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: uploading ? 'not-allowed' : 'pointer',
-            opacity: uploading ? 0.5 : 1,
-          }}
-        >
-          <X size={14} />
-        </button>
-        {uploading && (
+    <>
+      {overlay}
+      {hiddenInputs}
+      <div style={{
+        border: `1px solid ${LIFEOS_COLORS.border}`, borderRadius: 12, padding: 8,
+      }}>
+        <div style={{ position: 'relative' }}>
+          <img
+            src={previewUrl}
+            alt="receipt preview"
+            style={{
+              width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8,
+              display: 'block',
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleCancel}
+            aria-label="ביטול"
+            style={{
+              position: 'absolute', top: 6, left: 6,
+              width: 28, height: 28, borderRadius: 999, border: 'none',
+              backgroundColor: 'rgba(0,0,0,0.6)', color: '#FFFFFF',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+        {uploadedUrl && (
           <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(255,255,255,0.5)',
-            borderRadius: 8,
+            marginTop: 8, fontSize: 12, color: '#16A34A', fontWeight: 700,
+            textAlign: 'center', direction: 'rtl',
           }}>
-            <div style={{
-              background: '#FFFFFF', padding: '8px 12px', borderRadius: 8,
-              border: `2px solid ${LIFEOS_COLORS.primary}`,
-              display: 'flex', alignItems: 'center', gap: 8,
-              fontSize: 12, fontWeight: 800, color: LIFEOS_COLORS.primary,
-              direction: 'rtl',
-            }}>
-              <Loader2 size={14} className="animate-spin" />
-              <span>מעלה תמונה...</span>
-            </div>
+            ✓ התמונה הועלתה
+            {sizeAfter ? ` (${Math.round(sizeAfter / 1024)} KB)` : ''}
+          </div>
+        )}
+        {(sizeBefore && sizeAfter) && (
+          <div style={{
+            fontSize: 11, color: '#6b7280', textAlign: 'center',
+            padding: 6, background: '#FAFAFA',
+            borderRadius: 6, marginTop: 8,
+          }}>
+            {sizeBefore !== sizeAfter ? (
+              <>
+                {(sizeBefore / 1024).toFixed(0)} KB ← {(sizeAfter / 1024).toFixed(0)} KB
+                {' · '}
+                <span style={{ color: '#16A34A', fontWeight: 700 }}>
+                  נחסך {(((sizeBefore - sizeAfter) / sizeBefore) * 100).toFixed(0)}%
+                </span>
+              </>
+            ) : (
+              <span>{(sizeAfter / 1024).toFixed(0)} KB</span>
+            )}
           </div>
         )}
       </div>
-      {uploadedUrl && !uploading && (
-        <div style={{
-          marginTop: 8, fontSize: 12, color: '#16A34A', fontWeight: 700,
-          textAlign: 'center', direction: 'rtl',
-        }}>
-          ✓ התמונה הועלתה
-          {sizeAfter ? ` (${Math.round(sizeAfter / 1024)} KB)` : ''}
-        </div>
-      )}
-      {(sizeBefore && sizeAfter) && (
-        <div style={{
-          fontSize: 11, color: '#6b7280', textAlign: 'center',
-          padding: 6, background: '#FAFAFA',
-          borderRadius: 6, marginTop: 8,
-        }}>
-          {sizeBefore !== sizeAfter ? (
-            <>
-              {(sizeBefore / 1024).toFixed(0)} KB ← {(sizeAfter / 1024).toFixed(0)} KB
-              {' · '}
-              <span style={{ color: '#16A34A', fontWeight: 700 }}>
-                נחסך {(((sizeBefore - sizeAfter) / sizeBefore) * 100).toFixed(0)}%
-              </span>
-            </>
-          ) : (
-            <span>{(sizeAfter / 1024).toFixed(0)} KB</span>
-          )}
-        </div>
-      )}
-    </div>
+    </>
   );
 });
 

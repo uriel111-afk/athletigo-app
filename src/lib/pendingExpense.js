@@ -1,22 +1,20 @@
 // Detect whether the user was mid-flow on an expense (form open with
-// fields typed and/or a photo URL captured) when the WebView/Activity
-// was destroyed in a previous session. If so, the parent page can
-// auto-reopen ExpenseForm so the user doesn't have to manually retry.
+// fields typed) when the WebView/Activity was destroyed in a previous
+// session. If so, the parent page can auto-reopen ExpenseForm so the
+// user doesn't have to manually retry.
 //
-// Storage layer is sessionStorage only — the form draft now carries
-// the receipt URL alongside the regular fields, so a single key
-// captures everything we need to restore. The previous IndexedDB
-// blob layer is gone (the upload-immediately design in SmartCamera
-// turns the receipt into a plain URL string before we have to worry
-// about persistence).
+// Single signal: the sessionStorage form draft. The earlier
+// "smartcamera-pending-upload" handoff key is gone — SmartCamera now
+// shows a blocking full-screen overlay during compress+upload so the
+// WebView is kept alive through that window. Any in-flight upload
+// completes before the user's attention shifts, and the URL lands in
+// the form-draft via the normal setForm path.
 //
 // "Meaningful" means the user typed at least one of amount, category,
-// description, or subcategory, OR they already uploaded a receipt
-// (the photo upload alone is worth reopening for — losing it is the
-// painful failure mode this whole system was built to prevent).
+// description, or subcategory, OR the form already holds a receipt
+// URL (a photo-only state is still worth reopening for).
 
 import { pushDebugLog } from './debugLog';
-import { readPendingUploadFromSession } from './pendingUpload';
 
 const DRAFT_KEY = (userId) => `expense-form-draft-${userId || 'anon'}`;
 
@@ -40,14 +38,7 @@ export async function detectPendingExpense(userId) {
       rawDraft = sessionStorage.getItem(DRAFT_KEY(userId));
       draft = rawDraft ? JSON.parse(rawDraft) : null;
     } catch {}
-    const draftMeaningful = hasMeaningfulDraft(draft);
-    // Also consider a freshly-detached upload (within 60s TTL) — the
-    // detached async chain may have landed the URL in sessionStorage
-    // AFTER the previous ExpenseForm tree died, so the draft itself
-    // never picked it up. Reopening lets the new SmartCamera restore
-    // it via the mount-effect path.
-    const pendingUpload = readPendingUploadFromSession();
-    const shouldReopen = draftMeaningful || !!pendingUpload;
+    const shouldReopen = hasMeaningfulDraft(draft);
     pushDebugLog('pendingExpense', 'detect-state', {
       hasRawDraft: !!rawDraft,
       amount: draft?.amount || null,
@@ -55,11 +46,6 @@ export async function detectPendingExpense(userId) {
       hasDescription: !!(draft?.description && String(draft.description).trim()),
       hasSubcategory: !!(draft?.subcategory && String(draft.subcategory).trim()),
       hasReceiptUrl: !!(draft?.receipt_url && String(draft.receipt_url).trim()),
-      hasPendingUpload: !!pendingUpload,
-      pendingUploadPath: pendingUpload?.path || null,
-      pendingUploadAgeMs: pendingUpload?.uploadedAt
-        ? Date.now() - pendingUpload.uploadedAt
-        : null,
       shouldReopen,
     });
     return { shouldReopen, hasBlob: false };

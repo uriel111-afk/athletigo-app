@@ -8,7 +8,6 @@ import {
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
 import { supabase } from '@/lib/supabaseClient';
 import SmartCamera from '@/components/lifeos/SmartCamera';
-import { clearPendingUploadFromSession } from '@/lib/pendingUpload';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -199,7 +198,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     });
     if (byUser || source === 'success') {
       clearDraft();
-      clearPendingUploadFromSession();
     }
     if (byUser && source !== 'success' && form.receipt_path && form.receipt_bucket) {
       // Fire-and-forget — don't block the close UX on Storage.
