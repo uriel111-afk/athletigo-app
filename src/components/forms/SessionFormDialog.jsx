@@ -50,6 +50,14 @@ const INITIAL_DATA = {
   // a "שלם" CTA on the session card that goes through the
   // payment-create Edge Function (Grow integration).
   price: "",
+  // Recurring-series fields. Stored alongside the rest so
+  // useFormDraft persists them on every keystroke. Only active when
+  // `recurring` flips on.
+  recurring: false,
+  recurDays: [],
+  recurEndType: 'date',
+  recurEndDate: '',
+  recurEndCount: 4,
 };
 
 export default function SessionFormDialog({
@@ -114,6 +122,13 @@ export default function SessionFormDialog({
     participants: editingSession.participants || [],
     service_id: editingSession.service_id || null,
     price: editingSession.price != null ? String(editingSession.price) : "",
+    // Recurring is a create-only flow; edit mode keeps the fields in
+    // state but the UI for them is hidden.
+    recurring: false,
+    recurDays: [],
+    recurEndType: 'date',
+    recurEndDate: '',
+    recurEndCount: 4,
   } : { ...INITIAL_DATA, date: new Date().toISOString().split('T')[0] };
 
   const scopeKey = `${currentCoach?.id ?? 'no-coach'}_${editingSession?.id ?? 'new'}`;
@@ -378,6 +393,161 @@ export default function SessionFormDialog({
       return;
     }
 
+    // === RECURRING SERIES BRANCH ===
+    // Generates many future sessions in one go, all sharing a single
+    // series_id + recurrence payload. Each row is created with the
+    // SAME default status string the single-session path uses
+    // ('ממתין לאישור' for future, 'הושלם' for past), so the existing
+    // completion-flow deduction logic stays the only path that ever
+    // touches remaining_sessions.
+    if (sessionForm.recurring && !editingSession) {
+      if (!Array.isArray(sessionForm.recurDays) || sessionForm.recurDays.length === 0) {
+        toast.error("יש לבחור לפחות יום אחד בשבוע");
+        return;
+      }
+      const traineeId = sessionForm.participants?.[0]?.trainee_id || null;
+      if (!traineeId) {
+        toast.error("יש לבחור משתתף לפני יצירת סדרת מפגשים");
+        return;
+      }
+
+      let endDate = null;
+      let cap = Infinity;
+      if (sessionForm.recurEndType === 'date') {
+        if (!sessionForm.recurEndDate) { toast.error("יש לבחור תאריך סיום"); return; }
+        endDate = new Date(sessionForm.recurEndDate + 'T00:00:00');
+      } else if (sessionForm.recurEndType === 'count') {
+        cap = Math.max(0, Number(sessionForm.recurEndCount) || 0);
+        if (!cap) { toast.error("יש להזין מספר מפגשים"); return; }
+      } else if (sessionForm.recurEndType === 'package') {
+        const pkg = availableServices.find(s => s.id === sessionForm.service_id);
+        if (!pkg) {
+          toast.warning("לא נבחרה חבילה — לא נוצרו מפגשים חוזרים");
+          return;
+        }
+        cap = pkg.remaining_sessions != null
+          ? Number(pkg.remaining_sessions)
+          : Math.max(0, (Number(pkg.total_sessions) || 0) - (Number(pkg.used_sessions) || 0));
+        if (!cap) {
+          toast.warning("אין מפגשים נותרים בחבילה");
+          return;
+        }
+      }
+
+      const formatYYYYMMDD = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const startDate = new Date(sessionForm.date + 'T00:00:00');
+      const planned = [];
+      const cursor = new Date(startDate);
+      const MAX_ITER = 366 * 3; // safety bound (~3 years)
+      for (let i = 0; i < MAX_ITER; i++) {
+        if (endDate && cursor > endDate) break;
+        if (sessionForm.recurDays.includes(cursor.getDay())) {
+          planned.push(formatYYYYMMDD(cursor));
+          if (planned.length >= cap) break;
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      console.log('[SessionForm][recurring] planned dates:', planned);
+
+      if (planned.length === 0) {
+        toast.error("לא חושבו מפגשים — בדוק את הימים והתאריכים");
+        return;
+      }
+
+      setSaving(true);
+      try {
+        // Duplicate guard — fetch any existing sessions for this
+        // trainee+time on the planned dates so we skip rather than
+        // duplicate. Same-trainee + same-date + same-time is the
+        // intended uniqueness key here.
+        const { data: existing } = await supabase
+          .from('sessions')
+          .select('date, time')
+          .eq('trainee_id', traineeId)
+          .eq('time', sessionForm.time)
+          .in('date', planned);
+        const existingSet = new Set((existing || []).map(r => r.date));
+
+        const priceNumber = sessionForm.price === "" || sessionForm.price == null
+          ? null
+          : Number(sessionForm.price);
+        const seriesId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `series_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        const recurrence = {
+          days: sessionForm.recurDays,
+          time: sessionForm.time,
+          endType: sessionForm.recurEndType,
+          endValue: sessionForm.recurEndType === 'date'
+            ? sessionForm.recurEndDate
+            : (sessionForm.recurEndType === 'count' ? (Number(sessionForm.recurEndCount) || 0) : cap),
+        };
+
+        const baseRow = {
+          coach_id: currentCoach?.id || null,
+          trainee_id: traineeId,
+          time: sessionForm.time,
+          session_type: sessionForm.session_type,
+          location: sessionForm.location || 'לא צוין',
+          duration: sessionForm.duration || 60,
+          coach_notes: sessionForm.coach_notes || null,
+          coach_private_notes: sessionForm.coach_private_notes || null,
+          participants: sessionForm.participants || [],
+          price: Number.isFinite(priceNumber) && priceNumber > 0 ? priceNumber : null,
+          payment_status: Number.isFinite(priceNumber) && priceNumber > 0 ? 'unpaid' : null,
+          series_id: seriesId,
+          recurrence,
+        };
+        if (sessionForm.service_id) baseRow.service_id = sessionForm.service_id;
+
+        let created = 0;
+        let skipped = 0;
+        for (const d of planned) {
+          if (existingSet.has(d)) { skipped++; continue; }
+          try {
+            await base44.entities.Session.create({
+              ...baseRow,
+              date: d,
+              // Same default status string as the single-session path
+              // — generation MUST NOT change remaining_sessions; only
+              // the completion flow ever deducts.
+              status: isPastDate(d) ? 'הושלם' : 'ממתין לאישור',
+            });
+            created++;
+          } catch (err) {
+            console.warn('[SessionForm][recurring] insert failed for', d, err?.message);
+            skipped++;
+          }
+        }
+
+        console.log('[SessionForm][recurring] created:', created, 'skipped:', skipped);
+
+        queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+
+        toast.success(`נוצרו ${created} מפגשים, דולגו ${skipped}`);
+        clearDraft();
+        onClose();
+      } catch (error) {
+        console.error("[SessionForm][recurring] Save error:", error);
+        const msg = error?.message || error?.body?.message || "שגיאה לא צפויה";
+        toast.error("שגיאה ביצירת סדרת מפגשים: " + msg);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // === SINGLE-SESSION BRANCH (unchanged path) ===
     // Explicit field mapping — no blind spread
     const priceNumber = sessionForm.price === "" || sessionForm.price == null
       ? null
@@ -458,7 +628,16 @@ export default function SessionFormDialog({
           onClose();
         }
       }}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent
+          className="max-w-3xl"
+          // Lock the dialog to X-button / successful-save dismissal
+          // only — accidental backdrop taps or Esc would otherwise
+          // wipe a long form-in-progress before draft persistence
+          // can save it on the next keystroke.
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="text-xl md:text-2xl font-black mb-2" style={{ color: '#000000' }}>
               {editingSession ? '✏️ ערוך מפגש' : '➕ צור מפגש חדש'}
@@ -536,7 +715,7 @@ export default function SessionFormDialog({
           {/* Date Selection — Calendar picker */}
           <div>
             <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
-              תאריך
+              {sessionForm.recurring ? 'תאריך התחלה' : 'תאריך'}
             </Label>
             <Input
               type="date"
@@ -586,6 +765,172 @@ export default function SessionFormDialog({
               style={{ border: '2px solid #E0E0E0' }}
             />
           </div>
+
+          {/* Recurring series — create-only. Toggle off = identical
+              behavior to the existing single-session flow. Toggle on =
+              the existing date+time fields become the series start, and
+              handleSubmit branches into the bulk-insert path. */}
+          {!editingSession && (
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#FAFAFA', border: '1px solid #E8E0D8' }}>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-bold" style={{ color: '#000000', margin: 0 }}>
+                  🔁 מפגש חוזר
+                </Label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={sessionForm.recurring}
+                  onClick={() => setSessionForm({ ...sessionForm, recurring: !sessionForm.recurring })}
+                  style={{
+                    position: 'relative',
+                    width: '48px',
+                    height: '26px',
+                    borderRadius: '9999px',
+                    border: 'none',
+                    backgroundColor: sessionForm.recurring ? '#FF6F20' : '#E8E0D8',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s ease',
+                    padding: 0,
+                  }}
+                  aria-label="הפעל מפגש חוזר"
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '3px',
+                      left: sessionForm.recurring ? '25px' : '3px',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: '#FFFFFF',
+                      transition: 'left 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+                    }}
+                  />
+                </button>
+              </div>
+
+              {sessionForm.recurring && (
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Weekday chips — labels rendered right-to-left
+                      visually, mapping to JS getDay() 0..6. */}
+                  <div>
+                    <Label className="text-xs font-bold mb-2 block" style={{ color: '#555' }}>
+                      ימים בשבוע
+                    </Label>
+                    <div style={{ display: 'flex', gap: '6px', direction: 'rtl', flexWrap: 'wrap' }}>
+                      {['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'].map((label, idx) => {
+                        const dow = idx;
+                        const selected = sessionForm.recurDays.includes(dow);
+                        return (
+                          <button
+                            key={dow}
+                            type="button"
+                            onClick={() => {
+                              setSessionForm({
+                                ...sessionForm,
+                                recurDays: selected
+                                  ? sessionForm.recurDays.filter(d => d !== dow)
+                                  : [...sessionForm.recurDays, dow],
+                              });
+                            }}
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              fontWeight: 700,
+                              fontSize: '14px',
+                              cursor: 'pointer',
+                              backgroundColor: selected ? '#FF6F20' : '#FFFFFF',
+                              color: selected ? '#FFFFFF' : '#888',
+                              border: selected ? 'none' : '1px solid #E8E0D8',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* End condition — three mutually-exclusive modes. */}
+                  <div>
+                    <Label className="text-xs font-bold mb-2 block" style={{ color: '#555' }}>
+                      תנאי סיום
+                    </Label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '6px' }}>
+                      {[
+                        { key: 'date', label: 'עד תאריך' },
+                        { key: 'count', label: 'מספר מפגשים' },
+                        { key: 'package', label: 'עד שהחבילה נגמרת' },
+                      ].map(opt => {
+                        const selected = sessionForm.recurEndType === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setSessionForm({ ...sessionForm, recurEndType: opt.key })}
+                            style={{
+                              padding: '8px',
+                              borderRadius: '10px',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              backgroundColor: selected ? '#FF6F20' : '#FFFFFF',
+                              color: selected ? '#FFFFFF' : '#888',
+                              border: selected ? 'none' : '1px solid #E8E0D8',
+                              transition: 'all 0.15s ease',
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {sessionForm.recurEndType === 'date' && (
+                    <div>
+                      <Label className="text-xs font-bold mb-1 block" style={{ color: '#555' }}>
+                        תאריך סיום
+                      </Label>
+                      <Input
+                        type="date"
+                        value={sessionForm.recurEndDate}
+                        onChange={(e) => setSessionForm({ ...sessionForm, recurEndDate: e.target.value })}
+                        className="rounded-xl"
+                        style={{ border: '1px solid #E8E0D8' }}
+                      />
+                    </div>
+                  )}
+                  {sessionForm.recurEndType === 'count' && (
+                    <div>
+                      <Label className="text-xs font-bold mb-1 block" style={{ color: '#555' }}>
+                        מספר מפגשים
+                      </Label>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        value={sessionForm.recurEndCount}
+                        onChange={(e) => setSessionForm({ ...sessionForm, recurEndCount: Number(e.target.value) || 0 })}
+                        placeholder="למשל 12"
+                        className="rounded-xl"
+                        style={{ border: '1px solid #E8E0D8' }}
+                      />
+                    </div>
+                  )}
+                  {sessionForm.recurEndType === 'package' && (
+                    <p className="text-xs p-2 rounded-lg" style={{ color: '#FF6F20', backgroundColor: '#FFF8F3' }}>
+                      💡 ייווצרו מפגשים עד גמר המפגשים שנותרו בחבילה שתבחר למטה.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Session Type with Quick Buttons */}
           <div>
