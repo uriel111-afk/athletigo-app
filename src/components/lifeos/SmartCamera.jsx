@@ -25,6 +25,19 @@ import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 // already a public Storage object the next session can read directly.
 
 const UPLOAD_TIMEOUT_MS = 60000;
+const LOCK_RETRY_MAX = 3;
+const LOCK_RETRY_BACKOFF_MS = 500;
+
+// Module-level upload guard. The camera intent on Android Chrome can
+// race two pickers (e.g. an in-flight upload from a torn-down tree and
+// a fresh pick from the remounted tree). With this flag the second
+// pick is dropped instead of fighting the first one for an auth lock /
+// storing-the-newer-then-older URL. `uploadStartedAt` is a watchdog: if
+// the flag has been stuck true for > 90s we assume the old closure was
+// orphaned and let the next pick proceed anyway.
+let uploadInProgress = false;
+let uploadStartedAt = 0;
+const UPLOAD_GUARD_TIMEOUT_MS = 90_000;
 
 const withTimeout = (promise, ms, label) => Promise.race([
   promise,
@@ -33,6 +46,32 @@ const withTimeout = (promise, ms, label) => Promise.race([
     ms,
   )),
 ]);
+
+// True when the error came from Supabase's auth-js navigator.locks
+// path stealing a held lock — defensive across versions/casings since
+// the underlying API is third-party.
+function isLockBrokenError(err) {
+  const m = String(err?.message || '').toLowerCase();
+  return m.includes('lock broken') || m.includes("'steal'") || m.includes('steal option');
+}
+
+async function uploadToStorageWithRetry(blob) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= LOCK_RETRY_MAX; attempt++) {
+    try {
+      return await uploadToStorage(blob);
+    } catch (err) {
+      lastErr = err;
+      if (!isLockBrokenError(err) || attempt === LOCK_RETRY_MAX) throw err;
+      const wait = LOCK_RETRY_BACKOFF_MS * attempt;
+      pushDebugLog('SmartCamera', 'upload-lock-retry', {
+        attempt, waitMs: wait, error: err?.message || String(err),
+      });
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+}
 
 async function uploadToStorage(blob) {
   const PRIMARY_BUCKET = 'lifeos-files';
@@ -240,6 +279,33 @@ const SmartCamera = forwardRef(function SmartCamera(
     });
     if (!file) return;
 
+    // Module-level guard against parallel uploads. Watchdog releases
+    // the flag if it's been stuck longer than the timeout (orphaned
+    // closure from a destroyed Activity).
+    const elapsedSinceStart = Date.now() - uploadStartedAt;
+    if (uploadInProgress && elapsedSinceStart < UPLOAD_GUARD_TIMEOUT_MS) {
+      pushDebugLog('SmartCamera', 'upload-skipped-in-progress', {
+        source, elapsedMs: elapsedSinceStart,
+      });
+      alert('יש העלאה בתהליך — אנא המתן לסיומה ונסה שוב.');
+      return;
+    }
+    if (uploadInProgress) {
+      pushDebugLog('SmartCamera', 'upload-guard-watchdog-released', {
+        elapsedMs: elapsedSinceStart,
+      });
+    }
+    uploadInProgress = true;
+    uploadStartedAt = Date.now();
+
+    try {
+      await handleFileSelectInner(file, source);
+    } finally {
+      uploadInProgress = false;
+    }
+  };
+
+  const handleFileSelectInner = async (file, source) => {
     // Replacing a previous upload — delete the old object so we don't
     // leak orphan files in Storage. Fire-and-forget; the new upload
     // proceeds regardless.
@@ -306,7 +372,7 @@ const SmartCamera = forwardRef(function SmartCamera(
     });
     let result;
     try {
-      result = await uploadToStorage(compressedBlob);
+      result = await uploadToStorageWithRetry(compressedBlob);
     } catch (err) {
       setUploading(false);
       pushDebugLog('SmartCamera', 'uploadToStorage-throw', {
