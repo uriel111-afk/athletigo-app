@@ -1496,6 +1496,8 @@ export default function Onboarding() {
                 onClose={() => setShowHealthForm(false)}
                 trainee={{ id: userId, full_name: fullName, birth_date: birthDate }}
                 coachId={coachId}
+                isMinor={isMinor}
+                childName={fullName}
                 autoConfirmSession={false}
                 onSigned={async () => {
                   setHealthSigned(true);

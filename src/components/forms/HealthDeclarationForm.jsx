@@ -38,6 +38,11 @@ const QUESTIONS = [
   { key: 'feels_healthy',       label: 'האם אתה מרגיש בריא ומסוגל לבצע פעילות גופנית?', variant: 'consent' },
 ];
 
+// Same labels as the Onboarding emergency-contact chip group so the
+// guardian's relation is captured with consistent terminology across
+// the app. Kept local to avoid coupling this form to the page module.
+const RELATION_OPTIONS = ['הורה', 'אפוטרופוס', 'בן/בת זוג', 'אח/ות', 'חבר', 'אחר'];
+
 export default function HealthDeclarationForm({
   isOpen,
   onClose,
@@ -48,6 +53,10 @@ export default function HealthDeclarationForm({
                              // notification — caller will gate confirmation
                              // through a separate path (e.g. payment).
   onSigned,          // optional — fires after a successful save
+  isMinor = false,   // when true, declaration is signed by a parent/guardian
+                     // on the trainee's behalf — adds signer name + relation
+                     // fields and relabels the signature area.
+  childName = '',    // trainee's full name, displayed in the minor banner
 }) {
   const queryClient = useQueryClient();
   // Default per variant:
@@ -63,6 +72,9 @@ export default function HealthDeclarationForm({
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Guardian fields — only used / required when isMinor is true.
+  const [signerName, setSignerName] = useState('');
+  const [signerRelation, setSignerRelation] = useState('');
 
   // Reset form when reopened so a stale answer set doesn't carry over.
   useEffect(() => {
@@ -71,6 +83,8 @@ export default function HealthDeclarationForm({
     setAdditionalNotes('');
     setConfirmed(false);
     setHasSignature(false);
+    setSignerName('');
+    setSignerRelation('');
   }, [isOpen]);
 
   // ── Signature canvas ────────────────────────────────────────────
@@ -133,7 +147,10 @@ export default function HealthDeclarationForm({
   // The button below is also disabled visually so this is a
   // belt-and-suspenders gate.
   const feelsHealthy = answers.feels_healthy === true;
-  const canSubmit = confirmed && hasSignature && feelsHealthy && !saving;
+  // When isMinor, both guardian name AND relation must be filled in
+  // before submission is allowed — gating the canSubmit flag.
+  const guardianFieldsOk = !isMinor || (signerName.trim().length > 0 && !!signerRelation);
+  const canSubmit = confirmed && hasSignature && feelsHealthy && guardianFieldsOk && !saving;
 
   const focusFirstError = () => {
     const target = !confirmed
@@ -149,9 +166,11 @@ export default function HealthDeclarationForm({
     if (!canSubmit) {
       // feelsHealthy gate runs first — without it the trainee can't
       // submit at all, so it deserves the most explicit toast.
-      if (!feelsHealthy)      toast.error('יש לאשר שאתה מרגיש בריא ומסוגל לפעילות');
-      else if (!confirmed)    toast.error('נא לאשר את הצהרת הבריאות');
-      else if (!hasSignature) toast.error('נא לחתום בתיבת החתימה');
+      if (isMinor && !signerName.trim())      toast.error('יש למלא את שם ההורה / האפוטרופוס');
+      else if (isMinor && !signerRelation)    toast.error('יש לבחור קרבה של ההורה / האפוטרופוס');
+      else if (!feelsHealthy)                 toast.error('יש לאשר שאתה מרגיש בריא ומסוגל לפעילות');
+      else if (!confirmed)                    toast.error('נא לאשר את הצהרת הבריאות');
+      else if (!hasSignature)                 toast.error('נא לחתום בתיבת החתימה');
       focusFirstError();
       return;
     }
@@ -183,8 +202,16 @@ export default function HealthDeclarationForm({
         declaration_confirmed: true,
         signature_data: signatureDataUrl,
         signed_at: new Date().toISOString(),
+        is_minor: isMinor,
+        signer_name: isMinor ? signerName.trim() : null,
+        signer_relation: isMinor ? signerRelation : null,
       };
-      console.log('[HealthDec] inserting declaration with keys:', Object.keys(payload));
+      // Truncate signature_data in the log so the data URL doesn't drown
+      // the console; the rest of the payload is logged in full.
+      console.log('[HealthDec] inserting declaration payload:', {
+        ...payload,
+        signature_data: `<data-url len=${signatureDataUrl.length}>`,
+      });
       const { data: inserted, error } = await supabase
         .from('health_declarations')
         .insert(payload)
@@ -194,7 +221,7 @@ export default function HealthDeclarationForm({
         console.error('[HealthDec] declaration insert failed:', error.message);
         throw error;
       }
-      console.log('[HealthDec] declaration saved OK, id:', inserted?.id);
+      console.log('[HealthDec] declaration saved, returned row:', inserted);
 
       // Fast-check flag on users — TraineeHome's auto-open gate reads
       // this column instead of a fresh health_declarations query so
@@ -608,6 +635,61 @@ export default function HealthDeclarationForm({
               </span>
             </label>
 
+            {/* Guardian block — rendered only when the trainee is a minor.
+                Captures the signer's name + relation so the eventual
+                signature is legally attributable to the parent/guardian
+                rather than the child. The signature card below relabels
+                its heading to make the same point visually. */}
+            {isMinor && (
+              <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+                <div style={{
+                  background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 12,
+                  fontSize: 12, color: '#E65100', lineHeight: 1.5,
+                }}>
+                  ⚠️ מאחר שהמתאמן{childName ? ` (${childName})` : ''} קטין, ההצהרה נחתמת על ידי ההורה או האפוטרופוס.
+                </div>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם ההורה / האפוטרופוס החותם *</div>
+                <input
+                  value={signerName}
+                  onChange={(e) => setSignerName(e.target.value)}
+                  placeholder="שם מלא"
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 10,
+                    border: '1px solid #E5E7EB', background: '#FFFFFF',
+                    fontSize: 14, color: '#1A1A1A', outline: 'none',
+                    boxSizing: 'border-box', textAlign: 'right', direction: 'rtl',
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                  }}
+                />
+                <div style={{ fontSize: 13, color: '#888', marginTop: 12, marginBottom: 6 }}>קרבה *</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, direction: 'rtl' }}>
+                  {RELATION_OPTIONS.map((r) => {
+                    const active = signerRelation === r;
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setSignerRelation(active ? '' : r)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: 999,
+                          fontSize: 13,
+                          fontWeight: active ? 700 : 500,
+                          background: active ? '#FF6F20' : '#FFFFFF',
+                          color: active ? '#FFFFFF' : '#888888',
+                          border: active ? '1px solid #FF6F20' : '1px solid #E8E0D8',
+                          cursor: 'pointer',
+                          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                        }}
+                      >
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Signature */}
             <div
               ref={signatureBoxRef}
@@ -615,7 +697,9 @@ export default function HealthDeclarationForm({
               style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>חתימה</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
+                  {isMinor ? 'חתימת ההורה / האפוטרופוס' : 'חתימה'}
+                </div>
                 <button
                   type="button"
                   onClick={clearSignature}
