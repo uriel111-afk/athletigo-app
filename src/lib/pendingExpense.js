@@ -16,7 +16,8 @@
 // that was persisted automatically on first render — not worth
 // auto-reopening for.
 
-import { loadPendingBlob, clearPendingBlob } from './blobStorage';
+import { loadPendingBlob } from './blobStorage';
+import { pushDebugLog } from './debugLog';
 
 const DRAFT_KEY = (userId) => `expense-form-draft-${userId || 'anon'}`;
 
@@ -28,27 +29,47 @@ function hasMeaningfulDraft(draft) {
 }
 
 export async function detectPendingExpense(userId) {
-  if (!userId) return { shouldReopen: false, hasBlob: false };
+  if (!userId) {
+    pushDebugLog('pendingExpense', 'detect-skip-no-userid');
+    return { shouldReopen: false, hasBlob: false };
+  }
   try {
     const persisted = await loadPendingBlob();
     let draft = null;
+    let rawDraft = null;
     try {
-      const raw = sessionStorage.getItem(DRAFT_KEY(userId));
-      draft = raw ? JSON.parse(raw) : null;
+      rawDraft = sessionStorage.getItem(DRAFT_KEY(userId));
+      draft = rawDraft ? JSON.parse(rawDraft) : null;
     } catch {}
     const draftOk = hasMeaningfulDraft(draft);
     const hasBlob = !!persisted?.blob;
+    pushDebugLog('pendingExpense', 'detect-state', {
+      hasRawDraft: !!rawDraft,
+      amount: draft?.amount || null,
+      category: draft?.category || null,
+      hasDescription: !!(draft?.description && String(draft.description).trim()),
+      hasSubcategory: !!(draft?.subcategory && String(draft.subcategory).trim()),
+      draftOk,
+      hasBlob,
+      blobSize: persisted?.blob?.size,
+      blobAgeMs: persisted?.savedAt ? Date.now() - persisted.savedAt : null,
+    });
 
-    // Orphan blob (no meaningful text fields, but a photo lingers) —
-    // clean it up so the next detection cycle doesn't try to restore
-    // a photo into a fresh empty form.
-    if (!draftOk && hasBlob) {
-      try { await clearPendingBlob(); } catch {}
-    }
-
-    return { shouldReopen: draftOk, hasBlob };
+    // CHANGED 2026-06-02 (Oriel): previously, when there was a blob but
+    // no meaningful draft, we would clearPendingBlob() to avoid restoring
+    // a photo into a fresh empty form. That logic killed the gallery
+    // flow on Android Chrome: the file-picker intent destroys the
+    // WebView mid-pick, the page reloads BEFORE the user has typed an
+    // amount/category, detectPendingExpense runs, finds an orphan blob,
+    // and deletes it. The photo is then permanently lost — even though
+    // the user clearly picked one. New behavior: reopen the form when
+    // EITHER the draft is meaningful OR a recent blob exists, so
+    // SmartCamera's mount-restore effect can rehydrate the preview from
+    // IDB and let the user finish the entry. Stale blobs are still
+    // bounded by the 30-minute TTL in blobStorage.js.
+    return { shouldReopen: draftOk || hasBlob, hasBlob };
   } catch (err) {
-    console.warn('[pendingExpense] detect failed:', err);
+    pushDebugLog('pendingExpense', 'detect-error', { error: err?.message || String(err) });
     return { shouldReopen: false, hasBlob: false };
   }
 }

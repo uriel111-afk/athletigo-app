@@ -145,6 +145,14 @@ const SmartCamera = forwardRef(function SmartCamera(
   const [sizeBefore, setSizeBefore] = useState(null);
   const [sizeAfter, setSizeAfter] = useState(null);
 
+  // Mount/unmount marker — separate from the IDB-restore effect so we
+  // can detect races where SmartCamera unmounts (e.g. dialog closes
+  // briefly) before the async IDB load resolves.
+  useEffect(() => {
+    pushDebugLog('SmartCamera', 'mount', { deferredUpload: !!deferredUpload });
+    return () => { pushDebugLog('SmartCamera', 'unmount'); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Restore a persisted blob (if any) from IndexedDB on mount. This is
   // the recovery side of the savePendingBlob call inside
   // handleFileSelect: if the Activity/WebView was destroyed during
@@ -154,10 +162,17 @@ const SmartCamera = forwardRef(function SmartCamera(
     let cancelled = false;
     (async () => {
       const persisted = await loadPendingBlob();
-      if (cancelled || !persisted?.blob) {
-        if (persisted) {
-          pushDebugLog('SmartCamera', 'idb-load-stale-or-empty');
-        }
+      if (cancelled) {
+        // Unmounted while IDB load was in flight. The blob may or may
+        // not have existed — what matters is the consumer is gone.
+        pushDebugLog('SmartCamera', 'idb-load-cancelled', {
+          hadBlob: !!persisted?.blob,
+          size: persisted?.blob?.size,
+        });
+        return;
+      }
+      if (!persisted?.blob) {
+        if (persisted) pushDebugLog('SmartCamera', 'idb-load-stale-or-empty');
         return;
       }
       pushDebugLog('SmartCamera', 'idb-restored', {
