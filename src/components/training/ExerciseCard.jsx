@@ -256,36 +256,35 @@ function parseTabataData(raw) {
 // editor reuses the same JSONB shape, just with `container_type =
 // 'superset'`/'combo'/'list').
 function getVariant(exercise) {
-  // New-method dispatch — runs BEFORE legacy branches so the
-  // pyramid/drop_set/rest_pause/circuit/delorme renderers can own
-  // their own closed-card and open-card layouts without falling
-  // through to the existing 'tabata'/'list'/'normal' paths.
-  const _method = getMethodByMode(exercise?.mode);
-  if (_method && ['pyramid','drop_set','rest_pause','circuit','delorme']
-      .includes(_method.english_id)) {
-    return _method.english_id;
-  }
-  // NONE (mode null / '') and REPS ('חזרות') with planned_sets ride
-  // the same renderer as PYRAMID. Legacy rows without planned_sets
-  // continue to fall through to 'normal' below.
+  // Phase 6 — mode-first dispatch. If the row's `mode` resolves to a
+  // known method we return its variant unconditionally, regardless of
+  // whether tabata_data is populated. This guarantees that a freshly
+  // created exercise (mode set, no planned_sets / rounds / stations yet)
+  // routes to its correct dispatcher and surfaces an empty-state
+  // placeholder instead of falling through to 'normal' with a blank body.
+  // Null/empty mode → NONE (ללא שיטה) regardless of data presence.
   if (exercise?.mode == null || exercise?.mode === '') {
-    const td = parseTabataData(exercise?.tabata_data);
-    if (Array.isArray(td?.planned_sets)) return 'none';
-  } else if (exercise?.mode === 'חזרות') {
-    const td = parseTabataData(exercise?.tabata_data);
-    if (Array.isArray(td?.planned_sets)) return 'reps_new';
+    return 'none';
   }
-  // SUPERSET / COMBO with rounds[] route to the new rounds-based
-  // renderer. Legacy rows without a rounds array fall through to the
-  // existing 'list' variant so they keep working.
-  if (exercise.mode === 'סופרסט' || exercise.mode === 'קומבו') {
-    const td = parseTabataData(exercise?.tabata_data);
-    if (Array.isArray(td?.rounds) && td.rounds.length > 0) {
-      return exercise.mode === 'קומבו' ? 'combo' : 'super_set';
-    }
+  // getMethodByMode falls back to REPS when the mode string doesn't
+  // match a known method; the `methodInfo.mode === exercise.mode`
+  // guard keeps unknown modes flowing into the legacy container
+  // detection below instead of being silently coerced to 'reps_new'.
+  const methodInfo = getMethodByMode(exercise.mode);
+  if (methodInfo && methodInfo.mode === exercise.mode) {
+    const englishId = methodInfo.english_id;
+    if (englishId === 'pyramid')       return 'pyramid';
+    if (englishId === 'drop_set')      return 'drop_set';
+    if (englishId === 'rest_pause')    return 'rest_pause';
+    if (englishId === 'circuit')       return 'circuit';
+    if (englishId === 'delorme')       return 'delorme';
+    if (englishId === 'reps')          return 'reps_new';
+    if (englishId === 'tabata')        return 'tabata';
+    if (englishId === 'super_set')     return 'super_set';
+    if (englishId === 'combo')         return 'combo';
+    if (englishId === 'exercise_list') return 'list';
+    if (englishId === 'none')          return 'none';
   }
-  if (exercise.mode === 'טבטה') return 'tabata';
-  if (['סופרסט', 'קומבו', 'רשימה'].includes(exercise.mode)) return 'list';
   // Fallback — the row's mode is missing or a custom string but
   // tabata_data carries real sub-exercises. Treat it as a container
   // (clock+subs+toggles layout) instead of falling through to the
@@ -795,6 +794,31 @@ function buildClosedPreview(exercise, variant) {
   return items.join(' · ');
 }
 
+// Phase 6 — shared empty-state placeholder for every method dispatcher.
+// Fires when the data array that the dispatcher renders (planned_sets /
+// rounds / stations / mini-sets / rotation) is empty, so a freshly
+// created exercise surfaces a clear "edit me via ⚙️" cue instead of a
+// blank open card. Branded chrome matches BRAND.panelBg / panelBorder.
+function EmptyMethodPlaceholder({ headline }) {
+  return (
+    <div dir="rtl" style={{
+      background: BRAND.panelBg,
+      border: `1px solid ${BRAND.panelBorder}`,
+      borderRadius: 10,
+      padding: '14px 12px',
+      textAlign: 'center',
+      marginBottom: 8,
+    }}>
+      <div style={{ fontSize: 12, color: BRAND.tagText, fontWeight: 700, lineHeight: 1.5 }}>
+        {headline}
+      </div>
+      <div style={{ fontSize: 10, color: BRAND.textMuted, marginTop: 4, fontWeight: 500 }}>
+        לעריכה לחץ על האייקון ⚙️
+      </div>
+    </div>
+  );
+}
+
 function TempoBreakdown({ tempo }) {
   if (tempo == null || String(tempo).trim() === '') return null;
   const digits = parseTempo(tempo);
@@ -1287,6 +1311,10 @@ export default function ExerciseCard({
     if (!methodMeta) return null;
     const plannedSets = parsePlannedSets(exercise);
     if (plannedSets.length === 0) {
+      // Phase 6 — for variant='none' (mode null/empty) we surface the
+      // "ללא שיטה" tag so the closed card carries a method indicator
+      // even before sets are defined. Other variants keep their label.
+      const emptyLabel = variant === 'none' ? 'ללא שיטה' : methodMeta.label;
       return (
         <div dir="rtl" style={{
           marginTop: 5,
@@ -1294,7 +1322,7 @@ export default function ExerciseCard({
           color: '#9CA3AF',
           fontWeight: 500,
         }}>
-          {methodMeta.label} · ללא סטים מוגדרים
+          {emptyLabel} · ללא סטים מוגדרים
         </div>
       );
     }
@@ -1326,6 +1354,10 @@ export default function ExerciseCard({
       color: '#6B7280',
       fontWeight: 600,
     };
+    // Phase 6 — variant='none' (mode is null/empty) now surfaces a
+    // "ללא שיטה" chip instead of hiding the tag entirely, so the closed
+    // card always tells the user which method drives the row.
+    const tagLabel = methodMeta.closedLabel || (variant === 'none' ? 'ללא שיטה' : null);
     return (
       <div dir="rtl" style={{
         marginTop: 5,
@@ -1339,7 +1371,7 @@ export default function ExerciseCard({
         <span style={{ color: '#D1D5DB' }}>·</span>
         <span style={numStyle}>{progressionString}</span>
         <span style={wordStyle}>{unitLabelText}</span>
-        {methodMeta.closedLabel && (
+        {tagLabel && (
           <>
             <span style={{ color: '#D1D5DB' }}>·</span>
             <span style={{
@@ -1351,7 +1383,7 @@ export default function ExerciseCard({
               padding: '2px 8px',
               borderRadius: 999,
             }}>
-              {methodMeta.closedLabel}
+              {tagLabel}
             </span>
           </>
         )}
@@ -2180,17 +2212,7 @@ export default function ExerciseCard({
               const outerBorderWidth = groupMode ? 2.5 : 2;
 
               if (stations.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין תחנות מוגדרות
-                  </div>
-                );
+                return <EmptyMethodPlaceholder headline="טרם הוגדרו תחנות" />;
               }
 
               const setFields = getSetFields(exercise);
@@ -2497,18 +2519,9 @@ export default function ExerciseCard({
               // differentiate them.
               const td = parseTabataData(exercise?.tabata_data) || {};
               const rounds = Array.isArray(td.rounds) ? td.rounds : [];
-              if (rounds.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין סבבים מוגדרים
-                  </div>
-                );
+              const subExercises = Array.isArray(td.sub_exercises) ? td.sub_exercises : [];
+              if (rounds.length === 0 && subExercises.length === 0) {
+                return <EmptyMethodPlaceholder headline="טרם הוגדרו סבבים" />;
               }
 
               const setFields = getSetFields(exercise);
@@ -2803,17 +2816,7 @@ export default function ExerciseCard({
               const restSeconds = methodConfig.rest_seconds ?? 15;
 
               if (plannedSets.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    רסט פאוז · אין מיני-סטים מוגדרים
-                  </div>
-                );
+                return <EmptyMethodPlaceholder headline="טרם הוגדרו מיני-סטים" />;
               }
 
               const setFields = getSetFields(exercise);
@@ -3114,17 +3117,7 @@ export default function ExerciseCard({
               const methodMeta = PLANNED_SETS_METHODS[variant];
               const plannedSets = parsePlannedSets(exercise);
               if (plannedSets.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין סטים מוגדרים
-                  </div>
-                );
+                return <EmptyMethodPlaceholder headline="טרם הוגדרו סטים" />;
               }
 
               const setFields = getSetFields(exercise);
@@ -3271,17 +3264,7 @@ export default function ExerciseCard({
               const methodMeta = PLANNED_SETS_METHODS[variant];
               const plannedSets = parsePlannedSets(exercise);
               if (plannedSets.length === 0) {
-                return (
-                  <div dir="rtl" style={{
-                    padding: '12px',
-                    fontSize: 12,
-                    color: '#9CA3AF',
-                    fontWeight: 500,
-                    textAlign: 'center',
-                  }}>
-                    {methodMeta.label} · אין סטים מוגדרים
-                  </div>
-                );
+                return <EmptyMethodPlaceholder headline="טרם הוגדרו סטים" />;
               }
               const setFields = getSetFields(exercise);
               const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
@@ -3620,6 +3603,9 @@ export default function ExerciseCard({
             {expanded && variant === 'tabata' && hasNewTabataShape(exercise) && (() => {
               const cs = resolveTabataClockSettings(exercise);
               const rotation = resolveTabataRotation(exercise);
+              if (rotation.length === 0) {
+                return <EmptyMethodPlaceholder headline="טרם הוגדרה רוטציה" />;
+              }
               // Phase 3 — palette via shared BRAND tokens.
               // 2x2 clock grid: drops rest_between_sets per phase-2c
               // spec; that value still feeds the coach summary line +
