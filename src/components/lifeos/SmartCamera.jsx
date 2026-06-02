@@ -2,6 +2,7 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } f
 import { Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
+import { pushDebugLog } from '@/lib/debugLog';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
 // Simple receipt picker: camera button + gallery button → compress →
@@ -144,11 +145,22 @@ const SmartCamera = forwardRef(function SmartCamera(
     setBusy(true);
     setBusyLabel('דוחס תמונה...');
 
+    pushDebugLog('SmartCamera', 'before-compressImage', {
+      fileSize: file.size,
+      fileType: file.type,
+      fileName: file.name,
+      lastModified: file.lastModified,
+    });
+
     let compressedBlob;
     try {
       compressedBlob = await compressImage(file);
     } catch (err) {
       setBusy(false);
+      pushDebugLog('SmartCamera', 'compressImage-throw', {
+        errorMessage: err?.message || String(err),
+        stack: String(err?.stack || '').split('\n').slice(0, 3).join(' | '),
+      });
       const msg = err?.message || 'שגיאה לא ידועה';
       const isHeic = String(msg).startsWith('HEIC_NOT_SUPPORTED');
       alert(isHeic
@@ -156,6 +168,18 @@ const SmartCamera = forwardRef(function SmartCamera(
         : 'דחיסת תמונה נכשלה: ' + msg);
       return;
     }
+
+    pushDebugLog('SmartCamera', 'compressImage-result', {
+      hasBlob: !!compressedBlob,
+      blobSize: compressedBlob?.size,
+      blobType: compressedBlob?.type,
+      ratio: file.size ? `${((compressedBlob?.size || 0) / file.size * 100).toFixed(0)}%` : 'n/a',
+      twoPass: !!compressedBlob?.twoPass,
+      // If the "compressed" blob is bigger than (or equal to) the
+      // input, something is wrong — either canvas re-encoded poorly
+      // or we accidentally returned the original.
+      suspiciousNoCompression: !!(compressedBlob?.size && file.size && compressedBlob.size >= file.size),
+    });
 
     let blobPreviewUrl = null;
     try {
