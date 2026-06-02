@@ -809,8 +809,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
   const createExerciseMutation = useMutation({
     mutationFn: (data) => base44.entities.Exercise.create(prepareExerciseData(data)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['exercises', plan.id] });
+    onSuccess: async () => {
+      // Phase 6 — `invalidateQueries` only marks the cache stale; the
+      // dialog used to close (and the success toast fire) before the
+      // refetch resolved, so the new exercise appeared "missing" until
+      // a manual refresh. `refetchQueries` awaits the fresh fetch, so
+      // by the time we close the dialog the list already includes the
+      // new row.
+      await queryClient.refetchQueries({ queryKey: ['exercises', plan.id] });
       setShowExerciseDialog(false);
       toast.success("✅ תרגיל נוסף");
     },

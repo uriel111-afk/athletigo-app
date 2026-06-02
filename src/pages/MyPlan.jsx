@@ -185,8 +185,13 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
 };
 
 function MyPlanInner() {
-  const [searchParams] = useSearchParams();
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Phase 6 — selected plan persists in the URL via `?plan=<id>` so a
+  // page refresh (or back-from-modal) restores the open plan instead
+  // of dropping the trainee back to the list. The raw state setter is
+  // wrapped (see `setSelectedPlan` below) so every call site keeps
+  // the URL in sync without changes.
+  const [selectedPlan, setSelectedPlanState] = useState(null);
   const [selectedSeries, setSelectedSeries] = useState(null); // For drilling down
   const [showCreatePlan, setShowCreatePlan] = useState(false);
   const [activeTab, setActiveTab] = useState("coach");
@@ -272,6 +277,33 @@ function MyPlanInner() {
     enabled: !!user && !isCoach,
     initialData: []
   });
+
+  // Phase 6 — restore `selectedPlan` from `?plan=<id>` when the plans
+  // list lands (or the URL changes). Skips work when the state is
+  // already in sync; clears state when the param is removed.
+  useEffect(() => {
+    const planIdFromUrl = searchParams.get('plan');
+    if (!planIdFromUrl) {
+      if (selectedPlan !== null) setSelectedPlanState(null);
+      return;
+    }
+    if (selectedPlan?.id === planIdFromUrl) return;
+    if (!Array.isArray(allPlans) || allPlans.length === 0) return;
+    const found = allPlans.find(p => p.id === planIdFromUrl);
+    if (found) setSelectedPlanState(found);
+  }, [searchParams, allPlans, selectedPlan]);
+
+  // Wrapper keeps the URL in sync with selection. All existing call
+  // sites (`setSelectedPlan(plan)` / `setSelectedPlan(null)`) flow
+  // through here so refresh + back navigation behave correctly.
+  const setSelectedPlan = (planOrNull) => {
+    setSelectedPlanState(planOrNull);
+    if (planOrNull?.id) {
+      setSearchParams({ plan: planOrNull.id });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   const { data: allSeries = [], isLoading: seriesLoading } = useQuery({
     queryKey: ['program-series', user?.id],
