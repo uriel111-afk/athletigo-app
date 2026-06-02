@@ -6,6 +6,7 @@ import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageLoader from "@/components/PageLoader";
 import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import { toast } from "sonner";
+import { NOTIFICATION_TYPES, isEnabled } from "@/lib/notify";
 
 // Permissions enable the trainee to ACT (not just view): fill forms,
 // submit data, sign documents. When OFF, the related tab/button is
@@ -67,6 +68,11 @@ export default function CoachProfile() {
   const [notifMessage, setNotifMessage] = useState("");
   const [sending, setSending] = useState(false);
 
+  // Notification preferences — { type: boolean }, missing keys fall back
+  // to NOTIFICATION_TYPES[type].recommended (see lib/notify.isEnabled).
+  const [notifPrefs, setNotifPrefs] = useState({});
+  const [savingPrefs, setSavingPrefs] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -111,6 +117,51 @@ export default function CoachProfile() {
   }, [user?.id]);
 
   useEffect(() => { fetchTraineesAndPerms(); }, [fetchTraineesAndPerms]);
+
+  // Load this coach's saved notification preferences. Missing types
+  // fall back to NOTIFICATION_TYPES[type].recommended at render time
+  // so the UI always reflects the effective state.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("notification_prefs")
+          .eq("id", user.id)
+          .single();
+        if (cancelled) return;
+        if (error) { console.warn("[CoachProfile] notif_prefs fetch:", error.message); return; }
+        setNotifPrefs(data?.notification_prefs || {});
+      } catch (e) {
+        console.warn("[CoachProfile] notif_prefs exception:", e?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const toggleNotifPref = (type) => {
+    setNotifPrefs(prev => ({ ...prev, [type]: !isEnabled(type, prev) }));
+  };
+
+  const saveNotifPrefs = async () => {
+    if (!user?.id) return;
+    setSavingPrefs(true);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({ notification_prefs: notifPrefs })
+        .eq("id", user.id);
+      if (error) {
+        toast.error("שגיאה: " + error.message + (error.code === "42703" ? " (יש להריץ ALTER TABLE)" : ""));
+        return;
+      }
+      toast.success("העדפות התראות נשמרו ✓");
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
 
   // Hero stats — fetched in parallel, never blocks render
   useEffect(() => {
@@ -432,6 +483,92 @@ export default function CoachProfile() {
             <span style={{ color: "#ccc", fontSize: 14 }}>←</span>
           </div>
         </div>
+
+        {/* Notification preferences */}
+        {(() => {
+          const grouped = Object.entries(NOTIFICATION_TYPES).reduce((acc, [type, def]) => {
+            (acc[def.category] = acc[def.category] || []).push({ type, ...def });
+            return acc;
+          }, {});
+          // Order: non-noise categories in their natural order, "רעש" last.
+          const categoryOrder = Object.keys(grouped).filter(c => c !== 'רעש').concat(grouped['רעש'] ? ['רעש'] : []);
+          return (
+            <div style={{
+              margin: "0 12px 12px", background: "white",
+              borderRadius: 16, padding: 14,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+              fontFamily: "'Barlow', system-ui, -apple-system, sans-serif",
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>🔔 הגדרות התראות</div>
+              <div style={{ fontSize: 11, color: "#888", marginBottom: 12 }}>
+                סוג כבוי = לא נוצר במסד ולא קופץ
+              </div>
+
+              {categoryOrder.map(cat => (
+                <div key={cat} style={{ marginBottom: 10 }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 700, color: "#FF6F20",
+                    marginBottom: 6, paddingRight: 2,
+                  }}>
+                    {cat === 'רעש' ? 'מומלץ לכבות' : cat}
+                  </div>
+                  {grouped[cat].map(item => {
+                    const enabled = isEnabled(item.type, notifPrefs);
+                    return (
+                      <div key={item.type}
+                        onClick={() => toggleNotifPref(item.type)}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: 10, background: "#FFF9F0", borderRadius: 12,
+                          marginBottom: 6, cursor: "pointer",
+                          border: "0.5px solid #F0E4D0",
+                        }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: "#1a1a1a" }}>{item.label}</div>
+                          <div style={{
+                            fontSize: 10, marginTop: 2,
+                            color: item.recommended ? "#16a34a" : "#dc2626",
+                            fontWeight: 600,
+                          }}>
+                            {item.recommended ? "מומלץ: מופעל" : "מומלץ: כבוי"}
+                          </div>
+                        </div>
+                        <div style={{
+                          width: 40, height: 22, borderRadius: 11,
+                          background: enabled ? "#16a34a" : "#E8E0D8",
+                          position: "relative", transition: "background 0.2s",
+                          flexShrink: 0,
+                        }}>
+                          <div style={{
+                            width: 18, height: 18, borderRadius: "50%",
+                            background: "white", position: "absolute", top: 2,
+                            right: enabled ? 2 : "unset",
+                            left: enabled ? "unset" : 2,
+                            transition: "right 0.2s, left 0.2s",
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+
+              <button
+                onClick={saveNotifPrefs}
+                disabled={savingPrefs}
+                style={{
+                  width: "100%", padding: 12, borderRadius: 12,
+                  border: "none", background: "#FF6F20", color: "white",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  marginTop: 6,
+                  opacity: savingPrefs ? 0.6 : 1,
+                  fontFamily: "'Barlow', system-ui, -apple-system, sans-serif",
+                }}>
+                {savingPrefs ? "שומר..." : "שמור העדפות"}
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Logout */}
         <div style={{ margin: "0 12px 12px" }}>

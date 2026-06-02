@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { createNotification as createNotificationFiltered } from '@/lib/notify';
 
 // Helper — silently swallow notification errors so they never break the main flow
 async function createNotification(payload) {
@@ -167,20 +168,20 @@ export async function notifyNewBaseline({ coachId, traineeId, traineeName }) {
 }
 
 export async function notifyExerciseCompleted({ coachId, traineeName, traineeId, exerciseName }) {
-  await createNotification({
-    user_id: coachId,
+  await createNotificationFiltered({
+    userId: coachId,
     type: 'exercise_completed',
-    title: 'תרגיל הושלם',
     message: `${traineeName} השלים את התרגיל: ${exerciseName}`,
+    traineeId: traineeId || null,
   });
 }
 
 export async function notifyMetricsUpdated({ coachId, traineeName, traineeId }) {
-  await createNotification({
-    user_id: coachId,
+  await createNotificationFiltered({
+    userId: coachId,
     type: 'metrics_updated',
-    title: 'מדידות עודכנו',
     message: `${traineeName} עדכן מדידות גוף`,
+    traineeId: traineeId || null,
   });
 }
 

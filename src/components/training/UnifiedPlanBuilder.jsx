@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
+import { createNotification } from "@/lib/notify";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2478,12 +2479,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                           try { await saveWorkoutHistory(true); } catch (e) { console.warn(e); }
                           if (plan.created_by) {
                             try {
-                              await base44.entities.Notification.create({
-                                user_id: plan.created_by,
+                              await createNotification({
+                                userId: plan.created_by,
                                 type: 'workout_completion',
-                                title: 'אימון הושלם בהצלחה! 🏆',
                                 message: `המתאמן ${plan.assigned_to_name || 'המתאמן'} השלים את אימון "${plan.plan_name}"`,
-                                is_read: false,
                               });
                             } catch (e) { console.error(e); }
                           }

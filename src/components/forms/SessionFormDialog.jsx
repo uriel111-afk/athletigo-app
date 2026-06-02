@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { supabase } from "@/lib/supabaseClient";
+import { createNotification } from "@/lib/notify";
 import SessionStatusPicker from "@/components/sessions/SessionStatusPicker";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
@@ -506,12 +507,10 @@ export default function SessionFormDialog({
                         const dateLabel = editingSession.date
                           ? new Date(editingSession.date).toLocaleDateString('he-IL')
                           : '';
-                        await supabase.from('notifications').insert({
-                          user_id: editingSession.trainee_id,
+                        await createNotification({
+                          userId: editingSession.trainee_id,
                           type: 'session_status_changed',
-                          title: '📅 סטטוס המפגש שונה',
                           message: `הסטטוס של המפגש ב-${dateLabel} שונה ל-${newStatus}`,
-                          is_read: false,
                         });
                       } catch (e) {
                         console.warn('[SessionForm] status-change notif failed:', e?.message);

@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
+import { createNotification } from "@/lib/notify";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useSessionStats } from "../components/hooks/useSessionStats";
@@ -476,12 +477,10 @@ export default function Sessions() {
         const dateLabel = session.date
           ? new Date(session.date).toLocaleDateString('he-IL')
           : '';
-        await supabase.from('notifications').insert({
-          user_id: session.trainee_id,
+        await createNotification({
+          userId: session.trainee_id,
           type: 'session_status_changed',
-          title: '📅 סטטוס המפגש שונה',
           message: `הסטטוס של המפגש ב-${dateLabel} שונה ל-${newStatus}`,
-          is_read: false,
         });
       } catch (e) {
         console.warn('[Sessions] status-change trainee notif failed:', e?.message);
@@ -698,22 +697,16 @@ export default function Sessions() {
             // Send low-package notifications
             if (isNowAttended && totalSessions > 0) {
               if (remaining === 2) {
-                base44.entities.Notification.create({
-                  user_id: traineeId,
-                  title: "⚠️ נותרו 2 אימונים בחבילה",
-                  message: `נותרו לך עוד 2 אימונים בחבילה "${personalService.service_type}". פנה למאמן לחידוש.`,
+                createNotification({
+                  userId: traineeId,
                   type: 'subscription',
-                  is_read: false,
-                  requires_acknowledgment: false,
+                  message: `נותרו לך עוד 2 אימונים בחבילה "${personalService.service_type}". פנה למאמן לחידוש.`,
                 }).catch(console.error);
               } else if (remaining <= 0) {
-                base44.entities.Notification.create({
-                  user_id: traineeId,
-                  title: "🔴 החבילה נגמרה",
-                  message: `החבילה "${personalService.service_type}" נוצלה במלואה. פנה למאמן לחידוש.`,
+                createNotification({
+                  userId: traineeId,
                   type: 'subscription',
-                  is_read: false,
-                  requires_acknowledgment: true,
+                  message: `החבילה "${personalService.service_type}" נוצלה במלואה. פנה למאמן לחידוש.`,
                 }).catch(console.error);
               }
             }
