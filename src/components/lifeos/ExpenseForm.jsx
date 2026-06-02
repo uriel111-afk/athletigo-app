@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -61,6 +61,14 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // addExpense with an empty receipt_url before the upload's
   // onUploaded callback has had a chance to populate the form.
   const [cameraBusy, setCameraBusy] = useState(false);
+  // Guards the reset useEffect against re-running while the dialog
+  // is still open. The reset's deps include userId/expense?.id, and
+  // a stray change to either (AuthContext refresh, parent re-render
+  // with a fresh expense reference) would otherwise blow away the
+  // form mid-flow — including the receipt_url just populated by an
+  // in-flight upload's onUploaded callback. Reset to false on close
+  // so the next open re-initializes from row / draft.
+  const initializedForOpenRef = useRef(false);
 
   // Diagnostic: log mount + unmount to a localStorage-backed rolling
   // log (survives iOS PWA WebView reload, unlike the console).
@@ -87,10 +95,25 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // any IndexedDB round-trip.
   useEffect(() => {
     pushDebugLog('ExpenseForm', 'reset-effect-trigger', {
-      isOpen, expenseId: expense?.id || null, userId: userId || null,
+      isOpen,
+      expenseId: expense?.id || null,
+      userId: userId || null,
+      alreadyInitialized: initializedForOpenRef.current,
     });
-    if (!isOpen) return;
+    if (!isOpen) {
+      initializedForOpenRef.current = false;
+      return;
+    }
+    if (initializedForOpenRef.current) {
+      // Form was already initialized for this open session. A stray
+      // userId / expense change while the dialog is open must NOT
+      // wipe out user-typed fields or an in-flight upload's URL.
+      pushDebugLog('ExpenseForm', 'reset-effect-skipped-already-initialized');
+      return;
+    }
+    initializedForOpenRef.current = true;
     if (expense) {
+      pushDebugLog('ExpenseForm', 'reset-effect-applies', { mode: 'edit-row' });
       setForm(formFromRow(expense));
     } else {
       let draft = null;
@@ -99,9 +122,14 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         if (raw) draft = JSON.parse(raw);
       } catch {}
       if (isDraftMeaningful(draft)) {
+        pushDebugLog('ExpenseForm', 'reset-effect-applies', {
+          mode: 'draft-restore',
+          draftHasReceiptUrl: !!(draft && draft.receipt_url),
+        });
         setForm({ ...initialForm(), ...draft });
         toast.success('טיוטה נטענה');
       } else {
+        pushDebugLog('ExpenseForm', 'reset-effect-applies', { mode: 'fresh-empty' });
         setForm(initialForm());
       }
     }
@@ -515,11 +543,21 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
               onUploaded={({ url }) => {
                 pushDebugLog('ExpenseForm', 'onUploaded-received', {
                   url: String(url).slice(0, 80),
+                  beforeReceiptUrl: form.receipt_url ? String(form.receipt_url).slice(0, 80) : null,
                 });
-                setForm(prev => ({ ...prev, receipt_url: url }));
+                setForm(prev => {
+                  const next = { ...prev, receipt_url: url };
+                  pushDebugLog('ExpenseForm', 'setForm-receipt-url-from-onUploaded', {
+                    prevReceiptUrl: prev.receipt_url ? String(prev.receipt_url).slice(0, 80) : null,
+                    nextReceiptUrl: next.receipt_url ? String(next.receipt_url).slice(0, 80) : null,
+                  });
+                  return next;
+                });
               }}
               onCleared={() => {
-                pushDebugLog('ExpenseForm', 'onCleared-received');
+                pushDebugLog('ExpenseForm', 'onCleared-received', {
+                  beforeReceiptUrl: form.receipt_url ? String(form.receipt_url).slice(0, 80) : null,
+                });
                 setForm(prev => ({ ...prev, receipt_url: '' }));
               }}
               onBusyChange={setCameraBusy}
