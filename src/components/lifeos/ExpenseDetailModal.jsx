@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
@@ -41,6 +41,22 @@ export default function ExpenseDetailModal({
   const galleryRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+
+  // Diagnostic — fires every time the modal becomes visible with an
+  // expense. Lets us confirm in the debug log that the row tap is
+  // actually opening THIS modal (as opposed to the old ExpenseForm
+  // in edit mode).
+  useEffect(() => {
+    if (isOpen && expense) {
+      pushDebugLog('ExpenseDetailModal', 'opened', {
+        expenseId: expense.id,
+        hasReceipt: !!expense.receipt_url,
+        receiptUrlPreview: expense.receipt_url
+          ? String(expense.receipt_url).slice(0, 80)
+          : null,
+      });
+    }
+  }, [isOpen, expense?.id, expense?.receipt_url]);
 
   if (!expense) return null;
 
