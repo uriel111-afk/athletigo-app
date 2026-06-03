@@ -1789,7 +1789,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                     {exFieldsCount > 0 ? (
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: `repeat(${Math.min(exFieldsCount, 3)}, 1fr)`,
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
                         gap: 6,
                       }}>
                         {exFields.map((fieldId) =>
@@ -2041,7 +2041,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                     {selectedSetFields.length > 0 && (
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: `repeat(${Math.min(selectedSetFields.length, 2)}, 1fr)`,
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(64px, 1fr))',
                         gap: 4,
                       }}>
                         {selectedSetFields.map((fieldId) =>
