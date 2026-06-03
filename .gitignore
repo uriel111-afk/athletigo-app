@@ -28,3 +28,11 @@ dist-ssr
 *.sw?
 
 .env
+
+# Capacitor Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/app/release/
+android/capacitor-cordova-android-plugins/
