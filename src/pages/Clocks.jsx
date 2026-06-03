@@ -42,10 +42,14 @@ function HoldButton({ onClick, children, className, style }) {
 const MIN_COL_OPTIONS = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 75, 90, 99];
 const SEC_COL_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 59];
 
-// ═══ SOUNDS (Timer & Stopwatch) — shared AudioContext ═══
-import { unlock as unlockAudio, playBeep, playClick, playWhistle, playBell, playVictory, playSoftBreath } from '@/lib/tabataSounds';
-const SOUND_START = playClick;
-const SOUND_PAUSE = playClick;
+// ═══ SOUNDS (Timer & Stopwatch) — unified with the Tabata sound set ═══
+// Start/Resume taps → playSoftBreath (Tabata's tap cue).
+// Pause is owned by ClockContext (fires playPauseSound) — buttons don't
+// double-trigger it. 3-2-1 ticks reuse playBeep (Tabata countdown).
+// Finish reuses playVictory (Tabata workout-end signal).
+// SOUND_ALERT (the 10-second warning) is intentionally kept on playBeep×2.
+import { unlock as unlockAudio, playBeep, playClick, playVictory, playSoftBreath } from '@/lib/tabataSounds';
+const SOUND_START = playSoftBreath;
 const SOUND_RESET = playClick;
 const SOUND_TICK = playBeep;
 const SOUND_ALERT = () => { playBeep(); setTimeout(playBeep, 150); };
@@ -86,7 +90,7 @@ function StopwatchView({ onMinimize }) {
             </button>
           )}
           {isRunning ? (
-            <button onClick={() => { SOUND_PAUSE(); pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
+            <button onClick={() => { pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
               style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 700, fontFamily: FL, color: BRAND }}>
               <Pause className="w-6 h-6 ml-2" />השהה
             </button>

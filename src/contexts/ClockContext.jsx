@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import {
   playPauseSound,
+  playBeep, playActionMelody, playSlowPulse, playLongBeep, playVictory,
   vibrate, VIBRATION,
   requestNotifPermission, showTimerNotification, closeTimerNotification,
   acquireTimerWakeLock, releaseTimerWakeLock,
@@ -122,24 +123,26 @@ export function ClockProvider({ children }) {
   }, []);
 
   const beep = useCallback((type) => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
+    // Unified with the Tabata sound set (see src/lib/tabataSounds.js).
+    // The raw-oscillator helpers (playTone/playWhistle above) are kept
+    // only for the `lap` cue which has no Tabata equivalent.
     switch (type) {
-      case 'countdown': playTone(ctx, 800, 150, 'sine', 0.9); break;
-      case 'work': playWhistle(ctx, 600, 1200, 400, 0.9); break;
-      case 'rest': playWhistle(ctx, 1000, 500, 500, 0.9); break;
-      case 'set_rest':
-        playTone(ctx, 800, 200, 'sine', 0.9);
-        setTimeout(() => playTone(ctx, 500, 400, 'sine', 0.9), 350);
+      case 'countdown': playBeep(); break;
+      case 'work':      playActionMelody(); break;
+      case 'rest':      playSlowPulse(); break;
+      case 'set_rest':  playLongBeep(); break;
+      case 'pause':     playPauseSound(); break;
+      case 'done':      playVictory(); break;
+      case 'lap': {
+        const ctx = audioCtxRef.current;
+        if (ctx) playTone(ctx, 600, 50, 'sine', 0.7);
         break;
-      case 'start': playTone(ctx, 800, 100, 'sine', 0.9); break;
-      case 'pause': playTone(ctx, 400, 150, 'sine', 0.7); break;
-      case 'lap': playTone(ctx, 600, 50, 'sine', 0.7); break;
-      case 'done':
-        playTone(ctx, 440, 400, 'triangle', 1.0);
-        setTimeout(() => playTone(ctx, 660, 400, 'triangle', 1.0), 600);
-        setTimeout(() => playTone(ctx, 880, 400, 'triangle', 1.0), 1200);
+      }
+      case 'start': {
+        const ctx = audioCtxRef.current;
+        if (ctx) playTone(ctx, 800, 100, 'sine', 0.9);
         break;
+      }
       default: break;
     }
   }, []);
@@ -311,15 +314,12 @@ export function ClockProvider({ children }) {
   const pause = useCallback(() => {
     if (!isRunning) return;
     clearTick();
-    // Countdown pause shares the subtle descending pauseSound with the
-    // Tabata pause so both timers feel identical. Stopwatch keeps its
-    // existing pause beep to preserve its distinct sound profile.
-    if (activeClock !== 'timer') beep('pause');
-    else playPauseSound();
+    // Timer + Stopwatch + ClockContext-Tabata all share the Tabata pause.
+    playPauseSound();
     vibrate(VIBRATION.pause);
     elapsedRef.current = Date.now() - startTimeRef.current;
     setIsRunning(false);
-  }, [isRunning, clearTick, beep, activeClock]);
+  }, [isRunning, clearTick]);
 
   const resume = useCallback(() => {
     if (isRunning) return;
