@@ -321,13 +321,21 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !saving) closeForm('dialog-openchange');
-    }}>
+    // onOpenChange intentionally a no-op. Radix can fire it for
+    // user-initiated reasons (Escape, outside click) but also for
+    // events we don't want to treat as close — notably on Android
+    // Chrome after the camera intent, where focus changes and DOM
+    // mutations during the WebView reattach phase produce stray
+    // close callbacks that wipe out the just-uploaded receipt. The
+    // form now closes ONLY via the explicit user paths inside
+    // closeForm(): 'success' (save flow), 'cancel' (cancel button).
+    <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
         dir="rtl"
         className="max-w-md"
         onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
