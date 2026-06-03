@@ -10,6 +10,11 @@ import PackageFormDialog from '../components/forms/PackageFormDialog';
 import PageLoader from '@/components/PageLoader';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import {
+  estimateIncomeTaxAnnual,
+  estimateBituachLeumiMonthly,
+} from '@/config/taxConfig';
+import { EXPENSE_CATEGORY_BY_KEY } from '@/lib/lifeos/lifeos-constants';
 
 // Single unified data page for the coach. Accordion of 5 sections —
 // only one open at a time — covering everything that used to live in
@@ -94,7 +99,13 @@ export default function Reports() {
   // synced. We now read both: client_services for package details +
   // income for the headline totals.
   const [income, setIncome] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [pkgFilter, setPkgFilter] = useState('all'); // packages section sub-filter
+  // "כמה נשאר לי" block — independent of the global timeFilter above.
+  // Default to current month. summaryYear is always the current year.
+  // summaryMonth: 0..11 for a specific month, or 'year' for full year.
+  const [summaryYear] = useState(new Date().getFullYear());
+  const [summaryMonth, setSummaryMonth] = useState(new Date().getMonth());
   // Preserved dialogs from the old PackageStats — still openable from
   // the packages section so coaches can see + edit a single package.
   const [selectedPkg, setSelectedPkg] = useState(null);
@@ -122,7 +133,7 @@ export default function Reports() {
       (r) => r,
       (err) => { console.warn('[Reports] query failed:', err); return { data: [] }; }
     );
-    const [sRes, pRes, lRes, iRes] = await Promise.all([
+    const [sRes, pRes, lRes, iRes, eRes] = await Promise.all([
       safeQuery(supabase.from('sessions')
         .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at, trainee:trainee_id(id, full_name, phone)')
         .eq('coach_id', user.id)
@@ -138,11 +149,16 @@ export default function Reports() {
         .select('id, amount, date, source, product, client_name, description, created_at')
         .eq('user_id', user.id)
         .order('date', { ascending: false })),
+      safeQuery(supabase.from('expenses')
+        .select('id, amount, date, category, subcategory, description, payment_method, notes, created_at')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })),
     ]);
     if (sRes.error) console.warn('[Reports] sessions error:', sRes.error);
     if (pRes.error) console.warn('[Reports] packages error:', pRes.error);
     if (lRes.error) console.warn('[Reports] leads error:', lRes.error);
     if (iRes.error) console.warn('[Reports] income error:', iRes.error);
+    if (eRes.error) console.warn('[Reports] expenses error:', eRes.error);
     const sessionRows = sRes.data || [];
     const pkgRows = pRes.data || [];
     // Build the trainee roster from joined data + participants[].
@@ -174,6 +190,7 @@ export default function Reports() {
     setPackages(pkgRows);
     setLeads(lRes.data || []);
     setIncome(iRes.data || []);
+    setExpenses(eRes.data || []);
     setLoading(false);
     console.log('[Reports] sessions:', sessionRows.length, 'packages:', pkgRows.length, 'trainees:', traineeMap.size, 'leads:', (lRes.data || []).length);
     console.log('[Reports] sample session:', sessionRows[0]);
@@ -191,6 +208,7 @@ export default function Reports() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users',            filter: `coach_id=eq.${user.id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads',            filter: `user_id=eq.${user.id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'income',           filter: `user_id=eq.${user.id}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses',         filter: `user_id=eq.${user.id}` }, () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user?.id, fetchAll]);
@@ -247,6 +265,201 @@ export default function Reports() {
   // package-specific breakdowns (per-trainee paid, per-package row).
   const totalRevenue = filteredIncome.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const allTimeRevenue = income.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  // ─── "כמה נשאר לי" — financial summary ───────────────────────
+  // עוסק פטור: בלי מע"מ בכלל. רווח = הכנסות פחות הוצאות.
+  // עבור תצוגה חודשית: מס וביטוח לאומי הם שנתיים — מוצגים כפרוסה
+  // יחסית, מבוססת על ההכנסות מתחילת השנה ועד החודש הנבחר (YTD),
+  // מחושבים כתחזית שנתית ומחולקים ל-12.
+  const fin = useMemo(() => {
+    const yearStart = new Date(summaryYear, 0, 1);
+    const yearEnd   = new Date(summaryYear, 11, 31, 23, 59, 59);
+    const sum = (rows) => rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const inRange = (rows, start, end) => rows.filter(r => {
+      if (!r.date) return false;
+      const d = new Date(r.date);
+      return d >= start && d <= end;
+    });
+
+    const isYearMode = summaryMonth === 'year';
+    const periodStart = isYearMode
+      ? yearStart
+      : new Date(summaryYear, summaryMonth, 1);
+    const periodEnd = isYearMode
+      ? yearEnd
+      : new Date(summaryYear, summaryMonth + 1, 0, 23, 59, 59);
+
+    const periodIncome   = sum(inRange(income, periodStart, periodEnd));
+    const periodExpenses = sum(inRange(expenses, periodStart, periodEnd));
+    const periodProfit   = periodIncome - periodExpenses;
+
+    // YTD — מתחילת השנה ועד סוף התקופה הנבחרת
+    const ytdIncome   = sum(inRange(income, yearStart, periodEnd));
+    const ytdExpenses = sum(inRange(expenses, yearStart, periodEnd));
+    const ytdProfit   = ytdIncome - ytdExpenses;
+
+    const monthsElapsed = isYearMode ? 12 : summaryMonth + 1;
+    const annualizedProfit = monthsElapsed > 0 ? (ytdProfit * 12) / monthsElapsed : 0;
+    const monthlyAvgProfit = monthsElapsed > 0 ? ytdProfit / monthsElapsed : 0;
+
+    const annualIncomeTax = estimateIncomeTaxAnnual(annualizedProfit);
+    const periodIncomeTax = isYearMode ? annualIncomeTax : annualIncomeTax / 12;
+
+    const bituachMonthly = estimateBituachLeumiMonthly(monthlyAvgProfit);
+    const periodBituach  = isYearMode ? bituachMonthly * 12 : bituachMonthly;
+
+    const netInHand = periodProfit - periodIncomeTax - periodBituach;
+
+    return {
+      isYearMode,
+      periodIncome, periodExpenses, periodProfit,
+      periodIncomeTax, periodBituach, netInHand,
+    };
+  }, [income, expenses, summaryYear, summaryMonth]);
+
+  // ─── דוח שנתי — חלון הדפסה ───────────────────────────────────
+  const openAnnualReport = () => {
+    const yearStart = new Date(summaryYear, 0, 1);
+    const yearEnd   = new Date(summaryYear, 11, 31, 23, 59, 59);
+    const inRange = (rows) => rows.filter(r => {
+      if (!r.date) return false;
+      const d = new Date(r.date);
+      return d >= yearStart && d <= yearEnd;
+    });
+    const yIncome = inRange(income);
+    const yExp    = inRange(expenses);
+
+    const SOURCE_LABELS = {
+      product_sale: 'מכירת מוצר',
+      training: 'אימון אישי',
+      online_coaching: 'ליווי אונליין',
+      workshop: 'סדנה',
+      course: 'קורס דיגיטלי',
+      other: 'אחר',
+    };
+
+    const groupBy = (rows, keyFn) => {
+      const m = new Map();
+      for (const r of rows) {
+        const k = keyFn(r) || 'אחר';
+        const prev = m.get(k) || { count: 0, total: 0 };
+        prev.count += 1;
+        prev.total += Number(r.amount) || 0;
+        m.set(k, prev);
+      }
+      return Array.from(m.entries()).sort((a, b) => b[1].total - a[1].total);
+    };
+
+    const incomeGroups = groupBy(yIncome, r => SOURCE_LABELS[r.source] || r.source);
+    const expGroups    = groupBy(yExp, r => {
+      const cat = EXPENSE_CATEGORY_BY_KEY[r.category];
+      return cat ? `${cat.emoji} ${cat.label}` : (r.category || 'אחר');
+    });
+
+    const totalIncome = yIncome.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const totalExp    = yExp.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const profit      = totalIncome - totalExp;
+    const incomeTax   = estimateIncomeTaxAnnual(profit);
+    const bituachMonthly = estimateBituachLeumiMonthly(profit / 12);
+    const bituachAnnual  = bituachMonthly * 12;
+    const netInHand   = profit - incomeTax - bituachAnnual;
+
+    const fmt = (n) => `₪${Math.round(n).toLocaleString('he-IL')}`;
+
+    const rowsHtml = (groups) => groups.length === 0
+      ? '<tr><td colspan="3" style="text-align:center;color:#888">אין נתונים</td></tr>'
+      : groups.map(([label, v]) =>
+          `<tr><td>${label}</td><td style="text-align:center">${v.count}</td><td style="text-align:left">${fmt(v.total)}</td></tr>`
+        ).join('');
+
+    const html = `<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>דוח שנתי — AthletiGo — ${summaryYear}</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background:#FFF9F0; color:#1a1a1a; margin:0; padding:32px; direction:rtl; }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { color:#FF6F20; margin:0 0 4px; font-size:28px; }
+  .sub { color:#888; margin-bottom:24px; font-size:14px; }
+  .card { background:white; border-radius:14px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:16px; }
+  h2 { margin:0 0 12px; font-size:18px; color:#1a1a1a; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { padding:8px 6px; border-bottom:0.5px solid #F0E4D0; text-align:right; }
+  th { color:#888; font-weight:600; font-size:12px; }
+  .total { font-weight:700; background:#FFF9F0; }
+  .summary-grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:8px; }
+  .summary-grid .item { background:#FFF9F0; border-radius:10px; padding:12px; }
+  .summary-grid .item .lbl { font-size:12px; color:#888; }
+  .summary-grid .item .val { font-size:20px; font-weight:700; color:#1a1a1a; margin-top:4px; }
+  .net { background:#FF6F20; color:white; border-radius:14px; padding:20px; text-align:center; margin-top:16px; }
+  .net .lbl { font-size:13px; opacity:0.85; }
+  .net .val { font-size:34px; font-weight:800; margin-top:6px; }
+  .est { font-size:10px; color:#888; }
+  .actions { text-align:center; margin-top:24px; }
+  .actions button { background:#FF6F20; color:white; border:none; border-radius:10px; padding:10px 24px; font-size:14px; font-weight:600; cursor:pointer; margin: 0 4px; }
+  .actions button.secondary { background:white; color:#1a1a1a; border:1px solid #F0E4D0; }
+  @media print { body { background:white; padding:16px; } .actions { display:none; } .card { box-shadow:none; border:1px solid #F0E4D0; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>דוח שנתי — ${summaryYear}</h1>
+    <div class="sub">AthletiGo · עוסק פטור · בלי מע"מ · אומדנים</div>
+
+    <div class="card">
+      <h2>הכנסות לפי מקור</h2>
+      <table>
+        <thead><tr><th>מקור</th><th style="text-align:center">תנועות</th><th style="text-align:left">סכום</th></tr></thead>
+        <tbody>
+          ${rowsHtml(incomeGroups)}
+          <tr class="total"><td>סך הכנסות</td><td style="text-align:center">${yIncome.length}</td><td style="text-align:left">${fmt(totalIncome)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>הוצאות לפי קטגוריה</h2>
+      <table>
+        <thead><tr><th>קטגוריה</th><th style="text-align:center">תנועות</th><th style="text-align:left">סכום</th></tr></thead>
+        <tbody>
+          ${rowsHtml(expGroups)}
+          <tr class="total"><td>סך הוצאות</td><td style="text-align:center">${yExp.length}</td><td style="text-align:left">${fmt(totalExp)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>סיכום שנתי</h2>
+      <div class="summary-grid">
+        <div class="item"><div class="lbl">סך הכנסות</div><div class="val">${fmt(totalIncome)}</div></div>
+        <div class="item"><div class="lbl">סך הוצאות</div><div class="val">${fmt(totalExp)}</div></div>
+        <div class="item"><div class="lbl">רווח</div><div class="val">${fmt(profit)}</div></div>
+        <div class="item"><div class="lbl">ביטוח לאומי <span class="est">הערכה</span></div><div class="val">${fmt(bituachAnnual)}</div></div>
+        <div class="item" style="grid-column:1 / -1"><div class="lbl">מס הכנסה <span class="est">הערכה</span></div><div class="val">${fmt(incomeTax)}</div></div>
+      </div>
+      <div class="net">
+        <div class="lbl">נשאר לי ביד (הערכה)</div>
+        <div class="val">${fmt(netInHand)}</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button onclick="window.print()">🖨️ הדפס / שמור כ-PDF</button>
+      <button class="secondary" onclick="window.close()">סגור</button>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('הדפדפן חסם פתיחת חלון. אפשר חלונות קופצים ונסה שוב.');
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+  };
 
   // ─── Tiny helpers shared across sections ─────────────────────
   const SectionCard = ({ id, icon, title, subtitle, valueRight, valueLabel, valueColor = '#1a1a1a', children }) => {
@@ -860,6 +1073,94 @@ export default function Reports() {
             <PageLoader />
           ) : (
             <>
+              {/* === בלוק "כמה נשאר לי" === */}
+              {(() => {
+                const MONTHS_HE = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+                const fmt = (n) => `₪${Math.round(n).toLocaleString('he-IL')}`;
+                const periodLabel = fin.isYearMode
+                  ? `כל השנה ${summaryYear}`
+                  : `${MONTHS_HE[summaryMonth]} ${summaryYear}`;
+                const chips = [
+                  { id: 'year', label: 'כל השנה' },
+                  ...MONTHS_HE.map((m, i) => ({ id: i, label: m })),
+                ];
+                const Card = ({ label, value, color = '#1a1a1a', est = false }) => (
+                  <div style={{
+                    background: 'white', borderRadius: 14, padding: 12,
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                    textAlign: 'right',
+                  }}>
+                    <div style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>{label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color, marginTop: 4 }}>{value}</div>
+                    {est && <div style={{ fontSize: 10, color: '#b8821f', marginTop: 2 }}>הערכה</div>}
+                  </div>
+                );
+                return (
+                  <div style={{ margin: '0 12px 12px' }}>
+                    <div style={{
+                      background: 'white', borderRadius: 16, padding: 14,
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>💸 כמה נשאר לי</div>
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{periodLabel} · עוסק פטור</div>
+                        </div>
+                        <button
+                          onClick={openAnnualReport}
+                          style={{
+                            background: '#FF6F20', color: 'white', border: 'none',
+                            borderRadius: 10, padding: '8px 14px', fontSize: 12,
+                            fontWeight: 700, cursor: 'pointer',
+                          }}>
+                          📄 דוח שנתי
+                        </button>
+                      </div>
+
+                      {/* Month / year chips */}
+                      <div style={{ display: 'flex', gap: 4, overflowX: 'auto', marginBottom: 12, paddingBottom: 2 }}>
+                        {chips.map(c => {
+                          const active = summaryMonth === c.id;
+                          return (
+                            <div key={String(c.id)} onClick={() => setSummaryMonth(c.id)} style={{
+                              padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600,
+                              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                              background: active ? '#FF6F20' : '#FFF9F0',
+                              color: active ? 'white' : '#888',
+                              border: active ? 'none' : '0.5px solid #F0E4D0',
+                            }}>{c.label}</div>
+                          );
+                        })}
+                      </div>
+
+                      {/* 5 number cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                        <Card label="סך הכנסות"        value={fmt(fin.periodIncome)}   color="#16a34a" />
+                        <Card label="סך הוצאות"        value={fmt(fin.periodExpenses)} color="#dc2626" />
+                        <Card label="רווח"             value={fmt(fin.periodProfit)}   color="#1a1a1a" />
+                        <Card label="ביטוח לאומי"      value={fmt(fin.periodBituach)}  color="#7F47B5" est />
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <Card label="מס הכנסה" value={fmt(fin.periodIncomeTax)} color="#7F47B5" est />
+                        </div>
+                      </div>
+
+                      {/* The bottom line */}
+                      <div style={{
+                        background: '#FFF0E4', borderRadius: 14, padding: 16,
+                        textAlign: 'center', border: '2px solid #FF6F20',
+                      }}>
+                        <div style={{ fontSize: 12, color: '#993C1D', fontWeight: 600 }}>
+                          נשאר לי ביד <span style={{ fontSize: 10, color: '#b8821f' }}>(הערכה)</span>
+                        </div>
+                        <div style={{ fontSize: 30, fontWeight: 800, color: '#FF6F20', marginTop: 4 }}>
+                          {fmt(fin.netInHand)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* A. Revenue hero — always visible */}
               <div style={{
                 background: '#FF6F20', borderRadius: 16,
