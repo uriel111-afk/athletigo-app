@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog } from '@/lib/debugLog';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
+
+const isNativePlatform = Capacitor.isNativePlatform();
 
 // System-wide file manager. Renders inline on a page (NOT inside a
 // Radix Dialog) because Radix + Android Chrome + file inputs is the
@@ -158,6 +162,48 @@ export default function FileManager({
     }
   }
 
+  async function pickWithNativeCamera(source) {
+    try {
+      pushDebugLog('FileManager', 'native-camera-start', { source });
+
+      const image = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
+        width: 1600,
+        saveToGallery: false,
+      });
+
+      pushDebugLog('FileManager', 'native-camera-got-image', {
+        format: image.format,
+        hasData: !!image.base64String,
+      });
+
+      const byteString = atob(image.base64String);
+      const mimeString = `image/${image.format}`;
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeString });
+
+      const file = new File([blob], `photo-${Date.now()}.${image.format}`, {
+        type: mimeString,
+      });
+
+      await handleFile(file);
+    } catch (err) {
+      pushDebugLog('FileManager', 'native-camera-error', {
+        message: err?.message,
+        code: err?.code,
+      });
+      if (err?.message?.includes('cancelled')) return;
+      toast.error('שגיאה במצלמה: ' + (err?.message || ''));
+    }
+  }
+
   async function handleDelete(fileRow) {
     if (!confirm('למחוק את הקובץ?')) return;
     try {
@@ -254,7 +300,13 @@ export default function FileManager({
         <div style={{ display: 'flex', gap: 8 }} dir="rtl">
           <button
             type="button"
-            onClick={() => cameraRef.current?.click()}
+            onClick={() => {
+              if (isNativePlatform) {
+                pickWithNativeCamera('camera');
+              } else {
+                cameraRef.current?.click();
+              }
+            }}
             disabled={uploading}
             style={pickerButtonStyle(uploading)}
             aria-label="צלם"
@@ -266,7 +318,13 @@ export default function FileManager({
           </button>
           <button
             type="button"
-            onClick={() => galleryRef.current?.click()}
+            onClick={() => {
+              if (isNativePlatform) {
+                pickWithNativeCamera('gallery');
+              } else {
+                galleryRef.current?.click();
+              }
+            }}
             disabled={uploading}
             style={pickerButtonStyle(uploading)}
             aria-label="בחר מהגלריה"
