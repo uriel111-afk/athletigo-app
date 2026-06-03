@@ -1,11 +1,12 @@
 /* global __BUILD_TIME__ */
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import ExpenseForm from '@/components/lifeos/ExpenseForm';
-import ExpenseDetailModal from '@/components/lifeos/ExpenseDetailModal';
+import { supabase } from '@/lib/supabaseClient';
 import {
   LIFEOS_COLORS, LIFEOS_CARD,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_BY_KEY,
@@ -36,6 +37,7 @@ const CATEGORY_COLORS = {
 };
 
 export default function Expenses() {
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const userId = user?.id;
 
@@ -47,8 +49,9 @@ export default function Expenses() {
   const [categoryFilter, setCategoryFilter] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
-  // Row tap opens this — the unified detail+receipt modal.
-  const [detailExpense, setDetailExpense] = useState(null);
+  // Set of expense ids that have at least one file in lifeos_files —
+  // drives the 📎 indicator on the row.
+  const [expensesWithFiles, setExpensesWithFiles] = useState(() => new Set());
   const [lastError, setLastError] = useState(null);
   const [lastSuccess, setLastSuccess] = useState(null);
   // After a save, we set this to the saved row id. A useEffect watches
@@ -89,6 +92,27 @@ export default function Expenses() {
       setRows(data || []);
       setPrevMonthRows(prevData || []);
       setHistoryForRecurring(history || []);
+
+      // Query lifeos_files for the current month's expense ids so the
+      // 📎 indicator shows on rows that have at least one attached
+      // file (new pipeline). Falls back silently — list still works
+      // if the table doesn't exist yet (migration not run).
+      const ids = (data || []).map(r => r.id).filter(Boolean);
+      if (ids.length) {
+        try {
+          const { data: filesData } = await supabase
+            .from('lifeos_files')
+            .select('entity_id')
+            .eq('entity_type', 'expense')
+            .eq('status', 'active')
+            .in('entity_id', ids);
+          setExpensesWithFiles(new Set((filesData || []).map(f => f.entity_id)));
+        } catch {
+          setExpensesWithFiles(new Set());
+        }
+      } else {
+        setExpensesWithFiles(new Set());
+      }
     } catch (err) {
       console.error('[Expenses] load error:', err);
       toast.error('שגיאה בטעינת הוצאות');
@@ -98,20 +122,6 @@ export default function Expenses() {
   }, [userId, cursor]);
 
   useEffect(() => { load(); }, [load]);
-
-  // Keep the detail modal's expense in sync with the latest version
-  // from rows after every refetch — so an in-modal receipt upload
-  // immediately reflects the new receipt_url, and a deleted row
-  // closes the modal automatically.
-  useEffect(() => {
-    if (!detailExpense) return;
-    const fresh = rows.find(r => r.id === detailExpense.id);
-    if (fresh) {
-      if (fresh !== detailExpense) setDetailExpense(fresh);
-    } else {
-      setDetailExpense(null);
-    }
-  }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll a freshly-saved row into view once the refetch lands.
   useEffect(() => {
@@ -371,7 +381,8 @@ export default function Expenses() {
               row={row}
               isLast={idx === filtered.length - 1}
               isHighlighted={row.id === pendingScrollId}
-              onOpen={() => setDetailExpense(row)}
+              hasFiles={expensesWithFiles.has(row.id) || !!row.receipt_url}
+              onOpen={() => navigate(`/lifeos/expenses/${row.id}`)}
               onEdit={(e) => openEdit(e, row)}
               onDelete={(e) => handleDelete(e, row.id)}
             />
@@ -480,32 +491,6 @@ export default function Expenses() {
         }}
       />
 
-      <ExpenseDetailModal
-        expense={detailExpense}
-        isOpen={!!detailExpense}
-        onClose={() => setDetailExpense(null)}
-        userId={userId}
-        onUpdated={(updatedExpense) => {
-          // Refresh the modal's view directly from the row the modal
-          // re-fetched, so the new receipt_url is visible immediately
-          // without waiting for the list-level refetch. Also kick off
-          // a list refetch so the row in the background stays in sync.
-          if (updatedExpense) setDetailExpense(updatedExpense);
-          load();
-        }}
-        onDelete={async (id) => {
-          if (!confirm('בטוח שאתה רוצה למחוק את ההוצאה?')) return;
-          try {
-            await deleteExpense(id);
-            setDetailExpense(null);
-            toast.success('נמחק');
-            load();
-          } catch (err) {
-            toast.error('שגיאה: ' + (err?.message || ''));
-          }
-        }}
-      />
-
       <div style={{
         fontSize: '9px',
         color: '#9CA3AF',
@@ -519,7 +504,7 @@ export default function Expenses() {
   );
 }
 
-function ExpenseRow({ row, isLast, isHighlighted, onOpen, onEdit, onDelete }) {
+function ExpenseRow({ row, isLast, isHighlighted, hasFiles, onOpen, onEdit, onDelete }) {
   const cat = EXPENSE_CATEGORY_BY_KEY[row.category] || { label: row.category, emoji: '📦' };
   const dateStr = new Date(row.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
 
@@ -546,7 +531,7 @@ function ExpenseRow({ row, isLast, isHighlighted, onOpen, onEdit, onDelete }) {
           display: 'flex', alignItems: 'center', gap: 4,
         }}>
           {row.description || row.subcategory || cat.label}
-          {row.receipt_url && (
+          {hasFiles && (
             <span aria-label="קבלה מצורפת" title="קבלה מצורפת" style={{ fontSize: 13 }}>📎</span>
           )}
         </div>

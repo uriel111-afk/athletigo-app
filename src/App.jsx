@@ -17,6 +17,7 @@ import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
 import LifeOSDashboard from './pages/lifeos/LifeOSDashboard';
 import LifeOSExpenses from './pages/lifeos/Expenses';
+import LifeOSExpenseDetail from './pages/lifeos/ExpenseDetail';
 import LifeOSIncome from './pages/lifeos/Income';
 import LifeOSRecurring from './pages/lifeos/RecurringPayments';
 import LifeOSInstallments from './pages/lifeos/Installments';
@@ -476,6 +477,7 @@ const AuthenticatedApp = () => {
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
       <Route path="/lifeos"              element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
       <Route path="/lifeos/expenses"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenses /></PageRouteGuard>} />
+      <Route path="/lifeos/expenses/:id" element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenseDetail /></PageRouteGuard>} />
       <Route path="/lifeos/income"       element={<PageRouteGuard pageKey="LifeOS"><LifeOSIncome /></PageRouteGuard>} />
       <Route path="/lifeos/recurring"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSRecurring /></PageRouteGuard>} />
       <Route path="/lifeos/installments" element={<PageRouteGuard pageKey="LifeOS"><LifeOSInstallments /></PageRouteGuard>} />
