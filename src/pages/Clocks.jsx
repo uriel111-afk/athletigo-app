@@ -28,7 +28,12 @@ const BRD = '#E5E7EB';
 const BG2 = '#F5F5F5';
 
 function fmt(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; if (m === 0) return String(s); return `${m}:${String(s).padStart(2,'0')}`; }
-function fmtMMSS(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+// Math.ceil so the visible countdown matches the Tabata clock:
+// "1" stays on screen for the entire last second (ms = 1..1000 → "00:01"),
+// then the phase ends and the setup/done screen replaces this view —
+// "00:00" is never rendered. Floor would drop to "00:00" the moment ms
+// crosses below 1000 and linger there for ~1 s.
+function fmtMMSS(ms) { if (ms <= 0) return '00:00'; const t = Math.ceil(ms / 1000), m = Math.floor(t / 60), s = t % 60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 function fmtStopwatch(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; const cs = Math.floor((ms % 1000) / 10); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`; }
 
 function HoldButton({ onClick, children, className, style }) {
