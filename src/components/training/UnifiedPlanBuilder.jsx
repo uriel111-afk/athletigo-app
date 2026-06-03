@@ -1294,12 +1294,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     delete data.tabataData;
     delete data.tabata_blocks;
 
+    console.log('SAVE: payload sent to db', data);
+
     try {
       if (editingExercise?.id) {
-        await updateExerciseMutation.mutateAsync({ id: editingExercise.id, data });
+        const updated = await updateExerciseMutation.mutateAsync({ id: editingExercise.id, data });
+        console.log('SAVE: db response', updated);
+        console.log('SAVE: local state after update', updated);
         toast.success("עודכן בהצלחה");
       } else {
-        await createExerciseMutation.mutateAsync(data);
+        const created = await createExerciseMutation.mutateAsync(data);
+        console.log('SAVE: db response', created);
+        console.log('SAVE: local state after update', created);
         toast.success("נוצר בהצלחה");
       }
     } catch (error) {
@@ -2318,6 +2324,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             <Button
               onClick={async () => {
                 const formData = editingExercise || {};
+                console.log('SAVE: form values before save', formData);
                 if (!formData.exercise_name) {
                   toast.error("נא למלא שם תרגיל");
                   return;
