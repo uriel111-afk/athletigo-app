@@ -3284,283 +3284,146 @@ export default function ExerciseCard({
                 marginBottom: 4,
               };
 
+              const methodHeroLabel =
+                variant === 'pyramid'  ? 'סטים · פירמידה' :
+                variant === 'drop_set' ? 'ירידות · דרופ סט' :
+                                         'סטים · דה-לורם';
+              const completionPct = plannedSets.length > 0
+                ? (pyramidActiveIdx / plannedSets.length) * 100
+                : 0;
               return (
                 <div dir="rtl" style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 5,
-                  marginBottom: 12,
+                  background: '#FFF5EE',
+                  borderRight: '5px solid #FF6F20',
+                  borderRadius: '12px 0 0 12px',
+                  padding: '18px 16px',
+                  marginTop: 12,
                 }}>
-                  {plannedSets.map((set, i) => {
-                    // ── PAST row (green, completed) ───────────────
-                    if (i < pyramidActiveIdx) {
-                      return (
-                        <div key={i} style={{
-                          background: '#F0FAF4',
-                          border: '1.5px solid #16A34A',
-                          borderRadius: 8,
-                          padding: '10px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          flexWrap: 'wrap',
-                        }}>
-                          <span style={{
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 22,
-                            color: '#16A34A',
-                            lineHeight: 1,
-                            minWidth: 24,
-                          }}>
-                            {String(i + 1).padStart(2, '0')}
-                          </span>
-                          {methodMeta.variationRequired && set.variation_name && (
-                            <span style={{
-                              fontSize: 11,
-                              color: '#15803D',
-                              background: '#DCFCE7',
-                              border: '1px solid #86EFAC',
-                              padding: '2px 8px',
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}>
-                              {set.variation_name}
-                            </span>
-                          )}
-                          {numericFields.map((fieldId) => {
-                            if (set[fieldId] == null) return null;
-                            const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                            return (
-                              <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#16A34A', lineHeight: 1 }}>
-                                  {pyramidActuals[i + 1]?.[fieldId] ?? '-'} / {set[fieldId]}
-                                </span>
-                                <span style={{ fontSize: 10, color: '#16A34A', opacity: 0.7 }}>{meta.label}</span>
-                              </div>
-                            );
-                          })}
-                          <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
-                        </div>
-                      );
-                    }
+                  {/* Exercise name — right-aligned */}
+                  <div style={{ ...T.name, color: '#1a1a1a', textAlign: 'right', marginBottom: 14 }}>
+                    {exercise?.name || exercise?.exercise_name || 'תרגיל'}
+                  </div>
 
-                    // ── ACTIVE row (orange, expanded with inputs) ─
-                    if (i === pyramidActiveIdx) {
-                      const variationMissing = methodMeta.variationRequired
-                        && !(set.variation_name || '').trim();
-                      const cols = Math.min(Math.max(numericFields.length, 1), 2);
-                      return (
-                        <div key={i} style={{
-                          background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-                          border: '2px solid #FF6F20',
-                          borderRadius: 10,
-                          padding: 12,
-                          boxShadow: '0 4px 10px rgba(255,111,32,0.25)',
-                        }}>
-                          {variationMissing && (
-                            <div style={{
-                              fontSize: 10,
-                              color: '#FF6F20',
-                              fontWeight: 700,
-                              marginBottom: 8,
-                              textAlign: 'center',
-                            }}>
-                              ⚠ וריאציה לא הוגדרה למאמן
-                            </div>
-                          )}
-
-                          {/* Header — set number + planned numerics + text chips */}
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 18,
-                            marginBottom: 12,
-                            flexWrap: 'wrap',
-                          }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 30,
-                              color: '#FF6F20',
-                              lineHeight: 1,
-                              minWidth: 30,
-                              fontWeight: 800,
-                            }}>
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                            {methodMeta.variationRequired && set.variation_name && (
-                              <span style={{
-                                fontSize: 12,
-                                color: '#993C1D',
-                                background: 'white',
-                                border: '1px solid #FFD0AC',
-                                padding: '4px 10px',
-                                borderRadius: 999,
-                                fontWeight: 700,
-                              }}>
-                                {set.variation_name}
-                              </span>
-                            )}
-                            {numericFields.map((fieldId) => {
-                              if (set[fieldId] == null) return null;
-                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                              return (
-                                <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: '#FF6F20', lineHeight: 1, fontWeight: 800 }}>
-                                    {set[fieldId]}
-                                  </span>
-                                  <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>{meta.label}</span>
-                                </div>
-                              );
-                            })}
-                            {textFields.map((fieldId) => {
-                              if (set[fieldId] == null || !String(set[fieldId]).trim()) return null;
-                              if (fieldId === 'tempo') {
-                                return <TempoBreakdown key={fieldId} tempo={set[fieldId]} />;
-                              }
-                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                              return (
-                                <span key={fieldId} style={{
-                                  fontSize: 11,
-                                  color: meta.textPrimary,
-                                  background: meta.tint,
-                                  border: `1px solid ${meta.tint}`,
-                                  padding: '3px 8px',
-                                  borderRadius: 4,
-                                  fontWeight: 600,
-                                }}>
-                                  {meta.label}: {set[fieldId]}
-                                </span>
-                              );
-                            })}
-                          </div>
-
-                          {/* Input panel — only when at least one numeric field */}
-                          {numericFields.length > 0 && (
-                            <div style={{
-                              background: 'white',
-                              border: '1.5px solid #FFD0AC',
-                              borderRadius: 8,
-                              padding: 10,
-                            }}>
-                              <div style={{
-                                fontSize: 10,
-                                color: '#993C1D',
-                                fontWeight: 800,
-                                marginBottom: 8,
-                                textAlign: 'center',
-                              }}>
-                                כמה הצלחת?
-                              </div>
-
-                              <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                                gap: 8,
-                              }}>
-                                {numericFields.map((fieldId) => {
-                                  if (set[fieldId] == null) return null;
-                                  const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                                  return (
-                                    <div key={fieldId}>
-                                      <div style={counterLabelStyle}>{meta.label}</div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => updateActual(i, fieldId, -1)}
-                                          style={minusBtnStyle}
-                                        >−</button>
-                                        <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                          <span style={counterValueStyle}>{pyramidActuals[i + 1]?.[fieldId] ?? 0}</span>
-                                          <span style={counterTargetStyle}>/ {set[fieldId]}</span>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => updateActual(i, fieldId, +1)}
-                                          style={plusBtnStyle}
-                                        >+</button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={onSaveAndAdvance}
-                                disabled={pyramidSaving}
-                                style={{
-                                  width: '100%',
-                                  background: pyramidSaving
-                                    ? '#FFB280'
-                                    : 'linear-gradient(135deg, #FF8B47, #FF6F20)',
-                                  color: 'white',
-                                  border: 'none',
-                                  padding: 9,
-                                  borderRadius: 7,
-                                  fontWeight: 800,
-                                  fontSize: 12,
-                                  fontFamily: 'inherit',
-                                  marginTop: 8,
-                                  cursor: pyramidSaving ? 'default' : 'pointer',
-                                }}
-                              >
-                                {pyramidSaving ? 'שומר...' : 'שמור והמשך לסט הבא'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // ── FUTURE row (dashed gray, planned only) ────
-                    return (
-                      <div key={i} style={{
-                        background: 'white',
-                        border: '1.5px dashed #D1D5DB',
-                        borderRadius: 8,
-                        padding: '10px 12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        flexWrap: 'wrap',
-                      }}>
-                        <span style={{
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 22,
-                          color: '#D1D5DB',
-                          lineHeight: 1,
-                          minWidth: 24,
-                        }}>
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        {methodMeta.variationRequired && set.variation_name && (
-                          <span style={{
-                            fontSize: 11,
-                            color: '#9CA3AF',
-                            background: '#FAFAFA',
-                            border: '1px dashed #D1D5DB',
-                            padding: '2px 8px',
-                            borderRadius: 999,
-                            fontWeight: 700,
-                          }}>
-                            {set.variation_name}
-                          </span>
-                        )}
-                        {numericFields.map((fieldId) => {
-                          if (set[fieldId] == null) return null;
-                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                          return (
-                            <div key={fieldId} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#D1D5DB', lineHeight: 1 }}>
-                                {set[fieldId]}
-                              </span>
-                              <span style={{ fontSize: 10, color: '#9CA3AF' }}>{meta.label}</span>
-                            </div>
-                          );
-                        })}
+                  {/* Two-column body: right anchor + per-set status rows */}
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+                    {/* RIGHT anchor — total set count + method label */}
+                    <div style={{
+                      minWidth: 80,
+                      borderLeft: '1px solid #F0E0CC',
+                      paddingLeft: 14,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <div style={{ ...T.hero, color: '#FF6F20' }}>{plannedSets.length}</div>
+                      <div style={{ ...T.heroLbl, marginTop: 4, textAlign: 'center' }}>
+                        {methodHeroLabel}
                       </div>
-                    );
-                  })}
+                    </div>
+
+                    {/* LEFT body — one status row per planned set */}
+                    <div style={{ flex: 1 }}>
+                      {plannedSets.map((set, i) => {
+                        const isLast = i === plannedSets.length - 1;
+                        const done = i < pyramidActiveIdx;
+                        const active = i === pyramidActiveIdx;
+
+                        let dotBg, dotBorder, valueColor, labelColor;
+                        if (done) {
+                          dotBg = '#16a34a'; dotBorder = '#16a34a';
+                          valueColor = '#16a34a';
+                          labelColor = '#1a1a1a';
+                        } else if (active) {
+                          dotBg = '#FF6F20'; dotBorder = '#FF6F20';
+                          valueColor = '#FF6F20';
+                          labelColor = '#FF6F20';
+                        } else {
+                          dotBg = 'transparent'; dotBorder = '#D1D5DB';
+                          valueColor = '#9CA3AF';
+                          labelColor = '#9CA3AF';
+                        }
+
+                        const setN = i + 1;
+                        const targetReps = set.reps != null ? set.reps : '-';
+                        let label;
+                        if (variant === 'pyramid') {
+                          label = `סט ${setN} · יעד ${targetReps}`;
+                        } else if (variant === 'drop_set') {
+                          const w = set.weight_kg ?? set.weight;
+                          label = w != null
+                            ? `סט ${setN} · ${w} ק"ג · יעד ${targetReps}`
+                            : `סט ${setN} · יעד ${targetReps}`;
+                        } else {
+                          const p = set.percent ?? set.percentage;
+                          label = p != null
+                            ? `סט ${setN} · ${p}% · יעד ${targetReps}`
+                            : `סט ${setN} · יעד ${targetReps}`;
+                        }
+
+                        const onTap = active
+                          ? (e) => { e.stopPropagation(); onSaveAndAdvance(); }
+                          : undefined;
+                        const onKey = active
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                onSaveAndAdvance();
+                              }
+                            }
+                          : undefined;
+
+                        return (
+                          <div
+                            key={i}
+                            role={active ? 'button' : undefined}
+                            tabIndex={active ? 0 : -1}
+                            onClick={onTap}
+                            onKeyDown={onKey}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: '12px 4px',
+                              borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.07)',
+                              cursor: active ? 'pointer' : 'default',
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 15,
+                                height: 15,
+                                borderRadius: '50%',
+                                background: dotBg,
+                                border: `2px solid ${dotBorder}`,
+                                display: 'inline-block',
+                                flex: '0 0 auto',
+                              }}
+                            />
+                            <span style={{ ...T.setLabel, flex: 1, textAlign: 'right', color: labelColor }}>
+                              {label}
+                            </span>
+                            {active ? (
+                              <span style={{
+                                ...T.setValue,
+                                color: '#FF6F20',
+                                border: '2px solid #FF6F20',
+                                borderRadius: 8,
+                                padding: '0 14px',
+                                lineHeight: 1.1,
+                              }}>?</span>
+                            ) : (
+                              <span style={{ ...T.setValue, color: valueColor }}>{String(targetReps)}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Full-width completion bar */}
+                  <ProgressBar percent={completionPct} color="#FF6F20" />
                 </div>
               );
             })()}
