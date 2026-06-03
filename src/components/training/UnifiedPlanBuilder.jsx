@@ -1238,35 +1238,59 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
     if (subExercises.length > 0 || exerciseData.mode === "טבטה") {
       // Container exercise — serialize sub-exercises to tabata_data.
-      // Tabata also gets clock_settings duplicated into the JSONB
-      // alongside the existing direct columns (work_time/rest_time/
-      // rounds/sets). Reads in ExerciseCard trainee prefer the JSONB
-      // copy and fall back to columns, so writes here cover both
-      // legacy rows (column-only) and the new canonical shape.
-      // rest_between_sets has no DB column, so the JSONB is its only
-      // home — that's the main reason this block exists.
+      // For TABATA, source clock_settings + exercises_in_rotation from
+      // the form's JSONB FIRST (that's where ModernExerciseForm's
+      // updateClockSetting / setRotationExercises actually write to —
+      // top-level columns are never updated by the editor). The legacy
+      // top-level columns are kept as a fallback so a pre-form row
+      // (column-only) still rebuilds correctly.
       const containerType = exerciseData.mode === "טבטה" ? "tabata" : "list";
-      const tdPayload = {
-        container_type: containerType,
-        sub_exercises: subExercises,
-      };
+
+      const formTD = exerciseData.tabata_data
+        ? (typeof exerciseData.tabata_data === 'string'
+            ? (() => { try { return JSON.parse(exerciseData.tabata_data); } catch { return {}; } })()
+            : exerciseData.tabata_data)
+        : {};
+      const formSubs = Array.isArray(formTD?.sub_exercises) ? formTD.sub_exercises : [];
+
+      let tdPayload;
       if (exerciseData.mode === "טבטה") {
+        const clock = (formTD && typeof formTD.clock_settings === 'object' && formTD.clock_settings) || {};
         const toInt = (v) => {
           if (v == null || v === '') return null;
           const n = parseInt(v, 10);
           return Number.isFinite(n) ? n : null;
         };
-        tdPayload.clock_settings = {
-          work_seconds:      toInt(exerciseData.work_time),
-          rest_seconds:      toInt(exerciseData.rest_time),
-          rounds:            toInt(exerciseData.rounds),
-          sets:              toInt(exerciseData.sets),
-          rest_between_sets: toInt(exerciseData.rest_between_sets),
+        const rotation = Array.isArray(formTD?.exercises_in_rotation)
+          ? formTD.exercises_in_rotation
+          : (formSubs.length > 0 ? formSubs : subExercises);
+        tdPayload = {
+          container_type: 'tabata',
+          sub_exercises: formSubs.length > 0 ? formSubs : subExercises,
+          exercises_in_rotation: rotation,
+          clock_settings: {
+            work_seconds:      clock.work_seconds      ?? toInt(exerciseData.work_time),
+            rest_seconds:      clock.rest_seconds      ?? toInt(exerciseData.rest_time),
+            rounds:            clock.rounds            ?? toInt(exerciseData.rounds),
+            sets:              clock.sets              ?? toInt(exerciseData.sets),
+            rest_between_sets: clock.rest_between_sets ?? toInt(exerciseData.rest_between_sets),
+          },
+        };
+      } else {
+        // Legacy non-TABATA top-level sub_exercises path — preserved
+        // exactly as before; FIX 2 only changes the TABATA rebuild.
+        tdPayload = {
+          container_type: containerType,
+          sub_exercises: subExercises,
         };
       }
+
       tabataData = JSON.stringify(tdPayload);
-      tabataPreview = subExercises
-        .map((s) => s.exercise_name || "תת-תרגיל")
+      const previewSource = tdPayload.exercises_in_rotation && tdPayload.exercises_in_rotation.length > 0
+        ? tdPayload.exercises_in_rotation
+        : (tdPayload.sub_exercises || []);
+      tabataPreview = previewSource
+        .map((s) => s.exercise_name || s.name || "תת-תרגיל")
         .join(" • ");
     } else if (exerciseData.mode === "טבטה" && exerciseData.tabata_blocks?.length > 0) {
       // Legacy tabata blocks (backward compat)
