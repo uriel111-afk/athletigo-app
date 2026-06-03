@@ -485,7 +485,14 @@ export default function Expenses() {
         isOpen={!!detailExpense}
         onClose={() => setDetailExpense(null)}
         userId={userId}
-        onUpdated={load}
+        onUpdated={(updatedExpense) => {
+          // Refresh the modal's view directly from the row the modal
+          // re-fetched, so the new receipt_url is visible immediately
+          // without waiting for the list-level refetch. Also kick off
+          // a list refetch so the row in the background stays in sync.
+          if (updatedExpense) setDetailExpense(updatedExpense);
+          load();
+        }}
         onDelete={async (id) => {
           if (!confirm('בטוח שאתה רוצה למחוק את ההוצאה?')) return;
           try {

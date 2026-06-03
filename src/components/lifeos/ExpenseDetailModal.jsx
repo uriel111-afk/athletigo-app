@@ -89,12 +89,39 @@ export default function ExpenseDetailModal({
         return;
       }
 
+      // Fetch the single updated row directly from the DB so the
+      // modal can refresh its own view immediately. Refetching the
+      // whole list and looking up by id is a stale-closure trap:
+      // `load()` is async, and any local `expenses.find(...)` runs
+      // before the new data has landed in state. A targeted SELECT
+      // returns the authoritative row including the new receipt_url.
+      pushDebugLog('ExpenseDetailModal', 'fetch-updated-expense-start', {
+        expenseId: expense.id,
+      });
+      const { data: updatedExpense, error: fetchErr } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('id', expense.id)
+        .single();
+      if (fetchErr) {
+        pushDebugLog('ExpenseDetailModal', 'fetch-updated-expense-error', {
+          message: fetchErr.message,
+        });
+      } else {
+        pushDebugLog('ExpenseDetailModal', 'fetch-updated-expense-success', {
+          hasReceiptUrl: !!updatedExpense?.receipt_url,
+        });
+      }
+
       pushDebugLog('ExpenseDetailModal', 'upload-success', {
         receiptUrl: urlData.publicUrl,
       });
       toast.success('הקבלה נשמרה ✓');
       setShowPicker(false);
-      onUpdated?.();
+      pushDebugLog('ExpenseDetailModal', 'modal-refreshed-with-new-data', {
+        receiptUrl: updatedExpense?.receipt_url || null,
+      });
+      onUpdated?.(updatedExpense || null);
     } catch (err) {
       pushDebugLog('ExpenseDetailModal', 'upload-exception', {
         message: err?.message || String(err),
@@ -117,8 +144,15 @@ export default function ExpenseDetailModal({
       toast.error('שגיאה בהסרת הקבלה');
       return;
     }
+    // Same targeted-SELECT pattern as the upload path — keep the
+    // modal authoritative without relying on a list-refetch race.
+    const { data: updatedExpense } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('id', expense.id)
+      .single();
     toast.success('הקבלה הוסרה');
-    onUpdated?.();
+    onUpdated?.(updatedExpense || null);
   }
 
   return (
