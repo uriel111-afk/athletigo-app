@@ -6,11 +6,15 @@ import {
   EXPENSE_CATEGORIES, PAYMENT_METHODS, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
 import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
-import SmartCamera from '@/components/lifeos/SmartCamera';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// Form schema — text fields only. The receipt photo is managed
+// per-row via ExpenseReceiptButton on the Expenses list (atomic
+// upload + update, mirroring the documents pattern). The form no
+// longer touches receipt_url at all, so a save() never overwrites
+// an existing receipt with null.
 const initialForm = () => ({
   amount: '',
   category: '',
@@ -19,7 +23,6 @@ const initialForm = () => ({
   date: todayISO(),
   payment_method: '',
   notes: '',
-  receipt_url: '',
   is_recurring: false,
   recurring_frequency: 'monthly',
   recurring_until: '',
@@ -33,7 +36,6 @@ const formFromRow = (row) => ({
   date: row.date || todayISO(),
   payment_method: row.payment_method || '',
   notes: row.notes || '',
-  receipt_url: row.receipt_url || '',
   is_recurring: !!row.is_recurring,
   recurring_frequency: row.recurring_frequency || 'monthly',
   recurring_until: row.recurring_until || '',
@@ -56,18 +58,9 @@ const isDraftMeaningful = (draft) => draft && Object.values(draft).some(v => v !
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
-  // True while SmartCamera is compressing / uploading. We lock the
-  // save button during this window so the user can't fire
-  // addExpense with an empty receipt_url before the upload's
-  // onUploaded callback has had a chance to populate the form.
-  const [cameraBusy, setCameraBusy] = useState(false);
   // Guards the reset useEffect against re-running while the dialog
-  // is still open. The reset's deps include userId/expense?.id, and
-  // a stray change to either (AuthContext refresh, parent re-render
-  // with a fresh expense reference) would otherwise blow away the
-  // form mid-flow — including the receipt_url just populated by an
-  // in-flight upload's onUploaded callback. Reset to false on close
-  // so the next open re-initializes from row / draft.
+  // is still open — a stray userId/expense reference change from a
+  // parent re-render would otherwise blow away typed fields.
   const initializedForOpenRef = useRef(false);
 
   // Diagnostic: log mount + unmount to a localStorage-backed rolling
@@ -153,12 +146,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     pushDebugLog('ExpenseForm', 'is_recurring-changed', { value: form.is_recurring });
   }, [form.is_recurring]);
 
-  useEffect(() => {
-    pushDebugLog('ExpenseForm', 'receipt-changed', {
-      hasUrl: !!form.receipt_url,
-    });
-  }, [form.receipt_url]);
-
   // Debug panel state — read-only viewer for the rolling log.
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugText, setDebugText] = useState('');
@@ -178,8 +165,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
   // Single chokepoint for closing the form. Clears the sessionStorage
   // draft (text fields only) on any close — fresh re-open starts empty.
-  // Storage cleanup of orphan receipts is owned by SmartCamera itself
-  // (its X button + replace-photo paths), not by the form close path.
   const closeForm = (source) => {
     pushDebugLog('ExpenseForm', 'closeForm-called', { source });
     clearDraft();
@@ -199,14 +184,12 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
 
     setSaving(true);
     try {
-      const receipt_url = form.receipt_url || null;
-
-      // Photos are uploaded inside SmartCamera the moment the user
-      // picks them — by the time we get here the URL is already a
-      // public Storage object. Save is a single DB write.
+      // Text-fields-only payload. receipt_url is deliberately omitted
+      // — receipts are managed per-row via ExpenseReceiptButton on
+      // the list, so an update from this form never touches an
+      // existing photo.
       pushDebugLog('ExpenseForm', 'save-start', {
-        hasReceiptUrl: !!receipt_url,
-        urlPreview: receipt_url ? String(receipt_url).slice(0, 80) : null,
+        mode: expense?.id ? 'update' : 'insert',
       });
 
       const payload = {
@@ -217,7 +200,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         date: form.date,
         payment_method: form.payment_method || null,
         notes: form.notes || null,
-        receipt_url: receipt_url,
         is_recurring: !!form.is_recurring,
         recurring_frequency: form.is_recurring ? (form.recurring_frequency || 'monthly') : null,
         recurring_until: form.is_recurring && form.recurring_until ? form.recurring_until : null,
@@ -254,13 +236,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       window.lastExpenseSuccess = {
         time: new Date().toISOString(),
         expense_id: savedRow?.id,
-        receipt_url: savedRow?.receipt_url ? 'present' : 'absent',
       };
-      pushDebugLog('ExpenseForm', 'save-success', {
-        id: savedRow?.id,
-        receiptSaved: !!savedRow?.receipt_url,
-      });
-      toast.success((expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה') + (receipt_url ? ' עם תמונה' : ''));
+      pushDebugLog('ExpenseForm', 'save-success', { id: savedRow?.id });
+      toast.success(expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה');
       onSaved?.(savedRow);
       closeForm('success');
 
@@ -287,55 +265,14 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // Existing callers reference handleSave — keep the name as an alias.
   const handleSave = handleSaveExpense;
 
-  // Force-download the receipt instead of opening it in a new tab.
-  // Supabase Storage URLs are cross-origin so the <a download> attribute
-  // is silently ignored on most browsers — fetch the blob ourselves and
-  // trigger a download via createObjectURL. Falls back to opening the
-  // URL in a new tab when fetch fails (network / CORS / 404).
-  const handleDownloadReceipt = async () => {
-    const url = form.receipt_url;
-    if (!url) return;
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const blob = await resp.blob();
-      const ext = (blob.type && blob.type.split('/')[1]) || 'jpg';
-      const datePart = (form.date || todayISO()).replace(/-/g, '');
-      const filename = `receipt_${datePart}.${ext}`;
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Give the browser a tick to start the download before revoking.
-      setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
-    } catch (err) {
-      console.error('[ExpenseForm] download failed:', err);
-      // Best-effort fallback: open in new tab so the user still has a
-      // way to save the image manually.
-      try { window.open(url, '_blank', 'noopener'); } catch {}
-      alert('הורדה נכשלה: ' + (err?.message || 'שגיאה לא ידועה') + '\n\nפתחנו את הקובץ בלשונית חדשה במקום.');
-    }
-  };
-
   return (
-    // onOpenChange intentionally a no-op. Radix can fire it for
-    // user-initiated reasons (Escape, outside click) but also for
-    // events we don't want to treat as close — notably on Android
-    // Chrome after the camera intent, where focus changes and DOM
-    // mutations during the WebView reattach phase produce stray
-    // close callbacks that wipe out the just-uploaded receipt. The
-    // form now closes ONLY via the explicit user paths inside
-    // closeForm(): 'success' (save flow), 'cancel' (cancel button).
-    <Dialog open={isOpen} onOpenChange={() => {}}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open && !saving) closeForm('dialog-openchange');
+    }}>
       <DialogContent
         dir="rtl"
         className="max-w-md"
         onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
@@ -538,67 +475,11 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             </div>
           )}
 
-          {/* Receipt photo — SmartCamera is the unified picker + preview.
-              `key` forces a fresh SmartCamera mount when the form opens
-              on a different expense so the previous expense's initialUrl
-              doesn't bleed in. Hydration values come from form fields
-              (receipt_url/path/bucket) which are loaded either from the
-              row (edit mode) or from the sessionStorage draft (recovery
-              after Activity destruction). */}
-          <div>
-            <label style={labelStyle}>קבלה</label>
-            <SmartCamera
-              key={expense?.id || 'new-expense'}
-              compact
-              initialUrl={form.receipt_url || null}
-              onUploaded={({ url }) => {
-                pushDebugLog('ExpenseForm', 'onUploaded-received', {
-                  url: String(url).slice(0, 80),
-                  beforeReceiptUrl: form.receipt_url ? String(form.receipt_url).slice(0, 80) : null,
-                });
-                setForm(prev => {
-                  const next = { ...prev, receipt_url: url };
-                  pushDebugLog('ExpenseForm', 'setForm-receipt-url-from-onUploaded', {
-                    prevReceiptUrl: prev.receipt_url ? String(prev.receipt_url).slice(0, 80) : null,
-                    nextReceiptUrl: next.receipt_url ? String(next.receipt_url).slice(0, 80) : null,
-                  });
-                  return next;
-                });
-                // CRITICAL: also write the URL straight to the
-                // sessionStorage draft, bypassing React. If this callback
-                // is running on a stale closure from a component that
-                // already unmounted, setForm above is a no-op and the
-                // persist-on-form-change effect never fires — leaving
-                // sessionStorage with the pre-upload draft. The next
-                // mount's reset-effect then reads that empty-URL draft
-                // and wipes the receipt back out of any new state. A
-                // direct write here keeps the URL recoverable across
-                // re-mounts even when React state didn't commit.
-                if (!expense && userId) {
-                  try {
-                    const raw = sessionStorage.getItem(draftKey(userId));
-                    const draft = raw ? JSON.parse(raw) : {};
-                    const merged = { ...draft, receipt_url: url };
-                    sessionStorage.setItem(draftKey(userId), JSON.stringify(merged));
-                    pushDebugLog('ExpenseForm', 'sessionStorage-updated-with-url', {
-                      url: String(url).slice(0, 80),
-                    });
-                  } catch (err) {
-                    pushDebugLog('ExpenseForm', 'sessionStorage-update-throw', {
-                      error: err?.message || String(err),
-                    });
-                  }
-                }
-              }}
-              onCleared={() => {
-                pushDebugLog('ExpenseForm', 'onCleared-received', {
-                  beforeReceiptUrl: form.receipt_url ? String(form.receipt_url).slice(0, 80) : null,
-                });
-                setForm(prev => ({ ...prev, receipt_url: '' }));
-              }}
-              onBusyChange={setCameraBusy}
-            />
-          </div>
+          {/* Receipt photo is handled per-row via ExpenseReceiptButton
+              on the Expenses list — tap the 📎 next to the saved row
+              to add or replace the receipt. Keeping the photo flow
+              outside the form makes save atomic again and avoids the
+              dialog-unmount-mid-upload class of bugs. */}
 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
@@ -611,22 +492,12 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || cameraBusy}
-              style={{
-                ...btnPrimary,
-                // Greyed out + non-orange while SmartCamera is still
-                // compressing/uploading — prevents the save-race that
-                // dropped receipt_url before the upload's onUploaded
-                // callback could populate it.
-                ...(cameraBusy ? {
-                  backgroundColor: '#B0B0B0',
-                  cursor: 'not-allowed',
-                } : null),
-              }}
+              disabled={saving}
+              style={btnPrimary}
             >
               {saving
                 ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} />
-                : (cameraBusy ? 'ממתין לתמונה...' : 'שמור הוצאה')}
+                : 'שמור הוצאה'}
             </button>
           </div>
 

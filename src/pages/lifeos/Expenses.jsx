@@ -1,10 +1,11 @@
 /* global __BUILD_TIME__ */
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw, Download } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import ExpenseForm from '@/components/lifeos/ExpenseForm';
+import ExpenseReceiptButton from '@/components/lifeos/ExpenseReceiptButton';
 import {
   LIFEOS_COLORS, LIFEOS_CARD,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_BY_KEY,
@@ -352,10 +353,12 @@ export default function Expenses() {
             <ExpenseRow
               key={row.id}
               row={row}
+              userId={userId}
               isLast={idx === filtered.length - 1}
               isHighlighted={row.id === pendingScrollId}
               onEdit={(e) => openEdit(e, row)}
               onDelete={(e) => handleDelete(e, row.id)}
+              onReceiptUpdated={load}
             />
           ))
         )}
@@ -475,7 +478,7 @@ export default function Expenses() {
   );
 }
 
-function ExpenseRow({ row, isLast, isHighlighted, onEdit, onDelete }) {
+function ExpenseRow({ row, userId, isLast, isHighlighted, onEdit, onDelete, onReceiptUpdated }) {
   const cat = EXPENSE_CATEGORY_BY_KEY[row.category] || { label: row.category, emoji: '📦' };
   const dateStr = new Date(row.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
 
@@ -495,15 +498,8 @@ function ExpenseRow({ row, isLast, isHighlighted, onEdit, onDelete }) {
         <div style={{
           fontSize: 14, fontWeight: 600, color: LIFEOS_COLORS.textPrimary,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          display: 'flex', alignItems: 'center', gap: 4,
         }}>
           {row.description || row.subcategory || cat.label}
-          {row.receipt_url && (
-            <a href={row.receipt_url} target="_blank" rel="noopener noreferrer"
-               onClick={(e) => e.stopPropagation()}
-               aria-label="קבלה" title="צפה בקבלה"
-               style={{ textDecoration: 'none', fontSize: 13 }}>📎</a>
-          )}
         </div>
         <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 2 }}>
           {dateStr} • {cat.label}
@@ -512,20 +508,12 @@ function ExpenseRow({ row, isLast, isHighlighted, onEdit, onDelete }) {
       <div style={{ fontSize: 15, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, whiteSpace: 'nowrap' }}>
         {fmt(Number(row.amount || 0))}₪
       </div>
-      {row.receipt_url && (
-        <a
-          href={row.receipt_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          download
-          onClick={(e) => e.stopPropagation()}
-          style={{ ...iconBtn, color: LIFEOS_COLORS.primary, textDecoration: 'none' }}
-          aria-label="הורד קבלה"
-          title="הורד קבלה"
-        >
-          <Download size={14} />
-        </a>
-      )}
+      <ExpenseReceiptButton
+        expenseId={row.id}
+        userId={userId}
+        currentReceiptUrl={row.receipt_url}
+        onUpdated={onReceiptUpdated}
+      />
       <button onClick={onEdit} style={iconBtn} aria-label="עריכה">
         <Pencil size={14} />
       </button>
