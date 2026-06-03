@@ -1298,7 +1298,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
     console.log('SAVE: plannedSetsDraft row 0', plannedSetsForFlatten[0]);
 
-    if (plannedSetsForFlatten.length > 0) {
+    // Only flatten for per-set methods (PYRAMID / DROP_SET / DELORME /
+    // REST_PAUSE). Basic methods (NONE / REPS) edit `sets` + `reps`
+    // directly via simple inputs, so flattening would clobber the
+    // coach's edits with stale planned_sets carried over from the
+    // loaded row.
+    const PER_SET_MODES = ['פירמידה', 'דרופסט', 'דלורם', 'רסטפאוז'];
+    const shouldFlatten = PER_SET_MODES.includes(exerciseData.mode);
+    if (shouldFlatten && plannedSetsForFlatten.length > 0) {
       const row0 = plannedSetsForFlatten[0] || {};
       exerciseData.sets             = plannedSetsForFlatten.length;
       exerciseData.reps             = row0.reps ?? null;

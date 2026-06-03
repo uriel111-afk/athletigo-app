@@ -188,6 +188,13 @@ const METHODS_WITH_STATIONS     = ['CIRCUIT'];
 const METHODS_WITH_CLOCK        = ['TABATA'];
 const METHODS_WITH_LIST         = ['EXERCISE_LIST'];
 
+// Methods where each set legitimately holds DIFFERENT values per row
+// (so a per-set table + "Add Set" button is meaningful). For basic
+// methods (NONE / REPS) every set is identical — a single "sets" +
+// "reps" pair is enough.
+const PER_SET_METHODS = ['PYRAMID', 'DROP_SET', 'DELORME', 'REST_PAUSE'];
+const usesPerSetRows = (m) => PER_SET_METHODS.includes(m);
+
 // ────────────────────────────────────────────────────────────────
 // Exercise-name autocomplete — preserved from the previous form.
 // ────────────────────────────────────────────────────────────────
@@ -985,7 +992,95 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           variation. The other 4 methods (TABATA / SUPERSET /
           COMBO / CIRCUIT) keep the "in development" placeholder.
         ───────────────────────────────────────────────────── */}
-      {METHODS_WITH_PLANNED_SETS.includes(activeMethod) && (
+      {METHODS_WITH_PLANNED_SETS.includes(activeMethod) && !usesPerSetRows(activeMethod) && (
+        <div className="mb-4 px-1">
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>
+            סטים בתרגיל
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{
+              background: 'white',
+              border: '1px solid #E5E7EB',
+              borderRadius: 8,
+              padding: '8px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+            }}>
+              <span style={{
+                fontSize: 10,
+                color: '#374151',
+                fontWeight: 800,
+                background: '#FAFAFA',
+                padding: '2px 6px',
+                borderRadius: 3,
+              }}>סטים</span>
+              <input
+                type="number"
+                value={exercise?.sets ?? ''}
+                onChange={(e) => updateEx(
+                  'sets',
+                  e.target.value === '' ? null : Number(e.target.value)
+                )}
+                disabled={readOnly}
+                style={{
+                  width: '100%',
+                  height: 34,
+                  border: 'none',
+                  textAlign: 'center',
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: 24,
+                  color: '#374151',
+                  background: 'transparent',
+                  outline: 'none',
+                }}
+              />
+            </div>
+            <div style={{
+              background: 'white',
+              border: '1px solid #D97706',
+              borderRadius: 8,
+              padding: '8px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+            }}>
+              <span style={{
+                fontSize: 10,
+                color: '#92400E',
+                fontWeight: 800,
+                background: '#FFFBEB',
+                padding: '2px 6px',
+                borderRadius: 3,
+              }}>חזרות</span>
+              <input
+                type="number"
+                value={exercise?.reps ?? ''}
+                onChange={(e) => updateEx(
+                  'reps',
+                  e.target.value === '' ? null : Number(e.target.value)
+                )}
+                disabled={readOnly}
+                style={{
+                  width: '100%',
+                  height: 34,
+                  border: 'none',
+                  textAlign: 'center',
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: 24,
+                  color: '#D97706',
+                  background: 'transparent',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {METHODS_WITH_PLANNED_SETS.includes(activeMethod) && usesPerSetRows(activeMethod) && (
         <div className="mb-4 px-1">
           {/* REST_PAUSE — shared method_config card (variation +
               uniform rest between mini-sets) renders above the
