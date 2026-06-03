@@ -52,6 +52,37 @@ const BRAND = {
   value:         '#FF6F20',
 };
 
+// Shared type-scale for the open exercise card. Foundation step —
+// not yet applied by any variant render. Adopting variant-by-variant
+// in follow-up commits.
+const T = {
+  name:     { fontSize: 26, fontWeight: 800, fontFamily: "'Barlow Condensed'" },
+  setLabel: { fontSize: 19, color: '#777' },
+  setValue: { fontSize: 32, fontWeight: 800, fontFamily: "'Barlow Condensed'" },
+  hero:     { fontSize: 52, fontWeight: 800, fontFamily: "'Barlow Condensed'", lineHeight: 1 },
+  heroLbl:  { fontSize: 13, color: '#a08a6a' },
+  heading:  { fontSize: 15, fontWeight: 600 },
+};
+
+// Reusable full-width progress bar for the open exercise card. Pure
+// presentational — caller passes the already-computed completion %
+// and the method color. Foundation step — not yet wired into any
+// variant.
+function ProgressBar({ percent, color }) {
+  const p = Math.max(0, Math.min(100, Math.round(percent || 0)));
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
+        <span style={{ color: '#999' }}>השלמה</span>
+        <span style={{ color, fontWeight: 700 }}>{p}%</span>
+      </div>
+      <div style={{ height: 10, borderRadius: 6, background: '#F0E0CC', overflow: 'hidden' }}>
+        <div style={{ height: 10, borderRadius: 6, background: color, width: p + '%' }} />
+      </div>
+    </div>
+  );
+}
+
 // Catalog of method variants that share the planned_sets data shape.
 // `closedLabel` of null hides the method tag chip on the closed card
 // (NONE / REPS use just the numeric summary, no chip). variationRequired
