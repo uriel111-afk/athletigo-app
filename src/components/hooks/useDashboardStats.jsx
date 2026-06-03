@@ -39,7 +39,7 @@ export function useDashboardStats() {
 
   const { data: allPlans = [], isLoading: plansLoading } = useQuery({
     queryKey: QUERY_KEYS.PLANS,
-    queryFn: () => base44.entities.TrainingPlan.list('-created_at', 1000).catch(() => []),
+    queryFn: () => base44.entities.TrainingPlan.filter({ created_by: user?.id }, '-created_at', 1000).catch(() => []),
     staleTime: CACHE_CONFIG.STALE_TIME,
     refetchOnMount: 'always',
   });

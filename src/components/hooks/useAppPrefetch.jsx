@@ -57,7 +57,7 @@ export function useAppPrefetch(user) {
             queryKey: QUERY_KEYS.PLANS,
             queryFn: async () => {
                try {
-                 return await base44.entities.TrainingPlan.list('-created_at', 1000);
+                 return await base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at', 1000);
                } catch { return []; }
             },
             ...prefetchOptions

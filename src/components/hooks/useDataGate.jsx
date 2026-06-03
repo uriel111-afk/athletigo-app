@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 
-const COACH_STEPS = [
+const buildCoachSteps = (userId) => [
   { key: "trainees", label: "טוען מתאמנים", queryKey: QUERY_KEYS.TRAINEES,
     fn: async () => {
       const users = await base44.entities.User.list('-created_at', 1000);
@@ -14,7 +14,7 @@ const COACH_STEPS = [
   { key: "sessions", label: "טוען מפגשים", queryKey: QUERY_KEYS.SESSIONS,
     fn: () => base44.entities.Session.list('-date', 1000).catch(() => []) },
   { key: "plans", label: "טוען תוכניות", queryKey: QUERY_KEYS.PLANS,
-    fn: () => base44.entities.TrainingPlan.list('-created_at', 1000).catch(() => []) },
+    fn: () => base44.entities.TrainingPlan.filter({ created_by: userId }, '-created_at', 1000).catch(() => []) },
   { key: "leads", label: "טוען לידים", queryKey: QUERY_KEYS.LEADS,
     fn: () => base44.entities.Lead.list('-created_at', 1000).catch(() => []) },
 ];
@@ -62,7 +62,7 @@ export function useDataGate(user) {
     setLabel("טוען משתמש...");
 
     const isCoach = user.is_coach === true || user.role === 'coach' || user.role === 'admin';
-    const steps = isCoach ? COACH_STEPS : buildTraineeSteps(user.id);
+    const steps = isCoach ? buildCoachSteps(user.id) : buildTraineeSteps(user.id);
 
     const total = steps.length;
     let completed = 0;

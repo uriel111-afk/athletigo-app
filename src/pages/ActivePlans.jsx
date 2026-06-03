@@ -38,7 +38,7 @@ export default function ActivePlans() {
   // ── Plans ──────────────────────────────────────────────────────────────
   const { data: plans = [], isLoading } = useQuery({
     queryKey: QUERY_KEYS.PLANS,
-    queryFn: () => base44.entities.TrainingPlan.list("-created_at", 1000),
+    queryFn: () => base44.entities.TrainingPlan.filter({ created_by: coach?.id }, "-created_at", 1000),
     initialData: [],
   });
 

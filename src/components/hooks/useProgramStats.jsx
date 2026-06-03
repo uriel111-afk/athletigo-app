@@ -1,13 +1,17 @@
+import { useContext } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
+import { AuthContext } from "@/lib/AuthContext";
 import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 
 export function useProgramStats() {
+  const { user } = useContext(AuthContext);
+
   const { data: plans = [], isLoading } = useQuery({
     queryKey: QUERY_KEYS.PLANS,
     queryFn: async () => {
       try {
-        const all = await base44.entities.TrainingPlan.list('-created_at', 1000);
+        const all = await base44.entities.TrainingPlan.filter({ created_by: user?.id }, '-created_at', 1000);
         // Filter soft-deleted plans (status='deleted' / deleted_at
         // populated) so a coach who deletes a plan stops seeing it
         // on this list immediately. Old data stays in DB; the list
