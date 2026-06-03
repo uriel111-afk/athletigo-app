@@ -4179,183 +4179,116 @@ export default function ExerciseCard({
           for (let i = 0; i < totalSets; i++) if (isSetDone(i)) doneCount++;
           const activeSetIdx = Math.min(doneCount, totalSets - 1);
           const allDone = doneCount >= totalSets;
+          const completionPct = totalSets > 0 ? (doneCount / totalSets) * 100 : 0;
           return (
             <div style={{
-              display: 'flex',
-              gap: 12,
-              alignItems: 'stretch',
-              marginTop: 12,
-              paddingTop: 12,
-              paddingInline: 16,
-              paddingBottom: 12,
-              borderTop: '1px solid #F4F4F5',
               direction: 'rtl',
+              textAlign: 'center',
+              background: '#FFF5EE',
+              borderRight: '5px solid #FF6F20',
+              borderRadius: '12px 0 0 12px',
+              padding: '20px 18px',
+              marginTop: 12,
             }}>
-              {/* Hero — target reps + status dots + label (right / RTL start) */}
-              <div style={{
-                flex: '0 0 45%',
-                background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-                border: '1px solid #FFD0AC',
-                borderRadius: 12,
-                padding: '12px 8px',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-              }}>
-                {/* Progress dots */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: 5,
-                  marginBottom: 6,
-                }}>
-                  {Array.from({ length: totalSets }).map((_, i) => {
-                    const done = isSetDone(i);
-                    const active = !done && !allDone && i === activeSetIdx;
-                    if (done) {
-                      return (
-                        <span key={i} aria-label={`סט ${i + 1} הושלם`} style={{
-                          width: 14, height: 14, borderRadius: '50%',
-                          background: '#16A34A',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#FFFFFF',
-                        }}>
-                          <Check size={9} strokeWidth={3} />
-                        </span>
-                      );
-                    }
-                    if (active) {
-                      return (
-                        <span key={i} aria-label={`סט ${i + 1} פעיל`} style={{
-                          width: 14, height: 14, borderRadius: '50%',
-                          background: '#FF6F20',
-                          boxShadow: '0 0 0 3px rgba(255,111,32,0.18), 0 0 8px rgba(255,111,32,0.4)',
-                        }} />
-                      );
-                    }
-                    return (
-                      <span key={i} aria-label={`סט ${i + 1} ממתין`} style={{
-                        width: 14, height: 14, borderRadius: '50%',
-                        background: '#FFFFFF',
-                        border: '2px solid #D1D5DB',
-                      }} />
-                    );
-                  })}
-                </div>
-                {/* "סט X מתוך Y" */}
-                <div style={{
-                  fontSize: 9,
-                  color: '#FF6F20',
-                  fontWeight: 700,
-                  letterSpacing: 1.2,
-                  marginBottom: 2,
-                }}>
-                  סט {Math.min(activeSetIdx + 1, totalSets)} מתוך {totalSets}
-                </div>
-                {/* Hero number */}
-                <div style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: 60,
-                  color: '#FF6F20',
-                  lineHeight: 0.85,
-                  marginTop: 2,
-                }}>
-                  {targetReps}
-                </div>
-                {/* Sub-label */}
-                <div style={{
-                  fontSize: 9,
-                  color: '#6b7280',
-                  fontWeight: 600,
-                }}>
-                  חזרות יעד
-                </div>
+              {/* Exercise name */}
+              <div style={{ ...T.name, color: '#1a1a1a', marginBottom: 14 }}>
+                {exercise?.name || exercise?.exercise_name || 'תרגיל'}
               </div>
 
-              {/* Set rows — left / RTL end. Each row taps to mark/unmark
-                  the set via the existing handleSetToggle handler. */}
+              {/* Target header — big number + label with bottom divider */}
               <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 5,
+                borderBottom: '1px solid #F0E0CC',
+                paddingBottom: 14,
+                marginBottom: 14,
               }}>
-                {Array.from({ length: totalSets }).map((_, i) => {
-                  const done = isSetDone(i);
-                  const active = !done && !allDone && i === activeSetIdx;
-                  const loggedReps = setLog?.[i]?.reps_completed;
-                  let rowStyle, labelText, labelColor, labelWeight, rightText, rightColor;
-                  if (done) {
-                    rowStyle = {
-                      background: '#F0FAF4',
-                      border: '1.5px solid #16A34A',
-                    };
-                    labelText = `סט ${i + 1} ✓`;
-                    labelColor = '#16A34A';
-                    labelWeight = 700;
-                    rightText = hasValue(loggedReps) ? String(loggedReps) : String(targetReps);
-                    rightColor = '#16A34A';
-                  } else if (active) {
-                    rowStyle = {
-                      background: '#FFF8F0',
-                      border: '1.5px solid #FF6F20',
-                      boxShadow: '0 2px 6px rgba(255,111,32,0.15)',
-                    };
-                    labelText = `סט ${i + 1} ←`;
-                    labelColor = '#FF6F20';
-                    labelWeight = 700;
-                    rightText = '?';
-                    rightColor = '#FF6F20';
-                  } else {
-                    rowStyle = {
-                      background: '#FFFFFF',
-                      border: '1.5px dashed #D1D5DB',
-                    };
-                    labelText = `סט ${i + 1}`;
-                    labelColor = '#9CA3AF';
-                    labelWeight = 600;
-                    rightText = '—';
-                    rightColor = '#D1D5DB';
-                  }
-                  return (
-                    <div
-                      key={i}
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); handleSetToggle(i); }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          handleSetToggle(i);
-                        }
-                      }}
-                      style={{
-                        ...rowStyle,
-                        borderRadius: 8,
-                        padding: '8px 10px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{
-                        fontSize: 10,
-                        color: labelColor,
-                        fontWeight: labelWeight,
-                      }}>{labelText}</div>
-                      <span style={{
-                        fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: 18,
-                        color: rightColor,
-                      }}>{rightText}</span>
-                    </div>
-                  );
-                })}
+                <div style={{ ...T.hero, color: '#FF6F20' }}>{targetReps}</div>
+                <div style={{ ...T.heroLbl, marginTop: 4 }}>חזרות יעד</div>
               </div>
+
+              {/* Per-set rows — full width, centered. NO space-between,
+                  NO flex:1. dot · label · value, all in a single
+                  centered flex row. */}
+              {Array.from({ length: totalSets }).map((_, i) => {
+                const done = isSetDone(i);
+                const active = !done && !allDone && i === activeSetIdx;
+                const loggedReps = setLog?.[i]?.reps_completed;
+                let dotBg, dotBorder, valueColor, valueText, rowBorder;
+                if (done) {
+                  dotBg = '#16A34A';
+                  dotBorder = '#16A34A';
+                  valueColor = '#16A34A';
+                  rowBorder = '1.5px solid #BBF7D0';
+                  valueText = hasValue(loggedReps) ? String(loggedReps) : String(targetReps);
+                } else if (active) {
+                  dotBg = '#FF6F20';
+                  dotBorder = '#FF6F20';
+                  valueColor = '#FF6F20';
+                  rowBorder = '1.5px solid #FF6F20';
+                  valueText = '?';
+                } else {
+                  dotBg = 'transparent';
+                  dotBorder = '#D1D5DB';
+                  valueColor = '#9CA3AF';
+                  rowBorder = '1.5px dashed #D1D5DB';
+                  valueText = '—';
+                }
+                return (
+                  <div
+                    key={i}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); handleSetToggle(i); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSetToggle(i);
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 16,
+                      padding: '16px 8px',
+                      borderRadius: 11,
+                      marginBottom: 10,
+                      background: '#FFFFFF',
+                      border: rowBorder,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 17,
+                        height: 17,
+                        borderRadius: '50%',
+                        background: dotBg,
+                        border: `2px solid ${dotBorder}`,
+                        display: 'inline-block',
+                        flex: '0 0 auto',
+                      }}
+                    />
+                    <span style={{ ...T.setLabel }}>{`סט ${i + 1}`}</span>
+                    {active ? (
+                      <span style={{
+                        ...T.setValue,
+                        color: '#FF6F20',
+                        border: '2px solid #FF6F20',
+                        borderRadius: 8,
+                        padding: '0 14px',
+                        lineHeight: 1.1,
+                      }}>?</span>
+                    ) : (
+                      <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Full-width completion bar — reuses the in-card
+                  doneCount/totalSets ratio. */}
+              <ProgressBar percent={completionPct} color="#FF6F20" />
             </div>
           );
         })()}
