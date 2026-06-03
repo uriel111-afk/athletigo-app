@@ -1331,7 +1331,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       ...exerciseData,
       name: exerciseData.exercise_name || exerciseData.name || "תרגיל",
       tabata_preview: tabataPreview,
-      tabata_data: tabataData,
+      // Preserve-fallback (not override-with-null): container methods that
+      // rebuild a fresh tabataData above still write it; every other method
+      // keeps the form's serialized JSONB (planned_sets, method_config,
+      // rounds, stations, sub_exercises, clock_settings, …) instead of
+      // having it nulled here on every save.
+      tabata_data: tabataData ?? exerciseData.tabata_data ?? null,
       training_plan_id: plan.id,
       training_section_id: currentSection.id,
       order,
