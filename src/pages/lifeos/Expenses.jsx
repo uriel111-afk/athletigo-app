@@ -14,6 +14,7 @@ import {
 import {
   listExpensesForMonth, listExpenses, deleteExpense, addRecurring,
 } from '@/lib/lifeos/lifeos-api';
+import { pushDebugLog } from '@/lib/debugLog';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -52,6 +53,16 @@ export default function Expenses() {
   // Set of expense ids that have at least one file in lifeos_files —
   // drives the 📎 indicator on the row.
   const [expensesWithFiles, setExpensesWithFiles] = useState(() => new Set());
+
+  // Build-marker log fires once on mount. Tells us in the on-screen
+  // debug log whether this is the new detail-route build or a stale
+  // cached PWA bundle from before f500828.
+  useEffect(() => {
+    pushDebugLog('Expenses', 'page-loaded', {
+      buildTime: __BUILD_TIME__,
+      routerVersion: 'new-detail-route-v1',
+    });
+  }, []);
   const [lastError, setLastError] = useState(null);
   const [lastSuccess, setLastSuccess] = useState(null);
   // After a save, we set this to the saved row id. A useEffect watches
@@ -382,7 +393,14 @@ export default function Expenses() {
               isLast={idx === filtered.length - 1}
               isHighlighted={row.id === pendingScrollId}
               hasFiles={expensesWithFiles.has(row.id) || !!row.receipt_url}
-              onOpen={() => navigate(`/lifeos/expenses/${row.id}`)}
+              onOpen={() => {
+                pushDebugLog('Expenses', 'row-clicked', {
+                  expenseId: row.id,
+                  action: 'navigate-to-detail',
+                  targetPath: `/lifeos/expenses/${row.id}`,
+                });
+                navigate(`/lifeos/expenses/${row.id}`);
+              }}
               onEdit={(e) => openEdit(e, row)}
               onDelete={(e) => handleDelete(e, row.id)}
             />
