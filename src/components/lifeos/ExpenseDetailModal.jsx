@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
-import { Camera, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Camera, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { pushDebugLog } from '@/lib/debugLog';
 
@@ -61,7 +61,16 @@ export default function ExpenseDetailModal({
   if (!expense) return null;
 
   async function handleFileSelect(file) {
-    if (!file) return;
+    pushDebugLog('ExpenseDetailModal', 'handleFileSelect-entered', {
+      hasFile: !!file,
+      fileName: file?.name,
+      fileSize: file?.size,
+      fileType: file?.type,
+    });
+    if (!file) {
+      pushDebugLog('ExpenseDetailModal', 'handleFileSelect-no-file', {});
+      return;
+    }
     setUploading(true);
     pushDebugLog('ExpenseDetailModal', 'upload-start', {
       expenseId: expense.id,
@@ -172,13 +181,47 @@ export default function ExpenseDetailModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose?.(); }}>
+    // onOpenChange is intentionally a no-op for !open. Radix can fire
+    // it for "outside interaction" reasons that on Android Chrome
+    // include the WebView reattach after a camera intent — which
+    // would otherwise close this modal mid-flow and kill the file
+    // input's onChange before it could fire. Modal closes ONLY via
+    // the explicit X button or the "סגור" footer button.
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        pushDebugLog('ExpenseDetailModal', 'onOpenChange-blocked', {
+          uploading,
+        });
+      }
+    }}>
       <DialogContent
         className="max-w-md max-h-[90vh] overflow-y-auto"
         dir="rtl"
-        onPointerDownOutside={(e) => { if (uploading) e.preventDefault(); }}
-        onEscapeKeyDown={(e) => { if (uploading) e.preventDefault(); }}
+        onPointerDownOutside={(e) => {
+          pushDebugLog('ExpenseDetailModal', 'pointer-down-outside-blocked', {});
+          e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          pushDebugLog('ExpenseDetailModal', 'escape-key-blocked', {});
+          e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          pushDebugLog('ExpenseDetailModal', 'interact-outside-blocked', {});
+          e.preventDefault();
+        }}
       >
+        <button
+          type="button"
+          onClick={() => {
+            pushDebugLog('ExpenseDetailModal', 'x-button-clicked', {});
+            onClose?.();
+          }}
+          aria-label="סגור"
+          className="absolute top-2 left-2 text-gray-400 hover:text-gray-600 z-10"
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}
+        >
+          <X size={20} />
+        </button>
         <div className="space-y-4">
           <div className="flex items-baseline justify-between border-b border-orange-100 pb-3">
             <div className="text-3xl font-bold text-orange-600">
@@ -274,7 +317,10 @@ export default function ExpenseDetailModal({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                pushDebugLog('ExpenseDetailModal', 'close-button-clicked', {});
+                onClose?.();
+              }}
               className="flex-1 py-2 bg-orange-500 text-white rounded-lg"
             >
               סגור
