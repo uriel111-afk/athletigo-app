@@ -1275,6 +1275,48 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       tabataData = JSON.stringify({ blocks });
     }
 
+    // Flatten plannedSetsDraft (lives inside tabata_data JSONB) into the
+    // top-level exercise columns that ExerciseCard.buildParamItemsFor
+    // reads from. Without this, the coach's edits land only in
+    // tabata_data.planned_sets and never reach the columns the card
+    // renders, so the edit appears to "disappear" right after save.
+    // Field-name mapping: PARAM_CATALOG keys differ from DB column
+    // names (weight_kg → weight, rest_seconds → rest_time,
+    // hold_seconds → static_hold_time). The row may also legacy-carry
+    // the DB name directly, so we fall through to it.
+    let plannedSetsForFlatten = [];
+    const tdSource = tabataData ?? exerciseData.tabata_data;
+    if (tdSource) {
+      try {
+        const parsedTd = typeof tdSource === 'string' ? JSON.parse(tdSource) : tdSource;
+        if (Array.isArray(parsedTd?.planned_sets)) {
+          plannedSetsForFlatten = parsedTd.planned_sets;
+        }
+      } catch (e) {
+        console.warn('[handleSaveExercise] tabata_data unparseable for flatten:', e?.message);
+      }
+    }
+    console.log('SAVE: plannedSetsDraft row 0', plannedSetsForFlatten[0]);
+
+    if (plannedSetsForFlatten.length > 0) {
+      const row0 = plannedSetsForFlatten[0] || {};
+      exerciseData.sets             = plannedSetsForFlatten.length;
+      exerciseData.reps             = row0.reps ?? null;
+      exerciseData.weight           = row0.weight_kg ?? row0.weight ?? null;
+      exerciseData.rest_time        = row0.rest_seconds ?? row0.rest_time ?? null;
+      exerciseData.work_time        = row0.work_time ?? exerciseData.work_time ?? null;
+      exerciseData.tempo            = row0.tempo ?? null;
+      exerciseData.rpe              = row0.rpe ?? null;
+      exerciseData.static_hold_time = row0.hold_seconds ?? row0.static_hold_time ?? null;
+      exerciseData.rest_between_sets = row0.rest_between_sets ?? exerciseData.rest_between_sets ?? null;
+    }
+    console.log('SAVE: flattened columns', {
+      sets: exerciseData.sets,
+      reps: exerciseData.reps,
+      rest_time: exerciseData.rest_time,
+      work_time: exerciseData.work_time,
+    });
+
     const sectionExercises = getExercisesBySection(currentSection.id);
     const order = editingExercise?.order || sectionExercises.length + 1;
     const data = {
@@ -1294,7 +1336,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     delete data.tabataData;
     delete data.tabata_blocks;
 
-    console.log('SAVE: payload sent to db', data);
+    console.log('SAVE: final payload', data);
 
     try {
       if (editingExercise?.id) {
