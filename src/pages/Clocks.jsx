@@ -147,7 +147,11 @@ function TimerView({ onMinimize }) {
     if (!active || !isRunning || phase === 'prepare') return;
     const secLeft = Math.ceil(display / 1000);
     if (secLeft === 10 && lastBeepRef.current !== 10) { lastBeepRef.current = 10; SOUND_ALERT(); }
-    if ((secLeft === 3 || secLeft === 2 || secLeft === 1) && secLeft !== lastBeepRef.current) { lastBeepRef.current = secLeft; SOUND_TICK(); }
+    // Countdown beeps on 3, 2, 1 only — match Tabata's `secs >= 1 && secs <= 3`.
+    // `display > 50` ensures the tick can't re-fire inside the bell zone
+    // (where lastBeepRef is reset to 0 by SOUND_TRIPLE_BELL and would
+    // otherwise allow secLeft===1 to retrigger as 1 !== 0).
+    if ((secLeft === 3 || secLeft === 2 || secLeft === 1) && secLeft !== lastBeepRef.current && display > 50) { lastBeepRef.current = secLeft; SOUND_TICK(); }
     if (display <= 50 && lastBeepRef.current !== 0) { lastBeepRef.current = 0; SOUND_TRIPLE_BELL(); }
   }, [display, active, isRunning, phase]);
   useEffect(() => { if (!active) lastBeepRef.current = -1; }, [active]);
