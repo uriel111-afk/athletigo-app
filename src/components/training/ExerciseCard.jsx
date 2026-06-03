@@ -3144,7 +3144,7 @@ export default function ExerciseCard({
                 tally header. When no execution exists, fall back to
                 planned-only dashed-gray protocol view. Field columns
                 are driven by tabata_data.set_fields per row. */}
-            {expanded && PLANNED_SETS_METHODS[variant] && isCoachMode && (() => {
+            {expanded && PLANNED_SETS_METHODS[variant] && variant !== 'none' && variant !== 'reps_new' && isCoachMode && (() => {
               const methodMeta = PLANNED_SETS_METHODS[variant];
               const plannedSets = parsePlannedSets(exercise);
               if (plannedSets.length === 0) {
@@ -3291,7 +3291,7 @@ export default function ExerciseCard({
                 chips). DROP_SET / DELORME surface a hint when the
                 active row's variation_name is missing. State persists
                 via exercise_set_logs through saveSetActual. */}
-            {expanded && PLANNED_SETS_METHODS[variant] && !isCoachMode && (() => {
+            {expanded && PLANNED_SETS_METHODS[variant] && variant !== 'none' && variant !== 'reps_new' && !isCoachMode && (() => {
               const methodMeta = PLANNED_SETS_METHODS[variant];
               const plannedSets = parsePlannedSets(exercise);
               if (plannedSets.length === 0) {
@@ -4168,7 +4168,7 @@ export default function ExerciseCard({
             exercise variants (tabata, list) keep their own existing
             branches above; coach view, display-mode sections, and
             time-only exercises fall through to the legacy IIFE below. */}
-        {expanded && variant === 'normal'
+        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           && !isCoachMode
           && sectionTrackingMode !== 'display'
           && hasValue(exercise.sets)
@@ -4293,7 +4293,7 @@ export default function ExerciseCard({
           );
         })()}
 
-        {expanded && variant === 'normal'
+        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           /* Legacy IIFE — kept for coach view, display-mode sections,
              and time-only normal exercises. Skipped when the new
              45/55 layout above takes over. */
