@@ -1577,12 +1577,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               && (reps == null || Number.isNaN(reps))
               && (timeC == null || Number.isNaN(timeC))
               && difficulty == null) continue;
+          const weight = log.weight_used != null && log.weight_used !== ''
+            ? Number(log.weight_used)
+            : null;
           setLogRows.push({
             execution_id: execRow.id,
             exercise_id: exerciseId,
             set_number: parseInt(setIdxStr, 10) + 1,
             reps_completed: Number.isFinite(reps) ? reps : null,
             time_completed: Number.isFinite(timeC) ? timeC : null,
+            weight_used: Number.isFinite(weight) ? weight : null,
             completed: !!log.done,
             difficulty_rating: Number.isFinite(difficulty) ? difficulty : null,
           });

@@ -83,6 +83,44 @@ function ProgressBar({ percent, color }) {
   );
 }
 
+// Trainee actual-input on the active item. Placeholder shows the
+// coach's target; an empty field on save is interpreted as "hit the
+// target" by the upstream save logic. stopPropagation on the wrapper
+// keeps row-level tap handlers (mark-done / advance) from firing
+// while the trainee types. Used by NONE/REPS, PYRAMID/DROP_SET/
+// DELORME, and REST_PAUSE active rows — never appears on completed
+// or pending items.
+function ActualInput({ target, value, unit, color = '#FF6F20', onChange }) {
+  return (
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="number"
+        inputMode="numeric"
+        placeholder={target != null ? String(target) : ''}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        style={{
+          width: 64,
+          textAlign: 'center',
+          fontFamily: "'Barlow Condensed'",
+          fontWeight: 800,
+          fontSize: 26,
+          color: '#1a1a1a',
+          border: `1.5px solid ${color}`,
+          borderRadius: 10,
+          padding: '4px 0',
+          background: '#FFFFFF',
+          outline: 'none',
+        }}
+      />
+      {unit && <span style={{ fontSize: 12, color: '#888' }}>{unit}</span>}
+    </span>
+  );
+}
+
 // Catalog of method variants that share the planned_sets data shape.
 // `closedLabel` of null hides the method tag chip on the closed card
 // (NONE / REPS use just the numeric summary, no chip). variationRequired
@@ -1013,7 +1051,15 @@ export default function ExerciseCard({
       return;
     }
     const oneBased = pyramidActiveIdx + 1;
-    const payload = pyramidActuals[oneBased] || {};
+    const staged = pyramidActuals[oneBased] || {};
+    // Empty inputs at save time → fall back to the planned target
+    // ("tap once to accept the target" UX). Typed values override.
+    const planned = parsePlannedSets(exercise)[pyramidActiveIdx] || {};
+    const payload = {
+      reps:         staged.reps         != null ? staged.reps         : (planned.reps         ?? null),
+      weight_kg:    staged.weight_kg    != null ? staged.weight_kg    : (planned.weight_kg    ?? null),
+      hold_seconds: staged.hold_seconds != null ? staged.hold_seconds : (planned.hold_seconds ?? null),
+    };
     setPyramidSaving(true);
     const { error } = await saveSetActual(
       supabase,
@@ -3016,36 +3062,28 @@ export default function ExerciseCard({
                       }}>
                         מיני-סט {activeIdx + 1} · כמה הצלחת?
                       </div>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                        gap: 8,
-                      }}>
-                        {numericFields.map((fieldId) => {
-                          if (activeSet[fieldId] == null) return null;
-                          const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                          return (
-                            <div key={fieldId}>
-                              <div style={counterLabelStyle}>{meta.label}</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => updateActual(activeIdx, fieldId, -1)}
-                                  style={minusBtnStyle}
-                                >−</button>
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-                                  <span style={counterValueStyle}>{pyramidActuals[activeIdx + 1]?.[fieldId] ?? 0}</span>
-                                  <span style={counterTargetStyle}>/ {activeSet[fieldId]}</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => updateActual(activeIdx, fieldId, +1)}
-                                  style={plusBtnStyle}
-                                >+</button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                        <ActualInput
+                          target={activeSet.reps}
+                          value={pyramidActuals[activeIdx + 1]?.reps}
+                          color={BRAND.stripeActive}
+                          onChange={(n) => setPyramidActuals((prev) => ({
+                            ...prev,
+                            [activeIdx + 1]: { ...(prev[activeIdx + 1] || {}), reps: n },
+                          }))}
+                        />
+                        {activeSet.weight_kg != null && (
+                          <ActualInput
+                            target={activeSet.weight_kg}
+                            value={pyramidActuals[activeIdx + 1]?.weight_kg}
+                            unit='ק"ג'
+                            color={BRAND.stripeActive}
+                            onChange={(n) => setPyramidActuals((prev) => ({
+                              ...prev,
+                              [activeIdx + 1]: { ...(prev[activeIdx + 1] || {}), weight_kg: n },
+                            }))}
+                          />
+                        )}
                       </div>
                     </div>
                     </div>
@@ -3405,14 +3443,27 @@ export default function ExerciseCard({
                               {label}
                             </span>
                             {active ? (
-                              <span style={{
-                                ...T.setValue,
-                                color: '#FF6F20',
-                                border: '2px solid #FF6F20',
-                                borderRadius: 8,
-                                padding: '0 14px',
-                                lineHeight: 1.1,
-                              }}>?</span>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                <ActualInput
+                                  target={set.reps}
+                                  value={pyramidActuals[i + 1]?.reps}
+                                  onChange={(n) => setPyramidActuals((prev) => ({
+                                    ...prev,
+                                    [i + 1]: { ...(prev[i + 1] || {}), reps: n },
+                                  }))}
+                                />
+                                {set.weight_kg != null && (
+                                  <ActualInput
+                                    target={set.weight_kg}
+                                    value={pyramidActuals[i + 1]?.weight_kg}
+                                    unit='ק"ג'
+                                    onChange={(n) => setPyramidActuals((prev) => ({
+                                      ...prev,
+                                      [i + 1]: { ...(prev[i + 1] || {}), weight_kg: n },
+                                    }))}
+                                  />
+                                )}
+                              </span>
                             ) : (
                               <span style={{ ...T.setValue, color: valueColor }}>{String(targetReps)}</span>
                             )}
@@ -4076,14 +4127,29 @@ export default function ExerciseCard({
                     />
                     <span style={{ ...T.setLabel }}>{`סט ${i + 1}`}</span>
                     {active ? (
-                      <span style={{
-                        ...T.setValue,
-                        color: '#FF6F20',
-                        border: '2px solid #FF6F20',
-                        borderRadius: 8,
-                        padding: '0 14px',
-                        lineHeight: 1.1,
-                      }}>?</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <ActualInput
+                          target={exercise.reps}
+                          value={setLog?.[i]?.reps_completed}
+                          onChange={(n) => {
+                            if (typeof onSetLogChange === 'function') {
+                              onSetLogChange(exercise.id, i, 'reps_completed', n);
+                            }
+                          }}
+                        />
+                        {hasValue(exercise.weight) && (
+                          <ActualInput
+                            target={exercise.weight}
+                            value={setLog?.[i]?.weight_used}
+                            unit='ק"ג'
+                            onChange={(n) => {
+                              if (typeof onSetLogChange === 'function') {
+                                onSetLogChange(exercise.id, i, 'weight_used', n);
+                              }
+                            }}
+                          />
+                        )}
+                      </span>
                     ) : (
                       <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
                     )}
