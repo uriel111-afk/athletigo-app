@@ -1318,7 +1318,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                     {selectedSetFields.length > 0 && (
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: `repeat(${selectedSetFields.length}, 1fr)`,
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
                         gap: 6,
                       }}>
                         {selectedSetFields.map((fieldId) =>
@@ -1551,7 +1551,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                             {selectedSetFields.length > 0 && (
                               <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: `repeat(${selectedSetFields.length}, 1fr)`,
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
                                 gap: 6,
                               }}>
                                 {selectedSetFields.map((fieldId) =>
