@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import ExpenseForm from '@/components/lifeos/ExpenseForm';
-import ExpenseReceiptButton from '@/components/lifeos/ExpenseReceiptButton';
+import ExpenseDetailModal from '@/components/lifeos/ExpenseDetailModal';
 import {
   LIFEOS_COLORS, LIFEOS_CARD,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_BY_KEY,
@@ -47,6 +47,8 @@ export default function Expenses() {
   const [categoryFilter, setCategoryFilter] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  // Row tap opens this — the unified detail+receipt modal.
+  const [detailExpense, setDetailExpense] = useState(null);
   const [lastError, setLastError] = useState(null);
   const [lastSuccess, setLastSuccess] = useState(null);
   // After a save, we set this to the saved row id. A useEffect watches
@@ -96,6 +98,20 @@ export default function Expenses() {
   }, [userId, cursor]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Keep the detail modal's expense in sync with the latest version
+  // from rows after every refetch — so an in-modal receipt upload
+  // immediately reflects the new receipt_url, and a deleted row
+  // closes the modal automatically.
+  useEffect(() => {
+    if (!detailExpense) return;
+    const fresh = rows.find(r => r.id === detailExpense.id);
+    if (fresh) {
+      if (fresh !== detailExpense) setDetailExpense(fresh);
+    } else {
+      setDetailExpense(null);
+    }
+  }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll a freshly-saved row into view once the refetch lands.
   useEffect(() => {
@@ -353,12 +369,11 @@ export default function Expenses() {
             <ExpenseRow
               key={row.id}
               row={row}
-              userId={userId}
               isLast={idx === filtered.length - 1}
               isHighlighted={row.id === pendingScrollId}
+              onOpen={() => setDetailExpense(row)}
               onEdit={(e) => openEdit(e, row)}
               onDelete={(e) => handleDelete(e, row.id)}
-              onReceiptUpdated={load}
             />
           ))
         )}
@@ -465,6 +480,25 @@ export default function Expenses() {
         }}
       />
 
+      <ExpenseDetailModal
+        expense={detailExpense}
+        isOpen={!!detailExpense}
+        onClose={() => setDetailExpense(null)}
+        userId={userId}
+        onUpdated={load}
+        onDelete={async (id) => {
+          if (!confirm('בטוח שאתה רוצה למחוק את ההוצאה?')) return;
+          try {
+            await deleteExpense(id);
+            setDetailExpense(null);
+            toast.success('נמחק');
+            load();
+          } catch (err) {
+            toast.error('שגיאה: ' + (err?.message || ''));
+          }
+        }}
+      />
+
       <div style={{
         fontSize: '9px',
         color: '#9CA3AF',
@@ -478,13 +512,16 @@ export default function Expenses() {
   );
 }
 
-function ExpenseRow({ row, userId, isLast, isHighlighted, onEdit, onDelete, onReceiptUpdated }) {
+function ExpenseRow({ row, isLast, isHighlighted, onOpen, onEdit, onDelete }) {
   const cat = EXPENSE_CATEGORY_BY_KEY[row.category] || { label: row.category, emoji: '📦' };
   const dateStr = new Date(row.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
 
   return (
     <div
       data-expense-id={row.id}
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '12px 14px',
@@ -492,14 +529,19 @@ function ExpenseRow({ row, userId, isLast, isHighlighted, onEdit, onDelete, onRe
         backgroundColor: isHighlighted ? '#FFF7ED' : 'transparent',
         boxShadow: isHighlighted ? `inset 4px 0 0 ${LIFEOS_COLORS.primary}` : 'none',
         transition: 'background-color 0.6s ease, box-shadow 0.6s ease',
+        cursor: 'pointer',
       }}>
       <div style={{ fontSize: 22 }}>{cat.emoji}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: 14, fontWeight: 600, color: LIFEOS_COLORS.textPrimary,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          display: 'flex', alignItems: 'center', gap: 4,
         }}>
           {row.description || row.subcategory || cat.label}
+          {row.receipt_url && (
+            <span aria-label="קבלה מצורפת" title="קבלה מצורפת" style={{ fontSize: 13 }}>📎</span>
+          )}
         </div>
         <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 2 }}>
           {dateStr} • {cat.label}
@@ -508,12 +550,6 @@ function ExpenseRow({ row, userId, isLast, isHighlighted, onEdit, onDelete, onRe
       <div style={{ fontSize: 15, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, whiteSpace: 'nowrap' }}>
         {fmt(Number(row.amount || 0))}₪
       </div>
-      <ExpenseReceiptButton
-        expenseId={row.id}
-        userId={userId}
-        currentReceiptUrl={row.receipt_url}
-        onUpdated={onReceiptUpdated}
-      />
       <button onClick={onEdit} style={iconBtn} aria-label="עריכה">
         <Pencil size={14} />
       </button>
