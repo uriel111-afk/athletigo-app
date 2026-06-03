@@ -146,22 +146,13 @@ const ROUNDS_METHODS = {
 };
 
 // CIRCUIT uses a horizontal station strip + a round-progression
-// indicator. Two palettes: default blue, and a stronger blue when
-// method_config.group_mode is on (the coach is running this circuit
-// as a group session).
+// indicator.
 const STATIONS_METHODS = {
   circuit: {
     label: 'אימון מחזורי',
     closedLabel: 'מחזורי',
     // Phase 3 — closed-card chip palette unified to brand orange.
     palette: {
-      outer: '#FFF6EE',
-      border: '#F0E4D0',
-      stripe: '#FF6F20',
-      text: '#7A3A0F',
-      textSoft: '#7A3A0F',
-    },
-    groupPalette: {
       outer: '#FFF6EE',
       border: '#F0E4D0',
       stripe: '#FF6F20',
@@ -1588,8 +1579,7 @@ export default function ExerciseCard({
 
   // CIRCUIT closed-card summary — two lines: station count + rounds
   // tally above a small preview of the first 3 station names.
-  // Method tag chip is the closedLabel; a small "קבוצתי" pill renders
-  // alongside when method_config.group_mode is on.
+  // Method tag chip is the closedLabel.
   const circuitSummary = (() => {
     if (!STATIONS_METHODS[variant]) return null;
     const methodMeta = STATIONS_METHODS[variant];
@@ -1609,8 +1599,7 @@ export default function ExerciseCard({
     }
     const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
     const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
-    const groupMode = methodConfig.group_mode === true;
-    const palette = groupMode ? methodMeta.groupPalette : methodMeta.palette;
+    const palette = methodMeta.palette;
     const previewNames = stations
       .slice(0, 3)
       .map((s) => (s?.name || '').trim())
@@ -1651,19 +1640,6 @@ export default function ExerciseCard({
           }}>
             {methodMeta.closedLabel}
           </span>
-          {groupMode && (
-            <span style={{
-              fontSize: 9,
-              fontWeight: 800,
-              color: 'white',
-              background: palette.stripe,
-              padding: '2px 7px',
-              borderRadius: 10,
-              letterSpacing: 0.3,
-            }}>
-              קבוצתי
-            </span>
-          )}
         </div>
         {previewNames.length > 0 && (
           <div style={{
@@ -2227,20 +2203,16 @@ export default function ExerciseCard({
             {/* CIRCUIT — horizontal scrollable strip of station cards
                 + a round-progression dot indicator. Each station shows
                 its number, type badge (חזרות / שניות), name, and value
-                in its type's unit color. group_mode swaps in the
-                stronger blue palette and surfaces a "קבוצתי" badge.
-                Persistence reuses onCompleteRound (writes a 1-marker
-                row per completed round to exercise_set_logs). */}
+                in its type's unit color. Persistence reuses
+                onCompleteRound (writes a 1-marker row per completed
+                round to exercise_set_logs). */}
             {expanded && STATIONS_METHODS[variant] && (() => {
               const methodMeta = STATIONS_METHODS[variant];
               const td = parseTabataData(exercise?.tabata_data) || {};
               const stations = Array.isArray(td.stations) ? td.stations : [];
               const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
               const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
-              const groupMode = methodConfig.group_mode === true;
-              // Phase 3 — palette via shared BRAND tokens. groupMode
-              // still bumps the outer border weight for emphasis.
-              const outerBorderWidth = groupMode ? 2.5 : 2;
+              const outerBorderWidth = 2;
 
               if (stations.length === 0) {
                 return <EmptyMethodPlaceholder headline="טרם הוגדרו תחנות" />;
@@ -2285,19 +2257,6 @@ export default function ExerciseCard({
                       }}>
                         {methodMeta.label}
                       </span>
-                      {groupMode && (
-                        <span style={{
-                          fontSize: 9,
-                          fontWeight: 800,
-                          color: 'white',
-                          background: BRAND.stripeActive,
-                          padding: '2px 7px',
-                          borderRadius: 10,
-                          letterSpacing: 0.3,
-                        }}>
-                          קבוצתי
-                        </span>
-                      )}
                     </div>
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
@@ -2311,23 +2270,6 @@ export default function ExerciseCard({
                       סבב {Math.min(activeRoundIdx + 1, rounds)} / {rounds}
                     </span>
                   </div>
-
-                  {/* Group-mode hint strip */}
-                  {groupMode && (
-                    <div style={{
-                      background: BRAND.panelBg,
-                      border: `1px solid ${BRAND.panelBorder}`,
-                      borderRadius: 8,
-                      padding: 8,
-                      marginBottom: 10,
-                      fontSize: 11,
-                      color: BRAND.tagText,
-                      fontWeight: 700,
-                      textAlign: 'center',
-                    }}>
-                      מצב קבוצתי פעיל — סמן השלמת סבב לכל הקבוצה יחד
-                    </div>
-                  )}
 
                   <SectionLabel>תחנות</SectionLabel>
                   {/* Stations — flex-wrap (no horizontal scroll) */}

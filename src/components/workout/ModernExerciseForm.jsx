@@ -278,8 +278,8 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const [plannedSetsDraft, setPlannedSetsDraft] = useState([]);
 
   // Per-method shared config (REST_PAUSE's uniform variation + rest,
-  // CIRCUIT's rounds + group_mode, …). Lives outside planned_sets
-  // because it applies to the whole exercise, not to a single row.
+  // CIRCUIT's rounds, …). Lives outside planned_sets because it
+  // applies to the whole exercise, not to a single row.
   const [methodConfig, setMethodConfig] = useState({});
 
   const updateMethodConfig = (key, value) => {
@@ -1857,20 +1857,6 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 }}
               />
               <span style={{ flex: 1 }} />
-              <label style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                fontSize: 10, color: '#1D4ED8', fontWeight: 800,
-                cursor: readOnly ? 'default' : 'pointer',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={!!methodConfig.group_mode}
-                  onChange={(e) => updateMethodConfig('group_mode', e.target.checked)}
-                  disabled={readOnly}
-                  style={{ accentColor: '#3B82F6' }}
-                />
-                אימון קבוצתי
-              </label>
             </div>
           </div>
 
@@ -1925,7 +1911,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   <div key={si} style={{
                     minWidth: 160,
                     background: 'white',
-                    border: methodConfig.group_mode ? '1px solid #3B82F6' : '1px solid #E5E7EB',
+                    border: '1px solid #E5E7EB',
                     borderRadius: 10,
                     padding: 10,
                     flexShrink: 0,
