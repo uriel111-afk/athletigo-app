@@ -1509,6 +1509,8 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                                 padding: '2px 8px',
                                 fontSize: 11,
                                 fontWeight: 800,
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
                               }}>
                                 תרגיל {exerciseLetter}
                               </span>
