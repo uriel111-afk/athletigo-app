@@ -91,32 +91,141 @@ function ProgressBar({ percent, color }) {
 // DELORME, and REST_PAUSE active rows — never appears on completed
 // or pending items.
 function ActualInput({ target, value, unit, color = '#FF6F20', onChange }) {
+  const stopProp = (e) => e.stopPropagation();
+  // Base for +/− math: typed value wins, else the target, else 0.
+  // Display + comparisons round to integers so chips/buttons always
+  // land on whole numbers even when targets carry trailing zeros.
+  const baseNum = Number(value ?? target ?? 0) || 0;
+  const handleMinus = () => onChange(Math.max(0, Math.round(baseNum) - 1));
+  const handlePlus = () => onChange(Math.round(baseNum) + 1);
+
+  // Quick-pick chips: 9 numbers centered on the target (clamped at 0),
+  // or 1..12 when no target was provided. Range is generated each render
+  // since target rarely changes mid-set.
+  const chips = (() => {
+    const tNum = Number(target);
+    if (target != null && Number.isFinite(tNum)) {
+      const t = Math.round(tNum);
+      const start = Math.max(0, t - 4);
+      return Array.from({ length: 9 }, (_, i) => start + i);
+    }
+    return Array.from({ length: 12 }, (_, i) => i + 1);
+  })();
+
+  // What's "selected" in the strip: prefer the typed value, otherwise
+  // the target. Null when neither — strip shows no selection.
+  const selectedNum = value != null
+    ? Math.round(Number(value))
+    : (target != null ? Math.round(Number(target)) : null);
+  const targetNum = target != null && Number.isFinite(Number(target))
+    ? Math.round(Number(target))
+    : null;
+
+  const btnStyle = {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    border: `1.5px solid ${color}`,
+    background: `${color}15`,
+    color,
+    fontSize: 18,
+    fontWeight: 800,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    lineHeight: 1,
+    padding: 0,
+    flexShrink: 0,
+  };
+
   return (
     <span
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-      onClick={(e) => e.stopPropagation()}
+      style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
+      onClick={stopProp}
     >
-      <input
-        type="number"
-        inputMode="numeric"
-        placeholder={target != null ? String(target) : ''}
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      {/* Row 1 — − input + unit */}
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <button
+          type="button"
+          onClick={(e) => { stopProp(e); handleMinus(); }}
+          style={btnStyle}
+        >−</button>
+        <input
+          type="number"
+          inputMode="numeric"
+          placeholder={target != null ? String(Math.round(Number(target))) : ''}
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+          style={{
+            width: 64,
+            textAlign: 'center',
+            fontFamily: "'Barlow Condensed'",
+            fontWeight: 800,
+            fontSize: 26,
+            color: '#1a1a1a',
+            border: `1.5px solid ${color}`,
+            borderRadius: 10,
+            padding: '4px 0',
+            background: '#FFFFFF',
+            outline: 'none',
+          }}
+        />
+        <button
+          type="button"
+          onClick={(e) => { stopProp(e); handlePlus(); }}
+          style={btnStyle}
+        >+</button>
+        {unit && <span style={{ fontSize: 12, color: '#888' }}>{unit}</span>}
+      </span>
+
+      {/* Row 2 — horizontal quick-pick strip. width: 170 + maxWidth:100%
+          so two ActualInputs side-by-side fit within typical phone
+          viewports without forcing horizontal page scroll. Scrollbar
+          hidden across browsers. */}
+      <span
         style={{
-          width: 64,
-          textAlign: 'center',
-          fontFamily: "'Barlow Condensed'",
-          fontWeight: 800,
-          fontSize: 26,
-          color: '#1a1a1a',
-          border: `1.5px solid ${color}`,
-          borderRadius: 10,
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
           padding: '4px 0',
-          background: '#FFFFFF',
-          outline: 'none',
+          width: 170,
+          maxWidth: '100%',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch',
         }}
-      />
-      {unit && <span style={{ fontSize: 12, color: '#888' }}>{unit}</span>}
+      >
+        {chips.map((n) => {
+          const isSelected = selectedNum != null && n === selectedNum;
+          const isTarget = targetNum != null && n === targetNum;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={(e) => { stopProp(e); onChange(n); }}
+              style={{
+                minWidth: 34,
+                height: 30,
+                borderRadius: 8,
+                border: isSelected
+                  ? `1.5px solid ${color}`
+                  : isTarget
+                    ? `1.5px solid ${color}`
+                    : '1px solid #E8E0D8',
+                background: isSelected ? color : '#FFFFFF',
+                color: isSelected ? '#FFFFFF' : '#888',
+                fontSize: 15,
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                padding: 0,
+                flexShrink: 0,
+              }}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </span>
     </span>
   );
 }
