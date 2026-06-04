@@ -320,8 +320,16 @@ function MyPlanInner() {
   });
 
   const { data: exercises = [] } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: async () => base44.entities.Exercise.list('-created_at', 2000),
+    queryKey: ['exercises', user?.id, allPlans.map(p => p.id).sort().join(',')],
+    queryFn: async () => {
+      const planIds = allPlans.map(p => p.id).filter(Boolean);
+      if (planIds.length === 0) return [];
+      const results = await Promise.all(
+        planIds.map(id => base44.entities.Exercise.filter({ training_plan_id: id }).catch(() => []))
+      );
+      return results.flat();
+    },
+    enabled: !isCoach && allPlans.length > 0,
     initialData: []
   });
 
