@@ -135,9 +135,12 @@ export default class ErrorBoundary extends React.Component {
               נסה לרענן את הדף או לחזור מאוחר יותר.
             </p>
 
-            {/* Error Details (collapsible) */}
+            {/* Error Details — always visible on screen so a mobile
+                user with no devtools can read the actual crash text and
+                screenshot it. The <pre> is selectable + scrollable so
+                long stacks don't push the action buttons off-screen. */}
             {this.state.error && (
-              <details
+              <div
                 style={{
                   marginBottom: '32px',
                   padding: '16px',
@@ -147,9 +150,8 @@ export default class ErrorBoundary extends React.Component {
                   border: '1px solid #E0E0E0'
                 }}
               >
-                <summary
+                <div
                   style={{
-                    cursor: 'pointer',
                     fontSize: '14px',
                     fontWeight: 600,
                     color: '#7D7D7D',
@@ -157,7 +159,7 @@ export default class ErrorBoundary extends React.Component {
                   }}
                 >
                   פרטים טכניים
-                </summary>
+                </div>
                 <pre
                   style={{
                     fontSize: '12px',
@@ -165,14 +167,23 @@ export default class ErrorBoundary extends React.Component {
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
                     textAlign: 'left',
-                    direction: 'ltr'
+                    direction: 'ltr',
+                    maxHeight: '50vh',
+                    overflow: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    userSelect: 'text',
+                    margin: 0,
+                    padding: '8px',
+                    background: '#FFFFFF',
+                    border: '1px solid #E0E0E0',
+                    borderRadius: '8px',
                   }}
                 >
                   {this.state.error.toString()}
                   {'\n\n'}
                   {this.state.errorInfo?.componentStack}
                 </pre>
-              </details>
+              </div>
             )}
 
             {/* Action Buttons */}

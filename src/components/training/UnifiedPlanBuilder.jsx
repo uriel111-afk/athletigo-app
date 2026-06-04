@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
@@ -397,31 +396,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // workout-level so opening a card inside section A collapses any
   // already-open card in section B. null = nothing expanded.
   //
-  // URL-backed via ?ex=<exerciseId> so a page reload reopens the same
-  // card. Every write merges into the existing URLSearchParams (so
-  // ?planId / ?plan / unrelated params survive) and uses replace:true
-  // to avoid spamming browser history on each open/close. If ?ex points
-  // to an exercise that isn't in the current plan the comparison in
-  // SectionCard simply never matches — no card opens, no crash, the
-  // stale value clears the next time the user opens or closes a card.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const expandedExerciseId = searchParams.get('ex') || null;
-  // Callback form of setSearchParams — the prev arg is the live
-  // URLSearchParams react-router holds, so we never read from a
-  // potentially stale closure copy. Required for v6.26's safe path.
-  const setExpandedExerciseId = (next) => {
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      const current = params.get('ex');
-      const value = typeof next === 'function' ? next(current) : next;
-      if (value == null || value === '') {
-        params.delete('ex');
-      } else {
-        params.set('ex', String(value));
-      }
-      return params;
-    }, { replace: true });
-  };
+  // Local state only. We tried URL-backing via ?ex= (ce10643) so a
+  // reload could restore the open card, but on mobile that path
+  // produced an ErrorBoundary throw-out when tapping any closed card.
+  // Reverted in this commit until we can reproduce + fix it cleanly.
+  const [expandedExerciseId, setExpandedExerciseId] = useState(null);
 
   const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
