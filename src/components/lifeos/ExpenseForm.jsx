@@ -2,11 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import {
   EXPENSE_CATEGORIES, PAYMENT_METHODS, LIFEOS_COLORS,
 } from '@/lib/lifeos/lifeos-constants';
-import { addExpense, updateExpense } from '@/lib/lifeos/lifeos-api';
+import { addExpense, updateExpense, deleteExpense } from '@/lib/lifeos/lifeos-api';
+import { supabase } from '@/lib/supabaseClient';
+import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
+
+const isNativePlatform = Capacitor.isNativePlatform();
+
+const makeLocalId = () => {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  } catch {}
+  return `pf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -58,6 +71,23 @@ const isDraftMeaningful = (draft) => draft && Object.values(draft).some(v => v !
 export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense = null }) {
   const [form, setForm] = useState(initialForm());
   const [saving, setSaving] = useState(false);
+  // Receipts picked during this form session — held in component
+  // state until "שמור הוצאה" runs the atomic save. Each item:
+  // { id (local uuid), file (Blob/File), previewUrl (object URL) }.
+  // Existing receipts on an edit row are NOT shown here — those are
+  // managed via FileManager on ExpenseDetail.
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
+  // Mirror of pendingFiles for the unmount-cleanup effect, so it can
+  // revoke object URLs without stale-closure issues.
+  const pendingFilesRef = useRef([]);
+  useEffect(() => { pendingFilesRef.current = pendingFiles; }, [pendingFiles]);
+  // Hidden <input type="file"> refs — the inputs themselves live
+  // OUTSIDE <DialogContent> (rendered as siblings of <Dialog>) so
+  // Radix focus/blur logic can't tear them down when the camera
+  // intent returns. Refs still work across the React tree.
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   // Guards the reset useEffect against re-running while the dialog
   // is still open — a stray userId/expense reference change from a
   // parent re-render would otherwise blow away typed fields.
@@ -105,6 +135,15 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       return;
     }
     initializedForOpenRef.current = true;
+    // Always start a fresh open with no pending receipts. Pending
+    // files are intentionally NOT persisted across reloads (Blob
+    // round-trip via IndexedDB is the alternative and not worth it
+    // for a few seconds of typical upload time).
+    setPendingFiles(prev => {
+      prev.forEach(pf => { try { URL.revokeObjectURL(pf.previewUrl); } catch {} });
+      return [];
+    });
+    setUploadProgress({ done: 0, total: 0 });
     if (expense) {
       pushDebugLog('ExpenseForm', 'reset-effect-applies', { mode: 'edit-row' });
       setForm(formFromRow(expense));
@@ -164,12 +203,152 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   };
 
   // Single chokepoint for closing the form. Clears the sessionStorage
-  // draft (text fields only) on any close — fresh re-open starts empty.
+  // draft (text fields only) and revokes any pending object URLs so
+  // we don't leak Blob URLs on cancel.
   const closeForm = (source) => {
     pushDebugLog('ExpenseForm', 'closeForm-called', { source });
+    setPendingFiles(prev => {
+      prev.forEach(pf => { try { URL.revokeObjectURL(pf.previewUrl); } catch {} });
+      return [];
+    });
+    setUploadProgress({ done: 0, total: 0 });
     clearDraft();
     onClose?.();
   };
+
+  // Unmount-time safety net — if the component is torn down without
+  // closeForm running, still revoke any outstanding object URLs.
+  useEffect(() => {
+    return () => {
+      pendingFilesRef.current.forEach(pf => {
+        try { URL.revokeObjectURL(pf.previewUrl); } catch {}
+      });
+    };
+  }, []);
+
+  // ─── Pending-file helpers ──────────────────────────────────────
+  const addPendingFiles = (files) => {
+    const next = [];
+    for (const f of files) {
+      if (!f) continue;
+      next.push({
+        id: makeLocalId(),
+        file: f,
+        previewUrl: URL.createObjectURL(f),
+      });
+    }
+    if (next.length) setPendingFiles(prev => [...prev, ...next]);
+  };
+
+  const removePendingFile = (id) => {
+    setPendingFiles(prev => {
+      const target = prev.find(p => p.id === id);
+      if (target) { try { URL.revokeObjectURL(target.previewUrl); } catch {} }
+      return prev.filter(p => p.id !== id);
+    });
+  };
+
+  async function pickWithNativeCamera(source) {
+    try {
+      pushDebugLog('ExpenseForm', 'native-camera-start', { source });
+      const image = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
+        width: 1600,
+        saveToGallery: false,
+      });
+      const byteString = atob(image.base64String);
+      const mimeString = `image/${image.format}`;
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+      const blob = new Blob([ab], { type: mimeString });
+      const file = new File([blob], `photo-${Date.now()}.${image.format}`, { type: mimeString });
+      addPendingFiles([file]);
+    } catch (err) {
+      pushDebugLog('ExpenseForm', 'native-camera-error', {
+        message: err?.message, code: err?.code,
+      });
+      if (err?.message?.includes('cancelled')) return;
+      toast.error('שגיאה במצלמה: ' + (err?.message || ''));
+    }
+  }
+
+  const pickFile = (source) => {
+    if (isNativePlatform) {
+      pickWithNativeCamera(source);
+    } else if (source === 'camera') {
+      cameraInputRef.current?.click();
+    } else {
+      galleryInputRef.current?.click();
+    }
+  };
+
+  const handleHiddenInputChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    addPendingFiles(files);
+    if (e.target) e.target.value = '';
+  };
+
+  // Uploads one pending file (compress → storage → lifeos_files row).
+  // Returns { path, rowId } on success so the caller can roll back if
+  // a later step fails. Mirrors the FileManager flow exactly so files
+  // uploaded inline are indistinguishable from files uploaded later
+  // via the ExpenseDetail page.
+  async function uploadOnePendingFile(file, expenseId) {
+    const isImage = (file.type || '').startsWith('image/');
+    let toUpload = file;
+    let mimeType = file.type || 'application/octet-stream';
+    let extension = (file.name?.split('.').pop() || 'bin').toLowerCase();
+
+    if (isImage) {
+      toUpload = await compressImage(file);
+      mimeType = 'image/jpeg';
+      extension = 'jpg';
+    }
+
+    // Random suffix so multiple uploads in the same millisecond
+    // don't collide on the same storage path.
+    const rand = Math.random().toString(36).slice(2, 7);
+    const path = `${userId}/expense-${expenseId}-${Date.now()}-${rand}.${extension}`;
+
+    const { error: uploadErr } = await supabase.storage
+      .from('lifeos-files')
+      .upload(path, toUpload, { contentType: mimeType, upsert: false });
+    if (uploadErr) throw new Error('storage: ' + uploadErr.message);
+
+    const { data: urlData } = supabase.storage
+      .from('lifeos-files')
+      .getPublicUrl(path);
+    const fileUrl = urlData?.publicUrl;
+    if (!fileUrl) {
+      try { await supabase.storage.from('lifeos-files').remove([path]); } catch {}
+      throw new Error('public URL missing');
+    }
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from('lifeos_files')
+      .insert({
+        owner_user_id: userId,
+        entity_type: 'expense',
+        entity_id: expenseId,
+        file_url: fileUrl,
+        file_name: file.name || `expense-${Date.now()}.${extension}`,
+        file_type: isImage ? 'image' : (mimeType.startsWith('video/') ? 'video' : 'other'),
+        file_size: toUpload.size,
+        mime_type: mimeType,
+      })
+      .select()
+      .single();
+    if (insertErr) {
+      try { await supabase.storage.from('lifeos-files').remove([path]); } catch {}
+      throw new Error('db: ' + insertErr.message);
+    }
+
+    return { path, rowId: inserted?.id };
+  }
 
   const handleSaveExpense = async () => {
     const amount = parseFloat(form.amount);
@@ -182,14 +361,16 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
       return;
     }
 
+    const isNewExpense = !expense?.id;
     setSaving(true);
+    setUploadProgress({ done: 0, total: pendingFiles.length });
     try {
       // Text-fields-only payload. receipt_url is deliberately omitted
-      // — receipts are managed per-row via ExpenseReceiptButton on
-      // the list, so an update from this form never touches an
-      // existing photo.
+      // — legacy single-receipt column is unused now; receipts live in
+      // lifeos_files rows attached via entity_type='expense' below.
       pushDebugLog('ExpenseForm', 'save-start', {
-        mode: expense?.id ? 'update' : 'insert',
+        mode: isNewExpense ? 'insert' : 'update',
+        pendingFiles: pendingFiles.length,
       });
 
       const payload = {
@@ -230,15 +411,80 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
           'קוד: ' + (insertError?.code || 'אין')
         );
         setSaving(false);
+        setUploadProgress({ done: 0, total: 0 });
         return; // CRITICAL: do NOT close the dialog
       }
+
+      // ─── Atomic receipt uploads ──────────────────────────────
+      // New-expense: any upload failure rolls back the whole save
+      // (hard-delete expense + storage objects + lifeos_files rows).
+      // Edit: partial success is acceptable — keep what uploaded,
+      // toast about the rest, user can retry from ExpenseDetail.
+      const uploaded = []; // { path, rowId }
+      const failures = []; // { pf, err }
+      if (pendingFiles.length > 0) {
+        for (let i = 0; i < pendingFiles.length; i++) {
+          const pf = pendingFiles[i];
+          try {
+            const result = await uploadOnePendingFile(pf.file, savedRow.id);
+            uploaded.push(result);
+            setUploadProgress({ done: i + 1, total: pendingFiles.length });
+          } catch (uploadErr) {
+            pushDebugLog('ExpenseForm', 'upload-file-failed', {
+              index: i, message: uploadErr?.message || String(uploadErr),
+            });
+            failures.push({ pf, err: uploadErr });
+            if (isNewExpense) break; // atomic — bail immediately
+          }
+        }
+      }
+
+      if (failures.length > 0 && isNewExpense) {
+        // Roll back: hard-delete the expense and undo every receipt
+        // we managed to upload before the failure.
+        pushDebugLog('ExpenseForm', 'rollback-start', {
+          expenseId: savedRow.id,
+          uploadedCount: uploaded.length,
+        });
+        try { await deleteExpense(savedRow.id); } catch {}
+        for (const u of uploaded) {
+          try { await supabase.storage.from('lifeos-files').remove([u.path]); } catch {}
+          if (u.rowId) {
+            try { await supabase.from('lifeos_files').delete().eq('id', u.rowId); } catch {}
+          }
+        }
+        toast.error('ההוצאה לא נשמרה — שגיאה בהעלאת תמונה. נסה שוב.');
+        setSaving(false);
+        setUploadProgress({ done: 0, total: 0 });
+        return; // do NOT close the dialog
+      }
+
+      if (failures.length > 0 && !isNewExpense) {
+        // Edit-mode partial: expense update is kept, surfaced to user.
+        toast('ההוצאה נשמרה, אבל חלק מהתמונות לא הועלו', { duration: 6000 });
+      }
+
+      // Revoke object URLs for the now-uploaded previews.
+      pendingFiles.forEach(pf => {
+        try { URL.revokeObjectURL(pf.previewUrl); } catch {}
+      });
+      setPendingFiles([]);
+      setUploadProgress({ done: 0, total: 0 });
 
       window.lastExpenseSuccess = {
         time: new Date().toISOString(),
         expense_id: savedRow?.id,
+        receipts_uploaded: uploaded.length,
+        receipts_failed: failures.length,
       };
-      pushDebugLog('ExpenseForm', 'save-success', { id: savedRow?.id });
-      toast.success(expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה');
+      pushDebugLog('ExpenseForm', 'save-success', {
+        id: savedRow?.id,
+        receipts_uploaded: uploaded.length,
+        receipts_failed: failures.length,
+      });
+      if (failures.length === 0) {
+        toast.success(expense ? 'ההוצאה עודכנה' : 'ההוצאה נשמרה');
+      }
       onSaved?.(savedRow);
       closeForm('success');
 
@@ -266,14 +512,35 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   const handleSave = handleSaveExpense;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !saving) closeForm('dialog-openchange');
-    }}>
-      <DialogContent
-        dir="rtl"
-        className="max-w-md"
-        onPointerDownOutside={(e) => e.preventDefault()}
-      >
+    <>
+      {/* Hidden file inputs — kept OUTSIDE <DialogContent> so Radix
+          focus/blur transitions from the camera intent can't tear
+          them down mid-pick. They're React-tree siblings of <Dialog>,
+          and the refs work just as well as if they lived inside. */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleHiddenInputChange}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleHiddenInputChange}
+        style={{ display: 'none' }}
+      />
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open && !saving) closeForm('dialog-openchange');
+      }}>
+        <DialogContent
+          dir="rtl"
+          className="max-w-md"
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
             {expense ? 'עריכת הוצאה' : 'הוצאה חדשה'}
@@ -475,11 +742,76 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
             </div>
           )}
 
-          {/* Receipt photo is handled per-row via ExpenseReceiptButton
-              on the Expenses list — tap the 📎 next to the saved row
-              to add or replace the receipt. Keeping the photo flow
-              outside the form makes save atomic again and avoids the
-              dialog-unmount-mid-upload class of bugs. */}
+          {/* Receipts — pending files live in component state until
+              "שמור הוצאה" runs the atomic save. Existing receipts on
+              an edit row are shown only on ExpenseDetail (via
+              FileManager), not here. The hidden <input type="file">
+              elements live OUTSIDE <DialogContent> so Radix can't
+              tear them down when the camera intent returns focus. */}
+          <div>
+            <label style={labelStyle}>קבלות</label>
+            {pendingFiles.length > 0 && (
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10,
+              }}>
+                {pendingFiles.map(pf => (
+                  <div key={pf.id} style={{
+                    position: 'relative', width: 72, height: 72,
+                    borderRadius: 8, overflow: 'hidden',
+                    border: `1px solid ${LIFEOS_COLORS.border}`,
+                  }}>
+                    <img
+                      src={pf.previewUrl}
+                      alt="קבלה"
+                      style={{
+                        width: '100%', height: '100%', objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(pf.id)}
+                      aria-label="הסר תמונה"
+                      disabled={saving}
+                      style={{
+                        position: 'absolute', top: -6, left: -6,
+                        width: 22, height: 22, borderRadius: '50%',
+                        border: '2px solid #FFFFFF',
+                        background: '#dc2626', color: '#FFFFFF',
+                        fontSize: 12, lineHeight: 1, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: 0, fontFamily: 'inherit',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => pickFile('camera')}
+                disabled={saving}
+                style={receiptPickerBtn(saving)}
+                aria-label="צלם"
+              >
+                <span style={{ fontSize: 16, lineHeight: 1 }}>📷</span>
+                <span>צלם</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => pickFile('gallery')}
+                disabled={saving}
+                style={receiptPickerBtn(saving)}
+                aria-label="בחר מהגלריה"
+              >
+                <span style={{ fontSize: 16, lineHeight: 1 }}>🖼️</span>
+                <span>גלריה</span>
+              </button>
+            </div>
+          </div>
 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
@@ -496,7 +828,9 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
               style={btnPrimary}
             >
               {saving
-                ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} />
+                ? (uploadProgress.total > 0
+                    ? `שומר... (${uploadProgress.done}/${uploadProgress.total} תמונות הועלו)`
+                    : <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} />)
                 : 'שמור הוצאה'}
             </button>
           </div>
@@ -551,6 +885,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
@@ -599,3 +934,17 @@ const btnSecondary = {
   fontWeight: 700,
   cursor: 'pointer',
 };
+
+const receiptPickerBtn = (disabled) => ({
+  flex: 1,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: `1px dashed ${LIFEOS_COLORS.primary}`,
+  backgroundColor: '#FFF8F3',
+  color: LIFEOS_COLORS.primary,
+  fontSize: 13, fontWeight: 700,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.6 : 1,
+  fontFamily: 'inherit',
+});
