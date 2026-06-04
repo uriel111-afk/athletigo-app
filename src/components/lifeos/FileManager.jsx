@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Download, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog } from '@/lib/debugLog';
@@ -204,6 +205,64 @@ export default function FileManager({
     }
   }
 
+  async function handleDownload(fileRow) {
+    if (!fileRow?.file_url) {
+      toast.error('כתובת קובץ חסרה');
+      return;
+    }
+    try {
+      pushDebugLog('FileManager', 'download-start', { id: fileRow.id });
+      const res = await fetch(fileRow.file_url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+
+      const rawName = fileRow.file_name || `receipt-${fileRow.id}`;
+      const hasExt = /\.[a-z0-9]+$/i.test(rawName);
+      const ext = hasExt
+        ? rawName.split('.').pop()
+        : (fileRow.file_type === 'image' ? 'jpg' : 'bin');
+      const baseName = hasExt ? rawName : `${rawName}.${ext}`;
+      const safeName = baseName.replace(/[\\/:*?"<>|]/g, '_');
+
+      if (isNativePlatform) {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = String(reader.result || '');
+            resolve(result.split(',')[1] || '');
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        await Filesystem.writeFile({
+          path: `AthletiGo/${safeName}`,
+          data: base64,
+          directory: Directory.Documents,
+          recursive: true,
+        });
+        pushDebugLog('FileManager', 'download-native-success', { safeName });
+        toast.success('הקובץ נשמר ב-Documents/AthletiGo');
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = safeName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        pushDebugLog('FileManager', 'download-web-success', { safeName });
+        toast.success('הקובץ הורד');
+      }
+    } catch (err) {
+      pushDebugLog('FileManager', 'download-error', {
+        message: err?.message || String(err),
+      });
+      toast.error('שגיאה בהורדה: ' + (err?.message || ''));
+    }
+  }
+
   async function handleDelete(fileRow) {
     if (!confirm('למחוק את הקובץ?')) return;
     try {
@@ -290,6 +349,20 @@ export default function FileManager({
                 }}
               >
                 <Trash2 size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload(f)}
+                aria-label="שמור למכשיר"
+                style={{
+                  position: 'absolute', top: 4, right: 4,
+                  width: 24, height: 24, borderRadius: '50%', border: 'none',
+                  background: 'rgba(255, 111, 32, 0.9)', color: '#FFFFFF',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <Download size={12} />
               </button>
             </div>
           ))}
