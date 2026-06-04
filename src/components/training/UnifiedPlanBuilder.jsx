@@ -1322,14 +1322,19 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
     console.log('SAVE: plannedSetsDraft row 0', plannedSetsForFlatten[0]);
 
-    // Only flatten for per-set methods (PYRAMID / DROP_SET / DELORME /
-    // REST_PAUSE). Basic methods (NONE / REPS) edit `sets` + `reps`
-    // directly via simple inputs, so flattening would clobber the
-    // coach's edits with stale planned_sets carried over from the
-    // loaded row.
+    // Flatten whenever the form's tabata_data carries planned_sets,
+    // regardless of mode. This covers NONE / REPS (which now use the
+    // same per-set table after the editor change) as well as PYRAMID /
+    // DROP_SET / DELORME / REST_PAUSE. Container methods (SUPERSET /
+    // COMBO / CIRCUIT / TABATA / EXERCISE_LIST) don't populate
+    // tabata_data.planned_sets in their normal flow, so this gate
+    // naturally skips them.
+    // PER_SET_MODES kept for grep history; not used by the gate now.
     const PER_SET_MODES = ['פירמידה', 'דרופסט', 'דלורם', 'רסטפאוז'];
-    const shouldFlatten = PER_SET_MODES.includes(exerciseData.mode);
-    if (shouldFlatten && plannedSetsForFlatten.length > 0) {
+    void PER_SET_MODES;
+    const shouldFlatten = Array.isArray(plannedSetsForFlatten) && plannedSetsForFlatten.length > 0;
+    console.log('SAVE: shouldFlatten', shouldFlatten, 'mode', exerciseData.mode, 'rows', (plannedSetsForFlatten || []).length);
+    if (shouldFlatten) {
       const row0 = plannedSetsForFlatten[0] || {};
       exerciseData.sets             = plannedSetsForFlatten.length;
       exerciseData.reps             = row0.reps ?? null;
