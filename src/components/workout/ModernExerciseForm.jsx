@@ -444,11 +444,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
   const toggleSetField = (fieldId) => {
     if (readOnly) return;
-    setSelectedSetFields((prev) =>
-      prev.includes(fieldId)
+    setSelectedSetFields((prev) => {
+      const nextSelected = prev.includes(fieldId)
         ? prev.filter((f) => f !== fieldId)
-        : [...prev, fieldId]
-    );
+        : [...prev, fieldId];
+      console.log('CHIP TOGGLE: key', fieldId, 'now selected:', nextSelected);
+      return nextSelected;
+    });
   };
 
   const addRow = () => {
@@ -1315,17 +1317,24 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                     </div>
 
                     {/* LINE 2 — dynamic field grid */}
-                    {selectedSetFields.length > 0 && (
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
-                        gap: 6,
-                      }}>
-                        {selectedSetFields.map((fieldId) =>
-                          renderFieldInput(fieldId, row, (f, v) => updateRow(i, f, v))
-                        )}
-                      </div>
-                    )}
+                    {selectedSetFields.length > 0 && (() => {
+                      if (i === 0) {
+                        console.log('SYNC: selectedSetFields', selectedSetFields);
+                        console.log('SYNC: columns being rendered', selectedSetFields);
+                        console.log('SYNC: plannedSetsDraft row 0 keys', Object.keys(plannedSetsDraft[0] || {}));
+                      }
+                      return (
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
+                          gap: 6,
+                        }}>
+                          {selectedSetFields.map((fieldId) =>
+                            renderFieldInput(fieldId, row, (f, v) => updateRow(i, f, v))
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
