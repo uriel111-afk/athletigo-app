@@ -2934,293 +2934,187 @@ export default function ExerciseCard({
                 future cells stay dashed gray. Persistence shares
                 pyramid's exercise_set_logs path (set_number 1-based). */}
             {expanded && HORIZONTAL_MINISETS_METHODS[variant] && (() => {
-              // Phase 3 — REST_PAUSE chrome is unified brand orange via
-              // BRAND tokens. The +/- buttons + save button gradient
-              // use #FF8B47 as the lighter terminal of the orange ramp.
+              // Right-anchor layout matching PYRAMID/DROP_SET/DELORME.
+              // ONE shared variation + ONE shared rest, then a list of
+              // items (set 1 = main set, sets 2+ = mini-sets) each with
+              // its own target reps. Burgundy #7F1D1D throughout.
               const plannedSets = parsePlannedSets(exercise);
               const td = parseTabataData(exercise?.tabata_data) || {};
               const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
               const variationName = methodConfig.variation_name;
-              const restSeconds = methodConfig.rest_seconds ?? 15;
+              const restSeconds = methodConfig.rest_seconds ?? null;
 
               if (plannedSets.length === 0) {
                 return <EmptyMethodPlaceholder headline="טרם הוגדרו מיני-סטים" />;
               }
 
-              const setFields = getSetFields(exercise);
-              const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+              const activeIdx = pyramidActiveIdx;
               const completedCount = plannedSets.reduce(
                 (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
                 0,
               );
-              const activeIdx = pyramidActiveIdx;
-              const cols = Math.min(Math.max(numericFields.length, 1), 2);
+              const completionPct = plannedSets.length > 0
+                ? (completedCount / plannedSets.length) * 100
+                : 0;
+              const totalTargetReps = plannedSets.reduce(
+                (sum, s) => sum + (Number.isFinite(Number(s?.reps)) ? Number(s.reps) : 0),
+                0,
+              );
 
-              // Button styles for the active cell's +/- counters —
-              // mirrors pyramid trainee block exactly, now in deep red.
-              const minusBtnStyle = {
-                width: 26, height: 26,
-                background: 'white',
-                border: `1px solid ${BRAND.panelBorder}`,
-                color: BRAND.stripeActive,
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-              };
-              const plusBtnStyle = {
-                width: 26, height: 26,
-                background: `linear-gradient(135deg, ${'#FF8B47'}, ${BRAND.stripeActive})`,
-                border: `1px solid ${BRAND.stripeActive}`,
-                color: 'white',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-              };
-              const counterValueStyle = {
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: 22,
-                color: BRAND.stripeActive,
-                lineHeight: 1,
-              };
-              const counterTargetStyle = {
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: 14,
-                color: '#9CA3AF',
-              };
-              const counterLabelStyle = {
-                fontSize: 9,
-                color: BRAND.tagText,
-                fontWeight: 700,
-                textAlign: 'center',
-                marginBottom: 4,
-              };
-
-              const activeSet = activeIdx < plannedSets.length ? plannedSets[activeIdx] : null;
+              const headerParts = [
+                variationName ? `וריאציה: ${variationName}` : null,
+                restSeconds != null ? `מנוחה ${restSeconds} שניות` : null,
+              ].filter(Boolean);
 
               return (
                 <div dir="rtl" style={{
-                  background: 'white',
-                  border: `2px solid ${BRAND.stripeActive}`,
-                  borderRadius: 14,
-                  padding: 12,
-                  boxShadow: `0 4px 10px ${BRAND.stripeActive}25`,
-                  marginBottom: 12,
+                  background: '#FBF1F1',
+                  borderRight: '5px solid #7F1D1D',
+                  borderRadius: '12px 0 0 12px',
+                  padding: '18px 16px',
+                  marginTop: 12,
                 }}>
-                  {/* Header band — variation + completed tally */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${BRAND.panelBg}, white)`,
-                    border: `1px solid ${BRAND.panelBorder}`,
-                    borderRadius: 10,
-                    marginBottom: 12,
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: BRAND.tagText }}>
-                      {variationName || 'ללא וריאציה'}
-                    </span>
-                    <span style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: 14,
-                      color: BRAND.stripeActive,
-                      background: 'white',
-                      padding: '2px 8px',
-                      borderRadius: 5,
-                      border: `1px solid ${BRAND.panelBorder}`,
-                    }}>
-                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${plannedSets.length} מיני-סטים`
-                                   : `${completedCount} / ${plannedSets.length} מיני-סטים`}
-                    </span>
+                  {/* Exercise name — right-aligned */}
+                  <div style={{ ...T.name, color: '#1a1a1a', textAlign: 'right', marginBottom: 6 }}>
+                    {exercise?.name || exercise?.exercise_name || 'תרגיל'}
                   </div>
 
-                  <SectionLabel>מיני-סטים</SectionLabel>
-                  {/* Horizontal row of mini-set cells with rest
-                      dividers between them. Overflow-x scroll so 6+
-                      mini-sets stay reachable on narrow viewports. */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'stretch',
-                    gap: 4,
-                    marginBottom: 12,
-                    overflowX: 'auto',
-                    paddingBottom: 4,
-                  }}>
-                    {plannedSets.map((set, i) => {
-                      const isPast = i < activeIdx;
-                      const isActive = !isCoachMode && i === activeIdx;
-                      const isFuture = !isPast && !isActive;
-                      const actual = pyramidActuals[i + 1];
+                  {/* Variation + rest line (omitted entirely when both absent) */}
+                  {headerParts.length > 0 ? (
+                    <div style={{ fontSize: 13, color: '#7F1D1D', textAlign: 'right', marginBottom: 14 }}>
+                      {headerParts.join(' · ')}
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: 14 }} />
+                  )}
 
-                      return (
-                        <React.Fragment key={i}>
-                          <div style={{
-                            minWidth: isActive ? 140 : 75,
-                            flex: isActive ? '1 1 140px' : '0 0 auto',
-                            background: isPast ? '#F0FAF4'
-                              : isActive ? `linear-gradient(135deg, ${BRAND.panelBg}, white)`
-                              : 'white',
-                            border: isPast ? '1.5px solid #16A34A'
-                              : isActive ? `2px solid ${BRAND.stripeActive}`
-                              : '1.5px dashed #D1D5DB',
-                            borderRadius: 10,
-                            padding: 8,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 4,
-                          }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: isActive ? 24 : 20,
-                              color: isPast ? '#16A34A' : isActive ? BRAND.stripeActive : '#D1D5DB',
-                              lineHeight: 1,
-                              fontWeight: 800,
-                            }}>
-                              {String(set.set_index ?? (i + 1)).padStart(2, '0')}
+                  {/* Two-column body: right anchor + per-item status rows */}
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+                    {/* RIGHT anchor — total target reps */}
+                    <div style={{
+                      minWidth: 80,
+                      borderLeft: '1px solid #ECD3D3',
+                      paddingLeft: 14,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <div style={{ ...T.hero, color: '#7F1D1D' }}>{totalTargetReps}</div>
+                      <div style={{ ...T.heroLbl, marginTop: 4, textAlign: 'center' }}>
+                        סך חזרות
+                      </div>
+                    </div>
+
+                    {/* LEFT body — one status row per item */}
+                    <div style={{ flex: 1 }}>
+                      {plannedSets.map((set, i) => {
+                        const isLast = i === plannedSets.length - 1;
+                        const done = i < activeIdx;
+                        const active = !isCoachMode && i === activeIdx;
+                        const actual = pyramidActuals[i + 1];
+
+                        let dotBg, dotBorder, valueColor, labelColor;
+                        if (done) {
+                          dotBg = '#16a34a'; dotBorder = '#16a34a';
+                          valueColor = '#16a34a';
+                          labelColor = '#1a1a1a';
+                        } else if (active) {
+                          dotBg = '#7F1D1D'; dotBorder = '#7F1D1D';
+                          valueColor = '#7F1D1D';
+                          labelColor = '#7F1D1D';
+                        } else {
+                          dotBg = 'transparent'; dotBorder = '#D1D5DB';
+                          valueColor = '#9CA3AF';
+                          labelColor = '#9CA3AF';
+                        }
+
+                        const targetReps = set.reps != null ? set.reps : '-';
+                        const label = i === 0
+                          ? `סט עיקרי · יעד ${targetReps}`
+                          : `מיני ${i} · יעד ${targetReps}`;
+
+                        const onTap = active
+                          ? (e) => { e.stopPropagation(); onSaveAndAdvance(); }
+                          : undefined;
+                        const onKey = active
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                onSaveAndAdvance();
+                              }
+                            }
+                          : undefined;
+
+                        return (
+                          <div
+                            key={i}
+                            role={active ? 'button' : undefined}
+                            tabIndex={active ? 0 : -1}
+                            onClick={onTap}
+                            onKeyDown={onKey}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: '12px 4px',
+                              borderBottom: isLast ? 'none' : '1px solid #ECD3D3',
+                              cursor: active ? 'pointer' : 'default',
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 15,
+                                height: 15,
+                                borderRadius: '50%',
+                                background: dotBg,
+                                border: `2px solid ${dotBorder}`,
+                                display: 'inline-block',
+                                flex: '0 0 auto',
+                              }}
+                            />
+                            <span style={{ ...T.setLabel, flex: 1, textAlign: 'right', color: labelColor }}>
+                              {label}
                             </span>
-
-                            {numericFields.map((fieldId) => {
-                              if (set[fieldId] == null) return null;
-                              const meta = UNIT_COLOR_BY_FIELD[fieldId];
-                              const planned = set[fieldId];
-                              const actualVal = actual?.[fieldId];
-                              return (
-                                <div key={fieldId} style={{ textAlign: 'center' }}>
-                                  <span style={{
-                                    fontFamily: "'Bebas Neue', sans-serif",
-                                    fontSize: isActive ? 20 : 16,
-                                    color: isPast ? '#16A34A' : isActive ? meta.stripe : '#D1D5DB',
-                                    lineHeight: 1,
-                                  }}>
-                                    {isPast ? `${actualVal ?? '-'}/${planned}` : planned}
-                                  </span>
-                                  <div style={{
-                                    fontSize: 8,
-                                    color: isPast ? '#16A34A' : meta.textSecondary,
-                                    fontWeight: 800,
-                                    marginTop: 2,
-                                  }}>
-                                    {meta.label}
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {isPast && <Check size={14} color="#16A34A" />}
-                            {isFuture && (
-                              <span style={{ fontSize: 8, color: '#9CA3AF' }}>ממתין</span>
+                            {active ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                <ActualInput
+                                  target={set.reps}
+                                  value={pyramidActuals[i + 1]?.reps}
+                                  color="#7F1D1D"
+                                  onChange={(n) => setPyramidActuals((prev) => ({
+                                    ...prev,
+                                    [i + 1]: { ...(prev[i + 1] || {}), reps: n },
+                                  }))}
+                                />
+                                {set.weight_kg != null && (
+                                  <ActualInput
+                                    target={set.weight_kg}
+                                    value={pyramidActuals[i + 1]?.weight_kg}
+                                    unit='ק"ג'
+                                    color="#7F1D1D"
+                                    onChange={(n) => setPyramidActuals((prev) => ({
+                                      ...prev,
+                                      [i + 1]: { ...(prev[i + 1] || {}), weight_kg: n },
+                                    }))}
+                                  />
+                                )}
+                              </span>
+                            ) : (
+                              <span style={{ ...T.setValue, color: valueColor }}>
+                                {done ? String(actual?.reps ?? targetReps) : String(targetReps)}
+                              </span>
                             )}
                           </div>
-
-                          {i < plannedSets.length - 1 && (
-                            <div style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '0 4px',
-                              minWidth: 40,
-                              flexShrink: 0,
-                            }}>
-                              <span style={{
-                                fontFamily: "'Bebas Neue', sans-serif",
-                                fontSize: 18,
-                                color: '#14B8A6',
-                                lineHeight: 1,
-                                fontWeight: 700,
-                              }}>
-                                {restSeconds}
-                              </span>
-                              <span style={{ fontSize: 8, color: '#0F766E', fontWeight: 800, marginTop: 2 }}>
-                                שניות
-                              </span>
-                              <span style={{ fontSize: 7, color: '#14B8A6', marginTop: 2 }}>
-                                מנוחה
-                              </span>
-                            </div>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {!isCoachMode && activeSet && numericFields.length > 0 && (
-                    <div style={{ marginTop: 14 }}>
-                    <SectionLabel>יעד</SectionLabel>
-                    {/* Active mini-set input panel + save button —
-                        trainee only. Coach view stops at the row above. */}
-                    <div style={{
-                      background: 'white',
-                      border: `1.5px solid ${BRAND.panelBorder}`,
-                      borderRadius: 10,
-                      padding: 10,
-                      marginBottom: 8,
-                    }}>
-                      <div style={{
-                        fontSize: 10,
-                        color: BRAND.tagText,
-                        fontWeight: 800,
-                        textAlign: 'center',
-                        marginBottom: 8,
-                      }}>
-                        מיני-סט {activeIdx + 1} · כמה הצלחת?
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                        <ActualInput
-                          target={activeSet.reps}
-                          value={pyramidActuals[activeIdx + 1]?.reps}
-                          color={BRAND.stripeActive}
-                          onChange={(n) => setPyramidActuals((prev) => ({
-                            ...prev,
-                            [activeIdx + 1]: { ...(prev[activeIdx + 1] || {}), reps: n },
-                          }))}
-                        />
-                        {activeSet.weight_kg != null && (
-                          <ActualInput
-                            target={activeSet.weight_kg}
-                            value={pyramidActuals[activeIdx + 1]?.weight_kg}
-                            unit='ק"ג'
-                            color={BRAND.stripeActive}
-                            onChange={(n) => setPyramidActuals((prev) => ({
-                              ...prev,
-                              [activeIdx + 1]: { ...(prev[activeIdx + 1] || {}), weight_kg: n },
-                            }))}
-                          />
-                        )}
-                      </div>
-                    </div>
-                    </div>
-                  )}
-
-                  {!isCoachMode && activeIdx < plannedSets.length && (
-                    <button
-                      type="button"
-                      onClick={onSaveAndAdvance}
-                      disabled={pyramidSaving}
-                      style={{
-                        width: '100%',
-                        background: pyramidSaving
-                          ? '#D1D5DB'
-                          : `linear-gradient(135deg, ${'#FF8B47'}, ${BRAND.stripeActive})`,
-                        color: 'white',
-                        border: 'none',
-                        padding: 10,
-                        borderRadius: 8,
-                        fontWeight: 800,
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                        cursor: pyramidSaving ? 'default' : 'pointer',
-                      }}
-                    >
-                      {pyramidSaving ? 'שומר...' : 'שמור והמשך'}
-                    </button>
-                  )}
+                  {/* Full-width completion bar — reuses existing
+                      completedCount/plannedSets.length ratio. */}
+                  <ProgressBar percent={completionPct} color="#7F1D1D" />
                 </div>
               );
             })()}
