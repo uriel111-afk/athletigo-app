@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck, Check, Timer, Zap } from "lucide-react";
@@ -1885,6 +1885,23 @@ export default function ExerciseCard({
   // re-renders triggered by the picker's own onSelect.
   const [pickerOpenSetIdx, setPickerOpenSetIdx] = useState(null);
 
+  // Closed-card summary source. The edit dialog's primary write target
+  // is exercise.tabata_data.planned_sets — the flattened shadow on
+  // exercise.sets/reps is secondary and can lag a refetch. Read from
+  // planned_sets first, fall back to the shadow. useMemo keeps the
+  // derive cheap and re-runs whenever any of the underlying fields
+  // change, so any edit (per-set table OR standalone field) is
+  // reflected immediately on collapse.
+  const closedSummary = useMemo(() => {
+    const planned = parsePlannedSets(exercise);
+    const setsFromPlanned = planned.length;
+    const repsFromPlanned = planned[0]?.reps;
+    return {
+      sets: setsFromPlanned > 0 ? setsFromPlanned : exercise?.sets,
+      reps: repsFromPlanned != null ? repsFromPlanned : exercise?.reps,
+    };
+  }, [exercise?.tabata_data, exercise?.sets, exercise?.reps, exercise?.mode]);
+
   const handleSetToggle = (idx) => {
     if (typeof onSetToggleDone !== 'function') return;
     onSetToggleDone(exercise, idx);
@@ -2136,8 +2153,8 @@ export default function ExerciseCard({
                 const restSec = toSeconds(exercise.rest_time);
                 const holdSec = toSeconds(exercise.static_hold_time);
                 const chips = [];
-                if (hasValue(exercise.sets)) chips.push({ value: String(exercise.sets), label: 'סטים' });
-                if (hasValue(exercise.reps)) chips.push({ value: String(exercise.reps), label: 'חזרות' });
+                if (hasValue(closedSummary.sets)) chips.push({ value: String(closedSummary.sets), label: 'סטים' });
+                if (hasValue(closedSummary.reps)) chips.push({ value: String(closedSummary.reps), label: 'חזרות' });
                 if (holdSec != null) chips.push({ value: String(holdSec), label: 'שניות החזקה' });
                 if (restSec != null) chips.push({ value: String(restSec), label: 'שניות מנוחה' });
                 if (chips.length === 0) return null;
