@@ -17,7 +17,19 @@ const INITIAL_DATA = {
   full_name: "",
   email: "",
   password: "",
+  role: 'trainee',
 };
+
+// Phase 1 of multi-coach: super-admin (Oriel) can add another coach.
+// 'coach' branch skips trainee onboarding fields + trainee_permissions
+// + lead-sync. Coach rows store coach_id = creator's id so future
+// Super Admin views can group "coaches I own".
+const ROLE_OPTIONS = [
+  { key: 'trainee', label: 'מתאמן', icon: '🏃',
+    desc: 'מקבל אימונים, מסמן נוכחות, רואה התקדמות' },
+  { key: 'coach',   label: 'מאמן',  icon: '💪',
+    desc: 'מנהל מתאמנים משלו, יוצר תוכניות אימון' },
+];
 
 // Service track picker — Hebrew label shown in the UI, English key
 // stored in users.onboarding_track. The keys match TRACK_STEPS in
@@ -56,6 +68,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
       full_name: initialData?.fullName || initialData?.full_name || "",
       email: initialData?.email || "",
       password: "",
+      role: 'trainee',
     });
     setTrack(null);
   }, [open, initialData]);
@@ -64,11 +77,13 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const isCoachRole = formData.role === 'coach';
+
   const isValid =
     !!formData.full_name.trim()
     && !!formData.email.trim()
     && formData.password.length >= 6
-    && !!track;
+    && (isCoachRole || !!track);
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -83,7 +98,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
-        options: { data: { full_name: formData.full_name.trim(), role: 'trainee' } },
+        options: { data: { full_name: formData.full_name.trim(), role: formData.role } },
       });
 
       if (coachSession) {
@@ -93,6 +108,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         });
       }
 
+      const roleLabelErr = isCoachRole ? 'המאמן' : 'המתאמן';
       if (signUpError) {
         let msg = signUpError.message;
         if (msg.includes("already registered") || msg.includes("duplicate")) {
@@ -100,12 +116,12 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         } else if (msg.includes("password")) {
           msg = "הסיסמה חייבת להכיל לפחות 6 תווים";
         }
-        toast.error("שגיאה ביצירת המתאמן: " + msg);
+        toast.error(`שגיאה ביצירת ${roleLabelErr}: ` + msg);
         return;
       }
 
       if (!authData?.user) {
-        toast.error("שגיאה ביצירת המתאמן — לא התקבל משתמש");
+        toast.error(`שגיאה ביצירת ${roleLabelErr} — לא התקבל משתמש`);
         return;
       }
 
@@ -115,7 +131,18 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
       // English value AuthContext.jsx checks for the redirect to
       // /onboarding (the Hebrew label "אונבורדינג" is rendering-only
       // — see clientStatusHelpers.js).
-      const upsertPayload = {
+      // Coach branch: skip trainee-only onboarding fields. coach_id =
+      // creator's id establishes "who owns this coach" for the future
+      // Super Admin view (Phase 4).
+      const upsertPayload = isCoachRole ? {
+        id: authData.user.id,
+        email: formData.email.trim(),
+        full_name: formData.full_name.trim(),
+        role: 'coach',
+        coach_id: coach?.id || null,
+        onboarding_completed: true,
+        created_at: new Date().toISOString(),
+      } : {
         id: authData.user.id,
         email: formData.email.trim(),
         full_name: formData.full_name.trim(),
@@ -139,8 +166,8 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         return;
       }
 
-      // Cross-app lead mirror (best-effort).
-      if (coach?.id) {
+      // Cross-app lead mirror (best-effort). Coaches aren't CRM leads.
+      if (!isCoachRole && coach?.id) {
         try {
           await syncTraineeToLead(coach.id, {
             full_name: formData.full_name.trim(),
@@ -154,8 +181,8 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
 
       // Minimal perms during onboarding — the trainee can message the
       // coach but every other surface stays gated until the coach
-      // promotes them out of onboarding.
-      if (coach?.id && authData.user?.id) {
+      // promotes them out of onboarding. Skipped for coach rows.
+      if (!isCoachRole && coach?.id && authData.user?.id) {
         try {
           await supabase.from('trainee_permissions').upsert({
             coach_id: coach.id,
@@ -175,14 +202,14 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         }
       }
 
-      // Notify the coach (best-effort).
+      // Notify the creator (best-effort).
       if (coach) {
         try {
           await base44.entities.Notification.create({
             user_id: coach.id,
-            type: 'new_trainee',
-            title: 'מתאמן חדש נוסף',
-            message: `המתאמן ${formData.full_name.trim()} נוסף למערכת.`,
+            type: isCoachRole ? 'new_coach' : 'new_trainee',
+            title: isCoachRole ? 'מאמן חדש נוסף' : 'מתאמן חדש נוסף',
+            message: `${isCoachRole ? 'המאמן' : 'המתאמן'} ${formData.full_name.trim()} נוסף למערכת.`,
             is_read: false,
           });
         } catch {}
@@ -225,7 +252,50 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 20 }} dir="rtl">
           <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'right', color: '#1a1a1a' }}>
-            הוספת מתאמן חדש
+            {isCoachRole ? 'הוספת מאמן חדש' : 'הוספת מתאמן חדש'}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 6, textAlign: 'right' }}>
+              סוג משתמש *
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {ROLE_OPTIONS.map((opt) => {
+                const active = formData.role === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => handleChange('role', opt.key)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '12px 10px',
+                      borderRadius: 12,
+                      background: active ? '#FF6F20' : '#FFFFFF',
+                      color: active ? '#FFFFFF' : '#1a1a1a',
+                      border: active ? '1.5px solid #FF6F20' : '1.5px solid #E8E0D8',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div style={{ fontSize: 28, lineHeight: 1 }}>{opt.icon}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{opt.label}</div>
+                    <div style={{
+                      fontSize: 11,
+                      fontWeight: 500,
+                      lineHeight: 1.3,
+                      color: active ? 'rgba(255,255,255,0.92)' : '#888',
+                    }}>
+                      {opt.desc}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -272,36 +342,38 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 6, textAlign: 'right' }}>
-              סוג שירות *
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, direction: 'rtl' }}>
-              {TRACK_OPTIONS.map((opt) => {
-                const active = track === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setTrack(opt.key)}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 999,
-                      fontSize: 14,
-                      fontWeight: active ? 700 : 500,
-                      background: active ? '#FF6F20' : '#FFFFFF',
-                      color: active ? '#FFFFFF' : '#888888',
-                      border: active ? '1px solid #FF6F20' : '1px solid #E8E0D8',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
+          {!isCoachRole && (
+            <div>
+              <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 6, textAlign: 'right' }}>
+                סוג שירות *
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, direction: 'rtl' }}>
+                {TRACK_OPTIONS.map((opt) => {
+                  const active = track === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setTrack(opt.key)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 999,
+                        fontSize: 14,
+                        fontWeight: active ? 700 : 500,
+                        background: active ? '#FF6F20' : '#FFFFFF',
+                        color: active ? '#FFFFFF' : '#888888',
+                        border: active ? '1px solid #FF6F20' : '1px solid #E8E0D8',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <button
             onClick={handleSubmit}
@@ -317,7 +389,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
             }}
           >
             {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-            {loading ? 'שומר...' : 'צור מתאמן'}
+            {loading ? 'שומר...' : (isCoachRole ? 'צור מאמן' : 'צור מתאמן')}
           </button>
         </div>
       </DialogContent>
