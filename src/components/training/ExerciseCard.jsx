@@ -2016,7 +2016,11 @@ export default function ExerciseCard({
             colored status dot + 3-dot menu (now hosting ערוך) +
             chevron. Tap toggles expand. */}
         <div
-          onClick={() => setExpanded(v => !v)}
+          onClick={() => {
+            const nextOpen = !expanded;
+            console.log('CARD TAP fired, isOpen ->', nextOpen);
+            setExpanded(v => !v);
+          }}
           role="button"
           tabIndex={0}
           aria-expanded={expanded}
@@ -2035,6 +2039,8 @@ export default function ExerciseCard({
             background: expanded ? '#F0E9D6' : 'transparent',
             cursor: 'pointer',
             userSelect: 'none',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
           {/* ── Right cluster: index + title (+ closed-state pills) ── */}
