@@ -21,6 +21,7 @@ import { calculateAge as calcAge, formatBirthWithAge } from "@/lib/dateHelpers";
 export default function AllUsers() {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
+  console.log('[AllUsers] render gate:', { role: currentUser?.role, isAdmin, id: currentUser?.id, email: currentUser?.email });
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
   const [isAddCoachOpen, setIsAddCoachOpen] = useState(false);

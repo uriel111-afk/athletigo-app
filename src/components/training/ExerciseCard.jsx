@@ -4041,7 +4041,6 @@ export default function ExerciseCard({
             branches above; coach view, display-mode sections, and
             time-only exercises fall through to the legacy IIFE below. */}
         {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
-          && !isCoachMode
           && sectionTrackingMode !== 'display'
           && hasValue(exercise.sets)
           && hasValue(exercise.reps)
@@ -4200,10 +4199,10 @@ export default function ExerciseCard({
         })()}
 
         {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
-          /* Legacy IIFE — kept for coach view, display-mode sections,
-             and time-only normal exercises. Skipped when the new
-             45/55 layout above takes over. */
-          && !(!isCoachMode && sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
+          /* Legacy IIFE — kept for display-mode sections and time-only
+             normal exercises. Skipped when the new hero+fill layout
+             above takes over (now runs for coach + trainee alike). */
+          && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
           && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
