@@ -766,6 +766,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   };
 
   // ── Render ───────────────────────────────────────────────────
+  console.log('FORM: current method', activeMethod, 'rows count', (plannedSetsDraft || []).length, 'selectedSetFields', selectedSetFields);
   return (
     <div className="px-2 pb-4" dir="rtl">
       {/* ── Exercise name (read-only header in readOnly mode) ── */}
