@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
@@ -40,6 +41,7 @@ const COLOR_THEMES = {
 };
 
 export default function TrainingPlans() {
+  const [, setSearchParams] = useSearchParams();
   const urlParams = new URLSearchParams(window.location.search);
   const urlPlanId = urlParams.get('planId');
   // Multi-select for bulk plan duplicate / soft-delete.
@@ -199,10 +201,18 @@ export default function TrainingPlans() {
       const planFromUrl = plans.find(p => p.id === urlPlanId);
       if (planFromUrl) {
         setSelectedPlan(planFromUrl);
-        window.history.replaceState({}, '', createPageUrl("TrainingPlans"));
+        // Drop only ?planId — preserves view/other params and keeps
+        // react-router's internal location in sync, so subsequent
+        // setSearchParams calls (e.g. ?ex= from UnifiedPlanBuilder)
+        // merge cleanly instead of fighting a router-bypassing URL.
+        setSearchParams((prev) => {
+          const params = new URLSearchParams(prev);
+          params.delete('planId');
+          return params;
+        }, { replace: true });
       }
     }
-  }, [urlPlanId, plans, selectedPlan]);
+  }, [urlPlanId, plans, selectedPlan, setSearchParams]);
 
   const createPlanMutation = useMutation({
     mutationFn: async ({ planData, selectedTrainees }) => {

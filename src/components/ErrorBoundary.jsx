@@ -21,8 +21,13 @@ export default class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // Greppable canonical line — keep this exact format. Anyone
+    // chasing a render-time crash should `grep '[ErrorBoundary] caught'`
+    // in devtools console to find both the error and component stack
+    // without having to expand objects.
+    console.error('[ErrorBoundary] caught:', error, errorInfo);
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
-    
+
     this.setState({
       error,
       errorInfo

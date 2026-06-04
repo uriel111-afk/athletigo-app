@@ -406,16 +406,21 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // stale value clears the next time the user opens or closes a card.
   const [searchParams, setSearchParams] = useSearchParams();
   const expandedExerciseId = searchParams.get('ex') || null;
+  // Callback form of setSearchParams — the prev arg is the live
+  // URLSearchParams react-router holds, so we never read from a
+  // potentially stale closure copy. Required for v6.26's safe path.
   const setExpandedExerciseId = (next) => {
-    const params = new URLSearchParams(searchParams);
-    const current = params.get('ex');
-    const value = typeof next === 'function' ? next(current) : next;
-    if (value == null || value === '') {
-      params.delete('ex');
-    } else {
-      params.set('ex', String(value));
-    }
-    setSearchParams(params, { replace: true });
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      const current = params.get('ex');
+      const value = typeof next === 'function' ? next(current) : next;
+      if (value == null || value === '') {
+        params.delete('ex');
+      } else {
+        params.set('ex', String(value));
+      }
+      return params;
+    }, { replace: true });
   };
 
   const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
