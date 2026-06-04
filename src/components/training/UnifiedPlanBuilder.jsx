@@ -2386,23 +2386,23 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           setCurrentSection(null);
         }
       }}>
-        <DialogContent className="w-[95vw] md:w-full max-w-2xl h-[90vh] md:h-auto md:max-h-[85vh] flex flex-col p-0 gap-0 bg-white overflow-hidden" style={{ borderRadius: '20px' }}>
-          <div className="p-6 pb-4 border-b border-gray-50 bg-white z-20">
+        <DialogContent className="w-[95vw] md:w-full max-w-2xl max-h-[90dvh] h-[90dvh] md:h-auto md:max-h-[85vh] flex flex-col p-0 gap-0 bg-white overflow-hidden" style={{ borderRadius: '20px' }}>
+          <div className="p-6 pb-4 border-b border-gray-50 bg-white z-20 shrink-0">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black text-gray-900">
                 {editingExercise ? '✏️ ערוך תרגיל' : '➕ תרגיל חדש'}
               </DialogTitle>
             </DialogHeader>
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-6 pt-2 scrollbar-hide">
+
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 pt-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
             <ModernExerciseForm
               exercise={editingExercise || { mode: "חזרות", exercise_name: "" }}
               onChange={(data) => setEditingExercise({ ...editingExercise, ...data })} />
 
           </div>
 
-          <div className="p-4 bg-white z-20 border-t border-[#E8E8E8]">
+          <div className="p-4 bg-white z-20 border-t border-[#E8E8E8] shrink-0">
             <Button
               onClick={async () => {
                 const formData = editingExercise || {};

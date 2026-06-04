@@ -1166,7 +1166,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
               {sectionThreeHeader}
             </span>
@@ -1178,12 +1178,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 background: 'white',
                 border: '1px solid #FFD0AC',
                 color: '#FF6F20',
-                padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 11,
+                padding: '10px 16px',
+                borderRadius: 8,
+                fontSize: 13,
                 fontWeight: 800,
                 cursor: readOnly ? 'default' : 'pointer',
                 fontFamily: 'inherit',
+                minHeight: 40,
               }}
             >
               {addRowButtonLabel}
@@ -1206,12 +1207,18 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             ) : (
               // Params picked but no sets — prominent CTA that
               // explains the relationship and adds the first row.
+              // width:100% + boxSizing:border-box so the box always
+              // fits the dialog viewport on narrow phones; the button
+              // fills the box so it's unmistakable and tap-friendly.
               <div style={{
                 background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
                 border: '2px dashed #FFD0AC',
                 borderRadius: 12,
                 padding: 20,
                 textAlign: 'center',
+                width: '100%',
+                maxWidth: '100%',
+                boxSizing: 'border-box',
               }}>
                 <div style={{ fontSize: 13, color: '#993C1D', fontWeight: 800, marginBottom: 4 }}>
                   בחרת {selectedSetFields.length} פרמטרים
@@ -1229,13 +1236,17 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                     background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
                     color: 'white',
                     border: 'none',
-                    padding: '12px 24px',
+                    padding: '14px 24px',
                     borderRadius: 10,
                     fontWeight: 800,
-                    fontSize: 14,
+                    fontSize: 15,
                     fontFamily: 'inherit',
                     cursor: readOnly ? 'default' : 'pointer',
                     boxShadow: '0 4px 12px rgba(255,111,32,0.25)',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                    minHeight: 48,
                   }}
                 >
                   {activeMethod === 'REST_PAUSE'
