@@ -8,31 +8,11 @@ import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import { toast } from "sonner";
 import { NOTIFICATION_TYPES, isEnabled } from "@/lib/notify";
 
-// Permissions enable the trainee to ACT (not just view): fill forms,
-// submit data, sign documents. When OFF, the related tab/button is
-// hidden completely on the trainee side.
-const PERMISSION_TYPES = [
-  { id: "view_baseline",      label: "מילוי בייסליין עצמאי",          icon: "📊" },
-  { id: "view_plan",          label: "תוכנית — צפייה וסימון תרגילים", icon: "📋" },
-  { id: "view_training_plan", label: "MyPlan — תוכנית אימון מלאה",    icon: "🏋️" },
-  { id: "view_progress",      label: "מעקב התקדמות (תוצאות, מבחנים)", icon: "📈" },
-  { id: "view_records",       label: "Progress — שיאים והישגים",      icon: "🏆" },
-  { id: "view_documents",     label: "מסמכים — חתימה ומילוי",         icon: "📄" },
-  { id: "edit_metrics",       label: "עדכון מדידות עצמאי",            icon: "✍️" },
-  { id: "send_videos",        label: "שליחת סרטוני ביצוע",            icon: "📸" },
-  { id: "send_messages",      label: "שליחת הודעות למאמן",            icon: "💬" },
-];
-
-// Defaults to TRUE for any permission missing from the row — matches
-// the migration's DEFAULT TRUE so existing trainees stay usable.
-const getPerm = (row, id) => row?.[id] ?? true;
-
 export default function CoachProfile() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [trainees, setTrainees] = useState([]);
-  const [permsByTrainee, setPermsByTrainee] = useState({});
   // Hero stats: trainees + sessions this month + active days. Each
   // is best-effort — if a query fails we just show 0.
   const [heroStats, setHeroStats] = useState({ trainees: 0, monthlySessions: 0, activeDays: 0 });
@@ -42,15 +22,6 @@ export default function CoachProfile() {
     try { return localStorage.getItem("athletigo_view_mode") || "professional"; }
     catch { return "professional"; }
   });
-
-  // Single-trainee permissions dialog
-  const [permTrainee, setPermTrainee] = useState(null);
-  const [permDraft, setPermDraft] = useState({});
-
-  // Bulk permissions dialog
-  const [showBulkPerms, setShowBulkPerms] = useState(false);
-  const [bulkSelected, setBulkSelected] = useState(new Set());
-  const [bulkDraft, setBulkDraft] = useState({});
 
   // Password dialog (2 tabs)
   const [showPwDialog, setShowPwDialog] = useState(false);
@@ -86,7 +57,7 @@ export default function CoachProfile() {
     })();
   }, []);
 
-  const fetchTraineesAndPerms = useCallback(async () => {
+  const fetchTrainees = useCallback(async () => {
     if (!user?.id) return;
     const { data: t } = await supabase
       .from("users")
@@ -94,29 +65,9 @@ export default function CoachProfile() {
       .eq("coach_id", user.id)
       .order("full_name");
     setTrainees(t || []);
-
-    // Fetch permissions — table may not exist yet (migration not run).
-    // Fall back to empty map so the UI still renders with defaults.
-    try {
-      const { data: perms, error } = await supabase
-        .from("trainee_permissions")
-        .select("*")
-        .eq("coach_id", user.id);
-      if (error) {
-        console.warn("[CoachProfile] permissions fetch:", error.message);
-        setPermsByTrainee({});
-      } else {
-        const map = {};
-        for (const p of (perms || [])) map[p.trainee_id] = p;
-        setPermsByTrainee(map);
-      }
-    } catch (e) {
-      console.warn("[CoachProfile] permissions exception:", e);
-      setPermsByTrainee({});
-    }
   }, [user?.id]);
 
-  useEffect(() => { fetchTraineesAndPerms(); }, [fetchTraineesAndPerms]);
+  useEffect(() => { fetchTrainees(); }, [fetchTrainees]);
 
   // Load this coach's saved notification preferences. Missing types
   // fall back to NOTIFICATION_TYPES[type].recommended at render time
@@ -192,72 +143,6 @@ export default function CoachProfile() {
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
-
-  // ── Single-trainee permissions ──────────────────────────────────
-  const openSinglePerms = (t) => {
-    setPermTrainee(t);
-    const row = permsByTrainee[t.id] || {};
-    const draft = {};
-    for (const p of PERMISSION_TYPES) draft[p.id] = getPerm(row, p.id);
-    setPermDraft(draft);
-  };
-
-  const saveSinglePerms = async () => {
-    if (!permTrainee || !user?.id) return;
-    const payload = {
-      coach_id: user.id,
-      trainee_id: permTrainee.id,
-      ...permDraft,
-    };
-    console.log("[CoachProfile] upsert perms:", payload);
-    const { error } = await supabase
-      .from("trainee_permissions")
-      .upsert(payload, { onConflict: "coach_id,trainee_id" });
-    if (error) {
-      toast.error("שגיאה: " + error.message + (error.code === "42P01" ? " (יש להריץ migration)" : ""));
-      return;
-    }
-    toast.success("הרשאות עודכנו ✓");
-    setPermTrainee(null);
-    fetchTraineesAndPerms();
-  };
-
-  // ── Bulk permissions ────────────────────────────────────────────
-  const openBulkPerms = () => {
-    setBulkSelected(new Set());
-    const draft = {};
-    for (const p of PERMISSION_TYPES) draft[p.id] = true;
-    setBulkDraft(draft);
-    setShowBulkPerms(true);
-  };
-
-  const toggleBulkSelect = (id) => {
-    setBulkSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const saveBulkPerms = async () => {
-    if (bulkSelected.size === 0) { toast.error("יש לבחור לפחות מתאמן אחד"); return; }
-    const rows = [...bulkSelected].map(tid => ({
-      coach_id: user.id,
-      trainee_id: tid,
-      ...bulkDraft,
-    }));
-    console.log("[CoachProfile] bulk upsert perms:", rows.length, "rows");
-    const { error } = await supabase
-      .from("trainee_permissions")
-      .upsert(rows, { onConflict: "coach_id,trainee_id" });
-    if (error) {
-      toast.error("שגיאה: " + error.message + (error.code === "42P01" ? " (יש להריץ migration)" : ""));
-      return;
-    }
-    toast.success(`הרשאות עודכנו ל-${rows.length} מתאמנים ✓`);
-    setShowBulkPerms(false);
-    fetchTraineesAndPerms();
-  };
 
   // ── Password handlers ───────────────────────────────────────────
   const handleSelfPassword = async () => {
@@ -390,56 +275,6 @@ export default function CoachProfile() {
             the app-switcher tabs already live in the header above
             this page, so duplicating them here added clutter
             without surfacing anything new. */}
-
-        {/* Trainee permissions */}
-        <div style={{
-          margin: "0 12px 12px", background: "white",
-          borderRadius: 16, padding: 14,
-          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-        }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between",
-            alignItems: "center", marginBottom: 10,
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>⚙️ הרשאות מתאמנים</div>
-            <button
-              onClick={openBulkPerms}
-              disabled={trainees.length === 0}
-              style={{
-                background: "#FF6F20", color: "white", border: "none",
-                borderRadius: 10, padding: "6px 12px",
-                fontSize: 11, fontWeight: 600, cursor: "pointer",
-                opacity: trainees.length === 0 ? 0.4 : 1,
-              }}
-            >בחר מספר מתאמנים</button>
-          </div>
-
-          {trainees.length === 0 ? (
-            <div style={{ textAlign: "center", color: "#888", padding: 12, fontSize: 13 }}>אין מתאמנים עדיין</div>
-          ) : trainees.map(t => {
-            const initial2 = (t.full_name || "?").trim().charAt(0);
-            return (
-              <div key={t.id} onClick={() => openSinglePerms(t)} style={{
-                background: "#FFF9F0", borderRadius: 12,
-                padding: 10, marginBottom: 6,
-                border: "0.5px solid #F0E4D0",
-                display: "flex", alignItems: "center", gap: 8,
-                cursor: "pointer",
-              }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%",
-                  background: "#FFF0E4",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, fontWeight: 600, color: "#FF6F20",
-                }}>{initial2}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t.full_name}</div>
-                </div>
-                <span style={{ fontSize: 18, color: "#888" }}>⚙️</span>
-              </div>
-            );
-          })}
-        </div>
 
         {/* Quick actions */}
         <div style={{
@@ -585,150 +420,6 @@ export default function CoachProfile() {
           textAlign: "center", padding: "12px 12px 100px",
           fontSize: 11, color: "#888",
         }}>AthletiGo · גרסה 2.0</div>
-
-        {/* ─── Single trainee permissions dialog ─── */}
-        {permTrainee && (
-          <div onClick={() => setPermTrainee(null)} style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-            zIndex: 11000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-          }}>
-            <div onClick={e => e.stopPropagation()} style={{
-              background: "#FFF9F0", borderRadius: 20, padding: 20,
-              width: "100%", maxWidth: 380, direction: "rtl",
-              maxHeight: "85vh", overflowY: "auto",
-            }}>
-              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 4 }}>⚙️ הרשאות</div>
-              <div style={{ fontSize: 13, color: "#888", textAlign: "center", marginBottom: 14 }}>
-                {permTrainee.full_name}
-              </div>
-              {PERMISSION_TYPES.map(perm => {
-                const enabled = permDraft[perm.id];
-                return (
-                  <div key={perm.id}
-                    onClick={() => setPermDraft(d => ({ ...d, [perm.id]: !d[perm.id] }))}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: 10, background: "white", borderRadius: 10,
-                      marginBottom: 6, cursor: "pointer",
-                      border: "0.5px solid #F0E4D0",
-                    }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 16 }}>{perm.icon}</span>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>{perm.label}</span>
-                    </div>
-                    <div style={{
-                      width: 40, height: 22, borderRadius: 11,
-                      background: enabled ? "#16a34a" : "#E8E0D8",
-                      position: "relative", transition: "background 0.2s",
-                    }}>
-                      <div style={{
-                        width: 18, height: 18, borderRadius: "50%",
-                        background: "white", position: "absolute", top: 2,
-                        right: enabled ? 2 : 20,
-                        transition: "right 0.2s",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                      }} />
-                    </div>
-                  </div>
-                );
-              })}
-              <button onClick={saveSinglePerms} style={{
-                width: "100%", padding: 14, borderRadius: 14, border: "none",
-                background: "#FF6F20", color: "white",
-                fontSize: 16, fontWeight: 700, cursor: "pointer", marginTop: 6,
-              }}>💾 שמור</button>
-              <div onClick={() => setPermTrainee(null)} style={{
-                textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
-              }}>ביטול</div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── Bulk permissions dialog ─── */}
-        {showBulkPerms && (
-          <div onClick={() => setShowBulkPerms(false)} style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-            zIndex: 11000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-          }}>
-            <div onClick={e => e.stopPropagation()} style={{
-              background: "#FFF9F0", borderRadius: 20, padding: 20,
-              width: "100%", maxWidth: 420, direction: "rtl",
-              maxHeight: "85vh", overflowY: "auto",
-            }}>
-              <div style={{ fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 14 }}>
-                ⚙️ הרשאות לכמה מתאמנים
-              </div>
-
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>בחר מתאמנים</div>
-              <div style={{ marginBottom: 12 }}>
-                {trainees.map(t => {
-                  const sel = bulkSelected.has(t.id);
-                  return (
-                    <div key={t.id} onClick={() => toggleBulkSelect(t.id)} style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: 8, marginBottom: 4,
-                      background: sel ? "#FFF0E4" : "white",
-                      border: sel ? "1.5px solid #FF6F20" : "0.5px solid #F0E4D0",
-                      borderRadius: 10, cursor: "pointer",
-                    }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: 4,
-                        background: sel ? "#FF6F20" : "white",
-                        border: sel ? "none" : "1.5px solid #ddd",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        color: "white", fontSize: 12, fontWeight: 700,
-                      }}>{sel ? "✓" : ""}</div>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>{t.full_name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>הרשאות שיופעלו</div>
-              {PERMISSION_TYPES.map(perm => {
-                const enabled = bulkDraft[perm.id];
-                return (
-                  <div key={perm.id}
-                    onClick={() => setBulkDraft(d => ({ ...d, [perm.id]: !d[perm.id] }))}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: 10, background: "white", borderRadius: 10,
-                      marginBottom: 6, cursor: "pointer",
-                      border: "0.5px solid #F0E4D0",
-                    }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 16 }}>{perm.icon}</span>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>{perm.label}</span>
-                    </div>
-                    <div style={{
-                      width: 40, height: 22, borderRadius: 11,
-                      background: enabled ? "#16a34a" : "#E8E0D8",
-                      position: "relative", transition: "background 0.2s",
-                    }}>
-                      <div style={{
-                        width: 18, height: 18, borderRadius: "50%",
-                        background: "white", position: "absolute", top: 2,
-                        right: enabled ? 2 : 20,
-                        transition: "right 0.2s",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                      }} />
-                    </div>
-                  </div>
-                );
-              })}
-
-              <button onClick={saveBulkPerms} disabled={bulkSelected.size === 0} style={{
-                width: "100%", padding: 14, borderRadius: 14, border: "none",
-                background: bulkSelected.size > 0 ? "#FF6F20" : "#ccc",
-                color: "white", fontSize: 16, fontWeight: 700,
-                cursor: "pointer", marginTop: 8,
-              }}>💾 שמור ל-{bulkSelected.size} מתאמנים</button>
-              <div onClick={() => setShowBulkPerms(false)} style={{
-                textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer",
-              }}>ביטול</div>
-            </div>
-          </div>
-        )}
 
         {/* ─── Password dialog (2 tabs) ─── */}
         {showPwDialog && (
