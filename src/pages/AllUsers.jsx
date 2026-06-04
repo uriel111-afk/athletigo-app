@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import RenameUserDialog from "../components/forms/RenameUserDialog";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
+import AddCoachDialog from "../components/forms/AddCoachDialog";
+import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { useClientStats } from "../components/hooks/useClientStats";
 import { useSessionStats } from "../components/hooks/useSessionStats";
@@ -17,8 +19,11 @@ import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { calculateAge as calcAge, formatBirthWithAge } from "@/lib/dateHelpers";
 
 export default function AllUsers() {
+  const { user: currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
+  const [isAddCoachOpen, setIsAddCoachOpen] = useState(false);
   const [filterType, setFilterType] = useState(new URLSearchParams(window.location.search).get('filter') || "all"); // all, active, expiring, inactive
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [userToRename, setUserToRename] = useState(null);
@@ -301,6 +306,17 @@ export default function AllUsers() {
                 fontWeight: 600, cursor: 'pointer',
               }}
             >+ מתאמן חדש</button>
+            {isAdmin && (
+              <button
+                onClick={() => setIsAddCoachOpen(true)}
+                style={{
+                  background: '#2d3748', color: 'white',
+                  border: 'none', borderRadius: 12,
+                  padding: '10px 16px', fontSize: 13,
+                  fontWeight: 600, cursor: 'pointer',
+                }}
+              >+ מאמן חדש</button>
+            )}
           </div>
         </div>
 
@@ -774,6 +790,9 @@ export default function AllUsers() {
         />
 
         <AddTraineeDialog open={isAddTraineeOpen} onClose={() => setIsAddTraineeOpen(false)} />
+        {isAdmin && (
+          <AddCoachDialog open={isAddCoachOpen} onClose={() => setIsAddCoachOpen(false)} />
+        )}
       </div>
     </ProtectedCoachPage>
   );
