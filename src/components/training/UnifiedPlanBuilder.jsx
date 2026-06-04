@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
@@ -395,7 +396,27 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // One ExerciseCard at a time across the whole workout. Held at the
   // workout-level so opening a card inside section A collapses any
   // already-open card in section B. null = nothing expanded.
-  const [expandedExerciseId, setExpandedExerciseId] = useState(null);
+  //
+  // URL-backed via ?ex=<exerciseId> so a page reload reopens the same
+  // card. Every write merges into the existing URLSearchParams (so
+  // ?planId / ?plan / unrelated params survive) and uses replace:true
+  // to avoid spamming browser history on each open/close. If ?ex points
+  // to an exercise that isn't in the current plan the comparison in
+  // SectionCard simply never matches — no card opens, no crash, the
+  // stale value clears the next time the user opens or closes a card.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const expandedExerciseId = searchParams.get('ex') || null;
+  const setExpandedExerciseId = (next) => {
+    const params = new URLSearchParams(searchParams);
+    const current = params.get('ex');
+    const value = typeof next === 'function' ? next(current) : next;
+    if (value == null || value === '') {
+      params.delete('ex');
+    } else {
+      params.set('ex', String(value));
+    }
+    setSearchParams(params, { replace: true });
+  };
 
   const sectionFormRef = useRef(null); // tracks latest section form data without stale closure issues
   const [showSectionFeedbackDialog, setShowSectionFeedbackDialog] = useState(false);
