@@ -33,6 +33,7 @@ export default function SectionCard({
   setLogs = {},
   onSetLogChange,
   onSetToggleDone,
+  onSetValueChange,
   drillSetLogs = {},
   onDrillSetToggleDone,
   sectionRating = null,
@@ -485,6 +486,7 @@ export default function SectionCard({
                       setLog={setLogs[exercise.id]}
                       onSetLogChange={onSetLogChange}
                       onSetToggleDone={onSetToggleDone}
+                      onSetValueChange={onSetValueChange}
                       drillSetLog={drillSetLogs[exercise.id]}
                       onDrillSetToggleDone={onDrillSetToggleDone}
                       expanded={setExpandedExerciseId ? expandedExerciseId === exercise.id : undefined}
@@ -815,6 +817,7 @@ export default function SectionCard({
                       setLog={setLogs[exercise.id]}
                       onSetLogChange={onSetLogChange}
                       onSetToggleDone={onSetToggleDone}
+                      onSetValueChange={onSetValueChange}
                       drillSetLog={drillSetLogs[exercise.id]}
                       onDrillSetToggleDone={onDrillSetToggleDone}
                       expanded={setExpandedExerciseId ? expandedExerciseId === exercise.id : undefined}

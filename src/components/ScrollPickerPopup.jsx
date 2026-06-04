@@ -4,6 +4,12 @@ export const SECONDS_OPTIONS = Array.from({ length: 300 }, (_, i) => i + 1);
 export const MINUTES_OPTIONS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60];
 export const ROUNDS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30];
 export const PREP_OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60];
+export const REPS_OPTIONS = Array.from({ length: 100 }, (_, i) => i + 1);
+export const WEIGHT_OPTIONS = [
+  ...Array.from({ length: 40 }, (_, i) => (i + 1) * 0.5),
+  ...Array.from({ length: 80 }, (_, i) => 21 + i),
+  ...Array.from({ length: 20 }, (_, i) => 105 + i * 5),
+];
 
 export default function ScrollPickerPopup({ isOpen, value, options, onSelect, onClose, title }) {
   const listRef = useRef(null);

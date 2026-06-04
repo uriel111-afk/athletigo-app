@@ -12,6 +12,7 @@ import { getMethodByMode } from '../../constants/trainingMethods';
 import { parsePlannedSets, loadActualsForExercise, saveSetActual } from '../../lib/plannedSets';
 import { UNIT_COLORS } from '../../constants/unitColors';
 import { supabase } from '../../lib/supabaseClient';
+import ScrollPickerPopup, { REPS_OPTIONS } from '../ScrollPickerPopup';
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -1056,6 +1057,8 @@ export default function ExerciseCard({
   setLog,
   onSetLogChange,
   onSetToggleDone,
+  // Single rep-based exercise picker write path (step 1).
+  onSetValueChange,
   // Per-drill-per-set state for list-variant exercises. Each cell is
   // a boolean inside drillSetLog[setIdx][drillIdx]. Local-state only —
   // not persisted to exercise_set_logs (no drill_index column).
@@ -1877,6 +1880,10 @@ export default function ExerciseCard({
   // actual toggle handler — we just read from `setLog` and forward.
   const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
   const isSetDone = (idx) => !!(setLog?.[idx]?.done);
+  // Scroll-picker open state for the single rep-based exercise block.
+  // Held here (not inside the render IIFE) so the picker survives
+  // re-renders triggered by the picker's own onSelect.
+  const [pickerOpenSetIdx, setPickerOpenSetIdx] = useState(null);
 
   const handleSetToggle = (idx) => {
     if (typeof onSetToggleDone !== 'function') return;
@@ -4045,130 +4052,149 @@ export default function ExerciseCard({
           const activeSetIdx = Math.min(doneCount, totalSets - 1);
           const allDone = doneCount >= totalSets;
           const completionPct = totalSets > 0 ? (doneCount / totalSets) * 100 : 0;
+          const pickerInitialValue = pickerOpenSetIdx != null
+            ? (setLog?.[pickerOpenSetIdx]?.reps_completed ?? targetReps)
+            : null;
           return (
             <div style={{
               direction: 'rtl',
-              textAlign: 'center',
-              background: '#FFF5EE',
-              borderRight: '5px solid #FF6F20',
+              background: '#FFF9F0',
+              borderRight: '4px solid #FF6F20',
               borderRadius: '12px 0 0 12px',
-              padding: '20px 18px',
+              padding: '18px 16px',
               marginTop: 12,
             }}>
-              {/* Exercise name */}
-              <div style={{ ...T.name, color: '#1a1a1a', marginBottom: 14 }}>
+              {/* Exercise name — top bar */}
+              <div style={{ ...T.name, color: '#1a1a1a', marginBottom: 14, textAlign: 'center' }}>
                 {exercise?.name || exercise?.exercise_name || 'תרגיל'}
               </div>
 
-              {/* Target header — big number + label with bottom divider */}
-              <div style={{
-                borderBottom: '1px solid #F0E0CC',
-                paddingBottom: 14,
-                marginBottom: 14,
-              }}>
-                <div style={{ ...T.hero, color: '#FF6F20' }}>{targetReps}</div>
-                <div style={{ ...T.heroLbl, marginTop: 4 }}>חזרות יעד</div>
-              </div>
+              {/* Two-column layout: hero TARGET on RIGHT (first child
+                  under RTL), per-set fill boxes on LEFT. */}
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
+                {/* RIGHT — hero target */}
+                <div style={{
+                  flex: '0 0 116px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#FFFFFF',
+                  border: '1px solid #FFE0C2',
+                  borderRadius: 12,
+                  padding: '16px 8px',
+                }}>
+                  <div style={{ ...T.hero, color: '#FF6F20' }}>{targetReps}</div>
+                  <div style={{ ...T.heroLbl, marginTop: 4 }}>יעד חזרות</div>
+                  <div style={{
+                    marginTop: 10,
+                    fontFamily: SANS_FONT,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#777',
+                  }}>{`${totalSets} סטים`}</div>
+                </div>
 
-              {/* Per-set rows — full width, centered. NO space-between,
-                  NO flex:1. dot · label · value, all in a single
-                  centered flex row. */}
-              {Array.from({ length: totalSets }).map((_, i) => {
-                const done = isSetDone(i);
-                const active = !done && !allDone && i === activeSetIdx;
-                const loggedReps = setLog?.[i]?.reps_completed;
-                let dotBg, dotBorder, valueColor, valueText, rowBorder;
-                if (done) {
-                  dotBg = '#16A34A';
-                  dotBorder = '#16A34A';
-                  valueColor = '#16A34A';
-                  rowBorder = '1.5px solid #BBF7D0';
-                  valueText = hasValue(loggedReps) ? String(loggedReps) : String(targetReps);
-                } else if (active) {
-                  dotBg = '#FF6F20';
-                  dotBorder = '#FF6F20';
-                  valueColor = '#FF6F20';
-                  rowBorder = '1.5px solid #FF6F20';
-                  valueText = '?';
-                } else {
-                  dotBg = 'transparent';
-                  dotBorder = '#D1D5DB';
-                  valueColor = '#9CA3AF';
-                  rowBorder = '1.5px dashed #D1D5DB';
-                  valueText = '—';
-                }
-                return (
-                  <div
-                    key={i}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); handleSetToggle(i); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleSetToggle(i);
-                      }
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 16,
-                      padding: '16px 8px',
-                      borderRadius: 11,
-                      marginBottom: 10,
-                      background: '#FFFFFF',
-                      border: rowBorder,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        width: 17,
-                        height: 17,
-                        borderRadius: '50%',
-                        background: dotBg,
-                        border: `2px solid ${dotBorder}`,
-                        display: 'inline-block',
-                        flex: '0 0 auto',
-                      }}
-                    />
-                    <span style={{ ...T.setLabel }}>{`סט ${i + 1}`}</span>
-                    {active ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        <ActualInput
-                          target={exercise.reps}
-                          value={setLog?.[i]?.reps_completed}
-                          onChange={(n) => {
-                            if (typeof onSetLogChange === 'function') {
-                              onSetLogChange(exercise.id, i, 'reps_completed', n);
-                            }
+                {/* LEFT — per-set fill boxes */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {Array.from({ length: totalSets }).map((_, i) => {
+                    const done = isSetDone(i);
+                    const active = !done && !allDone && i === activeSetIdx;
+                    const loggedReps = setLog?.[i]?.reps_completed;
+                    let dotBg, dotBorder, valueColor, valueText, rowBorder;
+                    if (done) {
+                      dotBg = '#3FA06B';
+                      dotBorder = '#3FA06B';
+                      valueColor = '#3FA06B';
+                      rowBorder = '1.5px solid #3FA06B';
+                      valueText = hasValue(loggedReps) ? String(loggedReps) : String(targetReps);
+                    } else if (active) {
+                      dotBg = '#FF6F20';
+                      dotBorder = '#FF6F20';
+                      valueColor = '#FF6F20';
+                      rowBorder = '1.5px dashed #FF6F20';
+                      valueText = '?';
+                    } else {
+                      dotBg = 'transparent';
+                      dotBorder = '#D1D5DB';
+                      valueColor = '#9CA3AF';
+                      rowBorder = '1.5px dashed #D1D5DB';
+                      valueText = '–';
+                    }
+                    return (
+                      <div
+                        key={i}
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); setPickerOpenSetIdx(i); }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setPickerOpenSetIdx(i);
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 14,
+                          padding: '14px 8px',
+                          borderRadius: 11,
+                          background: '#FFFFFF',
+                          border: rowBorder,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: '50%',
+                            background: dotBg,
+                            border: `2px solid ${dotBorder}`,
+                            display: 'inline-block',
+                            flex: '0 0 auto',
                           }}
                         />
-                        {hasValue(exercise.weight) && (
-                          <ActualInput
-                            target={exercise.weight}
-                            value={setLog?.[i]?.weight_used}
-                            unit='ק"ג'
-                            onChange={(n) => {
-                              if (typeof onSetLogChange === 'function') {
-                                onSetLogChange(exercise.id, i, 'weight_used', n);
-                              }
-                            }}
-                          />
-                        )}
-                      </span>
-                    ) : (
-                      <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
-                    )}
-                  </div>
-                );
-              })}
+                        <span style={{ ...T.setLabel }}>{`סט ${i + 1}`}</span>
+                        <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-              {/* Full-width completion bar — reuses the in-card
-                  doneCount/totalSets ratio. */}
+              {/* Completion bar at bottom — sets filled / total. */}
               <ProgressBar percent={completionPct} color="#FF6F20" />
+
+              {/* Picker — inline overlay, not Radix. Writes through
+                  onSetValueChange so UnifiedPlanBuilder stamps the
+                  numeric value + done:true in one shot. */}
+              <ScrollPickerPopup
+                isOpen={pickerOpenSetIdx != null}
+                value={pickerInitialValue}
+                options={REPS_OPTIONS}
+                onClose={() => setPickerOpenSetIdx(null)}
+                onSelect={(v) => {
+                  const idx = pickerOpenSetIdx;
+                  console.log('[ExerciseCard] saveSetLog →', {
+                    exerciseId: exercise.id,
+                    setIdx: idx,
+                    value: v,
+                    mode: 'reps',
+                  });
+                  if (typeof onSetValueChange === 'function' && idx != null) {
+                    onSetValueChange(exercise, idx, v, 'reps');
+                  }
+                  console.log('[ExerciseCard] saveSetLog ✓', {
+                    exerciseId: exercise.id,
+                    setIdx: idx,
+                    value: v,
+                  });
+                }}
+                title={`סט ${pickerOpenSetIdx != null ? pickerOpenSetIdx + 1 : ''} — חזרות שבוצעו`}
+              />
             </div>
           );
         })()}

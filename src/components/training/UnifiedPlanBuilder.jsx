@@ -1122,6 +1122,40 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
   }, [setLogs, handleToggleComplete]);
 
+  // Single rep-based exercise — picker writes a numeric value to the
+  // mode-matched column on exercise_set_logs (reps_completed /
+  // weight_used / time_completed) AND flips done:true so the existing
+  // 3s autosave + saveCompletedWorkout flow persists it through the
+  // unchanged DB layer. A null value clears the set.
+  const setSetValue = React.useCallback((exercise, setIdx, value, mode) => {
+    const exId = exercise.id;
+    const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
+    const field = mode === 'seconds' || mode === 'time'
+      ? 'time_completed'
+      : mode === 'kg' || mode === 'weight'
+        ? 'weight_used'
+        : 'reps_completed';
+    const current = setLogs[exId] || {};
+    const cur = current[setIdx] || {};
+    const isClear = value == null || value === '';
+    const nextLogs = {
+      ...current,
+      [setIdx]: { ...cur, [field]: isClear ? null : value, done: !isClear },
+    };
+    setSetLogs((prev) => ({ ...prev, [exId]: nextLogs }));
+
+    let doneCount = 0;
+    for (let i = 0; i < totalSets; i++) {
+      if (nextLogs[i]?.done) doneCount++;
+    }
+    const exerciseFullyDone = doneCount === totalSets;
+    if (exerciseFullyDone && !exercise.completed) {
+      handleToggleComplete(exercise);
+    } else if (!exerciseFullyDone && exercise.completed) {
+      handleToggleComplete(exercise);
+    }
+  }, [setLogs, handleToggleComplete]);
+
   // List-variant per-drill-per-set toggle. Maintains drillSetLogs and
   // — like toggleSetDone — flips exercise.completed when every (drill,
   // set) cell is checked, or when un-checking one drops the exercise
@@ -2225,6 +2259,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 setLogs={setLogs}
                 onSetLogChange={updateSetLog}
                 onSetToggleDone={toggleSetDone}
+                onSetValueChange={setSetValue}
                 drillSetLogs={drillSetLogs}
                 onDrillSetToggleDone={toggleDrillSetDone}
                 expandedExerciseId={expandedExerciseId}
