@@ -192,7 +192,7 @@ const METHODS_WITH_LIST         = ['EXERCISE_LIST'];
 // (so a per-set table + "Add Set" button is meaningful). For basic
 // methods (NONE / REPS) every set is identical — a single "sets" +
 // "reps" pair is enough.
-const PER_SET_METHODS = ['PYRAMID', 'DROP_SET', 'DELORME', 'REST_PAUSE'];
+const PER_SET_METHODS = ['NONE', 'REPS', 'PYRAMID', 'DROP_SET', 'DELORME', 'REST_PAUSE'];
 const usesPerSetRows = (m) => PER_SET_METHODS.includes(m);
 
 // ────────────────────────────────────────────────────────────────
