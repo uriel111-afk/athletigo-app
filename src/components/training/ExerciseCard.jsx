@@ -1388,11 +1388,14 @@ export default function ExerciseCard({
     return () => { cancelled = true; };
   }, [variant, pyramidExecutionId, exercise?.id]);
 
-  // SUPERSET / COMBO — hydrate per-inner-per-round actuals. drill_index
-  // = inner-exercise index, set_number = round index (1-based). One
-  // round-trip pulls every drill at once via loadActualsByDrillForExercise.
+  // SUPERSET / COMBO / CIRCUIT — hydrate per-inner-per-round actuals.
+  // drill_index = inner-exercise / station index, set_number = round
+  // index (1-based). One round-trip pulls every drill at once via
+  // loadActualsByDrillForExercise. Circuit reuses the same state shape
+  // (roundsActuals) since station-per-round and inner-per-round are
+  // identical from the fill perspective.
   useEffect(() => {
-    if (!ROUNDS_METHODS[variant]) return;
+    if (!ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant]) return;
     if (!pyramidExecutionId || !exercise?.id) return;
     let cancelled = false;
     loadActualsByDrillForExercise(supabase, pyramidExecutionId, exercise.id).then((byDrill) => {
@@ -2471,52 +2474,61 @@ export default function ExerciseCard({
               const stations = Array.isArray(td.stations) ? td.stations : [];
               const methodConfig = (td.method_config && typeof td.method_config === 'object') ? td.method_config : {};
               const rounds = Number.isFinite(methodConfig.rounds) ? methodConfig.rounds : 3;
-              const outerBorderWidth = 2;
 
               if (stations.length === 0) {
                 return <EmptyMethodPlaceholder headline="טרם הוגדרו תחנות" />;
               }
 
-              const setFields = getSetFields(exercise);
-              // activeRoundIdx is 0-based; derived from how many rounds
-              // already have a completion marker in pyramidActuals.
-              let activeRoundIdx = rounds;
-              for (let i = 0; i < rounds; i++) {
-                if (!pyramidActuals[i + 1]?.completed) { activeRoundIdx = i; break; }
+              // Aggregate completion across (station, round). drillIdx
+              // = the station's 0-based ordinal (matches station_index
+              // when present, otherwise the array index — sIdx); set_number
+              // is round 1-based. Stations are addressed by their array
+              // position so the key stays stable even if station_index
+              // is missing or non-sequential.
+              let totalCells = 0;
+              let doneCells = 0;
+              for (let s = 0; s < stations.length; s++) {
+                for (let r = 0; r < rounds; r++) {
+                  totalCells++;
+                  if (roundsActuals[s]?.[r + 1]?.completed) doneCells++;
+                }
               }
+              const overallPct = totalCells > 0
+                ? Math.round((doneCells / totalCells) * 100)
+                : 0;
+              const numberOfRoundsLabel = rounds === 1
+                ? '1 סבב'
+                : `${rounds} סבבים`;
 
               return (
                 <div dir="rtl" style={{
-                  background: 'white',
-                  border: `${outerBorderWidth}px solid ${BRAND.stripeActive}`,
+                  background: '#FFFFFF',
+                  border: `1px solid ${BRAND.cardBorder}`,
                   borderRadius: 14,
-                  padding: 12,
-                  boxShadow: 'rgba(59,130,246,0.15) 0px 4px 10px',
+                  padding: '11px 12px',
                   marginBottom: 12,
                 }}>
-                  {/* Header band — method-tag chip + round tally */}
+                  {/* Method tag + overall tally */}
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '8px 12px',
-                    background: `linear-gradient(135deg, ${BRAND.panelBg}, #FFFFFF)`,
+                    background: BRAND.panelBg,
                     border: `1px solid ${BRAND.panelBorder}`,
                     borderRadius: 10,
-                    marginBottom: 11,
+                    marginBottom: 12,
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{
-                        fontSize: 13,
-                        fontWeight: 800,
-                        color: BRAND.tagText,
-                        background: BRAND.panelBg,
-                        padding: '2px 8px',
-                        borderRadius: 5,
-                      }}>
-                        {methodMeta.label}
-                      </span>
-                    </div>
+                    <span style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: BRAND.tagText,
+                      background: BRAND.tagBg,
+                      padding: '2px 7px',
+                      borderRadius: 5,
+                    }}>
+                      {methodMeta.label}
+                    </span>
                     <span style={{
                       fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: 14,
@@ -2526,211 +2538,247 @@ export default function ExerciseCard({
                       borderRadius: 5,
                       border: `1px solid ${BRAND.panelBorder}`,
                     }}>
-                      סבב {Math.min(activeRoundIdx + 1, rounds)} / {rounds}
+                      {doneCells} / {totalCells}
                     </span>
                   </div>
 
-                  <SectionLabel>תחנות</SectionLabel>
-                  {/* Stations — flex-wrap (no horizontal scroll) */}
-                  <div
-                    dir="rtl"
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 6,
-                      marginBottom: 9,
-                      width: '100%',
-                    }}
-                  >
-                    {stations.map((station, sIdx) => {
-                      const stType = station?.type === 'time' ? 'time' : 'reps';
-                      const typeColor = STATION_TYPE_COLORS[stType];
-                      const stationNumber = station?.station_index ?? (sIdx + 1);
-                      return (
-                        <div key={sIdx} style={{
-                          flex: '1 1 calc(50% - 8px)',
-                          minWidth: 130,
-                          background: BRAND.panelBg,
-                          border: `1px solid ${BRAND.panelBorder}`,
-                          borderRadius: 10,
-                          padding: 10,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 6,
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 20,
-                              color: BRAND.tagText,
-                              fontWeight: 800,
-                              lineHeight: 1,
-                            }}>
-                              {String(stationNumber).padStart(2, '0')}
-                            </span>
-                            <span style={{
-                              fontSize: 8,
-                              fontWeight: 800,
-                              color: typeColor.stripe,
-                              background: typeColor.tint,
-                              padding: '2px 6px',
-                              borderRadius: 3,
-                            }}>
-                              {typeColor.label}
-                            </span>
-                          </div>
+                  {/* Per-station hero+fill blocks — one card per station */}
+                  {stations.map((station, sIdx) => {
+                    const drillIdx = sIdx;
+                    const stType = station?.type === 'time' ? 'time' : 'reps';
+                    const fillMode = stType === 'time' ? 'seconds' : 'reps';
+                    const stationNumber = station?.station_index ?? (sIdx + 1);
+                    const heroLabel = fillMode === 'reps' ? 'יעד חזרות' : 'יעד שניות';
+                    const heroValue = station?.value != null && station.value !== ''
+                      ? station.value
+                      : '—';
 
-                          <div style={{
-                            fontSize: 11,
+                    let drillDone = 0;
+                    let firstUnfilledIdx = rounds;
+                    for (let r = 0; r < rounds; r++) {
+                      const cell = roundsActuals[drillIdx]?.[r + 1];
+                      if (cell?.completed) drillDone++;
+                      else if (firstUnfilledIdx === rounds) firstUnfilledIdx = r;
+                    }
+                    const drillAllDone = drillDone >= rounds;
+                    const drillPct = rounds > 0
+                      ? (drillDone / rounds) * 100
+                      : 0;
+
+                    return (
+                      <div key={sIdx} style={{
+                        direction: 'rtl',
+                        background: '#FFF9F0',
+                        borderRight: '4px solid #FF6F20',
+                        borderRadius: '12px 0 0 12px',
+                        padding: '14px 14px',
+                        marginBottom: sIdx < stations.length - 1 ? 14 : 6,
+                      }}>
+                        {/* Station header — index badge + name */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          marginBottom: 12,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 16,
+                            color: BRAND.stripeActive,
+                            background: BRAND.panelBg,
+                            padding: '2px 9px',
+                            borderRadius: 5,
                             fontWeight: 800,
-                            color: BRAND.textPrimary,
-                            minHeight: 28,
-                            wordBreak: 'break-word',
+                            border: `1px solid ${BRAND.panelBorder}`,
+                          }}>
+                            {String(stationNumber).padStart(2, '0')}
+                          </span>
+                          <span style={{
+                            flex: 1,
+                            ...T.name,
+                            color: '#1a1a1a',
+                            textAlign: 'right',
                           }}>
                             {station?.name || 'תחנה ללא שם'}
-                          </div>
-
-                          <div style={{
-                            background: typeColor.tint,
-                            border: `1px solid ${typeColor.tint}`,
-                            borderRadius: 6,
-                            padding: 6,
-                            textAlign: 'center',
-                          }}>
-                            <div style={{
-                              fontFamily: "'Bebas Neue', sans-serif",
-                              fontSize: 22,
-                              color: typeColor.stripe,
-                              lineHeight: 1,
-                              fontWeight: 800,
-                            }}>
-                              {station?.value ?? '-'}
-                            </div>
-                          </div>
-
-                          {setFields.length > 0 && (
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: `repeat(${Math.min(setFields.length, 2)}, 1fr)`,
-                              gap: 4,
-                            }}>
-                              {setFields.map((fieldId) => {
-                                const c = UNIT_COLOR_BY_FIELD[fieldId];
-                                if (!c) return null;
-                                const val = station?.[fieldId];
-                                if (val == null) return null;
-                                return (
-                                  <div key={fieldId} style={{
-                                    background: '#FFFFFF',
-                                    border: `1px solid ${BRAND.panelBorder}`,
-                                    borderRadius: 4,
-                                    padding: '3px 4px',
-                                    textAlign: 'center',
-                                  }}>
-                                    <div style={{
-                                      fontFamily: "'Bebas Neue', sans-serif",
-                                      fontSize: 13,
-                                      color: BRAND.tagText,
-                                      lineHeight: 1,
-                                    }}>{val}</div>
-                                    <div style={{
-                                      fontSize: 7,
-                                      color: BRAND.tagText,
-                                      fontWeight: 800,
-                                      marginTop: 2,
-                                    }}>{c.label}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
 
-                  <div style={{ marginTop: 14 }}>
-                    <SectionLabel>סבבים</SectionLabel>
-                    {/* Round progress dots — wrapper with white bg + brand
-                        border; each dot is a numbered circle. Done dots
-                        get solid orange bg; pending dots stay white. */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginBottom: 10,
-                      padding: '6px 8px',
-                      background: '#FFFFFF',
-                      border: `1px solid ${BRAND.panelBorder}`,
-                      borderRadius: 8,
-                    }}>
-                      {Array.from({ length: rounds }, (_, i) => {
-                        const isDone = i < activeRoundIdx;
-                        const isActive = i === activeRoundIdx;
-                        return (
-                          <div key={i} style={{
-                            minWidth: isActive ? 28 : 22,
-                            height: 22,
-                            padding: '0 6px',
-                            borderRadius: 11,
-                            background: isDone ? BRAND.stripeActive : '#FFFFFF',
-                            border: `1px solid ${isDone ? BRAND.stripeActive : BRAND.innerBorder}`,
-                            color: isDone ? '#FFFFFF' : BRAND.tagText,
-                            fontFamily: "'Barlow Condensed', sans-serif",
-                            fontSize: 12,
-                            fontWeight: 900,
-                            display: 'inline-flex',
+                        {/* Two-column: hero TARGET on right, fill boxes on left */}
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
+                          {/* RIGHT — hero target + rounds count */}
+                          <div style={{
+                            flex: '0 0 110px',
+                            display: 'flex',
+                            flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            transition: 'all 0.2s',
-                            boxShadow: isActive ? `0 0 0 2px ${BRAND.stripeActive}33` : 'none',
+                            background: '#FFFFFF',
+                            border: '1px solid #FFE0C2',
+                            borderRadius: 12,
+                            padding: '14px 6px',
                           }}>
-                            {i + 1}
+                            <div style={{ ...T.hero, color: '#FF6F20' }}>{heroValue}</div>
+                            <div style={{ ...T.heroLbl, marginTop: 4 }}>{heroLabel}</div>
+                            <div style={{
+                              marginTop: 10,
+                              fontFamily: SANS_FONT,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#777',
+                            }}>{numberOfRoundsLabel}</div>
                           </div>
-                        );
-                      })}
-                    </div>
+
+                          {/* LEFT — per-round fill boxes */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {Array.from({ length: rounds }).map((_, rIdx) => {
+                              const cell = roundsActuals[drillIdx]?.[rIdx + 1];
+                              const done = !!cell?.completed;
+                              const active = !done && !drillAllDone && rIdx === firstUnfilledIdx;
+                              const loggedReps = cell?.reps;
+                              const loggedSec = cell?.hold_seconds;
+                              let dotBg, dotBorder, valueColor, valueText, rowBorder;
+                              if (done) {
+                                dotBg = '#3FA06B';
+                                dotBorder = '#3FA06B';
+                                valueColor = '#3FA06B';
+                                rowBorder = '1.5px solid #3FA06B';
+                                const v = fillMode === 'reps' ? loggedReps : loggedSec;
+                                valueText = v != null && v !== '' ? String(v) : '✓';
+                              } else if (active) {
+                                dotBg = '#FF6F20';
+                                dotBorder = '#FF6F20';
+                                valueColor = '#FF6F20';
+                                rowBorder = '1.5px dashed #FF6F20';
+                                valueText = '?';
+                              } else {
+                                dotBg = 'transparent';
+                                dotBorder = '#D1D5DB';
+                                valueColor = '#9CA3AF';
+                                rowBorder = '1.5px dashed #D1D5DB';
+                                valueText = '–';
+                              }
+                              return (
+                                <div
+                                  key={rIdx}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRoundsPickerState({ drillIdx, setIdx: rIdx + 1, mode: fillMode });
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      setRoundsPickerState({ drillIdx, setIdx: rIdx + 1, mode: fillMode });
+                                    }
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 12,
+                                    padding: '11px 8px',
+                                    borderRadius: 11,
+                                    background: '#FFFFFF',
+                                    border: rowBorder,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      width: 14,
+                                      height: 14,
+                                      borderRadius: '50%',
+                                      background: dotBg,
+                                      border: `2px solid ${dotBorder}`,
+                                      display: 'inline-block',
+                                      flex: '0 0 auto',
+                                    }}
+                                  />
+                                  <span style={{ ...T.setLabel }}>{`סבב ${rIdx + 1}`}</span>
+                                  <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Per-station completion bar */}
+                        <ProgressBar percent={drillPct} color="#FF6F20" />
+                      </div>
+                    );
+                  })}
+
+                  {/* Overall completion across every (station, round) cell */}
+                  <div style={{
+                    marginTop: 6,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: '#FFF4E6',
+                    border: '1px solid #FFD9B0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                  }}>
+                    <span style={{
+                      fontSize: 12,
+                      color: '#555',
+                      fontFamily: SANS_FONT,
+                      fontWeight: 600,
+                    }}>
+                      {doneCells}/{totalCells} תאים מולאו
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: '#FF6F20',
+                      lineHeight: 1,
+                    }}>
+                      {overallPct}%
+                    </span>
                   </div>
 
-                  {/* Complete-round button — trainee + active round only */}
-                  {!isCoachMode && activeRoundIdx < rounds && (
-                    <button
-                      type="button"
-                      onClick={() => onCompleteRound(activeRoundIdx + 1)}
-                      disabled={pyramidSaving}
-                      style={{
-                        width: '100%',
-                        background: pyramidSaving ? '#D1D5DB' : BRAND.stripeActive,
-                        color: 'white',
-                        border: 'none',
-                        padding: 10,
-                        borderRadius: 8,
-                        fontWeight: 800,
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                        cursor: pyramidSaving ? 'default' : 'pointer',
-                      }}
-                    >
-                      {pyramidSaving ? 'שומר...' : `סיים סבב ${activeRoundIdx + 1} והמשך`}
-                    </button>
-                  )}
-
-                  {/* Coach tally */}
-                  {isCoachMode && (
-                    <div style={{
-                      textAlign: 'center',
-                      fontSize: 11,
-                      color: BRAND.tagText,
-                      fontWeight: 700,
-                      padding: 8,
-                      background: BRAND.panelBg,
-                      border: `1px solid ${BRAND.panelBorder}`,
-                      borderRadius: 7,
-                    }}>
-                      ביצוע המתאמן · {Math.min(activeRoundIdx, rounds)}/{rounds} סבבים
-                    </div>
-                  )}
+                  {/* Shared picker for every (station, round) cell.
+                      Reuses the same roundsPickerState driven by the
+                      super_set/combo block — only one cell ever opens
+                      the picker at a time, so a single instance is
+                      enough across all method renders. */}
+                  <ScrollPickerPopup
+                    isOpen={roundsPickerState != null}
+                    value={(() => {
+                      if (roundsPickerState == null) return null;
+                      const cell = roundsActuals[roundsPickerState.drillIdx]?.[roundsPickerState.setIdx];
+                      const st = stations[roundsPickerState.drillIdx] || {};
+                      if (roundsPickerState.mode === 'seconds') {
+                        return cell?.hold_seconds
+                          ?? (Number.isFinite(Number(st.value)) ? Number(st.value) : null);
+                      }
+                      return cell?.reps
+                        ?? (Number.isFinite(Number(st.value)) ? Number(st.value) : null);
+                    })()}
+                    options={roundsPickerState?.mode === 'seconds' ? SECONDS_OPTIONS : REPS_OPTIONS}
+                    onClose={() => setRoundsPickerState(null)}
+                    onSelect={(v) => {
+                      if (roundsSaving) return;
+                      if (roundsPickerState == null) return;
+                      onRoundsFillSave(
+                        roundsPickerState.drillIdx,
+                        roundsPickerState.setIdx,
+                        v,
+                        roundsPickerState.mode,
+                      );
+                    }}
+                    title={(() => {
+                      if (roundsPickerState == null) return '';
+                      const st = stations[roundsPickerState.drillIdx] || {};
+                      const stName = st?.name || 'תחנה';
+                      const unitWord = roundsPickerState.mode === 'seconds' ? 'שניות שבוצעו' : 'חזרות שבוצעו';
+                      return `${stName} · סבב ${roundsPickerState.setIdx} — ${unitWord}`;
+                    })()}
+                  />
                 </div>
               );
             })()}
