@@ -12,7 +12,7 @@ import { getMethodByMode } from '../../constants/trainingMethods';
 import { parsePlannedSets, loadActualsForExercise, saveSetActual } from '../../lib/plannedSets';
 import { UNIT_COLORS } from '../../constants/unitColors';
 import { supabase } from '../../lib/supabaseClient';
-import ScrollPickerPopup, { REPS_OPTIONS } from '../ScrollPickerPopup';
+import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS } from '../ScrollPickerPopup';
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -1884,6 +1884,9 @@ export default function ExerciseCard({
   // Held here (not inside the render IIFE) so the picker survives
   // re-renders triggered by the picker's own onSelect.
   const [pickerOpenSetIdx, setPickerOpenSetIdx] = useState(null);
+  // Same idea for time/hold exercises — separate state so the two
+  // pickers (REPS_OPTIONS vs SECONDS_OPTIONS) can never collide.
+  const [timePickerOpenSetIdx, setTimePickerOpenSetIdx] = useState(null);
 
   // Closed-card summary source. The edit dialog's primary write target
   // is exercise.tabata_data.planned_sets — the flattened shadow on
@@ -3209,11 +3212,11 @@ export default function ExerciseCard({
                     {plannedSets.map((set, i) => {
                       const actual = pyramidActuals[i + 1];
                       const isDone = hasExecution && actual?.completed;
-                      const numColor = isDone ? '#16A34A' : '#D1D5DB';
+                      const numColor = isDone ? '#3FA06B' : '#D1D5DB';
                       return (
                         <div key={i} style={{
                           background: isDone ? '#F0FAF4' : 'white',
-                          border: isDone ? '1.5px solid #16A34A' : '1.5px dashed #D1D5DB',
+                          border: isDone ? '1.5px solid #3FA06B' : '1.5px dashed #D1D5DB',
                           borderRadius: 8,
                           padding: '10px 12px',
                           display: 'flex',
@@ -3256,7 +3259,7 @@ export default function ExerciseCard({
                                 </span>
                                 <span style={{
                                   fontSize: 10,
-                                  color: isDone ? '#16A34A' : (meta.textSecondary || '#9CA3AF'),
+                                  color: isDone ? '#3FA06B' : (meta.textSecondary || '#9CA3AF'),
                                   opacity: isDone ? 0.85 : 1,
                                 }}>
                                   {meta.label}
@@ -3285,7 +3288,7 @@ export default function ExerciseCard({
                             );
                           })}
                           {isDone && (
-                            <Check size={16} color="#16A34A" style={{ marginInlineStart: 'auto' }} />
+                            <Check size={16} color="#3FA06B" style={{ marginInlineStart: 'auto' }} />
                           )}
                         </div>
                       );
@@ -3364,8 +3367,8 @@ export default function ExerciseCard({
                 : 0;
               return (
                 <div dir="rtl" style={{
-                  background: '#FFF5EE',
-                  borderRight: '5px solid #FF6F20',
+                  background: '#FFF9F0',
+                  borderRight: '4px solid #FF6F20',
                   borderRadius: '12px 0 0 12px',
                   padding: '18px 16px',
                   marginTop: 12,
@@ -3402,8 +3405,8 @@ export default function ExerciseCard({
 
                         let dotBg, dotBorder, valueColor, labelColor;
                         if (done) {
-                          dotBg = '#16a34a'; dotBorder = '#16a34a';
-                          valueColor = '#16a34a';
+                          dotBg = '#3FA06B'; dotBorder = '#3FA06B';
+                          valueColor = '#3FA06B';
                           labelColor = '#1a1a1a';
                         } else if (active) {
                           dotBg = '#FF6F20'; dotBorder = '#FF6F20';
@@ -4215,11 +4218,179 @@ export default function ExerciseCard({
           );
         })()}
 
+        {/* Premium-Soft 45/55 open layout — TIME / static-hold variant.
+            Mirrors the rep card directly above: right-anchored TARGET
+            hero shows the prescribed seconds (work_time → static_hold_time
+            fallback) + "יעד שניות" + the set count; per-set fill boxes
+            on the left open the SECONDS picker and write through
+            onSetValueChange with mode 'seconds' → time_completed. Fires
+            only when the exercise carries sets but no reps target AND
+            has a time prescription, so it doesn't compete with the rep
+            card or with pyramid/drop_set/delorme (which keep their own
+            multi-row layouts). */}
         {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
-          /* Legacy IIFE — kept for display-mode sections and time-only
-             normal exercises. Skipped when the new hero+fill layout
-             above takes over (now runs for coach + trainee alike). */
+          && sectionTrackingMode !== 'display'
+          && hasValue(exercise.sets)
+          && !hasValue(exercise.reps)
+          && (hasValue(exercise.work_time) || hasValue(exercise.static_hold_time))
+          && (() => {
+          const targetSeconds = parseInt(exercise.work_time, 10)
+            || parseInt(exercise.static_hold_time, 10)
+            || 0;
+          let doneCount = 0;
+          for (let i = 0; i < totalSets; i++) {
+            const t = setLog?.[i]?.time_completed;
+            if (t != null && t !== '' && Number(t) > 0) doneCount++;
+          }
+          const activeSetIdx = Math.min(doneCount, totalSets - 1);
+          const allDone = doneCount >= totalSets;
+          const completionPct = totalSets > 0 ? (doneCount / totalSets) * 100 : 0;
+          const pickerInitialValue = timePickerOpenSetIdx != null
+            ? (setLog?.[timePickerOpenSetIdx]?.time_completed ?? targetSeconds)
+            : null;
+          return (
+            <div style={{
+              direction: 'rtl',
+              background: '#FFF9F0',
+              borderRight: '4px solid #FF6F20',
+              borderRadius: '12px 0 0 12px',
+              padding: '18px 16px',
+              marginTop: 12,
+            }}>
+              {/* Exercise name — top bar */}
+              <div style={{ ...T.name, color: '#1a1a1a', marginBottom: 14, textAlign: 'center' }}>
+                {exercise?.name || exercise?.exercise_name || 'תרגיל'}
+              </div>
+
+              {/* Two-column layout: hero TARGET seconds on RIGHT (first
+                  child under RTL), per-set fill boxes on LEFT. */}
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
+                {/* RIGHT — hero target seconds */}
+                <div style={{
+                  flex: '0 0 116px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#FFFFFF',
+                  border: '1px solid #FFE0C2',
+                  borderRadius: 12,
+                  padding: '16px 8px',
+                }}>
+                  <div style={{ ...T.hero, color: '#FF6F20' }}>{targetSeconds}</div>
+                  <div style={{ ...T.heroLbl, marginTop: 4 }}>יעד שניות</div>
+                  <div style={{
+                    marginTop: 10,
+                    fontFamily: SANS_FONT,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#777',
+                  }}>{`${totalSets} סטים`}</div>
+                </div>
+
+                {/* LEFT — per-set fill boxes */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {Array.from({ length: totalSets }).map((_, i) => {
+                    const logged = setLog?.[i]?.time_completed;
+                    const done = logged != null && logged !== '' && Number(logged) > 0;
+                    const active = !done && !allDone && i === activeSetIdx;
+                    let dotBg, dotBorder, valueColor, valueText, rowBorder;
+                    if (done) {
+                      dotBg = '#3FA06B';
+                      dotBorder = '#3FA06B';
+                      valueColor = '#3FA06B';
+                      rowBorder = '1.5px solid #3FA06B';
+                      valueText = String(logged);
+                    } else if (active) {
+                      dotBg = '#FF6F20';
+                      dotBorder = '#FF6F20';
+                      valueColor = '#FF6F20';
+                      rowBorder = '1.5px dashed #FF6F20';
+                      valueText = '?';
+                    } else {
+                      dotBg = 'transparent';
+                      dotBorder = '#D1D5DB';
+                      valueColor = '#9CA3AF';
+                      rowBorder = '1.5px dashed #D1D5DB';
+                      valueText = '–';
+                    }
+                    return (
+                      <div
+                        key={i}
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); setTimePickerOpenSetIdx(i); }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setTimePickerOpenSetIdx(i);
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 14,
+                          padding: '14px 8px',
+                          borderRadius: 11,
+                          background: '#FFFFFF',
+                          border: rowBorder,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: '50%',
+                            background: dotBg,
+                            border: `2px solid ${dotBorder}`,
+                            display: 'inline-block',
+                            flex: '0 0 auto',
+                          }}
+                        />
+                        <span style={{ ...T.setLabel }}>{`סט ${i + 1}`}</span>
+                        <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Completion bar at bottom — sets filled / total. */}
+              <ProgressBar percent={completionPct} color="#FF6F20" />
+
+              {/* Picker — inline overlay (not Radix), SECONDS options.
+                  Writes through onSetValueChange with mode 'seconds' so
+                  UnifiedPlanBuilder stamps time_completed + done:true in
+                  one shot. */}
+              <ScrollPickerPopup
+                isOpen={timePickerOpenSetIdx != null}
+                value={pickerInitialValue}
+                options={SECONDS_OPTIONS}
+                onClose={() => setTimePickerOpenSetIdx(null)}
+                onSelect={(v) => {
+                  const idx = timePickerOpenSetIdx;
+                  if (typeof onSetValueChange === 'function' && idx != null) {
+                    onSetValueChange(exercise, idx, v, 'seconds');
+                  }
+                }}
+                title={`סט ${timePickerOpenSetIdx != null ? timePickerOpenSetIdx + 1 : ''} — שניות שבוצעו`}
+              />
+            </div>
+          );
+        })()}
+
+        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
+          /* Legacy IIFE — kept for display-mode sections only. The new
+             unified hero+fill cards above (rep card + time/hold card)
+             handle every executable single-exercise method; this block
+             stays around for display-mode sections that surface params
+             without trainee fill. */
           && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
+          && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && !hasValue(exercise.reps)
+               && (hasValue(exercise.work_time) || hasValue(exercise.static_hold_time)))
           && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
