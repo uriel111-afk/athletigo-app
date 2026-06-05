@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -11,6 +11,46 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
 import { getExecutionsForPlan, createDuplicatedExecution } from '@/lib/workoutExecutionApi';
+
+// Persist the (view, openPlanId) tuple in sessionStorage so a reload
+// drops the trainee back on the same plan folder they were just
+// reading instead of bouncing them to the list. sessionStorage (not
+// the URL) is deliberate: a previous attempt at URL-backed state via
+// useSearchParams crashed the mobile card-tap path through the
+// ErrorBoundary (reverted in 9585fd0). sessionStorage doesn't touch
+// router or card rendering at all.
+//
+// All read/write/remove calls are wrapped in try/catch — private mode,
+// quota errors, or environments without window.sessionStorage all
+// silently fall back to the previous "no persistence" behaviour.
+const NAV_STORAGE_KEY = 'athletigo_workouts_nav';
+
+function readNavStorage() {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return null;
+    const raw = window.sessionStorage.getItem(NAV_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeNavStorage(value) {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    if (value == null) {
+      window.sessionStorage.removeItem(NAV_STORAGE_KEY);
+    } else {
+      window.sessionStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(value));
+    }
+  } catch {
+    // No-op: private mode / quota / blocked storage. The trainee just
+    // loses persistence for this session; no UI degradation.
+  }
+}
 
 // Optional props:
 //   traineeId — when set, the folder list belongs to this user (the
@@ -26,8 +66,21 @@ export function WorkoutsInner({
   isCoach: isCoachProp = null,
 } = {}) {
   const queryClient = useQueryClient();
-  const [view, setView] = useState('list');
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  // Lazy-init both from sessionStorage so a reload restores immediately
+  // on first render — no flash of the list before the folder mounts.
+  // selectedPlan starts as a minimal { id } placeholder until plans
+  // load; the existing planDetails[selectedPlan.id] || selectedPlan
+  // fallback inside the folder render handles the gap.
+  const [view, setView] = useState(() => {
+    const stored = readNavStorage();
+    return stored?.view === 'folder' && stored?.planId ? 'folder' : 'list';
+  });
+  const [selectedPlan, setSelectedPlan] = useState(() => {
+    const stored = readNavStorage();
+    return stored?.view === 'folder' && stored?.planId
+      ? { id: stored.planId }
+      : null;
+  });
   // Coach-only plan editing surface. When set, replaces every other
   // view with a full-screen UnifiedPlanBuilder mounted with
   // canEdit=true / isCoach=true. Both the list-card edit chip and the
@@ -160,6 +213,32 @@ export function WorkoutsInner({
     setView('list');
     setSelectedPlan(null);
   };
+
+  // Persist (view, planId) every time the user navigates between the
+  // list and a folder. The effect also clears storage on transitions
+  // back to the list so a stale planId never resurrects after the
+  // trainee has explicitly left a folder.
+  useEffect(() => {
+    if (view === 'folder' && selectedPlan?.id) {
+      writeNavStorage({ view: 'folder', planId: selectedPlan.id });
+    } else {
+      writeNavStorage(null);
+    }
+  }, [view, selectedPlan?.id]);
+
+  // Once plans have finished loading, validate the restored planId. If
+  // the trainee no longer has that plan assigned (deleted, unshared,
+  // role change) we drop back to the list silently — no error, no
+  // crash, no orphaned folder header.
+  useEffect(() => {
+    if (plansLoading) return;
+    if (view !== 'folder' || !selectedPlan?.id) return;
+    const exists = (plans || []).some((p) => p.id === selectedPlan.id);
+    if (!exists) {
+      setView('list');
+      setSelectedPlan(null);
+    }
+  }, [plansLoading, plans, view, selectedPlan?.id]);
 
   // Folder calls this whenever a workout finishes inside it (the user
   // navigates back from UnifiedPlanBuilder). We invalidate queries so
