@@ -39,6 +39,9 @@ export function usePreviousSetData(planId, traineeId, currentExecutionId) {
         // server-side; we still drop the current execution client-side
         // because PostgREST's `.neq` on embedded fields produces a join
         // that doesn't compose well with `.eq` filters above.
+        // drill_index = 0 — the "previous reps" indicator is scoped to
+        // single-exercise rows. Multi-element inner rows (drill_index > 0)
+        // get their own history surface in a later step.
         const { data: rows, error } = await supabase
           .from('exercise_set_logs')
           .select(`
@@ -49,6 +52,7 @@ export function usePreviousSetData(planId, traineeId, currentExecutionId) {
             execution_id,
             workout_executions!inner(executed_at, plan_id, trainee_id)
           `)
+          .eq('drill_index', 0)
           .eq('workout_executions.plan_id', planId)
           .eq('workout_executions.trainee_id', traineeId)
           .order('executed_at', { foreignTable: 'workout_executions', ascending: false });

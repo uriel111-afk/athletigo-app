@@ -4,8 +4,14 @@ import { supabase } from './supabaseClient';
 //   workout_executions:  id, trainee_id, workout_template_id, plan_id,
 //                        executed_at, self_rating, completion_percent,
 //                        section_ratings (jsonb)
-//   exercise_set_logs:   id, execution_id, exercise_id, set_number,
-//                        reps_completed, time_completed, weight_used, notes
+//   exercise_set_logs:   id, execution_id, exercise_id, drill_index,
+//                        set_number, reps_completed, time_completed,
+//                        weight_used, notes
+//
+// The 2026-06 migration added drill_index (NOT NULL DEFAULT 0) and moved
+// the unique index to (execution_id, exercise_id, drill_index, set_number)
+// so multi-element methods (superset/circuit/combo/tabata) can address
+// per-inner-exercise rows. Single-exercise methods keep writing drill_index = 0.
 //
 // Save model: workout state is held in memory during the active flow. On
 // "שמור וסיים" we INSERT one workout_executions row + bulk-insert all
@@ -101,6 +107,7 @@ export async function getExecutionWithSetLogs(executionId) {
       .select('*')
       .eq('execution_id', executionId)
       .order('exercise_id', { ascending: true })
+      .order('drill_index', { ascending: true })
       .order('set_number', { ascending: true }),
   ]);
   if (execRes.error) throw execRes.error;
@@ -140,6 +147,9 @@ export async function saveCompletedWorkout({
       const row = {
         execution_id: exec.id,
         exercise_id: s.exercise_id,
+        // drill_index defaults to 0 for single-exercise methods; callers
+        // logging per-inner rows pass their own drill_index in setLogs.
+        drill_index: Number.isFinite(s.drill_index) ? s.drill_index : 0,
         set_number: s.set_number,
         notes: s.note || null,
       };
@@ -211,11 +221,19 @@ export function readExerciseSummary(execRow, exerciseId) {
   };
 }
 
+// Nested key: byExercise[exerciseId][drillIndex][setNumber] = log.
+// drill_index defaults to 0 when the row predates the migration, so
+// single-exercise consumers can read `byExercise[exId]?.[0]?.[setN]`
+// and still hit every legacy log. Multi-element consumers walk every
+// drill_index branch under the same exercise.
 export function indexSetLogs(logs) {
   const byExercise = {};
   for (const log of logs || []) {
-    if (!byExercise[log.exercise_id]) byExercise[log.exercise_id] = {};
-    byExercise[log.exercise_id][log.set_number] = log;
+    const exId = log.exercise_id;
+    const drill = Number.isFinite(log.drill_index) ? log.drill_index : 0;
+    if (!byExercise[exId]) byExercise[exId] = {};
+    if (!byExercise[exId][drill]) byExercise[exId][drill] = {};
+    byExercise[exId][drill][log.set_number] = log;
   }
   return byExercise;
 }

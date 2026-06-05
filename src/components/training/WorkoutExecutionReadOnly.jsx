@@ -355,7 +355,10 @@ export default function WorkoutExecutionReadOnly({
                     key={ex.id}
                     exercise={ex}
                     completed={completedSet.has(ex.id)}
-                    savedLogs={setLogIndex[ex.id]}
+                    /* drill 0 — read-only summary surfaces single-exercise
+                       methods today; multi-element inner rows live on
+                       drill_index > 0 and will be surfaced in a future step. */
+                    savedLogs={setLogIndex[ex.id]?.[0]}
                   />
                 ))}
               </div>

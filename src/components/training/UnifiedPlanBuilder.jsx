@@ -541,11 +541,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         // Resume per-set state from the persisted exercise_set_logs
         // rows attached to this execution. Lets the trainee close the
         // tab mid-workout and re-open without losing what they ticked.
+        // The local setLogs shape is single-drill ({ exId: { setIdx: ... } }),
+        // so we filter to drill_index = 0 here — multi-element drill rows
+        // are restored by their own (later) hydration path.
         try {
           const { data: setLogRows, error: logsErr } = await supabase
             .from('exercise_set_logs')
-            .select('exercise_id, set_number, reps_completed, time_completed, completed')
-            .eq('execution_id', exec.id);
+            .select('exercise_id, drill_index, set_number, reps_completed, time_completed, completed')
+            .eq('execution_id', exec.id)
+            .eq('drill_index', 0);
           if (!logsErr && Array.isArray(setLogRows) && setLogRows.length > 0) {
             const restored = {};
             for (const row of setLogRows) {
@@ -1627,6 +1631,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           setLogRows.push({
             execution_id: execRow.id,
             exercise_id: exerciseId,
+            // drill_index=0 — UPB's setLogs state is single-drill today;
+            // multi-element per-inner rows are written through the
+            // ExerciseCard fill path, not this finish-time bulk insert.
+            drill_index: 0,
             set_number: parseInt(setIdxStr, 10) + 1,
             reps_completed: Number.isFinite(reps) ? reps : null,
             time_completed: Number.isFinite(timeC) ? timeC : null,
@@ -1708,10 +1716,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   const checkAndUpdateRecords = async (executionId, traineeId) => {
     if (!executionId || !traineeId) return;
 
+    // drill_index = 0 — PR computation only considers single-exercise
+    // logs today. Multi-element per-inner PRs are out of scope for this
+    // step (the inner rows currently land at drill_index > 0 but the PR
+    // table is keyed by exercise name only and would conflate inners).
     const { data: rawLogs, error: logsErr } = await supabase
       .from('exercise_set_logs')
       .select('exercise_id, reps_completed, completed')
-      .eq('execution_id', executionId);
+      .eq('execution_id', executionId)
+      .eq('drill_index', 0);
     if (logsErr) {
       console.warn('[checkAndUpdateRecords] set logs query failed:', logsErr.message);
       return;

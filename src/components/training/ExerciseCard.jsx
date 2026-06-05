@@ -1173,10 +1173,13 @@ export default function ExerciseCard({
       hold_seconds: staged.hold_seconds != null ? staged.hold_seconds : (planned.hold_seconds ?? null),
     };
     setPyramidSaving(true);
+    // drillIndex=0 — pyramid/drop_set/delorme/rest_pause are single-
+    // exercise methods, every row lives on drill 0.
     const { error } = await saveSetActual(
       supabase,
       pyramidExecutionId,
       exercise.id,
+      0,
       oneBased,
       payload
     );
@@ -1204,10 +1207,14 @@ export default function ExerciseCard({
       return;
     }
     setPyramidSaving(true);
+    // drillIndex=0 — round-completion marker is still keyed at the
+    // exercise level (no per-inner numbers yet); UI will start writing
+    // per-inner drill indices in a later step.
     const { error } = await saveSetActual(
       supabase,
       pyramidExecutionId,
       exercise.id,
+      0,
       roundIndex,
       { reps: 1 }
     );

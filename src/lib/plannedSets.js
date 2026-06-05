@@ -55,19 +55,22 @@ export function mergeIntoTabataData(existingTabataDataStringOrNull, fragment) {
   return JSON.stringify(merged);
 }
 
-// Reads existing trainee actuals for a single exercise inside one
-// workout execution. Returns a 1-based map keyed by set_number:
+// Reads existing trainee actuals for a single drill inside one
+// workout execution. drillIndex defaults to 0 — single-exercise methods
+// (pyramid / drop_set / delorme / time / reps / rest_pause) all live on
+// drill 0. Multi-element methods (superset/circuit/combo/tabata) pass
+// the inner-exercise index when they need to read a specific inner row.
+// Returns a 1-based map keyed by set_number:
 //   { 1: { reps, hold_seconds, weight_kg, completed }, ... }
-// Empty object when the execution / exercise has no logged sets yet.
-// supabase is passed in so this module stays free of any client
-// initialisation — callers route through the app's existing client.
-export async function loadActualsForExercise(supabase, executionId, exerciseId) {
+// Empty object when nothing has been logged for that (exercise, drill).
+export async function loadActualsForExercise(supabase, executionId, exerciseId, drillIndex = 0) {
   if (!supabase || !executionId || !exerciseId) return {};
   const { data, error } = await supabase
     .from('exercise_set_logs')
-    .select('set_number, reps_completed, time_completed, weight_used, completed')
+    .select('set_number, drill_index, reps_completed, time_completed, weight_used, completed')
     .eq('execution_id', executionId)
-    .eq('exercise_id', exerciseId);
+    .eq('exercise_id', exerciseId)
+    .eq('drill_index', drillIndex);
   if (error || !Array.isArray(data)) return {};
   const map = {};
   for (const row of data) {
@@ -81,15 +84,48 @@ export async function loadActualsForExercise(supabase, executionId, exerciseId) 
   return map;
 }
 
-// Upserts one set's actuals + marks it completed. setIndex is 1-based.
-// Payload accepts the pyramid-shaped keys (reps / hold_seconds /
-// weight_kg) and writes them into the exercise_set_logs columns
-// (reps_completed / time_completed / weight_used).
-export async function saveSetActual(supabase, executionId, exerciseId, setIndex, payload) {
+// Same as loadActualsForExercise but returns a nested map keyed by
+// drill_index → set_number, so multi-element methods can hydrate every
+// inner exercise in a single round-trip:
+//   { 0: { 1: {...}, 2: {...} }, 1: { 1: {...} }, ... }
+// Single-exercise callers can keep using loadActualsForExercise (drill 0
+// only) — this helper is for the super_set / circuit / combo / tabata
+// renderers added in a later step.
+export async function loadActualsByDrillForExercise(supabase, executionId, exerciseId) {
+  if (!supabase || !executionId || !exerciseId) return {};
+  const { data, error } = await supabase
+    .from('exercise_set_logs')
+    .select('set_number, drill_index, reps_completed, time_completed, weight_used, completed')
+    .eq('execution_id', executionId)
+    .eq('exercise_id', exerciseId);
+  if (error || !Array.isArray(data)) return {};
+  const byDrill = {};
+  for (const row of data) {
+    const d = Number.isFinite(row.drill_index) ? row.drill_index : 0;
+    if (!byDrill[d]) byDrill[d] = {};
+    byDrill[d][row.set_number] = {
+      reps: row.reps_completed,
+      hold_seconds: row.time_completed,
+      weight_kg: row.weight_used,
+      completed: !!row.completed,
+    };
+  }
+  return byDrill;
+}
+
+// Upserts one (drill, set) actual + marks it completed. drillIndex
+// defaults to 0 for single-exercise methods so the conflict target
+// (execution_id, exercise_id, drill_index, set_number) — matching the
+// DB unique index added by the 2026-06 migration — resolves cleanly
+// regardless of whether the caller cares about drill_index. setIndex
+// is 1-based; payload uses the pyramid-shaped keys (reps / hold_seconds
+// / weight_kg) and is mapped onto the matching log columns.
+export async function saveSetActual(supabase, executionId, exerciseId, drillIndex, setIndex, payload) {
   if (!supabase || !executionId || !exerciseId) return { error: 'missing ids' };
   const row = {
     execution_id: executionId,
     exercise_id: exerciseId,
+    drill_index: Number.isFinite(drillIndex) ? drillIndex : 0,
     set_number: setIndex,
     reps_completed: payload?.reps ?? null,
     time_completed: payload?.hold_seconds ?? null,
@@ -98,6 +134,6 @@ export async function saveSetActual(supabase, executionId, exerciseId, setIndex,
   };
   const { error } = await supabase
     .from('exercise_set_logs')
-    .upsert(row, { onConflict: 'execution_id,exercise_id,set_number' });
+    .upsert(row, { onConflict: 'execution_id,exercise_id,drill_index,set_number' });
   return { error };
 }
