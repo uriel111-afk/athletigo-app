@@ -9,7 +9,7 @@ import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { useClock } from "@/contexts/ClockContext";
 import { useSmartBackHandler } from "@/hooks/useSmartBack";
 import { getMethodByMode } from '../../constants/trainingMethods';
-import { parsePlannedSets, loadActualsForExercise, saveSetActual } from '../../lib/plannedSets';
+import { parsePlannedSets, loadActualsForExercise, loadActualsByDrillForExercise, saveSetActual } from '../../lib/plannedSets';
 import { UNIT_COLORS } from '../../constants/unitColors';
 import { supabase } from '../../lib/supabaseClient';
 import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS } from '../ScrollPickerPopup';
@@ -1230,6 +1230,48 @@ export default function ExerciseCard({
     }));
   };
 
+  // SUPERSET / COMBO per-inner-per-round fill saver. drillIdx is the
+  // inner-exercise index inside td.rounds[*].exercises; setIdx is the
+  // round number (1-based) → maps directly to the (drill_index,
+  // set_number) key the DB unique index expects. mode picks reps vs
+  // hold_seconds in the payload so the right column on exercise_set_logs
+  // gets written.
+  const onRoundsFillSave = async (drillIdx, setIdx, value, mode) => {
+    if (!pyramidExecutionId || !exercise?.id) {
+      console.warn('[rounds-fill] no executionId — cannot persist');
+      alert('עוד אין סשן פעיל — פתח את האימון מחדש ונסה שוב');
+      return;
+    }
+    const payload = mode === 'seconds'
+      ? { hold_seconds: value }
+      : { reps: value };
+    setRoundsSaving(true);
+    const { error } = await saveSetActual(
+      supabase,
+      pyramidExecutionId,
+      exercise.id,
+      drillIdx,
+      setIdx,
+      payload,
+    );
+    setRoundsSaving(false);
+    if (error) {
+      console.error('[rounds-fill] saveSetActual failed', error);
+      alert('שמירה נכשלה — נסה שוב');
+      return;
+    }
+    setRoundsActuals((prev) => {
+      const drillMap = prev[drillIdx] ? { ...prev[drillIdx] } : {};
+      drillMap[setIdx] = {
+        ...(drillMap[setIdx] || {}),
+        ...payload,
+        completed: true,
+      };
+      return { ...prev, [drillIdx]: drillMap };
+    });
+    setRoundsPickerState(null);
+  };
+
   // TABATA launcher — hands the rotation + clock settings to the
   // global Clock context, then navigates to /clocks so the trainee
   // sees the running timer. Defensive against a missing useClock
@@ -1342,6 +1384,20 @@ export default function ExerciseCard({
         if (!map[i + 1]?.completed) { firstIncomplete = i; break; }
       }
       setPyramidActiveIdx(firstIncomplete);
+    });
+    return () => { cancelled = true; };
+  }, [variant, pyramidExecutionId, exercise?.id]);
+
+  // SUPERSET / COMBO — hydrate per-inner-per-round actuals. drill_index
+  // = inner-exercise index, set_number = round index (1-based). One
+  // round-trip pulls every drill at once via loadActualsByDrillForExercise.
+  useEffect(() => {
+    if (!ROUNDS_METHODS[variant]) return;
+    if (!pyramidExecutionId || !exercise?.id) return;
+    let cancelled = false;
+    loadActualsByDrillForExercise(supabase, pyramidExecutionId, exercise.id).then((byDrill) => {
+      if (cancelled) return;
+      setRoundsActuals(byDrill);
     });
     return () => { cancelled = true; };
   }, [variant, pyramidExecutionId, exercise?.id]);
@@ -1894,6 +1950,14 @@ export default function ExerciseCard({
   // Same idea for time/hold exercises — separate state so the two
   // pickers (REPS_OPTIONS vs SECONDS_OPTIONS) can never collide.
   const [timePickerOpenSetIdx, setTimePickerOpenSetIdx] = useState(null);
+
+  // SUPERSET / COMBO per-inner-per-round actuals + picker state.
+  // roundsActuals shape: { [drillIdx]: { [setNumber 1-based]: { reps, hold_seconds, weight_kg, completed } } }
+  // roundsPickerState: { drillIdx, setIdx, mode } | null — drives one
+  // shared ScrollPickerPopup instance below the rounds block.
+  const [roundsActuals, setRoundsActuals] = useState({});
+  const [roundsPickerState, setRoundsPickerState] = useState(null);
+  const [roundsSaving, setRoundsSaving] = useState(false);
 
   // Closed-card summary source. The edit dialog's primary write target
   // is exercise.tabata_data.planned_sets — the flattened shadow on
@@ -2681,10 +2745,9 @@ export default function ExerciseCard({
                 so a refresh resumes on the next undone round. */}
             {expanded && ROUNDS_METHODS[variant] && (() => {
               const methodMeta = ROUNDS_METHODS[variant];
-              // Phase 3 — unified brand-orange palette via BRAND tokens.
-              // SUPERSET and COMBO share the same chrome — only the
-              // method label ("סופרסט" / "קומבו") and connector glyph
-              // differentiate them.
+              // SUPERSET and COMBO share this block — connector and the
+              // method label come from methodMeta; everything else is
+              // generic per-inner-per-round fill.
               const td = parseTabataData(exercise?.tabata_data) || {};
               const rounds = Array.isArray(td.rounds) ? td.rounds : [];
               const subExercises = Array.isArray(td.sub_exercises) ? td.sub_exercises : [];
@@ -2692,20 +2755,47 @@ export default function ExerciseCard({
                 return <EmptyMethodPlaceholder headline="טרם הוגדרו סבבים" />;
               }
 
-              const setFields = getSetFields(exercise);
-              // Active round = first round_index without a "completed"
-              // marker. Falls through to rounds.length when every round
-              // is done (no active card; just the past list).
-              let activeRoundIdx = rounds.length;
-              for (let i = 0; i < rounds.length; i++) {
-                const ri = rounds[i]?.round_index ?? (i + 1);
-                if (!pyramidActuals[ri]?.completed) { activeRoundIdx = i; break; }
+              // Inner count = max exercises.length across rounds. Each
+              // inner gets its own hero+fill block; drillIdx = the inner's
+              // ordinal so it matches the (drill_index, set_number) key
+              // used by saveSetActual.
+              const innerCount = rounds.reduce(
+                (n, r) => Math.max(n, Array.isArray(r?.exercises) ? r.exercises.length : 0),
+                0,
+              );
+              if (innerCount === 0) {
+                return <EmptyMethodPlaceholder headline="טרם הוגדרו תרגילים בסבב" />;
               }
-              const completedCount = rounds.reduce((n, r, i) => {
-                const ri = r?.round_index ?? (i + 1);
-                return n + (pyramidActuals[ri]?.completed ? 1 : 0);
-              }, 0);
-              const tallyLabel = rounds.length === 1 ? methodMeta.roundLabel : methodMeta.pluralLabel;
+
+              // For each drill, find the first round whose entry at that
+              // ordinal carries data — that's the source for the hero
+              // target + the inner-exercise name. Most plans repeat the
+              // same sequence across rounds, so this picks round 0 in
+              // the common case.
+              const innerRefs = Array.from({ length: innerCount }, (_, d) => {
+                for (const r of rounds) {
+                  const ex = r?.exercises?.[d];
+                  if (ex && typeof ex === 'object') return ex;
+                }
+                return {};
+              });
+
+              // Aggregate completion across every (drill, round) cell.
+              let totalCells = 0;
+              let doneCells = 0;
+              for (let d = 0; d < innerCount; d++) {
+                for (let r = 0; r < rounds.length; r++) {
+                  totalCells++;
+                  if (roundsActuals[d]?.[r + 1]?.completed) doneCells++;
+                }
+              }
+              const overallPct = totalCells > 0
+                ? Math.round((doneCells / totalCells) * 100)
+                : 0;
+
+              const numberOfRoundsLabel = rounds.length === 1
+                ? '1 סבב'
+                : `${rounds.length} סבבים`;
 
               return (
                 <div dir="rtl" style={{
@@ -2715,8 +2805,7 @@ export default function ExerciseCard({
                   padding: '11px 12px',
                   marginBottom: 12,
                 }}>
-                  <SectionLabel>פרטים</SectionLabel>
-                  {/* Header band */}
+                  {/* Method tag + overall tally */}
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -2746,12 +2835,12 @@ export default function ExerciseCard({
                       borderRadius: 5,
                       border: `1px solid ${BRAND.panelBorder}`,
                     }}>
-                      {isCoachMode ? `ביצוע המתאמן · ${completedCount} / ${rounds.length} ${tallyLabel}`
-                                   : `${completedCount} / ${rounds.length} ${tallyLabel}`}
+                      {doneCells} / {totalCells}
                     </span>
                   </div>
 
-                  {/* Top hint (COMBO only) */}
+                  {/* COMBO-only flow hint kept from the legacy render so
+                      the "רצף זורם · ללא מנוחה" microcopy doesn't disappear. */}
                   {methodMeta.topHint && (
                     <div style={{
                       background: BRAND.panelBg,
@@ -2771,198 +2860,257 @@ export default function ExerciseCard({
                     </div>
                   )}
 
-                  <div style={{ marginTop: 14 }}>
-                  <SectionLabel>תרגילים</SectionLabel>
-                  {/* Round cards */}
-                  {rounds.map((round, rIdx) => {
-                    const isPast = rIdx < activeRoundIdx;
-                    const isActive = !isCoachMode && rIdx === activeRoundIdx;
-                    const exercises = Array.isArray(round?.exercises) ? round.exercises : [];
-                    const roundNumber = round?.round_index ?? (rIdx + 1);
+                  {/* Per-inner hero+fill blocks — one card per drill */}
+                  {Array.from({ length: innerCount }).map((_, drillIdx) => {
+                    const ref = innerRefs[drillIdx] || {};
+                    const innerName = ref?.name || 'תרגיל ללא שם';
+                    const repsTarget = Number.isFinite(Number(ref?.reps)) ? Number(ref.reps) : null;
+                    const secTarget = Number.isFinite(Number(ref?.hold_seconds)) ? Number(ref.hold_seconds) : null;
+                    // Mode picks the primary measurable: reps if set,
+                    // else seconds, else default to reps (target shows "—").
+                    const fillMode = repsTarget != null
+                      ? 'reps'
+                      : (secTarget != null ? 'seconds' : 'reps');
+                    const heroValue = fillMode === 'reps'
+                      ? (repsTarget != null ? repsTarget : '—')
+                      : (secTarget != null ? secTarget : '—');
+                    const heroLabel = fillMode === 'reps' ? 'יעד חזרות' : 'יעד שניות';
+
+                    // First-unfilled box for this inner; used to render
+                    // the orange dashed "?" state at the right cell.
+                    let drillDone = 0;
+                    let firstUnfilledIdx = rounds.length;
+                    for (let r = 0; r < rounds.length; r++) {
+                      const cell = roundsActuals[drillIdx]?.[r + 1];
+                      if (cell?.completed) drillDone++;
+                      else if (firstUnfilledIdx === rounds.length) firstUnfilledIdx = r;
+                    }
+                    const drillAllDone = drillDone >= rounds.length;
+                    const drillPct = rounds.length > 0
+                      ? (drillDone / rounds.length) * 100
+                      : 0;
+
+                    // Inner index badge — Hebrew letter (א/ב/ג/...) so
+                    // the connector glyph still reads "ואז" / "←" when
+                    // the user mentally pairs A→B in their head.
+                    const innerBadge = String.fromCharCode(0x05D0 + drillIdx);
 
                     return (
-                      <div key={rIdx} style={{
-                        background: isPast ? '#F0FAF4'
-                          : isActive ? BRAND.panelBg
-                          : 'white',
-                        border: isPast ? '1.5px solid #16A34A'
-                          : isActive ? `2px solid ${BRAND.stripeActive}`
-                          : '1.5px dashed #D1D5DB',
-                        borderRadius: 10,
-                        padding: 10,
-                        marginBottom: 8,
+                      <div key={drillIdx} style={{
+                        direction: 'rtl',
+                        background: '#FFF9F0',
+                        borderRight: '4px solid #FF6F20',
+                        borderRadius: '12px 0 0 12px',
+                        padding: '14px 14px',
+                        marginBottom: drillIdx < innerCount - 1 ? 14 : 6,
                       }}>
-                        {/* Round header */}
+                        {/* Inner header — badge + name */}
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 8,
-                          marginBottom: 8,
-                          paddingBottom: 8,
-                          borderBottom: `1px dashed ${isPast ? '#86EFAC' : BRAND.panelBorder}`,
+                          gap: 10,
+                          marginBottom: 12,
                         }}>
                           <span style={{
                             fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 22,
-                            color: isPast ? '#16A34A' : isActive ? BRAND.stripeActive : '#9CA3AF',
-                            lineHeight: 1,
+                            fontSize: 16,
+                            color: BRAND.stripeActive,
+                            background: BRAND.panelBg,
+                            padding: '2px 9px',
+                            borderRadius: 5,
                             fontWeight: 800,
+                            border: `1px solid ${BRAND.panelBorder}`,
                           }}>
-                            {String(roundNumber).padStart(2, '0')}
+                            {innerBadge}
                           </span>
                           <span style={{
-                            fontSize: 11,
-                            fontWeight: 800,
-                            color: isPast ? '#16A34A' : isActive ? BRAND.tagText : '#9CA3AF',
-                            background: 'white',
-                            padding: '2px 8px',
-                            borderRadius: 5,
-                            border: `1px solid ${isPast ? '#86EFAC' : BRAND.panelBorder}`,
+                            flex: 1,
+                            ...T.name,
+                            color: '#1a1a1a',
+                            textAlign: 'right',
                           }}>
-                            {methodMeta.roundLabel} {roundNumber}
+                            {innerName}
                           </span>
-                          {isPast && <Check size={14} color="#16A34A" />}
                         </div>
 
-                        {/* Exercise sub-cards with connectors — horizontal
-                            flex-wrap so blocks sit side-by-side and wrap to
-                            the next row when they don't fit. NO horizontal
-                            scroll. Connectors are inline flex items between
-                            cards (text "ואז" for superset, arrow "←" for combo). */}
-                        <div
-                          dir="rtl"
-                          style={{
+                        {/* Two-column: hero TARGET on right, fill boxes on left */}
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
+                          {/* RIGHT — hero target + rounds count */}
+                          <div style={{
+                            flex: '0 0 110px',
                             display: 'flex',
-                            flexWrap: 'wrap',
-                            alignItems: 'stretch',
-                            gap: 6,
-                            marginBottom: 10,
-                            width: '100%',
-                          }}
-                        >
-                          {exercises.map((ex, exIdx) => (
-                            <React.Fragment key={exIdx}>
-                              <div style={{
-                                flex: '1 1 calc(50% - 26px)',
-                                minWidth: 130,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                background: 'white',
-                                border: `1px solid ${isPast ? '#BBF7D0' : BRAND.panelBorder}`,
-                                borderRadius: 7,
-                                padding: 8,
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                  <span style={{
-                                    fontFamily: "'Bebas Neue', sans-serif",
-                                    fontSize: 14,
-                                    color: BRAND.stripeActive,
-                                    background: BRAND.panelBg,
-                                    padding: '2px 7px',
-                                    borderRadius: 4,
-                                    fontWeight: 800,
-                                    border: `1px solid ${BRAND.panelBorder}`,
-                                  }}>
-                                    {String.fromCharCode(0x05D0 + exIdx)}
-                                  </span>
-                                  <span style={{
-                                    flex: 1,
-                                    fontSize: 12,
-                                    fontWeight: 800,
-                                    color: isPast ? '#16A34A' : '#1a1a1a',
-                                  }}>
-                                    {ex?.name || 'תרגיל ללא שם'}
-                                  </span>
-                                </div>
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#FFFFFF',
+                            border: '1px solid #FFE0C2',
+                            borderRadius: 12,
+                            padding: '14px 6px',
+                          }}>
+                            <div style={{ ...T.hero, color: '#FF6F20' }}>{heroValue}</div>
+                            <div style={{ ...T.heroLbl, marginTop: 4 }}>{heroLabel}</div>
+                            <div style={{
+                              marginTop: 10,
+                              fontFamily: SANS_FONT,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#777',
+                            }}>{numberOfRoundsLabel}</div>
+                          </div>
 
-                                {setFields.length > 0 && (
-                                  <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: `repeat(${Math.min(setFields.length, 3)}, 1fr)`,
-                                    gap: 4,
-                                  }}>
-                                    {setFields.map((fieldId) => {
-                                      const c = UNIT_COLOR_BY_FIELD[fieldId];
-                                      if (!c) return null;
-                                      const val = ex?.[fieldId];
-                                      if (val == null) return null;
-                                      return (
-                                        <div key={fieldId} style={{
-                                          background: isPast ? '#F0FAF4' : c.tint,
-                                          border: `1px solid ${isPast ? '#BBF7D0' : c.tint}`,
-                                          borderRadius: 5,
-                                          padding: '4px 6px',
-                                          textAlign: 'center',
-                                        }}>
-                                          <div style={{
-                                            fontFamily: "'Bebas Neue', sans-serif",
-                                            fontSize: 16,
-                                            color: isPast ? '#16A34A' : c.stripe,
-                                            lineHeight: 1,
-                                          }}>{val}</div>
-                                          <div style={{
-                                            fontSize: 7,
-                                            color: isPast ? '#16A34A' : c.textSecondary,
-                                            fontWeight: 800,
-                                            marginTop: 2,
-                                          }}>{c.label}</div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-
-                              {exIdx < exercises.length - 1 && (
-                                <div style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontFamily: "'Barlow Condensed', sans-serif",
-                                  fontSize: 13,
-                                  fontWeight: 900,
-                                  flexShrink: 0,
-                                  padding: '0 2px',
-                                  letterSpacing: 1,
-                                  minWidth: 24,
-                                  color: BRAND.stripeActive,
-                                }}>
-                                  {variant === 'combo' ? '←' : 'ואז'}
+                          {/* LEFT — per-round fill boxes */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {Array.from({ length: rounds.length }).map((_, rIdx) => {
+                              const cell = roundsActuals[drillIdx]?.[rIdx + 1];
+                              const done = !!cell?.completed;
+                              const active = !done && !drillAllDone && rIdx === firstUnfilledIdx;
+                              const loggedReps = cell?.reps;
+                              const loggedSec = cell?.hold_seconds;
+                              let dotBg, dotBorder, valueColor, valueText, rowBorder;
+                              if (done) {
+                                dotBg = '#3FA06B';
+                                dotBorder = '#3FA06B';
+                                valueColor = '#3FA06B';
+                                rowBorder = '1.5px solid #3FA06B';
+                                const v = fillMode === 'reps' ? loggedReps : loggedSec;
+                                valueText = v != null && v !== '' ? String(v) : '✓';
+                              } else if (active) {
+                                dotBg = '#FF6F20';
+                                dotBorder = '#FF6F20';
+                                valueColor = '#FF6F20';
+                                rowBorder = '1.5px dashed #FF6F20';
+                                valueText = '?';
+                              } else {
+                                dotBg = 'transparent';
+                                dotBorder = '#D1D5DB';
+                                valueColor = '#9CA3AF';
+                                rowBorder = '1.5px dashed #D1D5DB';
+                                valueText = '–';
+                              }
+                              return (
+                                <div
+                                  key={rIdx}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRoundsPickerState({ drillIdx, setIdx: rIdx + 1, mode: fillMode });
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      setRoundsPickerState({ drillIdx, setIdx: rIdx + 1, mode: fillMode });
+                                    }
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 12,
+                                    padding: '11px 8px',
+                                    borderRadius: 11,
+                                    background: '#FFFFFF',
+                                    border: rowBorder,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      width: 14,
+                                      height: 14,
+                                      borderRadius: '50%',
+                                      background: dotBg,
+                                      border: `2px solid ${dotBorder}`,
+                                      display: 'inline-block',
+                                      flex: '0 0 auto',
+                                    }}
+                                  />
+                                  <span style={{ ...T.setLabel }}>{`סבב ${rIdx + 1}`}</span>
+                                  <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
                                 </div>
-                              )}
-                            </React.Fragment>
-                          ))}
+                              );
+                            })}
+                          </div>
                         </div>
 
-                        {/* Complete-round button — trainee + active round only */}
-                        {isActive && !isCoachMode && (
-                          <button
-                            type="button"
-                            onClick={() => onCompleteRound(roundNumber)}
-                            disabled={pyramidSaving}
-                            style={{
-                              width: '100%',
-                              marginTop: 10,
-                              background: pyramidSaving
-                                ? '#D1D5DB'
-                                : `linear-gradient(135deg, ${BRAND.stripeActive}cc, ${BRAND.stripeActive})`,
-                              color: 'white',
-                              border: 'none',
-                              padding: 10,
-                              borderRadius: 8,
-                              fontWeight: 800,
-                              fontSize: 13,
-                              fontFamily: 'inherit',
-                              cursor: pyramidSaving ? 'default' : 'pointer',
-                            }}
-                          >
-                            {pyramidSaving ? 'שומר...' : 'סיים סבב והמשך'}
-                          </button>
-                        )}
+                        {/* Per-inner completion bar — same orange as the
+                            single-exercise rep card so the eye reads the
+                            same "progress" pattern across methods. */}
+                        <ProgressBar percent={drillPct} color="#FF6F20" />
                       </div>
                     );
                   })}
+
+                  {/* Overall completion across every (drill, round) cell */}
+                  <div style={{
+                    marginTop: 6,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: '#FFF4E6',
+                    border: '1px solid #FFD9B0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                  }}>
+                    <span style={{
+                      fontSize: 12,
+                      color: '#555',
+                      fontFamily: SANS_FONT,
+                      fontWeight: 600,
+                    }}>
+                      {doneCells}/{totalCells} תאים מולאו
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: '#FF6F20',
+                      lineHeight: 1,
+                    }}>
+                      {overallPct}%
+                    </span>
                   </div>
+
+                  {/* Shared picker for every (drill, round) cell. mode
+                      drives the options list: REPS_OPTIONS for rep-based
+                      inners, SECONDS_OPTIONS for time/hold inners. The
+                      same overlay is reused across all inner blocks so
+                      we don't render N pickers at once. */}
+                  <ScrollPickerPopup
+                    isOpen={roundsPickerState != null}
+                    value={(() => {
+                      if (roundsPickerState == null) return null;
+                      const cell = roundsActuals[roundsPickerState.drillIdx]?.[roundsPickerState.setIdx];
+                      const ref = innerRefs[roundsPickerState.drillIdx] || {};
+                      if (roundsPickerState.mode === 'seconds') {
+                        return cell?.hold_seconds
+                          ?? (Number.isFinite(Number(ref.hold_seconds)) ? Number(ref.hold_seconds) : null);
+                      }
+                      return cell?.reps
+                        ?? (Number.isFinite(Number(ref.reps)) ? Number(ref.reps) : null);
+                    })()}
+                    options={roundsPickerState?.mode === 'seconds' ? SECONDS_OPTIONS : REPS_OPTIONS}
+                    onClose={() => setRoundsPickerState(null)}
+                    onSelect={(v) => {
+                      if (roundsSaving) return;
+                      if (roundsPickerState == null) return;
+                      onRoundsFillSave(
+                        roundsPickerState.drillIdx,
+                        roundsPickerState.setIdx,
+                        v,
+                        roundsPickerState.mode,
+                      );
+                    }}
+                    title={(() => {
+                      if (roundsPickerState == null) return '';
+                      const ref = innerRefs[roundsPickerState.drillIdx] || {};
+                      const innerName = ref?.name || 'תרגיל';
+                      const unitWord = roundsPickerState.mode === 'seconds' ? 'שניות שבוצעו' : 'חזרות שבוצעו';
+                      return `${innerName} · סבב ${roundsPickerState.setIdx} — ${unitWord}`;
+                    })()}
+                  />
                 </div>
               );
             })()}
