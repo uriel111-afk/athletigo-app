@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from "react";
+import React, { useState, useEffect, useContext, useMemo, useRef } from "react";
 import {
   Plus, X, Wrench, Info,
   Repeat, Mountain, ArrowDownToLine, PauseCircle, RotateCw,
@@ -301,6 +301,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // optional per-field values keyed by PARAM_CATALOG ids.
   const [subExercises, setSubExercises] = useState([]);
 
+  // Hydration guard — flips to true only AFTER the mount-time effect
+  // that pulls activeMethod / selectedSetFields / plannedSetsDraft from
+  // the existing exercise has queued its setStates. The sync-back
+  // effect bails out while this is false so it can't push an empty
+  // payload to the parent before the form has read the real values.
+  const hydratedRef = useRef(false);
+
   // ── Variations count (admin only) ─────────────────────────────
   useEffect(() => {
     if (!isAdmin || !exercise?.id) {
@@ -324,6 +331,12 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // Fields, tabata_data.planned_sets → plannedSetsDraft. Empty /
   // unparseable payloads collapse to the method's seeded defaults.
   useEffect(() => {
+    // Block sync-back until the setStates below have been applied to
+    // the next render. Without this the sync-back effect runs in the
+    // same commit phase with stale (initial-empty) closure values and
+    // overwrites the parent's tabata_data with blanks.
+    hydratedRef.current = false;
+
     // Falsy mode (null / undefined / '') → NONE. Anything else falls
     // through MODE_TO_METHOD_ID (with REPS as the final fallback for
     // unrecognised strings).
@@ -360,12 +373,22 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       ? parsed.clock_settings
       : {});
     setSubExercises(Array.isArray(parsed?.sub_exercises) ? parsed.sub_exercises : []);
+
+    // Flip the gate AFTER React processes the queued setStates above
+    // — a microtask runs after the current commit finishes, so by the
+    // next render (when sync-back fires for real) state holds the
+    // hydrated values and the gate is open.
+    queueMicrotask(() => { hydratedRef.current = true; });
   }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync state → exercise.mode + tabata_data ──────────────────
   // Single batched onChange writes everything atomically. Diff-gated
   // so the hydration round-trip doesn't loop.
   useEffect(() => {
+    // Don't push to parent until hydration has flipped the gate (see
+    // hydratedRef above). Otherwise a fresh mount blanks the saved
+    // tabata_data with the initial empty state.
+    if (!hydratedRef.current) return;
     const method = TRAINING_METHODS[activeMethod];
     if (!method) return;
 
