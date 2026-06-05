@@ -1388,14 +1388,15 @@ export default function ExerciseCard({
     return () => { cancelled = true; };
   }, [variant, pyramidExecutionId, exercise?.id]);
 
-  // SUPERSET / COMBO / CIRCUIT — hydrate per-inner-per-round actuals.
-  // drill_index = inner-exercise / station index, set_number = round
-  // index (1-based). One round-trip pulls every drill at once via
-  // loadActualsByDrillForExercise. Circuit reuses the same state shape
-  // (roundsActuals) since station-per-round and inner-per-round are
-  // identical from the fill perspective.
+  // SUPERSET / COMBO / CIRCUIT / TABATA — hydrate per-inner-per-round
+  // actuals. drill_index = inner-exercise / station / rotation-exercise
+  // index, set_number = round / cycle (1-based). One round-trip pulls
+  // every drill at once via loadActualsByDrillForExercise. Tabata reuses
+  // the same state shape (roundsActuals) — a rotation exercise that the
+  // trainee cycles N times is structurally identical to a station with
+  // N rounds from the fill perspective.
   useEffect(() => {
-    if (!ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant]) return;
+    if (!ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant] && variant !== 'tabata') return;
     if (!pyramidExecutionId || !exercise?.id) return;
     let cancelled = false;
     loadActualsByDrillForExercise(supabase, pyramidExecutionId, exercise.id).then((byDrill) => {
@@ -3921,6 +3922,340 @@ export default function ExerciseCard({
                 </div>
               );
             })()}
+
+            {/* TABATA — per-rotation hero+fill blocks. Manual fill (the
+                clock itself drives timing and doesn't write back yet),
+                same drillIndex pattern as super_set/combo/circuit so the
+                stored rows live alongside the other nested-fill methods
+                in exercise_set_logs. Rendered as a SIBLING of the clock
+                summary above so the two stack visually inside the same
+                open card. */}
+            {expanded && variant === 'tabata' && hasNewTabataShape(exercise) && (() => {
+              const cs = resolveTabataClockSettings(exercise);
+              const rotation = resolveTabataRotation(exercise);
+              if (rotation.length === 0) return null;
+
+              const totalIntervals = (Number.isFinite(cs.rounds) ? cs.rounds : 0)
+                * (Number.isFinite(cs.sets) ? cs.sets : 0);
+              if (totalIntervals <= 0) return null;
+
+              // cyclesPerExercise = how many times the trainee returns
+              // to each rotation slot across the whole tabata. ceil so
+              // the last cycle is still tracked when the division isn't
+              // clean (those extra cells just sit dashed if the clock
+              // runs out before reaching them).
+              const cyclesPerExercise = Math.ceil(totalIntervals / rotation.length);
+
+              // Aggregate completion across every (rotation, cycle) cell.
+              let totalCells = 0;
+              let doneCells = 0;
+              for (let d = 0; d < rotation.length; d++) {
+                for (let c = 0; c < cyclesPerExercise; c++) {
+                  totalCells++;
+                  if (roundsActuals[d]?.[c + 1]?.completed) doneCells++;
+                }
+              }
+              const overallPct = totalCells > 0
+                ? Math.round((doneCells / totalCells) * 100)
+                : 0;
+              const cyclesLabel = cyclesPerExercise === 1
+                ? '1 סבב'
+                : `${cyclesPerExercise} סבבים`;
+
+              return (
+                <div dir="rtl" style={{
+                  background: '#FFFFFF',
+                  border: `1px solid ${BRAND.cardBorder}`,
+                  borderRadius: 14,
+                  padding: '11px 12px',
+                  marginBottom: 12,
+                }}>
+                  {/* Header tag + overall tally */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: BRAND.panelBg,
+                    border: `1px solid ${BRAND.panelBorder}`,
+                    borderRadius: 10,
+                    marginBottom: 12,
+                  }}>
+                    <span style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: BRAND.tagText,
+                      background: BRAND.tagBg,
+                      padding: '2px 7px',
+                      borderRadius: 5,
+                    }}>
+                      ביצוע בפועל
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 14,
+                      color: BRAND.stripeActive,
+                      background: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 5,
+                      border: `1px solid ${BRAND.panelBorder}`,
+                    }}>
+                      {doneCells} / {totalCells}
+                    </span>
+                  </div>
+
+                  {/* Per-rotation hero+fill blocks */}
+                  {rotation.map((item, dIdx) => {
+                    const drillIdx = dIdx;
+                    const innerName = item?.name ?? item?.exerciseName ?? 'תרגיל ללא שם';
+                    // Optional explicit reps target on the rotation row;
+                    // tabata typically has none, in which case we render
+                    // "עד מקסימום" instead of a number.
+                    const explicitReps = Number.isFinite(Number(item?.reps)) ? Number(item.reps) : null;
+
+                    let drillDone = 0;
+                    let firstUnfilledIdx = cyclesPerExercise;
+                    for (let c = 0; c < cyclesPerExercise; c++) {
+                      const cell = roundsActuals[drillIdx]?.[c + 1];
+                      if (cell?.completed) drillDone++;
+                      else if (firstUnfilledIdx === cyclesPerExercise) firstUnfilledIdx = c;
+                    }
+                    const drillAllDone = drillDone >= cyclesPerExercise;
+                    const drillPct = cyclesPerExercise > 0
+                      ? (drillDone / cyclesPerExercise) * 100
+                      : 0;
+
+                    return (
+                      <div key={dIdx} style={{
+                        direction: 'rtl',
+                        background: '#FFF9F0',
+                        borderRight: '4px solid #FF6F20',
+                        borderRadius: '12px 0 0 12px',
+                        padding: '14px 14px',
+                        marginBottom: dIdx < rotation.length - 1 ? 14 : 6,
+                      }}>
+                        {/* Rotation header — index badge + name */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          marginBottom: 12,
+                        }}>
+                          <span style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 16,
+                            color: BRAND.stripeActive,
+                            background: BRAND.panelBg,
+                            padding: '2px 9px',
+                            borderRadius: 5,
+                            fontWeight: 800,
+                            border: `1px solid ${BRAND.panelBorder}`,
+                          }}>
+                            {String(dIdx + 1).padStart(2, '0')}
+                          </span>
+                          <span style={{
+                            flex: 1,
+                            ...T.name,
+                            color: '#1a1a1a',
+                            textAlign: 'right',
+                          }}>
+                            {innerName}
+                          </span>
+                        </div>
+
+                        {/* Two-column: hero TARGET on right, fill boxes on left */}
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
+                          {/* RIGHT — hero target. Tabata has no built-in
+                              reps target, so render "עד מקסימום" without
+                              a number unless the rotation row explicitly
+                              carries one (rare). */}
+                          <div style={{
+                            flex: '0 0 110px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#FFFFFF',
+                            border: '1px solid #FFE0C2',
+                            borderRadius: 12,
+                            padding: '14px 6px',
+                          }}>
+                            {explicitReps != null ? (
+                              <>
+                                <div style={{ ...T.hero, color: '#FF6F20' }}>{explicitReps}</div>
+                                <div style={{ ...T.heroLbl, marginTop: 4 }}>יעד חזרות</div>
+                              </>
+                            ) : (
+                              <>
+                                <div style={{
+                                  fontFamily: "'Bebas Neue', sans-serif",
+                                  fontSize: 24,
+                                  fontWeight: 800,
+                                  color: '#FF6F20',
+                                  lineHeight: 1,
+                                  textAlign: 'center',
+                                }}>
+                                  עד מקסימום
+                                </div>
+                                <div style={{ ...T.heroLbl, marginTop: 4 }}>חזרות בפרץ</div>
+                              </>
+                            )}
+                            <div style={{
+                              marginTop: 10,
+                              fontFamily: SANS_FONT,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#777',
+                            }}>{cyclesLabel}</div>
+                          </div>
+
+                          {/* LEFT — per-cycle fill boxes */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {Array.from({ length: cyclesPerExercise }).map((_, cIdx) => {
+                              const cell = roundsActuals[drillIdx]?.[cIdx + 1];
+                              const done = !!cell?.completed;
+                              const active = !done && !drillAllDone && cIdx === firstUnfilledIdx;
+                              const loggedReps = cell?.reps;
+                              let dotBg, dotBorder, valueColor, valueText, rowBorder;
+                              if (done) {
+                                dotBg = '#3FA06B';
+                                dotBorder = '#3FA06B';
+                                valueColor = '#3FA06B';
+                                rowBorder = '1.5px solid #3FA06B';
+                                valueText = loggedReps != null && loggedReps !== '' ? String(loggedReps) : '✓';
+                              } else if (active) {
+                                dotBg = '#FF6F20';
+                                dotBorder = '#FF6F20';
+                                valueColor = '#FF6F20';
+                                rowBorder = '1.5px dashed #FF6F20';
+                                valueText = '?';
+                              } else {
+                                dotBg = 'transparent';
+                                dotBorder = '#D1D5DB';
+                                valueColor = '#9CA3AF';
+                                rowBorder = '1.5px dashed #D1D5DB';
+                                valueText = '–';
+                              }
+                              return (
+                                <div
+                                  key={cIdx}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRoundsPickerState({ drillIdx, setIdx: cIdx + 1, mode: 'reps' });
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      setRoundsPickerState({ drillIdx, setIdx: cIdx + 1, mode: 'reps' });
+                                    }
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 12,
+                                    padding: '11px 8px',
+                                    borderRadius: 11,
+                                    background: '#FFFFFF',
+                                    border: rowBorder,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      width: 14,
+                                      height: 14,
+                                      borderRadius: '50%',
+                                      background: dotBg,
+                                      border: `2px solid ${dotBorder}`,
+                                      display: 'inline-block',
+                                      flex: '0 0 auto',
+                                    }}
+                                  />
+                                  <span style={{ ...T.setLabel }}>{`סבב ${cIdx + 1}`}</span>
+                                  <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Per-rotation completion bar */}
+                        <ProgressBar percent={drillPct} color="#FF6F20" />
+                      </div>
+                    );
+                  })}
+
+                  {/* Overall completion across every (rotation, cycle) cell */}
+                  <div style={{
+                    marginTop: 6,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: '#FFF4E6',
+                    border: '1px solid #FFD9B0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                  }}>
+                    <span style={{
+                      fontSize: 12,
+                      color: '#555',
+                      fontFamily: SANS_FONT,
+                      fontWeight: 600,
+                    }}>
+                      {doneCells}/{totalCells} תאים מולאו
+                    </span>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: '#FF6F20',
+                      lineHeight: 1,
+                    }}>
+                      {overallPct}%
+                    </span>
+                  </div>
+
+                  {/* Shared picker for every (rotation, cycle) cell.
+                      Same roundsPickerState instance used by the rounds/
+                      stations blocks — only one cell can be open at a
+                      time anywhere on the card. */}
+                  <ScrollPickerPopup
+                    isOpen={roundsPickerState != null}
+                    value={(() => {
+                      if (roundsPickerState == null) return null;
+                      const cell = roundsActuals[roundsPickerState.drillIdx]?.[roundsPickerState.setIdx];
+                      const ref = rotation[roundsPickerState.drillIdx] || {};
+                      return cell?.reps
+                        ?? (Number.isFinite(Number(ref.reps)) ? Number(ref.reps) : null);
+                    })()}
+                    options={REPS_OPTIONS}
+                    onClose={() => setRoundsPickerState(null)}
+                    onSelect={(v) => {
+                      if (roundsSaving) return;
+                      if (roundsPickerState == null) return;
+                      onRoundsFillSave(
+                        roundsPickerState.drillIdx,
+                        roundsPickerState.setIdx,
+                        v,
+                        'reps',
+                      );
+                    }}
+                    title={(() => {
+                      if (roundsPickerState == null) return '';
+                      const ref = rotation[roundsPickerState.drillIdx] || {};
+                      const innerName = ref?.name ?? ref?.exerciseName ?? 'תרגיל';
+                      return `${innerName} · סבב ${roundsPickerState.setIdx} — חזרות שבוצעו`;
+                    })()}
+                  />
+                </div>
+              );
+            })()}
+
         {expanded && variant === 'tabata' && !hasNewTabataShape(exercise) && (() => {
           const cs = td?.clock_settings || null;
           const work = toSeconds(cs?.work_seconds ?? td?.work_time ?? exercise.work_time);
