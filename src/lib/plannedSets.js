@@ -13,19 +13,20 @@ function parseTabataData(raw) {
 }
 
 // Given an exercise row, return the planned_sets array. Returns [] for
-// any falsy / unparseable / missing payload. Each set is normalized to
-// the shape { set_index, reps?, hold_seconds?, weight_kg?, variation_id? }.
+// any falsy / unparseable / missing payload. Preserves every field on
+// the saved row (variation_name, tempo, rpe, rest_seconds, …) so the
+// edit form can hydrate fully — set_index is normalised to a 1-based
+// ordinal when missing.
 export function parsePlannedSets(exercise) {
   if (!exercise) return [];
   const td = parseTabataData(exercise.tabata_data);
   const raw = Array.isArray(td?.planned_sets) ? td.planned_sets : [];
   return raw.map((s, i) => {
-    const out = { set_index: Number.isFinite(s?.set_index) ? s.set_index : i };
-    if (s?.reps != null) out.reps = s.reps;
-    if (s?.hold_seconds != null) out.hold_seconds = s.hold_seconds;
-    if (s?.weight_kg != null) out.weight_kg = s.weight_kg;
-    if (s?.variation_id != null) out.variation_id = s.variation_id;
-    return out;
+    const src = (s && typeof s === 'object') ? s : {};
+    return {
+      ...src,
+      set_index: Number.isFinite(src.set_index) ? src.set_index : i + 1,
+    };
   });
 }
 

@@ -479,7 +479,14 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const addRow = () => {
     if (readOnly) return;
     setPlannedSetsDraft((prev) => {
-      const seed = { set_index: prev.length + 1, variation_name: '' };
+      // New row inherits values from the LAST existing row so adding sets
+      // (e.g. 4 → 6) doesn't force the coach to retype reps/weight/etc.
+      // Empty list → seed nulls for the picked params.
+      const last = prev.length > 0 ? prev[prev.length - 1] : null;
+      if (last) {
+        return [...prev, { ...last, set_index: prev.length + 1 }];
+      }
+      const seed = { set_index: 1, variation_name: '' };
       for (const f of selectedSetFields) seed[f] = null;
       return [...prev, seed];
     });
