@@ -75,6 +75,7 @@ import SkillTracks from './pages/SkillTracks';
 import Challenges from './pages/Challenges';
 import Workouts from './pages/Workouts';
 import Journal from './pages/Journal';
+import Feedback from './pages/Feedback';
 import __Layout from './Layout.jsx';
 
 
@@ -107,6 +108,7 @@ export const PAGES = {
     "Challenges": Challenges,
     "Workouts": Workouts,
     "Journal": Journal,
+    "Feedback": Feedback,
 }
 
 export const pagesConfig = {

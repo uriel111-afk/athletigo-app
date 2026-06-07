@@ -39,8 +39,11 @@ import {
   Clock,
   Flame,
   Route,
-  BookOpen
+  BookOpen,
+  Lightbulb
   } from "lucide-react";
+import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
+import FeedbackButton from "@/components/feedback/FeedbackButton";
 import { Button } from "@/components/ui/button";
 import TimerFooterBar from "@/components/TimerFooterBar";
 import MiniInstallButton from "@/components/MiniInstallButton";
@@ -302,7 +305,15 @@ export default function Layout({ children, currentPageName }) {
   // /trainee-home; Layout (incorrectly) saw onboarding_completed=false
   // and reloaded back to /Onboarding; AuthContext re-mounted; cycle.
 
-  const navigationItems = isCoach ? coachNavItems : traineeNavItems;
+  // The שיפורים inbox is admin-only. Append it to whichever nav set
+  // applies to this user so it shows up in BOTH the desktop sidebar
+  // and the mobile hamburger sheet (both consume navigationItems).
+  // Other coaches / trainees never see this row.
+  const isAthletigoAdmin = user?.id === ATHLETIGO_ADMIN_UUID;
+  const baseNavItems = isCoach ? coachNavItems : traineeNavItems;
+  const navigationItems = isAthletigoAdmin
+    ? [...baseNavItems, { title: "שיפורים", url: createPageUrl("Feedback"), icon: Lightbulb, section: "settings" }]
+    : baseNavItems;
   const userRoleLabel = isCoach ? '👨‍💼 מאמן' : (user?.full_name ? `👤 ${user.full_name.split(' ')[0]}` : '👤 מתאמן');
   const primaryColor = '#FF6F20';
   const primaryColorLight = '#FFF8F3';
@@ -574,6 +585,12 @@ export default function Layout({ children, currentPageName }) {
               {children}
             </ErrorBoundary>
           </div>
+
+          {/* App-wide "נתקלת בבעיה? כתוב לנו" pill — visible to every
+              authenticated user (coach + trainee) on every screen
+              except full-screen routes (Clocks/PlanBuilder/etc).
+              See FeedbackButton.jsx for the visibility rules. */}
+          <FeedbackButton />
 
           {/* Sticky timer footer bar — replaces the old draggable bubble */}
           <TimerFooterBar />
