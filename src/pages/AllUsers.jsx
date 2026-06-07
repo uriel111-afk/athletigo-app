@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import RenameUserDialog from "../components/forms/RenameUserDialog";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import AddCoachDialog from "../components/forms/AddCoachDialog";
@@ -169,6 +171,64 @@ export default function AllUsers() {
       console.error("Failed to rename user:", error);
       toast.error("שגיאה בעדכון השם");
     }
+  });
+
+  // ── Delete-group flow ─────────────────────────────────────────────
+  // Holds the row to delete while the confirmation dialog is open.
+  // The styled confirm sits at the bottom of the page (same Dialog
+  // primitive Layout.jsx uses for logout confirmation).
+  const [groupToDelete, setGroupToDelete] = useState(null);
+
+  // The matching mutation in Sessions.jsx only deletes the
+  // training_groups row, which leaves orphan rows in
+  // training_group_members. Here we do the full clean-up in the
+  // correct order — memberships first (one batch query through
+  // supabase, since the base44 entity API only deletes one row at a
+  // time) and the group itself second. Trainees, sessions, plans
+  // and everything else stay untouched on purpose: historical group
+  // sessions reference group_id/group_name and remain readable even
+  // after the group row is gone.
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (group) => {
+      if (!group?.id) throw new Error('קבוצה לא זוהתה');
+      // 1. Remove every membership link for this group.
+      const { error: memErr } = await supabase
+        .from('training_group_members')
+        .delete()
+        .eq('group_id', group.id);
+      if (memErr) {
+        // Partial-failure surface: nothing got deleted yet, so the
+        // group row stays intact and the caller can retry.
+        throw new Error('שגיאה במחיקת השיוכים: ' + (memErr.message || 'נסה שוב'));
+      }
+      // 2. Delete the group row itself.
+      try {
+        await base44.entities.TrainingGroup.delete(group.id);
+      } catch (err) {
+        // Memberships are gone but the group row is not — surface a
+        // clear, distinct error so the coach knows the state.
+        throw new Error('השיוכים הוסרו אך הקבוצה לא נמחקה: ' + (err?.message || 'נסה שוב'));
+      }
+      return group.id;
+    },
+    onSuccess: (deletedId) => {
+      // Shared keys with Sessions.jsx — the group disappears from
+      // both the AllUsers groups hub and the Sessions group list.
+      queryClient.invalidateQueries({ queryKey: ['training-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['group-members'] });
+      // If the deleted group was the one currently open in
+      // groupDetail, fall back to the hub list.
+      if (view === 'groupDetail' && selectedGroup?.id === deletedId) {
+        setSelectedGroup(null);
+        setView('groups');
+      }
+      setGroupToDelete(null);
+      toast.success('✅ הקבוצה נמחקה');
+    },
+    onError: (err) => {
+      console.error('[AllUsers] deleteGroupMutation error:', err);
+      toast.error('❌ ' + (err?.message || 'שגיאה במחיקת הקבוצה'));
+    },
   });
 
   // 1. Fetch Users & Services (Shared Hook)
@@ -1361,6 +1421,30 @@ export default function AllUsers() {
                           </div>
                         )}
                       </div>
+                      {/* Destructive action — small + subdued so the
+                          row's primary affordance is still "open the
+                          group", but the trash is reachable without
+                          a long-press / extra screen. stopPropagation
+                          keeps the row's onClick from firing. */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setGroupToDelete(group); }}
+                        aria-label={`מחק את הקבוצה ${group.name || ''}`}
+                        title="מחק קבוצה"
+                        style={{
+                          width: 32, height: 32, borderRadius: 8,
+                          border: '1px solid #FCA5A5',
+                          background: 'white',
+                          color: '#B91C1C',
+                          fontSize: 14,
+                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                          padding: 0,
+                        }}
+                      >
+                        🗑
+                      </button>
                       <span style={{ color: '#C9A24A', fontSize: 14, flexShrink: 0 }}>›</span>
                     </div>
                   );
@@ -1410,6 +1494,27 @@ export default function AllUsers() {
                       {selectedGroup.description ? ` · ${selectedGroup.description}` : ''}
                     </div>
                   </div>
+                  {/* Mirror of the list-row trash so the destructive
+                      action is also reachable from inside the group. */}
+                  <button
+                    type="button"
+                    onClick={() => setGroupToDelete(selectedGroup)}
+                    aria-label={`מחק את הקבוצה ${selectedGroup.name || ''}`}
+                    title="מחק קבוצה"
+                    style={{
+                      width: 36, height: 36, borderRadius: 10,
+                      border: '1px solid #FCA5A5',
+                      background: 'white',
+                      color: '#B91C1C',
+                      fontSize: 15,
+                      cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                      padding: 0,
+                    }}
+                  >
+                    🗑
+                  </button>
                 </div>
 
                 {/* Whole-group action buttons — disabled until the
@@ -1942,6 +2047,53 @@ export default function AllUsers() {
           member={eligibilityForMember}
           onClose={() => setEligibilityForMember(null)}
         />
+
+        {/* Confirm-delete-group modal — uses the same Dialog primitive
+            Layout.jsx's logout confirmation uses. We never call
+            window.confirm here: keeps the modal styled + RTL +
+            dismiss-on-pending-disabled, matching the rest of the app. */}
+        <Dialog
+          open={!!groupToDelete}
+          onOpenChange={(o) => {
+            if (!o && !deleteGroupMutation.isPending) setGroupToDelete(null);
+          }}
+        >
+          <DialogContent className="max-w-sm p-5">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-right">
+                מחיקת קבוצה
+              </DialogTitle>
+            </DialogHeader>
+            <div dir="rtl" style={{ fontFamily: "'Rubik', system-ui, -apple-system, sans-serif" }}>
+              <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.55, marginTop: 6 }}>
+                למחוק את הקבוצה <b>"{groupToDelete?.name || 'ללא שם'}"</b>?
+              </div>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 6, lineHeight: 1.5 }}>
+                המתאמנים יישארו במערכת — רק השיוך לקבוצה יוסר.
+                מפגשים היסטוריים נשמרים כפי שהם.
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => { if (!deleteGroupMutation.isPending) setGroupToDelete(null); }}
+                  disabled={deleteGroupMutation.isPending}
+                  className="flex-1 rounded-xl font-bold min-h-[44px]"
+                >
+                  ביטול
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => deleteGroupMutation.mutate(groupToDelete)}
+                  disabled={deleteGroupMutation.isPending || !groupToDelete}
+                  className="flex-1 rounded-xl font-bold text-white min-h-[44px] bg-red-600 hover:bg-red-700"
+                >
+                  {deleteGroupMutation.isPending ? 'מוחק…' : 'מחק קבוצה'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Comprehensive "+ קבוצה חדשה" dialog — opens from the
             primary CTA at the top of the groups hub. Writes to the
