@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import RenameUserDialog from "../components/forms/RenameUserDialog";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
 import AddCoachDialog from "../components/forms/AddCoachDialog";
@@ -55,6 +55,14 @@ export default function AllUsers() {
   const [groupForm, setGroupForm] = useState({ name: '', description: '' });
   const [creatingGroup, setCreatingGroup] = useState(false);
 
+  // Groups hub — a local-only view switch ('list' | 'groups' | 'groupDetail').
+  // No URL involvement (mobile crash risk from earlier useSearchParams
+  // experiments — see 9585fd0). Persistence across reloads is out of
+  // scope for this layer; the coach lands back on the trainee list
+  // after a refresh and re-enters the hub if they want.
+  const [view, setView] = useState('list');
+  const [selectedGroup, setSelectedGroup] = useState(null);
+
   // Status badge config — mirrors the canonical statuses on the
   // trainee profile page so the visual language is consistent
   // (blue 🔄 onboarding, orange ⏳ casual, green ✓ active,
@@ -88,6 +96,46 @@ export default function AllUsers() {
 
   // 1. Fetch Users & Services (Shared Hook)
   const { allTrainees, visibleTrainees, allServices, activeClientsCount, traineesLoading } = useClientStats();
+
+  // Groups + members — SAME query keys Sessions.jsx uses so the cache
+  // (and its realtime invalidations) is shared. Filtering by coach_id
+  // mirrors the Sessions side exactly. Stale-while-revalidate is fine
+  // here; the realtime channel below keeps us fresh in the
+  // groups view.
+  const { data: trainingGroups = [] } = useQuery({
+    queryKey: ['training-groups'],
+    queryFn: async () => {
+      try { return await base44.entities.TrainingGroup.filter({ coach_id: currentUser?.id || '' }); }
+      catch { return []; }
+    },
+    enabled: !!currentUser?.id,
+    staleTime: 30000,
+  });
+  const { data: groupMembers = [] } = useQuery({
+    queryKey: ['group-members'],
+    queryFn: async () => {
+      try { return await base44.entities.TrainingGroupMember.list('-created_at', 500); }
+      catch { return []; }
+    },
+    enabled: !!currentUser?.id,
+    staleTime: 30000,
+  });
+
+  // Keep groups data live while the coach is in the hub. Same channel
+  // pattern Sessions.jsx uses, scoped to this page.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const refresh = () => {
+      queryClient.invalidateQueries({ queryKey: ['training-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['group-members'] });
+    };
+    const ch = supabase
+      .channel(`allusers-groups-${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'training_groups' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'training_group_members' }, refresh)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [currentUser?.id, queryClient]);
 
   // Realtime sync — refetch when users/services change
   useEffect(() => {
@@ -358,7 +406,31 @@ export default function AllUsers() {
               {visibleTrainees.length} מתאמנים · {counts.active} פעילים
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* Groups hub entry. When already inside the hub the same
+                button doubles as a "back to trainees" exit so the coach
+                isn't trapped on a screen without an explicit way out. */}
+            <button
+              onClick={() => {
+                if (view === 'list') {
+                  sel.clearSelection();
+                  setSelectedGroup(null);
+                  setView('groups');
+                } else {
+                  setSelectedGroup(null);
+                  setView('list');
+                }
+              }}
+              style={{
+                padding: '8px 14px', borderRadius: 12,
+                border: view !== 'list' ? '1px solid #FF6F20' : '1px solid #F0E4D0',
+                background: view !== 'list' ? '#FFF5EE' : 'white',
+                color: view !== 'list' ? '#FF6F20' : '#555',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              {view === 'list' ? '👥 קבוצות' : '↩ מתאמנים'}
+            </button>
             <button
               onClick={() => sel.isSelecting ? sel.clearSelection() : sel.startSelecting()}
               style={{
@@ -394,6 +466,8 @@ export default function AllUsers() {
           </div>
         </div>
 
+        {view === 'list' && (
+        <>
         {/* B. Search + sort toggle */}
         <div style={{ padding: '0 16px 10px', display: 'flex', gap: 8 }}>
           <input
@@ -751,6 +825,173 @@ export default function AllUsers() {
             </div>
           );
         })}
+        </>
+        )}
+
+        {/* ── GROUPS HUB — list of every group the coach owns ── */}
+        {view === 'groups' && (
+          <div style={{ padding: '0 16px 24px' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+                👥 הקבוצות שלי
+              </div>
+              <div style={{ fontSize: 12, color: '#888' }}>
+                {trainingGroups.length} {trainingGroups.length === 1 ? 'קבוצה' : 'קבוצות'}
+              </div>
+            </div>
+
+            {trainingGroups.length === 0 ? (
+              <div style={{
+                padding: '40px 20px', textAlign: 'center',
+                background: 'white', borderRadius: 14,
+                border: '1px dashed #F0E4D0', color: '#888',
+              }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+                <div style={{ fontSize: 13, marginBottom: 4, color: '#1a1a1a', fontWeight: 600 }}>
+                  עדיין אין קבוצות
+                </div>
+                <div style={{ fontSize: 12, color: '#888' }}>
+                  בחר מתאמנים ולחץ "הקם קבוצה" כדי להתחיל
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {trainingGroups.map((group) => {
+                  const memberCount = groupMembers.filter((m) => m.group_id === group.id).length;
+                  return (
+                    <div
+                      key={group.id}
+                      onClick={() => { setSelectedGroup(group); setView('groupDetail'); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '14px 16px', borderRadius: 14,
+                        background: 'white',
+                        border: '1px solid #F0E4D0',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                      }}
+                    >
+                      {/* Initial avatar — first letter of the group name */}
+                      <div style={{
+                        width: 40, height: 40, borderRadius: 12,
+                        background: '#FFF5EE', color: '#FF6F20',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 18, fontWeight: 800,
+                        flexShrink: 0,
+                      }}>
+                        {(group.name || '?').trim().charAt(0)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {group.name || 'קבוצה ללא שם'}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                          {memberCount} {memberCount === 1 ? 'חבר' : 'חברים'}
+                          {group.description ? ` · ${group.description}` : ''}
+                        </div>
+                      </div>
+                      <span style={{ color: '#C9A24A', fontSize: 14, flexShrink: 0 }}>›</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── GROUPS HUB — single-group detail view (display only) ── */}
+        {view === 'groupDetail' && selectedGroup && (() => {
+          const members = groupMembers.filter((m) => m.group_id === selectedGroup.id);
+          return (
+            <div style={{ padding: '0 16px 24px' }}>
+              {/* Header band: back button + group title */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: 'white', borderRadius: 14,
+                border: '1px solid #F0E4D0', padding: '12px 14px',
+                marginBottom: 12,
+              }}>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedGroup(null); setView('groups'); }}
+                  style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    border: '1px solid #F0E4D0', background: 'white',
+                    color: '#FF6F20', fontSize: 18, fontWeight: 700,
+                    cursor: 'pointer', flexShrink: 0,
+                  }}
+                  aria-label="חזרה לרשימת הקבוצות"
+                >
+                  →
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 16, fontWeight: 800, color: '#1a1a1a',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {selectedGroup.name || 'קבוצה ללא שם'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                    {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
+                    {selectedGroup.description ? ` · ${selectedGroup.description}` : ''}
+                  </div>
+                </div>
+              </div>
+
+              {/* Member list */}
+              {members.length === 0 ? (
+                <div style={{
+                  padding: '32px 20px', textAlign: 'center',
+                  background: 'white', borderRadius: 14,
+                  border: '1px dashed #F0E4D0', color: '#888',
+                  fontSize: 13,
+                }}>
+                  אין חברים בקבוצה
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {members.map((m) => (
+                    <div
+                      key={m.id || m.trainee_id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 14px', borderRadius: 12,
+                        background: 'white',
+                        border: '1px solid #F0E4D0',
+                      }}
+                    >
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 999,
+                        background: '#E8F5E9', color: '#15803D',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 16, fontWeight: 800,
+                        flexShrink: 0,
+                      }}>
+                        {(m.trainee_name || '?').trim().charAt(0)}
+                      </div>
+                      <div style={{
+                        flex: 1, minWidth: 0,
+                        fontSize: 14, fontWeight: 600, color: '#1a1a1a',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {m.trainee_name || 'מתאמן'}
+                      </div>
+                      {/* Chevron hints at future per-member actions —
+                          actions themselves come in a later layer. */}
+                      <span style={{ color: '#C9A24A', fontSize: 14, flexShrink: 0 }}>›</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Floating multi-select action bar — shows when 1+ trainees
             are checked. Status changes go through a small dialog so
