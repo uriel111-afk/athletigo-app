@@ -258,38 +258,15 @@ export default function CoachHub() {
           </div>
         </div>
 
-        {/* Daily Focus Card */}
-        <div
-          onClick={() => navigate(focus.href)}
-          style={{
-            backgroundColor: LIFEOS_COLORS.primary,
-            borderRadius: 14,
-            padding: 16,
-            color: '#FFFFFF',
-            marginBottom: 16,
-            cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(255,111,32,0.25)',
-            display: 'flex', alignItems: 'center', gap: 12,
-          }}
-        >
-          <span style={{ fontSize: 32 }}>{focus.emoji}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.9, letterSpacing: 0.3 }}>
-              המיקוד שלך היום
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2 }}>
-              {focus.text}
-            </div>
-          </div>
-          <span style={{ fontSize: 18 }}>←</span>
-        </div>
-
         {/* App tabs — sleek dark pill strip. Active pill = current
             route's app (matched via pathname prefix so nested pages
             still highlight their parent app). Compact so the hub
             stays no-scroll on mobile. */}
         {/* App-tab chips — RTL visual order: מקצועי → פיננסי → צמיחה → אישי
-            (פיננסי + צמיחה swapped vs. earlier order, per May 2026 spec). */}
+            (פיננסי + צמיחה swapped vs. earlier order, per May 2026 spec).
+            Positioned directly under the title block and above the
+            Daily Focus banner so the navigation is the first thing the
+            coach scans after the greeting. */}
         <div style={{
           // Live inside the same maxWidth-560 inner wrapper as the KPI
           // cards below — no negative-margin escape — so the row's
@@ -346,6 +323,32 @@ export default function CoachHub() {
               </button>
             );
           })}
+        </div>
+
+        {/* Daily Focus Card */}
+        <div
+          onClick={() => navigate(focus.href)}
+          style={{
+            backgroundColor: LIFEOS_COLORS.primary,
+            borderRadius: 14,
+            padding: 16,
+            color: '#FFFFFF',
+            marginBottom: 16,
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(255,111,32,0.25)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 32 }}>{focus.emoji}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.9, letterSpacing: 0.3 }}>
+              המיקוד שלך היום
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2 }}>
+              {focus.text}
+            </div>
+          </div>
+          <span style={{ fontSize: 18 }}>←</span>
         </div>
 
         {/* ── Overview KPIs — across all 3 apps ──────────────────── */}
