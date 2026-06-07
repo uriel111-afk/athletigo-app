@@ -32,6 +32,10 @@ export default function CoachProfile() {
   const [pwLoading, setPwLoading] = useState(false);
   const [resetTraineeId, setResetTraineeId] = useState("");
   const [resetPwInput, setResetPwInput] = useState("");
+  // Full user list for the password-reset dropdown. Separate from `trainees`
+  // (which stays coach-scoped for the notification dialog) so the main admin
+  // can reset the password for ANY user in the system.
+  const [allUsersForReset, setAllUsersForReset] = useState([]);
 
   // Send notification dialog
   const [showSendNotif, setShowSendNotif] = useState(false);
@@ -68,6 +72,25 @@ export default function CoachProfile() {
   }, [user?.id]);
 
   useEffect(() => { fetchTrainees(); }, [fetchTrainees]);
+
+  // Load ALL users for the admin password-reset dropdown (no coach_id / role
+  // filter). The actual password change runs server-side via the
+  // `reset-password` Edge Function (service role), so RLS on the client read
+  // is the only thing that could limit this list.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data: allUsers, error } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .order("full_name", { ascending: true });
+      if (cancelled) return;
+      console.log("password-reset list:", allUsers?.length, error);
+      setAllUsersForReset(allUsers || []);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   // Load this coach's saved notification preferences. Missing types
   // fall back to NOTIFICATION_TYPES[type].recommended at render time
@@ -500,7 +523,11 @@ export default function CoachProfile() {
                     background: "white", outline: "none",
                   }}>
                     <option value="">בחר מתאמן...</option>
-                    {trainees.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+                    {allUsersForReset.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.full_name}{t.email ? ` — ${t.email}` : ""}
+                      </option>
+                    ))}
                   </select>
                   <label style={{ fontSize: 12, color: "#888", display: "block", marginBottom: 4 }}>סיסמה חדשה</label>
                   <input type="text" value={resetPwInput} onChange={e => setResetPwInput(e.target.value)} placeholder="לפחות 6 תווים" style={{
