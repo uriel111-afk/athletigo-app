@@ -4001,7 +4001,7 @@ export default function TraineeProfile() {
                 >
                   {/* Emoji renders in native multi-color — no color override */}
                   <span style={{ fontSize: 20, lineHeight: 1, marginBottom: 3 }}>{tab.emoji}</span>
-                  <span className={`text-[10px] sm:text-xs font-bold leading-tight ${isActive ? 'text-[#FF6F20]' : 'text-gray-500'}`}>
+                  <span className={`text-xs sm:text-sm font-bold leading-tight ${isActive ? 'text-[#FF6F20]' : 'text-gray-500'}`}>
                     {tab.label}
                   </span>
                 </button>
