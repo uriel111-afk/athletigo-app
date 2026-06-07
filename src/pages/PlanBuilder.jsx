@@ -1,8 +1,10 @@
 import { useState, useEffect, useContext, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import { AuthContext } from "@/lib/AuthContext";
+import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -98,6 +100,7 @@ export default function PlanBuilder() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const params = new URLSearchParams(location.search);
   const editPlanId = params.get("planId");
 
@@ -252,20 +255,47 @@ export default function PlanBuilder() {
     };
 
     let pid = planId;
+    let didInsert = false;
     if (!pid) {
       const { data } = await supabase.from("training_plans")
         .insert({ ...payload, created_at: new Date().toISOString() })
         .select().single();
       pid = data?.id;
       setPlanId(pid);
+      didInsert = true;
+      // Push the new id into the URL so a reload mid-Step-2 rehydrates
+      // via the existing edit-mode load path (`editPlanId` from the
+      // query string). Without this, Step-1 draft is cleared on first
+      // save, the new id only lives in component state, and a refresh
+      // would lose every section the coach has just added. Sections
+      // are already auto-saved to training_sections on each `addSection`
+      // call below, so the only missing piece was rehydration via URL.
+      if (pid) {
+        try {
+          navigate(`${location.pathname}?planId=${encodeURIComponent(pid)}`, { replace: true });
+        } catch {}
+      }
     } else {
       await supabase.from("training_plans").update(payload).eq("id", pid);
+    }
+
+    // Invalidate every list that the new/updated plan should appear
+    // on — ActivePlans (`['training-plans']`), Workouts (`['workouts-plans']`),
+    // and the coach Dashboard helpers. Without this, the freshly-saved
+    // plan would only surface after a manual reload.
+    try {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
+      invalidateDashboard(queryClient);
+    } catch (e) {
+      console.warn('[PlanBuilder] invalidate after save failed:', e?.message);
     }
 
     setSaving(false);
 
     // Auto-create 4 default sections on fresh plan
-    if (!editPlanId && sections.length === 0 && pid) {
+    if (didInsert && !editPlanId && sections.length === 0 && pid) {
       const defaults = await Promise.all(DEFAULT_SECTION_IDS.map(id => getSectionType(id)).map(async (t, idx) => {
         const { data } = await supabase.from("training_sections").insert({
           training_plan_id: pid,

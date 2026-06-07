@@ -2112,7 +2112,10 @@ export default function Sessions() {
                                     await base44.entities.Session.update(markingGroupAttendance.id, { participants: updated });
                                     setMarkingGroupAttendance(prev => prev ? { ...prev, participants: updated } : null);
                                     queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-                                  } catch {}
+                                  } catch (err) {
+                                    console.warn('[Sessions] per-member attendance update failed:', err?.message);
+                                    toast.error('שגיאה בעדכון נוכחות: ' + (err?.message || ''));
+                                  }
                                 }}
                                   style={{
                                     padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,

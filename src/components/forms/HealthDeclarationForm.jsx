@@ -127,13 +127,67 @@ export default function HealthDeclarationForm({
     if (!hasSignature) setHasSignature(true);
   };
 
-  const endDraw = () => { drawing.current = false; };
+  // Per-trainee localStorage key for the in-progress signature draft.
+  // Keyed by trainee.id so the draft can't leak between trainees on a
+  // shared device. The key is intentionally separate from the
+  // `athletigo_health_signed_${id}` flag (which marks completion) —
+  // this one only protects the in-progress drawing.
+  const sigDraftKey = trainee?.id
+    ? `athletigo_health_sig_draft_${trainee.id}`
+    : null;
+
+  const persistSignatureDraft = () => {
+    const c = canvasRef.current;
+    if (!c || !sigDraftKey) return;
+    try {
+      const url = c.toDataURL('image/png');
+      if (url) localStorage.setItem(sigDraftKey, url);
+    } catch (e) {
+      console.warn('[HealthDec] sig draft save failed:', e?.message);
+    }
+  };
+
+  const clearSignatureDraft = () => {
+    if (!sigDraftKey) return;
+    try { localStorage.removeItem(sigDraftKey); } catch {}
+  };
+
+  // Restore the draft onto a freshly-mounted canvas. Called from
+  // setupCanvas after the canvas internal dimensions are sized so the
+  // restored image lands without scaling.
+  const restoreSignatureDraft = () => {
+    const c = canvasRef.current;
+    if (!c || !sigDraftKey) return;
+    let url;
+    try { url = localStorage.getItem(sigDraftKey); } catch { url = null; }
+    if (!url) return;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        setHasSignature(true);
+      } catch (e) {
+        console.warn('[HealthDec] sig draft restore failed:', e?.message);
+      }
+    };
+    img.src = url;
+  };
+
+  const endDraw = () => {
+    drawing.current = false;
+    // Persist the in-progress signature so an accidental reload
+    // before "חתום ואשר" doesn't make the trainee redraw from scratch.
+    persistSignatureDraft();
+  };
 
   const clearSignature = () => {
     const c = canvasRef.current;
     if (!c) return;
     c.getContext('2d').clearRect(0, 0, c.width, c.height);
     setHasSignature(false);
+    clearSignatureDraft();
   };
 
   // Refs for scroll-to-error — when "חתום ואשר" is tapped without
@@ -402,6 +456,10 @@ export default function HealthDeclarationForm({
       }
 
       toast.success('הצהרת הבריאות נחתמה בהצלחה');
+      // Signature has now landed in the DB — clear the local draft so
+      // the next time this trainee opens the form (post-archive flow,
+      // future reopen) they start from a blank canvas.
+      clearSignatureDraft();
       onSigned?.(inserted);
       onClose?.();
     } catch (err) {
@@ -413,7 +471,9 @@ export default function HealthDeclarationForm({
   };
 
   // Initialize canvas at mount time. Internal resolution is doubled
-  // so on retina screens the signature isn't blurry.
+  // so on retina screens the signature isn't blurry. After sizing,
+  // restore any in-progress signature draft so a reload mid-signing
+  // doesn't lose the trainee's strokes.
   const setupCanvas = (node) => {
     canvasRef.current = node;
     if (!node) return;
@@ -422,6 +482,7 @@ export default function HealthDeclarationForm({
     const cssH = node.clientHeight;
     node.width  = Math.round(cssW * dpr);
     node.height = Math.round(cssH * dpr);
+    restoreSignatureDraft();
   };
 
   return (

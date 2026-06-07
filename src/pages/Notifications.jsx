@@ -86,11 +86,20 @@ export default function Notifications() {
     return () => supabase.removeChannel(ch);
   }, [user?.id, queryClient]);
 
+  // Surface a Hebrew toast on fetch failure so the page never blanks
+  // silently when notifications can't load (RLS misconfig, network
+  // hiccup, etc.). Returning [] from the catch keeps the empty-state
+  // UI working as before; the toast is the only behavioural change.
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications', user?.id],
     queryFn: async () => {
-      try { return await base44.entities.Notification.filter({ user_id: user?.id }, '-created_at'); }
-      catch { return []; }
+      try {
+        return await base44.entities.Notification.filter({ user_id: user?.id }, '-created_at');
+      } catch (e) {
+        console.warn('[Notifications] fetch failed:', e?.message);
+        toast.error('שגיאה בטעינת ההתראות: ' + (e?.message || 'נסה לרענן'));
+        return [];
+      }
     },
     initialData: [],
     enabled: !!user?.id,
