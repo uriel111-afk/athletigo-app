@@ -120,6 +120,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Defensive 3-signal onboarding gate. ANY one signal alone marks
+  // the trainee as done — so a legacy-completed row that only set the
+  // boolean (Leads-converted trainees), or a fresh-completion row
+  // that only landed the timestamp (transient write retry partials),
+  // or a coach-flipped client_status, all stop the /onboarding
+  // redirect. The same triple is mirrored in Login.jsx:90-95 so login-
+  // time routing matches what AuthContext sees on subsequent loads.
+  //
+  // Never tighten this gate to require multiple signals: a trainee
+  // who already finished onboarding being re-prompted is the worst-
+  // case bug in the app.
   const isOnboardingComplete = useMemo(() => {
     if (!user) return false;
     if (user.onboarding_completed === true) return true;

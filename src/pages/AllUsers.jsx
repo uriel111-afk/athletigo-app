@@ -1578,7 +1578,12 @@ export default function AllUsers() {
         />
 
         <AddTraineeDialog open={isAddTraineeOpen} onClose={() => setIsAddTraineeOpen(false)} />
-        {isAdmin && (
+        {/* Mount gate mirrors the button gate above — only the main
+            admin UUID (Oriel) can open AddCoachDialog. role==='admin'
+            users without the UUID see neither the trigger nor the
+            dialog tree, which keeps the mount tree tight and prevents
+            future code from accidentally surfacing it. */}
+        {isOwnerAdmin && (
           <AddCoachDialog open={isAddCoachOpen} onClose={() => setIsAddCoachOpen(false)} />
         )}
 

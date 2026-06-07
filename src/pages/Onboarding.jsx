@@ -1636,8 +1636,12 @@ export default function Onboarding() {
                         try {
                           // Flip onboarding state first so the post-payment
                           // landing on /TraineeHome doesn't redirect the
-                          // trainee back into the wizard.
+                          // trainee back into the wizard. Write all three
+                          // lifecycle signals (boolean + timestamp +
+                          // client_status) so the AuthContext gate accepts
+                          // any single one that survives transient retries.
                           await safeUpdate(userId, {
+                            onboarding_completed: true,
                             onboarding_completed_at: new Date().toISOString(),
                             client_status: 'casual',
                           });

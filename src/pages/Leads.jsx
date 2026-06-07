@@ -151,13 +151,19 @@ export default function Leads() {
 
       const newClient = fnData.profile;
 
-      // 3. Update the new user profile with lead-specific data
+      // 3. Update the new user profile with lead-specific data. Mark
+      // onboarding done with ALL THREE lifecycle signals (boolean +
+      // timestamp + client_status flip away from 'onboarding') so the
+      // AuthContext gate accepts this trainee on first login no
+      // matter which signal a downstream caller happens to check.
       try {
         await base44.entities.User.update(newClient.id, {
           main_goal: lead.main_goal || null,
           health_issues: lead.medical_history || null,
           parent_name: lead.parent_name || null,
           onboarding_completed: true,
+          onboarding_completed_at: new Date().toISOString(),
+          client_status: 'casual',
         });
       } catch (e) {
         console.warn("Non-critical: failed to update extra profile fields", e);
