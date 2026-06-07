@@ -19,10 +19,31 @@ import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { calculateAge as calcAge, formatBirthWithAge } from "@/lib/dateHelpers";
 import FastAttendanceDialog from "../components/groups/FastAttendanceDialog";
 import PlanFormDialog from "../components/training/PlanFormDialog";
+import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
+
+// Service-type normalizer. client_services.service_type is mixed in
+// the live DB: post-migration English keys ('personal'/'online'/'group')
+// alongside legacy Hebrew labels ('אישי'/'אונליין'/'קבוצתי') AND the
+// long legacy forms ('אימונים אישיים'/'ליווי אונליין'/'פעילות קבוצתית').
+// All three shapes collapse onto the canonical English key here so the
+// service filter doesn't have to care which row was written when.
+function normalizeServiceType(v) {
+  const s = (v == null ? '' : String(v)).toLowerCase().trim();
+  if (!s) return null;
+  if (s === 'personal' || s.includes('אישי')) return 'personal';
+  if (s === 'online'   || s.includes('אונליין')) return 'online';
+  if (s === 'group'    || s.includes('קבוצתי') || s.includes('פעילות קבוצתית')) return 'group';
+  return null;
+}
 
 export default function AllUsers() {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
+  // Tighter gate for the "+ מאמן חדש" button — only Oriel (the owner
+  // account) sees it. role==='admin' still gates the rest of the
+  // admin-shaped UI elsewhere, but coach onboarding stays a single-
+  // user privilege per the redesign brief.
+  const isOwnerAdmin = currentUser?.id === ATHLETIGO_ADMIN_UUID;
   console.log('[AllUsers] render gate:', { role: currentUser?.role, isAdmin, id: currentUser?.id, email: currentUser?.email });
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
@@ -71,6 +92,22 @@ export default function AllUsers() {
   // group's members pre-seeded into its trainee picker.
   const [fastAttendanceGroup, setFastAttendanceGroup] = useState(null);
   const [planFormGroup, setPlanFormGroup] = useState(null);
+
+  // Service-type filter (multi-select). Values are the canonical
+  // English keys returned by normalizeServiceType — 'personal' /
+  // 'online' / 'group'. An empty set means "no service filter": every
+  // trainee passes. Otherwise a trainee passes iff at least one of
+  // their derived tags overlaps with the active set (OR within the
+  // service axis; ANDed against the existing status + search filters).
+  const [serviceFilter, setServiceFilter] = useState(() => new Set());
+  const toggleServiceFilter = (tag) => {
+    setServiceFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  };
 
   // Status badge config — mirrors the canonical statuses on the
   // trainee profile page so the visual language is consistent
@@ -409,6 +446,22 @@ export default function AllUsers() {
     return d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
   };
 
+  // Service tags per trainee — derived once per (allTrainees, allServices)
+  // change, then reused by the filter pass below. Each entry is a
+  // Set<string> of canonical service keys this trainee has at least
+  // one client_services row for. A trainee with two אישי packages and
+  // one קבוצתי package collapses to { 'personal', 'group' }.
+  const tagsByTraineeId = useMemo(() => {
+    const map = new Map();
+    for (const s of allServices || []) {
+      const tag = normalizeServiceType(s?.service_type);
+      if (!tag || !s?.trainee_id) continue;
+      if (!map.has(s.trainee_id)) map.set(s.trainee_id, new Set());
+      map.get(s.trainee_id).add(tag);
+    }
+    return map;
+  }, [allServices]);
+
   // ── Counts for filter chips ─────────────────────────────────────
   // Counts run on `visibleTrainees` (excludes former + suspended)
   // so the chip numbers always match what the user actually sees
@@ -430,6 +483,7 @@ export default function AllUsers() {
   // ── Filter + sort logic ─────────────────────────────────────────
   const filteredTrainees = useMemo(() => {
     const q = searchTerm.toLowerCase();
+    const hasServiceFilter = serviceFilter.size > 0;
     const filtered = allTrainees.filter(t => {
       // Archive gate — 'former' AND 'suspended' trainees are hidden
       // unless the coach explicitly flips the toggle. Skips before
@@ -442,6 +496,15 @@ export default function AllUsers() {
           || (t.email || '').toLowerCase().includes(q)
           || (t.phone || '').includes(searchTerm);
         if (!hit) return false;
+      }
+      // Service-type filter ANDs against status + search; OR within
+      // the service axis (a trainee with any matching tag passes).
+      if (hasServiceFilter) {
+        const tags = tagsByTraineeId.get(t.id);
+        if (!tags) return false;
+        let anyMatch = false;
+        for (const sel of serviceFilter) { if (tags.has(sel)) { anyMatch = true; break; } }
+        if (!anyMatch) return false;
       }
       if (filterType === 'all') return true;
       const pkg = getActivePackage(t.id);
@@ -467,7 +530,7 @@ export default function AllUsers() {
     }
     return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTrainees, allServices, searchTerm, filterType, sortMode, showFormer]);
+  }, [allTrainees, allServices, searchTerm, filterType, sortMode, showFormer, serviceFilter, tagsByTraineeId]);
 
   // Page-level loading gate — render the unified loader instead of a
   // partial shell with empty filter chips and a "loading…" stub list.
@@ -485,86 +548,134 @@ export default function AllUsers() {
   return (
     <ProtectedCoachPage>
       <div style={{ minHeight: '100vh', background: '#FFF9F0', paddingBottom: 100, direction: 'rtl' }}>
-        {/* A. Page header */}
+        {/* A. Page header — title + groups hub toggle */}
         <div style={{
-          padding: 16,
+          padding: '16px 16px 8px',
           display: 'flex', justifyContent: 'space-between',
-          alignItems: 'center',
+          alignItems: 'flex-start', gap: 12,
         }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>👥 מתאמנים</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a' }}>מתאמנים</div>
             <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
               {visibleTrainees.length} מתאמנים · {counts.active} פעילים
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {/* Groups hub entry. When already inside the hub the same
-                button doubles as a "back to trainees" exit so the coach
-                isn't trapped on a screen without an explicit way out. */}
-            <button
-              onClick={() => {
-                if (view === 'list') {
-                  sel.clearSelection();
-                  setSelectedGroup(null);
-                  setView('groups');
-                } else {
-                  setSelectedGroup(null);
-                  setView('list');
-                }
-              }}
-              style={{
-                padding: '8px 14px', borderRadius: 12,
-                border: view !== 'list' ? '1px solid #FF6F20' : '1px solid #F0E4D0',
-                background: view !== 'list' ? '#FFF5EE' : 'white',
-                color: view !== 'list' ? '#FF6F20' : '#555',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              {view === 'list' ? '👥 קבוצות' : '↩ מתאמנים'}
-            </button>
-            <button
-              onClick={() => sel.isSelecting ? sel.clearSelection() : sel.startSelecting()}
-              style={{
-                padding: '8px 14px', borderRadius: 12,
-                border: '1px solid #F0E4D0',
-                background: sel.isSelecting ? '#FFF5EE' : 'white',
-                color: sel.isSelecting ? '#FF6F20' : '#888',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              {sel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
-            </button>
-            <button
-              onClick={() => setIsAddTraineeOpen(true)}
-              style={{
-                background: '#FF6F20', color: 'white',
-                border: 'none', borderRadius: 12,
-                padding: '10px 16px', fontSize: 13,
-                fontWeight: 600, cursor: 'pointer',
-              }}
-            >+ מתאמן חדש</button>
-            {isAdmin && (
-              <button
-                onClick={() => setIsAddCoachOpen(true)}
-                style={{
-                  background: '#2d3748', color: 'white',
-                  border: 'none', borderRadius: 12,
-                  padding: '10px 16px', fontSize: 13,
-                  fontWeight: 600, cursor: 'pointer',
-                }}
-              >+ מאמן חדש</button>
-            )}
-          </div>
+          {/* Groups hub toggle stays here — it's a view switcher
+              (list ↔ groups), conceptually orthogonal to the service-
+              type filter row below (which lives inside the trainee
+              list and isn't a view change). */}
+          <button
+            onClick={() => {
+              if (view === 'list') {
+                sel.clearSelection();
+                setSelectedGroup(null);
+                setView('groups');
+              } else {
+                setSelectedGroup(null);
+                setView('list');
+              }
+            }}
+            style={{
+              padding: '8px 14px', borderRadius: 12,
+              border: view !== 'list' ? '1px solid #FF6F20' : '1px solid #F0E4D0',
+              background: view !== 'list' ? '#FFF5EE' : 'white',
+              color: view !== 'list' ? '#FF6F20' : '#555',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            {view === 'list' ? '👥 קבוצות' : '↩ מתאמנים'}
+          </button>
         </div>
 
         {view === 'list' && (
         <>
-        {/* B. Search + sort toggle */}
+        {/* Primary actions row — owner admin sees both buttons side
+            by side; everyone else gets a single, moderate-width
+            "+ מתאמן חדש" centered so the row stays balanced. */}
+        <div style={{ padding: '4px 16px 12px' }}>
+          {isOwnerAdmin ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button
+                onClick={() => setIsAddTraineeOpen(true)}
+                style={{
+                  background: '#FF6F20', color: 'white',
+                  border: 'none', borderRadius: 12,
+                  padding: '12px 0', fontSize: 14,
+                  fontWeight: 700, cursor: 'pointer',
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >+ מתאמן חדש</button>
+              <button
+                onClick={() => setIsAddCoachOpen(true)}
+                style={{
+                  background: '#1A1A1A', color: 'white',
+                  border: 'none', borderRadius: 12,
+                  padding: '12px 0', fontSize: 14,
+                  fontWeight: 700, cursor: 'pointer',
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >+ מאמן חדש</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={() => setIsAddTraineeOpen(true)}
+                style={{
+                  background: '#FF6F20', color: 'white',
+                  border: 'none', borderRadius: 12,
+                  padding: '12px 28px', fontSize: 14,
+                  fontWeight: 700, cursor: 'pointer', minWidth: 200,
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >+ מתאמן חדש</button>
+            </div>
+          )}
+        </div>
+
+        {/* Service-type filter — symmetric 3-col grid. Multi-select:
+            tapping a chip toggles that tag into serviceFilter; OR
+            within the axis (matches if any selected tag overlaps the
+            trainee's normalized tags). ANDs with status + search via
+            filteredTrainees above. Active chip = filled with its
+            brand color; inactive = soft tinted background + colored
+            text so the trio reads as one row at a glance. */}
+        <div style={{ padding: '0 16px 12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {[
+              { key: 'group',    label: 'קבוצות', bg: '#EEEDFE', fg: '#534AB7' },
+              { key: 'personal', label: 'אישי',   bg: '#E6F1FB', fg: '#185FA5' },
+              { key: 'online',   label: 'אונליין', bg: '#FAEEDA', fg: '#854F0B' },
+            ].map((s) => {
+              const active = serviceFilter.has(s.key);
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => toggleServiceFilter(s.key)}
+                  style={{
+                    padding: '10px 0', borderRadius: 12,
+                    border: active ? 'none' : `1px solid ${s.fg}33`,
+                    background: active ? s.fg : s.bg,
+                    color: active ? 'white' : s.fg,
+                    fontSize: 13, fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                  }}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Search + sort row */}
         <div style={{ padding: '0 16px 10px', display: 'flex', gap: 8 }}>
           <input
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="🔍 חיפוש מתאמן..."
+            placeholder="🔍 חיפוש מתאמן במערכת"
             style={{
               flex: 1, padding: '12px 16px',
               borderRadius: 14,
@@ -574,11 +685,6 @@ export default function AllUsers() {
               boxSizing: 'border-box',
             }}
           />
-          {/* Cycle: recent → asc (א-ב) → desc (ב-א) → asc → desc → ...
-              Once the coach taps once, "recent" is no longer in the
-              cycle — they explicitly want a name sort. The label
-              shows the action that the next tap will perform, which
-              is the most predictable affordance. */}
           <button
             onClick={() =>
               setSortMode(prev =>
@@ -607,11 +713,13 @@ export default function AllUsers() {
           </button>
         </div>
 
-        {/* C. Filter chips */}
+        {/* Status filter chips — centered, wrap on overflow. Counts
+            stay in sync with the existing useMemo. */}
         <div style={{
           display: 'flex', gap: 6,
-          padding: '0 16px 12px',
-          overflowX: 'auto',
+          padding: '0 16px 8px',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
         }}>
           {[
             { id: 'all',      label: 'הכל',          count: counts.all },
@@ -631,23 +739,56 @@ export default function AllUsers() {
               }}>{f.label} ({f.count})</div>
             );
           })}
-          {/* Archived toggle — separate from the package-state chips
-              because client_status is a different axis. Tap to flip
-              archived (former) trainees in/out of the list. */}
+        </div>
+
+        {/* Archived toggle — centered on its own row so the status
+            chips above stay symmetrical. */}
+        <div style={{
+          display: 'flex', justifyContent: 'center',
+          padding: '0 16px 12px',
+        }}>
           <div
             onClick={() => setShowFormer((v) => !v)}
             style={{
-              padding: '6px 12px', borderRadius: 20,
+              padding: '6px 14px', borderRadius: 20,
               fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              whiteSpace: 'nowrap', flexShrink: 0,
+              whiteSpace: 'nowrap',
               background: showFormer ? '#FEE2E2' : 'white',
               color: showFormer ? '#B91C1C' : '#888',
               border: showFormer ? '1px solid #FCA5A5' : '1px solid #F0E4D0',
             }}
             title={showFormer ? 'מציג גם לשעבר' : 'הצג גם לשעבר'}
           >
-            {showFormer ? '× לשעבר מוצגים' : '× הצג לשעבר'}
+            {showFormer ? '× לשעבר מוצגים' : 'הצג מתאמנים לשעבר'}
           </div>
+        </div>
+
+        {/* "מציג N מתאמנים" + small "בחירה מרובה" trigger — sits
+            directly above the list so the action is anchored to the
+            content it operates on instead of competing with the
+            header buttons. Drives the SAME sel handlers as before. */}
+        <div style={{
+          padding: '0 16px 8px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 8,
+        }}>
+          <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>
+            מציג {filteredTrainees.length} מתאמנים
+          </span>
+          <button
+            type="button"
+            onClick={() => sel.isSelecting ? sel.clearSelection() : sel.startSelecting()}
+            style={{
+              padding: '6px 12px', borderRadius: 10,
+              border: '1px solid #F0E4D0',
+              background: sel.isSelecting ? '#FFF5EE' : 'white',
+              color: sel.isSelecting ? '#FF6F20' : '#666',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+            }}
+          >
+            {sel.isSelecting ? '✕ ביטול בחירה' : '☑ בחירה מרובה'}
+          </button>
         </div>
 
         {/* D. User cards or empty state */}
