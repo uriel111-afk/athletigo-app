@@ -19,6 +19,10 @@ import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { calculateAge as calcAge, formatBirthWithAge, daysUntilBirthday } from "@/lib/dateHelpers";
 import FastAttendanceDialog from "../components/groups/FastAttendanceDialog";
 import PlanFormDialog from "../components/training/PlanFormDialog";
+import TraineeNoteDialog from "../components/groups/TraineeNoteDialog";
+import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
+import NewRecordDialog from "../components/forms/NewRecordDialog";
+import { openBaselineDialog } from "../components/forms/BaselineFormDialog";
 import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
 
 // Service-type normalizer. client_services.service_type is mixed in
@@ -92,6 +96,21 @@ export default function AllUsers() {
   // group's members pre-seeded into its trainee picker.
   const [fastAttendanceGroup, setFastAttendanceGroup] = useState(null);
   const [planFormGroup, setPlanFormGroup] = useState(null);
+
+  // Per-member action sheet (layer 3) — opens when a group member row
+  // is tapped. Tracks one member at a time + which leaf dialog to
+  // mount next. Baseline is event-based via the global Manager, so it
+  // doesn't get a local mount flag.
+  //   selectedMember     — { trainee_id, trainee_name } | null
+  //   memberActionOpen   — whether the action sheet itself is open
+  //   measurementForMember / recordForMember / noteForMember — flags
+  //     that gate the corresponding existing dialog (measurement +
+  //     PR are reused as-is; note is the new minimal dialog).
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [memberActionOpen, setMemberActionOpen] = useState(false);
+  const [measurementForMember, setMeasurementForMember] = useState(false);
+  const [recordForMember, setRecordForMember] = useState(false);
+  const [noteForMember, setNoteForMember] = useState(false);
 
   // Service-type filter (multi-select). Values are the canonical
   // English keys returned by normalizeServiceType — 'personal' /
@@ -1269,7 +1288,9 @@ export default function AllUsers() {
                 )}
               </div>
 
-              {/* Member list */}
+              {/* Member list — each row taps open the per-member
+                  action sheet (5 actions: מדידה / שיא / בייסליין /
+                  הערה / פתח פרופיל). One member at a time. */}
               {members.length === 0 ? (
                 <div style={{
                   padding: '32px 20px', textAlign: 'center',
@@ -1284,11 +1305,31 @@ export default function AllUsers() {
                   {members.map((m) => (
                     <div
                       key={m.id || m.trainee_id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setSelectedMember({
+                          trainee_id: m.trainee_id,
+                          trainee_name: m.trainee_name,
+                        });
+                        setMemberActionOpen(true);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedMember({
+                            trainee_id: m.trainee_id,
+                            trainee_name: m.trainee_name,
+                          });
+                          setMemberActionOpen(true);
+                        }
+                      }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 12,
                         padding: '12px 14px', borderRadius: 12,
                         background: 'white',
                         border: '1px solid #F0E4D0',
+                        cursor: 'pointer',
                       }}
                     >
                       <div style={{
@@ -1307,8 +1348,6 @@ export default function AllUsers() {
                       }}>
                         {m.trainee_name || 'מתאמן'}
                       </div>
-                      {/* Chevron hints at future per-member actions —
-                          actions themselves come in a later layer. */}
                       <span style={{ color: '#C9A24A', fontSize: 14, flexShrink: 0 }}>›</span>
                     </div>
                   ))}
@@ -1541,6 +1580,173 @@ export default function AllUsers() {
         <AddTraineeDialog open={isAddTraineeOpen} onClose={() => setIsAddTraineeOpen(false)} />
         {isAdmin && (
           <AddCoachDialog open={isAddCoachOpen} onClose={() => setIsAddCoachOpen(false)} />
+        )}
+
+        {/* Per-member action sheet (layer 3). Tapping a group member
+            row opens this; tapping an action launches the matching
+            existing dialog (or navigates to the profile). Baseline
+            uses the global Manager so no mount needed here. */}
+        {memberActionOpen && selectedMember && (
+          <div
+            onClick={() => setMemberActionOpen(false)}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.5)', zIndex: 10001,
+              display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+              padding: 0,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'white',
+                borderRadius: '20px 20px 0 0',
+                padding: '18px 16px 24px',
+                width: '100%',
+                maxWidth: 480,
+                direction: 'rtl',
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                boxShadow: '0 -8px 32px rgba(0,0,0,0.15)',
+              }}
+            >
+              {/* Grabber */}
+              <div style={{
+                width: 40, height: 4, background: '#E5E5E5',
+                borderRadius: 999, margin: '0 auto 14px',
+              }} />
+
+              {/* Header — member name */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                paddingBottom: 12, marginBottom: 8,
+                borderBottom: '1px solid #F0F0F0',
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 999,
+                  background: '#E8F5E9', color: '#15803D',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18, fontWeight: 800, flexShrink: 0,
+                }}>
+                  {(selectedMember.trainee_name || '?').trim().charAt(0)}
+                </div>
+                <div style={{
+                  fontSize: 16, fontWeight: 800, color: '#1a1a1a',
+                  flex: 1, minWidth: 0,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {selectedMember.trainee_name || 'מתאמן'}
+                </div>
+              </div>
+
+              {/* Actions */}
+              {[
+                {
+                  icon: '📏', label: 'מדידה',
+                  onClick: () => { setMemberActionOpen(false); setMeasurementForMember(true); },
+                },
+                {
+                  icon: '🏆', label: 'שיא',
+                  onClick: () => { setMemberActionOpen(false); setRecordForMember(true); },
+                },
+                {
+                  icon: '📊', label: 'בייסליין',
+                  onClick: () => {
+                    setMemberActionOpen(false);
+                    openBaselineDialog({
+                      traineeId: selectedMember.trainee_id,
+                      traineeName: selectedMember.trainee_name,
+                    });
+                  },
+                },
+                {
+                  icon: '📝', label: 'הערה',
+                  onClick: () => { setMemberActionOpen(false); setNoteForMember(true); },
+                },
+                {
+                  icon: '👤', label: 'פתח פרופיל', primary: true,
+                  onClick: () => {
+                    setMemberActionOpen(false);
+                    if (selectedMember?.trainee_id) {
+                      navigate(createPageUrl('TraineeProfile')
+                        + `?userId=${encodeURIComponent(selectedMember.trainee_id)}`);
+                    }
+                  },
+                },
+              ].map((a) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  onClick={a.onClick}
+                  style={{
+                    width: '100%',
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '14px 12px', borderRadius: 12,
+                    background: a.primary ? '#FFF5EE' : 'white',
+                    border: a.primary ? '1px solid #FF6F20' : '1px solid #F0E4D0',
+                    color: a.primary ? '#FF6F20' : '#1a1a1a',
+                    fontSize: 14, fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    marginBottom: 6,
+                    textAlign: 'right',
+                  }}
+                >
+                  <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>{a.icon}</span>
+                  <span style={{ flex: 1 }}>{a.label}</span>
+                  <span aria-hidden style={{ color: '#C9A24A', fontSize: 14 }}>›</span>
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setMemberActionOpen(false)}
+                style={{
+                  width: '100%',
+                  padding: '11px 0', borderRadius: 12,
+                  border: '1px solid #F0E4D0', background: 'white',
+                  fontSize: 13, fontWeight: 700, color: '#666',
+                  cursor: 'pointer', marginTop: 6,
+                  fontFamily: 'inherit',
+                }}
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Per-member leaf dialogs — all reuse existing components.
+            Each closes back to AllUsers; the action sheet is already
+            dismissed by the action that triggered them. selectedMember
+            is the source of truth for trainee_id / trainee_name. */}
+        {measurementForMember && selectedMember && (
+          <MeasurementFormDialog
+            isOpen={measurementForMember}
+            onClose={() => setMeasurementForMember(false)}
+            traineeId={selectedMember.trainee_id}
+            traineeName={selectedMember.trainee_name}
+          />
+        )}
+        {recordForMember && selectedMember && (
+          <NewRecordDialog
+            isOpen={recordForMember}
+            onClose={() => setRecordForMember(false)}
+            traineeId={selectedMember.trainee_id}
+            coachId={currentUser?.id}
+            currentUserId={currentUser?.id}
+            isCoach={true}
+          />
+        )}
+        {noteForMember && selectedMember && (
+          <TraineeNoteDialog
+            isOpen={noteForMember}
+            onClose={() => setNoteForMember(false)}
+            traineeId={selectedMember.trainee_id}
+            traineeName={selectedMember.trainee_name}
+            currentNote={
+              (allTrainees || []).find((t) => t.id === selectedMember.trainee_id)?.additional_notes || ''
+            }
+          />
         )}
 
         {/* Whole-group dialogs — same components Sessions.jsx /
