@@ -45,7 +45,9 @@ export default function AppSwitcher() {
             key={t.key}
             onClick={() => navigate(t.href)}
             style={{
-              padding: "8px 16px",
+              // flex:1 + minWidth:0 share the row evenly across 4 tabs.
+              flex: 1, minWidth: 0,
+              padding: "8px 0",
               borderRadius: 12,
               fontSize: 13, fontWeight: t.active ? 700 : 500,
               cursor: "pointer",

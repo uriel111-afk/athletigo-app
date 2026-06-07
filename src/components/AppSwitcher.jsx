@@ -44,7 +44,6 @@ export default function AppSwitcher() {
         padding: '12px 12px 8px',
         display: 'flex',
         gap: 8,
-        justifyContent: 'center',
         background: 'white',
         borderBottom: '1px solid #FFF0E4',
       }}
@@ -58,7 +57,9 @@ export default function AppSwitcher() {
             type="button"
             onClick={() => navigate(app.to)}
             style={{
-              padding: '10px 18px',
+              // flex:1 + minWidth:0 share the row evenly across 4 tabs.
+              flex: 1, minWidth: 0,
+              padding: '10px 0',
               borderRadius: 12,
               fontSize: 13,
               fontWeight: active ? 700 : 500,

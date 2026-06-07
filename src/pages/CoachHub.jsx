@@ -291,10 +291,12 @@ export default function CoachHub() {
         {/* App-tab chips — RTL visual order: מקצועי → פיננסי → צמיחה → אישי
             (פיננסי + צמיחה swapped vs. earlier order, per May 2026 spec). */}
         <div style={{
-          padding: '12px 12px 8px',
+          // Horizontal padding bumped to 16 so the inner row of tabs
+          // shares the same left/right edge as the cards below
+          // (LIFEOS_CARD + the page's outer padding both sit at 16).
+          padding: '12px 16px 8px',
           display: 'flex',
           gap: 8,
-          justifyContent: 'center',
           background: 'white',
           borderBottom: '1px solid #FFF0E4',
           marginBottom: 12,
@@ -315,7 +317,11 @@ export default function CoachHub() {
                 type="button"
                 onClick={() => navigate(tab.path)}
                 style={{
-                  padding: '10px 18px',
+                  // flex:1 + minWidth:0 splits the row evenly across the
+                  // 4 tabs so the strip spans full width edge to edge,
+                  // independent of each label's character length.
+                  flex: 1, minWidth: 0,
+                  padding: '10px 0',
                   borderRadius: 12,
                   cursor: 'pointer',
                   fontSize: 13,
