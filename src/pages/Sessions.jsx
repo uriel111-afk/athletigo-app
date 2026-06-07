@@ -36,6 +36,7 @@ import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 import { useNavigate } from "react-router-dom";
 import NewSessionCard from "@/components/sessions/SessionCard";
 import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
+import FastAttendanceDialog from "@/components/groups/FastAttendanceDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
 import { createPageUrl } from "@/utils";
 import { groupSessionsByTime, BUCKET_LABELS, statusMatchesFilter } from "@/lib/sessionGrouping";
@@ -103,21 +104,13 @@ export default function Sessions() {
   const [showGroupSessionDialog, setShowGroupSessionDialog] = useState(false);
   const [groupSessionForm, setGroupSessionForm] = useState({ date: new Date().toISOString().split('T')[0], time: '09:00', location: 'סטודיו', notes: '' });
   const [markingGroupAttendance, setMarkingGroupAttendance] = useState(null);
-  // Fast-attendance workspace — opened from the new "סמן נוכחות עכשיו"
-  // button on each group card. Unlike the existing "קבע אימון קבוצתי"
-  // flow (which schedules a future session with everyone at 'ממתין'),
-  // this one is for marking attendance NOW and writing the session in
-  // a single shot with per-member statuses already set.
-  //   group       — the group whose card was tapped
-  //   date / time — defaulted to today + current HH:MM, editable
-  //   location    — defaulted to 'סטודיו'
-  //   notes       — coach_notes free text
-  //   attendance  — { [trainee_id]: 'הגיע' | 'איחר' | 'לא הגיע' | 'ביטל' }
-  //                 missing entries fall back to 'הגיע' (the default
-  //                 "everyone is here" assumption — coach taps to mark
-  //                 the exceptions).
-  const [fastAttendance, setFastAttendance] = useState(null);
-  const [creatingFastAttendance, setCreatingFastAttendance] = useState(false);
+  // Fast-attendance workspace — opens via the green "סמן נוכחות עכשיו"
+  // button on each group card. The full UI + mutation now live in
+  // `<FastAttendanceDialog>` (src/components/groups/FastAttendanceDialog.jsx)
+  // so the same dialog can be mounted from the AllUsers group hub too.
+  // We only track which group's dialog is open here; the dialog itself
+  // owns its form state + the Session.create call.
+  const [fastAttendanceGroup, setFastAttendanceGroup] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -259,43 +252,6 @@ export default function Sessions() {
       toast.success('✅ אימון קבוצתי נוצר לכל חברי הקבוצה');
     },
     onError: () => toast.error('שגיאה ביצירת אימון קבוצתי')
-  });
-
-  // Fast-attendance create: builds a sessions row with the per-member
-  // attendance already populated, in one round trip. Differs from
-  // createGroupSessionMutation in two ways: (1) it accepts a participant
-  // payload (no 'ממתין' default), (2) it derives session.status from
-  // the marks (any 'הגיע' present → 'התקיים' so the row already counts
-  // as completed in the coach's session list + trainee's "פגישות" tab).
-  const createFastAttendanceMutation = useMutation({
-    mutationFn: async ({ group, form, participants }) => {
-      const sessionStatus = participants.some(p => p.attendance_status === 'הגיע')
-        ? 'התקיים'
-        : 'מתוכנן';
-      return base44.entities.Session.create({
-        date: form.date,
-        time: form.time,
-        session_type: 'קבוצתי',
-        location: form.location,
-        coach_id: user?.id,
-        status: sessionStatus,
-        coach_notes: form.notes,
-        participants,
-        group_id: group.id,
-        group_name: group.name,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-      setFastAttendance(null);
-      toast.success('✅ הנוכחות נשמרה והאימון נוצר');
-    },
-    onError: (err) => {
-      console.error('[fastAttendance] create failed:', err);
-      toast.error('❌ שגיאה ביצירת האימון: ' + (err?.message || 'נסה שוב'));
-    },
   });
 
   const markGroupAttendanceMutation = useMutation({
@@ -1584,24 +1540,7 @@ export default function Sessions() {
                           )}
                           <div className="flex gap-2 pt-2 border-t border-gray-100">
                             <Button
-                              onClick={() => {
-                                const now = new Date();
-                                const hh = String(now.getHours()).padStart(2, '0');
-                                const mm = String(now.getMinutes()).padStart(2, '0');
-                                setFastAttendance({
-                                  group,
-                                  date: now.toISOString().split('T')[0],
-                                  time: `${hh}:${mm}`,
-                                  location: 'סטודיו',
-                                  notes: '',
-                                  // Default everyone to 'הגיע' — coach taps the
-                                  // exceptions. Keyed by trainee_id so the row
-                                  // render can look up the current pick cheaply.
-                                  attendance: Object.fromEntries(
-                                    members.map((m) => [m.trainee_id, 'הגיע'])
-                                  ),
-                                });
-                              }}
+                              onClick={() => setFastAttendanceGroup(group)}
                               className="flex-1 text-white text-sm font-bold rounded-xl min-h-[44px]"
                               style={{ backgroundColor: '#4CAF50' }}
                               disabled={members.length === 0}
@@ -2129,201 +2068,15 @@ export default function Sessions() {
             </DialogContent>
           </Dialog>
 
-          {/* ── Fast Attendance Workspace ──
-              Opens from the green "סמן נוכחות עכשיו" button on each
-              group card. One round trip: pick statuses → confirm →
-              session row lands with participants[] already populated
-              and status='התקיים' (if anyone is present) so it shows
-              up in each marked trainee's "פגישות" tab right away. */}
-          <Dialog open={!!fastAttendance} onOpenChange={() => { if (!creatingFastAttendance) setFastAttendance(null); }}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>סימון נוכחות: {fastAttendance?.group?.name || ''}</DialogTitle>
-              </DialogHeader>
-              {fastAttendance && (() => {
-                const members = groupMembers.filter(m => m.group_id === fastAttendance.group.id);
-                const statusConfig = [
-                  { key: 'הגיע',    color: '#16a34a', bg: '#dcfce7' },
-                  { key: 'איחר',    color: '#eab308', bg: '#fef9c3' },
-                  { key: 'לא הגיע', color: '#dc2626', bg: '#fee2e2' },
-                  { key: 'ביטל',    color: '#6b7280', bg: '#f3f4f6' },
-                ];
-                const setStatusFor = (traineeId, status) => {
-                  setFastAttendance((prev) => prev ? {
-                    ...prev,
-                    attendance: { ...(prev.attendance || {}), [traineeId]: status },
-                  } : prev);
-                };
-                const presentCount = members.reduce(
-                  (n, m) => n + (fastAttendance.attendance?.[m.trainee_id] === 'הגיע' ? 1 : 0),
-                  0,
-                );
-                return (
-                  <div className="space-y-4">
-                    {/* Date + time + location + notes */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>תאריך</Label>
-                        <Input
-                          type="date"
-                          value={fastAttendance.date}
-                          onChange={(e) => setFastAttendance((p) => p ? { ...p, date: e.target.value } : p)}
-                          className="rounded-xl mt-1"
-                          style={{ fontSize: 16 }}
-                        />
-                      </div>
-                      <div>
-                        <Label>שעה</Label>
-                        <Input
-                          type="time"
-                          value={fastAttendance.time}
-                          onChange={(e) => setFastAttendance((p) => p ? { ...p, time: e.target.value } : p)}
-                          className="rounded-xl mt-1"
-                          style={{ fontSize: 16 }}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>מיקום</Label>
-                      <Input
-                        value={fastAttendance.location}
-                        onChange={(e) => setFastAttendance((p) => p ? { ...p, location: e.target.value } : p)}
-                        className="rounded-xl mt-1"
-                        style={{ fontSize: 16 }}
-                      />
-                    </div>
-                    <div>
-                      <Label>הערות</Label>
-                      <Input
-                        value={fastAttendance.notes}
-                        onChange={(e) => setFastAttendance((p) => p ? { ...p, notes: e.target.value } : p)}
-                        className="rounded-xl mt-1"
-                        style={{ fontSize: 16 }}
-                      />
-                    </div>
-
-                    <div className="text-xs text-gray-500 flex items-center justify-between pt-1 border-t border-gray-100">
-                      <span>{members.length} חברים בקבוצה</span>
-                      <span>{presentCount} סומנו כהגיעו</span>
-                    </div>
-
-                    {/* Per-member attendance — same 4-status pattern as the
-                        legacy attendance dialog (2059-2098). Default is
-                        'הגיע' so the coach only taps to mark exceptions. */}
-                    <div style={{ maxHeight: '36vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                      {members.length === 0 ? (
-                        <div className="text-center py-6 text-sm text-gray-400">
-                          אין חברים בקבוצה
-                        </div>
-                      ) : (
-                        members.map((m) => {
-                          const current = fastAttendance.attendance?.[m.trainee_id] || 'הגיע';
-                          return (
-                            <div
-                              key={m.trainee_id}
-                              style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                padding: '8px 0', borderBottom: '1px solid #f5f5f5',
-                                direction: 'rtl', gap: 8,
-                              }}
-                            >
-                              <div style={{
-                                fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0,
-                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                              }}>{m.trainee_name}</div>
-                              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', flexShrink: 0 }}>
-                                {statusConfig.map((st) => {
-                                  const active = current === st.key;
-                                  return (
-                                    <button
-                                      key={st.key}
-                                      type="button"
-                                      onClick={() => setStatusFor(m.trainee_id, st.key)}
-                                      style={{
-                                        padding: '4px 8px', borderRadius: 6,
-                                        fontSize: 10, fontWeight: 700,
-                                        border: `1.5px solid ${active ? st.color : '#eee'}`,
-                                        background: active ? st.bg : 'white',
-                                        color: active ? st.color : '#bbb',
-                                        cursor: 'pointer', touchAction: 'manipulation',
-                                      }}
-                                    >
-                                      {st.key}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* Bulk row — instant "everyone is here" / "everyone is
-                        absent" so the coach can flip a roomful in one tap. */}
-                    {members.length > 0 && (
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                        <Button
-                          variant="outline"
-                          onClick={() => setFastAttendance((p) => p ? {
-                            ...p,
-                            attendance: Object.fromEntries(members.map((m) => [m.trainee_id, 'הגיע'])),
-                          } : p)}
-                          className="font-bold rounded-lg min-h-[36px] text-xs"
-                          style={{ borderColor: '#16a34a', color: '#16a34a' }}
-                        >
-                          כולם הגיעו
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setFastAttendance((p) => p ? {
-                            ...p,
-                            attendance: Object.fromEntries(members.map((m) => [m.trainee_id, 'לא הגיע'])),
-                          } : p)}
-                          className="font-bold rounded-lg min-h-[36px] text-xs"
-                          style={{ borderColor: '#dc2626', color: '#dc2626' }}
-                        >
-                          כולם לא הגיעו
-                        </Button>
-                      </div>
-                    )}
-
-                    <Button
-                      disabled={members.length === 0 || creatingFastAttendance}
-                      onClick={async () => {
-                        const participants = members.map((m) => ({
-                          trainee_id: m.trainee_id,
-                          trainee_name: m.trainee_name,
-                          attendance_status: fastAttendance.attendance?.[m.trainee_id] || 'הגיע',
-                        }));
-                        setCreatingFastAttendance(true);
-                        try {
-                          await createFastAttendanceMutation.mutateAsync({
-                            group: fastAttendance.group,
-                            form: {
-                              date: fastAttendance.date,
-                              time: fastAttendance.time,
-                              location: fastAttendance.location,
-                              notes: fastAttendance.notes,
-                            },
-                            participants,
-                          });
-                        } finally {
-                          setCreatingFastAttendance(false);
-                        }
-                      }}
-                      className="w-full font-bold text-white rounded-xl min-h-[44px]"
-                      style={{ backgroundColor: '#4CAF50' }}
-                    >
-                      {creatingFastAttendance
-                        ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</>
-                        : 'שמור נוכחות וצור אימון'}
-                    </Button>
-                  </div>
-                );
-              })()}
-            </DialogContent>
-          </Dialog>
+          {/* Shared fast-attendance dialog — full UI + Session.create
+              live inside the component so the AllUsers group hub can
+              mount the same dialog. */}
+          <FastAttendanceDialog
+            group={fastAttendanceGroup}
+            groupMembers={groupMembers}
+            coachId={user?.id}
+            onClose={() => setFastAttendanceGroup(null)}
+          />
 
           {/* ── Mark Group Attendance Dialog ── */}
           <Dialog open={!!markingGroupAttendance} onOpenChange={() => setMarkingGroupAttendance(null)}>

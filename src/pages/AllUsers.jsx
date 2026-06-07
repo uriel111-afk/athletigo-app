@@ -17,6 +17,8 @@ import { normalizeStatus, isActivePackage } from "@/lib/enums";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { calculateAge as calcAge, formatBirthWithAge } from "@/lib/dateHelpers";
+import FastAttendanceDialog from "../components/groups/FastAttendanceDialog";
+import PlanFormDialog from "../components/training/PlanFormDialog";
 
 export default function AllUsers() {
   const { user: currentUser } = useAuth();
@@ -62,6 +64,13 @@ export default function AllUsers() {
   // after a refresh and re-enters the hub if they want.
   const [view, setView] = useState('list');
   const [selectedGroup, setSelectedGroup] = useState(null);
+  // Whole-group action dialogs (layer 2). Both flows reuse existing
+  // components/mutations — FastAttendanceDialog wraps the same
+  // Session.create path Sessions.jsx uses; PlanFormDialog is the same
+  // component every other "+ תוכנית חדשה" entry point opens, with the
+  // group's members pre-seeded into its trainee picker.
+  const [fastAttendanceGroup, setFastAttendanceGroup] = useState(null);
+  const [planFormGroup, setPlanFormGroup] = useState(null);
 
   // Status badge config — mirrors the canonical statuses on the
   // trainee profile page so the visual language is consistent
@@ -161,6 +170,88 @@ export default function AllUsers() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [statusMenuOpen]);
+
+  // Plan-create handler for the group hub. Logic mirrors the existing
+  // TrainingPlans.jsx multi-trainee assign path (lines 228-292 there):
+  // one TrainingPlan row per selected trainee + a Notification per
+  // assigned trainee. Coach context comes from useAuth — same source
+  // every TrainingPlan write uses.
+  const handlePlanFormSubmit = async ({ planData, selectedTrainees }) => {
+    if (!currentUser?.id) throw new Error('פרטי מאמן חסרים');
+    const goalFocusArray = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0
+      ? planData.goal_focus
+      : ['כוח'];
+
+    const plansToCreate = [];
+    const ids = Array.isArray(selectedTrainees) ? selectedTrainees : [];
+    if (ids.length > 0) {
+      for (const traineeId of ids) {
+        const trainee = (allTrainees || []).find((t) => t.id === traineeId);
+        if (trainee) {
+          plansToCreate.push({
+            title: planData.plan_name,
+            plan_name: planData.plan_name,
+            assigned_to: trainee.id,
+            assigned_to_name: trainee.full_name,
+            created_by: currentUser.id,
+            created_by_name: currentUser.full_name || '',
+            goal_focus: goalFocusArray,
+            weekly_days: Array.isArray(planData.weekly_days) ? planData.weekly_days : [],
+            difficulty_level: planData.difficulty_level || null,
+            duration_weeks: typeof planData.duration_weeks === 'number' ? planData.duration_weeks : null,
+            description: planData.description || '',
+            start_date: new Date().toISOString().split('T')[0],
+            status: 'פעילה',
+            is_template: false,
+            series_id: planData.series_id || null,
+          });
+        }
+      }
+    } else {
+      plansToCreate.push({
+        title: planData.plan_name,
+        plan_name: planData.plan_name,
+        assigned_to: null,
+        assigned_to_name: null,
+        created_by: currentUser.id,
+        created_by_name: currentUser.full_name || '',
+        goal_focus: goalFocusArray,
+        weekly_days: Array.isArray(planData.weekly_days) ? planData.weekly_days : [],
+        difficulty_level: planData.difficulty_level || null,
+        duration_weeks: typeof planData.duration_weeks === 'number' ? planData.duration_weeks : null,
+        description: planData.description || '',
+        start_date: new Date().toISOString().split('T')[0],
+        status: 'פעילה',
+        is_template: false,
+        series_id: planData.series_id || null,
+      });
+    }
+
+    const created = [];
+    for (const plan of plansToCreate) {
+      const result = await base44.entities.TrainingPlan.create(plan);
+      created.push(result);
+      if (plan.assigned_to) {
+        try {
+          await base44.entities.Notification.create({
+            user_id: plan.assigned_to,
+            type: 'training_plan',
+            title: 'תוכנית אימון חדשה 🎯',
+            message: `המאמן ${currentUser.full_name || ''} יצר לך תוכנית חדשה: "${plan.plan_name}"`,
+            is_read: false,
+          });
+        } catch (e) {
+          console.warn('[AllUsers] plan notification failed:', e?.message);
+        }
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    setPlanFormGroup(null);
+    toast.success(`✅ תוכנית נוצרה ושויכה ל-${created.length} מתאמנים`);
+    return created;
+  };
 
   // Create a TrainingGroup with the currently-selected trainees as
   // its initial members. Mirrors the path Sessions.jsx uses (same
@@ -912,36 +1003,75 @@ export default function AllUsers() {
             <div style={{ padding: '0 16px 24px' }}>
               {/* Header band: back button + group title */}
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
                 background: 'white', borderRadius: 14,
                 border: '1px solid #F0E4D0', padding: '12px 14px',
                 marginBottom: 12,
               }}>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedGroup(null); setView('groups'); }}
-                  style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    border: '1px solid #F0E4D0', background: 'white',
-                    color: '#FF6F20', fontSize: 18, fontWeight: 700,
-                    cursor: 'pointer', flexShrink: 0,
-                  }}
-                  aria-label="חזרה לרשימת הקבוצות"
-                >
-                  →
-                </button>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 16, fontWeight: 800, color: '#1a1a1a',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {selectedGroup.name || 'קבוצה ללא שם'}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                    {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
-                    {selectedGroup.description ? ` · ${selectedGroup.description}` : ''}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  marginBottom: members.length > 0 ? 12 : 0,
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedGroup(null); setView('groups'); }}
+                    style={{
+                      width: 36, height: 36, borderRadius: 10,
+                      border: '1px solid #F0E4D0', background: 'white',
+                      color: '#FF6F20', fontSize: 18, fontWeight: 700,
+                      cursor: 'pointer', flexShrink: 0,
+                    }}
+                    aria-label="חזרה לרשימת הקבוצות"
+                  >
+                    →
+                  </button>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 16, fontWeight: 800, color: '#1a1a1a',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {selectedGroup.name || 'קבוצה ללא שם'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                      {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
+                      {selectedGroup.description ? ` · ${selectedGroup.description}` : ''}
+                    </div>
                   </div>
                 </div>
+
+                {/* Whole-group action buttons — disabled until the
+                    group has at least one member so the dialogs never
+                    open empty. Both reuse existing flows; nothing new
+                    on the server side. */}
+                {members.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setFastAttendanceGroup(selectedGroup)}
+                      style={{
+                        flex: 1,
+                        padding: '12px 8px', borderRadius: 12, border: 'none',
+                        background: '#4CAF50', color: 'white',
+                        fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                      }}
+                    >
+                      ✅ סמן נוכחות
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlanFormGroup(selectedGroup)}
+                      style={{
+                        flex: 1,
+                        padding: '12px 8px', borderRadius: 12, border: 'none',
+                        background: '#FF6F20', color: 'white',
+                        fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                      }}
+                    >
+                      📋 כתוב תוכנית לקבוצה
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Member list */}
@@ -1007,10 +1137,6 @@ export default function AllUsers() {
                 setGroupForm({ name: '', description: '' });
                 setShowCreateGroup(true);
               },
-            },
-            {
-              icon: '🔄', label: 'שנה סטטוס', primary: true,
-              onClick: () => setShowBulkStatus(true),
             },
             {
               icon: '🗑️', label: 'ארכיון', danger: true,
@@ -1220,6 +1346,31 @@ export default function AllUsers() {
         <AddTraineeDialog open={isAddTraineeOpen} onClose={() => setIsAddTraineeOpen(false)} />
         {isAdmin && (
           <AddCoachDialog open={isAddCoachOpen} onClose={() => setIsAddCoachOpen(false)} />
+        )}
+
+        {/* Whole-group dialogs — same components Sessions.jsx /
+            TrainingPlans.jsx mount. Pre-seeded with the group's
+            members so the coach goes straight to building, not
+            re-picking the roster. */}
+        <FastAttendanceDialog
+          group={fastAttendanceGroup}
+          groupMembers={groupMembers}
+          coachId={currentUser?.id}
+          onClose={() => setFastAttendanceGroup(null)}
+        />
+        {planFormGroup && (
+          <PlanFormDialog
+            isOpen={!!planFormGroup}
+            onClose={() => setPlanFormGroup(null)}
+            onSubmit={handlePlanFormSubmit}
+            trainees={allTrainees || []}
+            initialSelectedTraineeIds={
+              groupMembers
+                .filter((m) => m.group_id === planFormGroup.id)
+                .map((m) => m.trainee_id)
+            }
+            formKeySuffix={`group_${planFormGroup.id}`}
+          />
         )}
       </div>
     </ProtectedCoachPage>
