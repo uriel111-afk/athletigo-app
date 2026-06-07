@@ -795,6 +795,34 @@ export default function AllUsers() {
           </div>
         </div>
 
+        {/* "+ קבוצה חדשה" — secondary surface of the same CTA that
+            lives inside the Groups Hub (line ~1261). Shown in list
+            view only when the user activated the קבוצות service chip,
+            since that's where they expect to be able to create a new
+            group. Reuses setShowCreateGroupFull(true) → opens the
+            same CreateGroupDialog that's already mounted at the
+            bottom of this file. Service-chip filtering behaviour is
+            unchanged — we only ADD a visible action here. */}
+        {serviceFilter.has('group') && (
+          <div style={{ padding: '0 16px 12px' }}>
+            <button
+              type="button"
+              onClick={() => setShowCreateGroupFull(true)}
+              style={{
+                width: '100%',
+                padding: '12px 0',
+                borderRadius: 12, border: 'none',
+                background: '#FF6F20', color: 'white',
+                fontSize: 14, fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+              }}
+            >
+              + קבוצה חדשה
+            </button>
+          </div>
+        )}
+
         {/* Search + sort row */}
         <div style={{ padding: '0 16px 10px', display: 'flex', gap: 8 }}>
           <input
