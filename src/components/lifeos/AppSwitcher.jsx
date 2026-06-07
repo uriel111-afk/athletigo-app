@@ -49,7 +49,7 @@ export default function AppSwitcher() {
               flex: 1, minWidth: 0,
               padding: "8px 0",
               borderRadius: 12,
-              fontSize: 13, fontWeight: t.active ? 700 : 500,
+              fontSize: 15, fontWeight: t.active ? 700 : 500,
               cursor: "pointer",
               background: t.active ? "#FF6F20" : "#F6EAD9",
               color: t.active ? "#FFFFFF" : "#9A6A3A",

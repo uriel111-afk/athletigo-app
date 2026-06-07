@@ -312,7 +312,7 @@ export default function CoachHub() {
                   padding: '10px 0',
                   borderRadius: 12,
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: isActive ? 700 : 500,
                   background: isActive ? '#FF6F20' : '#F6EAD9',
                   color: isActive ? 'white' : '#9A6A3A',

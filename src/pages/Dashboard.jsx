@@ -640,7 +640,7 @@ export default function Dashboard() {
                       // fallback for older iOS Safari where aspectRatio
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
-                      height: 78,
+                      height: 70,
                       // Lumen: secondary card → white surface + med
                       // shadow + hairline for a subtle floating feel.
                       background: 'var(--ag-surface)',
@@ -651,14 +651,14 @@ export default function Dashboard() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 4,
+                      gap: 3,
                       cursor: 'pointer',
                       position: 'relative',
                       padding: 0,
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <IconComp size={26} color={q.color} strokeWidth={2} />
+                    <IconComp size={22} color={q.color} strokeWidth={2} />
                     <span style={{
                       fontSize: 11, fontWeight: 700,
                       color: 'var(--ag-text-primary)', textAlign: 'center',
