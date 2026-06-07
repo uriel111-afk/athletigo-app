@@ -227,51 +227,103 @@ export default function AllUsers() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [statusMenuOpen]);
 
-  // Plan-create handler for the group hub. Logic mirrors the existing
-  // TrainingPlans.jsx multi-trainee assign path (lines 228-292 there):
-  // one TrainingPlan row per selected trainee + a Notification per
-  // assigned trainee. Coach context comes from useAuth — same source
-  // every TrainingPlan write uses.
-  const handlePlanFormSubmit = async ({ planData, selectedTrainees }) => {
-    if (!currentUser?.id) throw new Error('פרטי מאמן חסרים');
+  // Build the canonical TrainingPlan row payload for one trainee. Kept
+  // separate from the loop driver so the retry path can rebuild the
+  // exact same shape for failed-only ids without copy-paste.
+  const buildPlanRowForTrainee = (planData, trainee) => {
     const goalFocusArray = Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0
       ? planData.goal_focus
       : ['כוח'];
+    return {
+      title: planData.plan_name,
+      plan_name: planData.plan_name,
+      assigned_to: trainee.id,
+      assigned_to_name: trainee.full_name,
+      created_by: currentUser.id,
+      created_by_name: currentUser.full_name || '',
+      goal_focus: goalFocusArray,
+      weekly_days: Array.isArray(planData.weekly_days) ? planData.weekly_days : [],
+      difficulty_level: planData.difficulty_level || null,
+      duration_weeks: typeof planData.duration_weeks === 'number' ? planData.duration_weeks : null,
+      description: planData.description || '',
+      start_date: new Date().toISOString().split('T')[0],
+      status: 'פעילה',
+      is_template: false,
+      series_id: planData.series_id || null,
+    };
+  };
 
-    const plansToCreate = [];
-    const ids = Array.isArray(selectedTrainees) ? selectedTrainees : [];
-    if (ids.length > 0) {
-      for (const traineeId of ids) {
-        const trainee = (allTrainees || []).find((t) => t.id === traineeId);
-        if (trainee) {
-          plansToCreate.push({
-            title: planData.plan_name,
-            plan_name: planData.plan_name,
-            assigned_to: trainee.id,
-            assigned_to_name: trainee.full_name,
-            created_by: currentUser.id,
-            created_by_name: currentUser.full_name || '',
-            goal_focus: goalFocusArray,
-            weekly_days: Array.isArray(planData.weekly_days) ? planData.weekly_days : [],
-            difficulty_level: planData.difficulty_level || null,
-            duration_weeks: typeof planData.duration_weeks === 'number' ? planData.duration_weeks : null,
-            description: planData.description || '',
-            start_date: new Date().toISOString().split('T')[0],
-            status: 'פעילה',
-            is_template: false,
-            series_id: planData.series_id || null,
-          });
-        }
+  // Drive the per-trainee create loop without aborting on a single
+  // failure. Returns { succeededIds, failedIds, succeededNames,
+  // failedNames } so the caller can shape a retry-aware toast.
+  // Network/RLS failure on any single trainee leaves the rest of the
+  // group's writes intact — the coach hears exactly who's missing
+  // instead of a silent half-state.
+  const runPlanCreateLoop = async (planData, ids) => {
+    const succeededIds = [];
+    const succeededNames = [];
+    const failedIds = [];
+    const failedNames = [];
+    for (const traineeId of ids) {
+      const trainee = (allTrainees || []).find((t) => t.id === traineeId);
+      if (!trainee) {
+        // Unknown id (deleted while dialog open, etc.) — treat as
+        // failed so the coach sees it instead of silent dropping.
+        failedIds.push(traineeId);
+        failedNames.push(traineeId);
+        continue;
       }
-    } else {
-      plansToCreate.push({
+      const row = buildPlanRowForTrainee(planData, trainee);
+      try {
+        await base44.entities.TrainingPlan.create(row);
+        succeededIds.push(traineeId);
+        succeededNames.push(trainee.full_name || traineeId);
+        // Notification is best-effort: the plan landed even if the
+        // toast/badge doesn't ping, so we don't downgrade success.
+        try {
+          await base44.entities.Notification.create({
+            user_id: trainee.id,
+            type: 'training_plan',
+            title: 'תוכנית אימון חדשה 🎯',
+            message: `המאמן ${currentUser.full_name || ''} יצר לך תוכנית חדשה: "${row.plan_name}"`,
+            is_read: false,
+          });
+        } catch (e) {
+          console.warn('[AllUsers] plan notification failed for', traineeId, ':', e?.message);
+        }
+      } catch (e) {
+        console.warn('[AllUsers] plan create failed for', traineeId, ':', e?.message);
+        failedIds.push(traineeId);
+        failedNames.push(trainee.full_name || traineeId);
+      }
+    }
+    return { succeededIds, succeededNames, failedIds, failedNames };
+  };
+
+  // Plan-create handler for the group hub. Logic mirrors the existing
+  // TrainingPlans.jsx multi-trainee assign path (lines 228-292 there)
+  // BUT with explicit per-trainee success/failure tracking and an
+  // in-toast retry action for the failed-only subset, so a network
+  // blip mid-loop never silently leaves part of the group without
+  // the plan. Coach context comes from useAuth.
+  const handlePlanFormSubmit = async ({ planData, selectedTrainees }) => {
+    if (!currentUser?.id) throw new Error('פרטי מאמן חסרים');
+    const ids = Array.isArray(selectedTrainees) ? selectedTrainees : [];
+
+    // Unassigned-plan path (no trainees picked at all). Same single
+    // create, but wrapped in try/catch so a failure surfaces a clear
+    // toast instead of bubbling up and crashing the dialog.
+    if (ids.length === 0) {
+      const row = {
         title: planData.plan_name,
         plan_name: planData.plan_name,
         assigned_to: null,
         assigned_to_name: null,
         created_by: currentUser.id,
         created_by_name: currentUser.full_name || '',
-        goal_focus: goalFocusArray,
+        goal_focus: Array.isArray(planData.goal_focus) && planData.goal_focus.length > 0
+          ? planData.goal_focus
+          : ['כוח'],
         weekly_days: Array.isArray(planData.weekly_days) ? planData.weekly_days : [],
         difficulty_level: planData.difficulty_level || null,
         duration_weeks: typeof planData.duration_weeks === 'number' ? planData.duration_weeks : null,
@@ -280,33 +332,75 @@ export default function AllUsers() {
         status: 'פעילה',
         is_template: false,
         series_id: planData.series_id || null,
-      });
-    }
-
-    const created = [];
-    for (const plan of plansToCreate) {
-      const result = await base44.entities.TrainingPlan.create(plan);
-      created.push(result);
-      if (plan.assigned_to) {
-        try {
-          await base44.entities.Notification.create({
-            user_id: plan.assigned_to,
-            type: 'training_plan',
-            title: 'תוכנית אימון חדשה 🎯',
-            message: `המאמן ${currentUser.full_name || ''} יצר לך תוכנית חדשה: "${plan.plan_name}"`,
-            is_read: false,
-          });
-        } catch (e) {
-          console.warn('[AllUsers] plan notification failed:', e?.message);
-        }
+      };
+      try {
+        const created = await base44.entities.TrainingPlan.create(row);
+        queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+        setPlanFormGroup(null);
+        toast.success('✅ תוכנית נוצרה (לא משויכת למתאמן)');
+        return [created];
+      } catch (e) {
+        toast.error('❌ יצירת התוכנית נכשלה: ' + (e?.message || 'נסה שוב'));
+        return [];
       }
     }
 
+    // Per-trainee loop with success/failure tracking.
+    const { succeededIds, succeededNames, failedIds, failedNames } =
+      await runPlanCreateLoop(planData, ids);
+
     queryClient.invalidateQueries({ queryKey: ['training-plans'] });
     queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    setPlanFormGroup(null);
-    toast.success(`✅ תוכנית נוצרה ושויכה ל-${created.length} מתאמנים`);
-    return created;
+
+    if (failedIds.length === 0) {
+      // All good.
+      setPlanFormGroup(null);
+      toast.success(`✅ התוכנית הוקצתה ל-${succeededIds.length} מתאמנים`);
+      return succeededIds;
+    }
+
+    if (succeededIds.length === 0) {
+      // Nothing landed — leave the dialog open so the coach can
+      // resubmit without losing the form.
+      toast.error(
+        `❌ ההקצאה נכשלה לכל ${failedIds.length} המתאמנים — נסה שוב`,
+      );
+      return [];
+    }
+
+    // Partial success — name names and offer a single-tap retry for
+    // the failed subset. The retry calls back into the same loop with
+    // only the failed ids; on its own success the toast resolves.
+    const failedListShort = failedNames.slice(0, 3).join(', ')
+      + (failedNames.length > 3 ? ` ועוד ${failedNames.length - 3}` : '');
+    toast(
+      `הוקצתה ל-${succeededIds.length} מתוך ${ids.length} — נכשלו: ${failedListShort}`,
+      {
+        duration: 12000,
+        action: {
+          label: 'נסה שוב את הנכשלים',
+          onClick: async () => {
+            const retry = await runPlanCreateLoop(planData, failedIds);
+            queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            if (retry.failedIds.length === 0) {
+              toast.success(`✅ הוקצתה לכל ${retry.succeededIds.length} שנותרו`);
+              setPlanFormGroup(null);
+            } else if (retry.succeededIds.length === 0) {
+              toast.error(`❌ ה-${retry.failedIds.length} נכשלו שוב`);
+            } else {
+              const stillFailedShort = retry.failedNames.slice(0, 3).join(', ')
+                + (retry.failedNames.length > 3 ? ` ועוד ${retry.failedNames.length - 3}` : '');
+              toast(
+                `הוקצתה לעוד ${retry.succeededIds.length} — עדיין נכשלו: ${stillFailedShort}`,
+                { duration: 10000 },
+              );
+            }
+          },
+        },
+      },
+    );
+    return succeededIds;
   };
 
   // Create a TrainingGroup with the currently-selected trainees as

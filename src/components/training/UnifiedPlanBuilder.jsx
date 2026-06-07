@@ -20,6 +20,7 @@ import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificati
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { createDuplicatedExecution, readSectionRating } from "@/lib/workoutExecutionApi";
+import { saveSetActual } from "@/lib/plannedSets";
 
 // End-of-workout multi-select chips. Stored verbatim into
 // workout_executions.feedback_chips (TEXT[]).
@@ -422,6 +423,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // re-opening an in-progress workout doesn't fork the execution into
   // duplicates on the graph.
   const [currentExecutionId, setCurrentExecutionId] = useState(null);
+  // Mutex for the first-touch INSERT of workout_executions. A burst of
+  // rapid set fills (picker tap → close → tap → close) could otherwise
+  // each see currentExecutionId === null and race to INSERT, ending
+  // with two execution rows for the same trainee+plan+day. The ref
+  // holds the in-flight create promise so concurrent callers await
+  // the same id.
+  const executionCreatePromiseRef = useRef(null);
 
   // Per-set previous-performance + personal-record map for the trainee
   // view. Keyed by exercise.id → setIdx. Excludes the current execution
@@ -1136,6 +1144,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // weight_used / time_completed) AND flips done:true so the existing
   // 3s autosave + saveCompletedWorkout flow persists it through the
   // unchanged DB layer. A null value clears the set.
+  //
+  // Persistence layer (added post-audit): in addition to the local
+  // state mutation the autosave reads from, we fire saveSetActual
+  // IMMEDIATELY so a tab close < 3s after the picker tap doesn't
+  // drop the just-committed value. The pyramid/nested fill paths
+  // already do this; the single-rep path now matches. If no
+  // workout_executions row exists yet for this trainee+plan+day we
+  // INSERT one inline (mutex'd via executionCreatePromiseRef so a
+  // burst of taps can't fork into duplicate rows).
   const setSetValue = React.useCallback((exercise, setIdx, value, mode) => {
     const exId = exercise.id;
     const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
@@ -1163,7 +1180,73 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     } else if (!exerciseFullyDone && exercise.completed) {
       handleToggleComplete(exercise);
     }
-  }, [setLogs, handleToggleComplete]);
+
+    // Fire-and-forget immediate DB write. Keeps the UI snappy (state
+    // mutation already happened) while guaranteeing the value lives
+    // in exercise_set_logs before a tab close could drop it. Errors
+    // surface to the console only — the 3s autosave is the recovery
+    // path if this transient write fails.
+    (async () => {
+      const traineeId = plan?.assigned_to || plan?.created_by;
+      if (!traineeId || !plan?.id || !exercise?.id) return;
+      try {
+        // Ensure execution row exists; mutex via promise ref so a
+        // burst of fills shares one INSERT instead of racing.
+        let execId = currentExecutionId;
+        if (!execId) {
+          if (!executionCreatePromiseRef.current) {
+            executionCreatePromiseRef.current = (async () => {
+              const { data, error } = await supabase
+                .from('workout_executions')
+                .insert({
+                  trainee_id: traineeId,
+                  workout_template_id: plan.id,
+                  plan_id: plan.id,
+                  executed_at: new Date().toISOString(),
+                  section_ratings: {},
+                  self_rating: null,
+                })
+                .select()
+                .single();
+              if (error || !data?.id) {
+                executionCreatePromiseRef.current = null;
+                return null;
+              }
+              setCurrentExecutionId(data.id);
+              return data.id;
+            })();
+          }
+          execId = await executionCreatePromiseRef.current;
+        }
+        if (!execId) return;
+
+        // saveSetActual writes drill_index=0 (single-exercise path)
+        // and set_number 1-based. payload uses the pyramid-shaped
+        // keys (reps / hold_seconds / weight_kg) — mapped from mode.
+        const payload = {};
+        if (mode === 'seconds' || mode === 'time') {
+          payload.hold_seconds = isClear ? null : value;
+        } else if (mode === 'kg' || mode === 'weight') {
+          payload.weight_kg = isClear ? null : value;
+        } else {
+          payload.reps = isClear ? null : value;
+        }
+        const { error: saveErr } = await saveSetActual(
+          supabase,
+          execId,
+          exercise.id,
+          0,
+          setIdx + 1,
+          payload,
+        );
+        if (saveErr) {
+          console.warn('[UPB] immediate saveSetActual failed (autosave will retry):', saveErr.message || saveErr);
+        }
+      } catch (e) {
+        console.warn('[UPB] immediate set persist threw:', e?.message || e);
+      }
+    })();
+  }, [setLogs, handleToggleComplete, currentExecutionId, plan?.id, plan?.assigned_to, plan?.created_by]);
 
   // List-variant per-drill-per-set toggle. Maintains drillSetLogs and
   // — like toggleSetDone — flips exercise.completed when every (drill,
