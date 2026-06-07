@@ -21,6 +21,7 @@ import FastAttendanceDialog from "../components/groups/FastAttendanceDialog";
 import PlanFormDialog from "../components/training/PlanFormDialog";
 import TraineeNoteDialog from "../components/groups/TraineeNoteDialog";
 import CreateGroupDialog from "../components/groups/CreateGroupDialog";
+import MemberEligibilityDialog from "../components/groups/MemberEligibilityDialog";
 import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
 import NewRecordDialog from "../components/forms/NewRecordDialog";
 import { openBaselineDialog } from "../components/forms/BaselineFormDialog";
@@ -117,6 +118,11 @@ export default function AllUsers() {
   // members, color). Writes to the SAME training_groups table the
   // Sessions tab reads from so the result appears in both views.
   const [showCreateGroupFull, setShowCreateGroupFull] = useState(false);
+  // Per-member weekly eligibility (allowed_days / weekly_quota) editor
+  // — opened from the per-member action sheet. Holds the full
+  // training_group_members row so the dialog can prefill from the
+  // current values without an extra fetch.
+  const [eligibilityForMember, setEligibilityForMember] = useState(null);
 
   // Service-type filter (multi-select). Values are the canonical
   // English keys returned by normalizeServiceType — 'personal' /
@@ -1445,9 +1451,18 @@ export default function AllUsers() {
                       role="button"
                       tabIndex={0}
                       onClick={() => {
+                        // Pass the full membership row through so the
+                        // eligibility editor below can prefill from the
+                        // existing allowed_days / weekly_quota without
+                        // a second fetch. Note + measure + PR ignore
+                        // those extra keys (they only read trainee_id +
+                        // trainee_name).
                         setSelectedMember({
+                          id: m.id,
                           trainee_id: m.trainee_id,
                           trainee_name: m.trainee_name,
+                          allowed_days: m.allowed_days,
+                          weekly_quota: m.weekly_quota,
                         });
                         setMemberActionOpen(true);
                       }}
@@ -1455,8 +1470,11 @@ export default function AllUsers() {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           setSelectedMember({
+                            id: m.id,
                             trainee_id: m.trainee_id,
                             trainee_name: m.trainee_name,
+                            allowed_days: m.allowed_days,
+                            weekly_quota: m.weekly_quota,
                           });
                           setMemberActionOpen(true);
                         }
@@ -1805,6 +1823,13 @@ export default function AllUsers() {
                   onClick: () => { setMemberActionOpen(false); setNoteForMember(true); },
                 },
                 {
+                  icon: '🗓️', label: 'זכאות שבועית',
+                  onClick: () => {
+                    setMemberActionOpen(false);
+                    setEligibilityForMember(selectedMember);
+                  },
+                },
+                {
                   icon: '👤', label: 'פתח פרופיל', primary: true,
                   onClick: () => {
                     setMemberActionOpen(false);
@@ -1890,6 +1915,16 @@ export default function AllUsers() {
             }
           />
         )}
+
+        {/* Per-member weekly eligibility editor — opened from the
+            per-member action sheet on a group's detail screen. Edits
+            allowed_days + weekly_quota on the membership row; the
+            attendance dialog reads these to compute its informational
+            tags. */}
+        <MemberEligibilityDialog
+          member={eligibilityForMember}
+          onClose={() => setEligibilityForMember(null)}
+        />
 
         {/* Comprehensive "+ קבוצה חדשה" dialog — opens from the
             primary CTA at the top of the groups hub. Writes to the

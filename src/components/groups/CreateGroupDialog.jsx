@@ -102,24 +102,101 @@ export default function CreateGroupDialog({
     return next;
   });
 
-  // Section 5 — members
+  // Section 5 — members + per-member eligibility
+  // eligibilityByTrainee shape:
+  //   { [trainee_id]: { model: 'none'|'days'|'quota',
+  //                     allowed_days: Set<weekdayKey>,
+  //                     weekly_quota: number } }
+  // Default for any selected trainee that isn't in the map: 'none'.
+  // When persisted, model→{allowed_days, weekly_quota} mapping is:
+  //   none   → both null
+  //   days   → allowed_days = Array.from(set); weekly_quota = null
+  //   quota  → allowed_days = null;            weekly_quota = number
   const [selectedTrainees, setSelectedTrainees] = useState(() => new Set());
+  const [eligibilityByTrainee, setEligibilityByTrainee] = useState({});
+  const [eligibilityExpanded, setEligibilityExpanded] = useState(() => new Set());
   const [traineeSearch, setTraineeSearch] = useState('');
+
+  // When the coach selects a trainee for the first time and the group
+  // already has active_days set, pre-fill the member's allowed_days as
+  // a convenience (the coach can change the model below). When the
+  // group has no schedule, default model='none' (no restriction).
+  const ensureEligibilityDefaults = (traineeId) => {
+    setEligibilityByTrainee((prev) => {
+      if (prev[traineeId]) return prev;
+      const next = { ...prev };
+      if (activeDays.size > 0) {
+        next[traineeId] = {
+          model: 'days',
+          allowed_days: new Set(activeDays),
+          weekly_quota: 1,
+        };
+      } else {
+        next[traineeId] = {
+          model: 'none',
+          allowed_days: new Set(),
+          weekly_quota: 1,
+        };
+      }
+      return next;
+    });
+  };
+  const setEligibilityModel = (traineeId, model) => {
+    setEligibilityByTrainee((prev) => ({
+      ...prev,
+      [traineeId]: {
+        ...(prev[traineeId] || { model: 'none', allowed_days: new Set(), weekly_quota: 1 }),
+        model,
+      },
+    }));
+  };
+  const toggleEligibilityDay = (traineeId, dayKey) => {
+    setEligibilityByTrainee((prev) => {
+      const cur = prev[traineeId] || { model: 'days', allowed_days: new Set(), weekly_quota: 1 };
+      const nextDays = new Set(cur.allowed_days);
+      if (nextDays.has(dayKey)) nextDays.delete(dayKey); else nextDays.add(dayKey);
+      return { ...prev, [traineeId]: { ...cur, allowed_days: nextDays } };
+    });
+  };
+  const setEligibilityQuota = (traineeId, q) => {
+    const n = Math.max(1, Math.min(7, Number(q) || 1));
+    setEligibilityByTrainee((prev) => ({
+      ...prev,
+      [traineeId]: {
+        ...(prev[traineeId] || { model: 'quota', allowed_days: new Set(), weekly_quota: 1 }),
+        weekly_quota: n,
+      },
+    }));
+  };
+  const toggleExpand = (traineeId) => {
+    setEligibilityExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(traineeId)) next.delete(traineeId); else next.add(traineeId);
+      return next;
+    });
+  };
   const filteredTrainees = useMemo(() => {
     const q = traineeSearch.trim().toLowerCase();
     if (!q) return trainees;
     return trainees.filter((t) => (t.full_name || '').toLowerCase().includes(q));
   }, [trainees, traineeSearch]);
-  const toggleTrainee = (id) => setSelectedTrainees((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const toggleTrainee = (id) => {
+    setSelectedTrainees((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    // Seed eligibility defaults the first time this trainee is picked
+    // so the small per-member control has something to render.
+    ensureEligibilityDefaults(id);
+  };
   const toggleAllTrainees = () => {
     if (selectedTrainees.size === filteredTrainees.length && filteredTrainees.length > 0) {
       setSelectedTrainees(new Set());
     } else {
-      setSelectedTrainees(new Set(filteredTrainees.map((t) => t.id)));
+      const all = new Set(filteredTrainees.map((t) => t.id));
+      setSelectedTrainees(all);
+      for (const id of all) ensureEligibilityDefaults(id);
     }
   };
 
@@ -133,6 +210,7 @@ export default function CreateGroupDialog({
     setContactName(''); setContactPhone(''); setContactRole('');
     setActiveDays(new Set()); setSessionTime('');
     setSelectedTrainees(new Set()); setTraineeSearch('');
+    setEligibilityByTrainee({}); setEligibilityExpanded(new Set());
     setNotes('');
   };
 
@@ -163,15 +241,34 @@ export default function CreateGroupDialog({
       // Members — per-member try/catch so a single failure doesn't
       // abort the rest. Reuses the same TrainingGroupMember entity
       // Sessions.jsx + the AllUsers selection flow already use.
+      //
+      // Eligibility columns (allowed_days / weekly_quota) are
+      // additive nullable on training_group_members. base44's
+      // column-retry budget silently drops them pre-migration, so
+      // membership rows still land even before the SQL runs.
       const ids = Array.from(selectedTrainees);
       const failures = [];
       for (const traineeId of ids) {
         const trainee = (trainees || []).find((t) => t.id === traineeId);
+        const elig = eligibilityByTrainee[traineeId] || { model: 'none' };
+        let allowed_days = null;
+        let weekly_quota = null;
+        if (elig.model === 'days') {
+          allowed_days = elig.allowed_days && elig.allowed_days.size > 0
+            ? Array.from(elig.allowed_days)
+            : null;
+        } else if (elig.model === 'quota') {
+          weekly_quota = Number.isFinite(Number(elig.weekly_quota))
+            ? Number(elig.weekly_quota)
+            : null;
+        }
         try {
           await base44.entities.TrainingGroupMember.create({
             group_id: newGroup.id,
             trainee_id: traineeId,
             trainee_name: trainee?.full_name || '',
+            allowed_days,
+            weekly_quota,
           });
         } catch (e) {
           console.warn('[CreateGroupDialog] add member failed:', traineeId, e?.message);
@@ -450,37 +547,187 @@ export default function CreateGroupDialog({
             ) : (
               filteredTrainees.map((t) => {
                 const sel = selectedTrainees.has(t.id);
+                const elig = eligibilityByTrainee[t.id] || { model: 'none', allowed_days: new Set(), weekly_quota: 1 };
+                const expanded = eligibilityExpanded.has(t.id);
+                // Summary chip text — keeps the row tight when the
+                // editor is collapsed so the coach can scan many
+                // members at once.
+                const summary = elig.model === 'days'
+                  ? (elig.allowed_days.size > 0
+                      ? `ימים: ${Array.from(elig.allowed_days).map(k => WEEK_DAYS.find(d => d.key === k)?.label || k).join(', ')}`
+                      : 'ימים: לא נבחרו')
+                  : elig.model === 'quota'
+                    ? `מכסה שבועית: ${elig.weekly_quota}`
+                    : 'ללא הגבלה';
                 return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => toggleTrainee(t.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      width: '100%', padding: '10px 12px',
-                      background: sel ? '#FFF5EE' : 'transparent',
-                      border: 'none', borderBottom: '1px solid #F0F0F0',
-                      cursor: 'pointer', textAlign: 'right',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <div style={{
-                      width: 20, height: 20, borderRadius: 6,
-                      border: sel ? `2px solid ${ORANGE}` : '2px solid #CCC',
-                      background: sel ? ORANGE : 'white',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      {sel && <Check size={12} color="white" strokeWidth={3} />}
+                  <div key={t.id} style={{
+                    borderBottom: '1px solid #F0F0F0',
+                    background: sel ? '#FFF5EE' : 'transparent',
+                  }}>
+                    {/* Row 1 — selection toggle (whole row clickable) */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleTrainee(t.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTrainee(t.id); }
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{
+                        width: 20, height: 20, borderRadius: 6,
+                        border: sel ? `2px solid ${ORANGE}` : '2px solid #CCC',
+                        background: sel ? ORANGE : 'white',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {sel && <Check size={12} color="white" strokeWidth={3} />}
+                      </div>
+                      <span style={{
+                        fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                        flex: 1, minWidth: 0,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {t.full_name || 'מתאמן'}
+                      </span>
                     </div>
-                    <span style={{
-                      fontSize: 13, fontWeight: 600, color: '#1a1a1a',
-                      flex: 1, minWidth: 0,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {t.full_name || 'מתאמן'}
-                    </span>
-                  </button>
+
+                    {/* Row 2 — per-member eligibility (collapsed → tap to expand). Only when selected. */}
+                    {sel && (
+                      <div style={{ padding: '0 12px 10px 12px' }}>
+                        {!expanded ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleExpand(t.id); }}
+                            style={{
+                              width: '100%',
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              padding: '6px 10px', borderRadius: 8,
+                              background: 'white', border: `1px dashed ${BORDER}`,
+                              fontSize: 11, fontWeight: 600, color: '#9A6A3A',
+                              cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            <span>⚙ זכאות · {summary}</span>
+                            <span style={{ color: ORANGE }}>ערוך</span>
+                          </button>
+                        ) : (
+                          <div style={{
+                            background: 'white',
+                            border: `1px solid ${BORDER}`,
+                            borderRadius: 10,
+                            padding: 10,
+                          }}>
+                            {/* Model picker */}
+                            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                              {[
+                                { key: 'none',  label: 'ללא הגבלה' },
+                                { key: 'days',  label: 'ימים קבועים' },
+                                { key: 'quota', label: 'כמות שבועית' },
+                              ].map((opt) => {
+                                const active = elig.model === opt.key;
+                                return (
+                                  <button
+                                    key={opt.key}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setEligibilityModel(t.id, opt.key); }}
+                                    style={{
+                                      flex: 1,
+                                      padding: '6px 0', borderRadius: 8,
+                                      border: active ? `1px solid ${ORANGE}` : `1px solid ${BORDER}`,
+                                      background: active ? ORANGE : 'white',
+                                      color: active ? 'white' : '#666',
+                                      fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Body — days chips or quota stepper */}
+                            {elig.model === 'days' && (
+                              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                                {WEEK_DAYS.map((d) => {
+                                  const active = elig.allowed_days.has(d.key);
+                                  return (
+                                    <button
+                                      key={d.key}
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); toggleEligibilityDay(t.id, d.key); }}
+                                      style={{
+                                        flex: '1 1 calc(14% - 3px)', minWidth: 36,
+                                        padding: '6px 0', borderRadius: 6,
+                                        border: active ? `1px solid ${ORANGE}` : `1px solid ${BORDER}`,
+                                        background: active ? ORANGE : 'white',
+                                        color: active ? 'white' : '#666',
+                                        fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                      }}
+                                    >
+                                      {d.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {elig.model === 'quota' && (
+                              <div style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                fontSize: 12, color: '#1a1a1a',
+                              }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setEligibilityQuota(t.id, (elig.weekly_quota || 1) - 1); }}
+                                  disabled={(elig.weekly_quota || 1) <= 1}
+                                  style={{
+                                    width: 28, height: 28, borderRadius: 6,
+                                    border: `1px solid ${BORDER}`, background: 'white',
+                                    fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                                  }}
+                                >−</button>
+                                <span style={{ minWidth: 30, textAlign: 'center', fontWeight: 800 }}>
+                                  {elig.weekly_quota || 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setEligibilityQuota(t.id, (elig.weekly_quota || 1) + 1); }}
+                                  disabled={(elig.weekly_quota || 1) >= 7}
+                                  style={{
+                                    width: 28, height: 28, borderRadius: 6,
+                                    border: `1px solid ${BORDER}`, background: 'white',
+                                    fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                                  }}
+                                >+</button>
+                                <span style={{ fontSize: 11, color: '#888', marginRight: 6 }}>בשבוע</span>
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleExpand(t.id); }}
+                              style={{
+                                width: '100%',
+                                marginTop: 8,
+                                padding: '6px 0', borderRadius: 8,
+                                background: '#FAFAFA', border: `1px solid ${BORDER}`,
+                                fontSize: 11, fontWeight: 700, color: '#666',
+                                cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                            >
+                              סגור
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })
             )}

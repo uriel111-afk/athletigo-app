@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,6 +7,36 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/lib/supabaseClient';
+
+// JS `Date#getDay` returns 0..6 (Sunday..Saturday). The membership
+// `allowed_days` jsonb stores keys in the same order so the lookup is
+// a flat array index.
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+// Compute the Sunday-of-week boundary for a YYYY-MM-DD string. The
+// trainer market reads weeks Sun→Sat (not the ISO Mon→Sun convention),
+// so the "weekly quota" resets on Sunday locally. Returns null on a
+// bad input so the caller can fall through to "no quota in effect".
+function sundayWeekStart(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return null;
+  const day = d.getDay(); // 0 = Sunday
+  const start = new Date(d);
+  start.setDate(d.getDate() - day);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function sundayWeekEnd(dateStr) {
+  const start = sundayWeekStart(dateStr);
+  if (!start) return null;
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
 
 // Whole-group fast attendance — opens with one tap, mark members in
 // place, confirm creates a קבוצתי Session in a single round trip.
@@ -72,6 +102,89 @@ export default function FastAttendanceDialog({
   const members = group
     ? (groupMembers || []).filter((m) => m.group_id === group.id)
     : [];
+
+  // ── Eligibility — informational only ──────────────────────────
+  // Fetch every past session for this group so we can count how many
+  // times each member has been marked present/late in the same Sunday-
+  // week as the date being marked. One round-trip per group; the
+  // group_id filter keeps it small. Skipped when no group is mounted.
+  const { data: groupSessions = [] } = useQuery({
+    queryKey: ['group-session-history', group?.id],
+    queryFn: async () => {
+      if (!group?.id) return [];
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, date, participants')
+        .eq('group_id', group.id);
+      if (error) {
+        console.warn('[FastAttendance] history fetch failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!group?.id,
+    staleTime: 30_000,
+  });
+
+  // Per-member eligibility for the currently-marked date. Memoised
+  // against the inputs (date, members snapshot, history snapshot) so
+  // a coach typing in the location field doesn't re-walk the loop.
+  //
+  //   eligibility[trainee_id] = {
+  //     dayKey,
+  //     isEligibleByDay,
+  //     usedThisWeek,
+  //     weeklyQuota,
+  //     isWithinQuota,
+  //     warning,           // 'לא ביום זה' | 'חרגה מהמכסה' | null
+  //   }
+  //
+  // The warning is INFORMATIONAL — the save flow still accepts any
+  // status the coach picks. Eligibility never blocks a marking.
+  const eligibility = useMemo(() => {
+    const out = {};
+    if (!members.length || !date) return out;
+    const weekStart = sundayWeekStart(date);
+    const weekEnd = sundayWeekEnd(date);
+    const d = new Date(date + 'T00:00:00');
+    const dayKey = Number.isNaN(d.getTime()) ? null : WEEKDAY_KEYS[d.getDay()];
+
+    // Count this week's attended sessions per trainee. Hebrew status
+    // strings 'הגיע' / 'איחר' both count toward the quota — matching
+    // ATTENDANCE_STATUS.countsTowardQuota in src/lib/enums.js.
+    const usedByTrainee = new Map();
+    if (weekStart && weekEnd) {
+      for (const s of groupSessions || []) {
+        if (!s?.date) continue;
+        const sd = new Date(s.date + 'T00:00:00');
+        if (Number.isNaN(sd.getTime())) continue;
+        if (sd < weekStart || sd > weekEnd) continue;
+        for (const p of (s.participants || [])) {
+          if (p?.attendance_status === 'הגיע' || p?.attendance_status === 'איחר') {
+            usedByTrainee.set(p.trainee_id, (usedByTrainee.get(p.trainee_id) || 0) + 1);
+          }
+        }
+      }
+    }
+
+    for (const m of members) {
+      const allowed = Array.isArray(m.allowed_days) ? m.allowed_days : null;
+      const isEligibleByDay = !allowed?.length || (dayKey && allowed.includes(dayKey));
+      const weeklyQuota = Number.isFinite(Number(m.weekly_quota)) && Number(m.weekly_quota) > 0
+        ? Number(m.weekly_quota)
+        : null;
+      const usedThisWeek = usedByTrainee.get(m.trainee_id) || 0;
+      const isWithinQuota = weeklyQuota == null || usedThisWeek < weeklyQuota;
+      const warning = !isEligibleByDay
+        ? 'לא ביום זה'
+        : (!isWithinQuota ? 'חרגה מהמכסה' : null);
+      out[m.trainee_id] = {
+        dayKey, isEligibleByDay, weeklyQuota,
+        usedThisWeek, isWithinQuota, warning,
+      };
+    }
+    return out;
+  }, [members, date, groupSessions]);
 
   const statusConfig = [
     { key: 'הגיע',    color: '#16a34a', bg: '#dcfce7' },
@@ -194,6 +307,18 @@ export default function FastAttendanceDialog({
               <span>{presentCount} סומנו כהגיעו</span>
             </div>
 
+            {/* Informational legend — explains the amber tags below.
+                The tag never blocks marking; it just lets the coach
+                see at a glance whether the attendee paid for this
+                day/quota. */}
+            <div style={{
+              fontSize: 11, color: '#854F0B',
+              background: '#FAEEDA', border: '1px solid #F0D9A8',
+              borderRadius: 8, padding: '6px 10px', textAlign: 'right',
+            }}>
+              תגית כתומה = מחוץ לזכאות (אפשר לסמן בכל זאת)
+            </div>
+
             {/* Per-member attendance — same 4-status pattern as the
                 legacy attendance dialog. Default is 'הגיע' so the
                 coach only taps to mark exceptions. */}
@@ -205,6 +330,13 @@ export default function FastAttendanceDialog({
               ) : (
                 members.map((m) => {
                   const current = attendance[m.trainee_id] || 'הגיע';
+                  const elig = eligibility[m.trainee_id];
+                  const warning = elig?.warning;
+                  // Add a quota count to the "חרגה" tag so the coach
+                  // can see N/Q at a glance without expanding anything.
+                  const warningLabel = warning === 'חרגה מהמכסה' && elig?.weeklyQuota
+                    ? `חרגה מהמכסה · ${elig.usedThisWeek}/${elig.weeklyQuota}`
+                    : warning;
                   return (
                     <div
                       key={m.trainee_id}
@@ -215,9 +347,29 @@ export default function FastAttendanceDialog({
                       }}
                     >
                       <div style={{
-                        fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>{m.trainee_name}</div>
+                        flex: 1, minWidth: 0,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          minWidth: 0,
+                        }}>
+                          {m.trainee_name}
+                        </span>
+                        {warning && (
+                          <span style={{
+                            flexShrink: 0,
+                            fontSize: 10, fontWeight: 700,
+                            background: '#FAEEDA', color: '#854F0B',
+                            border: '1px solid #F0D9A8',
+                            padding: '2px 7px', borderRadius: 999,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {warningLabel}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', flexShrink: 0 }}>
                         {statusConfig.map((st) => {
                           const active = current === st.key;
