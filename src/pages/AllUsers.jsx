@@ -44,9 +44,16 @@ export default function AllUsers() {
   const STATUS_OPTIONS = ['onboarding', 'casual', 'active', 'suspended', 'former'];
   // Multi-select state — toggled by the "בחירה" header button. When
   // active, each card gets a checkbox + the floating MultiSelectBar
-  // surfaces bulk actions (status change, archive).
+  // surfaces bulk actions (status change, archive, create group).
   const sel = useMultiSelect();
   const [showBulkStatus, setShowBulkStatus] = useState(false);
+  // Group-creation flow: the bulk bar's "+ הקם קבוצה" action opens this
+  // dialog with the multi-selected trainees pre-locked as the members.
+  // Reuses the existing TrainingGroup / TrainingGroupMember entities
+  // (same path Sessions.jsx writes through) so no new schema/server work.
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [groupForm, setGroupForm] = useState({ name: '', description: '' });
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   // Status badge config — mirrors the canonical statuses on the
   // trainee profile page so the visual language is consistent
@@ -106,6 +113,72 @@ export default function AllUsers() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [statusMenuOpen]);
+
+  // Create a TrainingGroup with the currently-selected trainees as
+  // its initial members. Mirrors the path Sessions.jsx uses (same
+  // base44 entities, same field names) so the group lands in the same
+  // place the existing groups view + attendance flow already reads
+  // from — no schema or API change.
+  //
+  // Failure model: the group itself either lands or aborts the flow.
+  // Member adds run sequentially and collect per-trainee failures so
+  // we can surface "created with N/total members" instead of leaving
+  // the coach to guess what happened.
+  const handleCreateGroup = async () => {
+    const name = (groupForm.name || '').trim();
+    if (!name) { toast.error('נא למלא שם קבוצה'); return; }
+    if (sel.selectedCount === 0) { toast.error('לא נבחרו מתאמנים'); return; }
+
+    setCreatingGroup(true);
+    try {
+      const newGroup = await base44.entities.TrainingGroup.create({
+        name,
+        description: (groupForm.description || '').trim() || null,
+        coach_id: currentUser?.id || null,
+        coach_name: currentUser?.full_name || '',
+      });
+      if (!newGroup?.id) throw new Error('יצירת הקבוצה נכשלה');
+
+      const ids = Array.from(sel.selectedIds);
+      const failures = [];
+      for (const traineeId of ids) {
+        const trainee = (allTrainees || []).find((t) => t.id === traineeId);
+        try {
+          await base44.entities.TrainingGroupMember.create({
+            group_id: newGroup.id,
+            trainee_id: traineeId,
+            trainee_name: trainee?.full_name || '',
+          });
+        } catch (e) {
+          console.warn('[AllUsers] add group member failed:', traineeId, e?.message);
+          failures.push(trainee?.full_name || traineeId);
+        }
+      }
+
+      // Same invalidations Sessions.jsx fires so the groups view +
+      // realtime listeners reconcile immediately.
+      queryClient.invalidateQueries({ queryKey: ['training-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['group-members'] });
+
+      sel.clearSelection();
+      setShowCreateGroup(false);
+      setGroupForm({ name: '', description: '' });
+
+      const added = ids.length - failures.length;
+      if (failures.length === 0) {
+        toast.success(`✅ הקבוצה "${name}" נוצרה עם ${added} חברים`);
+      } else if (added > 0) {
+        toast.success(`הקבוצה "${name}" נוצרה (${added}/${ids.length}). נכשלו: ${failures.join(', ')}`);
+      } else {
+        toast.error('הקבוצה נוצרה אך הוספת החברים נכשלה — נסה להוסיף ידנית');
+      }
+    } catch (e) {
+      console.error('[AllUsers] create group failed:', e);
+      toast.error('שגיאה ביצירת הקבוצה: ' + (e?.message || 'נסה שוב'));
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
 
   // Persist a status change to users.client_status, then refresh the
   // shared caches so the badge + filter chips update without a manual
@@ -688,6 +761,13 @@ export default function AllUsers() {
           onCancel={sel.clearSelection}
           actions={[
             {
+              icon: '👥', label: 'הקם קבוצה', primary: true,
+              onClick: () => {
+                setGroupForm({ name: '', description: '' });
+                setShowCreateGroup(true);
+              },
+            },
+            {
               icon: '🔄', label: 'שנה סטטוס', primary: true,
               onClick: () => setShowBulkStatus(true),
             },
@@ -712,6 +792,112 @@ export default function AllUsers() {
             },
           ]}
         />
+
+        {/* Create-group dialog — opens from the bar's "+ הקם קבוצה" action.
+            Same overlay pattern as the bulk-status picker above so the
+            visual language stays consistent. Members are the already-
+            selected trainees; the dialog only asks for the group name +
+            optional description. */}
+        {showCreateGroup && (
+          <div
+            onClick={() => { if (!creatingGroup) setShowCreateGroup(false); }}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.4)', zIndex: 10000,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'white', borderRadius: 14, padding: 20,
+                maxWidth: 360, width: '90%', direction: 'rtl',
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, textAlign: 'center', color: '#1a1a1a' }}>
+                הקם קבוצה חדשה
+              </div>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 16, textAlign: 'center' }}>
+                {sel.selectedCount} מתאמנים יתווספו כחברים
+              </div>
+
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>
+                שם הקבוצה *
+              </label>
+              <input
+                type="text"
+                value={groupForm.name}
+                onChange={(e) => setGroupForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="לדוגמה: קבוצת בוקר"
+                disabled={creatingGroup}
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1.5px solid #F0E4D0',
+                  fontSize: 14, direction: 'rtl',
+                  background: creatingGroup ? '#F5F5F5' : 'white', outline: 'none',
+                  boxSizing: 'border-box', marginBottom: 12,
+                  fontFamily: 'inherit',
+                }}
+                autoFocus
+              />
+
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>
+                תיאור (אופציונלי)
+              </label>
+              <textarea
+                value={groupForm.description}
+                onChange={(e) => setGroupForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="הוסף תיאור קצר"
+                disabled={creatingGroup}
+                rows={2}
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1.5px solid #F0E4D0',
+                  fontSize: 13, direction: 'rtl',
+                  background: creatingGroup ? '#F5F5F5' : 'white', outline: 'none',
+                  boxSizing: 'border-box', marginBottom: 16,
+                  fontFamily: 'inherit', resize: 'vertical',
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateGroup(false)}
+                  disabled={creatingGroup}
+                  style={{
+                    flex: 1, padding: '11px 0', borderRadius: 12,
+                    border: '1px solid #F0E4D0', background: 'white',
+                    fontSize: 13, fontWeight: 700, color: '#666',
+                    cursor: creatingGroup ? 'default' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  ביטול
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateGroup}
+                  disabled={creatingGroup || !groupForm.name.trim()}
+                  style={{
+                    flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+                    background: (creatingGroup || !groupForm.name.trim()) ? '#D1D5DB' : '#FF6F20',
+                    color: 'white',
+                    fontSize: 13, fontWeight: 800,
+                    cursor: (creatingGroup || !groupForm.name.trim()) ? 'default' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {creatingGroup ? 'יוצר...' : 'צור קבוצה'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Bulk status picker — opens from the bar's "שנה סטטוס" action */}
         {showBulkStatus && (
