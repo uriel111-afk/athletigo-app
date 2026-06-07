@@ -29,6 +29,34 @@ export const calculateAge = (birthDate) => {
   return age >= 0 && age < 150 ? age : null;
 };
 
+// Days from today to the trainee's next birthday. Year is ignored —
+// only month + day matter — so a birthday tomorrow always returns 1
+// regardless of the trainee's age. Returns:
+//   0    on the actual birthday
+//   1-N  upcoming birthday this calendar year (or rolled into next)
+//   null when birth_date is missing / unparseable
+// Callers use this for the AllUsers coach-side pill (0-7 days) and
+// the trainee's own greeting banner (=== 0).
+export const daysUntilBirthday = (birthDate) => {
+  if (!birthDate) return null;
+  const b = new Date(birthDate);
+  if (Number.isNaN(b.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Build "next birthday" in the current year using the birth day +
+  // month. If it's already past today, roll it to next year. Both
+  // points are calendar-day boundaries so the diff lands on whole
+  // days without DST drift surprises.
+  let next = new Date(today.getFullYear(), b.getMonth(), b.getDate());
+  next.setHours(0, 0, 0, 0);
+  if (next < today) {
+    next = new Date(today.getFullYear() + 1, b.getMonth(), b.getDate());
+    next.setHours(0, 0, 0, 0);
+  }
+  const diffMs = next.getTime() - today.getTime();
+  return Math.round(diffMs / 86_400_000);
+};
+
 export const formatBirthWithAge = (user) => {
   if (!user) return '';
 

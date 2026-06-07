@@ -26,6 +26,7 @@ import PendingSessionsPopup from "../components/trainee/PendingSessionsPopup";
 import EntryNotificationsPopup from "../components/trainee/EntryNotificationsPopup";
 import ActivityHeatmap from "@/components/charts/ActivityHeatmap";
 import { useQueryClient } from "@tanstack/react-query";
+import { daysUntilBirthday } from "@/lib/dateHelpers";
 
 // "השיאים שלי" surface for the trainee home — pulls the latest
 // personal_records row + total PB count for this trainee. Renders
@@ -1084,6 +1085,31 @@ export default function TraineeHome() {
 
       <div className="min-h-screen pb-24 bg-[#F8F8F8]" dir="rtl" style={{ fontSize: 16 }}>
         <div className="max-w-4xl mx-auto">
+
+        {/* Birthday greeting — fires only on the actual day. Centered
+            amber banner at the very top, above the regular orange
+            greeting header so the trainee sees it the moment the
+            page opens. Any other day this renders nothing. */}
+        {daysUntilBirthday(user?.birth_date) === 0 && (
+          <div style={{
+            margin: '12px 14px',
+            padding: '14px 16px',
+            background: '#FAEEDA',
+            border: '1px solid #F0D9A8',
+            borderRadius: 14,
+            textAlign: 'center',
+            color: '#854F0B',
+            fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 6, lineHeight: 1 }} aria-hidden>🎂</div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
+              מזל טוב, {user?.full_name?.split(' ')[0] || 'מתאמן'}!
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
+              יום הולדת שמח — שתהיה לך שנה מדהימה
+            </div>
+          </div>
+        )}
 
         {/* Orange Header with greeting + quote */}
         <div style={{ background:'#FF6F20', borderRadius:'0 0 24px 24px', padding:'20px 18px 22px' }}>

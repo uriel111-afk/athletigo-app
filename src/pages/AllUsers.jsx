@@ -16,7 +16,7 @@ import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { normalizeStatus, isActivePackage } from "@/lib/enums";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
-import { calculateAge as calcAge, formatBirthWithAge } from "@/lib/dateHelpers";
+import { calculateAge as calcAge, formatBirthWithAge, daysUntilBirthday } from "@/lib/dateHelpers";
 import FastAttendanceDialog from "../components/groups/FastAttendanceDialog";
 import PlanFormDialog from "../components/training/PlanFormDialog";
 import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
@@ -713,53 +713,58 @@ export default function AllUsers() {
           </button>
         </div>
 
-        {/* Status filter chips — centered, wrap on overflow. Counts
-            stay in sync with the existing useMemo. */}
+        {/* Status filter row — single symmetric line: הכל / פעילים /
+            לא פעילים + "מתאמנים לשעבר" toggle. The "חבילה נגמרת" chip
+            was dropped from the row per redesign; the underlying
+            filterType='expiring' branch in filteredTrainees is left
+            intact so any other caller (e.g. deep links) still works
+            but no UI surfaces it now. flex-wrap kicks in only on
+            ultra-narrow viewports so the line normally fits on one row. */}
         <div style={{
           display: 'flex', gap: 6,
-          padding: '0 16px 8px',
+          padding: '0 16px 12px',
           flexWrap: 'wrap',
           justifyContent: 'center',
+          alignItems: 'center',
         }}>
           {[
-            { id: 'all',      label: 'הכל',          count: counts.all },
-            { id: 'active',   label: 'פעילים',       count: counts.active },
-            { id: 'expiring', label: 'חבילה נגמרת',  count: counts.expiring },
-            { id: 'inactive', label: 'לא פעילים',    count: counts.inactive },
+            { id: 'all',      label: 'הכל',        count: counts.all },
+            { id: 'active',   label: 'פעילים',     count: counts.active },
+            { id: 'inactive', label: 'לא פעילים',   count: counts.inactive },
           ].map(f => {
             const active = filterType === f.id;
             return (
               <div key={f.id} onClick={() => setFilterType(f.id)} style={{
+                flex: '1 1 0', minWidth: 80,
                 padding: '6px 12px', borderRadius: 20,
                 fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                whiteSpace: 'nowrap', flexShrink: 0,
+                whiteSpace: 'nowrap',
+                textAlign: 'center',
                 background: active ? '#FF6F20' : 'white',
                 color: active ? 'white' : '#888',
                 border: active ? 'none' : '1px solid #F0E4D0',
               }}>{f.label} ({f.count})</div>
             );
           })}
-        </div>
-
-        {/* Archived toggle — centered on its own row so the status
-            chips above stay symmetrical. */}
-        <div style={{
-          display: 'flex', justifyContent: 'center',
-          padding: '0 16px 12px',
-        }}>
+          {/* Former toggle — equal-width sibling so the row reads
+              symmetric. Label is short ("מתאמנים לשעבר") per the
+              redesign; the toggle behaviour (`showFormer` flips
+              former/suspended back into the list) is unchanged. */}
           <div
             onClick={() => setShowFormer((v) => !v)}
             style={{
-              padding: '6px 14px', borderRadius: 20,
+              flex: '1 1 0', minWidth: 100,
+              padding: '6px 12px', borderRadius: 20,
               fontSize: 11, fontWeight: 600, cursor: 'pointer',
               whiteSpace: 'nowrap',
+              textAlign: 'center',
               background: showFormer ? '#FEE2E2' : 'white',
               color: showFormer ? '#B91C1C' : '#888',
               border: showFormer ? '1px solid #FCA5A5' : '1px solid #F0E4D0',
             }}
             title={showFormer ? 'מציג גם לשעבר' : 'הצג גם לשעבר'}
           >
-            {showFormer ? '× לשעבר מוצגים' : 'הצג מתאמנים לשעבר'}
+            מתאמנים לשעבר
           </div>
         </div>
 
@@ -814,6 +819,13 @@ export default function AllUsers() {
           const isExpiring = !!pkg && remaining > 0 && remaining <= 2;
           const inactive = !pkg || remaining === 0;
           const initial = (t.full_name || '?').trim().charAt(0);
+          // Birthday spotlight — null when no DOB on file, integer
+          // days otherwise. 0 = today (filled pill + amber card
+          // border); 1-7 = soft pill + small cake icon. Everything
+          // else: no overlay at all.
+          const daysToBday = daysUntilBirthday(birthDate);
+          const isBdayToday = daysToBday === 0;
+          const isBdaySoon = daysToBday != null && daysToBday >= 1 && daysToBday <= 7;
 
           // Verify card numbers match the packages tab.
           if (typeof window !== 'undefined' && window.__DEBUG_TRAINEE_CARDS__) {
@@ -838,15 +850,57 @@ export default function AllUsers() {
                 margin: '0 12px 8px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                 cursor: 'pointer',
-                border: sel.isSelecting && sel.isSelected(t.id)
-                  ? '1.5px solid #FF6F20'
-                  : isExpiring
-                    ? '1.5px solid #EAB308'
-                    : pkg
-                      ? '1.5px solid #FF6F20'
-                      : '0.5px solid #F0E4D0',
+                // position:relative anchors the absolute birthday pill
+                // below — the existing card body inside is untouched.
+                position: 'relative',
+                // Birthday today wins priority over the package/expiring
+                // border so the spotlight is unmistakable.
+                border: isBdayToday
+                  ? '2px solid #EF9F27'
+                  : sel.isSelecting && sel.isSelected(t.id)
+                    ? '1.5px solid #FF6F20'
+                    : isExpiring
+                      ? '1.5px solid #EAB308'
+                      : pkg
+                        ? '1.5px solid #FF6F20'
+                        : '0.5px solid #F0E4D0',
               }}
             >
+              {/* Birthday pill — absolutely positioned overlay so the
+                  card's flow / fields are not touched. RTL anchors it
+                  at the right edge (logical start). The today variant
+                  is filled amber; the "soon" variant is soft amber. */}
+              {(isBdayToday || isBdaySoon) && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    top: -10,
+                    right: 14,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    background: isBdayToday ? '#EF9F27' : '#FAEEDA',
+                    color: isBdayToday ? 'white' : '#854F0B',
+                    border: isBdayToday ? '1px solid #EF9F27' : '1px solid #F0D9A8',
+                    boxShadow: '0 2px 6px rgba(239,159,39,0.18)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                  }}
+                >
+                  <span aria-hidden>🎂</span>
+                  {isBdayToday
+                    ? 'היום יום ההולדת!'
+                    : daysToBday === 1
+                      ? 'יום הולדת מחר'
+                      : `יום הולדת בעוד ${daysToBday} ימים`}
+                </div>
+              )}
+
               {/* Top row */}
               <div style={{
                 display: 'flex', alignItems: 'center',
