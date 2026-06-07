@@ -14,6 +14,14 @@
   "plugins": {
     "Camera": {
       "permissions": ["camera", "photos"]
+    },
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "backgroundColor": "#FFF9F0",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP",
+      "splashFullScreen": true,
+      "splashImmersive": true
     }
   }
 }

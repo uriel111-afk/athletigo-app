@@ -1,6 +1,23 @@
 <!doctype html>
 <html lang="he" dir="rtl">
   <head>
+    <!-- Instant cream cover — paints before browser fetches/decodes
+         anything else. Sits above all content for ~100ms to mask the
+         PWA splash handoff, then fades. -->
+    <style>
+      html { background: #FFF9F0 !important; }
+      body {
+        background: #FFF9F0 !important;
+        margin: 0;
+        padding: 0;
+      }
+      #instant-cover {
+        position: fixed;
+        inset: 0;
+        background: #FFF9F0;
+        z-index: 999999;
+      }
+    </style>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>AthletiGo — אפליקציית אימונים</title>
@@ -94,68 +111,20 @@
     </style>
   </head>
   <body style="margin:0;padding:0;background:#FFF9F0;">
-    <!-- Pre-React splash — paints the same cream + black logo + orange
-         bar that PageLoader.jsx shows, so the cold-load handoff into
-         React is invisible. Removed on window.load. -->
-    <div id="pre-loader" style="
-      position: fixed;
-      inset: 0;
-      background: #FFF9F0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 99999;
-      gap: 24px;
-    ">
-      <img
-        src="/logoR-black.png"
-        alt="AthletiGo"
-        style="width: 180px; height: auto; opacity: 0.9;"
-        onerror="this.style.display='none'"
-      />
-      <div style="
-        width: 200px;
-        height: 4px;
-        background: #F0E4D0;
-        border-radius: 2px;
-        overflow: hidden;
-      ">
-        <div id="pre-loader-bar" style="
-          height: 100%;
-          width: 0%;
-          background: #FF6F20;
-          border-radius: 2px;
-          transition: width 0.3s ease;
-        "></div>
-      </div>
-    </div>
-
+    <div id="instant-cover"></div>
     <script>
-      (function () {
-        var bar = document.getElementById('pre-loader-bar');
-        var loader = document.getElementById('pre-loader');
-        var progress = 0;
-        var interval = setInterval(function () {
-          progress += Math.random() * 15;
-          if (progress > 85) progress = 85;
-          if (bar) bar.style.width = progress + '%';
-        }, 200);
-
-        window.addEventListener('load', function () {
-          clearInterval(interval);
-          if (bar) bar.style.width = '100%';
-          setTimeout(function () {
-            if (loader) {
-              loader.style.opacity = '0';
-              loader.style.transition = 'opacity 0.3s ease';
-              setTimeout(function () {
-                if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
-              }, 300);
-            }
-          }, 300);
-        });
-      })();
+      document.addEventListener('DOMContentLoaded', function() {
+        var cover = document.getElementById('instant-cover');
+        if (cover) {
+          setTimeout(function() {
+            cover.style.transition = 'opacity 0.2s ease';
+            cover.style.opacity = '0';
+            setTimeout(function() {
+              if (cover.parentNode) cover.parentNode.removeChild(cover);
+            }, 200);
+          }, 100);
+        }
+      });
     </script>
 
     <div id="root"></div>
