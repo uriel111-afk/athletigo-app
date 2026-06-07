@@ -123,6 +123,33 @@ button:focus-visible {
     --athletigo-orange-soft: rgba(255, 111, 32, 0.1);
     --athletigo-dark: #111111;
     --athletigo-gray: #F5F5F5;
+
+    /* AthletiGo "Lumen" visual language — colors, background, shadows.
+       Scoped via .lumen-dashboard wrapper so other screens are unaffected
+       until they opt in. */
+    --ag-bg: #FBF3EA;
+    --ag-surface: #FFFFFF;
+    --ag-text-primary: #1F1A14;
+    --ag-text-secondary: #9A9082;
+    --ag-text-faint: #C0B6A7;
+    --ag-orange: #FF6F20;
+    --ag-orange-soft: #FF8A3D;
+    --ag-black: #1A1A1A;
+    --ag-line: rgba(120, 95, 60, 0.10);
+    --ag-track: rgba(120, 95, 60, 0.10);
+    --ag-grad-orange: linear-gradient(135deg, #FF8A3D 0%, #FF6F20 100%);
+    --ag-grad-black: linear-gradient(150deg, #2B2B2B 0%, #141414 100%);
+    --ag-grad-progress: linear-gradient(90deg, #FF8A3D, #FF6F20);
+    --ag-shadow-low: 0 1px 2px rgba(78,54,30,0.05), 0 2px 5px rgba(78,54,30,0.05);
+    --ag-shadow-med: 0 1px 2px rgba(78,54,30,0.05), 0 7px 16px -8px rgba(78,54,30,0.15);
+    --ag-shadow-high: 0 1px 3px rgba(78,54,30,0.05), 0 14px 26px -14px rgba(78,54,30,0.18);
+    --ag-shadow-orange: 0 8px 20px -6px rgba(255,111,32,0.40), 0 2px 6px rgba(255,111,32,0.28);
+    --ag-shadow-black: 0 10px 24px -8px rgba(18,18,18,0.38), 0 2px 6px rgba(18,18,18,0.20);
+    --ag-radius-card: 26px;
+    --ag-radius-cta: 24px;
+    --ag-radius-tab: 30px;
+    --ag-radius-icon-btn: 15px;
+    --ag-radius-bar: 4px;
   }
 
   * {
@@ -244,3 +271,57 @@ button:focus-visible {
 }
 
 .trainees-scroll::-webkit-scrollbar { display: none; }
+
+/* ── Lumen scope ─────────────────────────────────────────────────────
+   Applied as className="lumen-dashboard" on the COACH HOME screens
+   ONLY (CoachHub + Dashboard). Provides the cream halo background
+   with soft orange ambient glows + helper classes for cards/CTAs.
+   Every selector is scoped under .lumen-dashboard so adding the
+   class to another screen would be the only way to opt in. */
+.lumen-dashboard {
+  background-color: var(--ag-bg);
+  background-image:
+    radial-gradient(120% 70% at 50% 0%, #FFFBF5, rgba(255,251,245,0) 56%),
+    radial-gradient(circle at top right, rgba(255,138,61,0.09), transparent 66%),
+    radial-gradient(circle at bottom left, rgba(255,111,32,0.05), transparent 68%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.lumen-dashboard .lumen-card {
+  background: var(--ag-surface);
+  border-radius: var(--ag-radius-card);
+  box-shadow: var(--ag-shadow-high);
+  border: 1px solid var(--ag-line);
+}
+.lumen-dashboard .lumen-card-soft {
+  background: var(--ag-surface);
+  border-radius: var(--ag-radius-card);
+  box-shadow: var(--ag-shadow-med);
+  border: 1px solid var(--ag-line);
+}
+.lumen-dashboard .lumen-cta-orange {
+  background: var(--ag-grad-orange);
+  box-shadow: var(--ag-shadow-orange);
+  border-radius: var(--ag-radius-cta);
+  color: #FFFFFF;
+  border: none;
+}
+.lumen-dashboard .lumen-cta-black {
+  background: var(--ag-grad-black);
+  box-shadow: var(--ag-shadow-black);
+  border-radius: var(--ag-radius-cta);
+  color: #FFFFFF;
+  border: none;
+}
+.lumen-dashboard .lumen-progress-track {
+  background: var(--ag-track);
+  border-radius: var(--ag-radius-bar);
+  overflow: hidden;
+}
+.lumen-dashboard .lumen-progress-fill {
+  background: var(--ag-grad-progress);
+  border-radius: var(--ag-radius-bar);
+  height: 100%;
+}

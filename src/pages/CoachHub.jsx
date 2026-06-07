@@ -209,12 +209,23 @@ export default function CoachHub() {
     pendingTasks: pendingTasksCount,
   });
 
+  // Lumen card style — replaces LIFEOS_CARD on this screen only so
+  // other LifeOS pages keep their existing look. White surface +
+  // hairline + the "high" floating shadow over the cream halo
+  // background gives the new white-glow aesthetic.
+  const LUMEN_CARD = {
+    backgroundColor: 'var(--ag-surface)',
+    borderRadius: 'var(--ag-radius-card)',
+    border: '1px solid var(--ag-line)',
+    boxShadow: 'var(--ag-shadow-high)',
+    padding: 16,
+  };
+
   return (
     <div
       dir="rtl"
+      className="lumen-dashboard"
       style={{
-        minHeight: '100dvh',
-        backgroundColor: LIFEOS_COLORS.bg,
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         padding: '24px 16px 40px',
       }}
@@ -325,17 +336,17 @@ export default function CoachHub() {
           })}
         </div>
 
-        {/* Daily Focus Card */}
+        {/* Daily Focus Card — primary orange CTA, Lumen-skinned */}
         <div
           onClick={() => navigate(focus.href)}
           style={{
-            backgroundColor: LIFEOS_COLORS.primary,
-            borderRadius: 14,
+            background: 'var(--ag-grad-orange)',
+            borderRadius: 'var(--ag-radius-cta)',
             padding: 16,
             color: '#FFFFFF',
             marginBottom: 16,
             cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(255,111,32,0.25)',
+            boxShadow: 'var(--ag-shadow-orange)',
             display: 'flex', alignItems: 'center', gap: 12,
           }}
         >
@@ -352,8 +363,8 @@ export default function CoachHub() {
         </div>
 
         {/* ── Overview KPIs — across all 3 apps ──────────────────── */}
-        <div style={{ ...LIFEOS_CARD, marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 10 }}>
+        <div style={{ ...LUMEN_CARD, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ag-text-primary)', marginBottom: 10 }}>
             🌐 מבט על הכל
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
@@ -404,7 +415,7 @@ export default function CoachHub() {
           });
           if (!loaded || items.length === 0) return null;
           return (
-            <div style={{ ...LIFEOS_CARD, marginBottom: 14 }}>
+            <div style={{ ...LUMEN_CARD, marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.error, marginBottom: 10 }}>
                 🚨 דורש תשומת לב
               </div>
@@ -433,8 +444,8 @@ export default function CoachHub() {
         })()}
 
         {/* Monthly snapshot */}
-        <div style={{ ...LIFEOS_CARD, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: LIFEOS_COLORS.textSecondary, marginBottom: 10 }}>
+        <div style={{ ...LUMEN_CARD, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ag-text-secondary)', marginBottom: 10 }}>
             סיכום החודש
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
@@ -449,11 +460,11 @@ export default function CoachHub() {
         </div>
 
         {/* Recent tasks */}
-        <div style={{ ...LIFEOS_CARD }}>
+        <div style={{ ...LUMEN_CARD }}>
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10,
           }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: LIFEOS_COLORS.textSecondary }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ag-text-secondary)' }}>
               משימות ממתינות
             </div>
             <button
@@ -479,8 +490,10 @@ export default function CoachHub() {
                   onClick={() => navigate('/lifeos/tasks')}
                   style={{
                     padding: '10px 12px',
-                    borderRadius: 12,
-                    backgroundColor: '#F7F3EC',
+                    borderRadius: 14,
+                    background: 'var(--ag-surface)',
+                    border: '1px solid var(--ag-line)',
+                    boxShadow: 'var(--ag-shadow-med)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
@@ -566,14 +579,17 @@ function KpiCard({ label, value, delta, invertDeltaColor }) {
   const arrow = !hasDelta ? null : delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
   const positive = hasDelta && (goodWhenUp ? delta > 0 : delta > 0);
   const negative = hasDelta && (goodWhenUp ? delta < 0 : delta < 0);
-  const color = positive ? LIFEOS_COLORS.success : negative ? LIFEOS_COLORS.error : LIFEOS_COLORS.textSecondary;
+  const color = positive ? LIFEOS_COLORS.success : negative ? LIFEOS_COLORS.error : 'var(--ag-text-secondary)';
   return (
     <div style={{
-      padding: '10px 8px', borderRadius: 10,
-      backgroundColor: '#F7F3EC', textAlign: 'center',
+      padding: '10px 8px', borderRadius: 14,
+      background: 'var(--ag-surface)',
+      border: '1px solid var(--ag-line)',
+      boxShadow: 'var(--ag-shadow-med)',
+      textAlign: 'center',
     }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: LIFEOS_COLORS.textSecondary }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, marginTop: 2 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--ag-text-secondary)' }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ag-text-primary)', marginTop: 2 }}>
         {value}
       </div>
       {hasDelta && (
@@ -591,11 +607,13 @@ function StatBlock({ label, value, color }) {
   return (
     <div style={{
       padding: '10px 8px',
-      borderRadius: 10,
-      backgroundColor: '#F7F3EC',
+      borderRadius: 14,
+      background: 'var(--ag-surface)',
+      border: '1px solid var(--ag-line)',
+      boxShadow: 'var(--ag-shadow-med)',
       textAlign: 'center',
     }}>
-      <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--ag-text-secondary)', fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color, marginTop: 2 }}>
         {fmt(value)}₪
       </div>
@@ -609,9 +627,11 @@ function EmptyHint({ text }) {
       padding: '14px 10px',
       textAlign: 'center',
       fontSize: 13,
-      color: LIFEOS_COLORS.textSecondary,
-      backgroundColor: '#F7F3EC',
-      borderRadius: 12,
+      color: 'var(--ag-text-secondary)',
+      background: 'var(--ag-surface)',
+      border: '1px solid var(--ag-line)',
+      boxShadow: 'var(--ag-shadow-med)',
+      borderRadius: 14,
     }}>
       {text}
     </div>

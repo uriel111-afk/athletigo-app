@@ -47,9 +47,10 @@ const SectionHeader = ({ title }) => (
   </div>
 );
 
-const BG = {
-  backgroundColor: "#FDF8F3",
-};
+// The cream halo background + soft orange ambient glows now live in
+// the `.lumen-dashboard` CSS scope (index.css). The empty BG object
+// is kept so any leftover style spreads (none currently) stay safe.
+const BG = {};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -354,7 +355,7 @@ export default function Dashboard() {
           fetching anything). */}
       <PopupNotificationManager />
 
-      <div className="flex flex-col" dir="rtl" style={BG}>
+      <div className="flex flex-col lumen-dashboard" dir="rtl" style={BG}>
         {/* Inner column — fills the viewport (minHeight, not height)
             so each section keeps its intrinsic size. The earlier
             "height + overflow:hidden" lock was squishing the diamond
@@ -380,7 +381,7 @@ export default function Dashboard() {
               textAlign: 'right',
               fontSize: 17,
               fontWeight: 700,
-              color: '#1a1a1a',
+              color: 'var(--ag-text-primary)',
               margin: '8px 16px 12px',
               fontFamily: "'Bebas Neue', sans-serif",
               // Stays above the diamond layer so the rotated 115×115
@@ -417,23 +418,25 @@ export default function Dashboard() {
                 key={`${btn.line1}-${btn.line2}`}
                 onClick={btn.onClick}
                 onMouseEnter={(e) => {
+                  // Floating-card lift on hover. Mirrors --ag-shadow-high
+                  // but slightly deeper to read as an active state.
                   e.currentTarget.style.boxShadow =
-                    '0 10px 24px rgba(255, 111, 32, 0.18), 0 4px 8px rgba(0, 0, 0, 0.08)';
+                    '0 1px 3px rgba(78,54,30,0.06), 0 18px 32px -14px rgba(78,54,30,0.24)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow =
-                    '0 6px 16px rgba(255, 111, 32, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06)';
+                  e.currentTarget.style.boxShadow = 'var(--ag-shadow-high)';
                 }}
                 style={{
                   position: 'absolute',
                   width: 110, height: 110,
-                  background: 'white',
-                  borderRadius: 14,
-                  // Layered shadow — orange halo (brand) under a
-                  // crisper black drop, gives the diamond a sense of
-                  // depth without competing with the page surface.
-                  boxShadow: '0 6px 16px rgba(255, 111, 32, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06)',
-                  border: 'none',
+                  background: 'var(--ag-surface)',
+                  borderRadius: 'var(--ag-radius-icon-btn)',
+                  // Lumen: white surface + soft layered shadow over the
+                  // cream halo background creates the "floating white
+                  // card" look. No more brand-orange glow on every tile
+                  // — that drag has moved to true CTAs only.
+                  boxShadow: 'var(--ag-shadow-high)',
+                  border: '1px solid var(--ag-line)',
                   cursor: 'pointer',
                   padding: 0,
                   overflow: 'visible',
@@ -457,7 +460,7 @@ export default function Dashboard() {
                   <div style={{
                     fontSize: 14,
                     fontWeight: 700,
-                    color: '#1a1a1a',
+                    color: 'var(--ag-text-primary)',
                     lineHeight: 1.15,
                     textAlign: 'center',
                     whiteSpace: 'nowrap',
@@ -592,7 +595,7 @@ export default function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
-                fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+                fontSize: 14, fontWeight: 700, color: 'var(--ag-text-primary)',
                 fontFamily: "'Bebas Neue', sans-serif",
               }}>
                 גישה מהירה
@@ -638,10 +641,12 @@ export default function Dashboard() {
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
                       height: 78,
-                      background: 'white',
-                      borderRadius: 12,
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                      border: 'none',
+                      // Lumen: secondary card → white surface + med
+                      // shadow + hairline for a subtle floating feel.
+                      background: 'var(--ag-surface)',
+                      borderRadius: 'var(--ag-radius-icon-btn)',
+                      boxShadow: 'var(--ag-shadow-med)',
+                      border: '1px solid var(--ag-line)',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -656,7 +661,7 @@ export default function Dashboard() {
                     <IconComp size={26} color={q.color} strokeWidth={2} />
                     <span style={{
                       fontSize: 11, fontWeight: 700,
-                      color: '#1a1a1a', textAlign: 'center',
+                      color: 'var(--ag-text-primary)', textAlign: 'center',
                       lineHeight: 1.2,
                     }}>
                       {q.label}
