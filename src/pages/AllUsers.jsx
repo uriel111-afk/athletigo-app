@@ -20,6 +20,7 @@ import { calculateAge as calcAge, formatBirthWithAge, daysUntilBirthday } from "
 import FastAttendanceDialog from "../components/groups/FastAttendanceDialog";
 import PlanFormDialog from "../components/training/PlanFormDialog";
 import TraineeNoteDialog from "../components/groups/TraineeNoteDialog";
+import CreateGroupDialog from "../components/groups/CreateGroupDialog";
 import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
 import NewRecordDialog from "../components/forms/NewRecordDialog";
 import { openBaselineDialog } from "../components/forms/BaselineFormDialog";
@@ -111,6 +112,11 @@ export default function AllUsers() {
   const [measurementForMember, setMeasurementForMember] = useState(false);
   const [recordForMember, setRecordForMember] = useState(false);
   const [noteForMember, setNoteForMember] = useState(false);
+
+  // "+ קבוצה חדשה" comprehensive dialog (location, contact, schedule,
+  // members, color). Writes to the SAME training_groups table the
+  // Sessions tab reads from so the result appears in both views.
+  const [showCreateGroupFull, setShowCreateGroupFull] = useState(false);
 
   // Service-type filter (multi-select). Values are the canonical
   // English keys returned by normalizeServiceType — 'personal' /
@@ -1242,6 +1248,27 @@ export default function AllUsers() {
               </div>
             </div>
 
+            {/* "+ קבוצה חדשה" — primary CTA at the top of the hub.
+                Writes to the SAME training_groups table the Sessions
+                tab reads from (shared queryKey ['training-groups']) so
+                the new group appears in both views immediately. */}
+            <button
+              type="button"
+              onClick={() => setShowCreateGroupFull(true)}
+              style={{
+                width: '100%',
+                padding: '12px 0',
+                borderRadius: 12, border: 'none',
+                background: '#FF6F20', color: 'white',
+                fontSize: 14, fontWeight: 700,
+                cursor: 'pointer',
+                marginBottom: 12,
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+              }}
+            >
+              + קבוצה חדשה
+            </button>
+
             {trainingGroups.length === 0 ? (
               <div style={{
                 padding: '40px 20px', textAlign: 'center',
@@ -1253,13 +1280,21 @@ export default function AllUsers() {
                   עדיין אין קבוצות
                 </div>
                 <div style={{ fontSize: 12, color: '#888' }}>
-                  בחר מתאמנים ולחץ "הקם קבוצה" כדי להתחיל
+                  לחץ "+ קבוצה חדשה" למעלה כדי ליצור את הקבוצה הראשונה
                 </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {trainingGroups.map((group) => {
                   const memberCount = groupMembers.filter((m) => m.group_id === group.id).length;
+                  // Additive surface for the new extras — only renders
+                  // if the column was set (post-migration). Pre-migration
+                  // groups stay untouched.
+                  const meta = [];
+                  if (group.location_name) meta.push(`📍 ${group.location_name}`);
+                  if (group.session_time)  meta.push(`🕐 ${group.session_time}`);
+                  const avatarColor = group.color || '#FF6F20';
+                  const avatarIcon = group.icon || null;
                   return (
                     <div
                       key={group.id}
@@ -1273,15 +1308,15 @@ export default function AllUsers() {
                         boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
                       }}
                     >
-                      {/* Initial avatar — first letter of the group name */}
                       <div style={{
                         width: 40, height: 40, borderRadius: 12,
-                        background: '#FFF5EE', color: '#FF6F20',
+                        background: avatarIcon ? `${avatarColor}22` : '#FFF5EE',
+                        color: avatarColor,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 18, fontWeight: 800,
+                        fontSize: avatarIcon ? 20 : 18, fontWeight: 800,
                         flexShrink: 0,
                       }}>
-                        {(group.name || '?').trim().charAt(0)}
+                        {avatarIcon || (group.name || '?').trim().charAt(0)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{
@@ -1294,6 +1329,14 @@ export default function AllUsers() {
                           {memberCount} {memberCount === 1 ? 'חבר' : 'חברים'}
                           {group.description ? ` · ${group.description}` : ''}
                         </div>
+                        {meta.length > 0 && (
+                          <div style={{
+                            fontSize: 11, color: '#9A6A3A', marginTop: 4,
+                            display: 'flex', gap: 8, flexWrap: 'wrap',
+                          }}>
+                            {meta.map((m, i) => <span key={i}>{m}</span>)}
+                          </div>
+                        )}
                       </div>
                       <span style={{ color: '#C9A24A', fontSize: 14, flexShrink: 0 }}>›</span>
                     </div>
@@ -1847,6 +1890,18 @@ export default function AllUsers() {
             }
           />
         )}
+
+        {/* Comprehensive "+ קבוצה חדשה" dialog — opens from the
+            primary CTA at the top of the groups hub. Writes to the
+            SAME training_groups + training_group_members tables the
+            Sessions view reads from, so a group created here appears
+            in both places via the shared ['training-groups'] cache. */}
+        <CreateGroupDialog
+          isOpen={showCreateGroupFull}
+          onClose={() => setShowCreateGroupFull(false)}
+          currentUser={currentUser}
+          trainees={allTrainees || []}
+        />
 
         {/* Whole-group dialogs — same components Sessions.jsx /
             TrainingPlans.jsx mount. Pre-seeded with the group's
