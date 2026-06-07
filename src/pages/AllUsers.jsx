@@ -685,33 +685,87 @@ export default function AllUsers() {
               {visibleTrainees.length} מתאמנים · {counts.active} פעילים
             </div>
           </div>
-          {/* Groups hub toggle stays here — it's a view switcher
-              (list ↔ groups), conceptually orthogonal to the service-
-              type filter row below (which lives inside the trainee
-              list and isn't a view change). */}
-          <button
-            onClick={() => {
-              if (view === 'list') {
-                sel.clearSelection();
-                setSelectedGroup(null);
-                setView('groups');
-              } else {
-                setSelectedGroup(null);
-                setView('list');
-              }
-            }}
-            style={{
-              padding: '8px 14px', borderRadius: 12,
-              border: view !== 'list' ? '1px solid #FF6F20' : '1px solid #F0E4D0',
-              background: view !== 'list' ? '#FFF5EE' : 'white',
-              color: view !== 'list' ? '#FF6F20' : '#555',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            {view === 'list' ? '👥 קבוצות' : '↩ מתאמנים'}
-          </button>
         </div>
+
+        {/* Service-type bar — the SINGLE entry to everything by
+            service tag. Always visible on list + groups hub (hidden
+            inside groupDetail to reduce clutter).
+              קבוצות  → toggles into / out of the groups hub
+                         (view === 'groups'). The hub is the only
+                         home for the real groups list + the single
+                         "+ קבוצה חדשה" CTA.
+              אישי / אונליין → filter the trainee list by that tag.
+                         If currently in the groups hub, exits back
+                         to list view first, then applies the filter.
+            The purple "👥 קבוצות / ↩ מתאמנים" toggle that used to
+            live next to the title was removed — its job is now on
+            this chip. */}
+        {view !== 'groupDetail' && (
+          <div style={{ padding: '0 16px 12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {[
+                { key: 'group',    label: 'קבוצות', bg: '#EEEDFE', fg: '#534AB7' },
+                { key: 'personal', label: 'אישי',   bg: '#E6F1FB', fg: '#185FA5' },
+                { key: 'online',   label: 'אונליין', bg: '#FAEEDA', fg: '#854F0B' },
+              ].map((s) => {
+                const isGroupChip = s.key === 'group';
+                const active = isGroupChip
+                  ? view === 'groups'
+                  : (view === 'list' && serviceFilter.has(s.key));
+                const handleClick = () => {
+                  if (isGroupChip) {
+                    if (view === 'groups') {
+                      // Toggle off → back to the list view.
+                      setSelectedGroup(null);
+                      setView('list');
+                    } else {
+                      // Enter the hub. 'group' is no longer a
+                      // serviceFilter tag (it's a view switch), so
+                      // strip it in case a pre-refactor render
+                      // left it lingering.
+                      sel.clearSelection();
+                      setSelectedGroup(null);
+                      setServiceFilter((prev) => {
+                        if (!prev.has('group')) return prev;
+                        const next = new Set(prev);
+                        next.delete('group');
+                        return next;
+                      });
+                      setView('groups');
+                    }
+                  } else {
+                    // אישי / אונליין → service-type filter. From
+                    // the groups hub, switching to a tag chip
+                    // means "leave the hub and filter by this tag".
+                    if (view === 'groups') {
+                      setSelectedGroup(null);
+                      setView('list');
+                    }
+                    toggleServiceFilter(s.key);
+                  }
+                };
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={handleClick}
+                    style={{
+                      padding: '10px 0', borderRadius: 12,
+                      border: active ? 'none' : `1px solid ${s.fg}33`,
+                      background: active ? s.fg : s.bg,
+                      color: active ? 'white' : s.fg,
+                      fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {view === 'list' && (
         <>
@@ -757,71 +811,6 @@ export default function AllUsers() {
             </div>
           )}
         </div>
-
-        {/* Service-type filter — symmetric 3-col grid. Multi-select:
-            tapping a chip toggles that tag into serviceFilter; OR
-            within the axis (matches if any selected tag overlaps the
-            trainee's normalized tags). ANDs with status + search via
-            filteredTrainees above. Active chip = filled with its
-            brand color; inactive = soft tinted background + colored
-            text so the trio reads as one row at a glance. */}
-        <div style={{ padding: '0 16px 12px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            {[
-              { key: 'group',    label: 'קבוצות', bg: '#EEEDFE', fg: '#534AB7' },
-              { key: 'personal', label: 'אישי',   bg: '#E6F1FB', fg: '#185FA5' },
-              { key: 'online',   label: 'אונליין', bg: '#FAEEDA', fg: '#854F0B' },
-            ].map((s) => {
-              const active = serviceFilter.has(s.key);
-              return (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => toggleServiceFilter(s.key)}
-                  style={{
-                    padding: '10px 0', borderRadius: 12,
-                    border: active ? 'none' : `1px solid ${s.fg}33`,
-                    background: active ? s.fg : s.bg,
-                    color: active ? 'white' : s.fg,
-                    fontSize: 13, fontWeight: 700,
-                    cursor: 'pointer',
-                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                  }}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* "+ קבוצה חדשה" — secondary surface of the same CTA that
-            lives inside the Groups Hub (line ~1261). Shown in list
-            view only when the user activated the קבוצות service chip,
-            since that's where they expect to be able to create a new
-            group. Reuses setShowCreateGroupFull(true) → opens the
-            same CreateGroupDialog that's already mounted at the
-            bottom of this file. Service-chip filtering behaviour is
-            unchanged — we only ADD a visible action here. */}
-        {serviceFilter.has('group') && (
-          <div style={{ padding: '0 16px 12px' }}>
-            <button
-              type="button"
-              onClick={() => setShowCreateGroupFull(true)}
-              style={{
-                width: '100%',
-                padding: '12px 0',
-                borderRadius: 12, border: 'none',
-                background: '#FF6F20', color: 'white',
-                fontSize: 14, fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-              }}
-            >
-              + קבוצה חדשה
-            </button>
-          </div>
-        )}
 
         {/* Search + sort row */}
         <div style={{ padding: '0 16px 10px', display: 'flex', gap: 8 }}>
