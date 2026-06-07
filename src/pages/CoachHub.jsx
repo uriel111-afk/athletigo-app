@@ -291,16 +291,16 @@ export default function CoachHub() {
         {/* App-tab chips — RTL visual order: מקצועי → פיננסי → צמיחה → אישי
             (פיננסי + צמיחה swapped vs. earlier order, per May 2026 spec). */}
         <div style={{
-          // Horizontal padding bumped to 16 so the inner row of tabs
-          // shares the same left/right edge as the cards below
-          // (LIFEOS_CARD + the page's outer padding both sit at 16).
-          padding: '12px 16px 8px',
+          // Live inside the same maxWidth-560 inner wrapper as the KPI
+          // cards below — no negative-margin escape — so the row's
+          // left/right edges line up exactly with the cards on every
+          // viewport width. flex:1 buttons fill the row evenly.
+          padding: '12px 0 8px',
           display: 'flex',
           gap: 8,
           background: 'white',
           borderBottom: '1px solid #FFF0E4',
           marginBottom: 12,
-          marginInline: -16,
         }}>
           {[
             { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase },
