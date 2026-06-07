@@ -10,6 +10,7 @@ import DailyStreak from '@/components/lifeos/DailyStreak';
 import PageLoader from '@/components/PageLoader';
 import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
 import PopupNotificationManager from '@/components/PopupNotificationManager';
+import { Briefcase, Coins, Sprout, User } from 'lucide-react';
 
 const weekRangeFromOffset = (weeksAgo) => {
   const end = new Date();
@@ -300,13 +301,14 @@ export default function CoachHub() {
           marginInline: -16,
         }}>
           {[
-            { label: 'מקצועי', path: '/dashboard' },
-            { label: 'פיננסי', path: '/lifeos/leads' },
-            { label: 'צמיחה', path: '/lifeos' },
-            { label: 'אישי',  path: '/personal' },
+            { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase },
+            { label: 'פיננסי', path: '/lifeos/leads', Icon: Coins     },
+            { label: 'צמיחה', path: '/lifeos',        Icon: Sprout    },
+            { label: 'אישי',  path: '/personal',      Icon: User      },
           ].map((tab) => {
             const isActive = location.pathname === tab.path
               || (tab.path === '/dashboard' && location.pathname === '/');
+            const { Icon } = tab;
             return (
               <button
                 key={tab.path}
@@ -314,18 +316,27 @@ export default function CoachHub() {
                 onClick={() => navigate(tab.path)}
                 style={{
                   padding: '10px 18px',
-                  borderRadius: 22,
-                  border: 'none',
+                  borderRadius: 12,
                   cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: isActive ? 700 : 600,
-                  background: isActive ? '#FF6F20' : '#FFF9F0',
-                  color: isActive ? 'white' : '#888',
+                  fontSize: 13,
+                  fontWeight: isActive ? 700 : 500,
+                  background: isActive ? '#FF6F20' : '#F6EAD9',
+                  color: isActive ? 'white' : '#9A6A3A',
+                  borderTop: '0', borderLeft: '0', borderRight: '0',
+                  borderBottom: isActive ? '0' : '3px solid #E0C9A8',
+                  outline: 'none',
+                  boxShadow: 'none',
                   transition: 'all 0.2s',
                   fontFamily: "'Rubik', system-ui, sans-serif",
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 3,
+                  lineHeight: 1,
                 }}
               >
-                {tab.label}
+                <Icon size={17} aria-hidden style={{ display: 'block', color: isActive ? 'white' : '#9A6A3A' }} />
+                <span>{tab.label}</span>
               </button>
             );
           })}
