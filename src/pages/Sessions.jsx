@@ -1301,30 +1301,57 @@ export default function Sessions() {
     );
   }
 
+  // Neumorphic shadow tokens — shared by every white card/control in
+  // the Sessions header. Dual-tone (warm cream + cool highlight) so
+  // surfaces feel raised over the cream page bg. insetShadow is for
+  // pressed/inset affordances (the filter icon).
+  const cardShadow = "4px 4px 10px rgba(200,180,150,0.4), -4px -4px 10px rgba(255,255,255,0.9)";
+  const insetShadow = "inset 2px 2px 4px rgba(200,180,150,0.5), inset -2px -2px 4px rgba(255,255,255,0.9)";
+
   return (
     <ProtectedCoachPage>
       <div className="min-h-screen overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: 'var(--cream)', maxWidth: '100vw' }}>
         <div className="max-w-7xl mx-auto px-4 md:p-8" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
-          {/* Row A — Title + calendar icon. Single clean row. */}
-          <div style={{ marginBottom: 12 }}>
-            <div className="flex items-center" style={{ gap: 12 }}>
-              <div
-                className="flex items-center justify-center rounded-2xl"
-                style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', boxShadow: '0 4px 10px rgba(255, 111, 32, 0.25)', flexShrink: 0 }}>
-                <Calendar size={22} className="text-white" />
-              </div>
+          {/* Row A — Title block + calendar icon on a single flex row */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 18,
+          }}>
+            <div style={{ minWidth: 0 }}>
               <h1 style={{
-                fontSize: 22, fontWeight: 700, color: '#1a1a1a',
-                lineHeight: 1.2, margin: 0,
+                fontSize: 'clamp(30px, 8vw, 34px)',
+                fontWeight: 700,
+                lineHeight: 1.05,
+                color: '#1a1a1a',
+                letterSpacing: '-0.5px',
+                whiteSpace: 'nowrap',
+                margin: 0,
                 fontFamily: 'Rubik, sans-serif',
               }}>
                 מפגשים ואימונים
               </h1>
+              <div style={{ fontSize: 14, color: '#888', marginTop: 8 }}>
+                לוח זמנים מלא ומסודר
+              </div>
+            </div>
+            <div style={{
+              width: 60, height: 60,
+              borderRadius: 18,
+              background: '#FF6F20',
+              color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '5px 5px 12px rgba(200,120,60,0.35), -5px -5px 12px rgba(255,255,255,0.7)',
+              flexShrink: 0,
+            }}>
+              <Calendar size={28} className="text-white" />
             </div>
           </div>
 
           {/* Row B — Actions: primary "+ קבע מפגש", secondary "קבוצות" */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             {activeView === 'sessions' ? (
               <button
                 type="button"
@@ -1363,9 +1390,10 @@ export default function Sessions() {
               style={{
                 background: '#fff',
                 color: '#5F5E5A',
-                border: '0.5px solid #F0E4D0',
+                border: 'none',
                 borderRadius: 12,
                 padding: '0 14px', fontSize: 14,
+                boxShadow: cardShadow,
                 cursor: 'pointer',
                 fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
@@ -1376,7 +1404,7 @@ export default function Sessions() {
 
           {/* Row C — Compact stats strip (sessions view only) */}
           {activeView === 'sessions' && (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
               {[
                 { key: 'today',     label: 'היום',    count: todaySessions.length,        accent: false },
                 { key: 'upcoming',  label: 'קרובים',  count: upcomingSessions.length,     accent: false },
@@ -1392,10 +1420,10 @@ export default function Sessions() {
                     style={{
                       flex: 1,
                       background: '#fff',
-                      borderRadius: 12,
-                      padding: '10px 4px',
+                      borderRadius: 14,
+                      padding: '12px 4px',
                       textAlign: 'center',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                      boxShadow: cardShadow,
                       border: active ? '1px solid #FF6F20' : '1px solid transparent',
                       cursor: 'pointer',
                       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
@@ -1422,9 +1450,9 @@ export default function Sessions() {
             <div style={{ marginBottom: 16 }}>
               <div style={{
                 background: '#fff',
-                borderRadius: 12,
+                borderRadius: 14,
                 padding: 6,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                boxShadow: cardShadow,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
@@ -1440,6 +1468,7 @@ export default function Sessions() {
                     color: '#FF6F20',
                     border: 'none',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: insetShadow,
                     cursor: 'pointer',
                     flexShrink: 0,
                   }}
@@ -1487,10 +1516,10 @@ export default function Sessions() {
               {showMoreFilters && (
                 <div style={{
                   background: '#fff',
-                  borderRadius: 12,
+                  borderRadius: 14,
                   padding: 12,
                   marginTop: 8,
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                  boxShadow: cardShadow,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 10,
