@@ -122,18 +122,18 @@ export default function Login() {
         minHeight: '100dvh',
         height: 'auto',
         backgroundColor: "#FFF9F0",
-        paddingTop: 16,
+        paddingTop: 8,
         paddingBottom: isPWA ? 24 : 160,
       }}
       dir="rtl"
     >
-      <div className="w-full" style={{ maxWidth: 400, marginTop: 16 }}>
+      <div className="w-full" style={{ maxWidth: 400, marginTop: 8 }}>
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 8 }}>
           <img
             src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 96, height: 'auto', objectFit: 'contain', marginBottom: 3, filter: 'brightness(0)' }}
+            style={{ width: 72, height: 'auto', objectFit: 'contain', marginBottom: 3, filter: 'brightness(0)' }}
           />
           <div style={{ fontSize: 13, color: '#888', fontWeight: 500, textAlign: 'center' }}>
             כניסה למערכת מאמנים ומתאמנים
@@ -145,12 +145,12 @@ export default function Login() {
           style={{
             backgroundColor: "#FFFFFF",
             borderRadius: 20,
-            padding: 16,
+            padding: 12,
             boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
           }}
         >
-          <form onSubmit={handleSubmit} className="space-y-2">
-            <div className="space-y-1.5">
+          <form onSubmit={handleSubmit} className="space-y-1">
+            <div className="space-y-0.5">
               <Label htmlFor="email" className="font-bold text-sm" style={{ color: "#000000" }}>
                 אימייל
               </Label>
@@ -163,11 +163,11 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="text-right border border-[#F0E4D0] focus:border-[#FF6F20] focus-visible:border-[#FF6F20] focus-visible:ring-0 focus-visible:ring-offset-0"
-                style={{ borderRadius: 10, padding: 12, height: 'auto', direction: "ltr" }}
+                style={{ borderRadius: 10, padding: 10, minHeight: 44, height: 'auto', direction: "ltr" }}
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-0.5">
               <Label htmlFor="password" className="font-bold text-sm" style={{ color: "#000000" }}>
                 סיסמה
               </Label>
@@ -180,7 +180,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="border border-[#F0E4D0] focus:border-[#FF6F20] focus-visible:border-[#FF6F20] focus-visible:ring-0 focus-visible:ring-offset-0"
-                style={{ borderRadius: 10, padding: 12, height: 'auto', direction: "ltr" }}
+                style={{ borderRadius: 10, padding: 10, minHeight: 44, height: 'auto', direction: "ltr" }}
               />
             </div>
 
@@ -206,7 +206,7 @@ export default function Login() {
               )}
             </Button>
 
-            <div className="text-center" style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
+            <div className="text-center" style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
               שכחת סיסמה? פנה למאמן שלך
             </div>
           </form>
