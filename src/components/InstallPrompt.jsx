@@ -74,8 +74,8 @@ export default function InstallPrompt() {
             otherwise tint the glyph. */}
         <span style={{
           position: 'absolute',
-          bottom: 7,
-          right: -2,
+          bottom: 13,
+          right: 0,
           fontSize: 9,
           lineHeight: 1,
           color: '#ffffff',
