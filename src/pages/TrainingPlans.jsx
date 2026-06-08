@@ -601,11 +601,11 @@ export default function TrainingPlans() {
       <div className="min-h-screen pb-16 md:pb-24 w-full overflow-x-hidden overflow-y-auto" style={{ backgroundColor: 'var(--cream)', maxWidth: '100vw', WebkitOverflowScrolling: 'touch' }} dir="rtl">
 {/* WorkoutProgressBar is rendered inside UnifiedPlanBuilder */}
         
-        <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px', maxWidth: '100%' }}>
+        <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 8px', maxWidth: '100%' }}>
           {!selectedPlan ? (
             <div className="w-full">
               {/* Sticky Header & Filters */}
-              <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100 -mx-4 px-4 py-4 mb-6 shadow-sm">
+              <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100 -mx-2 px-2 py-4 mb-6 shadow-sm">
                   <div className="max-w-7xl mx-auto w-full flex flex-col gap-4">
                       {/* Top Row: Title & Primary Actions */}
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -663,10 +663,10 @@ export default function TrainingPlans() {
                               />
                           </div>
 
-                          <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+                          <div className="flex gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
                                {/* Trainee Filter */}
                                <Select value={filterTrainee} onValueChange={setFilterTrainee}>
-                                  <SelectTrigger className="h-10 min-w-[140px] rounded-xl border-gray-200 bg-white">
+                                  <SelectTrigger className="h-10 min-w-[110px] rounded-xl border-gray-200 bg-white">
                                      <div className="flex items-center gap-2">
                                         <Users className="w-4 h-4 text-gray-500" />
                                         <span className="truncate">{filterTrainee === 'all' ? 'כל המתאמנים' : trainees.find(t => t.id === filterTrainee)?.full_name || 'מתאמן'}</span>
@@ -680,7 +680,7 @@ export default function TrainingPlans() {
 
                                {/* Status Filter */}
                                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                                  <SelectTrigger className="h-10 min-w-[130px] rounded-xl border-gray-200 bg-white">
+                                  <SelectTrigger className="h-10 min-w-[110px] rounded-xl border-gray-200 bg-white">
                                      <div className="flex items-center gap-2">
                                         <Filter className="w-4 h-4 text-gray-500" />
                                         <SelectValue placeholder="סטטוס" />
