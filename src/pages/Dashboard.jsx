@@ -369,9 +369,9 @@ export default function Dashboard() {
             flexDirection: 'column',
             minHeight: 'calc(100vh - 116px)',
             // Narrower side padding so every section sits closer to
-            // the screen edges on phones — larger touch targets +
-            // more breathing room for content without changing widths.
-            padding: '6px 6px 0',
+            // the screen edges on phones, and zero top padding to keep
+            // the whole dashboard on one screen without scrolling.
+            padding: '0 6px 0',
           }}
         >
 
@@ -381,14 +381,14 @@ export default function Dashboard() {
               the screen edges on the dashboard. */}
           <AppSwitcher wide />
 
-          {/* ═══ SECTION 1 — פעולות ליבה (tight 280px, final spec) ═══════ */}
-          <div style={{ padding: '2px 12px 4px', overflow: 'visible' }}>
+          {/* ═══ SECTION 1 — פעולות ליבה (compact for no-scroll) ═══════ */}
+          <div style={{ padding: '0 12px 0', overflow: 'visible' }}>
             <h3 style={{
               textAlign: 'right',
-              fontSize: 17,
+              fontSize: 16,
               fontWeight: 700,
               color: 'var(--ag-text-primary)',
-              margin: '4px 16px 8px',
+              margin: '0 16px 4px',
               fontFamily: "'Bebas Neue', sans-serif",
               // Stays above the diamond layer so the rotated 115×115
               // top-tip can't visually cover the title text.
@@ -400,7 +400,10 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            height: 280,
+            // 240 (was 280) + repositioned diamonds (top 0/72/144 vs 0/85/170)
+            // keeps the cluster intact but cuts ~40px of empty space, the
+            // single biggest contributor to the dashboard's overflow.
+            height: 240,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
@@ -412,13 +415,13 @@ export default function Dashboard() {
                 pos: { top: 0, left: '50%', marginLeft: -55 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 85, right: 18 } },
+                pos: { top: 72, right: 18 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 85, left: 18 } },
+                pos: { top: 72, left: 18 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 170, left: '50%', marginLeft: -55 } },
+                pos: { top: 144, left: '50%', marginLeft: -55 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
@@ -596,9 +599,9 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (final spec: 78×78, lucide SVG icons) ═══════ */}
-          <div style={{ padding: '6px 4px 8px', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          {/* ═══ SECTION 4 — גישה מהירה (compact for no-scroll) ═══════ */}
+          <div style={{ padding: '2px 4px 4px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
                 fontSize: 14, fontWeight: 700, color: 'var(--ag-text-primary)',
@@ -646,7 +649,7 @@ export default function Dashboard() {
                       // fallback for older iOS Safari where aspectRatio
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
-                      height: 78,
+                      height: 72,
                       // Lumen: secondary card → white surface + med
                       // shadow + hairline for a subtle floating feel.
                       background: 'var(--ag-surface)',
@@ -689,16 +692,16 @@ export default function Dashboard() {
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 8,
-                    marginBottom: 6,
+                    gap: 6,
+                    marginBottom: 4,
                   }}>
                     {row1.map(renderCard)}
                   </div>
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 8,
-                    marginBottom: 4,
+                    gap: 6,
+                    marginBottom: 0,
                   }}>
                     {row2.map(renderCard)}
                   </div>
