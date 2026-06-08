@@ -128,15 +128,22 @@ export default function Login() {
       dir="rtl"
     >
       <div className="w-full" style={{ maxWidth: 400, marginTop: 8 }}>
-        {/* Brand — single combined logoR asset (triangle + wordmark). */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 8 }}>
+        {/* Brand — horizontal row. RTL puts the title visually on the
+            right and the logo on the left. Two-line title keeps the
+            vertical footprint short so the orange login button stays
+            in frame above the keyboard. */}
+        <div style={{
+          display: 'flex', flexDirection: 'row', alignItems: 'center',
+          justifyContent: 'center', gap: 14, marginBottom: 10,
+        }}>
           <img
             src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 72, height: 'auto', objectFit: 'contain', marginBottom: 3, filter: 'brightness(0)' }}
+            style={{ width: 104, height: 'auto', objectFit: 'contain', flexShrink: 0, filter: 'brightness(0)' }}
           />
-          <div style={{ fontSize: 13, color: '#888', fontWeight: 500, textAlign: 'center' }}>
-            כניסה למערכת מאמנים ומתאמנים
+          <div style={{ fontSize: 17, fontWeight: 600, color: '#222', lineHeight: 1.3, textAlign: 'right' }}>
+            <div>כניסה למערכת</div>
+            <div>מאמנים ומתאמנים</div>
           </div>
         </div>
 
