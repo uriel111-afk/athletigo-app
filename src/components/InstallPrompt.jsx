@@ -40,7 +40,13 @@ export default function InstallPrompt() {
   return (
     <div style={{
       position: 'fixed', bottom: 80, left: 16, right: 16,
-      background: '#1a1a1a', borderRadius: 16, padding: 16,
+      background: '#1a1a1a', borderRadius: 16,
+      padding: 16,
+      // Under direction:'rtl', paddingInlineStart maps to the physical
+      // RIGHT side. Bumping it to 24 widens the right-side inner padding
+      // by 8 so the icon (the first RTL flex child) packs further from
+      // the bar's right edge and its ® clears the rounded corner.
+      paddingInlineStart: 24,
       display: 'flex', alignItems: 'center', gap: 12,
       zIndex: 9999, direction: 'rtl',
       boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
@@ -54,7 +60,7 @@ export default function InstallPrompt() {
           onto the black bar, where white-on-black is visible — placing
           it inside the 44×44 box would land it on white-rendered
           pixels and disappear. */}
-      <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0, marginInlineStart: 8 }}>
+      <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
         <img
           src="/logo-transparent.png"
           alt=""
