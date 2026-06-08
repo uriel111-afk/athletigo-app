@@ -49,11 +49,11 @@ export default function InstallPrompt() {
           /logo-transparent.png is the triangle-only asset (no wordmark)
           on a transparent background; brightness(0) flattens it to
           black, invert(1) flips that to white. Wrapper is position:
-          relative so the small white ® can be pinned to the triangle's
-          bottom-right corner. The 5-px bottom inset compensates for the
-          letterbox space objectFit:contain leaves below the triangle
-          inside its 44×44 box (image is wider than tall), so the ®
-          hugs the actual triangle, not the box edge. */}
+          relative so the small white ® can hang just outside the
+          triangle's bottom-right corner (negative bottom/right offsets)
+          onto the black bar, where white-on-black is visible — placing
+          it inside the 44×44 box would land it on white-rendered
+          pixels and disappear. */}
       <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
         <img
           src="/logo-transparent.png"
@@ -65,15 +65,25 @@ export default function InstallPrompt() {
             display: 'block',
           }}
         />
+        {/* ® content uses the U+FE0E text-variation selector so the
+            platform renders the plain text glyph instead of the
+            color-emoji font (Noto Color Emoji draws ® as a red circle
+            on Android, which was overriding the inline white color).
+            WebkitTextFillColor + explicit filter:'none' belt-and-
+            suspenders any cascaded text-fill or filter that would
+            otherwise tint the glyph. */}
         <span style={{
           position: 'absolute',
-          bottom: 5,
-          right: 0,
-          fontSize: 8,
+          bottom: -3,
+          right: -2,
+          fontSize: 9,
           lineHeight: 1,
-          color: '#fff',
+          color: '#ffffff',
+          WebkitTextFillColor: '#ffffff',
+          filter: 'none',
           fontWeight: 400,
-        }}>®</span>
+          zIndex: 2,
+        }}>{'®︎'}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>התקן את AthletiGo</div>
