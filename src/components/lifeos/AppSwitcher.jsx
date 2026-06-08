@@ -39,9 +39,10 @@ export default function AppSwitcher({ wide = false }) {
       style={{
         display: "flex", gap: wide ? 5 : 6,
         // wide → less horizontal padding so the row extends closer to
-        // the screen edges, and tighter vertical so the dashboard fits
-        // on one screen without scrolling.
-        padding: wide ? "2px 4px" : "6px 12px",
+        // the screen edges on the coach dashboard. Vertical padding
+        // restored to the pre-global-font balanced value (6) so the
+        // tab row breathes the way the dashboard was originally tuned.
+        padding: wide ? "6px 4px" : "6px 12px",
         background: "transparent",
       }}
     >

@@ -603,12 +603,13 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (compact for no-scroll) ═══════
-              padding-top is 24px to clear the visible bottom-tip of
-              Diamond #4, which sits ~22px below the 280px diamond
-              container due to the 45° rotation. Horizontal padding
-              is 2px so the grid extends almost edge-to-edge. */}
-          <div style={{ padding: '24px 2px 4px', flexShrink: 0 }}>
+          {/* ═══ SECTION 4 — גישה מהירה (balanced pre-global-font geometry)
+              Horizontal padding + gap + row marginBottom restored to
+              the pre-global-font commit's values (4 / 6 / 4). Only
+              padding-top is held at 24px so the visible bottom-tip of
+              Diamond #4 (which extends ~22px below the 280 container
+              due to the 45° rotation) doesn't cover this header. */}
+          <div style={{ padding: '24px 4px 4px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
@@ -700,15 +701,15 @@ export default function Dashboard() {
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 4,
-                    marginBottom: 2,
+                    gap: 6,
+                    marginBottom: 4,
                   }}>
                     {row1.map(renderCard)}
                   </div>
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 4,
+                    gap: 6,
                     marginBottom: 0,
                   }}>
                     {row2.map(renderCard)}
