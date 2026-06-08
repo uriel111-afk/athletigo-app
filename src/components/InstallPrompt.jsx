@@ -41,12 +41,15 @@ export default function InstallPrompt() {
     <div style={{
       position: 'fixed', bottom: 80, left: 16, right: 16,
       background: '#1a1a1a', borderRadius: 16,
-      padding: 16,
-      // Under direction:'rtl', paddingInlineStart maps to the physical
-      // RIGHT side. Bumping it to 24 widens the right-side inner padding
-      // by 8 so the icon (the first RTL flex child) packs further from
-      // the bar's right edge and its ® clears the rounded corner.
-      paddingInlineStart: 24,
+      // Explicit logical-axis padding. Under direction:'rtl',
+      // paddingInlineStart maps to physical padding-right (the side
+      // where the icon sits) and paddingInlineEnd maps to padding-left
+      // (the side where the ✕ sits). Setting Start = 28 puts a 28-px
+      // right-side gutter that comfortably exceeds the 16-px corner
+      // radius, so the rounded corner no longer overlaps the ®.
+      paddingBlock: 16,
+      paddingInlineStart: 28,
+      paddingInlineEnd: 16,
       display: 'flex', alignItems: 'center', gap: 12,
       zIndex: 9999, direction: 'rtl',
       boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
