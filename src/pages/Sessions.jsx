@@ -1300,25 +1300,28 @@ export default function Sessions() {
     <ProtectedCoachPage>
       <div className="min-h-screen overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: 'var(--cream)', maxWidth: '100vw' }}>
         <div className="max-w-7xl mx-auto px-4 md:p-8" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
-          {/* Hero Header */}
-          <div className="mb-8 relative">
-            <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-5"
-            style={{ background: 'radial-gradient(circle, #FF6F20 0%, transparent 70%)' }} />
-            
+          {/* Hero Header — sizes pinned to pixels so the root html
+              17px global font change can't reinflate them and push
+              the tab grid below out of position. Geometry preserved. */}
+          <div className="relative" style={{ marginBottom: 32 }}>
+            <div className="absolute top-0 right-0 rounded-full opacity-5"
+            style={{ width: 192, height: 192, background: 'radial-gradient(circle, #FF6F20 0%, transparent 70%)' }} />
+
             <div className="relative">
               {/* Title row — full width so it never gets covered by the
                   action buttons on narrow screens. */}
-              <div className="mb-3">
-                <div className="flex items-center gap-4 mb-3">
+              <div style={{ marginBottom: 12 }}>
+                <div className="flex items-center" style={{ gap: 16, marginBottom: 12 }}>
                   <div
-                    className="flex items-center justify-center w-16 h-16 rounded-3xl"
-                    style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', boxShadow: '0 6px 16px rgba(255, 111, 32, 0.35)' }}>
+                    className="flex items-center justify-center rounded-3xl"
+                    style={{ width: 64, height: 64, background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', boxShadow: '0 6px 16px rgba(255, 111, 32, 0.35)' }}>
 
-                    <Calendar className="w-9 h-9 text-white" />
+                    <Calendar size={36} className="text-white" />
                   </div>
                   <div>
-                    <h1 className="text-4xl md:text-5xl font-black leading-tight"
+                    <h1 className="font-black leading-tight"
                     style={{
+                      fontSize: 36,
                       background: 'linear-gradient(135deg, #000000 0%, #4D4D4D 100%)',
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
@@ -1327,7 +1330,7 @@ export default function Sessions() {
                     }}>
                       מפגשים ואימונים
                     </h1>
-                    <p className="text-xl font-medium mt-1" style={{ color: '#7D7D7D' }}>
+                    <p className="font-medium mt-1" style={{ fontSize: 20, color: '#7D7D7D' }}>
                       📅 לוח זמנים מלא ומסודר
                     </p>
                   </div>

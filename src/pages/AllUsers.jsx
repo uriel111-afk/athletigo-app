@@ -732,7 +732,7 @@ export default function AllUsers() {
 
   return (
     <ProtectedCoachPage>
-      <div style={{ minHeight: '100vh', background: '#FFF9F0', paddingBottom: 100, direction: 'rtl' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--cream)', paddingBottom: 100, direction: 'rtl' }}>
         {/* A. Page header — title + groups hub toggle */}
         <div style={{
           padding: '16px 16px 8px',

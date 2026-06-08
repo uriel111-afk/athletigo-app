@@ -605,7 +605,14 @@ export default function TrainingPlans() {
           {!selectedPlan ? (
             <div className="w-full">
               {/* Sticky Header & Filters */}
-              <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100 -mx-2 px-2 py-4 mb-6 shadow-sm">
+              <div
+                className="sticky top-0 z-30 -mx-2 px-2 py-4 mb-6"
+                style={{
+                  background: 'var(--card)',
+                  boxShadow: 'var(--shadow-soft)',
+                  border: '1px solid var(--border)',
+                }}
+              >
                   <div className="max-w-7xl mx-auto w-full flex flex-col gap-4">
                       {/* Top Row: Title & Primary Actions */}
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -655,18 +662,22 @@ export default function TrainingPlans() {
                       <div className="flex flex-col md:flex-row gap-3">
                           <div className="relative flex-1">
                               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                              <Input 
-                                  placeholder="חפש תוכנית, מתאמן או תגית..." 
+                              <Input
+                                  placeholder="חפש תוכנית, מתאמן או תגית..."
                                   value={searchTerm}
                                   onChange={(e) => setSearchTerm(e.target.value)}
-                                  className="pr-9 h-10 bg-gray-50 border-gray-200 focus:bg-white transition-all rounded-xl"
+                                  className="pr-9 h-10 transition-all rounded-xl"
+                                  style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
                               />
                           </div>
 
                           <div className="flex gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
                                {/* Trainee Filter */}
                                <Select value={filterTrainee} onValueChange={setFilterTrainee}>
-                                  <SelectTrigger className="h-10 min-w-[110px] rounded-xl border-gray-200 bg-white">
+                                  <SelectTrigger
+                                    className="h-10 min-w-[110px] rounded-xl"
+                                    style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                                  >
                                      <div className="flex items-center gap-2">
                                         <Users className="w-4 h-4 text-gray-500" />
                                         <span className="truncate">{filterTrainee === 'all' ? 'כל המתאמנים' : trainees.find(t => t.id === filterTrainee)?.full_name || 'מתאמן'}</span>
@@ -680,7 +691,10 @@ export default function TrainingPlans() {
 
                                {/* Status Filter */}
                                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                                  <SelectTrigger className="h-10 min-w-[110px] rounded-xl border-gray-200 bg-white">
+                                  <SelectTrigger
+                                    className="h-10 min-w-[110px] rounded-xl"
+                                    style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                                  >
                                      <div className="flex items-center gap-2">
                                         <Filter className="w-4 h-4 text-gray-500" />
                                         <SelectValue placeholder="סטטוס" />
@@ -749,7 +763,14 @@ export default function TrainingPlans() {
               {/* Content Area */}
               <div className="max-w-7xl mx-auto w-full space-y-6">
                   {filteredPlans.length === 0 ? (
-                       <div className="flex flex-col items-center justify-center py-20 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                       <div
+                         className="flex flex-col items-center justify-center py-20 text-center rounded-xl"
+                         style={{
+                           background: 'var(--card)',
+                           boxShadow: 'var(--shadow-soft)',
+                           border: '1px dashed var(--border)',
+                         }}
+                       >
                           <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
                               <ClipboardList className="w-10 h-10 text-gray-300" />
                           </div>
@@ -1200,8 +1221,10 @@ function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, sel
 
   return (
     <div style={{
-      background: 'white', borderRadius: 14,
-      border: selecting && selected ? '2px solid #FF6F20' : '1px solid #F0E4D0',
+      background: 'var(--card)',
+      borderRadius: 14,
+      border: selecting && selected ? '2px solid #FF6F20' : '1px solid var(--border)',
+      boxShadow: 'var(--shadow-out)',
       overflow: 'hidden', direction: 'rtl',
     }}>
       {/* Closed header — always visible */}
