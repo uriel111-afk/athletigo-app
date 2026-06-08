@@ -412,7 +412,7 @@ export default function Notifications() {
   const markAllRead = () => markAllAsReadMutation.mutate();
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ backgroundColor: '#FAFAFA' }} dir="rtl">
+    <div className="min-h-screen w-full overflow-x-hidden" style={{ backgroundColor: 'var(--cream)' }} dir="rtl">
 
       {/* A. Page header */}
       <div style={{

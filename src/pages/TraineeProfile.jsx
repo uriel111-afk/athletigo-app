@@ -3574,7 +3574,7 @@ export default function TraineeProfile() {
 
   if (profileError || noUserFound) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" dir="rtl" style={{ backgroundColor: '#FDF8F3' }}>
+      <div className="min-h-screen flex items-center justify-center px-4" dir="rtl" style={{ backgroundColor: 'var(--cream)' }}>
         <div className="max-w-md w-full text-center bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
           <h1 className="text-xl font-bold mb-3">שגיאה בטעינת הפרופיל</h1>
           <p className="text-sm text-gray-600 mb-6">
@@ -3803,7 +3803,7 @@ export default function TraineeProfile() {
 
   return (
     <ErrorBoundary>
-      <div className="w-full bg-[#F2F2F7]" dir="rtl" style={{ fontSize: 16, height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="w-full" dir="rtl" style={{ fontSize: 16, height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', backgroundColor: 'var(--cream)' }}>
 
         {/* ===== ZONE 1: HEADER ===== */}
         {isCoach ? (
@@ -3984,7 +3984,7 @@ export default function TraineeProfile() {
         )}
 
         {/* ===== ZONE 2: TAB GRID ===== */}
-        <div className="px-3 py-2 bg-[#F2F2F7]">
+        <div className="px-3 py-2" style={{ backgroundColor: 'var(--cream)' }}>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
             {TAB_ITEMS.map(tab => {
               const isActive = activeTab === tab.id;

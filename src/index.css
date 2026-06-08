@@ -124,37 +124,71 @@ button:focus-visible {
     --athletigo-dark: #111111;
     --athletigo-gray: #F5F5F5;
 
-    /* AthletiGo "Lumen" visual language — colors, background, shadows.
-       Scoped via .lumen-dashboard wrapper so other screens are unaffected
-       until they opt in. */
-    --ag-bg: #FBF3EA;
-    --ag-surface: #FFFFFF;
-    --ag-text-primary: #1F1A14;
-    --ag-text-secondary: #9A9082;
-    --ag-text-faint: #C0B6A7;
-    --ag-orange: #FF6F20;
-    --ag-orange-soft: #FF8A3D;
-    --ag-black: #1A1A1A;
-    --ag-line: rgba(120, 95, 60, 0.10);
-    --ag-track: rgba(120, 95, 60, 0.10);
-    --ag-grad-orange: linear-gradient(135deg, #FF8A3D 0%, #FF6F20 100%);
-    --ag-grad-black: linear-gradient(150deg, #2B2B2B 0%, #141414 100%);
-    --ag-grad-progress: linear-gradient(90deg, #FF8A3D, #FF6F20);
-    /* Lumen shadows — each pair the brown drop-shadow with a soft
-       white halo + inset top highlight. The white layer is what
-       gives the cards their "softly glowing" floating quality on
-       the cream background. Kept subtle (alpha ≤ 0.7) so it never
-       reads as a heavy stroke. */
-    --ag-shadow-low: 0 -1px 2px rgba(255,255,255,0.85), inset 0 1px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(78,54,30,0.05), 0 2px 5px rgba(78,54,30,0.05);
-    --ag-shadow-med: 0 -1px 2px rgba(255,255,255,0.85), inset 0 1px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(78,54,30,0.05), 0 7px 16px -8px rgba(78,54,30,0.15);
-    --ag-shadow-high: 0 -1px 2px rgba(255,255,255,0.9), inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 3px rgba(78,54,30,0.05), 0 14px 26px -14px rgba(78,54,30,0.18);
-    --ag-shadow-orange: 0 8px 20px -6px rgba(255,111,32,0.40), 0 2px 6px rgba(255,111,32,0.28);
-    --ag-shadow-black: 0 10px 24px -8px rgba(18,18,18,0.38), 0 2px 6px rgba(18,18,18,0.20);
-    --ag-radius-card: 26px;
-    --ag-radius-cta: 24px;
-    --ag-radius-tab: 30px;
-    --ag-radius-icon-btn: 15px;
-    --ag-radius-bar: 4px;
+    /* AthletiGo "Lumen" visual language — FINAL token set (2026-06).
+       Neumorphic floating shadows: brown bottom-right drop + white
+       top-left highlight on a cream-deep base. Applied app-wide.
+       The legacy --ag-* names are kept (existing consumers stay
+       valid); the user-facing token names are mirrored below. */
+
+    /* Surface + ink */
+    --cream:       #FBF3EA;
+    --cream-deep:  #F4E8D8;
+    --card:        #FFFFFF;
+    --orange:      #FF6F20;
+    --orange-soft: #FFF0E4;
+    --ink:         #1A1A1A;
+    --muted:       #9A8F82;
+    --border:      #F0E4D0;
+
+    /* Status accents */
+    --green:    #16A34A;
+    --red:      #DC2626;
+    --amber:    #EAB308;
+    --purple:   #7F47B5;
+    --blue:     #3B82F6;
+    --burgundy: #8B1A1A;
+
+    /* Floating shadows — the "Lumen" signature: brown bottom-right
+       drop paired with a white top-left highlight so cards read as
+       softly raised on the cream-deep background. */
+    --shadow-out:        9px 9px 22px rgba(186,154,108,0.40), -10px -10px 26px 3px rgba(255,255,255,1), -2px -2px 6px rgba(255,255,255,0.95);
+    --shadow-soft:       6px 6px 16px rgba(186,154,108,0.32), -8px -8px 20px 2px rgba(255,255,255,1);
+    --shadow-in:         inset 4px 4px 9px rgba(190,160,116,0.30), inset -4px -4px 9px rgba(255,255,255,0.90);
+    --shadow-orange:     0 8px 20px rgba(255,111,32,0.35);
+    --shadow-orange-soft:0 6px 14px rgba(255,111,32,0.30);
+
+    /* Radii */
+    --r-sm:   12px;
+    --r-md:   18px;
+    --r-lg:   24px;
+    --r-pill: 999px;
+
+    /* Legacy --ag-* aliases — every existing consumer in Dashboard /
+       CoachHub / AppSwitcher continues to compile unchanged but
+       inherits the new visual language automatically. */
+    --ag-bg:              var(--cream);
+    --ag-surface:         var(--card);
+    --ag-text-primary:    var(--ink);
+    --ag-text-secondary:  var(--muted);
+    --ag-text-faint:      #C0B6A7;
+    --ag-orange:          var(--orange);
+    --ag-orange-soft:     var(--orange-soft);
+    --ag-black:           var(--ink);
+    --ag-line:            var(--border);
+    --ag-track:           rgba(120, 95, 60, 0.10);
+    --ag-grad-orange:     linear-gradient(135deg, #FF8A3D 0%, #FF6F20 100%);
+    --ag-grad-black:      linear-gradient(150deg, #2B2B2B 0%, #141414 100%);
+    --ag-grad-progress:   linear-gradient(90deg, #FF8A3D, #FF6F20);
+    --ag-shadow-low:      var(--shadow-soft);
+    --ag-shadow-med:      var(--shadow-soft);
+    --ag-shadow-high:     var(--shadow-out);
+    --ag-shadow-orange:   var(--shadow-orange);
+    --ag-shadow-black:    0 10px 24px -8px rgba(18,18,18,0.38), 0 2px 6px rgba(18,18,18,0.20);
+    --ag-radius-card:     var(--r-lg);
+    --ag-radius-cta:      var(--r-lg);
+    --ag-radius-tab:      var(--r-pill);
+    --ag-radius-icon-btn: var(--r-sm);
+    --ag-radius-bar:      4px;
   }
 
   * {
@@ -329,4 +363,39 @@ button:focus-visible {
   background: var(--ag-grad-progress);
   border-radius: var(--ag-radius-bar);
   height: 100%;
+}
+
+/* ── App-wide Lumen surface ──────────────────────────────────────────
+   Cream-deep base applied at the body level so every screen inherits
+   the new background by default. Individual pages that hard-set a
+   non-cream backgroundColor (TraineeProfile / Notifications / Leads /
+   Sessions / Reports / Workouts / TrainingPlans / TraineeHome / Clocks)
+   are updated separately to point at var(--cream) too. */
+body {
+  background-color: var(--cream);
+}
+
+/* Global Lumen card helper — any white card across the app can opt
+   in by adding className="ag-card" (and "ag-card-soft" for a smaller
+   secondary surface). Same dual neumorphic shadow as the dashboard
+   cards. No layout properties are set here on purpose; only color +
+   shadow + radius + hairline border. */
+.ag-card {
+  background: var(--card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-out);
+  border: 1px solid var(--border);
+}
+.ag-card-soft {
+  background: var(--card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border);
+}
+.ag-cta-orange {
+  background: var(--orange);
+  box-shadow: var(--shadow-orange);
+  border-radius: var(--r-lg);
+  color: #FFFFFF;
+  border: none;
 }

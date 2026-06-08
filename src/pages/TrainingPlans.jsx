@@ -598,7 +598,7 @@ export default function TrainingPlans() {
 
   return (
     <ProtectedCoachPage>
-      <div className="min-h-screen pb-16 md:pb-24 w-full overflow-x-hidden overflow-y-auto" style={{ backgroundColor: '#FFFFFF', maxWidth: '100vw', WebkitOverflowScrolling: 'touch' }} dir="rtl">
+      <div className="min-h-screen pb-16 md:pb-24 w-full overflow-x-hidden overflow-y-auto" style={{ backgroundColor: 'var(--cream)', maxWidth: '100vw', WebkitOverflowScrolling: 'touch' }} dir="rtl">
 {/* WorkoutProgressBar is rendered inside UnifiedPlanBuilder */}
         
         <div className="max-w-7xl mx-auto w-full" style={{ padding: '12px 16px', maxWidth: '100%' }}>

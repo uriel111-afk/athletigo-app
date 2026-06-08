@@ -560,7 +560,7 @@ function MyPlanInner() {
     };
 
     return (
-      <div dir="rtl" className="min-h-screen bg-white pb-24">
+      <div dir="rtl" className="min-h-screen pb-24" style={{ backgroundColor: 'var(--cream)' }}>
         <div className="w-full mx-auto" style={{ padding: '12px 8px 24px', maxWidth: 'none' }}>
           <div className="mb-8 flex justify-between items-end">
             <div>

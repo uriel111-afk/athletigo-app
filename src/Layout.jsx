@@ -608,10 +608,10 @@ export default function Layout({ children, currentPageName }) {
             flexDirection: 'column',
             WebkitOverflowScrolling: 'touch',
             overflowX: 'hidden',
-            // Match the Dashboard cream under the scrollable area so the
-            // 70px bottom padding doesn't reveal body-white under the
-            // page's cream background.
-            backgroundColor: isDashboard ? '#FDF8F3' : undefined,
+            // App-wide Lumen cream — every page's content area sits on
+            // the same cream base now. Individual pages that need a
+            // different tint still override locally.
+            backgroundColor: 'var(--cream)',
           }}>
             <ErrorBoundary>
               {children}

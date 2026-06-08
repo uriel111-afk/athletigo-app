@@ -1083,7 +1083,7 @@ export default function TraineeHome() {
         </DialogContent>
       </Dialog>
 
-      <div className="min-h-screen pb-24 bg-[#F8F8F8]" dir="rtl" style={{ fontSize: 16 }}>
+      <div className="min-h-screen pb-24" dir="rtl" style={{ fontSize: 16, backgroundColor: 'var(--cream)' }}>
         <div className="max-w-4xl mx-auto">
 
         {/* Birthday greeting — fires only on the actual day. Centered
