@@ -361,7 +361,36 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       setSelectedSetFields(DEFAULT_FIELDS_BY_METHOD[methodId] || []);
     }
 
-    setPlannedSetsDraft(parsePlannedSets(exercise));
+    // Hydrate per-set rows. When the exercise carries a plain `sets`
+    // count (legacy / PlanBuilder rows) but no `tabata_data.planned_sets`,
+    // back-fill the table with that many rows seeded from the legacy
+    // top-level columns so the form mirrors what the trainee execution
+    // view shows. Without this, opening a legacy `sets=3, reps=10` row
+    // shows zero rows, the coach taps Add Row once thinking "one row =
+    // 3 sets", saves, and the flatten step persists sets=1.
+    {
+      const fromTd = parsePlannedSets(exercise);
+      let initialPlanned = fromTd;
+      if (fromTd.length === 0) {
+        const legacySets = parseInt(exercise?.sets, 10);
+        if (Number.isFinite(legacySets) && legacySets > 0) {
+          const seed = {};
+          if (exercise?.reps != null && exercise?.reps !== '')                       seed.reps = exercise.reps;
+          if (exercise?.weight != null && exercise?.weight !== '')                   seed.weight_kg = exercise.weight;
+          if (exercise?.rest_time != null && exercise?.rest_time !== '')             seed.rest_seconds = exercise.rest_time;
+          if (exercise?.work_time != null && exercise?.work_time !== '')             seed.work_time = exercise.work_time;
+          if (exercise?.static_hold_time != null && exercise?.static_hold_time !== '') seed.hold_seconds = exercise.static_hold_time;
+          if (exercise?.tempo != null && exercise?.tempo !== '')                     seed.tempo = exercise.tempo;
+          if (exercise?.rpe != null && exercise?.rpe !== '')                         seed.rpe = exercise.rpe;
+          initialPlanned = Array.from({ length: legacySets }, (_, i) => ({
+            ...seed,
+            set_index: i + 1,
+            variation_name: '',
+          }));
+        }
+      }
+      setPlannedSetsDraft(initialPlanned);
+    }
     setMethodConfig(parsed?.method_config && typeof parsed.method_config === 'object'
       ? parsed.method_config
       : {});

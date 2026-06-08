@@ -1458,11 +1458,32 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     // PER_SET_MODES kept for grep history; not used by the gate now.
     const PER_SET_MODES = ['פירמידה', 'דרופסט', 'דלורם', 'רסטפאוז'];
     void PER_SET_MODES;
-    const shouldFlatten = Array.isArray(plannedSetsForFlatten) && plannedSetsForFlatten.length > 0;
+    // A planned_sets row carries "meaningful" data when at least one of
+    // its numeric per-set fields is filled. An empty placeholder row
+    // (just `{set_index, variation_name:''}`) must not be allowed to
+    // shrink the persisted `sets` count to 1 — that's the trainee-view
+    // bug where editing an exercise wrote `sets=1` even though the coach
+    // intended sets=N. Use the max of the explicit/legacy sets count and
+    // the planned_sets length so per-set methods (PYRAMID / DROP_SET /
+    // DELORME / REST_PAUSE) that legitimately need N rows still win.
+    const planned0 = (plannedSetsForFlatten && plannedSetsForFlatten[0]) || null;
+    const planned0HasNumericField = !!planned0 && (
+      planned0.reps != null         || planned0.weight_kg != null ||
+      planned0.weight != null       || planned0.rest_seconds != null ||
+      planned0.work_time != null    || planned0.hold_seconds != null ||
+      planned0.tempo != null        || planned0.rpe != null
+    );
+    const shouldFlatten = Array.isArray(plannedSetsForFlatten)
+      && plannedSetsForFlatten.length > 0
+      && planned0HasNumericField;
     console.log('SAVE: shouldFlatten', shouldFlatten, 'mode', exerciseData.mode, 'rows', (plannedSetsForFlatten || []).length);
     if (shouldFlatten) {
       const row0 = plannedSetsForFlatten[0] || {};
-      exerciseData.sets             = plannedSetsForFlatten.length;
+      const explicitSets = parseInt(exerciseData.sets, 10);
+      exerciseData.sets             = Math.max(
+        plannedSetsForFlatten.length,
+        Number.isFinite(explicitSets) ? explicitSets : 0
+      );
       exerciseData.reps             = row0.reps ?? null;
       exerciseData.weight           = row0.weight_kg ?? row0.weight ?? null;
       exerciseData.rest_time        = row0.rest_seconds ?? row0.rest_time ?? null;
