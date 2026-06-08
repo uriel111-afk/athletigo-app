@@ -388,7 +388,7 @@ export default function Dashboard() {
               fontSize: 16,
               fontWeight: 700,
               color: 'var(--ag-text-primary)',
-              margin: '0 16px 4px',
+              margin: '0 16px 2px',
               fontFamily: "'Bebas Neue', sans-serif",
               // Stays above the diamond layer so the rotated 115×115
               // top-tip can't visually cover the title text.
@@ -400,32 +400,31 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            // Diamonds bumped 110→114 + positions 0/85/170 → 0/82/164
-            // so the cluster reads tighter — vertical gap between #1
-            // and #4 closes from ~14px to ~3px, horizontal gap between
-            // the centered top diamond and the side pair drops from
-            // ~36px to ~26px. Container grows 280→305 so Diamond #4's
-            // visible bottom-tip (~302) is fully contained instead of
-            // spilling into the next section.
-            height: 305,
+            // Uniform ~5% scale-up vs the approved baseline:
+            //   diamond  114 → 120     positions  0/82/164 → 0/86/172
+            //   container 305 → 320    keeps Diamond #4's visible
+            //   bottom-tip (~317) fully inside the container, so no
+            //   spill into Section 4. Same arrangement, same shape,
+            //   just bigger.
+            height: 320,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
           }}>
             {[
               // The + is a text character (not an emoji) so it stays orange.
-              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 32, iconWeight: 300, iconColor: '#FF6F20',
+              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 34, iconWeight: 300, iconColor: '#FF6F20',
                 onClick: () => setIsAddTraineeOpen(true),
-                pos: { top: 0, left: '50%', marginLeft: -57 } },
-              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
+                pos: { top: 0, left: '50%', marginLeft: -60 } },
+              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 28, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 82, right: 18 } },
-              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
+                pos: { top: 86, right: 18 } },
+              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 28, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 82, left: 18 } },
-              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
+                pos: { top: 86, left: 18 } },
+              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 28, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 164, left: '50%', marginLeft: -57 } },
+                pos: { top: 172, left: '50%', marginLeft: -60 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
@@ -441,7 +440,7 @@ export default function Dashboard() {
                 }}
                 style={{
                   position: 'absolute',
-                  width: 114, height: 114,
+                  width: 120, height: 120,
                   background: 'var(--ag-surface)',
                   borderRadius: 'var(--ag-radius-icon-btn)',
                   // Lumen: white surface + soft layered shadow over the
@@ -471,7 +470,7 @@ export default function Dashboard() {
                   overflow: 'visible',
                 }}>
                   <div style={{
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: 700,
                     color: 'var(--ag-text-primary)',
                     lineHeight: 1.15,
@@ -603,12 +602,11 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (tight cells, less gap) ═══════
-              padding-top can drop to 4 now that the 305 diamond
-              container fully contains Diamond #4's visible bottom-tip
-              (no more 22px spill into this section). Side gutter 2 +
-              grid gap 3 = cards sit very close, filling the row. */}
-          <div style={{ padding: '4px 2px 4px', flexShrink: 0 }}>
+          {/* ═══ SECTION 4 — גישה מהירה (uniform scale-up) ═══════
+              padding-top drops to 0 — the 320 diamond container fully
+              contains the larger diamonds. Side gutter 2 + grid gap 3
+              keep the cards filling the row. */}
+          <div style={{ padding: '0 2px 2px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
@@ -657,7 +655,7 @@ export default function Dashboard() {
                       // fallback for older iOS Safari where aspectRatio
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
-                      height: 76,
+                      height: 78,
                       // Lumen: secondary card → white surface + med
                       // shadow + hairline for a subtle floating feel.
                       background: 'var(--ag-surface)',
@@ -675,9 +673,9 @@ export default function Dashboard() {
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <IconComp size={26} color={q.color} strokeWidth={2} />
+                    <IconComp size={28} color={q.color} strokeWidth={2} />
                     <span style={{
-                      fontSize: 13, fontWeight: 700,
+                      fontSize: 14, fontWeight: 700,
                       color: 'var(--ag-text-primary)', textAlign: 'center',
                       lineHeight: 1.2,
                     }}>
@@ -701,7 +699,7 @@ export default function Dashboard() {
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
                     gap: 3,
-                    marginBottom: 3,
+                    marginBottom: 2,
                   }}>
                     {row1.map(renderCard)}
                   </div>
