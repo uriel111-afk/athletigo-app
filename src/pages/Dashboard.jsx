@@ -660,7 +660,7 @@ export default function Dashboard() {
                   >
                     <IconComp size={22} color={q.color} strokeWidth={2} />
                     <span style={{
-                      fontSize: 11, fontWeight: 700,
+                      fontSize: 13, fontWeight: 700,
                       color: 'var(--ag-text-primary)', textAlign: 'center',
                       lineHeight: 1.2,
                     }}>
