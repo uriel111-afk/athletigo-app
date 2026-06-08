@@ -368,21 +368,27 @@ export default function Dashboard() {
             display: 'flex',
             flexDirection: 'column',
             minHeight: 'calc(100vh - 116px)',
-            padding: '8px 12px 0',
+            // Narrower side padding so every section sits closer to
+            // the screen edges on phones — larger touch targets +
+            // more breathing room for content without changing widths.
+            padding: '6px 6px 0',
           }}
         >
 
-          {/* App switcher — only renders for the Life OS coach. */}
-          <AppSwitcher />
+          {/* App switcher — only renders for the Life OS coach.
+              `wide` enlarges the tabs (taller, bigger label/icon) and
+              shrinks the row's side padding so it extends closer to
+              the screen edges on the dashboard. */}
+          <AppSwitcher wide />
 
           {/* ═══ SECTION 1 — פעולות ליבה (tight 280px, final spec) ═══════ */}
-          <div style={{ padding: '4px 12px 8px', overflow: 'visible' }}>
+          <div style={{ padding: '2px 12px 4px', overflow: 'visible' }}>
             <h3 style={{
               textAlign: 'right',
               fontSize: 17,
               fontWeight: 700,
               color: 'var(--ag-text-primary)',
-              margin: '8px 16px 12px',
+              margin: '4px 16px 8px',
               fontFamily: "'Bebas Neue', sans-serif",
               // Stays above the diamond layer so the rotated 115×115
               // top-tip can't visually cover the title text.
@@ -591,8 +597,8 @@ export default function Dashboard() {
           <RecentPaymentsCard coachId={coach?.id} />
 
           {/* ═══ SECTION 4 — גישה מהירה (final spec: 78×78, lucide SVG icons) ═══════ */}
-          <div style={{ padding: '8px 14px 12px', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div style={{ padding: '6px 4px 8px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
                 fontSize: 14, fontWeight: 700, color: 'var(--ag-text-primary)',
@@ -640,7 +646,7 @@ export default function Dashboard() {
                       // fallback for older iOS Safari where aspectRatio
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
-                      height: 70,
+                      height: 78,
                       // Lumen: secondary card → white surface + med
                       // shadow + hairline for a subtle floating feel.
                       background: 'var(--ag-surface)',
@@ -651,14 +657,14 @@ export default function Dashboard() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 3,
+                      gap: 4,
                       cursor: 'pointer',
                       position: 'relative',
                       padding: 0,
                     }}
                     className="active:scale-[0.97] transition-transform"
                   >
-                    <IconComp size={22} color={q.color} strokeWidth={2} />
+                    <IconComp size={26} color={q.color} strokeWidth={2} />
                     <span style={{
                       fontSize: 13, fontWeight: 700,
                       color: 'var(--ag-text-primary)', textAlign: 'center',
@@ -684,7 +690,7 @@ export default function Dashboard() {
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
                     gap: 8,
-                    marginBottom: 8,
+                    marginBottom: 6,
                   }}>
                     {row1.map(renderCard)}
                   </div>
@@ -692,7 +698,7 @@ export default function Dashboard() {
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
                     gap: 8,
-                    marginBottom: 8,
+                    marginBottom: 4,
                   }}>
                     {row2.map(renderCard)}
                   </div>

@@ -8,7 +8,11 @@ import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 // rendered for the coach user. Active pill = orange filled; others =
 // orange-outlined transparent. Sits at top of LifeOSLayout and the
 // coach Dashboard.
-export default function AppSwitcher() {
+// `wide` — opt-in larger / edge-closer variant. Coach dashboard sets
+// it true so the tabs are a bigger touch target and extend further
+// toward the screen edges; other consumers (LifeOSLayout /
+// PersonalLayout) keep the original compact look unchanged.
+export default function AppSwitcher({ wide = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useContext(AuthContext);
@@ -33,8 +37,10 @@ export default function AppSwitcher() {
     <div
       dir="rtl"
       style={{
-        display: "flex", gap: 6,
-        padding: "6px 12px",
+        display: "flex", gap: wide ? 5 : 6,
+        // wide → less horizontal padding so the row extends closer to
+        // the screen edges on the coach dashboard.
+        padding: wide ? "6px 4px" : "6px 12px",
         background: "transparent",
       }}
     >
@@ -47,9 +53,9 @@ export default function AppSwitcher() {
             style={{
               // flex:1 + minWidth:0 share the row evenly across 4 tabs.
               flex: 1, minWidth: 0,
-              padding: "8px 0",
+              padding: wide ? "11px 0" : "8px 0",
               borderRadius: 12,
-              fontSize: 15, fontWeight: t.active ? 700 : 500,
+              fontSize: wide ? 16 : 15, fontWeight: t.active ? 700 : 500,
               cursor: "pointer",
               background: t.active ? "#FF6F20" : "#F6EAD9",
               color: t.active ? "#FFFFFF" : "#9A6A3A",
@@ -61,12 +67,12 @@ export default function AppSwitcher() {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: 3,
+              gap: wide ? 4 : 3,
               lineHeight: 1,
               fontFamily: "'Rubik', system-ui, sans-serif",
             }}
           >
-            <Icon size={17} aria-hidden style={{ display: "block", color: t.active ? "#FFFFFF" : "#9A6A3A" }} />
+            <Icon size={wide ? 19 : 17} aria-hidden style={{ display: "block", color: t.active ? "#FFFFFF" : "#9A6A3A" }} />
             <span>{t.label}</span>
           </button>
         );
