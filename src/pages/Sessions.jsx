@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Clock, MapPin, Plus, Edit2, Trash2, AlertTriangle, Loader2, Search, ChevronDown, ChevronUp, UserPlus, Users, CheckSquare, Square } from "lucide-react";
+import { Calendar, Clock, MapPin, Plus, Edit2, Trash2, AlertTriangle, Loader2, Search, ChevronDown, ChevronUp, UserPlus, Users, CheckSquare, Square, Filter } from "lucide-react";
 import { format, isToday, isTomorrow, isPast, isFuture } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -93,6 +93,11 @@ export default function Sessions() {
   // the existing filterStatus (which drives the 4-section's stat
   // tabs). Maps via STATUS_FAMILIES to all the legacy status values.
   const [groupedStatusFilter, setGroupedStatusFilter] = useState('all');
+
+  // Toggles the secondary controls panel (type/view/status/selection)
+  // inside the unified filter bar. Off by default — keeps the header
+  // uncluttered until the coach actually needs another filter.
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   // Group Training state
   const [activeView, setActiveView] = useState('sessions'); // 'sessions' | 'groups'
@@ -1300,210 +1305,252 @@ export default function Sessions() {
     <ProtectedCoachPage>
       <div className="min-h-screen overflow-x-hidden pb-24" dir="rtl" style={{ backgroundColor: 'var(--cream)', maxWidth: '100vw' }}>
         <div className="max-w-7xl mx-auto px-4 md:p-8" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
-          {/* Hero Header — sizes pinned to pixels so the root html
-              17px global font change can't reinflate them and push
-              the tab grid below out of position. Geometry preserved. */}
-          <div className="relative" style={{ marginBottom: 32 }}>
-            <div className="absolute top-0 right-0 rounded-full opacity-5"
-            style={{ width: 192, height: 192, background: 'radial-gradient(circle, #FF6F20 0%, transparent 70%)' }} />
-
-            <div className="relative">
-              {/* Title row — full width so it never gets covered by the
-                  action buttons on narrow screens. */}
-              <div style={{ marginBottom: 12 }}>
-                <div className="flex items-center" style={{ gap: 16, marginBottom: 12 }}>
-                  <div
-                    className="flex items-center justify-center rounded-3xl"
-                    style={{ width: 64, height: 64, background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', boxShadow: '0 6px 16px rgba(255, 111, 32, 0.35)' }}>
-
-                    <Calendar size={36} className="text-white" />
-                  </div>
-                  <div>
-                    <h1 className="font-black leading-tight"
-                    style={{
-                      fontSize: 36,
-                      background: 'linear-gradient(135deg, #000000 0%, #4D4D4D 100%)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text',
-                      fontFamily: 'Rubik, sans-serif'
-                    }}>
-                      מפגשים ואימונים
-                    </h1>
-                    <p className="font-medium mt-1" style={{ fontSize: 20, color: '#7D7D7D' }}>
-                      📅 לוח זמנים מלא ומסודר
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-1 w-24 rounded-full" style={{ background: 'linear-gradient(90deg, #FF6F20 0%, #FF8F50 100%)' }} />
-                  <div className="h-1 w-12 rounded-full" style={{ backgroundColor: '#E6E6E6' }} />
-                  <div className="h-1 w-6 rounded-full" style={{ backgroundColor: '#E6E6E6' }} />
-                </div>
+          {/* Row A — Title + calendar icon. Single clean row. */}
+          <div style={{ marginBottom: 12 }}>
+            <div className="flex items-center" style={{ gap: 12 }}>
+              <div
+                className="flex items-center justify-center rounded-2xl"
+                style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', boxShadow: '0 4px 10px rgba(255, 111, 32, 0.25)', flexShrink: 0 }}>
+                <Calendar size={22} className="text-white" />
               </div>
+              <h1 style={{
+                fontSize: 22, fontWeight: 700, color: '#1a1a1a',
+                lineHeight: 1.2, margin: 0,
+                fontFamily: 'Rubik, sans-serif',
+              }}>
+                מפגשים ואימונים
+              </h1>
+            </div>
+          </div>
 
-              {/* Action buttons — own row below the title so the title is
-                  never hidden by them on small viewports. */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                {activeView === 'sessions' && (
+          {/* Row B — Actions: primary "+ קבע מפגש", secondary "קבוצות" */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {activeView === 'sessions' ? (
+              <button
+                type="button"
+                onClick={() => { if (coachLoading || !coach) { toast.error("אנא המתן לטעינת הנתונים"); return; } setEditingSession(null); setShowSessionDialog(true); }}
+                disabled={coachLoading || !coach}
+                style={{
+                  flex: 1,
+                  background: (coachLoading || !coach) ? '#cccccc' : '#FF6F20',
+                  color: '#fff', border: 'none', borderRadius: 12,
+                  padding: '13px 0', fontSize: 15, fontWeight: 500,
+                  cursor: (coachLoading || !coach) ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >
+                + קבע מפגש
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setEditingGroup(null); setGroupForm({ name: '', description: '' }); setShowGroupDialog(true); }}
+                style={{
+                  flex: 1,
+                  background: '#4CAF50',
+                  color: '#fff', border: 'none', borderRadius: 12,
+                  padding: '13px 0', fontSize: 15, fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >
+                + קבוצה חדשה
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setActiveView(activeView === 'sessions' ? 'groups' : 'sessions')}
+              style={{
+                background: '#fff',
+                color: '#5F5E5A',
+                border: '0.5px solid #F0E4D0',
+                borderRadius: 12,
+                padding: '0 14px', fontSize: 14,
+                cursor: 'pointer',
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+              }}
+            >
+              {activeView === 'sessions' ? 'קבוצות' : 'מפגשים'}
+            </button>
+          </div>
+
+          {/* Row C — Compact stats strip (sessions view only) */}
+          {activeView === 'sessions' && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {[
+                { key: 'today',     label: 'היום',    count: todaySessions.length,        accent: false },
+                { key: 'upcoming',  label: 'קרובים',  count: upcomingSessions.length,     accent: false },
+                { key: 'month',     label: 'החודש',   count: currentMonthSessions.length, accent: false },
+                { key: 'completed', label: 'השלמו',   count: completedSessions.length,    accent: true  },
+              ].map((tab) => {
+                const active = filterStatus === tab.key;
+                return (
                   <button
+                    key={tab.key}
                     type="button"
-                    onClick={() => sessionSel.isSelecting ? sessionSel.clearSelection() : sessionSel.startSelecting()}
+                    onClick={() => setFilterStatus(active ? 'all' : tab.key)}
                     style={{
-                      flex: 1, padding: '10px 8px',
+                      flex: 1,
+                      background: '#fff',
                       borderRadius: 12,
-                      border: '1.5px solid #F0E4D0',
-                      background: sessionSel.isSelecting ? '#FFF5EE' : 'white',
-                      color: sessionSel.isSelecting ? '#FF6F20' : '#1a1a1a',
-                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      padding: '10px 4px',
+                      textAlign: 'center',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                      border: active ? '1px solid #FF6F20' : '1px solid transparent',
+                      cursor: 'pointer',
                       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
-                    {sessionSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+                    <div style={{
+                      fontSize: 20, fontWeight: 500,
+                      color: tab.accent ? '#16a34a' : '#1a1a1a',
+                      lineHeight: 1.1,
+                    }}>
+                      {tab.count || 0}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                      {tab.label}
+                    </div>
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setActiveView(activeView === 'sessions' ? 'groups' : 'sessions')}
-                  style={{
-                    flex: 1, padding: '10px 8px',
-                    borderRadius: 12,
-                    border: '1.5px solid #F0E4D0',
-                    background: 'white',
-                    color: '#1a1a1a',
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                  }}
-                >
-                  {activeView === 'sessions' ? 'קבוצות' : 'מפגשים'}
-                </button>
-                {activeView === 'sessions' ? (
-                  <button
-                    type="button"
-                    onClick={() => { if (coachLoading || !coach) { toast.error("אנא המתן לטעינת הנתונים"); return; } setEditingSession(null); setShowSessionDialog(true); }}
-                    disabled={coachLoading || !coach}
-                    style={{
-                      flex: 1, padding: '10px 8px',
-                      borderRadius: 12, border: 'none',
-                      background: (coachLoading || !coach) ? '#cccccc' : '#FF6F20',
-                      color: 'white',
-                      fontSize: 13, fontWeight: 700,
-                      cursor: (coachLoading || !coach) ? 'not-allowed' : 'pointer',
-                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                    }}
-                  >
-                    + קבע מפגש
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => { setEditingGroup(null); setGroupForm({ name: '', description: '' }); setShowGroupDialog(true); }}
-                    style={{
-                      flex: 1, padding: '10px 8px',
-                      borderRadius: 12, border: 'none',
-                      background: '#4CAF50',
-                      color: 'white',
-                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                    }}
-                  >
-                    + קבוצה חדשה
-                  </button>
-                )}
-              </div>
+                );
+              })}
             </div>
-          </div>
+          )}
 
-          {/* Stats Tabs — large 4-col grid; tap toggles the filter on/off */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 8,
-            marginBottom: 20,
-          }}>
-            {[
-              { key: 'today',     label: 'היום',    count: todaySessions.length },
-              { key: 'upcoming',  label: 'קרובים',  count: upcomingSessions.length },
-              { key: 'month',     label: 'החודש',   count: currentMonthSessions.length },
-              { key: 'completed', label: 'הושלמו',  count: completedSessions.length },
-            ].map((tab) => {
-              const active = filterStatus === tab.key;
-              return (
+          {/* Row D — Unified filter bar (sessions view only) */}
+          {activeView === 'sessions' && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{
+                background: '#fff',
+                borderRadius: 12,
+                padding: 6,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
                 <button
-                  key={tab.key}
                   type="button"
-                  onClick={() => setFilterStatus(active ? 'all' : tab.key)}
+                  onClick={() => setShowMoreFilters((v) => !v)}
+                  aria-label="מסננים נוספים"
                   style={{
-                    padding: '14px 8px',
-                    borderRadius: 14,
+                    width: 34, height: 34,
+                    borderRadius: 9,
+                    background: '#FBF3EA',
+                    color: '#FF6F20',
+                    border: 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer',
-                    background: active ? '#FF6F20' : 'white',
-                    boxShadow: active
-                      ? '0 4px 12px rgba(255,111,32,0.3)'
-                      : '0 2px 8px rgba(0,0,0,0.04)',
-                    border: active ? 'none' : '1px solid #F0E4D0',
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', gap: 6,
-                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                    flexShrink: 0,
                   }}
                 >
-                  <div style={{
-                    fontSize: 24, fontWeight: 900,
-                    color: active ? 'white' : '#1a1a1a',
-                    lineHeight: 1,
-                  }}>
-                    {tab.count || 0}
-                  </div>
-                  <div style={{
-                    fontSize: 12, fontWeight: 700,
-                    color: active ? 'rgba(255,255,255,0.9)' : '#888',
-                  }}>
-                    {tab.label}
-                  </div>
+                  <Filter size={16} />
                 </button>
-              );
-            })}
-          </div>
+                <div style={{
+                  display: 'flex', gap: 4,
+                  overflowX: 'auto', flexWrap: 'nowrap',
+                  flex: 1, minWidth: 0,
+                }}>
+                  {[
+                    { id: 'all',       label: 'הכל' },
+                    { id: 'pending',   label: 'ממתין' },
+                    { id: 'confirmed', label: 'מאושר' },
+                    { id: 'completed', label: 'הושלם' },
+                    { id: 'cancelled', label: 'בוטל' },
+                  ].map((f) => {
+                    const active = groupedStatusFilter === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setGroupedStatusFilter(f.id)}
+                        style={{
+                          background: active ? '#FF6F20' : 'transparent',
+                          color: active ? '#fff' : '#888',
+                          border: 'none',
+                          borderRadius: 9,
+                          padding: active ? '7px 12px' : '7px 10px',
+                          fontSize: 13, fontWeight: active ? 600 : 500,
+                          whiteSpace: 'nowrap',
+                          cursor: 'pointer',
+                          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-          {/* Search & Filters - Minimal */}
-          <div className="mb-6 flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#7D7D7D' }} />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="חיפוש..."
-                className="rounded-lg pr-10 py-2 text-sm"
-                style={{ border: '1px solid #E0E0E0', backgroundColor: '#FFFFFF' }} />
+              {showMoreFilters && (
+                <div style={{
+                  background: '#fff',
+                  borderRadius: 12,
+                  padding: 12,
+                  marginTop: 8,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}>
+                  <div className="relative">
+                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#7D7D7D' }} />
+                    <Input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="חיפוש..."
+                      className="rounded-lg pr-10 py-2 text-sm w-full"
+                      style={{ border: '1px solid #E0E0E0', backgroundColor: '#FFFFFF' }} />
+                  </div>
 
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger className="rounded-lg" style={{ border: '1px solid #E0E0E0', backgroundColor: '#FFFFFF' }}>
+                      <SelectValue placeholder="סוג" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">כל הסוגים</SelectItem>
+                      <SelectItem value="אישי">🧍‍♂️ אישי</SelectItem>
+                      <SelectItem value="קבוצתי">👥 קבוצתי</SelectItem>
+                      <SelectItem value="אונליין">💻 אונליין</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="rounded-lg" style={{ border: '1px solid #E0E0E0', backgroundColor: '#FFFFFF' }}>
+                      <SelectValue placeholder="סטטוס" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">הכל</SelectItem>
+                      <SelectItem value="upcoming">⏰ קרובים</SelectItem>
+                      <SelectItem value="completed">✅ הושלמו</SelectItem>
+                      <SelectItem value="cancelled">❌ בוטלו</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => sessionSel.isSelecting ? sessionSel.clearSelection() : sessionSel.startSelecting()}
+                      style={{
+                        flex: 1, padding: '10px 8px',
+                        borderRadius: 10,
+                        border: '1px solid #F0E4D0',
+                        background: sessionSel.isSelecting ? '#FFF5EE' : '#fff',
+                        color: sessionSel.isSelecting ? '#FF6F20' : '#1a1a1a',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                      }}
+                    >
+                      {sessionSel.isSelecting ? '✕ ביטול' : '☑ בחירה'}
+                    </button>
+                    <ViewToggle view={view} onChange={setView} />
+                  </div>
+                </div>
+              )}
             </div>
-
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="rounded-lg w-32" style={{ border: '1px solid #E0E0E0', backgroundColor: '#FFFFFF' }}>
-                <SelectValue placeholder="סוג" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">כל הסוגים</SelectItem>
-                <SelectItem value="אישי">🧍‍♂️ אישי</SelectItem>
-                <SelectItem value="קבוצתי">👥 קבוצתי</SelectItem>
-                <SelectItem value="אונליין">💻 אונליין</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="rounded-lg w-32" style={{ border: '1px solid #E0E0E0', backgroundColor: '#FFFFFF' }}>
-                <SelectValue placeholder="סטטוס" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">הכל</SelectItem>
-                <SelectItem value="upcoming">⏰ קרובים</SelectItem>
-                <SelectItem value="completed">✅ הושלמו</SelectItem>
-                <SelectItem value="cancelled">❌ בוטלו</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <ViewToggle view={view} onChange={setView} />
-          </div>
+          )}
 
           {/* ═══ GROUPS VIEW ═══ */}
           {activeView === 'groups' && (
@@ -1602,42 +1649,11 @@ export default function Sessions() {
               stay in sync after CRUD. */}
           {activeView === 'sessions' && !isLoading && sessionsLayout === 'grouped' && (() => {
             const groups = groupSessionsByTime(groupedFilteredSessions);
-            const STATUS_FILTERS = [
-              { id: 'all',       label: 'הכל' },
-              { id: 'pending',   label: 'ממתין' },
-              { id: 'confirmed', label: 'מאושר' },
-              { id: 'completed', label: 'הושלם' },
-              { id: 'cancelled', label: 'בוטל' },
-            ];
             const visibleBuckets = ['today', 'tomorrow', 'thisWeek', 'future'];
             const totalVisible = visibleBuckets.reduce((n, k) => n + groups[k].length, 0);
             return (
               <div dir="rtl" style={{ paddingBottom: 80 }}>
-                {/* Status filter chips */}
-                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 0 12px', marginBottom: 12 }}>
-                  {STATUS_FILTERS.map(f => {
-                    const active = groupedStatusFilter === f.id;
-                    return (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => setGroupedStatusFilter(f.id)}
-                        style={{
-                          padding: '8px 16px', borderRadius: 999, border: 'none',
-                          background: active
-                            ? 'linear-gradient(135deg, #FF6F20 0%, #FF8A47 100%)'
-                            : '#FFFFFF',
-                          color: active ? '#fff' : '#555',
-                          boxShadow: active ? '0 2px 8px rgba(255,111,32,0.25)' : 'none',
-                          border: active ? '1.5px solid #FF6F20' : '1.5px solid #F0E4D0',
-                          fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer',
-                          fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                          transition: 'all 0.2s ease',
-                        }}
-                      >{f.label}</button>
-                    );
-                  })}
-                </div>
+                {/* Status filter chips moved to the unified filter bar (Row D) above. */}
 
                 {/* Toggle back to classic if needed */}
                 <div style={{ textAlign: 'left', marginBottom: 12 }}>
