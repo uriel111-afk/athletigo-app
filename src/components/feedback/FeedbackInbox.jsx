@@ -1,20 +1,18 @@
 import React, { useContext, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import { ATHLETIGO_ADMIN_UUID } from '@/constants/admin';
 import { base44 } from '@/api/base44Client';
-import PageLoader from '@/components/PageLoader';
 
-// Admin-only inbox for app_feedback rows. Gated strictly to
-// ATHLETIGO_ADMIN_UUID at route level — other users land on an
-// "אין הרשאה" screen instead of seeing the inbox.
+// Admin-only inbox for app_feedback rows. Now mounted inside the
+// Notifications page as the "💡 שיפורים" tab. Self-contained:
+// owns its own query + mutation + filters; no props required.
 //
-// Per row: category badge, message, sender + role, originating
-// screen, date, status triage dropdown (new → read → done). Top
-// filter row lets the admin slice by category and status.
+// Defensive guard: even though Notifications hides the parent tab
+// for non-admins, FeedbackInbox refuses to render its inbox UI to
+// anyone whose auth-context user.id !== ATHLETIGO_ADMIN_UUID.
 
 const STATUS_FLOW = ['new', 'read', 'done'];
 const STATUS_LABEL = { new: 'חדש', read: 'נקרא', done: 'טופל' };
@@ -42,9 +40,8 @@ function formatDate(iso) {
   } catch { return iso; }
 }
 
-export default function FeedbackPage() {
-  const { user, isLoadingAuth } = useContext(AuthContext);
-  const navigate = useNavigate();
+export default function FeedbackInbox() {
+  const { user } = useContext(AuthContext);
   const queryClient = useQueryClient();
 
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -71,7 +68,7 @@ export default function FeedbackPage() {
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(['app-feedback'], ctx.prev);
-      console.error('[Feedback] status update failed:', err);
+      console.error('[FeedbackInbox] status update failed:', err);
       toast.error('שגיאה בעדכון הסטטוס');
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['app-feedback'] }),
@@ -94,45 +91,32 @@ export default function FeedbackPage() {
     });
   }, [rows, categoryFilter, statusFilter]);
 
-  if (isLoadingAuth) return <PageLoader />;
-
+  // Defensive guard — Notifications already hides the parent tab for
+  // non-admins, but a stray URL state (?filter=feedback) or a future
+  // mount somewhere else must not leak the inbox.
   if (!isAdmin) {
     return (
       <div dir="rtl" style={{
         padding: 32, textAlign: 'center',
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6, color: '#1a1a1a' }}>
-          אין הרשאה לעמוד זה
+        <div style={{ fontSize: 40, marginBottom: 10 }}>🔒</div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>
+          אין הרשאה לתיבת השיפורים
         </div>
-        <div style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>
-          התיבה הזו זמינה רק למנהל הראשי.
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          style={{
-            padding: '10px 18px', borderRadius: 12, border: 'none',
-            background: '#FF6F20', color: 'white',
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
-          חזרה
-        </button>
       </div>
     );
   }
 
   return (
     <div dir="rtl" style={{
-      padding: '12px 14px 80px',
+      padding: '4px 14px 80px',
       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       maxWidth: 760, margin: '0 auto',
     }}>
       {/* Header */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a' }}>שיפורים</div>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>שיפורים</div>
         <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
           {counts.all} פניות · חדשות: {counts.new} · נקראו: {counts.read} · טופלו: {counts.done}
         </div>

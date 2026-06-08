@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import PageLoader from "@/components/PageLoader";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
+import FeedbackInbox from "@/components/feedback/FeedbackInbox";
+import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
 
 // Icon set — keyed off notification type. New entries added 2026-05-10
 // for trainee onboarding / payment / workout-completed / health flows
@@ -519,7 +521,9 @@ export default function Notifications() {
 
       {/* B. Filter chips — May 2026 spec: 4 lifecycle states. The
           older 'reminder' chip was folded into 'נדחו' since reminders
-          are a per-row mechanism, not a top-level category. */}
+          are a per-row mechanism, not a top-level category.
+          5th chip "💡 שיפורים" is admin-only — opens the FeedbackInbox
+          tab in place of the notifications list. */}
       <div style={{
         display: 'flex', gap: 6,
         padding: '12px 16px',
@@ -531,6 +535,9 @@ export default function Notifications() {
           { id: 'unread',   label: 'חדש' },
           { id: 'deferred', label: 'נדחו' },
           { id: 'handled',  label: 'טופלו' },
+          ...(user?.id === ATHLETIGO_ADMIN_UUID
+            ? [{ id: 'feedback', label: '💡 שיפורים' }]
+            : []),
         ].map(f => (
           <button
             key={f.id}
@@ -555,6 +562,12 @@ export default function Notifications() {
         ))}
       </div>
 
+      {/* Admin-only feedback inbox — renders in place of the
+          notifications list when the "💡 שיפורים" tab is active.
+          FeedbackInbox owns its own data + filters + status triage
+          and double-checks the admin UUID itself. */}
+      {filter === 'feedback' && <FeedbackInbox />}
+
       {/* C. Trainee-grouped folders — May 2026 redesign. Each
           trainee gets a collapsible header (avatar + name + counts +
           unread badge). Tap to expand → notifications render inline
@@ -562,6 +575,7 @@ export default function Notifications() {
           / markDeferred / setReminderTarget / softDelete /
           markAsRead / navigateToRelevant) are unchanged — only the
           shell layout moved. */}
+      {filter !== 'feedback' && (
       <div style={{ padding: '0 12px' }}>
         {traineeGroups.map((group) => {
           const isExpanded = expandedGroups.has(group.id);
@@ -794,6 +808,7 @@ export default function Notifications() {
           </div>
         )}
       </div>
+      )}
 
       {/* Multi-select bar — bulk handle / mark-read / soft-delete */}
       <MultiSelectBar
