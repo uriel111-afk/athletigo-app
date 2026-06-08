@@ -110,35 +110,32 @@ export default function Login() {
 
   return (
     <div
-      // min-h-screen (100vh) stays as the fallback for browsers without
-      // dvh support; the inline minHeight: '100dvh' overrides it on
-      // modern browsers so the layout follows the visible viewport when
-      // the mobile keyboard is open. height: 'auto' + overflowY: 'auto'
-      // make THIS container the scroll surface; the inner block's
-      // paddingBottom: 280 below is invisible scroll runway letting the
-      // form rise above the keyboard without trapping the button.
+      // min-h-screen (100vh) stays as the class-level fallback for
+      // browsers without dvh support; the inline minHeight: '100dvh'
+      // overrides it on modern browsers so the layout follows the
+      // visible viewport when the mobile keyboard is open. The form
+      // is compact enough to fit alongside the open keyboard without
+      // scrolling — no overflow scroll, no bottom runway needed.
       // paddingBottom keeps the install-banner gutter intact.
       className="min-h-screen flex flex-col items-center px-4"
       style={{
         minHeight: '100dvh',
         height: 'auto',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
         backgroundColor: "#FFF9F0",
-        paddingTop: 12,
+        paddingTop: 16,
         paddingBottom: isPWA ? 24 : 160,
       }}
       dir="rtl"
     >
-      <div className="w-full" style={{ maxWidth: 400, marginTop: 32, paddingBottom: 280 }}>
+      <div className="w-full" style={{ maxWidth: 400, marginTop: 16 }}>
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 12 }}>
           <img
             src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 160, height: 'auto', objectFit: 'contain', marginBottom: 6, filter: 'brightness(0)' }}
+            style={{ width: 96, height: 'auto', objectFit: 'contain', marginBottom: 3, filter: 'brightness(0)' }}
           />
-          <div style={{ fontSize: 15, color: '#888', fontWeight: 500, textAlign: 'center' }}>
+          <div style={{ fontSize: 13, color: '#888', fontWeight: 500, textAlign: 'center' }}>
             כניסה למערכת מאמנים ומתאמנים
           </div>
         </div>
@@ -148,11 +145,11 @@ export default function Login() {
           style={{
             backgroundColor: "#FFFFFF",
             borderRadius: 20,
-            padding: 20,
+            padding: 16,
             boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
           }}
         >
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-2">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="font-bold text-sm" style={{ color: "#000000" }}>
                 אימייל
@@ -209,7 +206,7 @@ export default function Login() {
               )}
             </Button>
 
-            <div className="text-center" style={{ fontSize: 13, color: '#888', marginTop: 8 }}>
+            <div className="text-center" style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
               שכחת סיסמה? פנה למאמן שלך
             </div>
           </form>

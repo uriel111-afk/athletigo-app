@@ -45,7 +45,21 @@ export default function InstallPrompt() {
       zIndex: 9999, direction: 'rtl',
       boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
     }}>
-      <img src="/icon-192.png" alt="" style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0 }} />
+      {/* AthletiGo triangle mark, recoloured white for the black bar.
+          /logo-transparent.png is the triangle-only asset (no wordmark)
+          on a transparent background; brightness(0) flattens it to
+          black, invert(1) flips that to white. No rounded container —
+          the triangle stands alone on the dark bar. */}
+      <img
+        src="/logo-transparent.png"
+        alt=""
+        style={{
+          width: 44, height: 44,
+          objectFit: 'contain',
+          filter: 'brightness(0) invert(1)',
+          flexShrink: 0,
+        }}
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>התקן את AthletiGo</div>
         <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
