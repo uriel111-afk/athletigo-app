@@ -128,23 +128,28 @@ export default function Login() {
       dir="rtl"
     >
       <div className="w-full" style={{ maxWidth: 400, marginTop: 8 }}>
-        {/* Brand — horizontal row. RTL puts the title visually on the
-            right and the logo on the left. Two-line title keeps the
-            vertical footprint short so the orange login button stays
-            in frame above the keyboard. */}
+        {/* Brand — three-part header row. Under dir="rtl", flex source
+            order paints right-to-left, so the title is the first child
+            (lands on the right), the dotted divider sits in the middle,
+            and the logo is the last child (lands on the left). */}
         <div style={{
-          display: 'flex', flexDirection: 'row', alignItems: 'center',
-          justifyContent: 'center', gap: 14, marginBottom: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', marginBottom: 10,
         }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: '#111', lineHeight: 1.25 }}>ברוך הבא 👋</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#888' }}>כניסה למאמנים ומתאמנים</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ width: 1, height: 17, background: '#DDD3C4' }} />
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF6F20', margin: '3px 0' }} />
+            <div style={{ width: 1, height: 17, background: '#DDD3C4' }} />
+          </div>
           <img
             src="/logoR.png"
             alt="AthletiGo"
-            style={{ width: 104, height: 'auto', objectFit: 'contain', flexShrink: 0, filter: 'brightness(0)' }}
+            style={{ width: 92, height: 'auto', objectFit: 'contain', flexShrink: 0, filter: 'brightness(0)' }}
           />
-          <div style={{ fontSize: 17, fontWeight: 600, color: '#222', lineHeight: 1.3, textAlign: 'right' }}>
-            <div>כניסה למערכת</div>
-            <div>מאמנים ומתאמנים</div>
-          </div>
         </div>
 
         {/* Card */}
