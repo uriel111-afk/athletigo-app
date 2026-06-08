@@ -400,14 +400,14 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            // Restored to the original 280 + 0/85/170 spec — the 240 +
-            // 0/72/144 squeeze caused Diamond #1 and #4 to overlap by
-            // ~12px (their rotated 45° bounding boxes met) AND let
-            // Diamond #4's visible bottom-tip spill ~22px below the
-            // 240 container, where it covered the "גישה מהירה"
-            // header. The 280px container + the lifted positions
-            // restore the original safe gaps.
-            height: 280,
+            // Diamonds bumped 110→114 + positions 0/85/170 → 0/82/164
+            // so the cluster reads tighter — vertical gap between #1
+            // and #4 closes from ~14px to ~3px, horizontal gap between
+            // the centered top diamond and the side pair drops from
+            // ~36px to ~26px. Container grows 280→305 so Diamond #4's
+            // visible bottom-tip (~302) is fully contained instead of
+            // spilling into the next section.
+            height: 305,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
@@ -416,16 +416,16 @@ export default function Dashboard() {
               // The + is a text character (not an emoji) so it stays orange.
               { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 32, iconWeight: 300, iconColor: '#FF6F20',
                 onClick: () => setIsAddTraineeOpen(true),
-                pos: { top: 0, left: '50%', marginLeft: -55 } },
+                pos: { top: 0, left: '50%', marginLeft: -57 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 85, right: 18 } },
+                pos: { top: 82, right: 18 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 85, left: 18 } },
+                pos: { top: 82, left: 18 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 170, left: '50%', marginLeft: -55 } },
+                pos: { top: 164, left: '50%', marginLeft: -57 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
@@ -441,7 +441,7 @@ export default function Dashboard() {
                 }}
                 style={{
                   position: 'absolute',
-                  width: 110, height: 110,
+                  width: 114, height: 114,
                   background: 'var(--ag-surface)',
                   borderRadius: 'var(--ag-radius-icon-btn)',
                   // Lumen: white surface + soft layered shadow over the
@@ -603,13 +603,12 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (balanced pre-global-font geometry)
-              Horizontal padding + gap + row marginBottom restored to
-              the pre-global-font commit's values (4 / 6 / 4). Only
-              padding-top is held at 24px so the visible bottom-tip of
-              Diamond #4 (which extends ~22px below the 280 container
-              due to the 45° rotation) doesn't cover this header. */}
-          <div style={{ padding: '24px 4px 4px', flexShrink: 0 }}>
+          {/* ═══ SECTION 4 — גישה מהירה (tight cells, less gap) ═══════
+              padding-top can drop to 4 now that the 305 diamond
+              container fully contains Diamond #4's visible bottom-tip
+              (no more 22px spill into this section). Side gutter 2 +
+              grid gap 3 = cards sit very close, filling the row. */}
+          <div style={{ padding: '4px 2px 4px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
@@ -658,7 +657,7 @@ export default function Dashboard() {
                       // fallback for older iOS Safari where aspectRatio
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
-                      height: 72,
+                      height: 76,
                       // Lumen: secondary card → white surface + med
                       // shadow + hairline for a subtle floating feel.
                       background: 'var(--ag-surface)',
@@ -701,15 +700,15 @@ export default function Dashboard() {
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 6,
-                    marginBottom: 4,
+                    gap: 3,
+                    marginBottom: 3,
                   }}>
                     {row1.map(renderCard)}
                   </div>
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 6,
+                    gap: 3,
                     marginBottom: 0,
                   }}>
                     {row2.map(renderCard)}
