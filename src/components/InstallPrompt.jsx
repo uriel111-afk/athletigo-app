@@ -48,18 +48,33 @@ export default function InstallPrompt() {
       {/* AthletiGo triangle mark, recoloured white for the black bar.
           /logo-transparent.png is the triangle-only asset (no wordmark)
           on a transparent background; brightness(0) flattens it to
-          black, invert(1) flips that to white. No rounded container —
-          the triangle stands alone on the dark bar. */}
-      <img
-        src="/logo-transparent.png"
-        alt=""
-        style={{
-          width: 44, height: 44,
-          objectFit: 'contain',
-          filter: 'brightness(0) invert(1)',
-          flexShrink: 0,
-        }}
-      />
+          black, invert(1) flips that to white. Wrapper is position:
+          relative so the small white ® can be pinned to the triangle's
+          bottom-right corner. The 5-px bottom inset compensates for the
+          letterbox space objectFit:contain leaves below the triangle
+          inside its 44×44 box (image is wider than tall), so the ®
+          hugs the actual triangle, not the box edge. */}
+      <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
+        <img
+          src="/logo-transparent.png"
+          alt=""
+          style={{
+            width: 44, height: 44,
+            objectFit: 'contain',
+            filter: 'brightness(0) invert(1)',
+            display: 'block',
+          }}
+        />
+        <span style={{
+          position: 'absolute',
+          bottom: 5,
+          right: 0,
+          fontSize: 8,
+          lineHeight: 1,
+          color: '#fff',
+          fontWeight: 400,
+        }}>®</span>
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>התקן את AthletiGo</div>
         <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
