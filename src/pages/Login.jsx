@@ -137,7 +137,7 @@ export default function Login() {
           width: '100%', marginBottom: 10,
         }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: '#111', lineHeight: 1.25 }}>ברוך הבא 👋</div>
+            <div style={{ fontSize: 20, fontWeight: 600, color: '#111', lineHeight: 1.25 }}>ברוכים הבאים 👋</div>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#888' }}>כניסה למאמנים ומתאמנים</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
