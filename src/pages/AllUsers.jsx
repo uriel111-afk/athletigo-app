@@ -131,6 +131,15 @@ export default function AllUsers() {
   // current values without an extra fetch.
   const [eligibilityForMember, setEligibilityForMember] = useState(null);
 
+  // groupDetail — add / remove member flow. The picker filters
+  // useClientStats().allTrainees against the current group's membership
+  // by trainee_id so an already-enrolled trainee never shows up. The
+  // remove confirm holds the membership row itself (with id) so the
+  // delete call doesn't need a second lookup.
+  const [showAddMemberPicker, setShowAddMemberPicker] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState(null);
+  const [addMemberSearch, setAddMemberSearch] = useState('');
+
   // Service-type filter (multi-select). Values are the canonical
   // English keys returned by normalizeServiceType — 'personal' /
   // 'online' / 'group'. An empty set means "no service filter": every
@@ -261,6 +270,29 @@ export default function AllUsers() {
     },
     enabled: !!currentUser?.id,
     staleTime: 30000,
+  });
+
+  // groupDetail — single-member add / remove against an EXISTING group.
+  // Mirrors the Sessions.jsx mutations exactly (same query key, same
+  // entity wrapper) so both views stay in sync without a second source
+  // of truth. INSERT writes only the three core fields; eligibility
+  // stays null and is filled in later via MemberEligibilityDialog.
+  const addGroupMemberMutation = useMutation({
+    mutationFn: ({ group_id, trainee_id, trainee_name }) =>
+      base44.entities.TrainingGroupMember.create({ group_id, trainee_id, trainee_name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-members'] });
+      toast.success('✅ מתאמן נוסף לקבוצה');
+    },
+    onError: (err) => toast.error('❌ שגיאה בהוספת מתאמן: ' + (err?.message || 'נסה שוב')),
+  });
+  const removeGroupMemberMutation = useMutation({
+    mutationFn: (id) => base44.entities.TrainingGroupMember.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-members'] });
+      toast.success('✅ מתאמן הוסר מהקבוצה');
+    },
+    onError: (err) => toast.error('❌ שגיאה בהסרה: ' + (err?.message || 'נסה שוב')),
   });
 
   // Active packages for every member-of-a-group — feeds the per-member
@@ -1656,7 +1688,25 @@ export default function AllUsers() {
                 {/* Whole-group action buttons — disabled until the
                     group has at least one member so the dialogs never
                     open empty. Both reuse existing flows; nothing new
-                    on the server side. */}
+                    on the server side. The add-member button is always
+                    visible (even on an empty group) so a brand-new
+                    group can be populated without leaving the screen. */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: members.length > 0 ? 8 : 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setAddMemberSearch(''); setShowAddMemberPicker(true); }}
+                    style={{
+                      flex: 1,
+                      padding: '12px 8px', borderRadius: 12,
+                      border: '1px solid #FF6F20',
+                      background: 'white', color: '#FF6F20',
+                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                    }}
+                  >
+                    + הוסף חבר
+                  </button>
+                </div>
                 {members.length > 0 && (
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -2152,6 +2202,16 @@ export default function AllUsers() {
                     }
                   },
                 },
+                {
+                  icon: '🗑', label: 'הסר מהקבוצה', danger: true,
+                  onClick: () => {
+                    // Stage the membership row for confirmation. Close
+                    // the action sheet so the confirm sits on a clean
+                    // backdrop. The delete only runs after the confirm.
+                    setMemberActionOpen(false);
+                    setMemberToRemove(selectedMember);
+                  },
+                },
               ].map((a) => (
                 <button
                   key={a.label}
@@ -2161,9 +2221,11 @@ export default function AllUsers() {
                     width: '100%',
                     display: 'flex', alignItems: 'center', gap: 14,
                     padding: '14px 12px', borderRadius: 12,
-                    background: a.primary ? '#FFF5EE' : 'white',
-                    border: a.primary ? '1px solid #FF6F20' : '1px solid #F0E4D0',
-                    color: a.primary ? '#FF6F20' : '#1a1a1a',
+                    background: a.danger ? '#FEF2F2' : (a.primary ? '#FFF5EE' : 'white'),
+                    border: a.danger
+                      ? '1px solid #FCA5A5'
+                      : (a.primary ? '1px solid #FF6F20' : '1px solid #F0E4D0'),
+                    color: a.danger ? '#B91C1C' : (a.primary ? '#FF6F20' : '#1a1a1a'),
                     fontSize: 14, fontWeight: 700,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
@@ -2173,7 +2235,7 @@ export default function AllUsers() {
                 >
                   <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>{a.icon}</span>
                   <span style={{ flex: 1 }}>{a.label}</span>
-                  <span aria-hidden style={{ color: '#C9A24A', fontSize: 14 }}>›</span>
+                  <span aria-hidden style={{ color: a.danger ? '#FCA5A5' : '#C9A24A', fontSize: 14 }}>›</span>
                 </button>
               ))}
 
@@ -2193,6 +2255,250 @@ export default function AllUsers() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Add-member picker — opens from the "+ הוסף חבר" button on
+            the group detail header. Lists the coach's trainees minus
+            anyone who is already in this group's training_group_members
+            rows. Closes only via X / cancel / a successful add (no
+            backdrop dismiss) so a stray tap never drops the picker.
+            One INSERT per tap; the existing realtime channel + the
+            ['group-members'] invalidation make the row appear in the
+            list below without a manual refetch. */}
+        {showAddMemberPicker && selectedGroup && (() => {
+          const currentMemberIds = new Set(
+            groupMembers
+              .filter((gm) => gm.group_id === selectedGroup.id)
+              .map((gm) => gm.trainee_id)
+          );
+          const search = (addMemberSearch || '').trim().toLowerCase();
+          const candidates = (allTrainees || [])
+            .filter((t) => t && t.id && !currentMemberIds.has(t.id))
+            .filter((t) => {
+              if (!search) return true;
+              const name = (t.full_name || '').toLowerCase();
+              const phone = (t.phone || '').toLowerCase();
+              return name.includes(search) || phone.includes(search);
+            });
+          return (
+            <Dialog
+              open={showAddMemberPicker}
+              onOpenChange={(o) => {
+                // Block backdrop dismiss while a mutation is in-flight;
+                // otherwise allow only the X / cancel paths (which set
+                // the flag to false explicitly).
+                if (!o && !addGroupMemberMutation.isPending) {
+                  setShowAddMemberPicker(false);
+                  setAddMemberSearch('');
+                }
+              }}
+            >
+              <DialogContent
+                className="max-w-md"
+                onInteractOutside={(e) => e.preventDefault()}
+                onEscapeKeyDown={(e) => {
+                  if (addGroupMemberMutation.isPending) e.preventDefault();
+                }}
+              >
+                <DialogHeader>
+                  <DialogTitle>הוסף חבר — {selectedGroup.name || 'קבוצה'}</DialogTitle>
+                </DialogHeader>
+                <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <input
+                    type="text"
+                    value={addMemberSearch}
+                    onChange={(e) => setAddMemberSearch(e.target.value)}
+                    placeholder="חיפוש לפי שם או טלפון"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: '1px solid #F0E4D0',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      outline: 'none',
+                      direction: 'rtl',
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                      background: 'white',
+                    }}
+                  />
+                  <div style={{
+                    maxHeight: '50vh', overflowY: 'auto',
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                  }}>
+                    {candidates.length === 0 ? (
+                      <div style={{
+                        padding: '24px 16px',
+                        textAlign: 'center',
+                        color: '#888',
+                        fontSize: 13,
+                        background: '#FAFAFA',
+                        borderRadius: 10,
+                        border: '1px dashed #F0E4D0',
+                      }}>
+                        כל המתאמנים כבר בקבוצה
+                      </div>
+                    ) : (
+                      candidates.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          disabled={addGroupMemberMutation.isPending}
+                          onClick={() => {
+                            addGroupMemberMutation.mutate(
+                              {
+                                group_id: selectedGroup.id,
+                                trainee_id: t.id,
+                                trainee_name: t.full_name || '',
+                              },
+                              {
+                                onSuccess: () => {
+                                  setShowAddMemberPicker(false);
+                                  setAddMemberSearch('');
+                                },
+                              }
+                            );
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            background: 'white',
+                            border: '1px solid #F0E4D0',
+                            cursor: addGroupMemberMutation.isPending ? 'default' : 'pointer',
+                            textAlign: 'right',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          <div style={{
+                            width: 32, height: 32, borderRadius: 999,
+                            background: '#FFF5EE', color: '#FF6F20',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 14, fontWeight: 800, flexShrink: 0,
+                          }}>
+                            {(t.full_name || '?').trim().charAt(0)}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {t.full_name || 'מתאמן'}
+                            </div>
+                            {t.phone && (
+                              <div style={{
+                                fontSize: 11, color: '#888', marginTop: 2,
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              }}>
+                                {t.phone}
+                              </div>
+                            )}
+                          </div>
+                          <span aria-hidden style={{ color: '#FF6F20', fontSize: 18, fontWeight: 800 }}>+</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (addGroupMemberMutation.isPending) return;
+                      setShowAddMemberPicker(false);
+                      setAddMemberSearch('');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '11px 0', borderRadius: 12,
+                      border: '1px solid #F0E4D0', background: 'white',
+                      fontSize: 13, fontWeight: 700, color: '#666',
+                      cursor: addGroupMemberMutation.isPending ? 'default' : 'pointer',
+                      marginTop: 4,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    ביטול
+                  </button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
+
+        {/* Remove-from-group confirm. Holds the membership row in
+            memberToRemove (set when the coach tapped "הסר מהקבוצה" in
+            the per-member action sheet); selectedMember.id IS the
+            training_group_members.id we need for delete. The trainee
+            row itself + their packages + their sessions stay untouched
+            — only the membership link is deleted. */}
+        {memberToRemove && (
+          <Dialog
+            open={!!memberToRemove}
+            onOpenChange={(o) => {
+              if (!o && !removeGroupMemberMutation.isPending) setMemberToRemove(null);
+            }}
+          >
+            <DialogContent
+              className="max-w-sm"
+              onInteractOutside={(e) => e.preventDefault()}
+              onEscapeKeyDown={(e) => {
+                if (removeGroupMemberMutation.isPending) e.preventDefault();
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>להסיר את החבר מהקבוצה?</DialogTitle>
+              </DialogHeader>
+              <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{
+                  padding: '12px 14px', borderRadius: 12,
+                  background: '#FAFAFA', border: '1px solid #F0E4D0',
+                  fontSize: 14, color: '#1a1a1a', fontWeight: 600,
+                  textAlign: 'right',
+                }}>
+                  {memberToRemove.trainee_name || 'מתאמן'}
+                </div>
+                <div style={{ fontSize: 12, color: '#6B7280', textAlign: 'right' }}>
+                  ההסרה מבטלת רק את השיוך לקבוצה. החבילות, המפגשים והפרופיל לא נמחקים.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    disabled={removeGroupMemberMutation.isPending}
+                    onClick={() => setMemberToRemove(null)}
+                    style={{
+                      flex: 1,
+                      padding: '11px 0', borderRadius: 12,
+                      border: '1px solid #F0E4D0', background: 'white',
+                      fontSize: 13, fontWeight: 700, color: '#666',
+                      cursor: removeGroupMemberMutation.isPending ? 'default' : 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    ביטול
+                  </button>
+                  <button
+                    type="button"
+                    disabled={removeGroupMemberMutation.isPending || !memberToRemove?.id}
+                    onClick={() => {
+                      if (!memberToRemove?.id) return;
+                      removeGroupMemberMutation.mutate(memberToRemove.id, {
+                        onSuccess: () => setMemberToRemove(null),
+                      });
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '11px 0', borderRadius: 12,
+                      border: 'none',
+                      background: '#B91C1C', color: 'white',
+                      fontSize: 13, fontWeight: 800,
+                      cursor: removeGroupMemberMutation.isPending ? 'default' : 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {removeGroupMemberMutation.isPending ? 'מסיר…' : 'הסר'}
+                  </button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Per-member leaf dialogs — all reuse existing components.
