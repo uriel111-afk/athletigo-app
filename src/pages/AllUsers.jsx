@@ -263,6 +263,70 @@ export default function AllUsers() {
     staleTime: 30000,
   });
 
+  // Active packages for every member-of-a-group — feeds the per-member
+  // frequency sub-line in the groupDetail view. One round-trip, keyed by
+  // the trainee_id set so it refetches when the membership list changes
+  // (new member added, member removed). Filtered to the current coach so
+  // an admin viewing another coach's group hub doesn't leak packages.
+  const groupMemberTraineeIds = useMemo(() => {
+    const ids = new Set();
+    for (const m of (groupMembers || [])) {
+      if (m?.trainee_id) ids.add(m.trainee_id);
+    }
+    return Array.from(ids);
+  }, [groupMembers]);
+  const { data: groupMemberServices = [] } = useQuery({
+    queryKey: ['group-member-services', currentUser?.id, groupMemberTraineeIds.join(',')],
+    queryFn: async () => {
+      if (!currentUser?.id || groupMemberTraineeIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('client_services')
+        .select('id, trainee_id, coach_id, frequency_per_week, duration_months, status, start_date, end_date, expires_at, package_name, package_type')
+        .eq('coach_id', currentUser.id)
+        .in('trainee_id', groupMemberTraineeIds);
+      if (error) {
+        console.warn('[AllUsers] group-member-services fetch failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!currentUser?.id && groupMemberTraineeIds.length > 0,
+    staleTime: 30000,
+  });
+
+  // Map trainee_id → the package that's currently active for THIS coach.
+  // "Active" = status is 'active' or Hebrew 'פעיל', AND today falls inside
+  // [start_date, end_date]. When end_date is null, expires_at is used.
+  // When multiple rows qualify, pick the one with the most recent
+  // start_date so a freshly-sold package wins over an older overlapping
+  // one. start_date is parsed once into a numeric for cheap comparison.
+  const activePackageByTrainee = useMemo(() => {
+    const map = new Map();
+    const isActiveStatus = (s) => {
+      const v = (s || '').toString().toLowerCase();
+      return v === 'active' || s === 'פעיל';
+    };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+    for (const pkg of (groupMemberServices || [])) {
+      if (!pkg || !pkg.trainee_id) continue;
+      if (!isActiveStatus(pkg.status)) continue;
+      const startMs = pkg.start_date ? new Date(pkg.start_date).getTime() : null;
+      const endRaw = pkg.end_date ?? pkg.expires_at;
+      const endMs = endRaw ? new Date(endRaw).getTime() : null;
+      if (startMs != null && todayMs < startMs) continue;
+      if (endMs != null && todayMs > endMs) continue;
+      const prev = map.get(pkg.trainee_id);
+      const prevStartMs = prev?.start_date ? new Date(prev.start_date).getTime() : 0;
+      const curStartMs = startMs ?? 0;
+      if (!prev || curStartMs >= prevStartMs) {
+        map.set(pkg.trainee_id, pkg);
+      }
+    }
+    return map;
+  }, [groupMemberServices]);
+
   // Keep groups data live while the coach is in the hub. Same channel
   // pattern Sessions.jsx uses, scoped to this page.
   useEffect(() => {
@@ -1639,7 +1703,34 @@ export default function AllUsers() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {members.map((m) => (
+                  {members.map((m) => {
+                    // Sub-line under the member name: weekly frequency
+                    // read from the trainee's currently-active package
+                    // (display-only — no attendance gating). The red
+                    // mismatch tag fires only when BOTH numbers exist
+                    // and disagree, so a missing package or a missing
+                    // group quota stays quiet.
+                    const activePkg = activePackageByTrainee.get(m.trainee_id) || null;
+                    const pkgFreq = activePkg && activePkg.frequency_per_week != null
+                      ? Number(activePkg.frequency_per_week)
+                      : null;
+                    const groupQuota = m.weekly_quota != null && Number.isFinite(Number(m.weekly_quota))
+                      ? Number(m.weekly_quota)
+                      : null;
+                    const showMismatch = pkgFreq != null && groupQuota != null && pkgFreq !== groupQuota;
+                    let freqLabel;
+                    let freqColor;
+                    if (pkgFreq == null) {
+                      freqLabel = 'אין חבילה פעילה';
+                      freqColor = '#9CA3AF';
+                    } else if (pkgFreq === 1) {
+                      freqLabel = 'פעם בשבוע';
+                      freqColor = '#6B7280';
+                    } else {
+                      freqLabel = `${pkgFreq} פעמים בשבוע`;
+                      freqColor = '#6B7280';
+                    }
+                    return (
                     <div
                       key={m.id || m.trainee_id}
                       role="button"
@@ -1692,14 +1783,42 @@ export default function AllUsers() {
                       </div>
                       <div style={{
                         flex: 1, minWidth: 0,
-                        fontSize: 14, fontWeight: 600, color: '#1a1a1a',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        display: 'flex', flexDirection: 'column', gap: 2,
                       }}>
-                        {m.trainee_name || 'מתאמן'}
+                        <div style={{
+                          fontSize: 14, fontWeight: 600, color: '#1a1a1a',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {m.trainee_name || 'מתאמן'}
+                        </div>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          flexWrap: 'wrap',
+                        }}>
+                          <span style={{
+                            fontSize: 12, color: freqColor, fontWeight: 500,
+                          }}>
+                            {freqLabel}
+                          </span>
+                          {showMismatch && (
+                            <span style={{
+                              background: '#FEE2E2',
+                              color: '#B91C1C',
+                              padding: '2px 8px',
+                              fontSize: 12,
+                              borderRadius: 9999,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              לא תואם לחבילה
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span style={{ color: '#C9A24A', fontSize: 14, flexShrink: 0 }}>›</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
