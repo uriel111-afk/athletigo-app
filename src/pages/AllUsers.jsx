@@ -28,6 +28,7 @@ import MeasurementFormDialog from "../components/forms/MeasurementFormDialog";
 import NewRecordDialog from "../components/forms/NewRecordDialog";
 import { openBaselineDialog } from "../components/forms/BaselineFormDialog";
 import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
+import { Filter, Search, Users } from "lucide-react";
 
 // Service-type normalizer. client_services.service_type is mixed in
 // the live DB: post-migration English keys ('personal'/'online'/'group')
@@ -67,6 +68,10 @@ export default function AllUsers() {
   // default and surfaced via this toggle. casual / active / suspended
   // always show; only 'former' is gated.
   const [showFormer, setShowFormer] = useState(false);
+  // Toggles the secondary controls panel (sort / former toggle /
+  // multi-select) inside the unified filter bar. Off by default — keeps
+  // the header uncluttered until the coach actually needs another filter.
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   // Inline status-edit dropdown — holds the trainee id whose menu is
   // open, or null when no menu is showing. One-at-a-time by design.
   const [statusMenuOpen, setStatusMenuOpen] = useState(null);
@@ -730,43 +735,106 @@ export default function AllUsers() {
     );
   }
 
+  // Neumorphic shadow tokens — shared by every white card/control in
+  // the Trainees header. Dual-tone (warm cream + cool highlight) so
+  // surfaces feel raised over the cream page bg. insetShadow is for
+  // pressed/inset affordances (the filter icon).
+  const cardShadow = "4px 4px 10px rgba(200,180,150,0.4), -4px -4px 10px rgba(255,255,255,0.9)";
+  const insetShadow = "inset 2px 2px 4px rgba(200,180,150,0.5), inset -2px -2px 4px rgba(255,255,255,0.9)";
+
   return (
     <ProtectedCoachPage>
       <div style={{ minHeight: '100vh', background: 'var(--cream)', paddingBottom: 100, direction: 'rtl' }}>
-        {/* A. Page header — title + groups hub toggle */}
+        {/* Row A — Title block + people icon on a single flex row */}
         <div style={{
-          padding: '16px 16px 8px',
-          display: 'flex', justifyContent: 'space-between',
-          alignItems: 'flex-start', gap: 12,
+          padding: '16px 16px 0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 16,
         }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a' }}>מתאמנים</div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-              {visibleTrainees.length} מתאמנים · {counts.active} פעילים
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{
+              fontSize: 34,
+              fontWeight: 700,
+              lineHeight: 1.05,
+              color: '#1a1a1a',
+              letterSpacing: '-0.5px',
+              margin: 0,
+              fontFamily: 'Rubik, sans-serif',
+            }}>
+              מתאמנים
+            </h1>
+            <div style={{ fontSize: 14, color: '#888', marginTop: 6 }}>
+              {visibleTrainees.length} מתאמנים • {counts.active} פעילים
             </div>
+          </div>
+          <div style={{
+            width: 60, height: 60,
+            borderRadius: 18,
+            background: '#FF6F20',
+            color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '5px 5px 12px rgba(200,120,60,0.35), -5px -5px 12px rgba(255,255,255,0.7)',
+            flexShrink: 0,
+          }}>
+            <Users size={28} className="text-white" />
           </div>
         </div>
 
-        {/* Service-type bar — the SINGLE entry to everything by
-            service tag. Always visible on list + groups hub (hidden
-            inside groupDetail to reduce clutter).
-              קבוצות  → toggles into / out of the groups hub
-                         (view === 'groups'). The hub is the only
-                         home for the real groups list + the single
-                         "+ קבוצה חדשה" CTA.
-              אישי / אונליין → filter the trainee list by that tag.
-                         If currently in the groups hub, exits back
-                         to list view first, then applies the filter.
-            The purple "👥 קבוצות / ↩ מתאמנים" toggle that used to
-            live next to the title was removed — its job is now on
-            this chip. */}
+        {view === 'list' && (
+        <>
+        {/* Row B — Actions: primary "+ מתאמן חדש" + secondary "+ מאמן חדש" (admin only) */}
+        <div style={{ padding: '0 16px', display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button
+            type="button"
+            onClick={() => setIsAddTraineeOpen(true)}
+            style={{
+              flex: 1,
+              background: '#FF6F20',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 12,
+              padding: '13px 0', fontSize: 15, fontWeight: 500,
+              cursor: 'pointer',
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+            }}
+          >
+            + מתאמן חדש
+          </button>
+          {isOwnerAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsAddCoachOpen(true)}
+              style={{
+                background: '#fff',
+                color: '#5F5E5A',
+                border: 'none',
+                borderRadius: 12,
+                padding: '0 16px', fontSize: 14,
+                boxShadow: cardShadow,
+                cursor: 'pointer',
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+              }}
+            >
+              + מאמן חדש
+            </button>
+          )}
+        </div>
+        </>
+        )}
+
+        {/* Row C — Service-type tabs. Three pills in RTL reading order:
+            אונליין / אישי / קבוצות. Still wired to the same view +
+            serviceFilter handlers used before. */}
         {view !== 'groupDetail' && (
-          <div style={{ padding: '0 16px 12px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <div style={{ padding: '0 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               {[
-                { key: 'group',    label: 'קבוצות', bg: '#EEEDFE', fg: '#534AB7' },
+                { key: 'online',   label: 'אונליין', bg: '#FFE9D8', fg: '#993C1D' },
                 { key: 'personal', label: 'אישי',   bg: '#E6F1FB', fg: '#185FA5' },
-                { key: 'online',   label: 'אונליין', bg: '#FAEEDA', fg: '#854F0B' },
+                { key: 'group',    label: 'קבוצות', bg: '#EEEDFE', fg: '#534AB7' },
               ].map((s) => {
                 const isGroupChip = s.key === 'group';
                 const active = isGroupChip
@@ -775,14 +843,9 @@ export default function AllUsers() {
                 const handleClick = () => {
                   if (isGroupChip) {
                     if (view === 'groups') {
-                      // Toggle off → back to the list view.
                       setSelectedGroup(null);
                       setView('list');
                     } else {
-                      // Enter the hub. 'group' is no longer a
-                      // serviceFilter tag (it's a view switch), so
-                      // strip it in case a pre-refactor render
-                      // left it lingering.
                       sel.clearSelection();
                       setSelectedGroup(null);
                       setServiceFilter((prev) => {
@@ -794,9 +857,6 @@ export default function AllUsers() {
                       setView('groups');
                     }
                   } else {
-                    // אישי / אונליין → service-type filter. From
-                    // the groups hub, switching to a tag chip
-                    // means "leave the hub and filter by this tag".
                     if (view === 'groups') {
                       setSelectedGroup(null);
                       setView('list');
@@ -810,11 +870,14 @@ export default function AllUsers() {
                     type="button"
                     onClick={handleClick}
                     style={{
-                      padding: '10px 0', borderRadius: 12,
-                      border: active ? 'none' : `1px solid ${s.fg}33`,
+                      flex: 1,
+                      textAlign: 'center',
+                      borderRadius: 11,
+                      padding: '11px 0',
+                      fontSize: 14, fontWeight: 500,
+                      border: 'none',
                       background: active ? s.fg : s.bg,
-                      color: active ? 'white' : s.fg,
-                      fontSize: 13, fontWeight: 700,
+                      color: active ? '#fff' : s.fg,
                       cursor: 'pointer',
                       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
@@ -829,173 +892,182 @@ export default function AllUsers() {
 
         {view === 'list' && (
         <>
-        {/* Primary actions row — owner admin sees both buttons side
-            by side; everyone else gets a single, moderate-width
-            "+ מתאמן חדש" centered so the row stays balanced. */}
-        <div style={{ padding: '4px 16px 12px' }}>
-          {isOwnerAdmin ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button
-                onClick={() => setIsAddTraineeOpen(true)}
-                style={{
-                  background: '#FF6F20', color: 'white',
-                  border: 'none', borderRadius: 12,
-                  padding: '12px 0', fontSize: 14,
-                  fontWeight: 700, cursor: 'pointer',
-                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                }}
-              >+ מתאמן חדש</button>
-              <button
-                onClick={() => setIsAddCoachOpen(true)}
-                style={{
-                  background: '#1A1A1A', color: 'white',
-                  border: 'none', borderRadius: 12,
-                  padding: '12px 0', fontSize: 14,
-                  fontWeight: 700, cursor: 'pointer',
-                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                }}
-              >+ מאמן חדש</button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <button
-                onClick={() => setIsAddTraineeOpen(true)}
-                style={{
-                  background: '#FF6F20', color: 'white',
-                  border: 'none', borderRadius: 12,
-                  padding: '12px 28px', fontSize: 14,
-                  fontWeight: 700, cursor: 'pointer', minWidth: 200,
-                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                }}
-              >+ מתאמן חדש</button>
-            </div>
-          )}
-        </div>
-
-        {/* Search + sort row */}
-        <div style={{ padding: '0 16px 10px', display: 'flex', gap: 8 }}>
-          <input
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            placeholder="🔍 חיפוש מתאמן במערכת"
-            style={{
-              flex: 1, padding: '12px 16px',
-              borderRadius: 14,
-              border: '1.5px solid #F0E4D0',
-              fontSize: 14, direction: 'rtl',
-              background: 'white', outline: 'none',
-              boxSizing: 'border-box',
-            }}
-          />
-          <button
-            onClick={() =>
-              setSortMode(prev =>
-                prev === 'asc' ? 'desc' : 'asc'
-              )
-            }
-            title={
-              sortMode === 'recent'
-                ? 'מיון לפי שם — לחץ למיון א-ב'
-                : sortMode === 'asc'
-                  ? 'כעת ממוין א-ב — לחץ למיון ב-א'
-                  : 'כעת ממוין ב-א — לחץ למיון א-ב'
-            }
-            style={{
-              padding: '0 14px',
-              borderRadius: 14,
-              border: '1.5px solid #F0E4D0',
-              background: sortMode === 'recent' ? 'white' : '#FFF3E5',
-              color: '#1a1a1a',
-              fontSize: 13, fontWeight: 700,
-              cursor: 'pointer', whiteSpace: 'nowrap',
-              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-            }}
-          >
-            {sortMode === 'desc' ? 'מיין א-ב' : 'מיין ב-א'}
-          </button>
-        </div>
-
-        {/* Status filter row — single symmetric line: הכל / פעילים /
-            לא פעילים + "מתאמנים לשעבר" toggle. The "חבילה נגמרת" chip
-            was dropped from the row per redesign; the underlying
-            filterType='expiring' branch in filteredTrainees is left
-            intact so any other caller (e.g. deep links) still works
-            but no UI surfaces it now. flex-wrap kicks in only on
-            ultra-narrow viewports so the line normally fits on one row. */}
-        <div style={{
-          display: 'flex', gap: 6,
-          padding: '0 16px 12px',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
-          {[
-            { id: 'all',      label: 'הכל',        count: counts.all },
-            { id: 'active',   label: 'פעילים',     count: counts.active },
-            { id: 'inactive', label: 'לא פעילים',   count: counts.inactive },
-          ].map(f => {
-            const active = filterType === f.id;
-            return (
-              <div key={f.id} onClick={() => setFilterType(f.id)} style={{
-                flex: '1 1 0', minWidth: 80,
-                padding: '6px 12px', borderRadius: 20,
-                fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                textAlign: 'center',
-                background: active ? '#FF6F20' : 'white',
-                color: active ? 'white' : '#888',
-                border: active ? 'none' : '1px solid #F0E4D0',
-              }}>{f.label} ({f.count})</div>
-            );
-          })}
-          {/* Former toggle — equal-width sibling so the row reads
-              symmetric. Label is short ("מתאמנים לשעבר") per the
-              redesign; the toggle behaviour (`showFormer` flips
-              former/suspended back into the list) is unchanged. */}
-          <div
-            onClick={() => setShowFormer((v) => !v)}
-            style={{
-              flex: '1 1 0', minWidth: 100,
-              padding: '6px 12px', borderRadius: 20,
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              textAlign: 'center',
-              background: showFormer ? '#FEE2E2' : 'white',
-              color: showFormer ? '#B91C1C' : '#888',
-              border: showFormer ? '1px solid #FCA5A5' : '1px solid #F0E4D0',
-            }}
-            title={showFormer ? 'מציג גם לשעבר' : 'הצג גם לשעבר'}
-          >
-            מתאמנים לשעבר
+        {/* Row D — Search bar (its own row) */}
+        <div style={{ padding: '0 16px', marginBottom: 16 }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 12,
+            height: 46,
+            padding: '0 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: cardShadow,
+          }}>
+            <Search size={18} color="#888" />
+            <input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="חיפוש מתאמן במערכת"
+              style={{
+                flex: 1,
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                fontSize: 14,
+                direction: 'rtl',
+                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+              }}
+            />
           </div>
         </div>
 
-        {/* "מציג N מתאמנים" + small "בחירה מרובה" trigger — sits
-            directly above the list so the action is anchored to the
-            content it operates on instead of competing with the
-            header buttons. Drives the SAME sel handlers as before. */}
-        <div style={{
-          padding: '0 16px 8px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 8,
-        }}>
-          <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>
+        {/* Row E — Unified filter bar: chips inline + filter icon, with
+            a collapsible panel for sort / former / multi-select. */}
+        <div style={{ padding: '0 16px', marginBottom: 8 }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 14,
+            padding: 6,
+            boxShadow: cardShadow,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <button
+              type="button"
+              onClick={() => setShowMoreFilters((v) => !v)}
+              aria-label="מסננים נוספים"
+              style={{
+                width: 34, height: 34,
+                borderRadius: 9,
+                background: '#FBF3EA',
+                color: '#FF6F20',
+                border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: insetShadow,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <Filter size={16} />
+            </button>
+            <div style={{
+              display: 'flex', gap: 4,
+              overflowX: 'auto', flexWrap: 'nowrap',
+              flex: 1, minWidth: 0,
+            }}>
+              {[
+                { id: 'all',      label: 'הכל',       count: counts.all },
+                { id: 'active',   label: 'פעילים',    count: counts.active },
+                { id: 'inactive', label: 'לא פעילים',  count: counts.inactive },
+              ].map((f) => {
+                const active = filterType === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFilterType(f.id)}
+                    style={{
+                      background: active ? '#FF6F20' : 'transparent',
+                      color: active ? '#fff' : '#888',
+                      border: 'none',
+                      borderRadius: 9,
+                      padding: active ? '7px 12px' : '7px 10px',
+                      fontSize: 13, fontWeight: active ? 600 : 500,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {f.label} {f.count}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {showMoreFilters && (
+            <div style={{
+              background: '#fff',
+              borderRadius: 14,
+              padding: 12,
+              marginTop: 8,
+              boxShadow: cardShadow,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}>
+              <button
+                type="button"
+                onClick={() =>
+                  setSortMode(prev =>
+                    prev === 'asc' ? 'desc' : 'asc'
+                  )
+                }
+                title={
+                  sortMode === 'recent'
+                    ? 'מיון לפי שם — לחץ למיון א-ב'
+                    : sortMode === 'asc'
+                      ? 'כעת ממוין א-ב — לחץ למיון ב-א'
+                      : 'כעת ממוין ב-א — לחץ למיון א-ב'
+                }
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: '1px solid #F0E4D0',
+                  background: sortMode === 'recent' ? '#fff' : '#FFF3E5',
+                  color: '#1a1a1a',
+                  fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >
+                {sortMode === 'desc' ? 'מיין א-ב' : 'מיין ב-א'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowFormer((v) => !v)}
+                title={showFormer ? 'מציג גם לשעבר' : 'הצג גם לשעבר'}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: showFormer ? '1px solid #FCA5A5' : '1px solid #F0E4D0',
+                  background: showFormer ? '#FEE2E2' : '#fff',
+                  color: showFormer ? '#B91C1C' : '#666',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >
+                מתאמנים לשעבר
+              </button>
+
+              <button
+                type="button"
+                onClick={() => sel.isSelecting ? sel.clearSelection() : sel.startSelecting()}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: '1px solid #F0E4D0',
+                  background: sel.isSelecting ? '#FFF5EE' : '#fff',
+                  color: sel.isSelecting ? '#FF6F20' : '#666',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                }}
+              >
+                {sel.isSelecting ? '✕ ביטול בחירה' : '☑ בחירה מרובה'}
+              </button>
+            </div>
+          )}
+
+          <div style={{
+            fontSize: 12, color: '#aaa',
+            textAlign: 'left', marginTop: 10,
+          }}>
             מציג {filteredTrainees.length} מתאמנים
-          </span>
-          <button
-            type="button"
-            onClick={() => sel.isSelecting ? sel.clearSelection() : sel.startSelecting()}
-            style={{
-              padding: '6px 12px', borderRadius: 10,
-              border: '1px solid #F0E4D0',
-              background: sel.isSelecting ? '#FFF5EE' : 'white',
-              color: sel.isSelecting ? '#FF6F20' : '#666',
-              fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-            }}
-          >
-            {sel.isSelecting ? '✕ ביטול בחירה' : '☑ בחירה מרובה'}
-          </button>
+          </div>
         </div>
 
         {/* D. User cards or empty state */}
