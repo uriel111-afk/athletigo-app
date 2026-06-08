@@ -606,8 +606,9 @@ export default function Dashboard() {
           {/* ═══ SECTION 4 — גישה מהירה (compact for no-scroll) ═══════
               padding-top is 24px to clear the visible bottom-tip of
               Diamond #4, which sits ~22px below the 280px diamond
-              container due to the 45° rotation. */}
-          <div style={{ padding: '24px 4px 4px', flexShrink: 0 }}>
+              container due to the 45° rotation. Horizontal padding
+              is 2px so the grid extends almost edge-to-edge. */}
+          <div style={{ padding: '24px 2px 4px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
@@ -699,15 +700,15 @@ export default function Dashboard() {
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 6,
-                    marginBottom: 4,
+                    gap: 4,
+                    marginBottom: 2,
                   }}>
                     {row1.map(renderCard)}
                   </div>
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 6,
+                    gap: 4,
                     marginBottom: 0,
                   }}>
                     {row2.map(renderCard)}
