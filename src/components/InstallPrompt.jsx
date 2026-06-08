@@ -54,7 +54,7 @@ export default function InstallPrompt() {
           onto the black bar, where white-on-black is visible — placing
           it inside the 44×44 box would land it on white-rendered
           pixels and disappear. */}
-      <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0, paddingInlineEnd: 10 }}>
+      <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0, marginInlineStart: 8 }}>
         <img
           src="/logo-transparent.png"
           alt=""
@@ -75,7 +75,7 @@ export default function InstallPrompt() {
         <span style={{
           position: 'absolute',
           bottom: 10,
-          right: -6,
+          right: -2,
           fontSize: 9,
           lineHeight: 1,
           color: '#ffffff',
