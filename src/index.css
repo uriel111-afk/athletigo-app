@@ -199,6 +199,13 @@ button:focus-visible {
   html {
     overflow-x: hidden;
     max-width: 100vw;
+    /* Root font-size bumped from the browser default 16 → 17 so
+       every Tailwind text utility (which uses rem) scales up ~6%
+       app-wide. Inline `style={{ fontSize: N }}` values stay in
+       pixels and are unaffected — that's intentional: the dashboard's
+       carefully-tuned no-scroll heights depend on those exact pixel
+       sizes. */
+    font-size: 17px;
   }
 
   body {
@@ -237,9 +244,13 @@ button:focus-visible {
     touch-action: manipulation;
   }
 
-  /* Minimum font sizes */
+  /* Minimum font sizes — every element without a more specific
+     font-size declaration gets at least 13px (was 12). Tailwind
+     class-based sizes + inline styles win over the wildcard, so
+     this only enlarges the "background" text that hadn't picked
+     a size; controls keep their tuned sizes. */
   * {
-    font-size: clamp(12px, 2vw, 16px);
+    font-size: clamp(13px, 2.2vw, 17px);
   }
 
   h1, h2, h3, h4, h5, h6 {
