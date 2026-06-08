@@ -400,10 +400,14 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            // 240 (was 280) + repositioned diamonds (top 0/72/144 vs 0/85/170)
-            // keeps the cluster intact but cuts ~40px of empty space, the
-            // single biggest contributor to the dashboard's overflow.
-            height: 240,
+            // Restored to the original 280 + 0/85/170 spec — the 240 +
+            // 0/72/144 squeeze caused Diamond #1 and #4 to overlap by
+            // ~12px (their rotated 45° bounding boxes met) AND let
+            // Diamond #4's visible bottom-tip spill ~22px below the
+            // 240 container, where it covered the "גישה מהירה"
+            // header. The 280px container + the lifted positions
+            // restore the original safe gaps.
+            height: 280,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
@@ -415,13 +419,13 @@ export default function Dashboard() {
                 pos: { top: 0, left: '50%', marginLeft: -55 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: '#7F47B5',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 72, right: 18 } },
+                pos: { top: 85, right: 18 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: '#EAB308',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 72, left: 18 } },
+                pos: { top: 85, left: 18 } },
               { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: '#3B82F6',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 144, left: '50%', marginLeft: -55 } },
+                pos: { top: 170, left: '50%', marginLeft: -55 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
@@ -599,8 +603,11 @@ export default function Dashboard() {
           {/* ═══ SECTION — תשלומים אחרונים ═══════════════════════ */}
           <RecentPaymentsCard coachId={coach?.id} />
 
-          {/* ═══ SECTION 4 — גישה מהירה (compact for no-scroll) ═══════ */}
-          <div style={{ padding: '2px 4px 4px', flexShrink: 0 }}>
+          {/* ═══ SECTION 4 — גישה מהירה (compact for no-scroll) ═══════
+              padding-top is 24px to clear the visible bottom-tip of
+              Diamond #4, which sits ~22px below the 280px diamond
+              container due to the 45° rotation. */}
+          <div style={{ padding: '24px 4px 4px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
               <span style={{
