@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AdminCoachActivator from "@/components/AdminCoachActivator";
 import NotificationBadge from "@/components/NotificationBadge";
-import { MentorChatIconButton } from "@/components/lifeos/MentorChat";
+import { MENTOR_CHAT_OPEN_EVENT } from "@/components/lifeos/MentorChat";
 import { useTraineePermissions } from "@/hooks/useTraineePermissions";
 import PWANotifications from "@/components/PWANotifications";
 import DataLoader from "@/components/DataLoader";
@@ -39,7 +39,8 @@ import {
   Clock,
   Flame,
   Route,
-  BookOpen
+  BookOpen,
+  MessageCircle
   } from "lucide-react";
 import FeedbackButton from "@/components/feedback/FeedbackButton";
 import { Button } from "@/components/ui/button";
@@ -220,6 +221,10 @@ export default function Layout({ children, currentPageName }) {
     // page above. Old menu links removed.
     // ── כלים ──
     { title: "שעונים", url: createPageUrl("Clocks"), icon: Clock, section: "content" },
+    // Mentor chat — moved here from the header. `onClick` fires the
+    // global MENTOR_CHAT_OPEN_EVENT instead of routing, so the
+    // already-mounted <MentorChat /> at the app root opens its sheet.
+    { title: "שאל את המנטור", onClick: () => window.dispatchEvent(new Event(MENTOR_CHAT_OPEN_EVENT)), icon: MessageCircle, section: "content" },
     // ── הגדרות ──
     { title: "פרופיל מאמן", url: createPageUrl("CoachProfile"), icon: User, section: "settings" },
   ];
@@ -360,9 +365,15 @@ export default function Layout({ children, currentPageName }) {
               const sectionLabels = { daily: "ניהול יומיומי", content: "תוכן ואימון", business: "עסקי", settings: "הגדרות", coach: null, trainee: null };
               let lastSection = null;
               return navigationItems.map((item) => {
-                const isActive = location.pathname === item.url;
+                const isActive = item.url ? location.pathname === item.url : false;
                 const showHeader = item.section !== lastSection && sectionLabels[item.section];
                 lastSection = item.section;
+                const rowClass = "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 relative";
+                const rowStyle = {
+                  backgroundColor: isActive ? primaryColorLight : 'transparent',
+                  color: isActive ? primaryColor : '#000000',
+                  border: isActive ? `2px solid ${primaryColor}` : '1px solid transparent'
+                };
                 return (
                   <div key={item.title}>
                     {showHeader && (
@@ -370,19 +381,29 @@ export default function Layout({ children, currentPageName }) {
                         <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#999' }}>{sectionLabels[item.section]}</span>
                       </div>
                     )}
-                    <Link
-                      to={item.url}
-                      className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 relative"
-                      style={{
-                        backgroundColor: isActive ? primaryColorLight : 'transparent',
-                        color: isActive ? primaryColor : '#000000',
-                        border: isActive ? `2px solid ${primaryColor}` : '1px solid transparent'
-                      }}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium text-sm">{item.title}</span>
-                      {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
-                    </Link>
+                    {item.onClick ? (
+                      // Action item (e.g. mentor chat) — opens via a
+                      // global window event, no route to navigate to.
+                      <button
+                        type="button"
+                        onClick={item.onClick}
+                        className={`${rowClass} w-full text-right`}
+                        style={{ ...rowStyle, cursor: 'pointer' }}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium text-sm">{item.title}</span>
+                      </button>
+                    ) : (
+                      <Link
+                        to={item.url}
+                        className={rowClass}
+                        style={rowStyle}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium text-sm">{item.title}</span>
+                        {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
+                      </Link>
+                    )}
                   </div>
                 );
               });
@@ -504,11 +525,14 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </div>
 
-              {/* Left (RTL end): mentor chat trigger (coach only) +
-                  notification bell. Trainees don't have an AI mentor
-                  surface yet, so the chat icon is gated to coach. */}
+              {/* Left (RTL end): feedback "כתוב לנו" trigger +
+                  notification bell. Both render as round white icon
+                  buttons (40×40) so the trio with the hamburger reads
+                  as one set. The mentor chat icon used to live here;
+                  it moved into the hamburger menu — see the
+                  "שאל את המנטור" nav item below. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'visible' }}>
-                {user && isCoach ? <MentorChatIconButton size={40} /> : null}
+                {user ? <FeedbackButton size={40} /> : null}
                 {user ? (
                   <NotificationBadge userId={user.id} onClick={() => navigate(createPageUrl("Notifications"))} />
                 ) : null}
@@ -536,19 +560,34 @@ export default function Layout({ children, currentPageName }) {
                   const sectionLabels = { daily: "ניהול יומיומי", content: "תוכן ואימון", business: "עסקי", settings: "הגדרות", coach: null, trainee: null };
                   let lastSection = null;
                   return navigationItems.map((item) => {
-                    const isActive = location.pathname === item.url;
+                    const isActive = item.url ? location.pathname === item.url : false;
                     const showHeader = item.section !== lastSection && sectionLabels[item.section];
                     lastSection = item.section;
+                    const rowStyle = {
+                      backgroundColor: isActive ? primaryColorLight : '#FFFFFF',
+                      color: isActive ? primaryColor : '#000000',
+                      border: isActive ? `2px solid ${primaryColor}` : `1px solid #E0E0E0`,
+                    };
                     return (
                       <div key={item.title}>
                         {showHeader && <div className="px-2 pt-2 pb-0.5"><span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{sectionLabels[item.section]}</span></div>}
-                        <Link to={item.url} onClick={() => setMobileMenuOpen(false)}
-                          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative"
-                          style={{ backgroundColor: isActive ? primaryColorLight : '#FFFFFF', color: isActive ? primaryColor : '#000000', border: isActive ? `2px solid ${primaryColor}` : `1px solid #E0E0E0` }}>
-                          <item.icon className="w-5 h-5" />
-                          <span className="font-medium">{item.title}</span>
-                          {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
-                        </Link>
+                        {item.onClick ? (
+                          <button type="button"
+                            onClick={() => { setMobileMenuOpen(false); item.onClick(); }}
+                            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative w-full text-right"
+                            style={{ ...rowStyle, cursor: 'pointer' }}>
+                            <item.icon className="w-5 h-5" />
+                            <span className="font-medium">{item.title}</span>
+                          </button>
+                        ) : (
+                          <Link to={item.url} onClick={() => setMobileMenuOpen(false)}
+                            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative"
+                            style={rowStyle}>
+                            <item.icon className="w-5 h-5" />
+                            <span className="font-medium">{item.title}</span>
+                            {item.showBadge && user && <NotificationBadge userId={user.id} inline={true} />}
+                          </Link>
+                        )}
                       </div>
                     );
                   });
@@ -578,12 +617,6 @@ export default function Layout({ children, currentPageName }) {
               {children}
             </ErrorBoundary>
           </div>
-
-          {/* App-wide "נתקלת בבעיה? כתוב לנו" pill — visible to every
-              authenticated user (coach + trainee) on every screen
-              except full-screen routes (Clocks/PlanBuilder/etc).
-              See FeedbackButton.jsx for the visibility rules. */}
-          <FeedbackButton />
 
           {/* Sticky timer footer bar — replaces the old draggable bubble */}
           <TimerFooterBar />
