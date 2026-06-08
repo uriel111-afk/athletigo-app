@@ -110,19 +110,27 @@ export default function Login() {
 
   return (
     <div
+      // min-h-screen (100vh) stays as the fallback for browsers without
+      // dvh support; the inline minHeight: '100dvh' overrides it on
+      // modern browsers so the layout follows the visible viewport when
+      // the mobile keyboard is open. height: 'auto' + overflowY: 'auto'
+      // make THIS container the scroll surface; the inner block's
+      // paddingBottom: 280 below is invisible scroll runway letting the
+      // form rise above the keyboard without trapping the button.
+      // paddingBottom keeps the install-banner gutter intact.
       className="min-h-screen flex flex-col items-center px-4"
-      // paddingBottom is conditional on PWA install state — when the
-      // fixed-bottom InstallPrompt is rendering (≈100px footprint), we
-      // reserve room so it can't cover the 'שכחת סיסמא' line. When the
-      // app is already installed, only a small breathing space is needed.
       style={{
+        minHeight: '100dvh',
+        height: 'auto',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
         backgroundColor: "#FFF9F0",
         paddingTop: 12,
         paddingBottom: isPWA ? 24 : 160,
       }}
       dir="rtl"
     >
-      <div className="w-full" style={{ maxWidth: 400 }}>
+      <div className="w-full" style={{ maxWidth: 400, marginTop: 32, paddingBottom: 280 }}>
         {/* Brand — single combined logoR asset (triangle + wordmark). */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 10 }}>
           <img

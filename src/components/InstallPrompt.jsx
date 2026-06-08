@@ -1,70 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 
-// Bottom-banner install nudge. Two surfaces:
-//   • Chrome / Edge / Android — listens for beforeinstallprompt and
-//     wires the deferred event through to a native install button.
-//   • Safari (iOS / macOS) — no beforeinstallprompt, so we render
-//     short instructions ("⎙ → הוסף למסך הבית"). Hidden when the app
-//     is already running standalone or when the user dismissed.
+// Bottom-banner install nudge shown on the Login screen. Two surfaces:
+//   • Chrome / Edge / Android — the deferred beforeinstallprompt event
+//     (captured early in index.html, surfaced via useInstallPrompt) drives
+//     a native install button.
+//   • Safari (iOS / macOS) — no beforeinstallprompt, so render short
+//     instructions ("⎙ → הוסף למסך הבית"). Login.jsx already gates this
+//     component on !isPWA, so we don't re-check standalone here.
 //
 // Dismissals stick for 14 days via localStorage so we don't nag.
 const DISMISSED_KEY = 'install_dismissed_at';
 const NAG_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 export default function InstallPrompt() {
-  const [show, setShow] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-
-  useEffect(() => {
-    // Chrome/Edge install prompt
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShow(true);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-
-    // Safari detection — no beforeinstallprompt event there. Render a
-    // hint banner with manual instructions instead. Skip when already
-    // running standalone (PWA already installed).
-    const ua = navigator.userAgent || '';
-    const isSafari = /^((?!chrome|crios|fxios|android).)*safari/i.test(ua);
-    const isStandalone =
-      window.matchMedia?.('(display-mode: standalone)')?.matches ||
-      window.navigator.standalone === true;
-
-    let dismissed = false;
+  const { canInstall, isSafari, promptInstall } = useInstallPrompt();
+  const [dismissed, setDismissed] = useState(() => {
     try {
       const ts = parseInt(localStorage.getItem(DISMISSED_KEY) || '0', 10);
-      if (ts && Date.now() - ts < NAG_COOLDOWN_MS) dismissed = true;
-    } catch {}
-
-    if (isSafari && !isStandalone && !dismissed) {
-      setShow(true);
-    }
-
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+      return !!(ts && Date.now() - ts < NAG_COOLDOWN_MS);
+    } catch { return false; }
+  });
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    try {
-      const result = await deferredPrompt.userChoice;
-      if (result?.outcome === 'accepted') setShow(false);
-    } catch {}
-    setDeferredPrompt(null);
+    const result = await promptInstall();
+    if (result?.outcome === 'accepted') setDismissed(true);
   };
 
   const handleDismiss = () => {
-    setShow(false);
+    setDismissed(true);
     try { localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch {}
   };
 
-  if (!show) return null;
+  if (dismissed) return null;
+  if (!canInstall && !isSafari) return null;
 
-  // No deferredPrompt → Safari/manual. Otherwise → Chrome native flow.
-  const isManual = !deferredPrompt;
+  const isManual = !canInstall && isSafari;
 
   return (
     <div style={{

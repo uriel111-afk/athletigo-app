@@ -30,7 +30,9 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png?v=23" />
     <link rel="shortcut icon" href="/favicon.ico?v=23" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=23" />
-    <link rel="manifest" href="/manifest.json?v=23" />
+    <!-- Manifest is auto-injected by vite-plugin-pwa as /manifest.webmanifest.
+         The legacy public/manifest.json had empty " " name/short_name which
+         failed Chrome's installability check; do not link it here. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="AthletiGo" />
@@ -50,28 +52,48 @@
     <meta name="twitter:title" content="AthletiGo — אפליקציית אימונים" />
     <meta name="twitter:description" content="ניהול מתאמנים, תוכניות אימון, מעקב התקדמות ושעוני אימון מבוססי מיומנות" />
     <meta name="twitter:image" content="/icon-512.png" />
-    <!-- Unconditional SW + cache kill on every load. Heavy-handed but
-         this is the loop-breaker: any stale Workbox cache that was
-         serving an old chunk graph gets nuked before the new bundle
-         even tries to load. Runs FIRST in <head>, before fonts/PWA
-         registration scripts. -->
+    <!-- Manual SW + cache reset escape hatch. Only runs when the URL
+         carries ?sw-reset (any value), so normal loads keep the SW
+         alive — required for Chrome's PWA install prompt to fire. To
+         nuke a stuck install: visit athletigo-coach.com/?sw-reset
+         once. -->
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function (regs) {
-          for (var i = 0; i < regs.length; i++) {
-            regs[i].unregister();
-            console.log('[SW] Unregistered service worker:', regs[i].scope);
-          }
-        });
+      if (window.location.search.indexOf('sw-reset') !== -1) {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            for (var i = 0; i < regs.length; i++) {
+              regs[i].unregister();
+            }
+          });
+        }
+        if (typeof caches !== 'undefined') {
+          caches.keys().then(function (names) {
+            for (var i = 0; i < names.length; i++) {
+              caches.delete(names[i]);
+            }
+          });
+        }
+        console.log('[SW] Manual reset ran via ?sw-reset');
       }
-      if (typeof caches !== 'undefined') {
-        caches.keys().then(function (names) {
-          for (var i = 0; i < names.length; i++) {
-            caches.delete(names[i]);
-            console.log('[SW] Deleted cache:', names[i]);
-          }
-        });
-      }
+    </script>
+
+    <!-- PWA install — capture beforeinstallprompt as early as possible
+         so it isn't lost if React mounts after the event fires (BFCache
+         restores, slow cold loads). The deferred event is stashed on
+         window.__deferredInstallPrompt and a custom 'pwa-install-available'
+         event is dispatched so any consumer mounting later can pick it up.
+         'appinstalled' clears the stash. -->
+    <script>
+      window.__deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__deferredInstallPrompt = e;
+        window.dispatchEvent(new Event('pwa-install-available'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__deferredInstallPrompt = null;
+        window.dispatchEvent(new Event('pwa-installed'));
+      });
     </script>
 
     <!-- Fonts: Rubik (body, primary) + Bebas Neue (display accent for the wordmark + large numerics) -->
