@@ -59,12 +59,12 @@ export default function InstallPrompt() {
           /logo-transparent.png is the triangle-only asset (no wordmark)
           on a transparent background; brightness(0) flattens it to
           black, invert(1) flips that to white. Wrapper is position:
-          relative so the small white ® can hang just outside the
-          triangle's bottom-right corner (negative right offset) onto
-          the black bar, where white-on-black is visible — placing it
-          inside the 44×44 box would land it on white-rendered pixels
-          and disappear. The ® extends 8 px past the wrapper's right
-          edge; the container's 32-px right gutter absorbs the overhang
+          relative so the small white ® can peek just outside the
+          triangle's TOP-right corner (top: 0, negative right offset)
+          onto the black bar, where white-on-black is visible — placing
+          it inside the 44×44 box would land it on white-rendered pixels
+          and disappear. The ® extends a few px past the wrapper's right
+          edge; the container's 40-px right gutter absorbs the overhang
           so nothing rides on the rounded corner. */}
       <div style={{
         position: 'relative', display: 'inline-block', flexShrink: 0,
@@ -89,14 +89,14 @@ export default function InstallPrompt() {
             otherwise tint the glyph. */}
         <span style={{
           position: 'absolute',
-          bottom: 8,
-          right: -8,
-          fontSize: 9,
+          top: 0,
+          right: -3,
+          fontSize: 12,
           lineHeight: 1,
-          color: '#ffffff',
-          WebkitTextFillColor: '#ffffff',
+          color: '#FFFFFF',
+          WebkitTextFillColor: '#FFFFFF',
           filter: 'none',
-          fontWeight: 400,
+          fontWeight: 700,
           zIndex: 2,
         }}>{'®︎'}</span>
       </div>
