@@ -161,7 +161,7 @@ function InstallmentCard({ row, onPaymentMade, onEdit, onDelete }) {
       </div>
 
       <div style={{
-        backgroundColor: '#F0E4D0', borderRadius: 999, height: 8, overflow: 'hidden', marginBottom: 10,
+        backgroundColor: 'var(--ag-border)', borderRadius: 999, height: 8, overflow: 'hidden', marginBottom: 10,
       }}>
         <div style={{
           width: `${pct}%`, height: '100%',

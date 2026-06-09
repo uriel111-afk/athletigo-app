@@ -232,7 +232,7 @@ function ExerciseNameInput({ value, onChange }) {
         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
         placeholder="הקלד שם תרגיל..."
         autoFocus
-        className="w-full h-11 text-base font-black border-b-2 border-gray-200 bg-transparent focus:border-[#FF6F20] focus:outline-none px-1 transition-colors placeholder:text-gray-300"
+        className="w-full h-11 text-base font-black border-b-2 border-gray-200 bg-transparent focus:border-[var(--ag-accent)] focus:outline-none px-1 transition-colors placeholder:text-gray-300"
       />
       {showSuggestions && (
         <div className="absolute left-0 right-0 top-full z-50 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto" dir="rtl">
@@ -851,7 +851,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         ───────────────────────────────────────────────────── */}
       <div className="mb-4 px-1">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-          <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 11, color: 'var(--ag-accent)', fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>
             שיטה
           </span>
           {isAdmin && exercise?.id && (
@@ -860,7 +860,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               onClick={() => setShowVariationsModal(true)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                background: '#FFF7ED', color: '#FF6F20',
+                background: '#FFF7ED', color: 'var(--ag-accent)',
                 padding: '6px 12px', border: '1px solid #FFD0AC',
                 borderRadius: 7, fontSize: 11, fontWeight: 700,
                 cursor: 'pointer', lineHeight: 1,
@@ -899,7 +899,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             };
             const activeStyle = {
               background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-              border: '2px solid #FF6F20',
+              border: '2px solid var(--ag-accent)',
               color: '#993C1D',
               fontWeight: 800,
               boxShadow: '0 2px 6px rgba(255,111,32,0.2)',
@@ -927,7 +927,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         ───────────────────────────────────────────────────── */}
       <div className="mb-4 px-1">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 11, color: '#FF6F20', fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 11, color: 'var(--ag-accent)', fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>
             פרמטרים לכל סט
           </span>
           <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>
@@ -958,7 +958,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             alignItems: 'center',
             gap: 8,
           }}>
-            <Info size={14} color="#7F47B5" />
+            <Info size={14} color="var(--ag-purple)" />
             <span style={{ fontSize: 11, color: '#5B21B6', fontWeight: 700 }}>
               ברשימת תרגילים — כל תרגיל בוחר את הפרמטרים שלו למטה
             </span>
@@ -1037,7 +1037,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             alignItems: 'center',
             gap: 6,
           }}>
-            <Info size={11} color="#FF6F20" />
+            <Info size={11} color="var(--ag-accent)" />
             <span style={{ fontSize: 9, color: '#993C1D', fontWeight: 700 }}>
               {selectedSetFields.length} פרמטרים נבחרו · יופיעו בכל סט
             </span>
@@ -1056,7 +1056,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         ───────────────────────────────────────────────────── */}
       {METHODS_WITH_PLANNED_SETS.includes(activeMethod) && !usesPerSetRows(activeMethod) && (
         <div className="mb-4 px-1">
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)', marginBottom: 10 }}>
             סטים בתרגיל
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -1179,7 +1179,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       border: '1px solid #FFD0AC',
                       borderRadius: 7,
                       fontSize: 12,
-                      color: '#1a1a1a',
+                      color: 'var(--ag-text)',
                       background: 'white',
                       fontFamily: 'inherit',
                       outline: 'none',
@@ -1227,7 +1227,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)' }}>
               {sectionThreeHeader}
             </span>
             <button
@@ -1237,7 +1237,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               style={{
                 background: 'white',
                 border: '1px solid #FFD0AC',
-                color: '#FF6F20',
+                color: 'var(--ag-accent)',
                 padding: '10px 16px',
                 borderRadius: 8,
                 fontSize: 13,
@@ -1293,7 +1293,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   onClick={addRow}
                   disabled={readOnly}
                   style={{
-                    background: 'linear-gradient(135deg, #FF8B47, #FF6F20)',
+                    background: 'linear-gradient(135deg, #FF8B47, var(--ag-accent))',
                     color: 'white',
                     border: 'none',
                     padding: '14px 24px',
@@ -1320,7 +1320,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               {plannedSetsDraft.map((row, i) => {
                 const variationEmpty = !(row.variation_name || '').trim();
                 const variationBorder = variationRequired && variationEmpty
-                  ? '1px solid #FF6F20'
+                  ? '1px solid var(--ag-accent)'
                   : '1px solid #FFD0AC';
                 const variationPlaceholder =
                   activeMethod === 'PYRAMID'  ? 'וריאציה (לדוגמה: שכיבת סמיכה במנח 8)'
@@ -1329,7 +1329,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   :                             'וריאציה';
                 return (
                   <div key={i} style={{
-                    background: '#FFF9F0',
+                    background: 'var(--ag-bg)',
                     border: '1px solid #FFD0AC',
                     borderRadius: 10,
                     padding: 12,
@@ -1340,7 +1340,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       <span style={{
                         fontFamily: "'Bebas Neue', sans-serif",
                         fontSize: 24,
-                        color: '#FF6F20',
+                        color: 'var(--ag-accent)',
                         lineHeight: 1,
                         minWidth: 28,
                         fontWeight: 800,
@@ -1360,7 +1360,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                             border: variationBorder,
                             borderRadius: 7,
                             fontSize: 12,
-                            color: '#1a1a1a',
+                            color: 'var(--ag-text)',
                             background: 'white',
                             fontFamily: 'inherit',
                             outline: 'none',
@@ -1414,7 +1414,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
           {/* Validation hint — visual only, doesn't block save. */}
           {hasMissingVariations && (
-            <div style={{ fontSize: 10, color: '#FF6F20', marginTop: 4 }}>
+            <div style={{ fontSize: 10, color: 'var(--ag-accent)', marginTop: 4 }}>
               {activeMethod === 'DROP_SET'
                 ? '⚠ דרופ סט דורש וריאציה לכל סט'
                 : '⚠ דלורם דורש וריאציה לכל סט'}
@@ -1448,8 +1448,8 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       {METHODS_WITH_ROUNDS.includes(activeMethod) && (() => {
         const isCombo = activeMethod === 'COMBO';
         const palette = isCombo
-          ? { card: '#FFE4D6', border: '#FFD0AC', text: '#993C1D', accent: '#FF6F20', name: 'חזרה' }
-          : { card: '#F5F3FF', border: '#C4B5FD', text: '#7F47B5', accent: '#7F47B5', name: 'סט סופר' };
+          ? { card: '#FFE4D6', border: '#FFD0AC', text: '#993C1D', accent: 'var(--ag-accent)', name: 'חזרה' }
+          : { card: '#F5F3FF', border: '#C4B5FD', text: 'var(--ag-purple)', accent: 'var(--ag-purple)', name: 'סט סופר' };
 
         return (
           <div className="mb-4 px-1">
@@ -1464,7 +1464,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                 alignItems: 'center',
                 gap: 6,
               }}>
-                <Zap size={12} color="#FF6F20" />
+                <Zap size={12} color="var(--ag-accent)" />
                 <span style={{ fontSize: 11, color: '#993C1D', fontWeight: 700 }}>
                   רצף זורם · ללא מנוחה
                 </span>
@@ -1472,7 +1472,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)' }}>
                 {isCombo ? 'חזרות בקומבו' : 'סטים בסופרסט'}
               </span>
               <button
@@ -1606,7 +1606,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                                   border: '1px solid #E5E7EB',
                                   borderRadius: 6,
                                   fontSize: 12,
-                                  color: '#1a1a1a',
+                                  color: 'var(--ag-text)',
                                   background: 'white',
                                   fontFamily: 'inherit',
                                   outline: 'none',
@@ -1681,7 +1681,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       {METHODS_WITH_LIST.includes(activeMethod) && (
         <div className="mb-4 px-1">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)' }}>
               תרגילים ברשימה
             </span>
             <button
@@ -1691,7 +1691,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
               style={{
                 background: 'white',
                 border: '1px solid #C4B5FD',
-                color: '#7F47B5',
+                color: 'var(--ag-purple)',
                 padding: '8px 14px',
                 borderRadius: 7,
                 fontSize: 11,
@@ -1739,7 +1739,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       <span style={{
                         fontFamily: "'Bebas Neue', sans-serif",
                         fontSize: 22,
-                        color: '#7F47B5',
+                        color: 'var(--ag-purple)',
                         lineHeight: 1,
                         minWidth: 28,
                         fontWeight: 800,
@@ -1758,7 +1758,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                           border: '1px solid #C4B5FD',
                           borderRadius: 6,
                           fontSize: 12,
-                          color: '#1a1a1a',
+                          color: 'var(--ag-text)',
                           background: 'white',
                           fontFamily: 'inherit',
                           outline: 'none',
@@ -1930,7 +1930,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   borderRadius: 6,
                   fontFamily: "'Bebas Neue', sans-serif",
                   fontSize: 18,
-                  color: '#FF6F20',
+                  color: 'var(--ag-accent)',
                   background: 'white',
                   textAlign: 'center',
                   outline: 'none',
@@ -1941,7 +1941,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)' }}>
               תחנות
             </span>
             <button
@@ -2038,7 +2038,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                         border: '1px solid #E5E7EB',
                         borderRadius: 6,
                         fontSize: 12,
-                        color: '#1a1a1a',
+                        color: 'var(--ag-text)',
                         background: 'white',
                         fontFamily: 'inherit',
                         outline: 'none',
@@ -2131,7 +2131,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         <div className="mb-4 px-1">
           {/* Rotation list */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)' }}>
               תרגילים ברוטציה
             </span>
             <button
@@ -2201,7 +2201,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       border: '1px solid #BFDBFE',
                       borderRadius: 6,
                       fontSize: 12,
-                      color: '#1a1a1a',
+                      color: 'var(--ag-text)',
                       background: 'white',
                       fontFamily: 'inherit',
                       outline: 'none',
@@ -2228,7 +2228,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           )}
 
           {/* Clock settings */}
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)', marginBottom: 10 }}>
             הגדרות שעון
           </div>
           <div style={{
@@ -2237,7 +2237,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             gap: 6,
           }}>
             {[
-              { key: 'work_seconds',      label: 'עבודה',   color: '#FF6F20', tint: '#FFF5EE' },
+              { key: 'work_seconds',      label: 'עבודה',   color: 'var(--ag-accent)', tint: '#FFF5EE' },
               { key: 'rest_seconds',      label: 'מנוחה',   color: '#14B8A6', tint: '#F0FDFA' },
               { key: 'rounds',            label: 'סבבים',   color: '#6b7280', tint: '#FAFAFA' },
               { key: 'sets',              label: 'סטים',    color: '#6b7280', tint: '#FAFAFA' },

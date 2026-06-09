@@ -17,13 +17,13 @@ import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 // results_log mirror keep matching previous data. RTL flow puts בסיס
 // visually right-most as expected.
 const TECHNIQUES = [
-  { id: 'basic',       label: 'בסיס',          color: '#FF6F20' },
-  { id: 'foot_switch', label: 'החלפת רגליים',  color: '#FF6F20' },
-  { id: 'high_knees',  label: 'הרמת ברכיים',   color: '#FF6F20' },
+  { id: 'basic',       label: 'בסיס',          color: 'var(--ag-accent)' },
+  { id: 'foot_switch', label: 'החלפת רגליים',  color: 'var(--ag-accent)' },
+  { id: 'high_knees',  label: 'הרמת ברכיים',   color: 'var(--ag-accent)' },
 ];
 
 const COLORS = {
-  primary: '#FF6F20',
+  primary: 'var(--ag-accent)',
   primaryLight: '#FFF5EE',
   primaryTint: '#FFEEDF',
   bg: '#FFFFFF',
@@ -31,10 +31,10 @@ const COLORS = {
   bgInput: '#FFFFFF',
   border: '#E5E7EB',
   borderSoft: '#F0F0F0',
-  textPrimary: '#1A1A1A',
+  textPrimary: 'var(--ag-text)',
   textSecondary: '#9CA3AF',
   textMuted: '#C4C4C4',
-  danger: '#DC2626',
+  danger: 'var(--ag-error)',
 };
 
 const INITIAL_PER_TECH = () => ({
@@ -638,14 +638,14 @@ export default function BaselineFormDialog({
               browser/OS owns the scroll. RTL flow: first child = rightmost. */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>זמן עבודה</div>
+              <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>זמן עבודה</div>
               <select
                 value={workTime}
                 onChange={(e) => setWorkTime(Number(e.target.value))}
                 disabled={effectiveViewOnly}
                 style={{
                   width: '100%', padding: '8px', borderRadius: 12,
-                  border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
+                  border: '1px solid var(--ag-border)', fontSize: 18, fontWeight: 600,
                   textAlign: 'center', textAlignLast: 'center',
                   direction: 'rtl', background: 'white', appearance: 'auto',
                   cursor: effectiveViewOnly ? 'default' : 'pointer',
@@ -660,14 +660,14 @@ export default function BaselineFormDialog({
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>זמן מנוחה</div>
+              <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>זמן מנוחה</div>
               <select
                 value={restTime}
                 onChange={(e) => setRestTime(Number(e.target.value))}
                 disabled={effectiveViewOnly}
                 style={{
                   width: '100%', padding: '8px', borderRadius: 12,
-                  border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
+                  border: '1px solid var(--ag-border)', fontSize: 18, fontWeight: 600,
                   textAlign: 'center', textAlignLast: 'center',
                   direction: 'rtl', background: 'white', appearance: 'auto',
                   cursor: effectiveViewOnly ? 'default' : 'pointer',
@@ -682,14 +682,14 @@ export default function BaselineFormDialog({
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4, whiteSpace: 'nowrap' }}>מנוחה בין טכניקות</div>
+              <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginBottom: 4, whiteSpace: 'nowrap' }}>מנוחה בין טכניקות</div>
               <select
                 value={techRestTime}
                 onChange={(e) => setTechRestTime(Number(e.target.value))}
                 disabled={effectiveViewOnly}
                 style={{
                   width: '100%', padding: '8px', borderRadius: 12,
-                  border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600,
+                  border: '1px solid var(--ag-border)', fontSize: 18, fontWeight: 600,
                   textAlign: 'center', textAlignLast: 'center',
                   direction: 'rtl', background: 'white', appearance: 'auto',
                   cursor: effectiveViewOnly ? 'default' : 'pointer',
@@ -988,7 +988,7 @@ function DraftToast({ onRestore, onDiscard }) {
         padding: 12,
         borderRadius: 12,
         backgroundColor: '#FFFFFF',
-        border: '1px solid #FF6F20',
+        border: '1px solid var(--ag-accent)',
         boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         animation: 'draftToastIn 180ms ease-out',
@@ -999,7 +999,7 @@ function DraftToast({ onRestore, onDiscard }) {
       <style>{`@keyframes draftToastIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }`}</style>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
-        fontSize: 14, fontWeight: 700, color: '#1A1A1A',
+        fontSize: 14, fontWeight: 700, color: 'var(--ag-text)',
       }}>
         <span style={{ fontSize: 18 }}>📝</span>
         <span>יש טיוטה קודמת — להמשיך אותה?</span>
@@ -1016,7 +1016,7 @@ function DraftToast({ onRestore, onDiscard }) {
           style={{
             flex: 1,
             padding: '10px 12px', borderRadius: 10, border: 'none',
-            backgroundColor: '#FF6F20', color: '#FFFFFF',
+            backgroundColor: 'var(--ag-accent)', color: '#FFFFFF',
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
             pointerEvents: 'auto',
             fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",

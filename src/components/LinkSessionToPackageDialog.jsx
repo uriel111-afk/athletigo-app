@@ -286,13 +286,13 @@ export default function LinkSessionToPackageDialog({
             position: 'absolute', top: 10, left: 10,
             background: 'transparent', border: 'none',
             fontSize: 22, lineHeight: 1, cursor: saving ? 'wait' : 'pointer',
-            color: '#888', padding: 6, pointerEvents: 'auto',
+            color: 'var(--ag-text-soft)', padding: 6, pointerEvents: 'auto',
           }}
         >✕</button>
 
         <h3 style={{
           margin: 0, marginBottom: 12,
-          fontSize: 18, fontWeight: 800, color: '#1A1A1A',
+          fontSize: 18, fontWeight: 800, color: 'var(--ag-text)',
           textAlign: 'right',
         }}>הוסף מפגש לחבילה</h3>
 
@@ -310,7 +310,7 @@ export default function LinkSessionToPackageDialog({
                 flex: 1, padding: '8px 10px', borderRadius: 8,
                 border: 'none', cursor: 'pointer',
                 background: tab === t.id ? '#FFFFFF' : 'transparent',
-                color: tab === t.id ? '#FF6F20' : '#6B7280',
+                color: tab === t.id ? 'var(--ag-accent)' : '#6B7280',
                 fontSize: 13, fontWeight: 700,
                 boxShadow: tab === t.id ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
               }}
@@ -321,11 +321,11 @@ export default function LinkSessionToPackageDialog({
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {tab === 'existing' ? (
             loading ? (
-              <div style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--ag-text-soft)', fontSize: 13 }}>
                 טוען מפגשים…
               </div>
             ) : candidates.length === 0 ? (
-              <div style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--ag-text-soft)', fontSize: 13 }}>
                 אין מפגשים זמינים לשיוך
               </div>
             ) : (
@@ -347,13 +347,13 @@ export default function LinkSessionToPackageDialog({
                       style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         padding: 12, borderRadius: 12,
-                        border: '1px solid #F0E4D0',
+                        border: '1px solid var(--ag-border)',
                         background: '#FFFFFF',
                       }}
                     >
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: '#1A1A1A' }}>{dateStr}</div>
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ag-text)' }}>{dateStr}</div>
+                        <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginTop: 2 }}>
                           {timeStr ? `${timeStr} · ` : ''}{typeLbl}
                         </div>
                       </div>
@@ -367,7 +367,7 @@ export default function LinkSessionToPackageDialog({
                           onClick={() => handleLink(s.id)}
                           disabled={saving}
                           style={{
-                            background: '#FF6F20', color: '#FFFFFF', border: 'none',
+                            background: 'var(--ag-accent)', color: '#FFFFFF', border: 'none',
                             borderRadius: 10, padding: '8px 16px',
                             fontSize: 13, fontWeight: 700,
                             cursor: saving ? 'wait' : 'pointer',
@@ -464,7 +464,7 @@ export default function LinkSessionToPackageDialog({
               disabled={saving || !newSession.date}
               style={{
                 flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
-                background: '#FF6F20', color: '#FFFFFF',
+                background: 'var(--ag-accent)', color: '#FFFFFF',
                 fontSize: 14, fontWeight: 800,
                 cursor: saving ? 'not-allowed' : 'pointer',
                 opacity: saving ? 0.6 : 1,
@@ -482,13 +482,13 @@ export default function LinkSessionToPackageDialog({
 }
 
 const fieldLabelStyle = {
-  fontSize: 12, fontWeight: 700, color: '#1A1A1A',
+  fontSize: 12, fontWeight: 700, color: 'var(--ag-text)',
   marginBottom: 4, display: 'block',
 };
 
 const fieldInputStyle = {
   width: '100%', padding: '8px 10px', borderRadius: 10,
-  border: '1px solid #F0E4D0', fontSize: 14,
+  border: '1px solid var(--ag-border)', fontSize: 14,
   direction: 'rtl', background: '#FFFFFF', boxSizing: 'border-box',
   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };

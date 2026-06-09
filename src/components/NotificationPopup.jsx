@@ -49,7 +49,7 @@ const NotificationPopup = ({ notification, onDismiss, onTap }) => {
         borderRadius: '16px',
         padding: '14px 16px',
         boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
-        border: '1.5px solid #FF6F20',
+        border: '1.5px solid var(--ag-accent)',
         direction: 'rtl',
         cursor: 'pointer',
         display: 'flex',
@@ -63,7 +63,7 @@ const NotificationPopup = ({ notification, onDismiss, onTap }) => {
       <div style={{
         width: '40px', height: '40px',
         borderRadius: '12px',
-        background: '#FFF0E4',
+        background: 'var(--ag-accent-bg)',
         display: 'flex', alignItems: 'center',
         justifyContent: 'center',
         fontSize: '20px', flexShrink: 0,
@@ -72,13 +72,13 @@ const NotificationPopup = ({ notification, onDismiss, onTap }) => {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: '14px', fontWeight: 600,
-          color: '#1a1a1a',
+          color: 'var(--ag-text)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}>{notification.message || notification.title || 'התראה חדשה'}</div>
         <div style={{
-          fontSize: '11px', color: '#888',
+          fontSize: '11px', color: 'var(--ag-text-soft)',
           marginTop: '2px',
         }}>עכשיו</div>
       </div>
@@ -91,7 +91,7 @@ const NotificationPopup = ({ notification, onDismiss, onTap }) => {
         }}
         style={{
           background: 'none', border: 'none',
-          color: '#888', fontSize: '16px',
+          color: 'var(--ag-text-soft)', fontSize: '16px',
           cursor: 'pointer', padding: '4px',
           flexShrink: 0,
         }}

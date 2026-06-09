@@ -26,11 +26,11 @@ export default function OnboardingProgressBar({ currentStep }) {
   return (
     <div style={{ padding: '12px 16px', fontFamily: "'Rubik', system-ui, sans-serif" }} dir="rtl">
       <div style={{
-        height: 4, background: '#F0E4D0', borderRadius: 2,
+        height: 4, background: 'var(--ag-border)', borderRadius: 2,
         overflow: 'hidden', marginBottom: 8,
       }}>
         <div style={{
-          height: '100%', background: '#FF6F20',
+          height: '100%', background: 'var(--ag-accent)',
           width: `${progressPct}%`, borderRadius: 2,
           transition: 'width 0.3s ease',
         }} />
@@ -45,8 +45,8 @@ export default function OnboardingProgressBar({ currentStep }) {
               <div style={{
                 width: 20, height: 20, borderRadius: '50%',
                 margin: '0 auto 4px',
-                background: reached ? '#FF6F20' : '#F0E4D0',
-                color: reached ? '#FFFFFF' : '#888',
+                background: reached ? 'var(--ag-accent)' : 'var(--ag-border)',
+                color: reached ? '#FFFFFF' : 'var(--ag-text-soft)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 600,
                 transition: 'background 0.25s ease',
@@ -55,7 +55,7 @@ export default function OnboardingProgressBar({ currentStep }) {
               </div>
               <div style={{
                 fontSize: 10,
-                color: reached ? '#FF6F20' : '#888',
+                color: reached ? 'var(--ag-accent)' : 'var(--ag-text-soft)',
                 fontWeight: reached ? 600 : 500,
               }}>
                 {step.label}

@@ -113,7 +113,7 @@ export default function HealthDeclarationForm({
     ctx.moveTo(x, y);
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = 'var(--ag-text)';
     drawing.current = true;
   };
 
@@ -512,7 +512,7 @@ export default function HealthDeclarationForm({
           <div style={{
             padding: '14px 16px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            borderBottom: '1px solid #F0E4D0',
+            borderBottom: '1px solid var(--ag-border)',
             background: '#FFFFFF',
             borderTopLeftRadius: 14, borderTopRightRadius: 14,
             position: 'sticky', top: 0, zIndex: 1,
@@ -532,7 +532,7 @@ export default function HealthDeclarationForm({
                 style={{ height: 28, width: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>הצהרת בריאות</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ag-text)' }}>הצהרת בריאות</div>
             </div>
             <div style={{ width: 32 }} />
           </div>
@@ -543,13 +543,13 @@ export default function HealthDeclarationForm({
           {/* Body */}
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Identity */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
-              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם מלא</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A' }}>{trainee?.full_name || '—'}</div>
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--ag-border)', borderRadius: 12, padding: 12 }}>
+              <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>שם מלא</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ag-text)' }}>{trainee?.full_name || '—'}</div>
               {trainee?.birth_date && (
                 <>
-                  <div style={{ fontSize: 13, color: '#888', marginTop: 8, marginBottom: 4 }}>תאריך לידה</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>
+                  <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginTop: 8, marginBottom: 4 }}>תאריך לידה</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ag-text)' }}>
                     {(() => {
                       const d = new Date(trainee.birth_date);
                       if (Number.isNaN(d.getTime())) return trainee.birth_date;
@@ -582,12 +582,12 @@ export default function HealthDeclarationForm({
                 //   risk    — yes red, no green
                 //   consent — yes orange, no red
                 const noActive  = isConsent
-                  ? { border: '1.5px solid #DC2626', bg: '#FEE2E2', fg: '#DC2626' }
-                  : { border: '1.5px solid #16A34A', bg: '#D1FAE5', fg: '#16A34A' };
+                  ? { border: '1.5px solid var(--ag-error)', bg: '#FEE2E2', fg: 'var(--ag-error)' }
+                  : { border: '1.5px solid var(--ag-success)', bg: '#D1FAE5', fg: 'var(--ag-success)' };
                 const yesActive = isConsent
-                  ? { border: '1.5px solid #FF6F20', bg: '#FFEDD5', fg: '#FF6F20' }
-                  : { border: '1.5px solid #DC2626', bg: '#FEE2E2', fg: '#DC2626' };
-                const inactive  = { border: '1px solid #E5E7EB',   bg: '#FFFFFF', fg: '#888888' };
+                  ? { border: '1.5px solid var(--ag-accent)', bg: '#FFEDD5', fg: 'var(--ag-accent)' }
+                  : { border: '1.5px solid var(--ag-error)', bg: '#FEE2E2', fg: 'var(--ag-error)' };
+                const inactive  = { border: '1px solid #E5E7EB',   bg: '#FFFFFF', fg: 'var(--ag-text-soft)' };
 
                 const noStyle  = value === false ? noActive  : inactive;
                 const yesStyle = value === true  ? yesActive : inactive;
@@ -595,11 +595,11 @@ export default function HealthDeclarationForm({
                 return (
                   <div key={q.key}>
                     <div style={{
-                      background: '#FFFFFF', border: '1px solid #F0E4D0',
+                      background: '#FFFFFF', border: '1px solid var(--ag-border)',
                       borderRadius: 12, padding: 10,
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                     }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A', textAlign: 'right', flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ag-text)', textAlign: 'right', flex: 1 }}>
                         {q.label}
                       </div>
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -650,8 +650,8 @@ export default function HealthDeclarationForm({
             </div>
 
             {/* Free-form notes */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A', marginBottom: 6 }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--ag-border)', borderRadius: 12, padding: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ag-text)', marginBottom: 6 }}>
                 פירוט נוסף (אם יש)
               </div>
               <textarea
@@ -663,7 +663,7 @@ export default function HealthDeclarationForm({
                   width: '100%', resize: 'vertical', minHeight: 70,
                   padding: '8px 10px', borderRadius: 10,
                   border: '1px solid #E5E7EB', background: '#FFFFFF',
-                  fontSize: 13, color: '#1A1A1A', outline: 'none',
+                  fontSize: 13, color: 'var(--ag-text)', outline: 'none',
                   boxSizing: 'border-box', textAlign: 'right',
                   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 }}
@@ -678,7 +678,7 @@ export default function HealthDeclarationForm({
               data-error={!confirmed || undefined}
               style={{
                 background: '#FDF8F3',
-                border: `1px solid ${!confirmed ? '#FF6F20' : '#F0E4D0'}`,
+                border: `1px solid ${!confirmed ? 'var(--ag-accent)' : 'var(--ag-border)'}`,
                 borderRadius: 14, padding: 16,
                 display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer',
               }}
@@ -687,9 +687,9 @@ export default function HealthDeclarationForm({
                 type="checkbox"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
-                style={{ marginTop: 2, width: 24, height: 24, accentColor: '#FF6F20', flexShrink: 0 }}
+                style={{ marginTop: 2, width: 24, height: 24, accentColor: 'var(--ag-accent)', flexShrink: 0 }}
               />
-              <span style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6 }}>
+              <span style={{ fontSize: 14, color: 'var(--ag-text)', lineHeight: 1.6 }}>
                 אני מצהיר/ה כי כל הפרטים שנמסרו נכונים ומדויקים. אני לוקח/ת
                 אחריות מלאה על מצבי הבריאותי ומאשר/ת כי קראתי והבנתי את תוכן
                 הצהרה זו.
@@ -702,14 +702,14 @@ export default function HealthDeclarationForm({
                 rather than the child. The signature card below relabels
                 its heading to make the same point visually. */}
             {isMinor && (
-              <div style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--ag-border)', borderRadius: 12, padding: 12 }}>
                 <div style={{
                   background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 12,
                   fontSize: 12, color: '#E65100', lineHeight: 1.5,
                 }}>
                   ⚠️ מאחר שהמתאמן{childName ? ` (${childName})` : ''} קטין, ההצהרה נחתמת על ידי ההורה או האפוטרופוס.
                 </div>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם ההורה / האפוטרופוס החותם *</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>שם ההורה / האפוטרופוס החותם *</div>
                 <input
                   value={signerName}
                   onChange={(e) => setSignerName(e.target.value)}
@@ -717,12 +717,12 @@ export default function HealthDeclarationForm({
                   style={{
                     width: '100%', padding: '10px 12px', borderRadius: 10,
                     border: '1px solid #E5E7EB', background: '#FFFFFF',
-                    fontSize: 14, color: '#1A1A1A', outline: 'none',
+                    fontSize: 14, color: 'var(--ag-text)', outline: 'none',
                     boxSizing: 'border-box', textAlign: 'right', direction: 'rtl',
                     fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                   }}
                 />
-                <div style={{ fontSize: 13, color: '#888', marginTop: 12, marginBottom: 6 }}>קרבה *</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginTop: 12, marginBottom: 6 }}>קרבה *</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, direction: 'rtl' }}>
                   {RELATION_OPTIONS.map((r) => {
                     const active = signerRelation === r;
@@ -736,9 +736,9 @@ export default function HealthDeclarationForm({
                           borderRadius: 999,
                           fontSize: 13,
                           fontWeight: active ? 700 : 500,
-                          background: active ? '#FF6F20' : '#FFFFFF',
-                          color: active ? '#FFFFFF' : '#888888',
-                          border: active ? '1px solid #FF6F20' : '1px solid #E8E0D8',
+                          background: active ? 'var(--ag-accent)' : '#FFFFFF',
+                          color: active ? '#FFFFFF' : 'var(--ag-text-soft)',
+                          border: active ? '1px solid var(--ag-accent)' : '1px solid var(--ag-chip-border)',
                           cursor: 'pointer',
                           fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                         }}
@@ -755,10 +755,10 @@ export default function HealthDeclarationForm({
             <div
               ref={signatureBoxRef}
               data-error={!hasSignature || undefined}
-              style={{ background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}
+              style={{ background: '#FFFFFF', border: '1px solid var(--ag-border)', borderRadius: 12, padding: 12 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ag-text)' }}>
                   {isMinor ? 'חתימת ההורה / האפוטרופוס' : 'חתימה'}
                 </div>
                 <button
@@ -804,7 +804,7 @@ export default function HealthDeclarationForm({
               disabled={!canSubmit}
               style={{
                 width: '100%', padding: '12px 16px', borderRadius: 12, border: 'none',
-                background: canSubmit ? '#FF6F20' : '#E5E7EB',
+                background: canSubmit ? 'var(--ag-accent)' : '#E5E7EB',
                 color: canSubmit ? '#FFFFFF' : '#9CA3AF',
                 fontSize: 15, fontWeight: 800,
                 cursor: canSubmit ? 'pointer' : 'not-allowed',

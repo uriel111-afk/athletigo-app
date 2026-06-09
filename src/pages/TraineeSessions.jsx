@@ -11,10 +11,10 @@ import PermGate from "@/components/PermGate";
 const STATUS_MAP = {
   'ממתין לאישור': { text: 'ממתין לאישור', bg: '#fef9c3', color: '#a16207' },
   'מאושר':        { text: 'מאושר',        bg: '#dbeafe', color: '#1d4ed8' },
-  'התקיים':       { text: 'התקיים',       bg: '#dcfce7', color: '#16a34a' },
-  'הושלם':        { text: 'הושלם',        bg: '#dcfce7', color: '#16a34a' },
-  'הגיע':         { text: 'הגיע',         bg: '#dcfce7', color: '#16a34a' },
-  'לא הגיע':      { text: 'לא הגיע',      bg: '#fee2e2', color: '#dc2626' },
+  'התקיים':       { text: 'התקיים',       bg: '#dcfce7', color: 'var(--ag-success)' },
+  'הושלם':        { text: 'הושלם',        bg: '#dcfce7', color: 'var(--ag-success)' },
+  'הגיע':         { text: 'הגיע',         bg: '#dcfce7', color: 'var(--ag-success)' },
+  'לא הגיע':      { text: 'לא הגיע',      bg: '#fee2e2', color: 'var(--ag-error)' },
   'בוטל על ידי מתאמן': { text: 'בוטל', bg: '#f1f5f9', color: '#64748b' },
   'בוטל על ידי מאמן':  { text: 'בוטל', bg: '#f1f5f9', color: '#64748b' },
   'בוטל':         { text: 'בוטל',         bg: '#f1f5f9', color: '#64748b' },
@@ -313,13 +313,13 @@ function TraineeSessionsInner() {
         borderBottom: '1px solid #eee', flexShrink: 0,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center'
       }}>
-        <div style={{ fontSize: '20px', fontWeight: '900', color: '#1a1a1a' }}>
+        <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--ag-text)' }}>
           המפגשים שלי
         </div>
         <button
           onClick={() => setShowBooking(true)}
           style={{
-            background: '#FF6F20', color: 'white',
+            background: 'var(--ag-accent)', color: 'white',
             border: 'none', borderRadius: '10px',
             padding: '9px 16px', fontSize: '14px',
             fontWeight: '700', cursor: 'pointer',
@@ -348,9 +348,9 @@ function TraineeSessionsInner() {
               flex: 1, height: '44px', border: 'none',
               background: 'none', cursor: 'pointer',
               fontSize: '14px', fontWeight: '700',
-              color: filter === f.key ? '#FF6F20' : '#999',
+              color: filter === f.key ? 'var(--ag-accent)' : '#999',
               borderBottom: filter === f.key
-                ? '3px solid #FF6F20' : '3px solid transparent'
+                ? '3px solid var(--ag-accent)' : '3px solid transparent'
             }}
           >
             {f.label}
@@ -387,12 +387,12 @@ function TraineeSessionsInner() {
                       {pkg.package_name || 'חבילה'}
                     </div>
                     {total > 0 ? (
-                      <div style={{ fontSize: '22px', fontWeight: '900', color: '#FF6F20', lineHeight: 1.1 }}>
+                      <div style={{ fontSize: '22px', fontWeight: '900', color: 'var(--ag-accent)', lineHeight: 1.1 }}>
                         {pkg.remaining}
                         <span style={{ fontSize: 14, fontWeight: 700, color: '#CC4A00' }}> / {total} מפגשים</span>
                       </div>
                     ) : (
-                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#FF6F20' }}>מנוי</div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--ag-accent)' }}>מנוי</div>
                     )}
                     <div style={{ fontSize: 11, color: '#7a7a7a', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       {statusLabel && <span>{statusLabel}</span>}
@@ -424,7 +424,7 @@ function TraineeSessionsInner() {
             <button
               onClick={() => setShowBooking(true)}
               style={{
-                background: '#FF6F20', color: 'white',
+                background: 'var(--ag-accent)', color: 'white',
                 border: 'none', borderRadius: '10px',
                 padding: '10px 24px', fontSize: '15px',
                 fontWeight: '700', cursor: 'pointer'
@@ -454,13 +454,13 @@ function TraineeSessionsInner() {
                     {s.session_type && <span> • {s.session_type}</span>}
                   </div>
                   {s.location && (
-                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--ag-text-soft)', marginBottom: '4px' }}>
                       📍 {s.location}
                     </div>
                   )}
                   {s.coach_notes && (
                     <div style={{
-                      fontSize: '12px', color: '#888',
+                      fontSize: '12px', color: 'var(--ag-text-soft)',
                       background: '#f9f9f9', borderRadius: '8px',
                       padding: '6px 10px', marginTop: '6px'
                     }}>
@@ -486,8 +486,8 @@ function TraineeSessionsInner() {
               {s.status === 'ממתין לאישור' && isActive(s) && (
                 <div style={{
                   marginTop: '10px', padding: '8px 12px',
-                  background: '#FFF9F0', border: '1px solid #FF6F20',
-                  borderRadius: 8, color: '#1a1a1a', fontSize: 13, fontWeight: 600,
+                  background: 'var(--ag-bg)', border: '1px solid var(--ag-accent)',
+                  borderRadius: 8, color: 'var(--ag-text)', fontSize: 13, fontWeight: 600,
                 }}>
                   מפגש ממתין לאישור — בחר/י אחת מהאפשרויות למטה
                 </div>
@@ -505,7 +505,7 @@ function TraineeSessionsInner() {
                       onClick={() => handleConfirmSession(s)}
                       style={{
                         flex: 1, minWidth: 110, height: '36px',
-                        background: '#FF6F20', color: '#FFFFFF',
+                        background: 'var(--ag-accent)', color: '#FFFFFF',
                         border: 'none', borderRadius: '8px',
                         fontSize: '13px', fontWeight: '700', cursor: 'pointer',
                       }}
@@ -522,7 +522,7 @@ function TraineeSessionsInner() {
                       }}
                       style={{
                         flex: 1, height: '36px',
-                        background: '#FFF0E8', color: '#FF6F20',
+                        background: '#FFF0E8', color: 'var(--ag-accent)',
                         border: '1px solid #FFD0A0', borderRadius: '8px',
                         fontSize: '13px', fontWeight: '700', cursor: 'pointer',
                         display: 'flex', alignItems: 'center',
@@ -553,7 +553,7 @@ function TraineeSessionsInner() {
                       onClick={() => handleDelete(s)}
                       style={{
                         height: '36px', width: '36px', flexShrink: 0,
-                        background: '#fff', color: '#dc2626',
+                        background: '#fff', color: 'var(--ag-error)',
                         border: '1px solid #fca5a5', borderRadius: '8px',
                         fontSize: '16px', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -614,14 +614,14 @@ function TraineeSessionsInner() {
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '8px' }}>תאריך חדש</div>
                 <input type="date" value={newDate} min={new Date().toISOString().split('T')[0]}
                   onChange={e => setNewDate(e.target.value)}
-                  style={{ width: '100%', padding: '14px', fontSize: '16px', border: '1.5px solid', borderColor: newDate ? '#FF6F20' : '#ddd', borderRadius: '12px', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: '14px', fontSize: '16px', border: '1.5px solid', borderColor: newDate ? 'var(--ag-accent)' : '#ddd', borderRadius: '12px', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
               <div>
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '8px' }}>שעה חדשה</div>
                 <input type="time" value={newTime}
                   onChange={e => setNewTime(e.target.value)}
-                  style={{ width: '100%', padding: '14px', fontSize: '16px', border: '1.5px solid', borderColor: newTime ? '#FF6F20' : '#ddd', borderRadius: '12px', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: '14px', fontSize: '16px', border: '1.5px solid', borderColor: newTime ? 'var(--ag-accent)' : '#ddd', borderRadius: '12px', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
               <div>
@@ -644,7 +644,7 @@ function TraineeSessionsInner() {
                 disabled={!newDate || !newTime || rescheduleLoading}
                 style={{
                   width: '100%', height: '54px',
-                  background: (!newDate || !newTime) ? '#ccc' : '#FF6F20',
+                  background: (!newDate || !newTime) ? '#ccc' : 'var(--ag-accent)',
                   color: 'white', border: 'none', borderRadius: '12px',
                   fontSize: '18px', fontWeight: '900', cursor: 'pointer',
                 }}

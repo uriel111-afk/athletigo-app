@@ -7,8 +7,8 @@ import {
 } from '@/lib/recordExercises';
 import { checkAchievement } from '@/lib/goalsApi';
 
-const O = '#FF6F20';
-const BORDER = '#F0E4D0';
+const O = 'var(--ag-accent)';
+const BORDER = 'var(--ag-border)';
 
 // Single shared "Add Record" bottom-sheet — used from:
 //   • Dashboard (no traineeId prop → renders trainee picker at top,
@@ -287,7 +287,7 @@ export default function NewRecordDialog({
             aria-label="סגור"
             style={{
               background: 'none', border: 'none', fontSize: 22,
-              cursor: 'pointer', color: '#888',
+              cursor: 'pointer', color: 'var(--ag-text-soft)',
             }}
           >
             ✕
@@ -297,7 +297,7 @@ export default function NewRecordDialog({
         {/* Trainee picker — only when no traineeId was passed in */}
         {!traineeId && (
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>בחר מתאמן/ת *</div>
+            <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>בחר מתאמן/ת *</div>
             <select
               value={form.pickedTraineeId}
               onChange={(e) => setField('pickedTraineeId', e.target.value)}
@@ -317,7 +317,7 @@ export default function NewRecordDialog({
 
         {/* Exercise picker */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם התרגיל *</div>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>שם התרגיל *</div>
           <select
             value={form.exercise}
             onChange={(e) => {
@@ -358,7 +358,7 @@ export default function NewRecordDialog({
 
         {/* Record type */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>סוג שיא</div>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>סוג שיא</div>
           <select
             value={form.type}
             onChange={(e) => setField('type', e.target.value)}
@@ -377,7 +377,7 @@ export default function NewRecordDialog({
         {/* Value + unit */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <div style={{ flex: 2 }}>
-            <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך השיא *</div>
+            <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>ערך השיא *</div>
             <input
               type="number"
               value={form.value}
@@ -391,7 +391,7 @@ export default function NewRecordDialog({
             />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>יחידה</div>
+            <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>יחידה</div>
             <select
               value={form.unit}
               onChange={(e) => setField('unit', e.target.value)}
@@ -408,7 +408,7 @@ export default function NewRecordDialog({
 
         {/* Date */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>תאריך</div>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>תאריך</div>
           <input
             type="date"
             value={form.date}
@@ -424,7 +424,7 @@ export default function NewRecordDialog({
         {/* Technique name — only for record_type === 'technique' */}
         {form.type === 'technique' && (
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+            <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>
               שם הטכניקה שנרכשה
             </div>
             <input
@@ -443,7 +443,7 @@ export default function NewRecordDialog({
 
         {/* RPE slider */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>
             RPE — דירוג קושי (1-10)
           </div>
           <input
@@ -459,7 +459,7 @@ export default function NewRecordDialog({
 
         {/* Quality slider */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>
             דירוג איכות ביצוע (1-10)
           </div>
           <input
@@ -475,7 +475,7 @@ export default function NewRecordDialog({
 
         {/* Notes */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הערות</div>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>הערות</div>
           <textarea
             value={form.notes}
             onChange={(e) => setField('notes', e.target.value)}
@@ -491,7 +491,7 @@ export default function NewRecordDialog({
 
         {/* Video URL */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>
             לינק לוידאו (לא חובה)
           </div>
           <input

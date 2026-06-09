@@ -24,16 +24,16 @@ const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() 
 // Stable color palette per category — reuses primary brand orange for
 // the most common categories, falls back to grays for the long tail.
 const CATEGORY_COLORS = {
-  housing:       '#FF6F20',
-  bills:         '#EAB308',
-  transport:     '#3B82F6',
-  insurance:     '#16a34a',
-  food:          '#dc2626',
+  housing:       'var(--ag-accent)',
+  bills:         'var(--ag-warning)',
+  transport:     'var(--ag-blue)',
+  insurance:     'var(--ag-success)',
+  food:          'var(--ag-error)',
   subscriptions: '#8B5CF6',
   taxes:         '#6b7280',
   electronics:   '#06B6D4',
   cleaning:      '#84CC16',
-  business:      '#1a1a1a',
+  business:      'var(--ag-text)',
   other:         '#9ca3af',
 };
 
@@ -262,7 +262,7 @@ export default function Expenses() {
       {lastError && (
         <div style={{
           background: '#FEE2E2',
-          border: '2px solid #DC2626',
+          border: '2px solid var(--ag-error)',
           borderRadius: '10px',
           padding: '14px',
           marginBottom: '14px',
@@ -297,7 +297,7 @@ export default function Expenses() {
       {lastSuccess && (
         <div style={{
           background: '#DCFCE7',
-          border: '2px solid #16A34A',
+          border: '2px solid var(--ag-success)',
           borderRadius: '10px',
           padding: '14px',
           marginBottom: '14px',

@@ -285,7 +285,7 @@ function RatioBar({ income, expenses }) {
     <div>
       <div style={{
         display: 'flex', height: 8, borderRadius: 999, overflow: 'hidden',
-        backgroundColor: '#F0E4D0',
+        backgroundColor: 'var(--ag-border)',
       }}>
         <div style={{
           width: `${incomePct}%`,

@@ -72,7 +72,7 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }} aria-hidden>🤝</div>
             <div style={{
-              fontSize: 24, fontWeight: 700, color: '#1A1A1A',
+              fontSize: 24, fontWeight: 700, color: 'var(--ag-text)',
               marginBottom: 8,
             }}>לפני שמתחילים</div>
             <div style={{
@@ -89,11 +89,11 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
             background: '#FFFFFF',
             borderRadius: 14,
             padding: 16,
-            border: '1px solid #F0E4D0',
+            border: '1px solid var(--ag-border)',
             marginBottom: 20,
           }}>
             <div style={{
-              fontSize: 14, fontWeight: 600, color: '#1A1A1A',
+              fontSize: 14, fontWeight: 600, color: 'var(--ag-text)',
               marginBottom: 8, textAlign: 'right',
             }}>
               האם יש כאב, פציעה או מגבלה שחשוב שנדע עליהם?
@@ -104,8 +104,8 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
               placeholder="למשל: כאבי גב תחתון, פציעת ברך ישנה, אסטמה... או פשוט ׳הכל תקין׳ 😊"
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 12,
-                border: '1px solid #F0E4D0', background: '#FAFAFA',
-                fontSize: 14, color: '#1A1A1A',
+                border: '1px solid var(--ag-border)', background: '#FAFAFA',
+                fontSize: 14, color: 'var(--ag-text)',
                 direction: 'rtl', textAlign: 'right',
                 minHeight: 80, resize: 'vertical',
                 outline: 'none', boxSizing: 'border-box',
@@ -121,7 +121,7 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
             style={{
               width: '100%', padding: '14px 18px',
               borderRadius: 14, border: 'none',
-              background: '#FF6F20', color: '#FFFFFF',
+              background: 'var(--ag-accent)', color: '#FFFFFF',
               fontSize: 16, fontWeight: 600,
               cursor: saving ? 'wait' : 'pointer',
               opacity: saving ? 0.7 : 1,
@@ -133,7 +133,7 @@ export default function PreHealthScreen({ isOpen, traineeId, onContinue, onClose
           </button>
 
           <div style={{
-            fontSize: 12, color: '#888',
+            fontSize: 12, color: 'var(--ag-text-soft)',
             marginTop: 12, textAlign: 'center',
           }}>
             זה טופס קצר וסטנדרטי — לוקח פחות מדקה

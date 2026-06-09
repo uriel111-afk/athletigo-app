@@ -9,7 +9,7 @@ export default function SectionForm({ section, onChange }) {
   const [localSection, setLocalSection] = useState(section);
 
   const categories = [
-    { id: "חימום", label: "חימום", icon: "🔥", color: "#FF6F20" },
+    { id: "חימום", label: "חימום", icon: "🔥", color: "var(--ag-accent)" },
     { id: "תנועתיות", label: "תנועתיות", icon: "🌀", color: "#2196F3" },
     { id: "כוח", label: "כוח", icon: "💪", color: "#000000" },
     { id: "סקילס", label: "סקילס", icon: "⚡", color: "#9C27B0" },
@@ -67,7 +67,7 @@ export default function SectionForm({ section, onChange }) {
 
       {/* Custom Section Name */}
       {isCustom && (
-        <div className="p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+        <div className="p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid var(--ag-accent)' }}>
           <Label className="text-sm font-bold mb-2 block">שם הסקשן *</Label>
           <Input
             value={localSection.section_name || ""}

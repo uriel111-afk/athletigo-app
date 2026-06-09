@@ -7,9 +7,9 @@ import { DOCUMENT_TYPES_LIST } from '@/lib/documentTemplates';
 import AgreementFlowDialog from './AgreementFlowDialog';
 
 const cardStyle = {
-  background: '#FFF9F0',
+  background: 'var(--ag-bg)',
   border: '1px solid #FFE5D0',
-  borderRight: '3px solid #FF6F20',
+  borderRight: '3px solid var(--ag-accent)',
   borderRadius: 10,
   padding: 14,
   marginBottom: 10,
@@ -63,7 +63,7 @@ export default function DocumentPickerDialog({
       <Dialog open={open && !agreementKey} onOpenChange={(o) => { if (!o) onClose(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 16 }}>
+            <DialogTitle style={{ color: 'var(--ag-text)', fontWeight: 700, fontSize: 16 }}>
               בחר/י מסמך לחתימה
             </DialogTitle>
           </DialogHeader>
@@ -80,12 +80,12 @@ export default function DocumentPickerDialog({
               >
                 <span style={{ fontSize: 24 }}>{template.icon}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 14 }}>{template.title}</div>
+                  <div style={{ color: 'var(--ag-text)', fontWeight: 700, fontSize: 14 }}>{template.title}</div>
                   <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
                     {template.useCustomForm ? 'שאלון בריאות מובנה' : 'הסכם עם שדות מותאמים'}
                   </div>
                 </div>
-                <ChevronLeft style={{ width: 18, height: 18, color: '#FF6F20' }} />
+                <ChevronLeft style={{ width: 18, height: 18, color: 'var(--ag-accent)' }} />
               </div>
             ))}
           </div>

@@ -18,7 +18,7 @@ import DraftPrompt from "@/components/DraftPrompt";
 import { PAYMENT_METHODS, toHebrewPaymentMethod } from "@/lib/paymentMethods";
 
 const TYPES = [
-  { id: "personal", label: "אישי", desc: "מפגשי 1-על-1", icon: User, color: "#FF6F20" },
+  { id: "personal", label: "אישי", desc: "מפגשי 1-על-1", icon: User, color: "var(--ag-accent)" },
   { id: "group", label: "קבוצתי", desc: "מנוי חודשי", icon: Users, color: "#4CAF50" },
   { id: "online", label: "אונליין", desc: "היברידי — מפגשים + זמן", icon: Monitor, color: "#2196F3" },
 ];
@@ -66,7 +66,7 @@ function ChipSelect({ label, options, value, onChange, required }) {
         display: 'block',
         fontSize: 14,
         fontWeight: 600,
-        color: '#1a1a1a',
+        color: 'var(--ag-text)',
         marginBottom: 8,
         textAlign: 'right',
       }}>
@@ -91,9 +91,9 @@ function ChipSelect({ label, options, value, onChange, required }) {
                 borderRadius: 20,
                 fontSize: 13,
                 fontWeight: isActive ? 700 : 500,
-                background: isActive ? '#FF6F20' : 'white',
-                color: isActive ? 'white' : '#888',
-                border: isActive ? '1px solid #FF6F20' : '1px solid #E8E0D8',
+                background: isActive ? 'var(--ag-accent)' : 'white',
+                color: isActive ? 'white' : 'var(--ag-text-soft)',
+                border: isActive ? '1px solid var(--ag-accent)' : '1px solid var(--ag-chip-border)',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
@@ -116,12 +116,12 @@ const NumPicker = ({ value, onChange, min = 1, max = 99, label }) => {
       {label && <span className="text-[10px] font-bold text-gray-400 mb-1">{label}</span>}
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => onChange(Math.max(min, v - 1))}
-          className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] active:scale-95">
+          className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[var(--ag-accent)] hover:border-[var(--ag-accent)] active:scale-95">
           <Minus size={14} />
         </button>
         <span className="w-10 text-center text-xl font-black text-gray-900">{v}</span>
         <button type="button" onClick={() => onChange(Math.min(max, v + 1))}
-          className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#FF6F20] hover:border-[#FF6F20] active:scale-95">
+          className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[var(--ag-accent)] hover:border-[var(--ag-accent)] active:scale-95">
           <Plus size={14} />
         </button>
       </div>
@@ -474,7 +474,7 @@ export default function PackageFormDialog({
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <Package className="w-5 h-5 text-[#FF6F20]" />
+              <Package className="w-5 h-5 text-[var(--ag-accent)]" />
               {editingPackage ? "ערוך חבילה" : "חבילה חדשה"}
               {traineeName && <span className="text-sm font-normal text-gray-500">— {traineeName}</span>}
             </DialogTitle>
@@ -484,8 +484,8 @@ export default function PackageFormDialog({
         {step === 1 && (
           <div className="space-y-3 mt-2" style={{ direction: 'rtl' }}>
             <div style={{ marginBottom: 4, textAlign: 'right' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#1a1a1a' }}>בחר מתאמן</h3>
-              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--ag-text)' }}>בחר מתאמן</h3>
+              <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginTop: 4 }}>
                 {coachTrainees.length} משתמשים במערכת
               </div>
             </div>
@@ -498,7 +498,7 @@ export default function PackageFormDialog({
                 width: '100%',
                 padding: '10px 14px',
                 borderRadius: 10,
-                border: '1px solid #E8E0D8',
+                border: '1px solid var(--ag-chip-border)',
                 fontSize: 14,
                 marginBottom: 10,
                 direction: 'rtl',
@@ -509,7 +509,7 @@ export default function PackageFormDialog({
             />
             <div style={{ maxHeight: '60vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingLeft: 4 }}>
               {filteredTrainees.length === 0 ? (
-                <div style={{ padding: 20, textAlign: 'center', color: '#888', fontSize: 14 }}>
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--ag-text-soft)', fontSize: 14 }}>
                   {searchQuery ? 'לא נמצאו תוצאות' : 'אין משתמשים במערכת'}
                 </div>
               ) : (
@@ -524,8 +524,8 @@ export default function PackageFormDialog({
                         width: '100%',
                         padding: 12,
                         marginBottom: 6,
-                        background: isSelected ? '#FFF0E4' : 'white',
-                        border: isSelected ? '2px solid #FF6F20' : '1px solid #E8E0D8',
+                        background: isSelected ? 'var(--ag-accent-bg)' : 'white',
+                        border: isSelected ? '2px solid var(--ag-accent)' : '1px solid var(--ag-chip-border)',
                         borderRadius: 10,
                         textAlign: 'right',
                         cursor: 'pointer',
@@ -540,9 +540,9 @@ export default function PackageFormDialog({
                       <div style={{
                         width: 42, height: 42,
                         borderRadius: '50%',
-                        background: '#FFF0E4',
+                        background: 'var(--ag-accent-bg)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 16, fontWeight: 700, color: '#FF6F20',
+                        fontSize: 16, fontWeight: 700, color: 'var(--ag-accent)',
                         flexShrink: 0, overflow: 'hidden',
                       }}>
                         {t.avatar_url ? (
@@ -557,10 +557,10 @@ export default function PackageFormDialog({
                         )}
                       </div>
                       <div style={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ag-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {t.full_name || 'ללא שם'}
                         </div>
-                        <div style={{ fontSize: 11, color: '#888', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {t.email || t.phone || 'ללא פרטי קשר'}
                         </div>
                       </div>
@@ -568,7 +568,7 @@ export default function PackageFormDialog({
                         <div style={{
                           width: 24, height: 24,
                           borderRadius: '50%',
-                          background: '#FF6F20', color: 'white',
+                          background: 'var(--ag-accent)', color: 'white',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 14, fontWeight: 700, flexShrink: 0,
                         }}>
@@ -587,7 +587,7 @@ export default function PackageFormDialog({
               disabled={!pickedTrainee?.id}
               className="w-full h-12 rounded-xl font-bold text-white"
               style={{
-                background: pickedTrainee?.id ? '#FF6F20' : '#E8E0D8',
+                background: pickedTrainee?.id ? 'var(--ag-accent)' : 'var(--ag-chip-border)',
                 cursor: pickedTrainee?.id ? 'pointer' : 'not-allowed',
               }}
             >
@@ -601,10 +601,10 @@ export default function PackageFormDialog({
           <div className="space-y-3 mt-2">
             {effectiveTraineeName && (
               <div className="flex items-center gap-2 mb-1">
-                <button onClick={() => !traineeId && setStep(1)} className="text-[10px] font-bold text-gray-400 hover:text-[#FF6F20]">
+                <button onClick={() => !traineeId && setStep(1)} className="text-[10px] font-bold text-gray-400 hover:text-[var(--ag-accent)]">
                   {!traineeId && "← שנה מתאמן"}
                 </button>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-50 text-[#FF6F20]">
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-50 text-[var(--ag-accent)]">
                   {effectiveTraineeName}
                 </span>
               </div>
@@ -636,7 +636,7 @@ export default function PackageFormDialog({
             {/* Type badge */}
             {typeConfig && (
               <div className="flex items-center gap-2 mb-1">
-                <button onClick={() => !editingPackage && setStep(2)} className="text-[10px] font-bold text-gray-400 hover:text-[#FF6F20]">
+                <button onClick={() => !editingPackage && setStep(2)} className="text-[10px] font-bold text-gray-400 hover:text-[var(--ag-accent)]">
                   {!editingPackage && "← שנה סוג"}
                 </button>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: typeConfig.color + "15", color: typeConfig.color }}>
@@ -738,7 +738,7 @@ export default function PackageFormDialog({
 
             {/* Save */}
             <Button onClick={handleSave} disabled={saving || !form.package_name}
-              className="w-full h-12 rounded-xl font-bold text-white bg-[#FF6F20] hover:bg-[#e65b12]">
+              className="w-full h-12 rounded-xl font-bold text-white bg-[var(--ag-accent)] hover:bg-[#e65b12]">
               {saving ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</> : (editingPackage ? "עדכן חבילה" : "צור חבילה")}
             </Button>
           </div>

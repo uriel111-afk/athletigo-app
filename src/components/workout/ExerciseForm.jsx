@@ -39,7 +39,7 @@ export default function ExerciseForm({ exercise, onChange }) {
               onClick={() => handleTypeChange(mode.id)}
               className="p-3 rounded-xl transition-all"
               style={{
-                backgroundColor: exerciseType === mode.id ? '#FF6F20' : '#FFFFFF',
+                backgroundColor: exerciseType === mode.id ? 'var(--ag-accent)' : '#FFFFFF',
                 color: exerciseType === mode.id ? '#FFFFFF' : '#000000',
                 border: exerciseType === mode.id ? 'none' : '2px solid #E0E0E0',
                 boxShadow: exerciseType === mode.id ? '0 4px 12px rgba(255, 111, 32, 0.2)' : 'none'
@@ -55,7 +55,7 @@ export default function ExerciseForm({ exercise, onChange }) {
 
       {/* SINGLE EXERCISE */}
       {exerciseType === "single" && (
-        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid var(--ag-accent)' }}>
           <div className="w-full">
             <Label className="text-sm font-bold mb-2 block">שם התרגיל *</Label>
             <Input
@@ -116,7 +116,7 @@ export default function ExerciseForm({ exercise, onChange }) {
 
       {/* TIME EXERCISE */}
       {exerciseType === "time" && (
-        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid var(--ag-accent)' }}>
           <div className="w-full">
             <Label className="text-sm font-bold mb-2 block">שם התרגיל *</Label>
             <Input
@@ -175,7 +175,7 @@ export default function ExerciseForm({ exercise, onChange }) {
 
       {/* SUPERSET EXERCISE */}
       {exerciseType === "superset" && (
-        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid var(--ag-accent)' }}>
           <div className="w-full">
             <Label className="text-sm font-bold mb-2 block">תרגיל 1 *</Label>
             <Input
@@ -232,10 +232,10 @@ export default function ExerciseForm({ exercise, onChange }) {
 
       {/* COMBO EXERCISE */}
       {exerciseType === "combo" && (
-        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid var(--ag-accent)' }}>
           <div className="flex justify-between items-center mb-2">
             <h3 className="font-bold text-base">🌀 תרגילי הקומבו</h3>
-            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#FF6F20', color: 'white' }}>
+            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'var(--ag-accent)', color: 'white' }}>
               {(exercise.combo_exercise_names || ['']).length}
             </span>
           </div>
@@ -438,10 +438,10 @@ export default function ExerciseForm({ exercise, onChange }) {
 
       {/* TABATA EXERCISE */}
       {exerciseType === "tabata" && (
-        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+        <div className="space-y-4 p-4 rounded-xl w-full" style={{ backgroundColor: '#FFF8F3', border: '2px solid var(--ag-accent)' }}>
           <div className="flex justify-between items-center mb-2">
             <h3 className="font-bold text-base">⚡ תרגילי הטבטה</h3>
-            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#FF6F20', color: 'white' }}>
+            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'var(--ag-accent)', color: 'white' }}>
               {(exercise.tabata_exercise_names || ['']).length}
             </span>
           </div>

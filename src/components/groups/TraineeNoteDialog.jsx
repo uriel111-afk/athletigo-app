@@ -81,7 +81,7 @@ export default function TraineeNoteDialog({
               style={{
                 width: '100%', padding: '12px 14px',
                 borderRadius: 12,
-                border: '1.5px solid #F0E4D0',
+                border: '1.5px solid var(--ag-border)',
                 fontSize: 14, direction: 'rtl',
                 background: saveMutation.isPending ? '#F5F5F5' : 'white',
                 outline: 'none', boxSizing: 'border-box',
@@ -89,7 +89,7 @@ export default function TraineeNoteDialog({
                 resize: 'vertical', minHeight: 120,
               }}
             />
-            <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+            <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginTop: 6 }}>
               נשמרת ב-`additional_notes` של המתאמן — נראית גם בפרופיל.
             </div>
           </div>
@@ -109,7 +109,7 @@ export default function TraineeNoteDialog({
               onClick={() => saveMutation.mutate(note.trim() || null)}
               disabled={saveMutation.isPending}
               className="flex-1 font-bold text-white rounded-xl min-h-[44px]"
-              style={{ backgroundColor: '#FF6F20' }}
+              style={{ backgroundColor: 'var(--ag-accent)' }}
             >
               {saveMutation.isPending
                 ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר…</>

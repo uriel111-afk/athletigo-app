@@ -76,7 +76,7 @@ export default function PlanEditorDialog({
             top: 0,
             zIndex: 2,
             background: 'white',
-            borderBottom: '1px solid #F0E4D0',
+            borderBottom: '1px solid var(--ag-border)',
             padding: '12px 16px',
             display: 'flex',
             alignItems: 'center',
@@ -85,7 +85,7 @@ export default function PlanEditorDialog({
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, color: '#888' }}>
+            <div style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>
               עורך תוכנית
               {trainee?.full_name ? ` · ${trainee.full_name}` : ''}
             </div>
@@ -93,7 +93,7 @@ export default function PlanEditorDialog({
               style={{
                 fontSize: 17,
                 fontWeight: 700,
-                color: '#1A1A1A',
+                color: 'var(--ag-text)',
                 fontFamily: "'Bebas Neue', sans-serif",
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -111,10 +111,10 @@ export default function PlanEditorDialog({
               width: 36,
               height: 36,
               borderRadius: 999,
-              border: '1px solid #F0E4D0',
+              border: '1px solid var(--ag-border)',
               background: 'white',
               fontSize: 18,
-              color: '#888',
+              color: 'var(--ag-text-soft)',
               cursor: 'pointer',
               flexShrink: 0,
             }}

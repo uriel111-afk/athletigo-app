@@ -777,7 +777,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                         position: 'absolute', top: -6, left: -6,
                         width: 22, height: 22, borderRadius: '50%',
                         border: '2px solid #FFFFFF',
-                        background: '#dc2626', color: '#FFFFFF',
+                        background: 'var(--ag-error)', color: '#FFFFFF',
                         fontSize: 12, lineHeight: 1, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         padding: 0, fontFamily: 'inherit',
@@ -867,7 +867,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                 <button
                   type="button"
                   onClick={() => { clearDebugLog(); refreshDebug(); }}
-                  style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer' }}
+                  style={{ background: 'var(--ag-error)', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer' }}
                 >Clear</button>
                 <button
                   type="button"

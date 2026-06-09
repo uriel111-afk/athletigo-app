@@ -748,7 +748,7 @@ export default function SessionFormDialog({
                   onClick={() => setSessionForm({ ...sessionForm, time })}
                   className="p-2 rounded-lg font-bold text-sm transition-all"
                   style={{
-                    backgroundColor: sessionForm.time === time ? '#FF6F20' : '#FFFFFF',
+                    backgroundColor: sessionForm.time === time ? 'var(--ag-accent)' : '#FFFFFF',
                     color: sessionForm.time === time ? 'white' : '#000000',
                     border: sessionForm.time === time ? 'none' : '2px solid #E0E0E0'
                   }}
@@ -771,7 +771,7 @@ export default function SessionFormDialog({
               the existing date+time fields become the series start, and
               handleSubmit branches into the bulk-insert path. */}
           {!editingSession && (
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#FAFAFA', border: '1px solid #E8E0D8' }}>
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#FAFAFA', border: '1px solid var(--ag-chip-border)' }}>
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-bold" style={{ color: '#000000', margin: 0 }}>
                   🔁 מפגש חוזר
@@ -787,7 +787,7 @@ export default function SessionFormDialog({
                     height: '26px',
                     borderRadius: '9999px',
                     border: 'none',
-                    backgroundColor: sessionForm.recurring ? '#FF6F20' : '#E8E0D8',
+                    backgroundColor: sessionForm.recurring ? 'var(--ag-accent)' : 'var(--ag-chip-border)',
                     cursor: 'pointer',
                     transition: 'background-color 0.15s ease',
                     padding: 0,
@@ -841,9 +841,9 @@ export default function SessionFormDialog({
                               fontWeight: 700,
                               fontSize: '14px',
                               cursor: 'pointer',
-                              backgroundColor: selected ? '#FF6F20' : '#FFFFFF',
-                              color: selected ? '#FFFFFF' : '#888',
-                              border: selected ? 'none' : '1px solid #E8E0D8',
+                              backgroundColor: selected ? 'var(--ag-accent)' : '#FFFFFF',
+                              color: selected ? '#FFFFFF' : 'var(--ag-text-soft)',
+                              border: selected ? 'none' : '1px solid var(--ag-chip-border)',
                               transition: 'all 0.15s ease',
                             }}
                           >
@@ -877,9 +877,9 @@ export default function SessionFormDialog({
                               fontWeight: 700,
                               fontSize: '12px',
                               cursor: 'pointer',
-                              backgroundColor: selected ? '#FF6F20' : '#FFFFFF',
-                              color: selected ? '#FFFFFF' : '#888',
-                              border: selected ? 'none' : '1px solid #E8E0D8',
+                              backgroundColor: selected ? 'var(--ag-accent)' : '#FFFFFF',
+                              color: selected ? '#FFFFFF' : 'var(--ag-text-soft)',
+                              border: selected ? 'none' : '1px solid var(--ag-chip-border)',
                               transition: 'all 0.15s ease',
                               lineHeight: 1.3,
                             }}
@@ -901,7 +901,7 @@ export default function SessionFormDialog({
                         value={sessionForm.recurEndDate}
                         onChange={(e) => setSessionForm({ ...sessionForm, recurEndDate: e.target.value })}
                         className="rounded-xl"
-                        style={{ border: '1px solid #E8E0D8' }}
+                        style={{ border: '1px solid var(--ag-chip-border)' }}
                       />
                     </div>
                   )}
@@ -918,12 +918,12 @@ export default function SessionFormDialog({
                         onChange={(e) => setSessionForm({ ...sessionForm, recurEndCount: Number(e.target.value) || 0 })}
                         placeholder="למשל 12"
                         className="rounded-xl"
-                        style={{ border: '1px solid #E8E0D8' }}
+                        style={{ border: '1px solid var(--ag-chip-border)' }}
                       />
                     </div>
                   )}
                   {sessionForm.recurEndType === 'package' && (
-                    <p className="text-xs p-2 rounded-lg" style={{ color: '#FF6F20', backgroundColor: '#FFF8F3' }}>
+                    <p className="text-xs p-2 rounded-lg" style={{ color: 'var(--ag-accent)', backgroundColor: '#FFF8F3' }}>
                       💡 ייווצרו מפגשים עד גמר המפגשים שנותרו בחבילה שתבחר למטה.
                     </p>
                   )}
@@ -950,7 +950,7 @@ export default function SessionFormDialog({
                 }}
                 className="p-4 rounded-xl font-bold text-center transition-all"
                 style={{
-                  backgroundColor: sessionForm.session_type === 'אישי' ? '#FF6F20' : '#FFFFFF',
+                  backgroundColor: sessionForm.session_type === 'אישי' ? 'var(--ag-accent)' : '#FFFFFF',
                   color: sessionForm.session_type === 'אישי' ? 'white' : '#000000',
                   border: sessionForm.session_type === 'אישי' ? 'none' : '2px solid #E0E0E0'
                 }}
@@ -986,7 +986,7 @@ export default function SessionFormDialog({
               </button>
             </div>
             {sessionForm.session_type === 'אישי' && (
-              <p className="text-xs mt-3 p-2 rounded-lg" style={{ color: '#FF6F20', backgroundColor: '#FFF8F3' }}>
+              <p className="text-xs mt-3 p-2 rounded-lg" style={{ color: 'var(--ag-accent)', backgroundColor: '#FFF8F3' }}>
                 💡 אימון אישי מוגבל למשתתף אחד בלבד
               </p>
             )}
@@ -1172,7 +1172,7 @@ export default function SessionFormDialog({
                         onClick={() => toggleParticipant(trainee.id, trainee.full_name)}
                         className="w-full p-3 rounded-xl cursor-pointer transition-all text-right"
                         style={{
-                          backgroundColor: isSelected ? '#FF6F20' : '#FFFFFF',
+                          backgroundColor: isSelected ? 'var(--ag-accent)' : '#FFFFFF',
                           color: isSelected ? 'white' : '#000000',
                           border: isSelected ? 'none' : '2px solid #E0E0E0'
                         }}
@@ -1183,7 +1183,7 @@ export default function SessionFormDialog({
                               className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-base"
                               style={{
                                 backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : '#FFF8F3',
-                                color: isSelected ? 'white' : '#FF6F20'
+                                color: isSelected ? 'white' : 'var(--ag-accent)'
                               }}
                             >
                               {trainee.full_name?.[0] || '?'}
@@ -1191,7 +1191,7 @@ export default function SessionFormDialog({
                             <div className="text-right">
                               <div className="font-bold text-base">{trainee.full_name || 'ללא שם'}</div>
                               {(trainee.email || trainee.phone) && (
-                                <div className="text-xs" style={{ color: isSelected ? 'rgba(255,255,255,0.85)' : '#888' }}>
+                                <div className="text-xs" style={{ color: isSelected ? 'rgba(255,255,255,0.85)' : 'var(--ag-text-soft)' }}>
                                   {trainee.email || trainee.phone}
                                 </div>
                               )}
@@ -1225,10 +1225,10 @@ export default function SessionFormDialog({
                   return (
                     <button key={svc.id} type="button"
                       onClick={() => setSessionForm({ ...sessionForm, service_id: svc.id })}
-                      className={`w-full p-2.5 rounded-lg text-sm text-right transition-all ${isSelected ? 'bg-[#FF6F20] text-white border-2 border-[#FF6F20]' : 'bg-white border border-gray-200 hover:border-gray-300'}`}>
+                      className={`w-full p-2.5 rounded-lg text-sm text-right transition-all ${isSelected ? 'bg-[var(--ag-accent)] text-white border-2 border-[var(--ag-accent)]' : 'bg-white border border-gray-200 hover:border-gray-300'}`}>
                       <div className="flex justify-between items-center">
                         <span className="font-bold">{svc.package_name || svc.service_type || 'חבילה'}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${isSelected ? 'bg-white/20' : 'bg-orange-50 text-[#FF6F20]'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${isSelected ? 'bg-white/20' : 'bg-orange-50 text-[var(--ag-accent)]'}`}>
                           נותרו {remaining}
                         </span>
                       </div>
@@ -1263,7 +1263,7 @@ export default function SessionFormDialog({
                     key={p.id || `new-${idx}`}
                     className="flex flex-wrap gap-2 items-center p-2 rounded-xl border"
                     style={{
-                      borderColor: isDeducted ? '#16a34a' : '#E0E0E0',
+                      borderColor: isDeducted ? 'var(--ag-success)' : '#E0E0E0',
                       background: isDeducted ? '#F0FDF4' : '#FAFAFA',
                     }}
                   >
@@ -1315,7 +1315,7 @@ export default function SessionFormDialog({
                     {isDeducted ? (
                       <span
                         className="text-xs font-bold px-2 py-1 rounded-full"
-                        style={{ background: '#16a34a', color: 'white' }}
+                        style={{ background: 'var(--ag-success)', color: 'white' }}
                       >
                         קוזז ✓
                       </span>
@@ -1363,7 +1363,7 @@ export default function SessionFormDialog({
               Orange-tinted so the coach can tell at a glance this
               block isn't shared. */}
           <div>
-            <Label className="text-sm font-bold mb-2 block" style={{ color: '#FF6F20' }}>
+            <Label className="text-sm font-bold mb-2 block" style={{ color: 'var(--ag-accent)' }}>
               🔒 הערות פרטיות (גלויות רק לך)
             </Label>
             <Textarea
@@ -1371,7 +1371,7 @@ export default function SessionFormDialog({
               onChange={(e) => setSessionForm({ ...sessionForm, coach_private_notes: e.target.value })}
               placeholder="הערות לעצמך — המתאמן לא רואה את התוכן הזה"
               className="rounded-xl min-h-[80px]"
-              style={{ border: '1px solid #FF6F20', background: '#FFF5EE' }}
+              style={{ border: '1px solid var(--ag-accent)', background: '#FFF5EE' }}
             />
           </div>
 
@@ -1391,7 +1391,7 @@ export default function SessionFormDialog({
               onClick={handleSubmit}
               disabled={!sessionForm.date || !sessionForm.time || isLoading || saving}
               className="flex-1 rounded-xl py-6 font-bold text-white text-base"
-              style={{ backgroundColor: '#FF6F20' }}
+              style={{ backgroundColor: 'var(--ag-accent)' }}
             >
               {(isLoading || saving) ? (
                 <>

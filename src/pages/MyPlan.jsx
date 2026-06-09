@@ -45,7 +45,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
             </div>
             <div className="flex flex-wrap gap-1 mb-1">
               {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
-                <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'#FFF9F0', color:'#FF6F20', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
+                <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'var(--ag-bg)', color:'var(--ag-accent)', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
                   {FOCUS_LABELS[k] || k}
                 </span>
               ))}
@@ -86,7 +86,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
                   <Copy className="w-4 h-4" />
                 </Button>
             )}
-            <ChevronDown className="w-6 h-6 text-[#FF6F20]" />
+            <ChevronDown className="w-6 h-6 text-[var(--ag-accent)]" />
           </div>
         </div>
 
@@ -94,10 +94,10 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
           <div className="pt-3 border-t border-[#E0E0E0]">
             <div className="flex justify-between text-xs mb-2 text-[#7D7D7D]">
               <span>{completed}/{total} תרגילים</span>
-              <span className="font-bold text-[#FF6F20]">{progressPercent}%</span>
+              <span className="font-bold text-[var(--ag-accent)]">{progressPercent}%</span>
             </div>
             <div className="h-2 rounded-full bg-[#E6E6E6] overflow-hidden">
-              <div className="h-full bg-[#FF6F20] transition-all" style={{ width: `${progressPercent}%` }} />
+              <div className="h-full bg-[var(--ag-accent)] transition-all" style={{ width: `${progressPercent}%` }} />
             </div>
           </div>
         )}
@@ -109,7 +109,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
             {plan.best_score != null && (
               <span style={{
-                background: '#FFF5EE', color: '#FF6F20',
+                background: '#FFF5EE', color: 'var(--ag-accent)',
                 border: '1px solid #FFD9C2',
                 padding: '3px 10px', borderRadius: 999,
                 fontSize: 12, fontWeight: 700,
@@ -143,10 +143,10 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
           return (
           <div className="pt-3 border-t border-[#E0E0E0] mt-3" onClick={(e) => e.stopPropagation()} style={{ direction: 'rtl' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: scored.length > 1 ? 10 : 0 }}>
-              <span style={{ fontSize: 12, color: '#888' }}>ציון:</span>
+              <span style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>ציון:</span>
               <span style={{
                 fontSize: 14, fontWeight: 600,
-                color: overall == null ? '#888' : overall >= 7 ? '#16a34a' : overall >= 4 ? '#EAB308' : '#dc2626',
+                color: overall == null ? 'var(--ag-text-soft)' : overall >= 7 ? 'var(--ag-success)' : overall >= 4 ? 'var(--ag-warning)' : 'var(--ag-error)',
               }}>
                 {overall != null ? `${overall.toFixed(1)}/10` : '—'}
               </span>
@@ -155,7 +155,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
               </span>
             </div>
             {scored.length > 1 && (
-              <div style={{ background: 'white', borderRadius: 14, padding: 14, border: '1px solid #F0E4D0' }}>
+              <div style={{ background: 'white', borderRadius: 14, padding: 14, border: '1px solid var(--ag-border)' }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📈 התקדמות</div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 100 }}>
                   {scored.slice(-8).map((s, i) => (
@@ -163,12 +163,12 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
                       <div style={{ fontSize: 12, fontWeight: 600 }}>{Number(s.avg).toFixed(1)}</div>
                       <div style={{
                         height: `${(Number(s.avg) / 10) * 80}px`,
-                        background: '#FF6F20',
+                        background: 'var(--ag-accent)',
                         borderRadius: '4px 4px 0 0',
                         margin: '4px auto',
                         width: '100%',
                       }} />
-                      <div style={{ fontSize: 9, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: 9, color: 'var(--ag-text-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {new Date(s.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}
                       </div>
                     </div>
@@ -565,10 +565,10 @@ function MyPlanInner() {
           <div className="mb-8 flex justify-between items-end">
             <div>
                 <h1 className="text-4xl md:text-5xl font-black mb-3 text-black">התוכנית שלי</h1>
-                <div className="w-16 h-1 rounded-full bg-[#FF6F20]" />
+                <div className="w-16 h-1 rounded-full bg-[var(--ag-accent)]" />
             </div>
             {canCreatePlans && (
-              <Button onClick={() => setShowCreatePlan(true)} className="rounded-2xl px-6 py-4 font-bold text-white bg-[#FF6F20]">
+              <Button onClick={() => setShowCreatePlan(true)} className="rounded-2xl px-6 py-4 font-bold text-white bg-[var(--ag-accent)]">
                 <Plus className="w-5 h-5 ml-2" /> תוכנית חדשה
               </Button>
             )}
@@ -576,8 +576,8 @@ function MyPlanInner() {
 
           <Tabs defaultValue="coach" value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 h-auto p-1 bg-gray-100 rounded-xl">
-              <TabsTrigger value="coach" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">תוכניות מהמאמן</TabsTrigger>
-              <TabsTrigger value="my_plans" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#FF6F20] font-bold">תוכניות שלי</TabsTrigger>
+              <TabsTrigger value="coach" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--ag-accent)] font-bold">תוכניות מהמאמן</TabsTrigger>
+              <TabsTrigger value="my_plans" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--ag-accent)] font-bold">תוכניות שלי</TabsTrigger>
               {/* Removed: history + improvement tabs — cleaned for simplicity */}
             </TabsList>
 
@@ -720,7 +720,7 @@ function MyPlanInner() {
                           <Tooltip />
                           <Legend />
                           <Line type="monotone" dataKey="control" name="שליטה" stroke="#4CAF50" strokeWidth={2} />
-                          <Line type="monotone" dataKey="difficulty" name="קושי" stroke="#FF6F20" strokeWidth={2} />
+                          <Line type="monotone" dataKey="difficulty" name="קושי" stroke="var(--ag-accent)" strokeWidth={2} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>

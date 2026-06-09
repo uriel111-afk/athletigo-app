@@ -5,9 +5,9 @@ import { AuthContext } from "@/lib/AuthContext";
 import { toast } from "sonner";
 
 function intensityColor(level) {
-  if (level >= 8) return "#dc2626";
-  if (level >= 4) return "#FF6F20";
-  return "#16a34a";
+  if (level >= 8) return "var(--ag-error)";
+  if (level >= 4) return "var(--ag-accent)";
+  return "var(--ag-success)";
 }
 
 function intensityLabel(level) {
@@ -108,7 +108,7 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
       >
         <div
           style={{
-            background: "linear-gradient(135deg, #FF6F20 0%, #FF8A4C 100%)",
+            background: "linear-gradient(135deg, var(--ag-accent) 0%, #FF8A4C 100%)",
             color: "white",
             padding: "14px 16px",
             display: "flex",
@@ -183,7 +183,7 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
                 borderRadius: 10,
                 fontSize: 14,
                 fontWeight: 600,
-                color: "#1a1a1a",
+                color: "var(--ag-text)",
                 outline: "none",
                 background: "#fff",
               }}
@@ -215,7 +215,7 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
                 border: "1.5px solid #E5E7EB",
                 borderRadius: 10,
                 fontSize: 13,
-                color: "#1a1a1a",
+                color: "var(--ag-text)",
                 outline: "none",
                 background: "#fff",
                 minHeight: 60,
@@ -260,7 +260,7 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
                   height: 36,
                   borderRadius: 10,
                   border: "none",
-                  background: intensityLevel <= 1 ? "#E5E7EB" : "#FF6F20",
+                  background: intensityLevel <= 1 ? "#E5E7EB" : "var(--ag-accent)",
                   color: "white",
                   cursor: intensityLevel <= 1 ? "default" : "pointer",
                   display: "flex",
@@ -297,7 +297,7 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
                   height: 36,
                   borderRadius: 10,
                   border: "none",
-                  background: intensityLevel >= 10 ? "#E5E7EB" : "#FF6F20",
+                  background: intensityLevel >= 10 ? "#E5E7EB" : "var(--ag-accent)",
                   color: "white",
                   cursor: intensityLevel >= 10 ? "default" : "pointer",
                   display: "flex",
@@ -336,7 +336,7 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
                 border: "1.5px solid #E5E7EB",
                 borderRadius: 10,
                 fontSize: 13,
-                color: "#1a1a1a",
+                color: "var(--ag-text)",
                 outline: "none",
                 background: "#fff",
                 textAlign: "left",
@@ -348,8 +348,8 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
         <div
           style={{
             padding: 12,
-            borderTop: "1px solid #F0E4D0",
-            background: "#FFF9F0",
+            borderTop: "1px solid var(--ag-border)",
+            background: "var(--ag-bg)",
             display: "flex",
             gap: 8,
           }}
@@ -381,7 +381,7 @@ export default function VariationForm({ exerciseId, exerciseName, variation, onC
               padding: "10px 14px",
               background: saving
                 ? "#FFB280"
-                : "linear-gradient(135deg, #FF6F20 0%, #FF8A4C 100%)",
+                : "linear-gradient(135deg, var(--ag-accent) 0%, #FF8A4C 100%)",
               border: "none",
               borderRadius: 10,
               fontSize: 13,

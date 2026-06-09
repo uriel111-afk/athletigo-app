@@ -78,7 +78,7 @@ export default function PlanFormDialog({
     { value: 'כוח', label: 'כוח', icon: '💪', color: '#000000' },
     { value: 'טכניקה', label: 'טכניקה', icon: '🎯', color: '#2196F3' },
     { value: 'גמישות', label: 'גמישות', icon: '🧘', color: '#4CAF50' },
-    { value: 'סבולת', label: 'סבולת', icon: '🏃', color: '#FF6F20' },
+    { value: 'סבולת', label: 'סבולת', icon: '🏃', color: 'var(--ag-accent)' },
     { value: 'שיקום', label: 'שיקום', icon: '❤️‍🩹', color: '#9C27B0' },
     { value: 'כושר כללי', label: 'כושר', icon: '⚡', color: '#607D8B' },
     { value: 'מיומנות', label: 'מיומנות', icon: '⚡', color: '#FFD700' },
@@ -147,7 +147,7 @@ export default function PlanFormDialog({
             <div className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-bold flex items-center gap-2 text-[#000000]">
-                  <div className="w-6 h-6 rounded-full bg-[#FF6F20] flex items-center justify-center text-white text-xs">1</div>
+                  <div className="w-6 h-6 rounded-full bg-[var(--ag-accent)] flex items-center justify-center text-white text-xs">1</div>
                   בחירת מתאמנים
                 </Label>
                 <Button
@@ -160,7 +160,7 @@ export default function PlanFormDialog({
                     }
                   }}
                   variant="ghost"
-                  className="text-xs font-bold text-[#FF6F20] hover:text-[#e65b12]"
+                  className="text-xs font-bold text-[var(--ag-accent)] hover:text-[#e65b12]"
                 >
                   {selectedTrainees.length === trainees.length ? 'בטל הכל' : 'בחר הכל'}
                 </Button>
@@ -169,7 +169,7 @@ export default function PlanFormDialog({
               <div className="overflow-y-auto space-y-2 pr-1" style={{ maxHeight: "40vh", minHeight: 120 }}>
                 {trainees.map(trainee => (
                   <div key={trainee.id} 
-                       className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer border ${selectedTrainees.includes(trainee.id) ? 'bg-orange-50 border-[#FF6F20]' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                       className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer border ${selectedTrainees.includes(trainee.id) ? 'bg-orange-50 border-[var(--ag-accent)]' : 'bg-white border-gray-200 hover:border-gray-300'}`}
                        onClick={() => {
                          if (selectedTrainees.includes(trainee.id)) {
                            setSelectedTrainees(selectedTrainees.filter(id => id !== trainee.id));
@@ -178,7 +178,7 @@ export default function PlanFormDialog({
                          }
                        }}
                   >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedTrainees.includes(trainee.id) ? 'border-[#FF6F20] bg-[#FF6F20]' : 'border-gray-300'}`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedTrainees.includes(trainee.id) ? 'border-[var(--ag-accent)] bg-[var(--ag-accent)]' : 'border-gray-300'}`}>
                       {selectedTrainees.includes(trainee.id) && <Check className="w-3 h-3 text-white" />}
                     </div>
                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xs text-gray-700">
@@ -189,7 +189,7 @@ export default function PlanFormDialog({
                 ))}
               </div>
               {selectedTrainees.length > 0 && (
-                <div className="text-xs font-bold text-[#FF6F20] text-center bg-white p-2 rounded-lg border border-orange-100">
+                <div className="text-xs font-bold text-[var(--ag-accent)] text-center bg-white p-2 rounded-lg border border-orange-100">
                   נבחרו {selectedTrainees.length} מתאמנים לתוכנית
                 </div>
               )}
@@ -206,7 +206,7 @@ export default function PlanFormDialog({
               value={planForm.plan_name}
               onChange={(e) => setPlanForm({ ...planForm, plan_name: e.target.value })}
               placeholder="לדוגמה: כוח מתפרץ - שלב א'"
-              className="h-14 text-lg font-bold rounded-xl border-2 border-gray-200 focus:border-[#FF6F20] focus:ring-0 bg-white focus:bg-gray-50 transition-all"
+              className="h-14 text-lg font-bold rounded-xl border-2 border-gray-200 focus:border-[var(--ag-accent)] focus:ring-0 bg-white focus:bg-gray-50 transition-all"
             />
           </div>
 
@@ -270,7 +270,7 @@ export default function PlanFormDialog({
                     className={`
                       aspect-square md:aspect-auto md:h-12 rounded-lg md:rounded-xl flex items-center justify-center text-xs md:text-sm font-bold transition-all
                       ${isSelected 
-                        ? 'bg-[#FF6F20] text-white shadow-md transform scale-105' 
+                        ? 'bg-[var(--ag-accent)] text-white shadow-md transform scale-105' 
                         : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}
                     `}
                   >
@@ -302,8 +302,8 @@ export default function PlanFormDialog({
                       padding: '8px 16px',
                       borderRadius: 999,
                       border: selected ? 'none' : '2px solid #E0E0E0',
-                      background: selected ? '#FF6F20' : 'white',
-                      color: selected ? 'white' : '#1a1a1a',
+                      background: selected ? 'var(--ag-accent)' : 'white',
+                      color: selected ? 'white' : 'var(--ag-text)',
                       fontSize: 13, fontWeight: 700, cursor: 'pointer',
                     }}
                   >
@@ -341,10 +341,10 @@ export default function PlanFormDialog({
               style={{
                 width: 120, height: 48, padding: '0 14px',
                 borderRadius: 12, border: '2px solid #E0E0E0',
-                fontSize: 16, fontWeight: 700, color: '#1a1a1a',
+                fontSize: 16, fontWeight: 700, color: 'var(--ag-text)',
                 outline: 'none', background: 'white',
               }}
-              onFocus={(e) => { e.target.style.borderColor = '#FF6F20'; }}
+              onFocus={(e) => { e.target.style.borderColor = 'var(--ag-accent)'; }}
               onBlur={(e) => { e.target.style.borderColor = '#E0E0E0'; }}
             />
           </div>
@@ -359,7 +359,7 @@ export default function PlanFormDialog({
               value={planForm.description}
               onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
               placeholder="פרט כאן את מטרות התוכנית, דגשים חשובים והנחיות כלליות..."
-              className="min-h-[120px] rounded-xl border border-gray-200 bg-gray-50 focus:border-[#FF6F20] focus:ring-0 focus:bg-white resize-none p-4 text-base transition-all"
+              className="min-h-[120px] rounded-xl border border-gray-200 bg-gray-50 focus:border-[var(--ag-accent)] focus:ring-0 focus:bg-white resize-none p-4 text-base transition-all"
             />
           </div>
 
@@ -379,7 +379,7 @@ export default function PlanFormDialog({
             <Button
               onClick={handleSubmit}
               disabled={isLoading || saving || !planForm.plan_name}
-              className="flex-[2] h-14 rounded-xl font-bold text-white text-lg shadow-lg transition-all bg-black hover:bg-[#FF6F20]"
+              className="flex-[2] h-14 rounded-xl font-bold text-white text-lg shadow-lg transition-all bg-black hover:bg-[var(--ag-accent)]"
             >
               {(isLoading || saving) ? (
                 <><Loader2 className="w-5 h-5 ml-2 animate-spin" />שומר...</>

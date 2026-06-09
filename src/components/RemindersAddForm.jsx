@@ -122,7 +122,7 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#FFF9F0",
+          background: "var(--ag-bg)",
           borderRadius: 24,
           padding: 24,
           width: "100%", maxWidth: 380,
@@ -139,7 +139,7 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
           placeholder="מה לזכור?..."
           style={{
             width: "100%", padding: 12, borderRadius: 14,
-            border: "1.5px solid #F0E4D0", fontSize: 15, fontWeight: 600,
+            border: "1.5px solid var(--ag-border)", fontSize: 15, fontWeight: 600,
             direction: "rtl", marginBottom: 10, background: "white",
             boxSizing: "border-box", outline: "none",
           }}
@@ -151,7 +151,7 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
           placeholder="פרטים נוספים (אופציונלי)..."
           style={{
             width: "100%", padding: 10, borderRadius: 14,
-            border: "0.5px solid #F0E4D0", fontSize: 13,
+            border: "0.5px solid var(--ag-border)", fontSize: 13,
             direction: "rtl", minHeight: 60, resize: "vertical",
             marginBottom: 10, background: "white",
             boxSizing: "border-box", outline: "none", fontFamily: "inherit",
@@ -166,7 +166,7 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
             onChange={(e) => setDate(e.target.value)}
             style={{
               flex: 1, padding: 10, borderRadius: 12,
-              border: "0.5px solid #F0E4D0", fontSize: 14, background: "white",
+              border: "0.5px solid var(--ag-border)", fontSize: 14, background: "white",
               boxSizing: "border-box", outline: "none",
             }}
           />
@@ -176,7 +176,7 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
             onChange={(e) => setTime(e.target.value)}
             style={{
               width: 120, padding: 10, borderRadius: 12,
-              border: "0.5px solid #F0E4D0", fontSize: 14, background: "white",
+              border: "0.5px solid var(--ag-border)", fontSize: 14, background: "white",
               boxSizing: "border-box", outline: "none",
             }}
           />
@@ -194,8 +194,8 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
               style={{
                 flex: 1, padding: 8, borderRadius: 10,
                 textAlign: "center", fontSize: 11, fontWeight: 600,
-                cursor: "pointer", background: "#FFF0E4",
-                color: "#FF6F20", border: "1px solid #F0E4D0",
+                cursor: "pointer", background: "var(--ag-accent-bg)",
+                color: "var(--ag-accent)", border: "1px solid var(--ag-border)",
               }}
             >{q.label}</div>
           ))}
@@ -206,7 +206,7 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
           disabled={!canSave}
           style={{
             width: "100%", padding: 14, borderRadius: 14, border: "none",
-            background: canSave ? "#FF6F20" : "#ccc",
+            background: canSave ? "var(--ag-accent)" : "#ccc",
             color: "white", fontSize: 16, fontWeight: 700,
             cursor: canSave ? "pointer" : "default",
           }}
@@ -214,7 +214,7 @@ export default function RemindersAddForm({ isOpen, onClose, onSaved, userId, exi
 
         <div
           onClick={onClose}
-          style={{ textAlign: "center", padding: 10, color: "#888", fontSize: 14, cursor: "pointer" }}
+          style={{ textAlign: "center", padding: 10, color: "var(--ag-text-soft)", fontSize: 14, cursor: "pointer" }}
         >ביטול</div>
       </div>
     </div>

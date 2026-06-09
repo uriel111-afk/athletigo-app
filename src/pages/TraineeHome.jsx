@@ -83,24 +83,24 @@ function RecordsHomeCard({ userId }) {
     >
       <div style={{
         background: '#FFFFFF', borderRadius: 14,
-        border: '1px solid #F0E4D0', padding: 14, marginBottom: 12,
+        border: '1px solid var(--ag-border)', padding: 14, marginBottom: 12,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         cursor: 'pointer', direction: 'rtl',
       }}>
         <div style={{ minWidth: 0 }}>
           <div style={{
-            fontSize: 14, fontWeight: 700, color: '#FF6F20',
+            fontSize: 14, fontWeight: 700, color: 'var(--ag-accent)',
             display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
           }}>
             🏆 השיאים שלי
           </div>
           <div style={{
-            fontSize: 13, color: '#1A1A1A',
+            fontSize: 13, color: 'var(--ag-text)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {latest.name} — {latest.value}{latest.unit ? ` ${latest.unit}` : ''}
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginTop: 2 }}>
             אחרון: {fmt(latest.date)} • {pbCount} שיאים אישיים
           </div>
         </div>
@@ -143,7 +143,7 @@ const primaryApprovalBtnStyle = {
   padding: '14px 24px',
   borderRadius: 14,
   border: 'none',
-  background: '#FF6F20',
+  background: 'var(--ag-accent)',
   color: '#FFFFFF',
   fontSize: 16,
   fontWeight: 600,
@@ -936,7 +936,7 @@ export default function TraineeHome() {
         <div
           dir="rtl"
           className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
-          style={{ background: '#FFF9F0' }}
+          style={{ background: 'var(--ag-bg)' }}
         >
           <div style={{ fontSize: 56, marginBottom: 12 }}>{isSuspended ? '⏸' : '📦'}</div>
           <h1 className="text-2xl font-black text-gray-900 mb-2">{lockTitle}</h1>
@@ -1045,13 +1045,13 @@ export default function TraineeHome() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, #FF6F20, #FF8F50)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', boxShadow: '0 4px 12px rgba(255,111,32,0.3)' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, var(--ag-accent), #FF8F50)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', boxShadow: '0 4px 12px rgba(255,111,32,0.3)' }}>
                 <Bell style={{ width: 28, height: 28, color: 'white' }} />
               </div>
-              <DialogTitle className="text-2xl font-black" style={{ color: '#1a1a1a' }}>
+              <DialogTitle className="text-2xl font-black" style={{ color: 'var(--ag-text)' }}>
                 {unreadNotifs.length} התראות חדשות
               </DialogTitle>
-              <p style={{ fontSize: 13, color: '#888', marginTop: 4 }}>לחץ על כל התראה כדי לסמן כנקראה</p>
+              <p style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginTop: 4 }}>לחץ על כל התראה כדי לסמן כנקראה</p>
             </div>
           </DialogHeader>
           <div className="space-y-3" style={{ maxHeight: '50vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -1069,14 +1069,14 @@ export default function TraineeHome() {
             {unreadNotifs.length === 0 && (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-                <p style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>כל ההתראות טופלו</p>
+                <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--ag-success)' }}>כל ההתראות טופלו</p>
               </div>
             )}
           </div>
           <Button
             onClick={() => setShowUnreadModal(false)}
             className="w-full rounded-xl mt-3 min-h-[48px] text-base font-bold"
-            style={{ backgroundColor: '#FF6F20', color: 'white' }}
+            style={{ backgroundColor: 'var(--ag-accent)', color: 'white' }}
           >
             סגור
           </Button>
@@ -1112,7 +1112,7 @@ export default function TraineeHome() {
         )}
 
         {/* Orange Header with greeting + quote */}
-        <div style={{ background:'#FF6F20', borderRadius:'0 0 24px 24px', padding:'20px 18px 22px' }}>
+        <div style={{ background:'var(--ag-accent)', borderRadius:'0 0 24px 24px', padding:'20px 18px 22px' }}>
           <div style={{fontSize:'13px',color:'rgba(255,255,255,0.8)',fontWeight:'600',marginBottom:'4px'}}>
             {new Date().getHours() < 12 ? 'בוקר טוב' : new Date().getHours() < 17 ? 'צהריים טובים' : new Date().getHours() < 21 ? 'ערב טוב' : 'לילה טוב'} 👋
           </div>
@@ -1138,7 +1138,7 @@ export default function TraineeHome() {
           <div style={{
             margin: '12px 14px 0',
             background: '#FFFFFF',
-            border: '2px solid #FF6F20',
+            border: '2px solid var(--ag-accent)',
             borderRadius: 16,
             padding: 16,
             boxShadow: '0 2px 8px rgba(255,111,32,0.12)',
@@ -1147,14 +1147,14 @@ export default function TraineeHome() {
                 (about to sign health) or step 4 (signed, just need
                 payment / final approval). The banner is the only
                 surface showing the bar after Onboarding.jsx hands off. */}
-            <div style={{ margin: '-16px -16px 12px', borderBottom: '1px solid #F0E4D0' }}>
+            <div style={{ margin: '-16px -16px 12px', borderBottom: '1px solid var(--ag-border)' }}>
               <OnboardingProgressBar
                 currentStep={pendingHealthSigned ? 'payment' : 'health'}
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <ShieldCheck size={20} style={{ color: '#FF6F20' }} />
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>
+              <ShieldCheck size={20} style={{ color: 'var(--ag-accent)' }} />
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ag-text)' }}>
                 המאמן קבע לך מפגש
               </div>
             </div>
@@ -1229,17 +1229,17 @@ export default function TraineeHome() {
           <div style={{
             margin: '24px 14px 0',
             background: '#FFFFFF',
-            border: '1px solid #F0E4D0',
+            border: '1px solid var(--ag-border)',
             borderRadius: 16,
             padding: '28px 20px',
             textAlign: 'center',
             color: '#444',
           }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>📅</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A', marginBottom: 4 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ag-text)', marginBottom: 4 }}>
               המאמן עוד לא קבע לך מפגש
             </div>
-            <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', lineHeight: 1.5 }}>
               ברגע שייקבע מפגש, תקבל כאן הודעה לאישור.
             </div>
           </div>
@@ -1249,8 +1249,8 @@ export default function TraineeHome() {
         {!isCasual && todayChallenge && (
           <div style={{
             background: (todayChallenge.is_read || pendingComplete)
-              ? 'linear-gradient(135deg, #16a34a, #22c55e)'
-              : 'linear-gradient(135deg, #FF6F20, #FF8F50)',
+              ? 'linear-gradient(135deg, var(--ag-success), #22c55e)'
+              : 'linear-gradient(135deg, var(--ag-accent), #FF8F50)',
             borderRadius: 20,
             padding: 20,
             margin: '12px 14px 0',
@@ -1330,7 +1330,7 @@ export default function TraineeHome() {
               const startVal = Number(trk.start_value) || 0;
               const pct = Math.min(100, Math.round(curVal / goalVal * 100));
               const ms = (trackMilestones && trackMilestones[trk.id]) || [];
-              const trkColor = trk.color || '#FF6F20';
+              const trkColor = trk.color || 'var(--ag-accent)';
               return (
                 <div style={{ marginBottom: 12 }}>
                   <div style={{
@@ -1362,7 +1362,7 @@ export default function TraineeHome() {
                           width: m.reached_at ? 14 : 10,
                           height: m.reached_at ? 14 : 10,
                           borderRadius: '50%',
-                          background: m.reached_at ? '#16a34a' : 'white',
+                          background: m.reached_at ? 'var(--ag-success)' : 'white',
                           border: m.reached_at ? '2px solid white' : `2px solid ${trkColor}`,
                           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                           zIndex: 2,
@@ -1426,11 +1426,11 @@ export default function TraineeHome() {
             background: 'white', borderRadius: 16,
             padding: 16, margin: '12px 14px 0',
             textAlign: 'center',
-            border: '0.5px solid #F0E4D0',
+            border: '0.5px solid var(--ag-border)',
           }}>
             <div style={{ fontSize: 20 }}>🔥</div>
             <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>רצף של {challengeStreak} ימים!</div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>ממתין לאתגר מהמאמן</div>
+            <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginTop: 2 }}>ממתין לאתגר מהמאמן</div>
           </div>
         )}
 
@@ -1442,7 +1442,7 @@ export default function TraineeHome() {
         {/* Book Session Button */}
         <div style={{padding:'14px 14px 6px'}}>
           <button onClick={() => setShowBookingDialog(true)}
-            style={{ width:'100%', height:'52px', background:'#FF6F20', color:'white', border:'none', borderRadius:'14px', fontSize:'17px', fontWeight:'900', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(255,111,32,0.3)' }}>
+            style={{ width:'100%', height:'52px', background:'var(--ag-accent)', color:'white', border:'none', borderRadius:'14px', fontSize:'17px', fontWeight:'900', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(255,111,32,0.3)' }}>
             <span>📅</span> קבע אימון חדש
           </button>
         </div>
@@ -1468,7 +1468,7 @@ export default function TraineeHome() {
             <Link key={i} to={tab.to} className="no-underline">
               <div style={{ background:'white', border:'1px solid #eee', borderRadius:'14px', padding:'14px 8px', display:'flex', flexDirection:'column', alignItems:'center', gap:'8px', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
                 <div style={{ width:'40px', height:'40px', borderRadius:'50%', background:'#FFF0E8', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px' }}>{tab.icon}</div>
-                <span style={{fontSize:'12px',fontWeight:'700',color:'#1a1a1a'}}>{tab.label}</span>
+                <span style={{fontSize:'12px',fontWeight:'700',color:'var(--ag-text)'}}>{tab.label}</span>
               </div>
             </Link>
           ))}
@@ -1493,7 +1493,7 @@ export default function TraineeHome() {
             onClick={() => setShowNewRecord(true)}
             style={{
               width: '100%', padding: 14, borderRadius: 14, border: 'none',
-              background: '#FF6F20', color: '#fff', fontSize: 15, fontWeight: 600,
+              background: 'var(--ag-accent)', color: '#fff', fontSize: 15, fontWeight: 600,
               cursor: 'pointer', marginBottom: 12,
             }}
           >
@@ -1504,7 +1504,7 @@ export default function TraineeHome() {
         {/* Streak / Progress Card — hidden for casual (no completed
             sessions yet, and no plan to track progress against). */}
         {!isCasual && completedCount > 0 && (
-          <div style={{ background:'linear-gradient(135deg, #FF6F20, #FF9A56)', borderRadius:'16px', padding:'16px 18px', marginBottom:'12px', color:'white', boxShadow:'0 4px 14px rgba(255,111,32,0.25)' }}>
+          <div style={{ background:'linear-gradient(135deg, var(--ag-accent), #FF9A56)', borderRadius:'16px', padding:'16px 18px', marginBottom:'12px', color:'white', boxShadow:'0 4px 14px rgba(255,111,32,0.25)' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
               <Flame className="w-5 h-5" />
               <span style={{ fontSize:'15px', fontWeight:'800' }}>ההתקדמות שלך</span>
@@ -1532,11 +1532,11 @@ export default function TraineeHome() {
                 <div style={{ fontSize:'13px', fontWeight:'800', color:'#333' }}>
                   {packageReminder.remaining <= 0 ? 'החבילה נגמרה!' : `נותרו ${packageReminder.remaining} אימונים`}
                 </div>
-                <div style={{ fontSize:'11px', color:'#888', marginTop:'2px' }}>{packageReminder.service_name || 'חבילה פעילה'}</div>
+                <div style={{ fontSize:'11px', color:'var(--ag-text-soft)', marginTop:'2px' }}>{packageReminder.service_name || 'חבילה פעילה'}</div>
               </div>
             </div>
             <button onClick={() => setShowBookingDialog(true)}
-              style={{ background:'#FF6F20', color:'white', border:'none', borderRadius:'10px', padding:'8px 14px', fontSize:'12px', fontWeight:'800', cursor:'pointer', whiteSpace:'nowrap' }}>
+              style={{ background:'var(--ag-accent)', color:'white', border:'none', borderRadius:'10px', padding:'8px 14px', fontSize:'12px', fontWeight:'800', cursor:'pointer', whiteSpace:'nowrap' }}>
               קבע עכשיו
             </button>
           </div>
@@ -1551,7 +1551,7 @@ export default function TraineeHome() {
           if (upcoming.length === 0) return null;
           return (
             <div className="mb-6">
-              <h2 className="text-lg font-bold mb-3 text-gray-800 border-r-4 border-[#FF6F20] pr-3">מפגש קרוב</h2>
+              <h2 className="text-lg font-bold mb-3 text-gray-800 border-r-4 border-[var(--ag-accent)] pr-3">מפגש קרוב</h2>
               <div className="space-y-3">
                 {upcoming.map(session => {
                   // Any priced + unpaid session gets a "שלם" CTA on
@@ -1602,7 +1602,7 @@ export default function TraineeHome() {
                         return (
                           <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100">
                             <button onClick={() => handleRescheduleRequest(session)}
-                              className="flex-1 text-xs font-bold text-[#FF6F20] bg-orange-50 rounded-lg py-2 hover:bg-orange-100 transition-colors flex items-center justify-center gap-1">
+                              className="flex-1 text-xs font-bold text-[var(--ag-accent)] bg-orange-50 rounded-lg py-2 hover:bg-orange-100 transition-colors flex items-center justify-center gap-1">
                               <ClockIcon className="w-3 h-3" />בקש שינוי תאריך
                             </button>
                           </div>
@@ -1677,7 +1677,7 @@ export default function TraineeHome() {
           >
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#1A1A1A' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ag-text)' }}>
                 מפגש ממתין לאישור
               </div>
             </div>
@@ -1688,7 +1688,7 @@ export default function TraineeHome() {
               background: '#FDF8F3', borderRadius: 12, padding: 14, marginBottom: 12,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: '#888' }}>תאריך</span>
+                <span style={{ color: 'var(--ag-text-soft)' }}>תאריך</span>
                 <span style={{ fontWeight: 600 }}>
                   {pendingApprovalSession.date
                     ? new Date(pendingApprovalSession.date).toLocaleDateString('he-IL')
@@ -1696,25 +1696,25 @@ export default function TraineeHome() {
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: '#888' }}>שעה</span>
+                <span style={{ color: 'var(--ag-text-soft)' }}>שעה</span>
                 <span style={{ fontWeight: 600 }}>{pendingApprovalSession.time || '—'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: '#888' }}>סוג</span>
+                <span style={{ color: 'var(--ag-text-soft)' }}>סוג</span>
                 <span style={{ fontWeight: 600 }}>
                   {pendingApprovalSession.session_type || pendingApprovalSession.type || 'אימון אישי'}
                 </span>
               </div>
               {pendingApprovalSession.duration && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ color: '#888' }}>משך</span>
+                  <span style={{ color: 'var(--ag-text-soft)' }}>משך</span>
                   <span style={{ fontWeight: 600 }}>{pendingApprovalSession.duration} דקות</span>
                 </div>
               )}
               {Number(pendingApprovalSession.price) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#888' }}>מחיר</span>
-                  <span style={{ fontWeight: 700, color: '#FF6F20', fontSize: 20 }}>
+                  <span style={{ color: 'var(--ag-text-soft)' }}>מחיר</span>
+                  <span style={{ fontWeight: 700, color: 'var(--ag-accent)', fontSize: 20 }}>
                     {pendingApprovalSession.price}₪
                   </span>
                 </div>
@@ -1742,7 +1742,7 @@ export default function TraineeHome() {
                   disabled={approvalBusy}
                   style={{
                     width: '100%', padding: 16, borderRadius: 14, border: 'none',
-                    background: approvalBusy ? '#ccc' : '#FF6F20',
+                    background: approvalBusy ? '#ccc' : 'var(--ag-accent)',
                     color: 'white', fontSize: 16, fontWeight: 600,
                     cursor: approvalBusy ? 'default' : 'pointer',
                     marginBottom: 8,
@@ -1751,14 +1751,14 @@ export default function TraineeHome() {
                 >
                   {approvalBusy ? 'מעביר לתשלום...' : `💳 שלם ${pendingPrice}₪ ואשר`}
                 </button>
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#888', marginBottom: 4 }}>
+                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>
                   אישור המפגש מותנה בתשלום
                 </div>
                 {/* Tiny reassurance line: confirms we never collect
                     the card here — it's a hosted Grow page — and
                     that the trainee won't have to retype their
                     profile fields. */}
-                <div style={{ textAlign: 'center', fontSize: 11, color: '#888', marginBottom: 12 }}>
+                <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--ag-text-soft)', marginBottom: 12 }}>
                   🔒 ייפתח דף תשלום מאובטח של משולם · הפרטים שלך מועברים אוטומטית
                 </div>
               </>
@@ -1769,7 +1769,7 @@ export default function TraineeHome() {
                 disabled={approvalBusy}
                 style={{
                   width: '100%', padding: 14, borderRadius: 14, border: 'none',
-                  background: approvalBusy ? '#ccc' : '#FF6F20',
+                  background: approvalBusy ? '#ccc' : 'var(--ag-accent)',
                   color: 'white', fontSize: 16, fontWeight: 600,
                   cursor: approvalBusy ? 'default' : 'pointer',
                   marginBottom: 8,
@@ -1792,8 +1792,8 @@ export default function TraineeHome() {
                   disabled={approvalBusy}
                   style={{
                     width: '100%', padding: 12, borderRadius: 12,
-                    border: '1px solid #F0E4D0', background: 'white',
-                    color: '#888', fontSize: 14,
+                    border: '1px solid var(--ag-border)', background: 'white',
+                    color: 'var(--ag-text-soft)', fontSize: 14,
                     cursor: approvalBusy ? 'default' : 'pointer',
                     marginBottom: 8,
                     fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
@@ -1899,26 +1899,26 @@ export default function TraineeHome() {
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>תאריך</div>
+                <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>תאריך</div>
                 <input
                   type="date"
                   value={rescheduleDate}
                   onChange={(e) => setRescheduleDate(e.target.value)}
                   style={{
                     width: '100%', padding: 8, borderRadius: 10,
-                    border: '1px solid #F0E4D0', fontSize: 14,
+                    border: '1px solid var(--ag-border)', fontSize: 14,
                   }}
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>שעה</div>
+                <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>שעה</div>
                 <input
                   type="time"
                   value={rescheduleTime}
                   onChange={(e) => setRescheduleTime(e.target.value)}
                   style={{
                     width: '100%', padding: 8, borderRadius: 10,
-                    border: '1px solid #F0E4D0', fontSize: 14,
+                    border: '1px solid var(--ag-border)', fontSize: 14,
                   }}
                 />
               </div>
@@ -1958,7 +1958,7 @@ export default function TraineeHome() {
               }}
               style={{
                 width: '100%', padding: 12, borderRadius: 12, border: 'none',
-                background: (rescheduleDate && rescheduleTime && !approvalBusy) ? '#FF6F20' : '#ccc',
+                background: (rescheduleDate && rescheduleTime && !approvalBusy) ? 'var(--ag-accent)' : '#ccc',
                 color: 'white', fontSize: 14, fontWeight: 600,
                 cursor: (rescheduleDate && rescheduleTime && !approvalBusy) ? 'pointer' : 'default',
                 fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",

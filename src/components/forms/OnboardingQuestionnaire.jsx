@@ -57,15 +57,15 @@ const SCREEN_3_PREFERENCES = [
 ];
 
 const COLORS = {
-  primary: '#FF6F20',
+  primary: 'var(--ag-accent)',
   primaryLight: '#FFF5EE',
   bg: '#FDF8F3',
   card: '#FFFFFF',
-  border: '#F0E4D0',
-  text: '#1A1A1A',
+  border: 'var(--ag-border)',
+  text: 'var(--ag-text)',
   textSoft: '#6B7280',
   textMuted: '#9CA3AF',
-  success: '#16A34A',
+  success: 'var(--ag-success)',
 };
 
 export default function OnboardingQuestionnaire({ value, onChange, onComplete, onSkip }) {
@@ -284,7 +284,7 @@ function Screen1({ value, set, toggleInArray }) {
       {goals.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <div style={{
-            fontSize: 13, color: '#888',
+            fontSize: 13, color: 'var(--ag-text-soft)',
             marginBottom: 4, direction: 'rtl', textAlign: 'right',
           }}>
             רוצה להרחיב על המטרות שבחרת? (לא חובה)

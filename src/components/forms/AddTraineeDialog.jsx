@@ -238,7 +238,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
   const ctaActive = isValid && !loading;
   const inputStyle = {
     width: '100%', padding: '12px 14px',
-    border: '1.5px solid #F0E4D0', borderRadius: 10,
+    border: '1.5px solid var(--ag-border)', borderRadius: 10,
     fontSize: 15, boxSizing: 'border-box',
     outline: 'none', background: 'white',
     fontFamily: 'inherit',
@@ -251,12 +251,12 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         style={{ borderRadius: 16, overflow: 'hidden' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 20 }} dir="rtl">
-          <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'right', color: '#1a1a1a' }}>
+          <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'right', color: 'var(--ag-text)' }}>
             {isCoachRole ? 'הוספת מאמן חדש' : 'הוספת מתאמן חדש'}
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 6, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 6, textAlign: 'right' }}>
               סוג משתמש *
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -274,9 +274,9 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
                       gap: 4,
                       padding: '12px 10px',
                       borderRadius: 12,
-                      background: active ? '#FF6F20' : '#FFFFFF',
-                      color: active ? '#FFFFFF' : '#1a1a1a',
-                      border: active ? '1.5px solid #FF6F20' : '1.5px solid #E8E0D8',
+                      background: active ? 'var(--ag-accent)' : '#FFFFFF',
+                      color: active ? '#FFFFFF' : 'var(--ag-text)',
+                      border: active ? '1.5px solid var(--ag-accent)' : '1.5px solid var(--ag-chip-border)',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
                       textAlign: 'center',
@@ -288,7 +288,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
                       fontSize: 11,
                       fontWeight: 500,
                       lineHeight: 1.3,
-                      color: active ? 'rgba(255,255,255,0.92)' : '#888',
+                      color: active ? 'rgba(255,255,255,0.92)' : 'var(--ag-text-soft)',
                     }}>
                       {opt.desc}
                     </div>
@@ -299,7 +299,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
               שם מלא *
             </label>
             <input
@@ -312,7 +312,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
               אימייל *
             </label>
             <input
@@ -326,7 +326,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
               סיסמא זמנית *
             </label>
             <input
@@ -344,7 +344,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
 
           {!isCoachRole && (
             <div>
-              <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 6, textAlign: 'right' }}>
+              <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 6, textAlign: 'right' }}>
                 סוג שירות *
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, direction: 'rtl' }}>
@@ -360,9 +360,9 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
                         borderRadius: 999,
                         fontSize: 14,
                         fontWeight: active ? 700 : 500,
-                        background: active ? '#FF6F20' : '#FFFFFF',
-                        color: active ? '#FFFFFF' : '#888888',
-                        border: active ? '1px solid #FF6F20' : '1px solid #E8E0D8',
+                        background: active ? 'var(--ag-accent)' : '#FFFFFF',
+                        color: active ? '#FFFFFF' : 'var(--ag-text-soft)',
+                        border: active ? '1px solid var(--ag-accent)' : '1px solid var(--ag-chip-border)',
                         cursor: 'pointer',
                         fontFamily: 'inherit',
                       }}
@@ -380,7 +380,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
             disabled={!ctaActive}
             style={{
               width: '100%', padding: '14px',
-              background: ctaActive ? '#FF6F20' : '#F3F4F6',
+              background: ctaActive ? 'var(--ag-accent)' : '#F3F4F6',
               border: 'none', borderRadius: 12,
               color: ctaActive ? 'white' : '#9CA3AF',
               fontWeight: 700, fontSize: 16,

@@ -56,7 +56,7 @@ export default function SeriesFormDialog({ isOpen, onClose, onSubmit, initialDat
       <DialogContent className="sm:max-w-[500px]" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-black text-gray-900">
-            <FolderPlus className="w-6 h-6 text-[#FF6F20]" />
+            <FolderPlus className="w-6 h-6 text-[var(--ag-accent)]" />
             {initialData ? "עריכת סדרת אימונים" : "סדרת אימונים חדשה"}
           </DialogTitle>
         </DialogHeader>
@@ -141,7 +141,7 @@ export default function SeriesFormDialog({ isOpen, onClose, onSubmit, initialDat
             <Button 
                 type="submit" 
                 disabled={isLoading}
-                className="w-full sm:w-auto bg-[#FF6F20] hover:bg-[#e65b12] text-white font-bold"
+                className="w-full sm:w-auto bg-[var(--ag-accent)] hover:bg-[#e65b12] text-white font-bold"
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
               {initialData ? "שמור שינויים" : "צור סדרה"}

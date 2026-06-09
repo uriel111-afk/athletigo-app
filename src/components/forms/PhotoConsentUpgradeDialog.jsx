@@ -6,8 +6,8 @@ import { Loader2 } from 'lucide-react';
 import { renderTemplateBody } from '@/lib/documentTemplates';
 
 const COLORS = {
-  bg: '#FFF9F0', card: '#FFFFFF', cardBorder: '#FFE5D0',
-  accent: '#FF6F20', text: '#1a1a1a', textMuted: '#6b7280',
+  bg: 'var(--ag-bg)', card: '#FFFFFF', cardBorder: '#FFE5D0',
+  accent: 'var(--ag-accent)', text: 'var(--ag-text)', textMuted: '#6b7280',
 };
 const primaryBtnStyle = {
   background: COLORS.accent, color: COLORS.card, border: 'none', borderRadius: 10,

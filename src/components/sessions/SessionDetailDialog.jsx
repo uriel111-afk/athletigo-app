@@ -255,14 +255,14 @@ export default function SessionDetailDialog({
       {isCoach && (
         <Section
           title="🔒 הערות פרטיות (גלויות רק לך)"
-          accent="#FF6F20"
+          accent="var(--ag-accent)"
         >
           <textarea
             value={form.coach_private_notes}
             onChange={(e) => setForm((p) => ({ ...p, coach_private_notes: e.target.value }))}
             rows={3}
             placeholder="הערות לעצמך — המתאמן לא רואה את התוכן הזה"
-            style={textareaStyle({ bg: '#FFF5EE', border: '#FF6F20' })}
+            style={textareaStyle({ bg: '#FFF5EE', border: 'var(--ag-accent)' })}
           />
         </Section>
       )}
@@ -316,8 +316,8 @@ function Grid({ children }) {
 function ReadField({ label, value }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 14, color: '#1A1A1A', wordBreak: 'break-word' }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 14, color: 'var(--ag-text)', wordBreak: 'break-word' }}>{value}</div>
     </div>
   );
 }
@@ -325,7 +325,7 @@ function ReadField({ label, value }) {
 function ReadOnly({ value }) {
   return (
     <div style={{
-      fontSize: 14, color: '#1A1A1A', whiteSpace: 'pre-wrap',
+      fontSize: 14, color: 'var(--ag-text)', whiteSpace: 'pre-wrap',
       lineHeight: 1.5,
     }}>
       {value}
@@ -336,7 +336,7 @@ function ReadOnly({ value }) {
 function InputField({ label, value, onChange, type = 'text' }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>{label}</div>
       <input
         type={type}
         value={value}
@@ -345,7 +345,7 @@ function InputField({ label, value, onChange, type = 'text' }) {
           width: '100%',
           padding: '8px 10px',
           borderRadius: 12,
-          border: '1px solid #FF6F20',
+          border: '1px solid var(--ag-accent)',
           fontSize: 14,
           direction: 'rtl',
           background: '#FFF5EE',
@@ -357,7 +357,7 @@ function InputField({ label, value, onChange, type = 'text' }) {
   );
 }
 
-function textareaStyle({ bg = '#FFFFFF', border = '#F0E4D0' } = {}) {
+function textareaStyle({ bg = '#FFFFFF', border = 'var(--ag-border)' } = {}) {
   return {
     width: '100%',
     padding: 10,
@@ -384,10 +384,10 @@ function btnStyle(variant, disabled = false) {
     fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   };
   if (variant === 'primary') {
-    return { ...base, background: disabled ? '#ccc' : '#FF6F20', color: 'white' };
+    return { ...base, background: disabled ? '#ccc' : 'var(--ag-accent)', color: 'white' };
   }
   if (variant === 'danger') {
-    return { ...base, background: 'white', border: '1px solid #FCA5A5', color: '#DC2626' };
+    return { ...base, background: 'white', border: '1px solid #FCA5A5', color: 'var(--ag-error)' };
   }
-  return { ...base, background: 'white', border: '1px solid #F0E4D0', color: '#1A1A1A' };
+  return { ...base, background: 'white', border: '1px solid var(--ag-border)', color: 'var(--ag-text)' };
 }

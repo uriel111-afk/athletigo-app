@@ -25,8 +25,8 @@ import { base44 } from '@/api/base44Client';
 // Per-member failures are collected and surfaced rather than aborting
 // the whole flow.
 
-const ORANGE = '#FF6F20';
-const BORDER = '#F0E4D0';
+const ORANGE = 'var(--ag-accent)';
+const BORDER = 'var(--ag-border)';
 
 const WEEK_DAYS = [
   { key: 'sun', label: 'ראשון' },
@@ -39,14 +39,14 @@ const WEEK_DAYS = [
 ];
 
 const COLOR_SWATCHES = [
-  '#FF6F20', // brand orange
+  'var(--ag-accent)', // brand orange
   '#185FA5', // blue
   '#4CAF50', // green
   '#9C27B0', // purple
-  '#EAB308', // gold
-  '#DC2626', // red
+  'var(--ag-warning)', // gold
+  'var(--ag-error)', // red
   '#0F766E', // teal
-  '#1A1A1A', // ink
+  'var(--ag-text)', // ink
 ];
 
 const ICON_CHOICES = ['👥', '💪', '🏃', '🧘', '🥊', '⚡', '🔥', '🏆', '🎯', '🌟'];
@@ -343,7 +343,7 @@ export default function CreateGroupDialog({
             disabled={createMutation.isPending}
             style={{
               ...fieldStyle,
-              border: `1.5px solid ${nameError ? '#DC2626' : BORDER}`,
+              border: `1.5px solid ${nameError ? 'var(--ag-error)' : BORDER}`,
               marginBottom: 10,
             }}
           />
@@ -369,7 +369,7 @@ export default function CreateGroupDialog({
                 style={{
                   width: 28, height: 28, borderRadius: 8,
                   background: c,
-                  border: color === c ? '3px solid #1a1a1a' : '2px solid white',
+                  border: color === c ? '3px solid var(--ag-text)' : '2px solid white',
                   boxShadow: '0 0 0 1px #E5E5E5',
                   cursor: 'pointer',
                 }}
@@ -588,7 +588,7 @@ export default function CreateGroupDialog({
                         {sel && <Check size={12} color="white" strokeWidth={3} />}
                       </div>
                       <span style={{
-                        fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                        fontSize: 13, fontWeight: 600, color: 'var(--ag-text)',
                         flex: 1, minWidth: 0,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
@@ -680,7 +680,7 @@ export default function CreateGroupDialog({
                             {elig.model === 'quota' && (
                               <div style={{
                                 display: 'flex', alignItems: 'center', gap: 8,
-                                fontSize: 12, color: '#1a1a1a',
+                                fontSize: 12, color: 'var(--ag-text)',
                               }}>
                                 <button
                                   type="button"
@@ -705,7 +705,7 @@ export default function CreateGroupDialog({
                                     fontSize: 14, fontWeight: 800, cursor: 'pointer',
                                   }}
                                 >+</button>
-                                <span style={{ fontSize: 11, color: '#888', marginRight: 6 }}>בשבוע</span>
+                                <span style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginRight: 6 }}>בשבוע</span>
                               </div>
                             )}
 

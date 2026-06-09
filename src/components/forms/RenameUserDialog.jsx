@@ -41,7 +41,7 @@ export default function RenameUserDialog({ isOpen, onClose, onSubmit, user, isLo
             />
           </div>
           <DialogFooter className="flex gap-2 sm:justify-start">
-            <Button type="submit" disabled={isLoading} className="bg-[#FF6F20] hover:bg-[#e65b12]">
+            <Button type="submit" disabled={isLoading} className="bg-[var(--ag-accent)] hover:bg-[#e65b12]">
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
               שמור שינויים
             </Button>

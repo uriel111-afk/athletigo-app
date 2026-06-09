@@ -19,11 +19,11 @@ const NATIVE_SELECT_STYLE = {
   width: '100%',
   padding: '10px 12px',
   borderRadius: 12,
-  border: '1px solid #F0E4D0',
+  border: '1px solid var(--ag-border)',
   background: '#FFFFFF',
   fontSize: 14,
   direction: 'rtl',
-  color: '#1A1A1A',
+  color: 'var(--ag-text)',
   outline: 'none',
   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
   boxSizing: 'border-box',
@@ -219,7 +219,7 @@ export default function LeadFormDialog({
                   value={leadForm.full_name}
                   onChange={(e) => setLeadForm({ ...leadForm, full_name: e.target.value })}
                   placeholder="הקלד את שמך המלא"
-                  className="bg-white rounded-xl border-gray-200 focus:border-[#FF6F20]"
+                  className="bg-white rounded-xl border-gray-200 focus:border-[var(--ag-accent)]"
                 />
               </div>
               <div>
@@ -228,7 +228,7 @@ export default function LeadFormDialog({
                   value={leadForm.phone}
                   onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}
                   placeholder="הקלד מספר טלפון"
-                  className="bg-white rounded-xl border-gray-200 focus:border-[#FF6F20]"
+                  className="bg-white rounded-xl border-gray-200 focus:border-[var(--ag-accent)]"
                 />
               </div>
             </div>
@@ -434,7 +434,7 @@ export default function LeadFormDialog({
             <Button
               onClick={handleSubmit}
               disabled={isLoading || saving}
-              className="flex-1 rounded-xl py-6 font-bold text-white bg-[#FF6F20] hover:bg-[#e65b12]"
+              className="flex-1 rounded-xl py-6 font-bold text-white bg-[var(--ag-accent)] hover:bg-[#e65b12]"
             >
               {(isLoading || saving) ? (
                 <>

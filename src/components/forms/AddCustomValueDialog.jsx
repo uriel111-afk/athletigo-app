@@ -46,7 +46,7 @@ export default function AddCustomValueDialog({ isOpen, onClose, onSave, title, i
           <Button 
             onClick={handleSave}
             disabled={!value.trim() || isLoading}
-            className="flex-1 bg-[#FF6F20] hover:bg-[#e65b12] text-white"
+            className="flex-1 bg-[var(--ag-accent)] hover:bg-[#e65b12] text-white"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "אישור"}
           </Button>

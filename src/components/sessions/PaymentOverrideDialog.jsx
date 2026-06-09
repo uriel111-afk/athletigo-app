@@ -136,7 +136,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
             מפגש: <strong>{fmtDate(session.date)} {session.time || ''}</strong>
           </div>
           <div style={{ fontSize: 13, color: '#444', marginBottom: 14 }}>
-            סכום: <strong style={{ color: '#FF6F20' }}>{session.price}₪</strong>
+            סכום: <strong style={{ color: 'var(--ag-accent)' }}>{session.price}₪</strong>
           </div>
 
           <div style={{
@@ -155,7 +155,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
           </div>
 
           <label style={{
-            display: 'block', fontSize: 13, color: '#1A1A1A',
+            display: 'block', fontSize: 13, color: 'var(--ag-text)',
             fontWeight: 600, marginBottom: 6,
           }}>
             סיבת העקיפה (חובה — לתיעוד)
@@ -170,7 +170,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
               width: '100%',
               padding: 10,
               borderRadius: 10,
-              border: '1px solid #F0E4D0',
+              border: '1px solid var(--ag-border)',
               fontSize: 14,
               direction: 'rtl',
               boxSizing: 'border-box',
@@ -179,7 +179,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
             }}
           />
           <div style={{
-            fontSize: 11, color: reason.trim().length > 5 ? '#888' : '#C62828',
+            fontSize: 11, color: reason.trim().length > 5 ? 'var(--ag-text-soft)' : '#C62828',
             marginTop: 4,
           }}>
             {reason.trim().length > 5
@@ -196,7 +196,7 @@ export default function PaymentOverrideDialog({ session, isOpen, onConfirm, onCa
                 flex: 1,
                 padding: 12,
                 borderRadius: 12,
-                border: '1px solid #F0E4D0',
+                border: '1px solid var(--ag-border)',
                 background: 'white',
                 fontSize: 14,
                 cursor: busy ? 'default' : 'pointer',

@@ -8,8 +8,8 @@ import { renderTemplateBody } from '@/lib/documentTemplates';
 
 // Brand tokens — match HealthDeclarationForm + AgreementFlowDialog
 const COLORS = {
-  bg: '#FFF9F0', card: '#FFFFFF', cardBorder: '#FFE5D0',
-  accent: '#FF6F20', text: '#1a1a1a', textMuted: '#6b7280',
+  bg: 'var(--ag-bg)', card: '#FFFFFF', cardBorder: '#FFE5D0',
+  accent: 'var(--ag-accent)', text: 'var(--ag-text)', textMuted: '#6b7280',
 };
 const sectionHeader = (text) => (
   <h4 style={{ color: COLORS.accent, fontWeight: 700, fontSize: 17, margin: '20px 0 10px' }}>🔹 {text}</h4>

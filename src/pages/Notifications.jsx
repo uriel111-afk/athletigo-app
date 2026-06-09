@@ -419,12 +419,12 @@ export default function Notifications() {
         display: 'flex', justifyContent: 'space-between',
         alignItems: 'center', padding: '16px',
         direction: 'rtl', background: 'white',
-        borderBottom: '0.5px solid #F0E4D0',
+        borderBottom: '0.5px solid var(--ag-border)',
       }}>
-        <div style={{ fontSize: '20px', fontWeight: 700, color: '#1a1a1a' }}>
+        <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--ag-text)' }}>
           🔔 התראות
           {unreadCount > 0 && (
-            <span style={{ fontSize: '14px', color: '#FF6F20', marginRight: '6px' }}>
+            <span style={{ fontSize: '14px', color: 'var(--ag-accent)', marginRight: '6px' }}>
               ({unreadCount})
             </span>
           )}
@@ -434,7 +434,7 @@ export default function Notifications() {
             <button
               onClick={() => setShowSend(true)}
               style={{
-                background: 'none', border: 'none', color: '#FF6F20',
+                background: 'none', border: 'none', color: 'var(--ag-accent)',
                 fontSize: '13px', fontWeight: 600, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 4,
               }}
@@ -450,7 +450,7 @@ export default function Notifications() {
                 type="button"
                 onClick={expandAll}
                 style={{
-                  background: 'none', border: 'none', color: '#888',
+                  background: 'none', border: 'none', color: 'var(--ag-text-soft)',
                   fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
                 }}
               >
@@ -460,7 +460,7 @@ export default function Notifications() {
                 type="button"
                 onClick={collapseAll}
                 style={{
-                  background: 'none', border: 'none', color: '#888',
+                  background: 'none', border: 'none', color: 'var(--ag-text-soft)',
                   fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0,
                 }}
               >
@@ -473,7 +473,7 @@ export default function Notifications() {
               onClick={markAllRead}
               disabled={markAllAsReadMutation.isPending}
               style={{
-                background: 'none', border: 'none', color: '#FF6F20',
+                background: 'none', border: 'none', color: 'var(--ag-accent)',
                 fontSize: '13px', fontWeight: 600, cursor: 'pointer',
               }}
             >
@@ -484,9 +484,9 @@ export default function Notifications() {
             onClick={() => notifSel.isSelecting ? notifSel.clearSelection() : notifSel.startSelecting()}
             style={{
               padding: '6px 12px', borderRadius: 10,
-              border: '1px solid #F0E4D0',
+              border: '1px solid var(--ag-border)',
               background: notifSel.isSelecting ? '#FFF5EE' : 'white',
-              color: notifSel.isSelecting ? '#FF6F20' : '#888',
+              color: notifSel.isSelecting ? 'var(--ag-accent)' : 'var(--ag-text-soft)',
               fontSize: 12, fontWeight: 600, cursor: 'pointer',
             }}
           >
@@ -506,7 +506,7 @@ export default function Notifications() {
             onChange={(e) => setFilterTrainee(e.target.value)}
             style={{
               width: '100%', padding: 10, borderRadius: 12,
-              border: '1px solid #F0E4D0', fontSize: 14,
+              border: '1px solid var(--ag-border)', fontSize: 14,
               direction: 'rtl', background: 'white',
               appearance: 'auto',
             }}
@@ -549,8 +549,8 @@ export default function Notifications() {
               border: 'none',
               fontSize: 13,
               fontWeight: filter === f.id ? 700 : 600,
-              background: filter === f.id ? '#FF6F20' : 'white',
-              color: filter === f.id ? 'white' : '#888',
+              background: filter === f.id ? 'var(--ag-accent)' : 'white',
+              color: filter === f.id ? 'white' : 'var(--ag-text-soft)',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               outline: 'none',
@@ -585,7 +585,7 @@ export default function Notifications() {
               borderRadius: 12,
               marginBottom: 8,
               overflow: 'hidden',
-              border: '1px solid #F0E4D0',
+              border: '1px solid var(--ag-border)',
             }}>
               {/* Folder header — tap to toggle */}
               <button
@@ -594,7 +594,7 @@ export default function Notifications() {
                 style={{
                   width: '100%',
                   padding: '12px 14px',
-                  background: group.unreadCount > 0 ? '#FFF9F0' : 'white',
+                  background: group.unreadCount > 0 ? 'var(--ag-bg)' : 'white',
                   border: 'none',
                   display: 'flex',
                   alignItems: 'center',
@@ -608,28 +608,28 @@ export default function Notifications() {
                 <div style={{
                   width: 38, height: 38,
                   borderRadius: '50%',
-                  background: '#FFF0E4',
+                  background: 'var(--ag-accent-bg)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 15, fontWeight: 700, color: '#FF6F20',
+                  fontSize: 15, fontWeight: 700, color: 'var(--ag-accent)',
                   flexShrink: 0,
                 }}>
                   {group.name?.[0] || '?'}
                 </div>
                 <div style={{ flex: 1, textAlign: 'right', minWidth: 0 }}>
                   <div style={{
-                    fontSize: 15, fontWeight: 700, color: '#1a1a1a',
+                    fontSize: 15, fontWeight: 700, color: 'var(--ag-text)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {group.name}
                   </div>
-                  <div style={{ fontSize: 12, color: '#888' }}>
+                  <div style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>
                     {group.notifications.length} התראות
                     {group.unreadCount > 0 && ` · ${group.unreadCount} חדשות`}
                   </div>
                 </div>
                 {group.unreadCount > 0 && (
                   <div style={{
-                    background: '#FF6F20', color: 'white',
+                    background: 'var(--ag-accent)', color: 'white',
                     fontSize: 11, fontWeight: 700,
                     minWidth: 22, height: 22, borderRadius: 11, padding: '0 7px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -638,7 +638,7 @@ export default function Notifications() {
                   </div>
                 )}
                 <div style={{
-                  color: '#888', fontSize: 14,
+                  color: 'var(--ag-text-soft)', fontSize: 14,
                   transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
                   transition: 'transform 0.2s',
                 }}>
@@ -648,7 +648,7 @@ export default function Notifications() {
 
               {/* Notifications inside this folder */}
               {isExpanded && (
-                <div style={{ borderTop: '1px solid #F0E4D0' }}>
+                <div style={{ borderTop: '1px solid var(--ag-border)' }}>
                   {group.notifications.map((n) => (
                     <div
                       key={n.id}
@@ -675,7 +675,7 @@ export default function Notifications() {
                       {!n.is_read && !notifSel.isSelecting && (
                         <div style={{
                           width: 6, height: 6, borderRadius: '50%',
-                          background: '#FF6F20',
+                          background: 'var(--ag-accent)',
                           marginTop: 8, flexShrink: 0,
                         }} />
                       )}
@@ -687,7 +687,7 @@ export default function Notifications() {
                           <div style={{
                             fontSize: 13,
                             fontWeight: n.is_read ? 600 : 700,
-                            color: '#1a1a1a', lineHeight: 1.35,
+                            color: 'var(--ag-text)', lineHeight: 1.35,
                             marginBottom: n.message && n.message !== n.title ? 2 : 0,
                           }}>
                             {n.title}
@@ -703,7 +703,7 @@ export default function Notifications() {
                           </div>
                         )}
                         {!n.title && !n.message && (
-                          <div style={{ fontSize: 13, color: '#888' }}>
+                          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)' }}>
                             {n.type || 'התראה'}
                           </div>
                         )}
@@ -716,7 +716,7 @@ export default function Notifications() {
                           {n.status === 'handled' && <span style={{ color: '#2E7D32' }}>• טופל</span>}
                           {n.status === 'deferred' && <span style={{ color: '#E65100' }}>• נדחה</span>}
                           {n.status === 'reminder' && n.reminder_at && (
-                            <span style={{ color: '#FF6F20' }}>
+                            <span style={{ color: 'var(--ag-accent)' }}>
                               • תזכורת ל-{new Date(n.reminder_at).toLocaleDateString('he-IL')}{' '}
                               {new Date(n.reminder_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                             </span>
@@ -733,8 +733,8 @@ export default function Notifications() {
                               onClick={(e) => { e.stopPropagation(); markHandled(n.id); }}
                               style={{
                                 padding: '5px 10px', background: 'white',
-                                border: '1px solid #E8E0D8', borderRadius: 14,
-                                fontSize: 11, fontWeight: 600, color: '#16a34a',
+                                border: '1px solid var(--ag-chip-border)', borderRadius: 14,
+                                fontSize: 11, fontWeight: 600, color: 'var(--ag-success)',
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
                                 whiteSpace: 'nowrap', outline: 'none',
                               }}
@@ -748,8 +748,8 @@ export default function Notifications() {
                               onClick={(e) => { e.stopPropagation(); markDeferred(n.id); }}
                               style={{
                                 padding: '5px 10px', background: 'white',
-                                border: '1px solid #E8E0D8', borderRadius: 14,
-                                fontSize: 11, fontWeight: 600, color: '#888',
+                                border: '1px solid var(--ag-chip-border)', borderRadius: 14,
+                                fontSize: 11, fontWeight: 600, color: 'var(--ag-text-soft)',
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
                                 whiteSpace: 'nowrap', outline: 'none',
                               }}
@@ -763,8 +763,8 @@ export default function Notifications() {
                               onClick={(e) => { e.stopPropagation(); setReminderTarget(n.id); }}
                               style={{
                                 padding: '5px 10px', background: 'white',
-                                border: '1px solid #E8E0D8', borderRadius: 14,
-                                fontSize: 11, fontWeight: 600, color: '#FF6F20',
+                                border: '1px solid var(--ag-chip-border)', borderRadius: 14,
+                                fontSize: 11, fontWeight: 600, color: 'var(--ag-accent)',
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
                                 whiteSpace: 'nowrap', outline: 'none',
                               }}
@@ -777,8 +777,8 @@ export default function Notifications() {
                             onClick={(e) => { e.stopPropagation(); softDelete(n.id); }}
                             style={{
                               padding: '5px 10px', background: 'white',
-                              border: '1px solid #E8E0D8', borderRadius: 14,
-                              fontSize: 11, fontWeight: 600, color: '#dc2626',
+                              border: '1px solid var(--ag-chip-border)', borderRadius: 14,
+                              fontSize: 11, fontWeight: 600, color: 'var(--ag-error)',
                               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
                               whiteSpace: 'nowrap', outline: 'none',
                             }}
@@ -895,7 +895,7 @@ export default function Notifications() {
               aria-label="סגור"
               style={{
                 position: 'absolute', top: 10, left: 10, background: 'none',
-                border: 'none', fontSize: 22, cursor: 'pointer', color: '#888',
+                border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ag-text-soft)',
               }}
             >
               ✕
@@ -935,7 +935,7 @@ export default function Notifications() {
                 }}
                 style={{
                   width: '100%', padding: 12, borderRadius: 12,
-                  border: '1px solid #F0E4D0', background: 'white',
+                  border: '1px solid var(--ag-border)', background: 'white',
                   fontSize: 14, cursor: 'pointer', marginBottom: 6,
                   textAlign: 'center',
                 }}
@@ -945,7 +945,7 @@ export default function Notifications() {
             ))}
 
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>
+              <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>
                 או בחר תאריך ושעה:
               </div>
               <input
@@ -954,7 +954,7 @@ export default function Notifications() {
                 onChange={(e) => setCustomReminderInput(e.target.value)}
                 style={{
                   width: '100%', padding: 10, borderRadius: 12,
-                  border: '1px solid #F0E4D0', fontSize: 14,
+                  border: '1px solid var(--ag-border)', fontSize: 14,
                   boxSizing: 'border-box',
                 }}
               />
@@ -966,7 +966,7 @@ export default function Notifications() {
                 }}
                 style={{
                   width: '100%', padding: 12, borderRadius: 12, border: 'none',
-                  background: '#FF6F20', color: 'white', fontSize: 14,
+                  background: 'var(--ag-accent)', color: 'white', fontSize: 14,
                   fontWeight: 600, cursor: 'pointer', marginTop: 6,
                 }}
               >
@@ -989,7 +989,7 @@ export default function Notifications() {
                 <label className="text-sm font-bold text-gray-700 block mb-2">בחר מתאמנים</label>
                 <div style={{ maxHeight: '30vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
                   <button onClick={() => setSendForm(f => ({ ...f, selectedTrainees: f.selectedTrainees.length === trainees.length ? [] : trainees.map(t => t.id) }))}
-                    className="w-full text-xs font-bold text-[#FF6F20] mb-2 text-right">
+                    className="w-full text-xs font-bold text-[var(--ag-accent)] mb-2 text-right">
                     {sendForm.selectedTrainees.length === trainees.length ? 'בטל הכל' : 'בחר הכל'}
                   </button>
                   {trainees.map(t => {
@@ -999,9 +999,9 @@ export default function Notifications() {
                         ...f,
                         selectedTrainees: sel ? f.selectedTrainees.filter(id => id !== t.id) : [...f.selectedTrainees, t.id],
                       }))}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, border: sel ? '2px solid #FF6F20' : '1px solid #eee', background: sel ? '#FFF0E8' : 'white', marginBottom: 6, cursor: 'pointer' }}>
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, border: sel ? '2px solid var(--ag-accent)' : '1px solid #eee', background: sel ? '#FFF0E8' : 'white', marginBottom: 6, cursor: 'pointer' }}>
                         <span style={{ fontWeight: 600, fontSize: 14 }}>{t.full_name}</span>
-                        <span style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${sel ? '#FF6F20' : '#ddd'}`, background: sel ? '#FF6F20' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 12 }}>
+                        <span style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${sel ? 'var(--ag-accent)' : '#ddd'}`, background: sel ? 'var(--ag-accent)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 12 }}>
                           {sel ? '✓' : ''}
                         </span>
                       </div>
@@ -1012,14 +1012,14 @@ export default function Notifications() {
               <div>
                 <label className="text-sm font-bold text-gray-700 block mb-1">כותרת</label>
                 <input value={sendForm.title} onChange={e => setSendForm(f => ({ ...f, title: e.target.value }))} placeholder="כותרת ההתראה"
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1.5px solid', borderColor: sendForm.title ? '#FF6F20' : '#ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none' }} />
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1.5px solid', borderColor: sendForm.title ? 'var(--ag-accent)' : '#ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none' }} />
               </div>
               <div>
                 <label className="text-sm font-bold text-gray-700 block mb-1">הודעה</label>
                 <textarea value={sendForm.message} onChange={e => setSendForm(f => ({ ...f, message: e.target.value }))} placeholder="תוכן ההודעה..."
-                  rows={3} style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1.5px solid', borderColor: sendForm.message ? '#FF6F20' : '#ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none', resize: 'none', fontFamily: 'inherit' }} />
+                  rows={3} style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1.5px solid', borderColor: sendForm.message ? 'var(--ag-accent)' : '#ddd', borderRadius: 10, boxSizing: 'border-box', direction: 'rtl', outline: 'none', resize: 'none', fontFamily: 'inherit' }} />
               </div>
-              <Button onClick={handleSend} disabled={sending} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+              <Button onClick={handleSend} disabled={sending} className="w-full rounded-xl py-3 font-bold text-white min-h-[44px]" style={{ backgroundColor: 'var(--ag-accent)' }}>
                 {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שולח...</> : `שלח ל-${sendForm.selectedTrainees.length} מתאמנים`}
               </Button>
             </div>

@@ -268,7 +268,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
           {ConfirmDialog}
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Target className="w-6 h-6 text-[#FF6F20]" />
+              <Target className="w-6 h-6 text-[var(--ag-accent)]" />
               {editingGoal ? 'עריכת יעד' : 'יעד חדש'}
             </DialogTitle>
           </DialogHeader>
@@ -297,7 +297,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
                     style={{
                       padding: '20px 16px', borderRadius: 16, cursor: 'pointer',
                       background: isSelected ? '#FFF5EE' : 'white',
-                      border: isSelected ? '2px solid #FF6F20' : '1.5px solid #F0E4D0',
+                      border: isSelected ? '2px solid var(--ag-accent)' : '1.5px solid var(--ag-border)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
                       boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                     }}
@@ -305,7 +305,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
                     <span style={{ fontSize: 36 }}>{preset.icon}</span>
                     <span style={{
                       fontSize: 14, fontWeight: 700,
-                      color: isSelected ? '#FF6F20' : '#1a1a1a',
+                      color: isSelected ? 'var(--ag-accent)' : 'var(--ag-text)',
                     }}>
                       {preset.label}
                     </span>
@@ -337,13 +337,13 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
                   type="button"
                   onClick={() => setStep(1)}
                   aria-label="חזרה לבחירת סוג יעד"
-                  className="text-gray-500 hover:text-[#FF6F20] text-xl leading-none px-1"
+                  className="text-gray-500 hover:text-[var(--ag-accent)] text-xl leading-none px-1"
                 >→</button>
               )}
               {selectedPreset && (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFF5EE] border border-[#FFD9C0]">
                   <span style={{ fontSize: 18 }}>{selectedPreset.icon}</span>
-                  <span className="text-sm font-bold text-[#FF6F20]">{selectedPreset.label}</span>
+                  <span className="text-sm font-bold text-[var(--ag-accent)]">{selectedPreset.label}</span>
                 </div>
               )}
             </div>
@@ -356,7 +356,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
               value={formData.goal_name}
               onChange={(e) => setFormData({ ...formData, goal_name: e.target.value })}
               placeholder="לדוגמה: 10 עליות כוח ברצף"
-              className="rounded-xl border-gray-200 focus:border-[#FF6F20]"
+              className="rounded-xl border-gray-200 focus:border-[var(--ag-accent)]"
             />
           </div>
 
@@ -368,7 +368,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
               value={formData.exercise_name || ""}
               onChange={(e) => setFormData({ ...formData, exercise_name: e.target.value })}
               placeholder="לדוגמה: עליות מתח / Pull Ups"
-              className="rounded-xl border-gray-200 focus:border-[#FF6F20]"
+              className="rounded-xl border-gray-200 focus:border-[var(--ag-accent)]"
             />
             <div className="text-xs text-gray-500">השם המדויק של התרגיל בטאב השיאים — מאפשר לקשר את היעד לשיא ולהציג קו תחזית.</div>
           </div>
@@ -478,7 +478,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
                   className={`
                     px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-all select-none
                     ${formData.main_blockers.includes(blocker) 
-                      ? 'bg-orange-50 border-[#FF6F20] text-[#FF6F20] font-bold' 
+                      ? 'bg-orange-50 border-[var(--ag-accent)] text-[var(--ag-accent)] font-bold' 
                       : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}
                   `}
                 >
@@ -523,7 +523,7 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
             <Button
               onClick={handleSubmit}
               disabled={isLoading}
-              className="flex-1 rounded-xl h-12 font-bold bg-[#FF6F20] hover:bg-[#e65b12] text-white"
+              className="flex-1 rounded-xl h-12 font-bold bg-[var(--ag-accent)] hover:bg-[#e65b12] text-white"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'שמור יעד'}
             </Button>

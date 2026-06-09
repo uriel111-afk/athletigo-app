@@ -13,11 +13,11 @@ import { DOCUMENT_TEMPLATES, renderTemplateBody } from '@/lib/documentTemplates'
 
 // ── Brand tokens (match HealthDeclarationForm) ────────────────────────
 const COLORS = {
-  bg: '#FFF9F0',
+  bg: 'var(--ag-bg)',
   card: '#FFFFFF',
   cardBorder: '#FFE5D0',
-  accent: '#FF6F20',
-  text: '#1a1a1a',
+  accent: 'var(--ag-accent)',
+  text: 'var(--ag-text)',
   textMuted: '#6b7280',
 };
 

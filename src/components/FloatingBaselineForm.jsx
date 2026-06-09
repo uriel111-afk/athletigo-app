@@ -152,7 +152,7 @@ export default function FloatingBaselineForm({
           position: 'fixed',
           bottom: timerOffset + 90,
           left: 12, right: 12,
-          background: '#3B82F6',
+          background: 'var(--ag-blue)',
           borderRadius: 14,
           padding: '10px 16px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -197,7 +197,7 @@ export default function FloatingBaselineForm({
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: '#FFF9F0',
+          background: 'var(--ag-bg)',
           borderTopLeftRadius: 24, borderTopRightRadius: 24,
           width: '100%', maxWidth: 500,
           maxHeight: '85vh', overflowY: 'auto',
@@ -213,14 +213,14 @@ export default function FloatingBaselineForm({
             <span style={{ fontSize: 18 }}>📊</span>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>בייסליין</div>
-              <div style={{ fontSize: 11, color: '#888' }}>{traineeName}</div>
+              <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>{traineeName}</div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button
               onClick={() => setViewState('minimized')}
               style={{
-                background: '#3B82F6', color: 'white', border: 'none',
+                background: 'var(--ag-blue)', color: 'white', border: 'none',
                 borderRadius: 10, padding: '6px 12px',
                 fontSize: 11, fontWeight: 600, cursor: 'pointer',
               }}
@@ -230,7 +230,7 @@ export default function FloatingBaselineForm({
               aria-label="סגור"
               style={{
                 background: 'none', border: 'none',
-                fontSize: 18, color: '#888', cursor: 'pointer',
+                fontSize: 18, color: 'var(--ag-text-soft)', cursor: 'pointer',
               }}
             >✕</button>
           </div>
@@ -240,7 +240,7 @@ export default function FloatingBaselineForm({
         <div style={{
           background: '#E6F1FB', borderRadius: 8,
           padding: '6px 10px', marginBottom: 12,
-          fontSize: 11, color: '#3B82F6',
+          fontSize: 11, color: 'var(--ag-blue)',
           display: 'flex', alignItems: 'center', gap: 4,
         }}>
           💾 טיוטה נשמרת אוטומטית
@@ -260,10 +260,10 @@ export default function FloatingBaselineForm({
             placeholder="הערות כלליות..."
             style={{
               width: '100%', padding: 8,
-              borderRadius: 10, border: '0.5px solid #F0E4D0',
+              borderRadius: 10, border: '0.5px solid var(--ag-border)',
               fontSize: 13, direction: 'rtl',
               minHeight: 50, resize: 'vertical',
-              background: '#FFF9F0', boxSizing: 'border-box',
+              background: 'var(--ag-bg)', boxSizing: 'border-box',
               fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               outline: 'none',
             }}
@@ -277,7 +277,7 @@ export default function FloatingBaselineForm({
           style={{
             width: '100%', padding: 14,
             borderRadius: 14, border: 'none',
-            background: '#FF6F20', color: 'white',
+            background: 'var(--ag-accent)', color: 'white',
             fontSize: 16, fontWeight: 700, cursor: 'pointer',
             boxShadow: '0 4px 12px rgba(255,111,32,0.2)',
           }}
@@ -320,7 +320,7 @@ function FieldGroup({ group, formData, onChange }) {
 function NumberCell({ field, formData, onChange, fullWidth }) {
   return (
     <div style={{ flex: fullWidth ? undefined : 1, width: fullWidth ? '100%' : undefined }}>
-      <label style={{ fontSize: 10, color: '#888', display: 'block', marginBottom: 2 }}>
+      <label style={{ fontSize: 10, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 2 }}>
         {field.label}
       </label>
       <input
@@ -331,9 +331,9 @@ function NumberCell({ field, formData, onChange, fullWidth }) {
         placeholder="0"
         style={{
           width: '100%', padding: 8,
-          borderRadius: 10, border: '0.5px solid #F0E4D0',
+          borderRadius: 10, border: '0.5px solid var(--ag-border)',
           fontSize: 14, textAlign: 'center',
-          background: '#FFF9F0', boxSizing: 'border-box',
+          background: 'var(--ag-bg)', boxSizing: 'border-box',
           fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           outline: 'none',
         }}
@@ -345,7 +345,7 @@ function NumberCell({ field, formData, onChange, fullWidth }) {
 const cardStyle = {
   background: 'white', borderRadius: 14,
   padding: 12, marginBottom: 8,
-  border: '0.5px solid #F0E4D0',
+  border: '0.5px solid var(--ag-border)',
 };
 
 const cardTitle = {

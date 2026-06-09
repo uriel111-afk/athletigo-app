@@ -258,7 +258,7 @@ export default function Leads() {
   });
 
   const statusConfig = {
-    "חדש": { icon: Star, color: '#FF6F20', bg: '#FFF8F3', label: 'New' },
+    "חדש": { icon: Star, color: 'var(--ag-accent)', bg: '#FFF8F3', label: 'New' },
     "בקשר": { icon: Clock, color: '#2196F3', bg: '#E3F2FD', label: 'Contacted' },
     "סגור עסקה": { icon: CheckCircle, color: '#4CAF50', bg: '#E8F5E9', label: 'Closed' },
     "לא מעוניין": { icon: XCircle, color: '#9E9E9E', bg: '#F5F5F5', label: 'Not Interested' }
@@ -299,16 +299,16 @@ export default function Leads() {
                 <p className="text-lg md:text-2xl mb-2 md:mb-4 font-medium" style={{ color: '#7D7D7D' }}>
                   ניהול וליכוד לידים
                 </p>
-                <div className="w-20 md:w-24 h-1 rounded-full" style={{ backgroundColor: '#FF6F20' }} />
+                <div className="w-20 md:w-24 h-1 rounded-full" style={{ backgroundColor: 'var(--ag-accent)' }} />
               </div>
               <button
                 type="button"
                 onClick={() => leadSel.isSelecting ? leadSel.clearSelection() : leadSel.startSelecting()}
                 style={{
                   padding: '8px 14px', borderRadius: 12,
-                  border: '1px solid #F0E4D0',
+                  border: '1px solid var(--ag-border)',
                   background: leadSel.isSelecting ? '#FFF5EE' : 'white',
-                  color: leadSel.isSelecting ? '#FF6F20' : '#888',
+                  color: leadSel.isSelecting ? 'var(--ag-accent)' : 'var(--ag-text-soft)',
                   fontSize: 13, fontWeight: 600, cursor: 'pointer',
                   whiteSpace: 'nowrap', flexShrink: 0,
                 }}
@@ -319,10 +319,10 @@ export default function Leads() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
-            <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#FFFFFF', border: '2px solid #FF6F20' }}>
-              <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: '#FF6F20' }} />
-              <Star className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-2 md:mb-3" style={{ color: '#FF6F20' }} />
-              <p className="text-2xl md:text-3xl font-black mb-1" style={{ color: '#FF6F20' }}>{newLeads}</p>
+            <div className="p-4 md:p-6 rounded-xl text-center relative overflow-hidden" style={{ backgroundColor: '#FFFFFF', border: '2px solid var(--ag-accent)' }}>
+              <div className="absolute top-0 right-0 left-0 h-1" style={{ backgroundColor: 'var(--ag-accent)' }} />
+              <Star className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-2 md:mb-3" style={{ color: 'var(--ag-accent)' }} />
+              <p className="text-2xl md:text-3xl font-black mb-1" style={{ color: 'var(--ag-accent)' }}>{newLeads}</p>
               <p className="text-xs md:text-sm font-bold" style={{ color: '#000000' }}>New</p>
             </div>
 
@@ -393,7 +393,7 @@ export default function Leads() {
               <Button
                 onClick={() => setShowAddDialog(true)}
                 className="rounded-xl px-4 md:px-6 py-3 font-bold text-white w-full md:w-auto"
-                style={{ backgroundColor: '#FF6F20' }}
+                style={{ backgroundColor: 'var(--ag-accent)' }}
               >
                 <UserPlus className="w-5 h-5 ml-2" />
                 הוסף ליד
@@ -430,7 +430,7 @@ export default function Leads() {
                     className="rounded-xl p-4 md:p-6 relative overflow-hidden"
                     style={{
                       backgroundColor: '#FFFFFF',
-                      border: `2px solid ${isLeadSelected ? '#FF6F20' : config.color}`,
+                      border: `2px solid ${isLeadSelected ? 'var(--ag-accent)' : config.color}`,
                       boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                       cursor: leadSel.isSelecting ? 'pointer' : 'default',
                     }}

@@ -187,9 +187,9 @@ export default function FastAttendanceDialog({
   }, [members, date, groupSessions]);
 
   const statusConfig = [
-    { key: 'הגיע',    color: '#16a34a', bg: '#dcfce7' },
-    { key: 'איחר',    color: '#eab308', bg: '#fef9c3' },
-    { key: 'לא הגיע', color: '#dc2626', bg: '#fee2e2' },
+    { key: 'הגיע',    color: 'var(--ag-success)', bg: '#dcfce7' },
+    { key: 'איחר',    color: 'var(--ag-warning)', bg: '#fef9c3' },
+    { key: 'לא הגיע', color: 'var(--ag-error)', bg: '#fee2e2' },
     { key: 'ביטל',    color: '#6b7280', bg: '#f3f4f6' },
   ];
 
@@ -405,7 +405,7 @@ export default function FastAttendanceDialog({
                   variant="outline"
                   onClick={() => setAttendance(Object.fromEntries(members.map((m) => [m.trainee_id, 'הגיע'])))}
                   className="font-bold rounded-lg min-h-[36px] text-xs"
-                  style={{ borderColor: '#16a34a', color: '#16a34a' }}
+                  style={{ borderColor: 'var(--ag-success)', color: 'var(--ag-success)' }}
                 >
                   כולם הגיעו
                 </Button>
@@ -413,7 +413,7 @@ export default function FastAttendanceDialog({
                   variant="outline"
                   onClick={() => setAttendance(Object.fromEntries(members.map((m) => [m.trainee_id, 'לא הגיע'])))}
                   className="font-bold rounded-lg min-h-[36px] text-xs"
-                  style={{ borderColor: '#dc2626', color: '#dc2626' }}
+                  style={{ borderColor: 'var(--ag-error)', color: 'var(--ag-error)' }}
                 >
                   כולם לא הגיעו
                 </Button>

@@ -44,14 +44,14 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 1. Main Goal Short */}
           <div className="space-y-2">
             <Label className="font-bold flex items-center gap-2 text-gray-900">
-              <Target className="w-4 h-4 text-[#FF6F20]" />
+              <Target className="w-4 h-4 text-[var(--ag-accent)]" />
               מטרה מרכזית
             </Label>
             <Input 
               value={formData.mainGoalShort}
               onChange={(e) => setFormData({...formData, mainGoalShort: e.target.value})}
               placeholder="לדוגמה: לעשות 5 עליות מתח, לרוץ 5 ק״מ בלי לעצור…"
-              className="bg-gray-50 border-gray-200 focus:border-[#FF6F20] focus:ring-[#FF6F20]"
+              className="bg-gray-50 border-gray-200 focus:border-[var(--ag-accent)] focus:ring-[var(--ag-accent)]"
             />
             <p className="text-xs text-gray-500">משפט אחד קצר שמתאר את המטרה הכי חשובה לך כרגע.</p>
           </div>
@@ -59,14 +59,14 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 2. Main Goal Why */}
           <div className="space-y-2">
             <Label className="font-bold flex items-center gap-2 text-gray-900">
-              <Heart className="w-4 h-4 text-[#FF6F20]" />
+              <Heart className="w-4 h-4 text-[var(--ag-accent)]" />
               למה המטרה הזאת חשובה לך?
             </Label>
             <Textarea 
               value={formData.mainGoalWhy}
               onChange={(e) => setFormData({...formData, mainGoalWhy: e.target.value})}
               placeholder="איך זה ישפיע עליך ביום־יום? על הבריאות, הביטחון, ההרגשה בגוף?"
-              className="bg-gray-50 border-gray-200 min-h-[80px] resize-none focus:border-[#FF6F20] focus:ring-[#FF6F20]"
+              className="bg-gray-50 border-gray-200 min-h-[80px] resize-none focus:border-[var(--ag-accent)] focus:ring-[var(--ag-accent)]"
             />
             <p className="text-xs text-gray-500">תכתוב/י בכמה משפטים מה יקרה בחיים שלך כשתשיג/י את המטרה.</p>
           </div>
@@ -74,14 +74,14 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 3. Long Term Vision */}
           <div className="space-y-2">
             <Label className="font-bold flex items-center gap-2 text-gray-900">
-              <Telescope className="w-4 h-4 text-[#FF6F20]" />
+              <Telescope className="w-4 h-4 text-[var(--ag-accent)]" />
               איך אתה רוצה שהחיים הספורטיביים שלך ייראו בעוד שנה?
             </Label>
             <Textarea 
               value={formData.longTermVision}
               onChange={(e) => setFormData({...formData, longTermVision: e.target.value})}
               placeholder="איך אתה מתאמן? מה אתה כבר עושה בקלות? איך אתה מרגיש בגוף ובנפש?"
-              className="bg-gray-50 border-gray-200 min-h-[100px] resize-none focus:border-[#FF6F20] focus:ring-[#FF6F20]"
+              className="bg-gray-50 border-gray-200 min-h-[100px] resize-none focus:border-[var(--ag-accent)] focus:ring-[var(--ag-accent)]"
             />
             <p className="text-xs text-gray-500">דמיין/י את עצמך בעתיד – תכתוב/י כאילו זה כבר קרה.</p>
           </div>
@@ -89,14 +89,14 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 4. Key Skills */}
           <div className="space-y-2">
             <Label className="font-bold flex items-center gap-2 text-gray-900">
-              <Trophy className="w-4 h-4 text-[#FF6F20]" />
+              <Trophy className="w-4 h-4 text-[var(--ag-accent)]" />
               איזה מיומנויות חשוב לך לפתח?
             </Label>
             <Textarea 
               value={formData.keySkills}
               onChange={(e) => setFormData({...formData, keySkills: e.target.value})}
               placeholder="לדוגמה: קפיצה בחבל, סיבובי מקל, עמידת ידיים, פלאנץ', גמישות…"
-              className="bg-gray-50 border-gray-200 min-h-[60px] resize-none focus:border-[#FF6F20] focus:ring-[#FF6F20]"
+              className="bg-gray-50 border-gray-200 min-h-[60px] resize-none focus:border-[var(--ag-accent)] focus:ring-[var(--ag-accent)]"
             />
             <p className="text-xs text-gray-500">רשום/י את המיומנויות שהכי מסקרנות אותך.</p>
           </div>
@@ -104,14 +104,14 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 5. Training Frequency */}
           <div className="space-y-2">
             <Label className="font-bold flex items-center gap-2 text-gray-900">
-              <Calendar className="w-4 h-4 text-[#FF6F20]" />
+              <Calendar className="w-4 h-4 text-[var(--ag-accent)]" />
               כמה פעמים בשבוע היית רוצה להתאמן?
             </Label>
             <Select 
               value={formData.trainingFrequency} 
               onValueChange={(val) => setFormData({...formData, trainingFrequency: val})}
             >
-              <SelectTrigger className="bg-gray-50 border-gray-200 text-right focus:ring-[#FF6F20]">
+              <SelectTrigger className="bg-gray-50 border-gray-200 text-right focus:ring-[var(--ag-accent)]">
                 <SelectValue placeholder="בחר תדירות" />
               </SelectTrigger>
               <SelectContent dir="rtl">
@@ -128,14 +128,14 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 6. Main Motivation */}
           <div className="space-y-2">
             <Label className="font-bold flex items-center gap-2 text-gray-900">
-              <Target className="w-4 h-4 text-[#FF6F20]" />
+              <Target className="w-4 h-4 text-[var(--ag-accent)]" />
               מה הכי מניע אותך להתמיד באימונים?
             </Label>
             <Textarea 
               value={formData.mainMotivation}
               onChange={(e) => setFormData({...formData, mainMotivation: e.target.value})}
               placeholder="בריאות, ביטחון עצמי, שקט נפשי, דוגמה לילדים, הופעה חיצונית…"
-              className="bg-gray-50 border-gray-200 min-h-[60px] resize-none focus:border-[#FF6F20] focus:ring-[#FF6F20]"
+              className="bg-gray-50 border-gray-200 min-h-[60px] resize-none focus:border-[var(--ag-accent)] focus:ring-[var(--ag-accent)]"
             />
             <p className="text-xs text-gray-500">מה הסיבה העמוקה שעושה לך חשק לזוז?</p>
           </div>
@@ -143,14 +143,14 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 7. Obstacles */}
           <div className="space-y-2">
             <Label className="font-bold flex items-center gap-2 text-gray-900">
-              <ShieldAlert className="w-4 h-4 text-[#FF6F20]" />
+              <ShieldAlert className="w-4 h-4 text-[var(--ag-accent)]" />
               מה עלול להקשות עליך להתמיד? (אופציונלי)
             </Label>
             <Textarea 
               value={formData.obstacles}
               onChange={(e) => setFormData({...formData, obstacles: e.target.value})}
               placeholder="חוסר זמן, עומס עבודה, פחד מפציעה, חוסר מסגרת…"
-              className="bg-gray-50 border-gray-200 min-h-[60px] resize-none focus:border-[#FF6F20] focus:ring-[#FF6F20]"
+              className="bg-gray-50 border-gray-200 min-h-[60px] resize-none focus:border-[var(--ag-accent)] focus:ring-[var(--ag-accent)]"
             />
             <p className="text-xs text-gray-500">תזכיר/י לעצמך מראש איפה האתגר, כדי שנוכל לבנות פתרון.</p>
           </div>
@@ -158,7 +158,7 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           {/* 8. Coach Notes (Coach Only) */}
           {isCoach && (
             <div className="space-y-2 p-4 bg-orange-50 rounded-xl border border-orange-100">
-              <Label className="font-bold flex items-center gap-2 text-[#FF6F20]">
+              <Label className="font-bold flex items-center gap-2 text-[var(--ag-accent)]">
                 <MessageSquare className="w-4 h-4" />
                 הערות המאמן על המטרות והחזון
               </Label>
@@ -176,7 +176,7 @@ export default function VisionFormDialog({ isOpen, onClose, initialData, onSubmi
           <Button 
             onClick={handleSubmit} 
             disabled={isLoading}
-            className="flex-1 bg-[#FF6F20] hover:bg-[#E65100] text-white font-bold"
+            className="flex-1 bg-[var(--ag-accent)] hover:bg-[#E65100] text-white font-bold"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "שמור חזון"}
           </Button>

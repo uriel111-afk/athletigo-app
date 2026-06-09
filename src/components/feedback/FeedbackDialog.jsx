@@ -23,8 +23,8 @@ import { AuthContext } from '@/lib/AuthContext';
 // The form itself only asks for category + message; everything else
 // is derived so the friction is minimal.
 
-const ORANGE = '#FF6F20';
-const BORDER = '#F0E4D0';
+const ORANGE = 'var(--ag-accent)';
+const BORDER = 'var(--ag-border)';
 
 const CATEGORIES = [
   { key: 'bug',         label: 'באג',           emoji: '🐞', bg: '#FEE2E2', fg: '#991B1B' },
@@ -87,7 +87,7 @@ export default function FeedbackDialog({ open, onClose }) {
 
           {/* Category picker */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ag-text)', marginBottom: 6 }}>
               קטגוריה
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -125,7 +125,7 @@ export default function FeedbackDialog({ open, onClose }) {
 
           {/* Message */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ag-text)', marginBottom: 6 }}>
               מה קרה? מה תרצה לשפר?
             </div>
             <Textarea

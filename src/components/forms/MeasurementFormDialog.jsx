@@ -185,8 +185,8 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
             </div>
           </div>
 
-          <div className="p-5 rounded-xl" style={{ backgroundColor: '#FFF8F3', border: '1px solid #FF6F20' }}>
-            <p className="text-sm font-bold mb-4" style={{ color: '#FF6F20' }}>
+          <div className="p-5 rounded-xl" style={{ backgroundColor: '#FFF8F3', border: '1px solid var(--ag-accent)' }}>
+            <p className="text-sm font-bold mb-4" style={{ color: 'var(--ag-accent)' }}>
               📏 היקפי גוף (אופציונלי)
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -253,7 +253,7 @@ export default function MeasurementFormDialog({ isOpen, onClose, traineeId, trai
               onClick={handleSubmit}
               disabled={isLoading}
               className="flex-1 rounded-xl py-6 font-bold text-white"
-              style={{ backgroundColor: '#FF6F20' }}
+              style={{ backgroundColor: 'var(--ag-accent)' }}
             >
               {isLoading ? (
                 <>

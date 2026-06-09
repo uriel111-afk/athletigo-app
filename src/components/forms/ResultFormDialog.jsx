@@ -204,7 +204,7 @@ export default function ResultFormDialog({ isOpen, onClose, traineeId, traineeNa
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="לדוגמה: מקסימום מתח"
-                className="rounded-xl border-gray-200 focus:border-[#FF6F20]"
+                className="rounded-xl border-gray-200 focus:border-[var(--ag-accent)]"
               />
             </div>
 

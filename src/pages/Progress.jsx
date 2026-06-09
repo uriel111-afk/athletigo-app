@@ -131,7 +131,7 @@ function ProgressInner() {
     : null;
 
   const stats = [
-    { label: 'אימונים',        value: totalSessions, icon: '🏋️', color: '#FF6F20' },
+    { label: 'אימונים',        value: totalSessions, icon: '🏋️', color: 'var(--ag-accent)' },
     { label: 'שיאים אישיים',    value: personalBests, icon: '🏆', color: '#1D9E75' },
     { label: 'שיאים מתועדים',   value: totalRecords,  icon: '📊', color: '#D85A30' },
     { label: 'שיפור JPS',       value: jpsImprovement != null ? `${jpsImprovement}%` : '—', icon: '📈', color: '#1565C0' },
@@ -143,7 +143,7 @@ function ProgressInner() {
   // created_at fall back to `date + id`. Tech name + score read
   // through fallbacks (technique / tab_name / name; baseline_score /
   // jps / score) so old rows still chart correctly.
-  const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
+  const TECH_COLORS = ['var(--ag-accent)', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
   const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
   const techOf = (b) => b.technique || b.tab_name || b.name || 'basic';
   const jpsOf = (b) => Number(b.baseline_score ?? b.jps ?? b.score ?? 0);
@@ -335,14 +335,14 @@ function ProgressInner() {
   const card = {
     background: 'white',
     borderRadius: 14,
-    border: '1px solid #F0E4D0',
+    border: '1px solid var(--ag-border)',
     padding: 16,
     marginBottom: 16,
     direction: 'rtl',
   };
   const tooltipStyle = {
     borderRadius: 12,
-    border: '1px solid #F0E4D0',
+    border: '1px solid var(--ag-border)',
     background: '#fff',
     fontSize: 12,
     direction: 'rtl',
@@ -358,16 +358,16 @@ function ProgressInner() {
       <div style={{ maxWidth: 720, margin: '0 auto', padding: 16 }}>
         {/* Page heading */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#1A1A1A' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ag-text)' }}>
             📈 ההתקדמות שלי
           </div>
-          <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+          <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginTop: 4 }}>
             סקירה ויזואלית של כל המסע שלך
           </div>
         </div>
 
         {noData ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--ag-text-soft)' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
             <div style={{ fontSize: 16, fontWeight: 500 }}>עוד אין נתוני התקדמות</div>
             <div style={{ fontSize: 13, marginTop: 4 }}>הנתונים יופיעו כאן אחרי האימון הראשון</div>
@@ -383,7 +383,7 @@ function ProgressInner() {
                   gap: 10, marginBottom: 16,
                 }}>
                   <div style={{
-                    background: '#FF6F20', borderRadius: 14, padding: '14px 10px',
+                    background: 'var(--ag-accent)', borderRadius: 14, padding: '14px 10px',
                     textAlign: 'center', color: 'white',
                   }}>
                     <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 4 }}>ציון אחרון</div>
@@ -393,24 +393,24 @@ function ProgressInner() {
                     <div style={{ fontSize: 11, opacity: 0.8 }}>מתוך 10</div>
                   </div>
                   <div style={{
-                    background: 'white', border: '1px solid #F0E4D0',
+                    background: 'white', border: '1px solid var(--ag-border)',
                     borderRadius: 14, padding: '14px 10px', textAlign: 'center',
                   }}>
-                    <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>רצף ימים</div>
-                    <div style={{ fontSize: 36, fontWeight: 900, color: '#1a1a1a', lineHeight: 1 }}>
+                    <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginBottom: 4 }}>רצף ימים</div>
+                    <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--ag-text)', lineHeight: 1 }}>
                       {streak}
                     </div>
-                    <div style={{ fontSize: 11, color: '#888' }}>ימים</div>
+                    <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>ימים</div>
                   </div>
                   <div style={{
-                    background: 'white', border: '1px solid #F0E4D0',
+                    background: 'white', border: '1px solid var(--ag-border)',
                     borderRadius: 14, padding: '14px 10px', textAlign: 'center',
                   }}>
-                    <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>השבוע</div>
-                    <div style={{ fontSize: 36, fontWeight: 900, color: '#FF6F20', lineHeight: 1 }}>
+                    <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginBottom: 4 }}>השבוע</div>
+                    <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--ag-accent)', lineHeight: 1 }}>
                       {weekCount}
                     </div>
-                    <div style={{ fontSize: 11, color: '#888' }}>אימונים</div>
+                    <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>אימונים</div>
                   </div>
                 </div>
 
@@ -423,7 +423,7 @@ function ProgressInner() {
                       onClick={() => setScoreFullscreen(true)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setScoreFullscreen(true); }}
                       style={{
-                        background: 'white', border: '1px solid #F0E4D0',
+                        background: 'white', border: '1px solid var(--ag-border)',
                         borderRadius: 16, padding: 16, marginBottom: 16,
                         cursor: 'pointer',
                       }}
@@ -434,10 +434,10 @@ function ProgressInner() {
                       }}>
                         <div style={{ fontSize: 15, fontWeight: 700 }}>גרף שיפור</div>
                         <div>
-                          <span style={{ fontSize: 32, fontWeight: 900, color: '#FF6F20' }}>
+                          <span style={{ fontSize: 32, fontWeight: 900, color: 'var(--ag-accent)' }}>
                             {lastScore != null ? lastScore.toFixed(1) : '—'}
                           </span>
-                          <span style={{ fontSize: 12, color: '#888' }}>/10</span>
+                          <span style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>/10</span>
                         </div>
                       </div>
                       {trend !== 0 && (
@@ -445,7 +445,7 @@ function ProgressInner() {
                           display: 'inline-flex', alignItems: 'center', gap: 4,
                           padding: '3px 10px', borderRadius: 999, marginBottom: 10,
                           background: trend > 0 ? '#ECFDF5' : '#FEF2F2',
-                          color: trend > 0 ? '#059669' : '#DC2626',
+                          color: trend > 0 ? '#059669' : 'var(--ag-error)',
                           fontSize: 12, fontWeight: 600,
                         }}>
                           {trend > 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)} מהאימון הקודם
@@ -455,24 +455,24 @@ function ProgressInner() {
                         <AreaChart data={scoreData}>
                           <defs>
                             <linearGradient id="progressScoreGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#FF6F20" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#FF6F20" stopOpacity={0} />
+                              <stop offset="5%" stopColor="var(--ag-accent)" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="var(--ag-accent)" stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F5E6D8" vertical={false} />
                           <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#aaa' }} axisLine={false} tickLine={false} />
                           <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: '#aaa' }} axisLine={false} tickLine={false} ticks={[0, 5, 10]} />
                           <Tooltip
-                            contentStyle={{ background: '#1a1a1a', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
+                            contentStyle={{ background: 'var(--ag-text)', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
                             formatter={(v) => [`${Number(v).toFixed(1)}/10`, 'ציון']}
                           />
                           <ReferenceLine y={5} stroke="#E5E7EB" strokeDasharray="4 4" />
                           <Area
                             type="monotone" dataKey="rating"
-                            stroke="#FF6F20" strokeWidth={3}
+                            stroke="var(--ag-accent)" strokeWidth={3}
                             fill="url(#progressScoreGrad)"
-                            dot={{ fill: '#FF6F20', r: 5, stroke: 'white', strokeWidth: 2 }}
-                            activeDot={{ r: 8, fill: '#FF6F20' }}
+                            dot={{ fill: 'var(--ag-accent)', r: 5, stroke: 'white', strokeWidth: 2 }}
+                            activeDot={{ r: 8, fill: 'var(--ag-accent)' }}
                           />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -486,24 +486,24 @@ function ProgressInner() {
                         <AreaChart data={scoreData}>
                           <defs>
                             <linearGradient id="progressScoreGradFs" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#FF6F20" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#FF6F20" stopOpacity={0} />
+                              <stop offset="5%" stopColor="var(--ag-accent)" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="var(--ag-accent)" stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="#F5E6D8" vertical={false} />
                           <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#aaa' }} axisLine={false} tickLine={false} />
                           <YAxis domain={[0, 10]} tick={{ fontSize: 11, fill: '#aaa' }} axisLine={false} tickLine={false} ticks={[0, 2, 4, 6, 8, 10]} />
                           <Tooltip
-                            contentStyle={{ background: '#1a1a1a', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
+                            contentStyle={{ background: 'var(--ag-text)', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
                             formatter={(v) => [`${Number(v).toFixed(1)}/10`, 'ציון']}
                           />
                           <ReferenceLine y={5} stroke="#E5E7EB" strokeDasharray="4 4" />
                           <Area
                             type="monotone" dataKey="rating"
-                            stroke="#FF6F20" strokeWidth={3}
+                            stroke="var(--ag-accent)" strokeWidth={3}
                             fill="url(#progressScoreGradFs)"
-                            dot={{ fill: '#FF6F20', r: 5, stroke: 'white', strokeWidth: 2 }}
-                            activeDot={{ r: 8, fill: '#FF6F20' }}
+                            dot={{ fill: 'var(--ag-accent)', r: 5, stroke: 'white', strokeWidth: 2 }}
+                            activeDot={{ r: 8, fill: 'var(--ag-accent)' }}
                           />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -525,7 +525,7 @@ function ProgressInner() {
                   onClick={() => setWeeklyFullscreen(true)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setWeeklyFullscreen(true); }}
                   style={{
-                    background: 'white', border: '1px solid #F0E4D0',
+                    background: 'white', border: '1px solid var(--ag-border)',
                     borderRadius: 16, padding: 16, marginBottom: 16,
                     cursor: 'pointer',
                   }}
@@ -534,21 +534,21 @@ function ProgressInner() {
                     display: 'flex', justifyContent: 'space-between', marginBottom: 12,
                   }}>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>נוכחות שבועית</div>
-                    <div style={{ fontSize: 12, color: '#888' }}>8 שבועות אחרונים</div>
+                    <div style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>8 שבועות אחרונים</div>
                   </div>
                   <ResponsiveContainer width="100%" height={130}>
                     <BarChart data={weeklyData}>
                       <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#aaa' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: '#aaa' }} axisLine={false} tickLine={false} allowDecimals={false} />
                       <Tooltip
-                        contentStyle={{ background: '#1a1a1a', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
+                        contentStyle={{ background: 'var(--ag-text)', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
                         formatter={(v) => [v, 'אימונים']}
                       />
                       <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                         {weeklyData.map((entry, i) => (
                           <Cell
                             key={i}
-                            fill={i === weeklyData.length - 1 ? '#FF6F20' : 'rgba(255,111,32,0.25)'}
+                            fill={i === weeklyData.length - 1 ? 'var(--ag-accent)' : 'rgba(255,111,32,0.25)'}
                           />
                         ))}
                       </Bar>
@@ -565,14 +565,14 @@ function ProgressInner() {
                       <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#aaa' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: '#aaa' }} axisLine={false} tickLine={false} allowDecimals={false} />
                       <Tooltip
-                        contentStyle={{ background: '#1a1a1a', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
+                        contentStyle={{ background: 'var(--ag-text)', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
                         formatter={(v) => [v, 'אימונים']}
                       />
                       <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                         {weeklyData.map((entry, i) => (
                           <Cell
                             key={i}
-                            fill={i === weeklyData.length - 1 ? '#FF6F20' : 'rgba(255,111,32,0.25)'}
+                            fill={i === weeklyData.length - 1 ? 'var(--ag-accent)' : 'rgba(255,111,32,0.25)'}
                           />
                         ))}
                       </Bar>
@@ -590,12 +590,12 @@ function ProgressInner() {
               {stats.map((s, i) => (
                 <div key={i} style={{
                   background: 'white', borderRadius: 14,
-                  border: '1px solid #F0E4D0',
+                  border: '1px solid var(--ag-border)',
                   padding: 16, textAlign: 'center',
                 }}>
                   <div style={{ fontSize: 24, marginBottom: 4 }}>{s.icon}</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>{s.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -617,12 +617,12 @@ function ProgressInner() {
                 </div>
                 <ResponsiveContainer width="100%" height={Math.max(200, barData.length * 36)}>
                   <BarChart data={barData} layout="vertical" margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--ag-border)" />
                     <XAxis type="number" fontSize={11} />
                     <YAxis type="category" dataKey="name" fontSize={11} width={90} />
                     <Tooltip contentStyle={tooltipStyle}
                       formatter={(value, _name, ctx) => [value, ctx?.payload?.fullName || 'שיא']} />
-                    <Bar dataKey="value" fill="#FF6F20" radius={[0, 6, 6, 0]} barSize={20} />
+                    <Bar dataKey="value" fill="var(--ag-accent)" radius={[0, 6, 6, 0]} barSize={20} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -636,14 +636,14 @@ function ProgressInner() {
                 </div>
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={weightData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--ag-border)" />
                     <XAxis dataKey="date" fontSize={11} />
                     <YAxis domain={['auto', 'auto']} fontSize={11} />
                     <Tooltip contentStyle={tooltipStyle} />
                     <Line type="monotone" dataKey="weight" name="משקל (ק״ג)"
-                      stroke="#FF6F20" strokeWidth={2.5}
-                      dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }}
-                      activeDot={{ r: 7, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                      stroke="var(--ag-accent)" strokeWidth={2.5}
+                      dot={{ r: 5, fill: 'var(--ag-accent)', stroke: 'white', strokeWidth: 2 }}
+                      activeDot={{ r: 7, fill: 'var(--ag-accent)', stroke: 'white', strokeWidth: 2 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -657,12 +657,12 @@ function ProgressInner() {
                 </div>
                 <ResponsiveContainer width="100%" height={230}>
                   <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="65%">
-                    <PolarGrid stroke="#F0E4D0" />
-                    <PolarAngleAxis dataKey="goal" fontSize={9} tick={{ fontSize: 9, fill: '#1A1A1A' }} />
-                    <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#888' }} />
-                    <Radar dataKey="progress" stroke="#FF6F20" fill="#FF6F20"
+                    <PolarGrid stroke="var(--ag-border)" />
+                    <PolarAngleAxis dataKey="goal" fontSize={9} tick={{ fontSize: 9, fill: 'var(--ag-text)' }} />
+                    <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--ag-text-soft)' }} />
+                    <Radar dataKey="progress" stroke="var(--ag-accent)" fill="var(--ag-accent)"
                       fillOpacity={0.15} strokeWidth={2}
-                      dot={{ r: 5, fill: '#FF6F20', stroke: 'white', strokeWidth: 2 }} />
+                      dot={{ r: 5, fill: 'var(--ag-accent)', stroke: 'white', strokeWidth: 2 }} />
                     <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}%`} />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -677,11 +677,11 @@ function ProgressInner() {
                 </div>
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--ag-border)" />
                     <XAxis dataKey="month" fontSize={11} />
                     <YAxis fontSize={11} allowDecimals={false} />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="count" name="אימונים" fill="#FF6F20"
+                    <Bar dataKey="count" name="אימונים" fill="var(--ag-accent)"
                       radius={[6, 6, 0, 0]} barSize={30} />
                   </BarChart>
                 </ResponsiveContainer>

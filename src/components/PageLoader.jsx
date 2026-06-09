@@ -23,7 +23,7 @@ export default function PageLoader({ message = "טוען..." }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "#FFF9F0",
+        background: "var(--ag-bg)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -61,7 +61,7 @@ export default function PageLoader({ message = "טוען..." }) {
         <div
           style={{
             height: "100%",
-            background: "#FF6F20",
+            background: "var(--ag-accent)",
             borderRadius: 2,
             width: `${Math.min(progress, 100)}%`,
             transition: "width 0.3s ease",
@@ -84,7 +84,7 @@ export default function PageLoader({ message = "טוען..." }) {
         style={{
           fontSize: 15,
           fontWeight: 400,
-          color: "#888",
+          color: "var(--ag-text-soft)",
           textAlign: "center",
         }}
       >

@@ -136,7 +136,7 @@ function CoachExecutionRow({ execution, plan }) {
   return (
     <div style={{
       background: 'white',
-      border: '1px solid #F0E4D0',
+      border: '1px solid var(--ag-border)',
       borderRadius: 12,
       boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
       overflow: 'hidden',
@@ -155,20 +155,20 @@ function CoachExecutionRow({ execution, plan }) {
       >
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: 14, fontWeight: 800, color: '#1a1a1a',
+            fontSize: 14, fontWeight: 800, color: 'var(--ag-text)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             marginBottom: 2,
           }}>
             {planName}
           </div>
-          <div style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {formatLongHe(execution.executed_at)}
             {completion != null && ` · ${completion}% השלמה`}
           </div>
         </div>
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 2,
-          fontSize: 14, fontWeight: 800, color: '#FF6F20', flexShrink: 0,
+          fontSize: 14, fontWeight: 800, color: 'var(--ag-accent)', flexShrink: 0,
         }}>
           {score != null ? score.toFixed(1) : '—'}
           <span style={{ fontSize: 12 }}>⭐</span>
@@ -259,7 +259,7 @@ const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
               {format(new Date(result.date), 'dd/MM/yy')}
             </span>
             {result.record_value && (
-              <span className="font-bold text-[#FF6F20] bg-orange-50 px-2 py-0.5 rounded-full text-[10px] md:text-xs">
+              <span className="font-bold text-[var(--ag-accent)] bg-orange-50 px-2 py-0.5 rounded-full text-[10px] md:text-xs">
                 {result.record_value} {result.record_unit}
               </span>
             )}
@@ -322,7 +322,7 @@ const AchievementItem = ({ result, relatedGoal, onEdit, onDelete }) => {
 
               {/* Actions Toolbar - Moved to bottom of expanded view for mobile access */}
               <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-gray-200">
-                <Button onClick={(e) => { e.stopPropagation(); onEdit(result); }} size="sm" variant="ghost" className="h-8 px-3 text-[#FF6F20] hover:bg-orange-50 rounded-lg flex items-center gap-1 text-xs">
+                <Button onClick={(e) => { e.stopPropagation(); onEdit(result); }} size="sm" variant="ghost" className="h-8 px-3 text-[var(--ag-accent)] hover:bg-orange-50 rounded-lg flex items-center gap-1 text-xs">
                   <Edit2 className="w-3 h-3" /> ערוך
                 </Button>
                 <Button onClick={(e) => { e.stopPropagation(); if (window.confirm(`למחוק "${result.title}"?`)) onDelete(result.id); }} size="sm" variant="ghost" className="h-8 px-3 text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1 text-xs">
@@ -340,8 +340,8 @@ const BaselineCard = ({ result, onEdit, onDelete }) => {
   // Parse description: "147 קפיצות, ממוצע 49, 3 סיבובים × 30 שניות"
   const desc = result.description || '';
   const technique = result.title?.replace('Baseline - ', '') || 'Basic';
-  const techColors = { Basic: '#FF6F20', 'Foot Switch': '#2196F3', 'High Knees': '#4CAF50' };
-  const color = techColors[technique] || '#FF6F20';
+  const techColors = { Basic: 'var(--ag-accent)', 'Foot Switch': '#2196F3', 'High Knees': '#4CAF50' };
+  const color = techColors[technique] || 'var(--ag-accent)';
 
   return (
     <div className="rounded-xl bg-white border-2 shadow-sm overflow-hidden" style={{ borderColor: color + '40' }}>
@@ -366,7 +366,7 @@ const BaselineCard = ({ result, onEdit, onDelete }) => {
         </div>
         {desc && <p className="text-xs text-gray-500 text-right mb-2">{desc}</p>}
         <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-          <button onClick={() => onEdit(result)} className="text-xs font-bold text-[#FF6F20] hover:underline flex items-center gap-1">
+          <button onClick={() => onEdit(result)} className="text-xs font-bold text-[var(--ag-accent)] hover:underline flex items-center gap-1">
             <Eye className="w-3 h-3" />צפייה בפרטים
           </button>
           <Button onClick={(e) => { e.stopPropagation(); if (window.confirm(`למחוק "${result.title}"?`)) onDelete(result.id); }}
@@ -379,7 +379,7 @@ const BaselineCard = ({ result, onEdit, onDelete }) => {
   );
 };
 
-const MiniSparkline = ({ data, color = '#FF6F20' }) => {
+const MiniSparkline = ({ data, color = 'var(--ag-accent)' }) => {
   if (!data || data.length < 2) return null;
   const max = Math.max(...data);
   const min = Math.min(...data);
@@ -412,7 +412,7 @@ const AchievementGroup = ({ type, results, goals, onEdit, onDelete }) => {
          className="w-full flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 transition-all group"
        >
          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isExpanded ? (isBaseline ? 'bg-orange-100 text-[#FF6F20]' : 'bg-orange-100 text-[#FF6F20]') : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isExpanded ? (isBaseline ? 'bg-orange-100 text-[var(--ag-accent)]' : 'bg-orange-100 text-[var(--ag-accent)]') : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'}`}>
                {isBaseline ? <Zap className="w-5 h-5" /> : (isExpanded ? <FolderOpen className="w-5 h-5" /> : <Folder className="w-5 h-5" />)}
             </div>
             <div className="text-right">
@@ -511,14 +511,14 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
   const statusBadge = (s) => {
     const v = s.status || '';
     if (['confirmed','completed','הושלם','הגיע','התקיים','מאושר'].includes(v))
-      return { bg: '#16a34a', fg: '#FFFFFF', label: v === 'completed' || v === 'הושלם' ? 'הושלם' : 'מאושר' };
+      return { bg: 'var(--ag-success)', fg: '#FFFFFF', label: v === 'completed' || v === 'הושלם' ? 'הושלם' : 'מאושר' };
     if (['cancelled','בוטל','בוטל על ידי מתאמן','בוטל על ידי מאמן'].includes(v))
       return { bg: '#9CA3AF', fg: '#FFFFFF', label: 'בוטל' };
     if (v === 'pending_approval' || v === 'ממתין לאישור')
       return { bg: '#F59E0B', fg: '#FFFFFF', label: 'ממתין' };
     if (v === 'no_show' || v === 'לא הגיע')
-      return { bg: '#DC2626', fg: '#FFFFFF', label: 'לא הגיע' };
-    return { bg: '#EAB308', fg: '#FFFFFF', label: v || 'מתוכנן' };
+      return { bg: 'var(--ag-error)', fg: '#FFFFFF', label: 'לא הגיע' };
+    return { bg: 'var(--ag-warning)', fg: '#FFFFFF', label: v || 'מתוכנן' };
   };
 
   // Refresh both caches the session/package linkage touches so the
@@ -679,10 +679,10 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}
       >
-        <span style={{ color: '#1a1a1a', fontWeight: 600, fontSize: 13 }}>
+        <span style={{ color: 'var(--ag-text)', fontWeight: 600, fontSize: 13 }}>
           מפגשים מקושרים ({linked.length}{totalCapacity > 0 ? ` / ${totalCapacity}` : ''})
         </span>
-        <span style={{ color: '#FF6F20', fontSize: 14 }}>{expanded ? '▼' : '▸'}</span>
+        <span style={{ color: 'var(--ag-accent)', fontSize: 14 }}>{expanded ? '▼' : '▸'}</span>
       </div>
 
       {expanded && (
@@ -700,9 +700,9 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
                 <div
                   key={s.id}
                   style={{
-                    padding: '8px 12px', background: '#FFF9F0', borderRight: `3px solid ${typeColor || '#FF6F20'}`,
+                    padding: '8px 12px', background: 'var(--ag-bg)', borderRight: `3px solid ${typeColor || 'var(--ag-accent)'}`,
                     borderRadius: 6, marginTop: 6, display: 'flex', justifyContent: 'space-between',
-                    alignItems: 'center', fontSize: 13, color: '#1a1a1a', flexWrap: 'wrap', gap: 6,
+                    alignItems: 'center', fontSize: 13, color: 'var(--ag-text)', flexWrap: 'wrap', gap: 6,
                   }}
                 >
                   <div>
@@ -738,22 +738,22 @@ function PackageLinkedSessions({ pkg, allSessions, isCoach, typeColor, onUseSess
               <button
                 onClick={() => { setSelectedToLink(new Set()); setShowLinkDialog(true); }}
                 style={{
-                  flex: 1, padding: '8px 12px', background: '#FF6F20', color: '#FFFFFF',
+                  flex: 1, padding: '8px 12px', background: 'var(--ag-accent)', color: '#FFFFFF',
                   border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 }}
               >+ הוסף מפגש</button>
               <button
                 onClick={onUseSession}
                 style={{
-                  flex: 1, padding: '8px 12px', background: '#FFFFFF', color: '#FF6F20',
-                  border: '1px solid #FF6F20', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  flex: 1, padding: '8px 12px', background: '#FFFFFF', color: 'var(--ag-accent)',
+                  border: '1px solid var(--ag-accent)', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
                 }}
               >− הורד יתרה</button>
               <button
                 onClick={onRefundSession}
                 style={{
-                  flex: 1, padding: '8px 12px', background: '#FFFFFF', color: '#FF6F20',
-                  border: '1px solid #FF6F20', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  flex: 1, padding: '8px 12px', background: '#FFFFFF', color: 'var(--ag-accent)',
+                  border: '1px solid var(--ag-accent)', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
                 }}
               >+ החזר יתרה</button>
             </div>
@@ -841,8 +841,8 @@ function IntroChip({ emoji, label }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
-      background: '#FFF5EE', color: '#FF6F20',
-      border: '1px solid #FF6F20', borderRadius: 20,
+      background: '#FFF5EE', color: 'var(--ag-accent)',
+      border: '1px solid var(--ag-accent)', borderRadius: 20,
       padding: '4px 12px', fontSize: 13, fontWeight: 600,
     }}>
       {emoji && <span aria-hidden>{emoji}</span>}
@@ -855,10 +855,10 @@ function IntroSection({ title, children, last }) {
   return (
     <div style={{
       paddingBlock: 12,
-      borderBottom: last ? 'none' : '1px solid #F0E4D0',
+      borderBottom: last ? 'none' : '1px solid var(--ag-border)',
     }}>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 4, fontWeight: 600 }}>{title}</div>
-      <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.5 }}>{children}</div>
+      <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4, fontWeight: 600 }}>{title}</div>
+      <div style={{ fontSize: 14, color: 'var(--ag-text)', lineHeight: 1.5 }}>{children}</div>
     </div>
   );
 }
@@ -1010,7 +1010,7 @@ function IntroTab({ user }) {
     return (
       <div style={{
         background: '#FDF8F3', borderRadius: 14,
-        padding: 32, textAlign: 'center', color: '#888',
+        padding: 32, textAlign: 'center', color: 'var(--ag-text-soft)',
         fontSize: 14,
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
       }}>
@@ -1058,19 +1058,19 @@ function IntroTab({ user }) {
       {hasInfoCard && (
         <div style={{
           background: 'white', borderRadius: 16, padding: 20,
-          border: '1px solid #F0E4D0', marginBottom: 16,
+          border: '1px solid var(--ag-border)', marginBottom: 16,
           direction: 'rtl',
         }}>
           {goalFocusItems.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', fontWeight: 600, marginBottom: 8 }}>
                 🎯 מוקדי האימון
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {goalFocusItems.map((f, i) => (
                   <span key={`${f}-${i}`} style={{
                     padding: '4px 12px', borderRadius: 999,
-                    background: '#FFF5EE', color: '#FF6F20',
+                    background: '#FFF5EE', color: 'var(--ag-accent)',
                     fontSize: 12, fontWeight: 600, border: '1px solid #FFE5D0',
                   }}>{f}</span>
                 ))}
@@ -1080,7 +1080,7 @@ function IntroTab({ user }) {
 
           {weeklyDaysItems.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', fontWeight: 600, marginBottom: 8 }}>
                 📅 ימי אימון
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -1089,7 +1089,7 @@ function IntroTab({ user }) {
                   return (
                     <div key={d} style={{
                       width: 32, height: 32, borderRadius: '50%',
-                      background: active ? '#FF6F20' : '#F3F4F6',
+                      background: active ? 'var(--ag-accent)' : '#F3F4F6',
                       color: active ? 'white' : '#9CA3AF',
                       fontSize: 13, fontWeight: 700,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1107,8 +1107,8 @@ function IntroTab({ user }) {
                   flex: 1, background: '#FFF5EE', borderRadius: 10,
                   padding: 10, textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>💪 רמת כושר</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#FF6F20' }}>{translateFitnessLevel(fitness)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginBottom: 4 }}>💪 רמת כושר</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ag-accent)' }}>{translateFitnessLevel(fitness)}</div>
                 </div>
               )}
               {heightCm != null && (
@@ -1116,8 +1116,8 @@ function IntroTab({ user }) {
                   flex: 1, background: '#F0F4FF', borderRadius: 10,
                   padding: 10, textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>📏 גובה</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#3B82F6' }}>{heightCm} ס"מ</div>
+                  <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginBottom: 4 }}>📏 גובה</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ag-blue)' }}>{heightCm} ס"מ</div>
                 </div>
               )}
               {weightKg != null && (
@@ -1125,7 +1125,7 @@ function IntroTab({ user }) {
                   flex: 1, background: '#F0FDF4', borderRadius: 10,
                   padding: 10, textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>⚖️ משקל</div>
+                  <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginBottom: 4 }}>⚖️ משקל</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#059669' }}>{weightKg} ק"ג</div>
                 </div>
               )}
@@ -1150,17 +1150,17 @@ function IntroTab({ user }) {
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             marginBottom: 12,
           }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#FF6F20' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ag-accent)' }}>
               📋 סיכום היכרות
             </div>
             {summaryDateLabel && (
-              <div style={{ fontSize: 11, color: '#888' }}>
+              <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>
                 {summaryDateLabel}
               </div>
             )}
           </div>
           <div style={{
-            fontSize: 14, color: '#1A1A1A', lineHeight: 1.9,
+            fontSize: 14, color: 'var(--ag-text)', lineHeight: 1.9,
             whiteSpace: 'pre-line',
             fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}>
@@ -1171,22 +1171,22 @@ function IntroTab({ user }) {
 
       {/* Live fallback narrative — for trainees who pre-date the
           casual onboarding flow (no users.onboarding_summary). Same
-          warm-cream box, slightly different background tone (#FFF9F0
+          warm-cream box, slightly different background tone (var(--ag-bg)
           vs #FFF5EE) so a coach can tell at a glance which kind they
           are looking at. */}
       {!onboardingSummary && liveSummary && (
         <div style={{
-          background: '#FFF9F0',
+          background: 'var(--ag-bg)',
           borderRadius: 16,
           padding: 20,
           marginBottom: 20,
           border: '1px solid #F5E8D5',
           direction: 'rtl',
         }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#FF6F20', marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ag-accent)', marginBottom: 10 }}>
             📋 סיכום היכרות
           </div>
-          <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.8 }}>
+          <div style={{ fontSize: 14, color: 'var(--ag-text)', lineHeight: 1.8 }}>
             {liveSummary}
           </div>
         </div>
@@ -1194,7 +1194,7 @@ function IntroTab({ user }) {
 
     <div style={{
       background: '#FDF8F3', borderRadius: 14, padding: 16,
-      border: '1px solid #F0E4D0',
+      border: '1px solid var(--ag-border)',
     }} dir="rtl">
       {fitnessMeta && (
         <IntroSection title="רמת כושר">
@@ -1224,8 +1224,8 @@ function IntroTab({ user }) {
           {challengesDesc && (
             <div style={{
               padding: 10, borderRadius: 12,
-              background: '#FFFFFF', border: '1px solid #F0E4D0',
-              fontSize: 14, color: '#1A1A1A',
+              background: '#FFFFFF', border: '1px solid var(--ag-border)',
+              fontSize: 14, color: 'var(--ag-text)',
               lineHeight: 1.6, whiteSpace: 'pre-wrap',
               marginTop: challenges.length ? 8 : 0,
             }}>
@@ -1248,8 +1248,8 @@ function IntroTab({ user }) {
           {preferencesDesc && (
             <div style={{
               padding: 10, borderRadius: 12,
-              background: '#FFFFFF', border: '1px solid #F0E4D0',
-              fontSize: 14, color: '#1A1A1A',
+              background: '#FFFFFF', border: '1px solid var(--ag-border)',
+              fontSize: 14, color: 'var(--ag-text)',
               lineHeight: 1.6, whiteSpace: 'pre-wrap',
               marginTop: preferences.length ? 8 : 0,
             }}>
@@ -1269,8 +1269,8 @@ function IntroTab({ user }) {
         <IntroSection title="הערות בריאות (מאונבורדינג)">
           <div style={{
             padding: 10, borderRadius: 12,
-            background: '#FFFFFF', border: '1px solid #F0E4D0',
-            fontSize: 14, color: '#1A1A1A',
+            background: '#FFFFFF', border: '1px solid var(--ag-border)',
+            fontSize: 14, color: 'var(--ag-text)',
             lineHeight: 1.6, whiteSpace: 'pre-wrap',
           }}>
             {preHealth}
@@ -1401,7 +1401,7 @@ function PersonalTab({
     return (
       <div style={{ minWidth: 0, marginBottom: 16 }}>
         <label style={{
-          fontSize: 12, fontWeight: 600, color: '#888',
+          fontSize: 12, fontWeight: 600, color: 'var(--ag-text-soft)',
           marginBottom: 4, display: 'block', textAlign: 'right',
         }}>
           {label}
@@ -1411,18 +1411,18 @@ function PersonalTab({
           value={editFields[fieldKey] ?? ''}
           onChange={(e) => setEditFields((prev) => ({ ...prev, [fieldKey]: e.target.value }))}
           onFocus={(e) => {
-            e.target.style.borderColor = '#FF6F20';
+            e.target.style.borderColor = 'var(--ag-accent)';
             e.target.style.background = 'white';
           }}
           onBlur={(e) => {
-            e.target.style.borderColor = '#F0E4D0';
+            e.target.style.borderColor = 'var(--ag-border)';
             e.target.style.background = '#FFF9F5';
           }}
           style={{
             width: '100%',
             minHeight: 48,
             padding: '12px 14px',
-            border: '1.5px solid #F0E4D0',
+            border: '1.5px solid var(--ag-border)',
             borderRadius: 10,
             fontSize: 15,
             fontFamily: 'inherit',
@@ -1430,7 +1430,7 @@ function PersonalTab({
             background: '#FFF9F5',
             boxSizing: 'border-box',
             outline: 'none',
-            color: '#1a1a1a',
+            color: 'var(--ag-text)',
           }}
         />
       </div>
@@ -1446,7 +1446,7 @@ function PersonalTab({
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
-            background: '#FF6F20',
+            background: 'var(--ag-accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden',
@@ -1486,11 +1486,11 @@ function PersonalTab({
                 value={editFields.full_name ?? ''}
                 onChange={(e) => setEditFields(prev => ({ ...prev, full_name: e.target.value }))}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#FF6F20';
+                  e.target.style.borderColor = 'var(--ag-accent)';
                   e.target.style.background = 'white';
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = '#F0E4D0';
+                  e.target.style.borderColor = 'var(--ag-border)';
                   e.target.style.background = '#FFF9F5';
                 }}
                 placeholder="שם מלא"
@@ -1498,26 +1498,26 @@ function PersonalTab({
                   width: '100%',
                   minHeight: 48,
                   padding: '12px 14px',
-                  border: '1.5px solid #F0E4D0',
+                  border: '1.5px solid var(--ag-border)',
                   borderRadius: 10,
                   fontSize: 16, fontWeight: 600,
                   direction: 'rtl',
                   background: '#FFF9F5',
                   outline: 'none',
                   boxSizing: 'border-box',
-                  color: '#1a1a1a',
+                  color: 'var(--ag-text)',
                   fontFamily: 'inherit',
                 }}
               />
             ) : (
-              <div style={{ fontSize: 18, fontWeight: 600, color: '#1A1A1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user?.full_name || 'מתאמן/ת'}
               </div>
             )}
           </div>
         </div>
 
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 10 }}>
           פרטי התקשרות
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
@@ -1529,12 +1529,12 @@ function PersonalTab({
             // types/picks a date. Native chrome onChange feeds
             // straight back to editFields.
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>
                 תאריך לידה
                 {editFields.birth_date && (() => {
                   const liveAge = calculateAge(editFields.birth_date);
                   return liveAge != null ? (
-                    <span style={{ marginInlineStart: 6, color: '#FF6F20' }}>
+                    <span style={{ marginInlineStart: 6, color: 'var(--ag-accent)' }}>
                       (גיל: {liveAge})
                     </span>
                   ) : null;
@@ -1546,7 +1546,7 @@ function PersonalTab({
                 onChange={(e) => setEditFields(prev => ({ ...prev, birth_date: e.target.value }))}
                 style={{
                   width: '100%', padding: '8px 10px', borderRadius: 12,
-                  border: '1px solid #FF6F20', fontSize: 14, direction: 'rtl',
+                  border: '1px solid var(--ag-accent)', fontSize: 14, direction: 'rtl',
                   background: '#FFF5EE', boxSizing: 'border-box', outline: 'none',
                 }}
               />
@@ -1567,7 +1567,7 @@ function PersonalTab({
               disabled={savingDetails}
               style={{
                 flex: 1, padding: 12, borderRadius: 12, border: 'none',
-                background: savingDetails ? '#ccc' : '#FF6F20', color: 'white',
+                background: savingDetails ? '#ccc' : 'var(--ag-accent)', color: 'white',
                 fontSize: 14, fontWeight: 600,
                 cursor: savingDetails ? 'default' : 'pointer',
               }}
@@ -1580,7 +1580,7 @@ function PersonalTab({
               disabled={savingDetails}
               style={{
                 flex: 1, padding: 12, borderRadius: 12,
-                border: '1px solid #F0E4D0', background: 'white',
+                border: '1px solid var(--ag-border)', background: 'white',
                 fontSize: 14, cursor: 'pointer',
               }}
             >
@@ -1593,7 +1593,7 @@ function PersonalTab({
       {/* ── Card 2 — איש קשר אחראי (מינור → "נדרש אישור הורים") ─ */}
       <div style={cardStyle} dir="rtl">
         {isCoach && !editingDetails && <CardEditButton onClick={startEditDetails} />}
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 10 }}>
           {isMinor ? '👨‍👩‍👧 איש קשר אחראי (נדרש אישור הורים)' : '📞 איש קשר אחראי'}
         </div>
 
@@ -1615,13 +1615,13 @@ function PersonalTab({
             <div style={{ marginTop: 10 }}>
               {editingDetails ? (
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>קרבה</div>
+                  <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4 }}>קרבה</div>
                   <select
                     value={editFields.emergency_contact_relation ?? ''}
                     onChange={(e) => setEditFields(prev => ({ ...prev, emergency_contact_relation: e.target.value }))}
                     style={{
                       width: '100%', padding: '8px 10px', borderRadius: 12,
-                      border: '1px solid #FF6F20', fontSize: 14, direction: 'rtl',
+                      border: '1px solid var(--ag-accent)', fontSize: 14, direction: 'rtl',
                       background: '#FFF5EE', appearance: 'auto',
                     }}
                   >
@@ -1641,14 +1641,14 @@ function PersonalTab({
           </>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 8 }}>
-            <div style={{ fontSize: 13, color: '#888' }}>לא הוגדר איש קשר אחראי</div>
+            <div style={{ fontSize: 13, color: 'var(--ag-text-soft)' }}>לא הוגדר איש קשר אחראי</div>
             <button
               type="button"
               onClick={startEditDetails}
               style={{
                 padding: '8px 16px', borderRadius: 12,
-                background: '#FFFFFF', color: '#FF6F20',
-                border: '1px solid #FF6F20',
+                background: '#FFFFFF', color: 'var(--ag-accent)',
+                border: '1px solid var(--ag-accent)',
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
@@ -1659,7 +1659,7 @@ function PersonalTab({
 
       {/* ── Card 3 — ניהול חשבון ──────────────────────────────── */}
       <div style={cardStyle} dir="rtl">
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A', marginBottom: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 12 }}>
           ניהול חשבון
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1712,8 +1712,8 @@ function PersonalTab({
               padding: '12px 14px',
               borderRadius: 12,
               background: '#FFFFFF',
-              color: '#dc2626',
-              border: '1px solid #dc2626',
+              color: 'var(--ag-error)',
+              border: '1px solid var(--ag-error)',
               fontSize: 14,
               fontWeight: 700,
               cursor: 'pointer',
@@ -1732,7 +1732,7 @@ const cardStyle = {
   position: 'relative',
   background: '#FFFFFF',
   borderRadius: 14,
-  border: '1px solid #F0E4D0',
+  border: '1px solid var(--ag-border)',
   padding: 16,
   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };
@@ -1748,7 +1748,7 @@ function CardEditButton({ onClick }) {
         position: 'absolute', top: 10, insetInlineStart: 10,
         background: 'transparent', border: 'none',
         cursor: 'pointer', fontSize: 16, padding: 4,
-        color: '#FF6F20', lineHeight: 1,
+        color: 'var(--ag-accent)', lineHeight: 1,
       }}
     >✏️</button>
   );
@@ -1757,10 +1757,10 @@ function CardEditButton({ onClick }) {
 function FieldCell({ label, value }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 2 }}>{label}</div>
       <div style={{
         fontSize: 14,
-        color: value ? '#1A1A1A' : '#aaa',
+        color: value ? 'var(--ag-text)' : '#aaa',
         // Long emails / addresses must wrap onto a new line instead
         // of being chopped with an ellipsis. `overflowWrap: anywhere`
         // is the modern keyword that lets the browser break inside a
@@ -1784,11 +1784,11 @@ function AccountActionRow({ icon, label, onClick, danger }) {
       style={{
         width: '100%',
         padding: '12px 16px', borderRadius: 12,
-        border: '1px solid #F0E4D0', background: '#FFFFFF',
+        border: '1px solid var(--ag-border)', background: '#FFFFFF',
         display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
         gap: 10,
         fontSize: 14,
-        color: danger ? '#B91C1C' : '#1A1A1A',
+        color: danger ? '#B91C1C' : 'var(--ag-text)',
         cursor: 'pointer',
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
@@ -3808,7 +3808,7 @@ export default function TraineeProfile() {
               style={{
                 width: '100%',
                 padding: '12px 24px',
-                background: '#FF6F20',
+                background: 'var(--ag-accent)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 12,
@@ -3859,7 +3859,7 @@ export default function TraineeProfile() {
         {/* ===== ZONE 1: HEADER ===== */}
         {isCoach ? (
           /* Coach viewing trainee profile — full header */
-          <div style={{ backgroundColor: '#FF6F20' }}>
+          <div style={{ backgroundColor: 'var(--ag-accent)' }}>
             <div className="px-4 pt-3 pb-3">
               {/* Outer flex with justify-between so the status badge
                   is anchored to the far end (visual left in RTL),
@@ -3875,7 +3875,7 @@ export default function TraineeProfile() {
                       net. */}
                   <div style={{
                     width: 72, height: 72, borderRadius: '50%',
-                    background: '#FF6F20',
+                    background: 'var(--ag-accent)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
                     overflow: 'hidden',
@@ -3949,7 +3949,7 @@ export default function TraineeProfile() {
           </div>
         ) : (
           /* Trainee's own view — branded greeting header */
-          <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #FF6F20 0%, #FF8F4C 50%, #FFA96B 100%)' }}>
+          <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--ag-accent) 0%, #FF8F4C 50%, #FFA96B 100%)' }}>
             {/* Decorative circles */}
             <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full opacity-10 bg-white" />
             <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full opacity-10 bg-white" />
@@ -3975,7 +3975,7 @@ export default function TraineeProfile() {
                     circle, 3px white border, soft orange shadow. */}
                 <div style={{
                   width: 72, height: 72, borderRadius: '50%',
-                  background: '#FF6F20',
+                  background: 'var(--ag-accent)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                   overflow: 'hidden',
@@ -4046,13 +4046,13 @@ export default function TraineeProfile() {
                   className={`flex flex-col items-center justify-center rounded-xl transition-all active:scale-95
                     py-2.5 sm:py-3 md:py-3.5
                     ${isActive
-                      ? 'bg-[#FFF3EB] border-2 border-[#FF6F20] shadow-sm'
+                      ? 'bg-[#FFF3EB] border-2 border-[var(--ag-accent)] shadow-sm'
                       : 'bg-white border border-gray-100 hover:shadow-sm hover:border-gray-200'
                     }`}
                 >
                   {/* Emoji renders in native multi-color — no color override */}
                   <span style={{ fontSize: 20, lineHeight: 1, marginBottom: 3 }}>{tab.emoji}</span>
-                  <span className={`text-xs sm:text-sm font-bold leading-tight ${isActive ? 'text-[#FF6F20]' : 'text-gray-500'}`}>
+                  <span className={`text-xs sm:text-sm font-bold leading-tight ${isActive ? 'text-[var(--ag-accent)]' : 'text-gray-500'}`}>
                     {tab.label}
                   </span>
                 </button>
@@ -4102,7 +4102,7 @@ export default function TraineeProfile() {
                 {measurementsLoading && measurements.length === 0 && (
                   <InlineLoader message="טוען מדידות..." />
                 )}
-                <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#FF6F20]" />מדדים פיזיים</h2>
+                <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[var(--ag-accent)]" />מדדים פיזיים</h2>
 
                 {/* "מדידה ראשונה" snapshot — read directly from the
                     users row. Surfaces the height/weight the trainee
@@ -4112,19 +4112,19 @@ export default function TraineeProfile() {
                 {(user?.height_cm || user?.weight_kg) && (
                   <div style={{
                     padding: 12, borderRadius: 12,
-                    border: '1px solid #F0E4D0', background: '#FDF8F3',
+                    border: '1px solid var(--ag-border)', background: '#FDF8F3',
                     marginBottom: 8,
                   }}>
-                    <div style={{ fontSize: 12, color: '#888', marginBottom: 4, fontWeight: 600 }}>
+                    <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 4, fontWeight: 600 }}>
                       מדידה ראשונה (אונבורדינג)
                     </div>
                     {user.height_cm && (
-                      <div style={{ fontSize: 14, color: '#1a1a1a' }}>
+                      <div style={{ fontSize: 14, color: 'var(--ag-text)' }}>
                         גובה: <strong>{user.height_cm} ס״מ</strong>
                       </div>
                     )}
                     {user.weight_kg && (
-                      <div style={{ fontSize: 14, color: '#1a1a1a' }}>
+                      <div style={{ fontSize: 14, color: 'var(--ag-text)' }}>
                         משקל: <strong>{user.weight_kg} ק״ג</strong>
                       </div>
                     )}
@@ -4136,8 +4136,8 @@ export default function TraineeProfile() {
                       const bmi = w / Math.pow(h / 100, 2);
                       if (!Number.isFinite(bmi)) return null;
                       return (
-                        <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
-                          BMI: <strong style={{ color: '#1a1a1a' }}>{bmi.toFixed(1)}</strong>
+                        <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginTop: 4 }}>
+                          BMI: <strong style={{ color: 'var(--ag-text)' }}>{bmi.toFixed(1)}</strong>
                         </div>
                       );
                     })()}
@@ -4252,7 +4252,7 @@ export default function TraineeProfile() {
                 )}
                 <div className="flex justify-between items-center mb-3">
                   <div />
-                  <Button onClick={() => openBaselineDialog({ traineeId: user.id, traineeName: user.full_name })} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                  <Button onClick={() => openBaselineDialog({ traineeId: user.id, traineeName: user.full_name })} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid var(--ag-accent)', color: 'var(--ag-accent)' }}>
                     <Zap className="w-3 h-3 ml-1" />בייסליין חדש
                   </Button>
                 </div>
@@ -4265,8 +4265,8 @@ export default function TraineeProfile() {
                   loader on the first visit while the data lands. */}
               <TabsContent value="baselines" className="space-y-4 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-[#FF6F20]" />בייסליין</h2>
-                  <Button onClick={() => openBaselineDialog({ traineeId: user.id, traineeName: user.full_name })} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-[var(--ag-accent)]" />בייסליין</h2>
+                  <Button onClick={() => openBaselineDialog({ traineeId: user.id, traineeName: user.full_name })} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid var(--ag-accent)', color: 'var(--ag-accent)' }}>
                     <Plus className="w-3 h-3 ml-1" />הוסף בייסליין
                   </Button>
                 </div>
@@ -4284,7 +4284,7 @@ export default function TraineeProfile() {
                     session. The cards below stay as the detail/edit
                     surface; this is just a top-level read. */}
                 {baselines.length >= 1 && (() => {
-                  const TECH_COLORS = ['#FF6F20', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
+                  const TECH_COLORS = ['var(--ag-accent)', '#1D9E75', '#D85A30', '#1565C0', '#9C27B0'];
                   const TECH_LABELS = { basic: 'Basic', foot_switch: 'Foot Switch', high_knees: 'High Knees', criss: 'Criss-Cross' };
                   const techOf = (b) => b.technique || b.tab_name || b.name || 'basic';
                   const jpsOf = (b) => Number(b.baseline_score ?? b.jps ?? b.score ?? 0);
@@ -4350,7 +4350,7 @@ export default function TraineeProfile() {
                   };
                   return (
                     <div style={{
-                      background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+                      background: 'white', borderRadius: 14, border: '1px solid var(--ag-border)',
                       padding: 16, marginBottom: 4,
                     }}>
                       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
@@ -4358,10 +4358,10 @@ export default function TraineeProfile() {
                       </div>
                       <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }} onClick={onChartClick}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#F0E4D0" />
-                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#888' }} />
-                          <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: '#888' }} />
-                          <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--ag-border)" />
+                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--ag-text-soft)' }} />
+                          <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: 'var(--ag-text-soft)' }} />
+                          <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid var(--ag-border)', background: '#fff', fontSize: 12, direction: 'rtl' }} labelStyle={{ fontWeight: 600 }} />
                           {techNames.map((tech, i) => {
                             const label = TECH_LABELS[tech] || tech;
                             const color = TECH_COLORS[i % TECH_COLORS.length];
@@ -4369,7 +4369,7 @@ export default function TraineeProfile() {
                               <Line key={tech} type="monotone" dataKey={label} name={label}
                                 stroke={color} strokeWidth={2.5} connectNulls
                                 dot={{ r: 6, fill: color, stroke: 'white', strokeWidth: 2, cursor: 'pointer' }}
-                                activeDot={{ r: 9, fill: color, stroke: '#FF6F20', strokeWidth: 3, cursor: 'pointer' }} />
+                                activeDot={{ r: 9, fill: color, stroke: 'var(--ag-accent)', strokeWidth: 3, cursor: 'pointer' }} />
                             );
                           })}
                         </LineChart>
@@ -4379,7 +4379,7 @@ export default function TraineeProfile() {
                           const label = TECH_LABELS[tech] || tech;
                           const color = TECH_COLORS[i % TECH_COLORS.length];
                           return (
-                            <span key={tech} style={{ color: '#1A1A1A' }}>
+                            <span key={tech} style={{ color: 'var(--ag-text)' }}>
                               <span style={{ color }}>●</span> {label}
                             </span>
                           );
@@ -4440,7 +4440,7 @@ export default function TraineeProfile() {
                         return (
                           <div key={sessionKey} style={{
                             background: 'white', borderRadius: 14,
-                            border: '1px solid #F0E4D0',
+                            border: '1px solid var(--ag-border)',
                             overflow: 'hidden', direction: 'rtl',
                           }}>
                             {/* L1 — closed view (always visible, click toggles L2) */}
@@ -4451,12 +4451,12 @@ export default function TraineeProfile() {
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                 <div style={{ fontSize: 15, fontWeight: 600 }}>📋 בייסליין</div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ fontSize: 12, color: '#888' }}>{dateLabel} · {time}</span>
-                                  <span style={{ fontSize: 12, color: '#888', background: '#FDF8F3', padding: '2px 8px', borderRadius: 8 }}>
+                                  <span style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>{dateLabel} · {time}</span>
+                                  <span style={{ fontSize: 12, color: 'var(--ag-text-soft)', background: '#FDF8F3', padding: '2px 8px', borderRadius: 8 }}>
                                     {techniques.length} {techniques.length === 1 ? 'טכניקה' : 'טכניקות'}
                                   </span>
                                   <span style={{
-                                    fontSize: 14, color: '#888',
+                                    fontSize: 14, color: 'var(--ag-text-soft)',
                                     display: 'inline-block',
                                     transition: 'transform 0.2s',
                                     transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -4478,8 +4478,8 @@ export default function TraineeProfile() {
                                   }}>
                                     <span style={{ color: '#555' }}>{techName}</span>
                                     <div style={{ display: 'flex', gap: 12 }}>
-                                      <span style={{ color: '#888' }}>{total} קפיצות</span>
-                                      <span style={{ fontWeight: 700, color: '#FF6F20' }}>{jps} JPS</span>
+                                      <span style={{ color: 'var(--ag-text-soft)' }}>{total} קפיצות</span>
+                                      <span style={{ fontWeight: 700, color: 'var(--ag-accent)' }}>{jps} JPS</span>
                                     </div>
                                   </div>
                                 );
@@ -4490,7 +4490,7 @@ export default function TraineeProfile() {
                             {isExpanded && (
                               <div style={{
                                 padding: '0 14px 14px',
-                                borderTop: '1px solid #F0E4D0',
+                                borderTop: '1px solid var(--ag-border)',
                               }}>
                                 {techniques.map((t, idx) => {
                                   const techKey = t.technique || t.tab_name || t.name || 'בסיס';
@@ -4516,30 +4516,30 @@ export default function TraineeProfile() {
                                       }}
                                       style={{
                                         background: '#FDF8F3', borderRadius: 12, padding: 12,
-                                        marginTop: 10, border: '1px solid #F0E4D0',
+                                        marginTop: 10, border: '1px solid var(--ag-border)',
                                         cursor: 'pointer',
                                       }}
                                     >
                                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ fontSize: 14, fontWeight: 600, color: '#FF6F20' }}>{techName}</div>
-                                        <div style={{ fontSize: 12, color: '#888' }}>לחץ לצפייה בטופס →</div>
+                                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ag-accent)' }}>{techName}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>לחץ לצפייה בטופס →</div>
                                       </div>
                                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 13 }}>
                                         <div style={{ textAlign: 'center' }}>
-                                          <div style={{ fontSize: 11, color: '#888' }}>סה״כ</div>
+                                          <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>סה״כ</div>
                                           <div style={{ fontWeight: 600 }}>{total}</div>
                                         </div>
                                         <div style={{ textAlign: 'center' }}>
-                                          <div style={{ fontSize: 11, color: '#888' }}>ממוצע</div>
+                                          <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>ממוצע</div>
                                           <div style={{ fontWeight: 600 }}>{avg}</div>
                                         </div>
                                         <div style={{ textAlign: 'center' }}>
-                                          <div style={{ fontSize: 11, color: '#888' }}>שיא</div>
+                                          <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>שיא</div>
                                           <div style={{ fontWeight: 600, color: '#D85A30' }}>{best}</div>
                                         </div>
                                         <div style={{ textAlign: 'center' }}>
-                                          <div style={{ fontSize: 11, color: '#888' }}>JPS</div>
-                                          <div style={{ fontWeight: 700, color: '#FF6F20' }}>{jps}</div>
+                                          <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>JPS</div>
+                                          <div style={{ fontWeight: 700, color: 'var(--ag-accent)' }}>{jps}</div>
                                         </div>
                                       </div>
                                     </div>
@@ -4560,9 +4560,9 @@ export default function TraineeProfile() {
               {/* Services Tab */}
               <TabsContent value="services" className="space-y-6 w-full" dir="rtl">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><Package className="w-5 h-5 text-[#FF6F20]" />שירותים וחבילות</h2>
+                  <h2 className="text-lg font-bold flex items-center gap-2"><Package className="w-5 h-5 text-[var(--ag-accent)]" />שירותים וחבילות</h2>
                   {isCoach && (
-                    <Button onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid #FF6F20', color: '#FF6F20' }}>
+                    <Button onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} variant="ghost" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px]" style={{ border: '1px solid var(--ag-accent)', color: 'var(--ag-accent)' }}>
                       <Plus className="w-3 h-3 ml-1" />הוסף שירות
                     </Button>
                   )}
@@ -4575,7 +4575,7 @@ export default function TraineeProfile() {
                     const isPersonal = svcType === 'personal' || svcType.includes('אישי');
                     const isGroup = svcType === 'group' || svcType.includes('קבוצ');
                     const typeLabel = isPersonal ? 'אישי' : isGroup ? 'קבוצתי' : 'אונליין';
-                    const typeColor = isPersonal ? '#FF6F20' : isGroup ? '#2196F3' : '#9C27B0';
+                    const typeColor = isPersonal ? 'var(--ag-accent)' : isGroup ? '#2196F3' : '#9C27B0';
                     const total = service.total_sessions || service.sessions_count || 0;
                     const used = service.used_sessions || 0;
                     const remaining = total > 0 ? total - used : null;
@@ -4625,15 +4625,15 @@ export default function TraineeProfile() {
                                   <div className="flex items-center gap-2">
                                     {isCoach && (
                                       <button onClick={(e) => { e.stopPropagation(); adjustPackageBalance(service, 'refund'); }}
-                                        style={{ width:24, height:24, borderRadius:'50%', background:'#dcfce7', border:'none', color:'#16a34a', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
+                                        style={{ width:24, height:24, borderRadius:'50%', background:'#dcfce7', border:'none', color:'var(--ag-success)', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
                                     )}
                                     <span className="font-bold text-lg" style={{ color: typeColor }}>{used}</span>
                                     <span className="text-gray-400 font-medium">/ {total}</span>
                                     {isCoach && (
                                       <button onClick={(e) => { e.stopPropagation(); adjustPackageBalance(service, 'use'); }}
-                                        style={{ width:24, height:24, borderRadius:'50%', background:'#fee2e2', border:'none', color:'#dc2626', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>+</button>
+                                        style={{ width:24, height:24, borderRadius:'50%', background:'#fee2e2', border:'none', color:'var(--ag-error)', fontSize:16, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>+</button>
                                     )}
-                                    {isCoach && <Button onClick={(e) => { e.stopPropagation(); setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[#FF6F20]"><Edit2 className="w-3 h-3" /></Button>}
+                                    {isCoach && <Button onClick={(e) => { e.stopPropagation(); setEditingUsage(service.id); setUsageValue(String(used)); }} variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-[var(--ag-accent)]"><Edit2 className="w-3 h-3" /></Button>}
                                   </div>
                                 )}
                               </div>
@@ -4679,7 +4679,7 @@ export default function TraineeProfile() {
                                 }}>
                                 <Trash2 className="w-3 h-3 ml-1" />מחק
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-xs h-9 text-[#FF6F20] hover:bg-orange-50" onClick={() => openEditService(service)}>
+                              <Button variant="ghost" size="sm" className="text-xs h-9 text-[var(--ag-accent)] hover:bg-orange-50" onClick={() => openEditService(service)}>
                                 <Edit2 className="w-3 h-3 ml-1" />ערוך
                               </Button>
                             </div>
@@ -4692,7 +4692,7 @@ export default function TraineeProfile() {
                     <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                       <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
                       <p className="text-gray-500">אין חבילות פעילות</p>
-                      {isCoach && <Button variant="link" onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} className="text-[#FF6F20]">הוסף חבילה ראשונה</Button>}
+                      {isCoach && <Button variant="link" onClick={() => { setEditingService(null); setServiceForm({ service_type: "personal", group_name: "", billing_model: "punch_card", sessions_per_week: "", package_name: "", base_price: "", discount_type: "none", discount_value: 0, final_price: "", payment_method: "credit", start_date: new Date().toISOString().split('T')[0], end_date: "", next_billing_date: "", total_sessions: "", payment_status: "ממתין לתשלום", notes_internal: "", status: "active" }); setShowAddService(true); }} className="text-[var(--ag-accent)]">הוסף חבילה ראשונה</Button>}
                     </div>
                   )}
                 </div>
@@ -4728,7 +4728,7 @@ export default function TraineeProfile() {
                                 <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{derivedStatus}</span></td>
                                 {isCoach && (
                                   <td className="px-3 py-2 text-right">
-                                    <Button onClick={() => openEditService(s)} variant="ghost" size="sm" className="h-7 px-2 text-xs text-[#FF6F20] hover:bg-orange-50">
+                                    <Button onClick={() => openEditService(s)} variant="ghost" size="sm" className="h-7 px-2 text-xs text-[var(--ag-accent)] hover:bg-orange-50">
                                       <Edit2 className="w-3 h-3 ml-1" />ערוך
                                     </Button>
                                   </td>
@@ -4750,7 +4750,7 @@ export default function TraineeProfile() {
                 )}
                 <div className="flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-[#FF6F20]" />
+                    <Calendar className="w-5 h-5 text-[var(--ag-accent)]" />
                     מפגשים
                     {/* Total / completed counter — shows the full
                         history including cancelled rows. "Completed"
@@ -4772,7 +4772,7 @@ export default function TraineeProfile() {
                     })()}
                   </h2>
                   {isCoach && (
-                    <Button onClick={() => setShowAddSession(true)} size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px] text-white" style={{ background: '#FF6F20' }}>
+                    <Button onClick={() => setShowAddSession(true)} size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px] text-white" style={{ background: 'var(--ag-accent)' }}>
                       <Plus className="w-3 h-3 ml-1" />הוסף מפגש
                     </Button>
                   )}
@@ -4788,7 +4788,7 @@ export default function TraineeProfile() {
                   return (
                     <div className="grid grid-cols-3 gap-2">
                       <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
-                        <div className="text-xl font-black text-[#FF6F20]">{thisWeek.length}</div>
+                        <div className="text-xl font-black text-[var(--ag-accent)]">{thisWeek.length}</div>
                         <div className="text-[10px] text-gray-500 font-medium">השבוע</div>
                       </div>
                       <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
@@ -4907,7 +4907,7 @@ export default function TraineeProfile() {
                                   <SelectTrigger className="h-8 text-xs w-auto min-w-[70px] border-gray-200"><SelectValue /></SelectTrigger>
                                   <SelectContent position="popper" side="top" sideOffset={4}><SelectItem value="ממתין">ממתין</SelectItem><SelectItem value="מאושר">מאושר</SelectItem><SelectItem value="הגיע">הגיע</SelectItem><SelectItem value="לא הגיע">לא הגיע</SelectItem><SelectItem value="בוטל">בוטל</SelectItem><SelectItem value="הושלם">הושלם ✓</SelectItem></SelectContent>
                                 </Select>
-                                <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[#FF6F20]"
+                                <Button variant="ghost" size="icon" className="w-8 h-8 text-gray-400 hover:text-[var(--ag-accent)]"
                                   onClick={() => { setEditingSession(session); setShowEditSession(true); }}>
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </Button>
@@ -5094,7 +5094,7 @@ export default function TraineeProfile() {
                     style={{
                       width: '100%',
                       padding: '12px 24px',
-                      background: '#FF6F20',
+                      background: 'var(--ag-accent)',
                       color: 'white',
                       border: 'none',
                       borderRadius: 12,
@@ -5128,7 +5128,7 @@ export default function TraineeProfile() {
                 )}
 
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-[#FF6F20]" />תוכניות אימון</h2>
+                  <h2 className="text-lg font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-[var(--ag-accent)]" />תוכניות אימון</h2>
                 </div>
 
                 {/* New-plan CTA (coach only) — opens the existing
@@ -5143,9 +5143,9 @@ export default function TraineeProfile() {
                       width: '100%',
                       padding: 14,
                       background: 'white',
-                      border: '1.5px dashed #FF6F20',
+                      border: '1.5px dashed var(--ag-accent)',
                       borderRadius: 14,
-                      color: '#FF6F20',
+                      color: 'var(--ag-accent)',
                       fontSize: 15,
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -5181,9 +5181,9 @@ export default function TraineeProfile() {
                   if (filtered.length === 0) {
                     return (
                       <div style={{
-                        textAlign: 'center', padding: 40, color: '#888',
+                        textAlign: 'center', padding: 40, color: 'var(--ag-text-soft)',
                         background: '#FAFAFA', borderRadius: 14,
-                        border: '1px solid #F0E4D0',
+                        border: '1px solid var(--ag-border)',
                       }}>
                         אין תוכניות בפילטר הזה
                       </div>
@@ -5215,7 +5215,7 @@ export default function TraineeProfile() {
                   return (
                     <div>
                       <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ background: '#FF6F20' }} />
+                        <span className="w-2 h-2 rounded-full" style={{ background: 'var(--ag-accent)' }} />
                         ביצועים אחרונים ({traineeExecutions.length})
                       </h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -5269,7 +5269,7 @@ export default function TraineeProfile() {
 
               {/* Messages Tab */}
               <TabsContent value="messages" className="space-y-4 w-full" dir="rtl">
-                <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5 text-[#FF6F20]" />שיחה עם המאמן</h2>
+                <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5 text-[var(--ag-accent)]" />שיחה עם המאמן</h2>
                 {user && coach ? (
                   <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
                     <ErrorBoundary fallback={<div className="text-center py-8 text-sm text-gray-500">טעינת ההודעות נכשלה. נסה לרענן את הדף.</div>}>
@@ -5293,7 +5293,7 @@ export default function TraineeProfile() {
                     <button
                       onClick={() => setShowDocPicker(true)}
                       style={{
-                        width: '100%', padding: 14, background: '#FF6F20', color: '#FFFFFF',
+                        width: '100%', padding: 14, background: 'var(--ag-accent)', color: '#FFFFFF',
                         border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15,
                         marginBottom: 16, cursor: 'pointer',
                       }}>
@@ -5359,7 +5359,7 @@ export default function TraineeProfile() {
                 aria-label="סגור"
                 style={{
                   position: 'absolute', top: 10, left: 10, background: 'none',
-                  border: 'none', fontSize: 22, cursor: 'pointer', color: '#888',
+                  border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ag-text-soft)',
                 }}
               >✕</button>
 
@@ -5369,21 +5369,21 @@ export default function TraineeProfile() {
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>שם היעד *</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>שם היעד *</div>
                 <input
                   value={newGoalForm.goalName}
                   onChange={(e) => setNewGoalForm(f => ({ ...f, goalName: e.target.value }))}
                   placeholder="למשל: 10 עליות מתח, לרדת 5 קילו..."
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 14, direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>קטגוריה</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>קטגוריה</div>
                 <select
                   value={newGoalForm.category}
                   onChange={(e) => setNewGoalForm(f => ({ ...f, category: e.target.value }))}
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: 'white', appearance: 'auto' }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 14, direction: 'rtl', background: 'white', appearance: 'auto' }}
                 >
                   <option value="strength">כוח</option>
                   <option value="skill">מיומנות</option>
@@ -5395,11 +5395,11 @@ export default function TraineeProfile() {
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>קישור לתרגיל (אופציונלי)</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>קישור לתרגיל (אופציונלי)</div>
                 <select
                   value={newGoalForm.exerciseName}
                   onChange={(e) => setNewGoalForm(f => ({ ...f, exerciseName: e.target.value }))}
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', background: 'white', appearance: 'auto' }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 14, direction: 'rtl', background: 'white', appearance: 'auto' }}
                 >
                   <option value="">ללא קישור לתרגיל</option>
                   {DEFAULT_EXERCISES.map(ex => (
@@ -5413,28 +5413,28 @@ export default function TraineeProfile() {
                     value={newGoalForm.customExerciseName}
                     onChange={(e) => setNewGoalForm(f => ({ ...f, customExerciseName: e.target.value }))}
                     placeholder="שם התרגיל"
-                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', marginTop: 6, boxSizing: 'border-box', outline: 'none' }}
+                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 14, direction: 'rtl', marginTop: 6, boxSizing: 'border-box', outline: 'none' }}
                   />
                 )}
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                 <div style={{ flex: 2 }}>
-                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך מטרה</div>
+                  <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>ערך מטרה</div>
                   <input
                     type="number"
                     value={newGoalForm.targetValue}
                     onChange={(e) => setNewGoalForm(f => ({ ...f, targetValue: e.target.value }))}
                     placeholder="10"
-                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 16, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
+                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 16, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>יחידה</div>
+                  <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>יחידה</div>
                   <select
                     value={newGoalForm.targetUnit}
                     onChange={(e) => setNewGoalForm(f => ({ ...f, targetUnit: e.target.value }))}
-                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, background: 'white', appearance: 'auto' }}
+                    style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 14, background: 'white', appearance: 'auto' }}
                   >
                     {RECORD_UNITS.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
                     <option value="percent">אחוזים</option>
@@ -5443,23 +5443,23 @@ export default function TraineeProfile() {
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך נוכחי</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>ערך נוכחי</div>
                 <input
                   type="number"
                   value={newGoalForm.currentValue}
                   onChange={(e) => setNewGoalForm(f => ({ ...f, currentValue: e.target.value }))}
                   placeholder="מאיפה מתחילים?"
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 16, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 16, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הערות</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>הערות</div>
                 <textarea
                   value={newGoalForm.notes}
                   onChange={(e) => setNewGoalForm(f => ({ ...f, notes: e.target.value }))}
                   placeholder="פרטים נוספים..."
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', minHeight: 60, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 14, direction: 'rtl', minHeight: 60, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
@@ -5469,7 +5469,7 @@ export default function TraineeProfile() {
                 disabled={!newGoalForm.goalName.trim()}
                 style={{
                   width: '100%', padding: 14, borderRadius: 14, border: 'none',
-                  background: newGoalForm.goalName.trim() ? '#FF6F20' : '#ccc',
+                  background: newGoalForm.goalName.trim() ? 'var(--ag-accent)' : '#ccc',
                   color: 'white', fontSize: 16, fontWeight: 600,
                   cursor: newGoalForm.goalName.trim() ? 'pointer' : 'default',
                 }}
@@ -5505,7 +5505,7 @@ export default function TraineeProfile() {
                 aria-label="סגור"
                 style={{
                   position: 'absolute', top: 10, left: 10, background: 'none',
-                  border: 'none', fontSize: 22, cursor: 'pointer', color: '#888',
+                  border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ag-text-soft)',
                 }}
               >✕</button>
 
@@ -5517,7 +5517,7 @@ export default function TraineeProfile() {
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>ערך נוכחי</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>ערך נוכחי</div>
                 <input
                   type="number"
                   value={updateValue}
@@ -5530,30 +5530,30 @@ export default function TraineeProfile() {
                     }
                   }}
                   placeholder={updatingGoalProgress.latest?.current_value != null ? String(updatingGoalProgress.latest.current_value) : '0'}
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 18, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 18, fontWeight: 600, textAlign: 'center', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>אחוז התקדמות (0-100)</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>אחוז התקדמות (0-100)</div>
                 <input
                   type="range" min="0" max="100"
                   value={updateProgress}
                   onChange={(e) => setUpdateProgress(Number(e.target.value))}
                   style={{ width: '100%' }}
                 />
-                <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 600, color: '#FF6F20' }}>
+                <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 600, color: 'var(--ag-accent)' }}>
                   {updateProgress}%
                 </div>
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>הערות</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>הערות</div>
                 <textarea
                   value={updateNotes}
                   onChange={(e) => setUpdateNotes(e.target.value)}
                   placeholder="מה השתנה? איך ההרגשה?"
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid #F0E4D0', fontSize: 14, direction: 'rtl', minHeight: 60, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: '1px solid var(--ag-border)', fontSize: 14, direction: 'rtl', minHeight: 60, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
 
@@ -5562,7 +5562,7 @@ export default function TraineeProfile() {
                 onClick={commitGoalProgressUpdate}
                 style={{
                   width: '100%', padding: 14, borderRadius: 14, border: 'none',
-                  background: '#FF6F20', color: 'white', fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                  background: 'var(--ag-accent)', color: 'white', fontSize: 16, fontWeight: 600, cursor: 'pointer',
                 }}
               >
                 💾 שמור עדכון
@@ -5578,7 +5578,7 @@ export default function TraineeProfile() {
             <div className="space-y-5">
               {/* ── פרטים אישיים ── */}
               <div>
-                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">פרטים אישיים</h3>
+                <h3 className="text-sm font-bold text-[var(--ag-accent)] mb-2">פרטים אישיים</h3>
                 <div className="space-y-3">
                   <div><Label className="text-xs text-gray-500 mb-1 block">שם מלא</Label><Input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className="rounded-lg" /></div>
                   <div className="grid grid-cols-2 gap-3">
@@ -5610,7 +5610,7 @@ export default function TraineeProfile() {
 
               {/* ── בריאות ── */}
               <div>
-                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">בריאות</h3>
+                <h3 className="text-sm font-bold text-[var(--ag-accent)] mb-2">בריאות</h3>
                 <div className="space-y-3">
                   <div><Label className="text-xs text-gray-500 mb-1 block">בעיות בריאות / פציעות</Label><Textarea value={formData.health_issues} onChange={e => setFormData({ ...formData, health_issues: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
                   <div><Label className="text-xs text-gray-500 mb-1 block">היסטוריה רפואית</Label><Textarea value={formData.medical_history} onChange={e => setFormData({ ...formData, medical_history: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
@@ -5619,7 +5619,7 @@ export default function TraineeProfile() {
 
               {/* ── חירום ── */}
               <div>
-                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">איש קשר לחירום</h3>
+                <h3 className="text-sm font-bold text-[var(--ag-accent)] mb-2">איש קשר לחירום</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label className="text-xs text-gray-500 mb-1 block">שם</Label><Input value={formData.emergency_contact_name} onChange={e => setFormData({ ...formData, emergency_contact_name: e.target.value })} className="rounded-lg" /></div>
                   <div><Label className="text-xs text-gray-500 mb-1 block">טלפון</Label><Input value={formData.emergency_contact_phone} onChange={e => setFormData({ ...formData, emergency_contact_phone: e.target.value })} className="rounded-lg" /></div>
@@ -5630,8 +5630,8 @@ export default function TraineeProfile() {
                       onChange={e => setFormData({ ...formData, emergency_contact_relation: e.target.value })}
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: 12,
-                        border: '1px solid #F0E4D0', background: '#FFFFFF',
-                        fontSize: 14, direction: 'rtl', color: '#1A1A1A',
+                        border: '1px solid var(--ag-border)', background: '#FFFFFF',
+                        fontSize: 14, direction: 'rtl', color: 'var(--ag-text)',
                         outline: 'none', boxSizing: 'border-box',
                         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
@@ -5649,7 +5649,7 @@ export default function TraineeProfile() {
 
               {/* ── הערות ── */}
               <div>
-                <h3 className="text-sm font-bold text-[#FF6F20] mb-2">הערות</h3>
+                <h3 className="text-sm font-bold text-[var(--ag-accent)] mb-2">הערות</h3>
                 <div className="space-y-3">
                   <div><Label className="text-xs text-gray-500 mb-1 block">ביוגרפיה</Label><Textarea value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
                   <div><Label className="text-xs text-gray-500 mb-1 block">הערות כלליות</Label><Textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} className="rounded-lg resize-none min-h-[60px]" /></div>
@@ -5657,7 +5657,7 @@ export default function TraineeProfile() {
                 </div>
               </div>
 
-              <Button onClick={handleSave} disabled={updateUserMutation.isPending || updateTargetUserMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+              <Button onClick={handleSave} disabled={updateUserMutation.isPending || updateTargetUserMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: 'var(--ag-accent)' }}>
                 {updateUserMutation.isPending || updateTargetUserMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />שומר...</> : 'שמור שינויים'}
               </Button>
             </div>
@@ -5683,7 +5683,7 @@ export default function TraineeProfile() {
                 <input type="checkbox" id="approved" checked={healthForm.approved} onChange={e => setHealthForm({ ...healthForm, approved: e.target.checked })} className="w-5 h-5" />
                 <Label htmlFor="approved" className="cursor-pointer text-sm">אני מאשר/ת שהמידע שמסרתי נכון ומדויק</Label>
               </div>
-              <Button onClick={handleHealthUpdate} disabled={updateHealthMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+              <Button onClick={handleHealthUpdate} disabled={updateHealthMutation.isPending} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: 'var(--ag-accent)' }}>
                 {updateHealthMutation.isPending ? 'שומר...' : 'אשר והמשך'}
               </Button>
             </div>
@@ -5886,9 +5886,9 @@ export default function TraineeProfile() {
               <div><Label className="text-sm font-bold block mb-1">סיסמה חדשה</Label><Input type="password" placeholder="לפחות 6 תווים" value={passwordForm.newPass} onChange={e => setPasswordForm({ ...passwordForm, newPass: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
               <div><Label className="text-sm font-bold block mb-1">אישור סיסמה חדשה</Label><Input type="password" placeholder="הכנס שוב" value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })} className="rounded-lg h-11" style={{ direction: 'ltr', fontSize: 16 }} /></div>
               {passwordForm.newPass && passwordForm.confirm && passwordForm.newPass !== passwordForm.confirm && (
-                <div style={{ fontSize: 12, color: '#dc2626' }}>הסיסמאות לא תואמות</div>
+                <div style={{ fontSize: 12, color: 'var(--ag-error)' }}>הסיסמאות לא תואמות</div>
               )}
-              <Button onClick={handlePasswordChange} disabled={passwordLoading || !passwordForm.currentPass || !passwordForm.newPass || passwordForm.newPass !== passwordForm.confirm || passwordForm.newPass.length < 6} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: '#FF6F20' }}>
+              <Button onClick={handlePasswordChange} disabled={passwordLoading || !passwordForm.currentPass || !passwordForm.newPass || passwordForm.newPass !== passwordForm.confirm || passwordForm.newPass.length < 6} className="w-full font-bold text-white rounded-lg min-h-[44px]" style={{ backgroundColor: 'var(--ag-accent)' }}>
                 {passwordLoading ? 'שומר...' : '🔒 שנה סיסמה'}
               </Button>
             </div>
@@ -5921,20 +5921,20 @@ export default function TraineeProfile() {
                 style={{
                   position: 'absolute', top: 10, left: 10,
                   background: 'none', border: 'none', fontSize: 22,
-                  cursor: 'pointer', color: '#888',
+                  cursor: 'pointer', color: 'var(--ag-text-soft)',
                 }}
               >✕</button>
 
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>🔑</div>
                 <div style={{ fontSize: 18, fontWeight: 600 }}>איפוס סיסמה</div>
-                <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginTop: 4 }}>
                   {user?.full_name}
                 </div>
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>סיסמה חדשה</div>
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>סיסמה חדשה</div>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showPw ? 'text' : 'password'}
@@ -5943,7 +5943,7 @@ export default function TraineeProfile() {
                     placeholder="לפחות 6 תווים"
                     style={{
                       width: '100%', padding: '10px 40px 10px 12px',
-                      borderRadius: 12, border: '1px solid #F0E4D0',
+                      borderRadius: 12, border: '1px solid var(--ag-border)',
                       fontSize: 14, direction: 'rtl', boxSizing: 'border-box',
                       outline: 'none',
                     }}
@@ -5970,7 +5970,7 @@ export default function TraineeProfile() {
                 disabled={resetPwInput.length < 6 || resetPwSaving}
                 style={{
                   width: '100%', padding: 14, borderRadius: 14, border: 'none',
-                  background: resetPwInput.length >= 6 && !resetPwSaving ? '#FF6F20' : '#ccc',
+                  background: resetPwInput.length >= 6 && !resetPwSaving ? 'var(--ag-accent)' : '#ccc',
                   color: 'white', fontSize: 16, fontWeight: 600,
                   cursor: resetPwInput.length >= 6 && !resetPwSaving ? 'pointer' : 'default',
                 }}
@@ -5983,7 +5983,7 @@ export default function TraineeProfile() {
                   type="button"
                   onClick={handleEmailResetLink}
                   style={{
-                    background: 'none', border: 'none', color: '#888',
+                    background: 'none', border: 'none', color: 'var(--ag-text-soft)',
                     fontSize: 13, cursor: 'pointer', textDecoration: 'underline',
                   }}
                 >
@@ -6161,7 +6161,7 @@ export default function TraineeProfile() {
                     onClick={() => setRemoveStage('confirmDelete')}
                     disabled={removingUser}
                     className="flex-1 rounded-xl font-bold text-white"
-                    style={{ background: '#dc2626' }}
+                    style={{ background: 'var(--ag-error)' }}
                   >
                     מחק לצמיתות
                   </Button>
@@ -6356,7 +6356,7 @@ export default function TraineeProfile() {
                     }}
                     disabled={removingUser}
                     className="flex-1 rounded-xl font-bold text-white"
-                    style={{ background: '#dc2626' }}
+                    style={{ background: 'var(--ag-error)' }}
                   >
                     {removingUser ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />מוחק...</> : 'כן, מחק הכל'}
                   </Button>
@@ -6371,7 +6371,7 @@ export default function TraineeProfile() {
           <DialogContent className="w-[95vw] max-w-lg max-h-[85vh] overflow-y-auto bg-white" dir="rtl">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                <Package className="w-5 h-5 text-[#FF6F20]" />
+                <Package className="w-5 h-5 text-[var(--ag-accent)]" />
                 {selectedPackageHistory?.package_name || 'חבילה'}
               </DialogTitle>
             </DialogHeader>
@@ -6395,7 +6395,7 @@ export default function TraineeProfile() {
                       <span className="text-sm font-bold text-gray-700">{remaining} מפגשים נותרו ביתרה</span>
                     </div>
                     <div className="h-3 bg-white rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: '#FF6F20' }} />
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: 'var(--ag-accent)' }} />
                     </div>
                     <div className="text-center text-xs text-gray-500 font-medium">{used} / {total} מפגשים</div>
                   </div>
@@ -6407,7 +6407,7 @@ export default function TraineeProfile() {
                       <button
                         onClick={() => { fetchUnlinkedSessions(); setShowLinkSession(true); }}
                         style={{
-                          background: '#FF6F20', color: 'white',
+                          background: 'var(--ag-accent)', color: 'white',
                           border: 'none', borderRadius: 10,
                           padding: '6px 12px', fontSize: 11,
                           fontWeight: 600, cursor: 'pointer',
@@ -6416,7 +6416,7 @@ export default function TraineeProfile() {
                     </div>
                     {packageSessionsLoading ? (
                       <div className="flex items-center justify-center py-8">
-                        <Loader2 className="w-6 h-6 animate-spin text-[#FF6F20]" />
+                        <Loader2 className="w-6 h-6 animate-spin text-[var(--ag-accent)]" />
                       </div>
                     ) : packageSessions.length === 0 ? (
                       <div className="text-center py-6 text-gray-400 text-sm">אין מפגשים מקושרים לחבילה זו</div>
@@ -6480,14 +6480,14 @@ export default function TraineeProfile() {
             justifyContent: 'center', padding: 20,
           }}>
             <div onClick={e => e.stopPropagation()} style={{
-              background: '#FFF9F0', borderRadius: 20,
+              background: 'var(--ag-bg)', borderRadius: 20,
               padding: 20, width: '100%', maxWidth: 360,
               direction: 'rtl', maxHeight: '85vh', overflowY: 'auto',
             }}>
               <div style={{ fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>📅 שייך מפגש לחבילה</div>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>מפגשים שלא משויכים לאף חבילה:</div>
+              <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 10 }}>מפגשים שלא משויכים לאף חבילה:</div>
               {unlinkedSessions.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#888', padding: 20, fontSize: 13 }}>כל המפגשים כבר משויכים</div>
+                <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 20, fontSize: 13 }}>כל המפגשים כבר משויכים</div>
               ) : unlinkedSessions.map(s => {
                 const isDone = s.status === 'התקיים' || s.status === 'completed' || s.status === 'הושלם';
                 return (
@@ -6495,21 +6495,21 @@ export default function TraineeProfile() {
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: 10, background: 'white', borderRadius: 12,
                     marginBottom: 6, cursor: 'pointer',
-                    border: '0.5px solid #F0E4D0',
+                    border: '0.5px solid var(--ag-border)',
                   }}>
                     <div style={{ fontSize: 14 }}>{isDone ? '✅' : '📅'}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>
                         {s.date ? new Date(s.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '—'}
                       </div>
-                      <div style={{ fontSize: 10, color: '#888' }}>{s.status || ''} {s.time ? '· ' + s.time : ''}</div>
+                      <div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>{s.status || ''} {s.time ? '· ' + s.time : ''}</div>
                     </div>
-                    <div style={{ fontSize: 12, color: '#FF6F20', fontWeight: 600 }}>שייך ←</div>
+                    <div style={{ fontSize: 12, color: 'var(--ag-accent)', fontWeight: 600 }}>שייך ←</div>
                   </div>
                 );
               })}
               <div onClick={() => setShowLinkSession(false)} style={{
-                textAlign: 'center', padding: 10, color: '#888', fontSize: 14,
+                textAlign: 'center', padding: 10, color: 'var(--ag-text-soft)', fontSize: 14,
                 cursor: 'pointer', marginTop: 6,
               }}>סגור</div>
             </div>
@@ -6524,10 +6524,10 @@ export default function TraineeProfile() {
                 {deductDialog.targetStatus === 'בוטל' ? 'ביטול מפגש' : 'השלמת מפגש'}
               </div>
               <div style={{fontSize:'15px',color:'#555',marginBottom:'16px',lineHeight:1.6}}>
-                יש חבילה פעילה עם{' '}<strong style={{color:'#FF6F20'}}>{deductDialog.pkg.remaining_sessions} מפגשים</strong>{' '}נותרים.
+                יש חבילה פעילה עם{' '}<strong style={{color:'var(--ag-accent)'}}>{deductDialog.pkg.remaining_sessions} מפגשים</strong>{' '}נותרים.
                 <br/>האם לקזז מפגש מהחבילה?
               </div>
-              <div style={{background:'#FFF0E8',borderRadius:'10px',padding:'10px 14px',marginBottom:'20px',fontSize:'14px',color:'#FF6F20',fontWeight:'700'}}>
+              <div style={{background:'#FFF0E8',borderRadius:'10px',padding:'10px 14px',marginBottom:'20px',fontSize:'14px',color:'var(--ag-accent)',fontWeight:'700'}}>
                 לאחר קיזוז: {Math.max(0, deductDialog.pkg.remaining_sessions - 1)} מפגשים
               </div>
               <div style={{display:'flex',gap:'10px'}}>
@@ -6571,7 +6571,7 @@ export default function TraineeProfile() {
                   const label = st === 'בוטל' ? 'בוטל' : 'הושלם';
                   toast.success(rem === 0 ? `✓ ${label} | החבילה הסתיימה` : rem === 1 ? `✓ ${label} | נותר מפגש אחד` : `✓ ${label} | יתרה: ${rem} מפגשים`);
                 }}
-                  style={{flex:2,height:'46px',background:'#FF6F20',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>קזז מהחבילה ✓</button>
+                  style={{flex:2,height:'46px',background:'var(--ag-accent)',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>קזז מהחבילה ✓</button>
               </div>
               <button onClick={() => setDeductDialog(null)} style={{width:'100%',marginTop:'10px',background:'none',border:'none',color:'#999',fontSize:'14px',cursor:'pointer',padding:'8px'}}>ביטול</button>
             </div>
@@ -6599,7 +6599,7 @@ export default function TraineeProfile() {
                   window.dispatchEvent(new CustomEvent('data-changed'));
                   toast.success(st === 'בוטל' ? '✓ מפגש בוטל' : '✓ מפגש הושלם');
                 }}
-                  style={{flex:2,height:'46px',background:'#FF6F20',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>
+                  style={{flex:2,height:'46px',background:'var(--ag-accent)',color:'white',border:'none',borderRadius:'10px',fontSize:'16px',fontWeight:'900',cursor:'pointer'}}>
                   {deductDialog.targetStatus === 'בוטל' ? 'בטל מפגש ✓' : 'השלם ללא קיזוז ✓'}
                 </button>
               </div>
@@ -6656,7 +6656,7 @@ export default function TraineeProfile() {
                         fontSize: 14, fontWeight: 800,
                       }}>{opt.icon}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#1A1A1A', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--ag-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                           {opt.label}
                           {isCurrent && (
                             <span style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF' }}>(נוכחי)</span>
@@ -6671,7 +6671,7 @@ export default function TraineeProfile() {
                 })
               ) : (
                 <>
-                  <div style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6, padding: '8px 0' }}>
+                  <div style={{ fontSize: 14, color: 'var(--ag-text)', lineHeight: 1.6, padding: '8px 0' }}>
                     לשנות את הסטטוס של <strong>{user.full_name}</strong> ל-
                     <strong style={{ color: STATUS_BY_KEY[pendingStatus]?.badgeFg }}>
                       {' '}{STATUS_BY_KEY[pendingStatus]?.label}
@@ -6705,7 +6705,7 @@ export default function TraineeProfile() {
                       disabled={statusSaving}
                       style={{
                         flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
-                        background: '#FF6F20', color: '#FFFFFF',
+                        background: 'var(--ag-accent)', color: '#FFFFFF',
                         fontSize: 14, fontWeight: 800,
                         cursor: statusSaving ? 'wait' : 'pointer',
                         opacity: statusSaving ? 0.7 : 1,

@@ -68,7 +68,7 @@ export default function AddCoachDialog({ open, onClose }) {
   const ctaActive = isValid && !loading;
   const inputStyle = {
     width: '100%', padding: '12px 14px',
-    border: '1.5px solid #F0E4D0', borderRadius: 10,
+    border: '1.5px solid var(--ag-border)', borderRadius: 10,
     fontSize: 15, boxSizing: 'border-box',
     outline: 'none', background: 'white',
     fontFamily: 'inherit',
@@ -81,12 +81,12 @@ export default function AddCoachDialog({ open, onClose }) {
         style={{ borderRadius: 16, overflow: 'hidden' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 20 }} dir="rtl">
-          <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'right', color: '#1a1a1a' }}>
+          <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'right', color: 'var(--ag-text)' }}>
             הוספת מאמן חדש
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
               שם מלא *
             </label>
             <input
@@ -99,7 +99,7 @@ export default function AddCoachDialog({ open, onClose }) {
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
               אימייל *
             </label>
             <input
@@ -113,7 +113,7 @@ export default function AddCoachDialog({ open, onClose }) {
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
               סיסמא זמנית *
             </label>
             <input
@@ -130,7 +130,7 @@ export default function AddCoachDialog({ open, onClose }) {
           </div>
 
           <div>
-            <label style={{ fontSize: 13, color: '#888', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
               טלפון
             </label>
             <input
@@ -147,7 +147,7 @@ export default function AddCoachDialog({ open, onClose }) {
             disabled={!ctaActive}
             style={{
               width: '100%', padding: '14px',
-              background: ctaActive ? '#FF6F20' : '#F3F4F6',
+              background: ctaActive ? 'var(--ag-accent)' : '#F3F4F6',
               border: 'none', borderRadius: 12,
               color: ctaActive ? 'white' : '#9CA3AF',
               fontWeight: 700, fontSize: 16,

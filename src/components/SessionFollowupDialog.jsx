@@ -13,12 +13,12 @@ import { toast } from "sonner";
 //                    trainee:{ full_name } }
 
 const COLORS = {
-  primary: '#FF6F20',
-  success: '#16A34A',
+  primary: 'var(--ag-accent)',
+  success: 'var(--ag-success)',
   danger:  '#E24B4A',
-  warn:    '#EAB308',
-  border:  '#F0E4D0',
-  text:    '#1A1A1A',
+  warn:    'var(--ag-warning)',
+  border:  'var(--ag-border)',
+  text:    'var(--ag-text)',
   soft:    '#6B7280',
 };
 

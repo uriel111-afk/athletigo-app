@@ -21,8 +21,8 @@ import { base44 } from '@/api/base44Client';
 //   days   → allowed_days = chosen weekdays;  weekly_quota = null.
 //   quota  → allowed_days = null;             weekly_quota = number.
 
-const ORANGE = '#FF6F20';
-const BORDER = '#F0E4D0';
+const ORANGE = 'var(--ag-accent)';
+const BORDER = 'var(--ag-border)';
 
 const WEEK_DAYS = [
   { key: 'sun', label: 'ראשון' },
@@ -161,7 +161,7 @@ export default function MemberEligibilityDialog({ member, onClose }) {
                   fontSize: 18, fontWeight: 800, cursor: 'pointer',
                 }}
               >−</button>
-              <span style={{ minWidth: 40, textAlign: 'center', fontSize: 22, fontWeight: 800, color: '#1a1a1a' }}>
+              <span style={{ minWidth: 40, textAlign: 'center', fontSize: 22, fontWeight: 800, color: 'var(--ag-text)' }}>
                 {state.quota || 1}
               </span>
               <button
@@ -174,7 +174,7 @@ export default function MemberEligibilityDialog({ member, onClose }) {
                   fontSize: 18, fontWeight: 800, cursor: 'pointer',
                 }}
               >+</button>
-              <span style={{ fontSize: 13, color: '#888', marginRight: 8 }}>בשבוע</span>
+              <span style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginRight: 8 }}>בשבוע</span>
             </div>
           )}
           {state.model === 'none' && (

@@ -76,14 +76,14 @@ export default function TraineeOnboardingAlert({ notif, onClose }) {
           style={{
             position: 'absolute', top: 10, left: 10,
             background: 'none', border: 'none',
-            fontSize: 22, cursor: 'pointer', color: '#888',
+            fontSize: 22, cursor: 'pointer', color: 'var(--ag-text-soft)',
             padding: 4, lineHeight: 1,
           }}
         >✕</button>
 
         <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
 
-        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#1A1A1A', lineHeight: 1.4 }}>
+        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--ag-text)', lineHeight: 1.4 }}>
           {titleClean}
         </div>
 
@@ -103,7 +103,7 @@ export default function TraineeOnboardingAlert({ notif, onClose }) {
           onClick={handleViewProfile}
           style={{
             width: '100%', padding: 14, borderRadius: 14, border: 'none',
-            background: '#FF6F20', color: 'white', fontSize: 16,
+            background: 'var(--ag-accent)', color: 'white', fontSize: 16,
             fontWeight: 600, cursor: 'pointer', marginBottom: 8,
             fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
@@ -114,8 +114,8 @@ export default function TraineeOnboardingAlert({ notif, onClose }) {
           onClick={handleLater}
           style={{
             width: '100%', padding: 12, borderRadius: 12,
-            border: '1px solid #F0E4D0', background: 'white',
-            color: '#888', fontSize: 14, cursor: 'pointer',
+            border: '1px solid var(--ag-border)', background: 'white',
+            color: 'var(--ag-text-soft)', fontSize: 14, cursor: 'pointer',
             fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
           }}
         >אחר כך</button>

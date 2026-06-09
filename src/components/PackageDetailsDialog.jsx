@@ -104,9 +104,9 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
 
   const SectionToggle = ({ id, label, icon: Icon }) => (
     <button onClick={() => setSection(section === id ? null : id)}
-      className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${section === id ? "border-[#FF6F20] bg-[#FFF7ED]" : "border-gray-100 bg-gray-50 hover:bg-gray-100"}`}>
+      className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${section === id ? "border-[var(--ag-accent)] bg-[#FFF7ED]" : "border-gray-100 bg-gray-50 hover:bg-gray-100"}`}>
       <div className="flex items-center gap-2">
-        <Icon size={14} className="text-[#FF6F20]" />
+        <Icon size={14} className="text-[var(--ag-accent)]" />
         <span className="text-sm font-bold text-gray-800">{label}</span>
       </div>
       <ChevronDown size={14} className={`text-gray-400 transition-transform ${section === id ? "rotate-180" : ""}`} />
@@ -118,7 +118,7 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
       <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-white" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
-            <Package className="w-5 h-5 text-[#FF6F20]" />
+            <Package className="w-5 h-5 text-[var(--ag-accent)]" />
             {pkg.package_name || "חבילה"}
           </DialogTitle>
         </DialogHeader>
@@ -134,7 +134,7 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
         <div className="grid grid-cols-3 gap-2 mb-4">
           {pkg.package_type !== "group" && (
             <div className="bg-orange-50 rounded-xl p-3 text-center">
-              <div className="text-xl font-black text-[#FF6F20]">{remaining}</div>
+              <div className="text-xl font-black text-[var(--ag-accent)]">{remaining}</div>
               <div className="text-[9px] text-gray-500 font-bold">מפגשים נותרו</div>
             </div>
           )}
@@ -169,7 +169,7 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
                 <div key={s.id} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0 text-xs">
                   <span className="font-bold">{s.date} {s.time}</span>
                   <span className={s.status === "התקיים" ? "text-green-600" : "text-gray-400"}>{s.status}</span>
-                  <span className={s.was_deducted ? "text-[#FF6F20]" : "text-gray-300"}>{s.was_deducted ? "קוזז" : "—"}</span>
+                  <span className={s.was_deducted ? "text-[var(--ag-accent)]" : "text-gray-300"}>{s.was_deducted ? "קוזז" : "—"}</span>
                 </div>
               ))}
             </div>
@@ -215,12 +215,12 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
                         <Input type="date" value={paymentForm.due_date} onChange={e => setPaymentForm({ ...paymentForm, due_date: e.target.value })} className="h-8 text-xs rounded-lg" />
                       </div>
                       <div className="flex gap-2">
-                        <Button onClick={handleAddPayment} size="sm" className="flex-1 h-8 bg-[#FF6F20] hover:bg-[#e65b12] text-white text-xs rounded-lg">שמור</Button>
+                        <Button onClick={handleAddPayment} size="sm" className="flex-1 h-8 bg-[var(--ag-accent)] hover:bg-[#e65b12] text-white text-xs rounded-lg">שמור</Button>
                         <Button onClick={() => setShowPaymentForm(false)} size="sm" variant="outline" className="h-8 text-xs rounded-lg">ביטול</Button>
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setShowPaymentForm(true)} className="w-full mt-2 text-xs text-[#FF6F20] font-bold flex items-center justify-center gap-1 py-1 hover:bg-orange-50 rounded-lg">
+                    <button onClick={() => setShowPaymentForm(true)} className="w-full mt-2 text-xs text-[var(--ag-accent)] font-bold flex items-center justify-center gap-1 py-1 hover:bg-orange-50 rounded-lg">
                       <Plus size={12} /> הוסף תשלום
                     </button>
                   )}
