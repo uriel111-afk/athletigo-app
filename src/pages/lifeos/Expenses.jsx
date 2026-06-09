@@ -332,6 +332,24 @@ export default function Expenses() {
         </div>
       )}
 
+      {/* Quick link to the dedicated finance dashboard — keeps Expenses
+          focused on the list while the dashboard handles streams + chart. */}
+      <button
+        onClick={() => navigate('/lifeos/finance-dashboard')}
+        style={{
+          width: '100%', padding: '10px 14px', borderRadius: 12,
+          border: `1px solid ${LIFEOS_COLORS.border}`,
+          backgroundColor: '#FFFFFF',
+          color: LIFEOS_COLORS.textPrimary,
+          fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontFamily: 'inherit',
+        }}
+      >
+        <span>📊 דשבורד פיננסי</span>
+        <span style={{ color: LIFEOS_COLORS.textSecondary }}>‹</span>
+      </button>
+
       <button
         onClick={openNew}
         style={{

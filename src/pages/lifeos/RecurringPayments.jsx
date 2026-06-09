@@ -7,22 +7,11 @@ import {
   LIFEOS_COLORS, LIFEOS_CARD,
   EXPENSE_CATEGORY_BY_KEY, RECURRING_FREQUENCIES,
 } from '@/lib/lifeos/lifeos-constants';
-import { listRecurring, updateRecurring, deleteRecurring } from '@/lib/lifeos/lifeos-api';
+import { listRecurring, updateRecurring, deleteRecurring, toMonthly } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 const FREQ_BY_KEY = Object.fromEntries(RECURRING_FREQUENCIES.map(f => [f.key, f]));
-
-// Normalize payment amount to a monthly figure so the total makes sense.
-const toMonthly = (amount, frequency) => {
-  const a = Number(amount || 0);
-  switch (frequency) {
-    case 'weekly':    return a * 4.33;
-    case 'quarterly': return a / 3;
-    case 'yearly':    return a / 12;
-    default:          return a; // monthly
-  }
-};
 
 export default function RecurringPayments() {
   const { user } = useContext(AuthContext);

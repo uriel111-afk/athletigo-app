@@ -6,7 +6,7 @@ import {
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
-import { listExpenses, listIncome, listRecurring } from '@/lib/lifeos/lifeos-api';
+import { listExpenses, listIncome, listRecurring, toMonthly } from '@/lib/lifeos/lifeos-api';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -41,17 +41,6 @@ const buildForecastWindow = (n) => {
     out.push({ key: monthKey(d), label: monthLabel(d), date: d });
   }
   return out;
-};
-
-// Convert any recurring payment amount to monthly.
-const toMonthly = (amount, frequency) => {
-  const a = Number(amount || 0);
-  switch (frequency) {
-    case 'weekly':    return a * 4.33;
-    case 'quarterly': return a / 3;
-    case 'yearly':    return a / 12;
-    default:          return a;
-  }
 };
 
 export default function CashFlow() {

@@ -33,6 +33,19 @@ const monthRange = (dateLike) => {
   };
 };
 
+// Normalize a recurring amount of any frequency to a monthly figure
+// so totals across frequencies are comparable. Used by CashFlow,
+// RecurringPayments, and any future cashflow forecast.
+export const toMonthly = (amount, frequency) => {
+  const a = Number(amount || 0);
+  switch (frequency) {
+    case 'weekly':    return a * 4.33;
+    case 'quarterly': return a / 3;
+    case 'yearly':    return a / 12;
+    default:          return a; // monthly (or unspecified)
+  }
+};
+
 // ─── Expenses ────────────────────────────────────────────────────
 
 export async function listExpenses(userId, { from, to, category } = {}) {
