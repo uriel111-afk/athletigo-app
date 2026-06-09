@@ -6193,13 +6193,23 @@ export default function TraineeProfile() {
                       // FK chain go first so foreign-key constraints can't
                       // block the next layer. The final `users` delete
                       // only runs after every prior step succeeded.
+                      //
+                      // Multi-participant sessions: this app stores
+                      // additional participants on the JSONB column
+                      // `sessions.participants`. There's no separate
+                      // session_participants table in this Supabase
+                      // project (an earlier draft of the delete listed
+                      // it and crashed on the schema-cache error). The
+                      // primary-trainee rows are wiped by the `sessions`
+                      // delete; cross-trainee orphan references inside
+                      // other coaches' JSONB rows are best-effort
+                      // scrubbed afterwards.
                       const steps = [
-                        ['exercise_set_logs',        (q) => q.eq('trainee_id', tid)],
+                        ['exercise_set_logs',         (q) => q.eq('trainee_id', tid)],
                         ['exercise_executions',      (q) => q.eq('trainee_id', tid)],
                         ['section_executions',       (q) => q.eq('trainee_id', tid)],
                         ['workout_executions',       (q) => q.eq('trainee_id', tid)],
                         ['attendance_log',           (q) => q.eq('trainee_id', tid)],
-                        ['session_participants',     (q) => q.eq('trainee_id', tid)],
                         ['sessions',                 (q) => q.eq('trainee_id', tid)],
                         ['client_services',          (q) => q.eq('trainee_id', tid)],
                         ['training_group_members',   (q) => q.eq('trainee_id', tid)],
@@ -6217,37 +6227,118 @@ export default function TraineeProfile() {
                         ['notifications',            (q) => q.eq('trainee_id', tid)],
                         ['notifications',            (q) => q.eq('user_id', tid)],
                       ];
-                      try {
-                        for (const [table, scope] of steps) {
-                          try {
-                            console.log(`[HardDelete] deleting from ${table}…`);
-                            const { error } = await scope(supabase.from(table).delete());
-                            if (error) {
-                              // 42P01 = relation does not exist — skip
-                              // tables that aren't in this DB without
-                              // aborting the chain.
-                              const code = error?.code || '';
-                              const msg  = error?.message || '';
-                              if (code === '42P01' || /does not exist|not found/i.test(msg)) {
-                                console.warn(`[HardDelete] table ${table} missing, skipping.`);
-                                continue;
-                              }
-                              throw new Error(`${table}: ${msg || code || 'unknown'}`);
+                      // Matches Supabase's "missing relation" surface in
+                      // every form we've seen: PostgREST schema-cache
+                      // message, raw Postgres "does not exist", and the
+                      // older "not found" wording. Any of these → skip.
+                      const isMissingTableError = (error) => {
+                        const code = error?.code || '';
+                        const msg  = (error?.message || '').toLowerCase();
+                        if (code === '42P01' || code === 'PGRST205') return true;
+                        return /could not find the table|schema cache|does not exist|not found|relation .* does not exist/i.test(msg);
+                      };
+
+                      const skipped = [];
+                      const failures = [];
+                      for (const [table, scope] of steps) {
+                        try {
+                          console.log(`[HardDelete] → ${table}`);
+                          const { error, count } = await scope(
+                            supabase.from(table).delete({ count: 'exact' })
+                          );
+                          if (error) {
+                            if (isMissingTableError(error)) {
+                              console.warn(`[HardDelete] ${table} — missing, skipping (${error.message || error.code})`);
+                              skipped.push(table);
+                            } else {
+                              console.error(`[HardDelete] ${table} FAILED:`, error);
+                              failures.push({ table, message: error.message || error.code || 'unknown' });
                             }
-                            console.log(`[HardDelete] ✓ ${table}`);
-                          } catch (innerErr) {
-                            throw new Error(`(${table}) ${innerErr?.message || innerErr}`);
+                            continue;
+                          }
+                          console.log(`[HardDelete] ✓ ${table} (rows deleted: ${count ?? '?'})`);
+                        } catch (thrown) {
+                          // Network / unexpected throw — also classify
+                          // as a hard failure so we surface it instead
+                          // of silently moving on.
+                          if (isMissingTableError(thrown)) {
+                            console.warn(`[HardDelete] ${table} — missing (thrown), skipping`);
+                            skipped.push(table);
+                          } else {
+                            console.error(`[HardDelete] ${table} threw:`, thrown);
+                            failures.push({ table, message: thrown?.message || String(thrown) });
                           }
                         }
-                        // Final users row — anything still FK-pointing
-                        // at it will surface as an error here, which is
-                        // intentional: better a loud failure than a
-                        // silent partial cleanup.
-                        console.log('[HardDelete] deleting users row…');
-                        const { error: userErr } = await supabase.from('users').delete().eq('id', tid);
-                        if (userErr) throw new Error(`users: ${userErr.message || userErr.code || 'unknown'}`);
-                        console.log('[HardDelete] ✓ users');
+                      }
 
+                      // Best-effort scrub: when this trainee appears
+                      // inside another coach's session.participants
+                      // JSONB array, strip them so leftover references
+                      // don't render as ghost participants. Skipped
+                      // silently if the contains query isn't supported
+                      // — primary-trainee sessions are already gone.
+                      try {
+                        console.log('[HardDelete] → sessions.participants (JSONB scrub)');
+                        const { data: orphanSessions, error: scrubFindErr } = await supabase
+                          .from('sessions')
+                          .select('id, participants')
+                          .contains('participants', [{ trainee_id: tid }]);
+                        if (scrubFindErr) {
+                          console.warn('[HardDelete] participants scrub query skipped:', scrubFindErr.message);
+                        } else if (Array.isArray(orphanSessions) && orphanSessions.length > 0) {
+                          for (const row of orphanSessions) {
+                            if (!Array.isArray(row?.participants)) continue;
+                            const cleaned = row.participants.filter(
+                              (p) => p && p.trainee_id !== tid
+                            );
+                            const { error: upErr } = await supabase
+                              .from('sessions')
+                              .update({ participants: cleaned })
+                              .eq('id', row.id);
+                            if (upErr) console.warn('[HardDelete] participants scrub update failed for', row.id, upErr.message);
+                          }
+                          console.log(`[HardDelete] ✓ JSONB scrub touched ${orphanSessions.length} session(s)`);
+                        } else {
+                          console.log('[HardDelete] ✓ JSONB scrub — no orphan participants');
+                        }
+                      } catch (scrubErr) {
+                        console.warn('[HardDelete] participants scrub threw:', scrubErr?.message || scrubErr);
+                      }
+
+                      // Only delete the users row when every child
+                      // table that DOES exist was cleaned successfully.
+                      // Missing-table skips don't block the final
+                      // delete — those are just tables this DB doesn't
+                      // ship with.
+                      if (failures.length > 0) {
+                        console.error('[HardDelete] not deleting users row — hard failures occurred:', failures);
+                        const lines = failures.map((f) => `• ${f.table}: ${f.message}`).join('\n');
+                        alert(
+                          `המחיקה לא הושלמה — נכשלו ${failures.length} טבלאות:\n\n${lines}\n\n`
+                          + 'המשתמש עדיין קיים. תקן את הבעיה (לרוב RLS) ונסה שוב.'
+                        );
+                        setRemovingUser(false);
+                        return;
+                      }
+
+                      try {
+                        console.log('[HardDelete] → users');
+                        const { error: userErr, count: userCount } = await supabase
+                          .from('users')
+                          .delete({ count: 'exact' })
+                          .eq('id', tid);
+                        if (userErr) {
+                          console.error('[HardDelete] users FAILED:', userErr);
+                          alert(`המחיקה הסופית של המשתמש נכשלה:\n\n${userErr.message || userErr.code}\n\n`
+                            + 'הילדים נוקו, אבל שורת ה-users עדיין קיימת. נסה שוב או פנה לתמיכה.');
+                          setRemovingUser(false);
+                          return;
+                        }
+                        console.log(`[HardDelete] ✓ users (rows deleted: ${userCount ?? '?'})`);
+
+                        if (skipped.length > 0) {
+                          console.log('[HardDelete] tables skipped as missing:', skipped);
+                        }
                         toast.success(`${user.full_name} נמחק לצמיתות`);
                         setShowRemoveUser(false);
                         setRemoveStage('choose');
@@ -6256,13 +6347,9 @@ export default function TraineeProfile() {
                         queryClient.invalidateQueries({ queryKey: ['user-profile', tid] });
                         invalidateDashboard(queryClient);
                         navigate('/');
-                      } catch (err) {
-                        console.error('[HardDelete] aborted:', err);
-                        // Halt at first failure — caller sees exactly
-                        // which table refused so they can fix RLS or
-                        // clean up manually. Do NOT continue to the
-                        // users row.
-                        alert(`המחיקה נכשלה ולא הושלמה.\n\n${err?.message || err}\n\nהמשתמש עדיין קיים בחלק מהטבלאות — פנה לתמיכה לפני שתנסה שוב.`);
+                      } catch (finalErr) {
+                        console.error('[HardDelete] final step threw:', finalErr);
+                        alert(`שגיאה לא צפויה במחיקת המשתמש:\n\n${finalErr?.message || finalErr}`);
                       } finally {
                         setRemovingUser(false);
                       }
