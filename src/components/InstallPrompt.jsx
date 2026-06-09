@@ -56,22 +56,19 @@ export default function InstallPrompt() {
       boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
     }}>
       {/* AthletiGo triangle mark, recoloured white for the black bar.
-          /logo-transparent.png is the triangle-only asset (no wordmark)
-          on a transparent background; brightness(0) flattens it to
-          black, invert(1) flips that to white. Wrapper is position:
-          relative so the small white ® can peek just outside the
-          triangle's TOP-right corner (top: 0, negative right offset)
-          onto the black bar, where white-on-black is visible — placing
-          it inside the 44×44 box would land it on white-rendered pixels
-          and disappear. The ® extends a few px past the wrapper's right
-          edge; the container's 40-px right gutter absorbs the overhang
-          so nothing rides on the rounded corner. */}
+          /logo-r-transparent.png is the brand "Icon R" — triangle plus
+          the baked-in ® registered mark, with the source's solid black
+          background removed (any pixel where R<40 AND G<40 AND B<40
+          made fully transparent, then trimmed to 251×186) so the white
+          glyph sits cleanly on the bar's #1a1a1a background. The
+          brightness(0)+invert(1) filter is kept so the image renders
+          pure white in case the source ever drifts off true white. */}
       <div style={{
         position: 'relative', display: 'inline-block', flexShrink: 0,
         width: 44, height: 44,
       }}>
         <img
-          src="/logo-transparent.png"
+          src="/logo-r-transparent.png"
           alt=""
           style={{
             width: 44, height: 44,
@@ -80,25 +77,6 @@ export default function InstallPrompt() {
             display: 'block',
           }}
         />
-        {/* ® content uses the U+FE0E text-variation selector so the
-            platform renders the plain text glyph instead of the
-            color-emoji font (Noto Color Emoji draws ® as a red circle
-            on Android, which was overriding the inline white color).
-            WebkitTextFillColor + explicit filter:'none' belt-and-
-            suspenders any cascaded text-fill or filter that would
-            otherwise tint the glyph. */}
-        <span style={{
-          position: 'absolute',
-          top: 0,
-          right: -3,
-          fontSize: 12,
-          lineHeight: 1,
-          color: '#FFFFFF',
-          WebkitTextFillColor: '#FFFFFF',
-          filter: 'none',
-          fontWeight: 700,
-          zIndex: 2,
-        }}>{'®︎'}</span>
       </div>
       {/* marginInlineStart under direction:'rtl' adds margin on the
           PHYSICAL RIGHT side of the text block — i.e. between the text
