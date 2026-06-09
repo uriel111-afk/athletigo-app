@@ -189,6 +189,38 @@ button:focus-visible {
     --ag-radius-tab:      var(--r-pill);
     --ag-radius-icon-btn: var(--r-sm);
     --ag-radius-bar:      4px;
+
+    /* ── Phase 0 — Lumen canonical semantic alias layer ─────────────
+       Single source of truth used by every later migration phase.
+       Every alias either points at an existing token (when one already
+       carried the same value under a different name — never renamed,
+       see LUMEN_TOKENS.md) or hard-codes a Lumen-defined value when no
+       prior token matched. Adding aliases does not change rendering;
+       no component reads these names yet. */
+    --ag-card-bg:        var(--card);
+    --ag-card-radius:    14px;
+    --ag-card-shadow:    var(--shadow-out);
+    --ag-accent:         var(--orange);
+    --ag-accent-bg:      var(--orange-soft);
+    --ag-text:           var(--ink);
+    --ag-text-soft:      #888888;
+    --ag-border:         var(--border);
+    --ag-chip-border:    #E8E0D8;
+    --ag-success:        var(--green);
+    --ag-error:          var(--red);
+    --ag-warning:        var(--amber);
+    --ag-purple:         var(--purple);
+    --ag-blue:           var(--blue);
+
+    /* Method colors — consumed by ExerciseCard in a later phase to
+       tint set-method badges. Kept as named aliases so the design
+       can swap any single method without touching the call sites. */
+    --ag-method-basic:     var(--orange);
+    --ag-method-superset:  var(--purple);
+    --ag-method-combo:     var(--amber);
+    --ag-method-circuit:   var(--blue);
+    --ag-method-tabata:    var(--red);
+    --ag-method-restpause: var(--burgundy);
   }
 
   * {
