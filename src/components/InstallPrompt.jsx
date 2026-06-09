@@ -41,16 +41,15 @@ export default function InstallPrompt() {
     <div style={{
       position: 'fixed', bottom: 80, left: 16, right: 16,
       background: '#1a1a1a', borderRadius: 16,
-      // Explicit logical-axis padding. Under direction:'rtl',
-      // paddingInlineStart maps to physical padding-right (the side
-      // where the icon sits) and paddingInlineEnd maps to padding-left
-      // (the side where the ✕ sits). Start = 40 keeps both the
-      // triangle and its ® comfortably clear of the 16-px corner
-      // curve at every viewport width.
-      paddingBlock: 16,
-      paddingInlineStart: 40,
-      paddingInlineEnd: 16,
-      display: 'flex', alignItems: 'center', gap: 12,
+      // Asymmetric logical padding under direction:'rtl':
+      //   Start (right side, where the logo sits) — 32 px, comfortably
+      //     past the 16-px corner curve so the ® has room to hang.
+      //   End (left side, where the ✕ sits) — 8 px so the close button
+      //     hugs the edge and frees inner width for the title.
+      paddingBlock: 14,
+      paddingInlineStart: 32,
+      paddingInlineEnd: 8,
+      display: 'flex', alignItems: 'center', gap: 10,
       zIndex: 9999, direction: 'rtl',
       boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
     }}>
@@ -59,17 +58,15 @@ export default function InstallPrompt() {
           on a transparent background; brightness(0) flattens it to
           black, invert(1) flips that to white. Wrapper is position:
           relative so the small white ® can hang just outside the
-          triangle's bottom-right corner (negative bottom/right offsets)
-          onto the black bar, where white-on-black is visible — placing
-          it inside the 44×44 box would land it on white-rendered
-          pixels and disappear. */}
-      {/* Wrapper widened to 56×44 so the absolutely-positioned ® lives
-          INSIDE the box instead of hanging outside it. With the box
-          fully inside the banner's 40-px right gutter, the mark can
-          never sit on the rounded corner curve. */}
+          triangle's bottom-right corner (negative right offset) onto
+          the black bar, where white-on-black is visible — placing it
+          inside the 44×44 box would land it on white-rendered pixels
+          and disappear. The ® extends 8 px past the wrapper's right
+          edge; the container's 32-px right gutter absorbs the overhang
+          so nothing rides on the rounded corner. */}
       <div style={{
         position: 'relative', display: 'inline-block', flexShrink: 0,
-        width: 56, height: 44,
+        width: 44, height: 44,
       }}>
         <img
           src="/logo-transparent.png"
@@ -87,13 +84,11 @@ export default function InstallPrompt() {
             on Android, which was overriding the inline white color).
             WebkitTextFillColor + explicit filter:'none' belt-and-
             suspenders any cascaded text-fill or filter that would
-            otherwise tint the glyph. right: 0 keeps the mark inside
-            the widened wrapper so it can't be clipped by the banner
-            edge or its 16-px border-radius corner. */}
+            otherwise tint the glyph. */}
         <span style={{
           position: 'absolute',
-          bottom: 10,
-          right: 0,
+          bottom: 8,
+          right: -8,
           fontSize: 9,
           lineHeight: 1,
           color: '#ffffff',
@@ -104,21 +99,30 @@ export default function InstallPrompt() {
         }}>{'®︎'}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>התקן את AthletiGo</div>
-        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 600, color: 'white',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>התקן את AthletiGo</div>
+        <div style={{
+          fontSize: 11, color: '#aaa', marginTop: 2,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
           {isManual ? 'לחץ על ⎙ ואז "הוסף למסך הבית"' : 'גישה מהירה מהמסך הראשי'}
         </div>
       </div>
       {!isManual && (
         <button onClick={handleInstall} style={{
           background: '#FF6F20', color: 'white', border: 'none',
-          borderRadius: 10, padding: '8px 16px', fontSize: 13,
+          borderRadius: 10, padding: '8px 14px', fontSize: 13,
           fontWeight: 600, cursor: 'pointer', flexShrink: 0,
         }}>התקן</button>
       )}
       <button onClick={handleDismiss} style={{
         background: 'none', border: 'none', color: '#666',
-        fontSize: 18, cursor: 'pointer', padding: 4, flexShrink: 0,
+        fontSize: 18, cursor: 'pointer', padding: 2, flexShrink: 0,
+        marginInlineEnd: -2,
       }}>✕</button>
     </div>
   );
