@@ -44,11 +44,11 @@ export default function InstallPrompt() {
       // Explicit logical-axis padding. Under direction:'rtl',
       // paddingInlineStart maps to physical padding-right (the side
       // where the icon sits) and paddingInlineEnd maps to padding-left
-      // (the side where the ✕ sits). Setting Start = 28 puts a 28-px
-      // right-side gutter that comfortably exceeds the 16-px corner
-      // radius, so the rounded corner no longer overlaps the ®.
+      // (the side where the ✕ sits). Start = 40 keeps both the
+      // triangle and its ® comfortably clear of the 16-px corner
+      // curve at every viewport width.
       paddingBlock: 16,
-      paddingInlineStart: 28,
+      paddingInlineStart: 40,
       paddingInlineEnd: 16,
       display: 'flex', alignItems: 'center', gap: 12,
       zIndex: 9999, direction: 'rtl',
@@ -63,7 +63,14 @@ export default function InstallPrompt() {
           onto the black bar, where white-on-black is visible — placing
           it inside the 44×44 box would land it on white-rendered
           pixels and disappear. */}
-      <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
+      {/* Wrapper widened to 56×44 so the absolutely-positioned ® lives
+          INSIDE the box instead of hanging outside it. With the box
+          fully inside the banner's 40-px right gutter, the mark can
+          never sit on the rounded corner curve. */}
+      <div style={{
+        position: 'relative', display: 'inline-block', flexShrink: 0,
+        width: 56, height: 44,
+      }}>
         <img
           src="/logo-transparent.png"
           alt=""
@@ -80,11 +87,13 @@ export default function InstallPrompt() {
             on Android, which was overriding the inline white color).
             WebkitTextFillColor + explicit filter:'none' belt-and-
             suspenders any cascaded text-fill or filter that would
-            otherwise tint the glyph. */}
+            otherwise tint the glyph. right: 0 keeps the mark inside
+            the widened wrapper so it can't be clipped by the banner
+            edge or its 16-px border-radius corner. */}
         <span style={{
           position: 'absolute',
           bottom: 10,
-          right: -2,
+          right: 0,
           fontSize: 9,
           lineHeight: 1,
           color: '#ffffff',
